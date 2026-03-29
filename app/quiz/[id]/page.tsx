@@ -7,7 +7,6 @@ import { calculateStreak } from '@/lib/ranking'
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
 
-// Generer en anonym ID for denne enheten (lagres i localStorage)
 function getDeviceId(): string {
   if (typeof window === 'undefined') return ''
   let id = localStorage.getItem('qk_device_id')
@@ -17,6 +16,454 @@ function getDeviceId(): string {
   }
   return id
 }
+
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1a1c23;
+    --card:    #21242e;
+    --border:  #2a2d38;
+    --gold:    #c9a84c;
+    --white:   #ffffff;
+    --body:    #9a9590;
+    --muted:   #6a6860;
+    --green:   #4caf7d;
+    --red:     #c94c4c;
+    --rcard:   20px;
+    --rbtn:    10px;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Instrument Sans', sans-serif;
+    color: var(--body);
+    min-height: 100vh;
+  }
+
+  .qk-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+  }
+
+  .qk-box { width: 100%; max-width: 480px; }
+
+  .qk-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--rcard);
+    padding: 36px 32px;
+  }
+
+  @media (max-width: 480px) {
+    .qk-panel { padding: 28px 22px; }
+  }
+
+  .qk-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+
+  .qk-heading {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+  }
+
+  .qk-sub {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 28px;
+  }
+
+  .qk-divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  .qk-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .qk-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--rbtn);
+    padding: 13px 16px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    color: var(--white);
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 20px;
+  }
+
+  .qk-input::placeholder { color: var(--muted); }
+  .qk-input:focus { border-color: rgba(201,168,76,0.5); }
+
+  .qk-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    cursor: pointer;
+  }
+
+  .qk-toggle {
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background: var(--border);
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .qk-toggle.on { background: var(--gold); }
+
+  .qk-toggle-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--white);
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.2s;
+  }
+
+  .qk-toggle.on .qk-toggle-thumb { transform: translateX(20px); }
+  .qk-toggle-label { font-size: 14px; color: var(--body); }
+
+  .qk-sizes { display: flex; gap: 8px; margin-bottom: 20px; }
+
+  .qk-size-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: var(--rbtn);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--bg);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .qk-size-btn.active {
+    background: rgba(201,168,76,0.12);
+    color: var(--gold);
+    border-color: rgba(201,168,76,0.35);
+  }
+
+  .qk-check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    margin-bottom: 24px;
+  }
+
+  .qk-check-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    background: var(--bg);
+  }
+
+  .qk-check-box.checked { background: var(--gold); border-color: var(--gold); }
+  .qk-check-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .qk-check-text a { color: var(--gold); text-decoration: underline; }
+
+  .qk-btn-primary {
+    width: 100%;
+    background: var(--gold);
+    color: #0f0f10;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 14px;
+    border-radius: var(--rbtn);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.12s, opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  .qk-btn-primary:hover:not(:disabled) { background: #d9b85c; transform: translateY(-1px); }
+  .qk-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+  .qk-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .qk-btn-secondary {
+    width: 100%;
+    background: transparent;
+    color: var(--body);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px;
+    border-radius: var(--rbtn);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    display: block;
+    text-align: center;
+  }
+
+  .qk-btn-secondary:hover { border-color: rgba(201,168,76,0.3); color: var(--white); }
+
+  .qk-btn-ghost {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 10px 0;
+    transition: color 0.15s;
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 100%;
+  }
+
+  .qk-btn-ghost:hover { color: var(--gold); }
+
+  .qk-banner {
+    background: rgba(201,168,76,0.08);
+    border: 1px solid rgba(201,168,76,0.2);
+    border-radius: var(--rbtn);
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--gold);
+    line-height: 1.5;
+  }
+
+  .qk-hint {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+
+  /* PLAYING */
+  .qk-play-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .qk-play-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-top: 8px;
+  }
+
+  .qk-progress-text {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .qk-timer {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    transition: color 0.3s;
+    min-width: 52px;
+    text-align: right;
+  }
+
+  .qk-timer.urgent { color: var(--red); }
+
+  .qk-timer-bar-wrap {
+    background: var(--border);
+    border-radius: 4px;
+    height: 3px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .qk-timer-bar { height: 3px; border-radius: 4px; transition: width 1s linear, background-color 0.5s; }
+
+  .qk-score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .qk-score-pill {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    background: rgba(76,175,125,0.1);
+    border: 1px solid rgba(76,175,125,0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .qk-rank-pill {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gold);
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .qk-question-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--rcard);
+    padding: 28px 24px;
+    margin-bottom: 14px;
+  }
+
+  .qk-question-text {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 19px;
+    font-weight: 400;
+    color: var(--white);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 400px) { .qk-question-text { font-size: 17px; } }
+
+  .qk-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+
+  .qk-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--rcard);
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    text-align: left;
+    width: 100%;
+  }
+
+  .qk-option:hover:not(:disabled) { border-color: rgba(201,168,76,0.4); transform: translateX(3px); }
+  .qk-option:disabled { cursor: default; }
+  .qk-option.correct { background: rgba(76,175,125,0.1); border-color: var(--green); }
+  .qk-option.wrong { background: rgba(201,76,76,0.1); border-color: var(--red); opacity: 0.7; }
+  .qk-option.idle { opacity: 0.4; }
+
+  .qk-opt-letter {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .qk-option.correct .qk-opt-letter { background: var(--green); border-color: var(--green); color: #fff; }
+  .qk-option.wrong .qk-opt-letter { background: var(--red); border-color: var(--red); color: #fff; }
+
+  .qk-opt-text { font-size: 14px; font-weight: 500; color: var(--white); line-height: 1.4; }
+
+  .qk-explanation {
+    background: rgba(201,168,76,0.06);
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: var(--rbtn);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--body);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+
+  /* RESULT */
+  .qk-result-icon { font-size: 52px; margin-bottom: 16px; display: block; text-align: center; }
+
+  .qk-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+
+  .qk-stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--rbtn);
+    padding: 16px 14px;
+    text-align: center;
+  }
+
+  .qk-stat-value {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1;
+    margin-bottom: 5px;
+  }
+
+  .qk-stat-value.gold { color: var(--gold); }
+  .qk-stat-value.green { color: var(--green); }
+  .qk-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+
+  /* LOADING */
+  .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .qk-loading-dot {
+    width: 6px; height: 6px; background: var(--gold); border-radius: 50%;
+    animation: qkpulse 1.2s ease-in-out infinite; margin: 0 3px; display: inline-block;
+  }
+  .qk-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .qk-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes qkpulse {
+    0%, 100% { opacity: 0.2; transform: scale(0.8); }
+    50%       { opacity: 1;   transform: scale(1.2); }
+  }
+`
 
 export default function QuizPage() {
   const params = useParams()
@@ -45,31 +492,15 @@ export default function QuizPage() {
   useEffect(() => {
     async function fetchData() {
       const { data: quizData } = await supabase.from('quizzes').select('*').eq('id', quizId).single()
-
-      // Sjekk om enheten allerede har spilt
       const deviceId = getDeviceId()
       const { data: played } = await supabase
-        .from('played_log')
-        .select('id')
-        .eq('quiz_id', quizId)
-        .eq('identifier', deviceId)
-        .single()
+        .from('played_log').select('id')
+        .eq('quiz_id', quizId).eq('identifier', deviceId).single()
 
-      if (played) {
-        setPhase('already_played')
-        setQuiz(quizData)
-        setLoading(false)
-        return
-      }
+      if (played) { setPhase('already_played'); setQuiz(quizData); setLoading(false); return }
 
-      // Sjekk om det finnes delvis fullført quiz i localStorage
       const savedProgress = localStorage.getItem(`qk_progress_${quizId}`)
-      if (savedProgress) {
-        try {
-          const parsed = JSON.parse(savedProgress)
-          setResumeData(parsed)
-        } catch {}
-      }
+      if (savedProgress) { try { setResumeData(JSON.parse(savedProgress)) } catch {} }
 
       let qData: Question[] = []
       if (quizData?.randomize_questions) {
@@ -80,25 +511,18 @@ export default function QuizPage() {
         qData = data || []
       }
 
-      setQuiz(quizData)
-      setQuestions(qData)
-      setLoading(false)
+      setQuiz(quizData); setQuestions(qData); setLoading(false)
     }
     fetchData()
   }, [quizId])
 
-  const getTimeLimit = useCallback((question: Question) => {
-    return question.time_limit_seconds || quiz?.time_limit_seconds || 30
-  }, [quiz])
+  const getTimeLimit = useCallback((question: Question) =>
+    question.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
 
-  // Lagre fremgang til localStorage (for gjenopptak ved internett-brudd)
   const saveProgress = useCallback((index: number, currentAnswers: AnswerRecord[], time: number) => {
-    localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({
-      index, answers: currentAnswers, totalTime: time
-    }))
+    localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({ index, answers: currentAnswers, totalTime: time }))
   }, [quizId])
 
-  // Timer
   useEffect(() => {
     if (phase !== 'playing' || answered || questions.length === 0) return
     if (timeLeft <= 0) { handleTimeout(); return }
@@ -111,10 +535,8 @@ export default function QuizPage() {
     const timeMs = getTimeLimit(question) * 1000
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: null, isCorrect: false, timeMs }
     const newAnswers = [...answers, record]
-    setAnswers(newAnswers)
-    setTotalTimeMs(prev => prev + timeMs)
-    setAnswered(true)
-    saveProgress(currentIndex, newAnswers, totalTimeMs + timeMs)
+    setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
+    setAnswered(true); saveProgress(currentIndex, newAnswers, totalTimeMs + timeMs)
   }, [questions, currentIndex, getTimeLimit, answers, totalTimeMs, saveProgress])
 
   const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
@@ -135,24 +557,19 @@ export default function QuizPage() {
 
     const { data } = await supabase.from('attempts').insert({
       quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
-      team_size: info.teamSize, total_questions: questions.length,
-      correct_answers: 0, total_time_ms: 0
+      team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0
     }).select().single()
 
     setAttemptId(data?.id || null)
 
-    // Gjenoppta hvis det finnes lagret fremgang
     if (resumeData) {
-      setCurrentIndex(resumeData.index)
-      setAnswers(resumeData.answers)
-      setTotalTimeMs(resumeData.totalTime)
-      setTimeLeft(getTimeLimit(questions[resumeData.index]))
+      setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
+      setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(questions[resumeData.index]))
     } else {
       setTimeLeft(getTimeLimit(questions[0]))
     }
 
-    setQuestionStartTime(Date.now())
-    setPhase('playing')
+    setQuestionStartTime(Date.now()); setPhase('playing')
   }
 
   const handleAnswer = async (answer: string) => {
@@ -163,28 +580,21 @@ export default function QuizPage() {
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: answer, isCorrect, timeMs }
     const newAnswers = [...answers, record]
     const newTime = totalTimeMs + timeMs
-    setAnswers(newAnswers)
-    setTotalTimeMs(newTime)
-    setSelectedAnswer(answer)
-    setAnswered(true)
+    setAnswers(newAnswers); setTotalTimeMs(newTime)
+    setSelectedAnswer(answer); setAnswered(true)
     saveProgress(currentIndex, newAnswers, newTime)
     if (quiz?.show_live_placement) {
-      const correct = newAnswers.filter(a => a.isCorrect).length
-      await fetchLiveRank(correct, newTime)
+      await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
     }
   }
 
   const goToNext = async () => {
-    const isLast = currentIndex === questions.length - 1
-    if (isLast) {
+    if (currentIndex === questions.length - 1) {
       await finishQuiz()
     } else {
       const nextIndex = currentIndex + 1
-      setCurrentIndex(nextIndex)
-      setAnswered(false)
-      setSelectedAnswer(null)
-      setTimeLeft(getTimeLimit(questions[nextIndex]))
-      setQuestionStartTime(Date.now())
+      setCurrentIndex(nextIndex); setAnswered(false); setSelectedAnswer(null)
+      setTimeLeft(getTimeLimit(questions[nextIndex])); setQuestionStartTime(Date.now())
     }
   }
 
@@ -194,26 +604,16 @@ export default function QuizPage() {
     const deviceId = getDeviceId()
 
     if (attemptId) {
-      await supabase.from('attempts').update({
-        correct_answers: correct,
-        total_time_ms: totalTimeMs,
-        correct_streak: streak
-      }).eq('id', attemptId)
-
+      await supabase.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
       for (const ans of answers) {
         await supabase.from('attempt_answers').insert({
           attempt_id: attemptId, question_id: ans.questionId,
           selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs
         })
       }
-
-      // Marker som spilt — hindrer dobbeltspilling
-      await supabase.from('played_log').insert({
-        quiz_id: quizId, identifier: deviceId
-      })
+      await supabase.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
     }
 
-    // Slett lagret fremgang
     localStorage.removeItem(`qk_progress_${quizId}`)
     setPhase('finished')
   }
@@ -223,133 +623,101 @@ export default function QuizPage() {
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
   }
 
-  const optionKeys: Record<string, keyof Question> = {
-    A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d'
-  }
-
-  const optionColor = (opt: string) => {
-    if (!answered) return 'bg-white/10 hover:bg-white/20 active:bg-white/30 border-white/20 cursor-pointer'
-    const question = questions[currentIndex]
-    if (opt === question?.correct_answer) return 'bg-green-500/80 border-green-400'
-    if (opt === selectedAnswer) return 'bg-red-500/80 border-red-400'
-    return 'bg-white/5 border-white/10 opacity-50'
-  }
+  const optionKeys: Record<string, keyof Question> = { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
 
   if (loading) return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center px-4">
-      <p className="text-white text-xl animate-pulse">Laster quiz...</p>
-    </div>
+    <><style>{styles}</style>
+    <div className="qk-loading">
+      <span className="qk-loading-dot"/><span className="qk-loading-dot"/><span className="qk-loading-dot"/>
+    </div></>
   )
 
   if (!quiz) return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center px-4">
-      <p className="text-white text-xl text-center">Fant ikke quizen.</p>
-    </div>
+    <><style>{styles}</style>
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+      <p style={{color:'var(--muted)',fontSize:14}}>Fant ikke quizen.</p>
+      <a href="/" style={{color:'var(--gold)',fontSize:13,marginTop:16,display:'block'}}>← Tilbake</a>
+    </div></div></div></>
   )
 
   // ALLEREDE SPILT
   if (phase === 'already_played') return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center px-4">
-      <div className="bg-white/10 backdrop-blur rounded-3xl p-8 w-full max-w-md border border-white/20 text-center">
-        <div className="text-6xl mb-4">🔒</div>
-        <h1 className="text-2xl font-black text-white mb-3">Du har allerede spilt denne quizen!</h1>
-        <p className="text-blue-200 mb-6">Kun én gjennomspilling per quiz er tillatt. Kom tilbake neste fredag for en ny quiz!</p>
+    <><style>{styles}</style>
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+      <span className="qk-result-icon">🔒</span>
+      <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
+      <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
+      <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz. Ny quiz kommer neste fredag!</p>
+      <div className="qk-divider"/>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {quiz.show_leaderboard && (
-          <a href={`/leaderboard/${quizId}`}
-            className="block w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black py-3 rounded-2xl transition-all mb-3">
-            🏆 Se leaderboard
-          </a>
+          <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
         )}
-        <a href="/" className="block text-blue-300 hover:text-white transition-colors">← Tilbake til forsiden</a>
+        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
-    </main>
+    </div></div></div></>
   )
 
   // REGISTRERING
   if (phase === 'register') return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center px-4 py-8">
-      <div className="bg-white/10 backdrop-blur rounded-3xl p-6 sm:p-8 w-full max-w-md border border-white/20">
-        <h1 className="text-3xl sm:text-4xl font-black text-white text-center mb-1">💥 Quizkanonen</h1>
-        <h2 className="text-lg sm:text-xl text-blue-200 text-center mb-6">{quiz.title}</h2>
+    <><style>{styles}</style>
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel">
+      <p className="qk-eyebrow">Quizkanonen</p>
+      <h1 className="qk-heading">{quiz.title}</h1>
+      <p className="qk-sub">Fyll inn navn og trykk start. Lykke til!</p>
 
-        {resumeData && (
-          <div className="bg-yellow-400/20 border border-yellow-400/30 rounded-2xl p-3 mb-4 text-center">
-            <p className="text-yellow-300 text-sm font-semibold">
-              🔄 Vi fant en påbegynt quiz — du kan fortsette der du slapp!
-            </p>
+      {resumeData && (
+        <div className="qk-banner">🔄 Vi fant en påbegynt quiz — du fortsetter der du slapp.</div>
+      )}
+
+      <label className="qk-label">Navn / Lagnavn</label>
+      <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
+        placeholder="Skriv inn navn..." className="qk-input"
+        onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
+
+      {quiz.allow_teams && (
+        <>
+          <div className="qk-toggle-row" onClick={() => setIsTeamInput(!isTeamInput)}>
+            <div className={`qk-toggle${isTeamInput ? ' on' : ''}`}>
+              <div className="qk-toggle-thumb"/>
+            </div>
+            <span className="qk-toggle-label">Vi spiller som lag</span>
           </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-blue-200 text-sm font-semibold mb-2 block">Navn / Lagnavn</label>
-            <input
-              type="text"
-              value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
-              placeholder="Skriv inn navn her..."
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 text-base sm:text-lg focus:outline-none focus:border-yellow-400"
-              onKeyDown={e => e.key === 'Enter' && startQuiz()}
-            />
-          </div>
-
-          {quiz.allow_teams && (
+          {isTeamInput && (
             <>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsTeamInput(!isTeamInput)}
-                  className={`w-12 h-6 rounded-full transition-all flex-shrink-0 ${isTeamInput ? 'bg-yellow-400' : 'bg-white/20'}`}
-                >
-                  <div className={`w-5 h-5 bg-white rounded-full transition-all transform ${isTeamInput ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                </button>
-                <span className="text-blue-200 text-sm sm:text-base">Vi spiller som lag 👥</span>
+              <label className="qk-label">Antall på laget</label>
+              <div className="qk-sizes">
+                {[2,3,4,5,6].map(n => (
+                  <button key={n} onClick={() => setTeamSizeInput(n)}
+                    className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
+                ))}
               </div>
-              {isTeamInput && (
-                <div>
-                  <label className="text-blue-200 text-sm font-semibold mb-2 block">Antall på laget</label>
-                  <div className="flex gap-2">
-                    {[2, 3, 4, 5, 6].map(n => (
-                      <button key={n} onClick={() => setTeamSizeInput(n)}
-                        className={`flex-1 py-2 rounded-xl font-bold transition-all text-sm ${teamSizeInput === n ? 'bg-yellow-400 text-blue-950' : 'bg-white/10 text-white'}`}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
+        </>
+      )}
 
-          {/* Aldersbekreftelse */}
-          <div
-            onClick={() => setAgeConfirmed(!ageConfirmed)}
-            className="flex items-start gap-3 cursor-pointer group"
-          >
-            <div className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 border-2 flex items-center justify-center transition-all ${ageConfirmed ? 'bg-yellow-400 border-yellow-400' : 'border-white/40 group-hover:border-yellow-400'}`}>
-              {ageConfirmed && <span className="text-blue-950 text-xs font-black">✓</span>}
-            </div>
-            <span className="text-blue-200 text-sm leading-snug">
-              Jeg bekrefter at jeg er 13 år eller eldre og godtar{' '}
-              <a href="/personvern" className="text-yellow-400 underline" onClick={e => e.stopPropagation()}>
-                personvernerklæringen
-              </a>
-            </span>
-          </div>
-
-          <button
-            onClick={startQuiz}
-            disabled={!nameInput.trim() || !ageConfirmed}
-            className="w-full bg-yellow-400 hover:bg-yellow-300 active:bg-yellow-500 disabled:opacity-40 disabled:cursor-not-allowed text-blue-950 font-black text-lg sm:text-xl py-4 rounded-2xl transition-all transform hover:scale-105 active:scale-95"
-          >
-            {resumeData ? 'Fortsett quiz! 🔄' : 'Start quiz! 🎯'}
-          </button>
+      <div className="qk-check-row" onClick={() => setAgeConfirmed(!ageConfirmed)}>
+        <div className={`qk-check-box${ageConfirmed ? ' checked' : ''}`}>
+          {ageConfirmed && (
+            <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+              <path d="M1 4L4 7L10 1" stroke="#0f0f10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
         </div>
-
-        <p className="text-blue-400 text-xs sm:text-sm text-center mt-4">
-          ⏱️ Maks {quiz.time_limit_seconds} sekunder per spørsmål · Kun én gjennomspilling
-        </p>
+        <span className="qk-check-text">
+          Jeg er 13 år eller eldre og godtar{' '}
+          <a href="/personvern" onClick={e => e.stopPropagation()}>personvernerklæringen</a>
+        </span>
       </div>
-    </main>
+
+      <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary">
+        {resumeData ? 'Fortsett quiz' : 'Start quiz'}
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+      </button>
+
+      <p className="qk-hint">{quiz.time_limit_seconds}s per spørsmål · Kun én gjennomspilling</p>
+    </div></div></div></>
   )
 
   // SPILL
@@ -357,80 +725,60 @@ export default function QuizPage() {
     const question = questions[currentIndex]
     const limit = getTimeLimit(question)
     const timerPercent = (timeLeft / limit) * 100
-    const timerColor = timerPercent > 50 ? 'bg-green-400' : timerPercent > 25 ? 'bg-yellow-400' : 'bg-red-400'
+    const timerColor = timerPercent > 50 ? 'var(--green)' : timerPercent > 25 ? 'var(--gold)' : 'var(--red)'
     const correctSoFar = answers.filter(a => a.isCorrect).length
-    const availableOptions = ['A', 'B', 'C', 'D'].slice(0, quiz.num_options)
+    const availableOptions = ['A','B','C','D'].slice(0, quiz.num_options)
+
+    const getOptionClass = (opt: string) => {
+      if (!answered) return ''
+      if (opt === question?.correct_answer) return ' correct'
+      if (opt === selectedAnswer) return ' wrong'
+      return ' idle'
+    }
 
     return (
-      <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-start sm:items-center justify-center px-4 py-4 sm:py-8">
-        <div className="w-full max-w-lg">
-
-          {/* Header */}
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-blue-200 text-sm sm:text-base font-semibold">
-              {currentIndex + 1} / {questions.length}
-            </span>
-            <div className="flex items-center gap-2 sm:gap-3">
-              {quiz.show_live_placement && liveRank && (
-                <span className="text-yellow-400 font-bold text-xs sm:text-sm">📊 #{liveRank}</span>
-              )}
-              <span className={`text-xl sm:text-2xl font-black ${timeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                ⏱️ {timeLeft}s
-              </span>
-            </div>
-          </div>
-
-          {/* Timer bar */}
-          <div className="w-full bg-white/10 rounded-full h-2 mb-2">
-            <div className={`h-2 rounded-full transition-all duration-1000 ${timerColor}`} style={{ width: `${timerPercent}%` }} />
-          </div>
-
-          <div className="text-right text-blue-300 text-xs sm:text-sm mb-3">
-            ✅ {correctSoFar} riktige så langt
-          </div>
-
-          {/* Spørsmål */}
-          <div className="bg-white/10 backdrop-blur rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-white/20 mb-3 sm:mb-4">
-            <p className="text-white text-lg sm:text-2xl font-bold leading-relaxed">
-              {question?.question_text}
-            </p>
-          </div>
-
-          {/* Svaralternativer */}
-          <div className="grid grid-cols-1 gap-2 sm:gap-3 mb-3 sm:mb-4">
-            {availableOptions.map(opt => (
-              <button
-                key={opt}
-                onClick={() => handleAnswer(opt)}
-                disabled={answered}
-                className={`w-full p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 text-left transition-all ${optionColor(opt)}`}
-              >
-                <span className="text-yellow-400 font-black mr-2 sm:mr-3 text-sm sm:text-base">{opt}</span>
-                <span className="text-white font-semibold text-sm sm:text-base">
-                  {question?.[optionKeys[opt]] as string}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Etter svar */}
-          {answered && (
-            <div className="space-y-2 sm:space-y-3">
-              {quiz.show_answer_explanation && question?.explanation && (
-                <div className="bg-blue-800/50 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-blue-500/30">
-                  <p className="text-blue-200 text-xs sm:text-sm">💡 {question.explanation}</p>
-                </div>
-              )}
-              <button
-                onClick={goToNext}
-                className="w-full bg-yellow-400 hover:bg-yellow-300 active:bg-yellow-500 text-blue-950 font-black text-lg sm:text-xl py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all transform hover:scale-105 active:scale-95"
-              >
-                {currentIndex === questions.length - 1 ? 'Se resultatet! 🏆' : 'Neste spørsmål →'}
-              </button>
-            </div>
-          )}
+      <><style>{styles}</style>
+      <div className="qk-play-shell">
+        <div className="qk-play-header">
+          <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
+          <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}`}>{timeLeft}s</span>
         </div>
-      </main>
+
+        <div className="qk-timer-bar-wrap">
+          <div className="qk-timer-bar" style={{width:`${timerPercent}%`,background:timerColor}}/>
+        </div>
+
+        <div className="qk-score-row">
+          <span className="qk-score-pill">✓ {correctSoFar} riktige</span>
+          {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
+        </div>
+
+        <div className="qk-question-card">
+          <p className="qk-question-text">{question?.question_text}</p>
+        </div>
+
+        <div className="qk-options">
+          {availableOptions.map(opt => (
+            <button key={opt} onClick={() => handleAnswer(opt)} disabled={answered}
+              className={`qk-option${getOptionClass(opt)}`}>
+              <span className="qk-opt-letter">{opt}</span>
+              <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
+            </button>
+          ))}
+        </div>
+
+        {answered && (
+          <div>
+            {quiz.show_answer_explanation && question?.explanation && (
+              <div className="qk-explanation">💡 {question.explanation}</div>
+            )}
+            <button onClick={goToNext} className="qk-btn-primary">
+              {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+            </button>
+          </div>
+        )}
+      </div></>
     )
   }
 
@@ -441,63 +789,59 @@ export default function QuizPage() {
   const shareText = `Jeg fikk ${correctCount}/${questions.length} (${percentage}%) på ${quiz.title} på Quizkanonen! 🎯 Klarer du bedre?`
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center px-4 py-8">
-      <div className="bg-white/10 backdrop-blur rounded-3xl p-6 sm:p-8 w-full max-w-md border border-white/20 text-center">
-        <div className="text-5xl sm:text-6xl mb-4">
-          {percentage >= 80 ? '🏆' : percentage >= 60 ? '🎯' : percentage >= 40 ? '💪' : '📚'}
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white mb-1">
-          {playerInfo.name}
-          {playerInfo.isTeam && <span className="text-blue-300 text-base ml-2">({playerInfo.teamSize} stk)</span>}
-        </h1>
-        <p className="text-blue-200 mb-6 text-sm sm:text-base">{quiz.title}</p>
+    <><style>{styles}</style>
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+      <span className="qk-result-icon">
+        {percentage >= 80 ? '🏆' : percentage >= 60 ? '🎯' : percentage >= 40 ? '💪' : '📚'}
+      </span>
+      <p className="qk-eyebrow" style={{textAlign:'center'}}>Resultat</p>
+      <h1 className="qk-heading" style={{textAlign:'center'}}>
+        {playerInfo.name}
+        {playerInfo.isTeam && (
+          <span style={{fontSize:15,color:'var(--muted)',fontFamily:'Instrument Sans',fontWeight:400,marginLeft:8}}>
+            ({playerInfo.teamSize} stk)
+          </span>
+        )}
+      </h1>
+      <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>{quiz.title}</p>
 
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="bg-white/10 rounded-2xl p-3 sm:p-4">
-            <p className="text-2xl sm:text-3xl font-black text-yellow-400">{correctCount}/{questions.length}</p>
-            <p className="text-blue-300 text-xs mt-1">Riktige svar</p>
-          </div>
-          <div className="bg-white/10 rounded-2xl p-3 sm:p-4">
-            <p className="text-2xl sm:text-3xl font-black text-green-400">{percentage}%</p>
-            <p className="text-blue-300 text-xs mt-1">Score</p>
-          </div>
+      <div className="qk-stat-grid">
+        <div className="qk-stat">
+          <div className="qk-stat-value gold">{correctCount}/{questions.length}</div>
+          <div className="qk-stat-label">Riktige svar</div>
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div className="bg-white/10 rounded-2xl p-3 sm:p-4">
-            <p className="text-2xl sm:text-3xl font-black text-blue-300">{formatTime(totalTimeMs)}</p>
-            <p className="text-blue-300 text-xs mt-1">Total spilletid</p>
-          </div>
-          <div className="bg-white/10 rounded-2xl p-3 sm:p-4">
-            <p className="text-2xl sm:text-3xl font-black text-purple-300">{streak}</p>
-            <p className="text-blue-300 text-xs mt-1">Beste streak</p>
-          </div>
+        <div className="qk-stat">
+          <div className="qk-stat-value green">{percentage}%</div>
+          <div className="qk-stat-label">Score</div>
         </div>
-
-        <div className="space-y-3">
-          <button
-            onClick={() => {
-              if (navigator.share) {
-                navigator.share({ text: shareText, url: window.location.origin })
-              } else {
-                navigator.clipboard.writeText(shareText + ' ' + window.location.origin)
-                alert('Kopiert! Lim inn og del 😊')
-              }
-            }}
-            className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white font-bold py-3 rounded-2xl transition-all"
-          >
-            📤 Del resultatet
-          </button>
-          {quiz.show_leaderboard && (
-            <a href={`/leaderboard/${quizId}`}
-              className="block w-full bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black py-3 rounded-2xl transition-all">
-              🏆 Se leaderboard
-            </a>
-          )}
-          <a href="/" className="block text-blue-300 hover:text-white transition-colors text-sm mt-2">
-            ← Tilbake til forsiden
-          </a>
+        <div className="qk-stat">
+          <div className="qk-stat-value">{formatTime(totalTimeMs)}</div>
+          <div className="qk-stat-label">Spilletid</div>
+        </div>
+        <div className="qk-stat">
+          <div className="qk-stat-value">{streak}</div>
+          <div className="qk-stat-label">Beste streak</div>
         </div>
       </div>
-    </main>
+
+      <div className="qk-divider"/>
+
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <button onClick={() => {
+          if (navigator.share) {
+            navigator.share({ text: shareText, url: window.location.origin })
+          } else {
+            navigator.clipboard.writeText(shareText + ' ' + window.location.origin)
+            alert('Kopiert! Lim inn og del 😊')
+          }
+        }} className="qk-btn-secondary">Del resultatet 📤</button>
+
+        {quiz.show_leaderboard && (
+          <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
+        )}
+
+        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
+      </div>
+    </div></div></div></>
   )
 }
