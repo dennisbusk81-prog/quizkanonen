@@ -21,6 +21,398 @@ const emptyForm = (): QuestionForm => ({
   correct_answer: 'A', explanation: '', time_limit_seconds: ''
 })
 
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #1a1c23;
+    --card:     #21242e;
+    --border:   #2a2d38;
+    --gold:     #c9a84c;
+    --gold-bg:  rgba(201,168,76,0.10);
+    --gold-bdr: rgba(201,168,76,0.22);
+    --white:    #ffffff;
+    --body:     #9a9590;
+    --muted:    #6a6860;
+    --green:    #4ade80;
+    --green-bg: rgba(74,222,128,0.10);
+    --green-bdr:rgba(74,222,128,0.20);
+    --radius-card: 20px;
+    --radius-btn:  10px;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Instrument Sans', sans-serif;
+    color: var(--body);
+    min-height: 100vh;
+  }
+
+  .qq-page { max-width: 760px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* Header */
+  .qq-header {
+    padding: 48px 0 28px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .qq-back {
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    display: block;
+    margin-bottom: 8px;
+    transition: color 0.15s;
+  }
+  .qq-back:hover { color: var(--gold); }
+
+  .qq-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .qq-title em { font-style: italic; color: var(--gold); }
+
+  .qq-subtitle { font-size: 12px; color: var(--muted); }
+
+  .qq-header-actions { display: flex; gap: 8px; align-items: center; padding-top: 28px; }
+
+  .qq-btn-preview {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--body);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+    padding: 8px 14px;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .qq-btn-preview:hover { border-color: var(--gold-bdr); color: var(--gold); }
+
+  .qq-btn-add {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f0f10;
+    background: var(--gold);
+    border: none;
+    border-radius: var(--radius-btn);
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .qq-btn-add:hover { background: #d9b85c; }
+
+  .qq-rule { width: 100%; height: 1px; background: var(--border); margin-bottom: 20px; }
+
+  /* Feedback */
+  .qq-feedback {
+    border-radius: var(--radius-btn);
+    padding: 11px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .qq-feedback.success { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
+  .qq-feedback.error   { background: rgba(248,113,113,0.08); color: #f87171; border: 1px solid rgba(248,113,113,0.18); }
+
+  /* Form card */
+  .qq-form-card {
+    background: var(--card);
+    border: 1px solid var(--gold-bdr);
+    border-radius: var(--radius-card);
+    padding: 24px;
+    margin-bottom: 12px;
+  }
+
+  .qq-form-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 20px;
+  }
+
+  .qq-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 7px;
+  }
+
+  .qq-input, .qq-textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+    padding: 10px 13px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    color: var(--white);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .qq-input::placeholder, .qq-textarea::placeholder { color: var(--muted); }
+  .qq-input:focus, .qq-textarea:focus { border-color: var(--gold); }
+  .qq-textarea { resize: none; }
+
+  .qq-field { margin-bottom: 14px; }
+  .qq-field:last-child { margin-bottom: 0; }
+  .qq-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Option label with correct indicator */
+  .qq-opt-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+
+  .qq-opt-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    background: var(--border);
+    color: var(--muted);
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .qq-opt-dot.correct { background: var(--green); color: #0f0f10; }
+
+  .qq-correct-text { font-size: 10px; color: var(--green); font-weight: 600; }
+
+  /* Correct answer selector */
+  .qq-answer-btns { display: flex; gap: 6px; }
+
+  .qq-answer-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: var(--radius-btn);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .qq-answer-btn.active {
+    background: var(--green-bg);
+    border-color: var(--green-bdr);
+    color: var(--green);
+  }
+
+  /* Form actions */
+  .qq-form-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  .qq-btn-save {
+    flex: 1;
+    background: var(--gold);
+    color: #0f0f10;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: var(--radius-btn);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .qq-btn-save:hover { background: #d9b85c; }
+  .qq-btn-save:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .qq-btn-cancel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 16px;
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .qq-btn-cancel:hover { color: var(--white); }
+
+  /* Question row */
+  .qq-question {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 16px 18px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  /* Sort controls */
+  .qq-sort {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  .qq-sort-btn {
+    background: none;
+    border: none;
+    color: var(--border);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 2px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .qq-sort-btn:hover:not(:disabled) { color: var(--gold); }
+  .qq-sort-btn:disabled { opacity: 0.2; cursor: default; }
+
+  .qq-sort-num {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1;
+    padding: 1px 0;
+  }
+
+  /* Question content */
+  .qq-q-body { flex: 1; min-width: 0; }
+
+  .qq-q-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.45;
+    margin-bottom: 10px;
+  }
+
+  .qq-q-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+  .qq-q-opt {
+    font-size: 11px;
+    padding: 5px 9px;
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--muted);
+  }
+
+  .qq-q-opt.correct { background: var(--green-bg); color: var(--green); }
+
+  .qq-q-opt strong { font-weight: 600; margin-right: 4px; }
+
+  .qq-q-explanation {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* Question actions */
+  .qq-q-actions { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+
+  .qq-q-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .qq-q-btn:hover { opacity: 0.75; }
+  .qq-q-btn.edit { background: rgba(96,165,250,0.12); color: #60a5fa; }
+  .qq-q-btn.del  { background: rgba(248,113,113,0.10); color: #f87171; }
+
+  /* Empty */
+  .qq-empty {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .qq-empty p { font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+
+  /* Footer actions */
+  .qq-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  .qq-btn-analytics {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+    padding: 10px 18px;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .qq-btn-analytics:hover { border-color: var(--gold-bdr); color: var(--gold); }
+
+  .qq-btn-done {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f0f10;
+    background: var(--green);
+    border-radius: var(--radius-btn);
+    padding: 10px 20px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .qq-btn-done:hover { opacity: 0.85; }
+
+  .qq-loading {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .qq-loading p {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 18px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  @media (max-width: 480px) {
+    .qq-grid-2 { grid-template-columns: 1fr; }
+    .qq-q-opts { grid-template-columns: 1fr; }
+    .qq-q-actions { flex-direction: row; }
+  }
+`
+
 export default function QuizQuestions() {
   const params = useParams()
   const router = useRouter()
@@ -80,9 +472,8 @@ export default function QuizQuestions() {
       time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
       order_index: questions.length + 1,
     })
-    if (error) {
-      showFeedback('error', 'Feil ved lagring: ' + error.message)
-    } else {
+    if (error) { showFeedback('error', 'Feil ved lagring: ' + error.message) }
+    else {
       showFeedback('success', 'Spørsmål lagret!')
       setNewQ(emptyForm())
       setShowForm(false)
@@ -104,9 +495,8 @@ export default function QuizQuestions() {
       explanation: editForm.explanation || null,
       time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
     }).eq('id', editingId)
-    if (error) {
-      showFeedback('error', 'Feil ved oppdatering: ' + error.message)
-    } else {
+    if (error) { showFeedback('error', 'Feil ved oppdatering: ' + error.message) }
+    else {
       showFeedback('success', 'Spørsmål oppdatert!')
       setEditingId(null)
       fetchData()
@@ -117,12 +507,8 @@ export default function QuizQuestions() {
   async function deleteQuestion(id: string) {
     if (!confirm('Slett dette spørsmålet?')) return
     const { error } = await supabase.from('questions').delete().eq('id', id)
-    if (error) {
-      showFeedback('error', 'Kunne ikke slette: ' + error.message)
-    } else {
-      showFeedback('success', 'Spørsmål slettet.')
-      fetchData()
-    }
+    if (error) { showFeedback('error', 'Kunne ikke slette: ' + error.message) }
+    else { showFeedback('success', 'Spørsmål slettet.'); fetchData() }
   }
 
   function startEdit(q: Question) {
@@ -160,100 +546,100 @@ export default function QuizQuestions() {
   ) {
     const upd = (key: string, val: string) => setForm({ ...form, [key]: val })
     return (
-      <div className="bg-gray-900 border border-yellow-400/30 rounded-2xl p-5 mb-4">
-        <h3 className="text-white font-bold mb-4">{label}</h3>
-        <div className="space-y-3">
-          <div>
-            <label className="text-gray-400 text-xs font-semibold mb-1 block">Spørsmål *</label>
-            <textarea value={form.question_text} onChange={e => upd('question_text', e.target.value)}
-              placeholder="Skriv spørsmålet her..." rows={2}
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none text-sm" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {options.map(opt => {
-              const key = opt === 'A' ? 'option_a' : opt === 'B' ? 'option_b' : opt === 'C' ? 'option_c' : 'option_d'
-              return (
-                <div key={opt}>
-                  <label className="text-gray-400 text-xs font-semibold mb-1 flex items-center gap-1">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black ${form.correct_answer === opt ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-300'}`}>{opt}</span>
-                    {form.correct_answer === opt && <span className="text-green-400 text-xs">riktig</span>}
+      <div className="qq-form-card">
+        <p className="qq-form-title">{label}</p>
+
+        <div className="qq-field">
+          <label className="qq-label">Spørsmål *</label>
+          <textarea value={form.question_text} onChange={e => upd('question_text', e.target.value)}
+            placeholder="Skriv spørsmålet her..." rows={2} className="qq-textarea" />
+        </div>
+
+        <div className="qq-field qq-grid-2">
+          {options.map(opt => {
+            const key = opt === 'A' ? 'option_a' : opt === 'B' ? 'option_b' : opt === 'C' ? 'option_c' : 'option_d'
+            const isCorrect = form.correct_answer === opt
+            return (
+              <div key={opt}>
+                <div className="qq-opt-label">
+                  <span className={`qq-opt-dot ${isCorrect ? 'correct' : ''}`}>{opt}</span>
+                  <label className="qq-label" style={{ margin: 0 }}>
+                    Alternativ {opt}
                   </label>
-                  <input type="text" value={(form as any)[key]} onChange={e => upd(key, e.target.value)}
-                    placeholder={`Alternativ ${opt}`}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 text-sm" />
+                  {isCorrect && <span className="qq-correct-text">✓ riktig</span>}
                 </div>
-              )
-            })}
+                <input type="text" value={(form as any)[key]} onChange={e => upd(key, e.target.value)}
+                  placeholder={`Alternativ ${opt}`} className="qq-input" />
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="qq-field">
+          <label className="qq-label">Riktig svar</label>
+          <div className="qq-answer-btns">
+            {options.map(opt => (
+              <button key={opt} onClick={() => upd('correct_answer', opt)}
+                className={`qq-answer-btn ${form.correct_answer === opt ? 'active' : ''}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="qq-field qq-grid-2">
+          <div>
+            <label className="qq-label">Forklaring (valgfritt)</label>
+            <input type="text" value={form.explanation} onChange={e => upd('explanation', e.target.value)}
+              placeholder="Kort forklaring..." className="qq-input" />
           </div>
           <div>
-            <label className="text-gray-400 text-xs font-semibold mb-1 block">Riktig svar</label>
-            <div className="flex gap-2">
-              {options.map(opt => (
-                <button key={opt} onClick={() => upd('correct_answer', opt)}
-                  className={`flex-1 py-1.5 rounded-xl text-sm font-bold transition-all ${form.correct_answer === opt ? 'bg-green-500 text-white' : 'bg-gray-800 text-white'}`}>
-                  {opt}
-                </button>
-              ))}
-            </div>
+            <label className="qq-label">Egendefinert tid (sek)</label>
+            <input type="number" value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
+              placeholder={`Standard: ${quiz?.time_limit_seconds}s`} className="qq-input" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-gray-400 text-xs font-semibold mb-1 block">Forklaring (valgfritt)</label>
-              <input type="text" value={form.explanation} onChange={e => upd('explanation', e.target.value)}
-                placeholder="Kort forklaring..."
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 text-sm" />
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs font-semibold mb-1 block">Egendefinert tid (sek)</label>
-              <input type="number" value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
-                placeholder={`Standard: ${quiz?.time_limit_seconds}s`}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 text-sm" />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={onSave} disabled={saving}
-              className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-gray-950 font-black py-2 rounded-xl text-sm transition-all">
-              {saving ? 'Lagrer...' : 'Lagre'}
-            </button>
-            <button onClick={onCancel}
-              className="px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2 rounded-xl text-sm transition-all">
-              Avbryt
-            </button>
-          </div>
+        </div>
+
+        <div className="qq-form-actions">
+          <button onClick={onSave} disabled={saving} className="qq-btn-save">
+            {saving ? 'Lagrer...' : 'Lagre'}
+          </button>
+          <button onClick={onCancel} className="qq-btn-cancel">Avbryt</button>
         </div>
       </div>
     )
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <p className="text-white animate-pulse">Laster...</p>
-    </div>
+    <>
+      <style>{STYLES}</style>
+      <div className="qq-loading"><p>Laster...</p></div>
+    </>
   )
 
   return (
-    <main className="min-h-screen bg-gray-950 px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <Link href="/admin/quizzes" className="text-gray-400 hover:text-white text-sm mb-2 inline-block">← Tilbake</Link>
-        <div className="flex items-start justify-between mb-4">
+    <>
+      <style>{STYLES}</style>
+      <div className="qq-page">
+
+        <header className="qq-header">
           <div>
-            <h1 className="text-xl font-black text-white">{quiz?.title}</h1>
-            <p className="text-gray-400 text-sm">{questions.length} spørsmål · {numOptions} alternativer</p>
+            <Link href="/admin/quizzes" className="qq-back">← Tilbake</Link>
+            <h1 className="qq-title"><em>{quiz?.title}</em></h1>
+            <p className="qq-subtitle">{questions.length} spørsmål · {numOptions} alternativer</p>
           </div>
-          <div className="flex gap-2">
-            <Link href={`/quiz/${quizId}`} target="_blank"
-              className="bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-xl text-sm transition-all">
-              Forhåndsvis
-            </Link>
-            <button onClick={() => { setShowForm(!showForm); setEditingId(null) }}
-              className="bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black px-4 py-1.5 rounded-xl text-sm transition-all">
+          <div className="qq-header-actions">
+            <Link href={`/quiz/${quizId}`} target="_blank" className="qq-btn-preview">Forhåndsvis ↗</Link>
+            <button onClick={() => { setShowForm(!showForm); setEditingId(null) }} className="qq-btn-add">
               {showForm ? '✕ Avbryt' : '+ Nytt spørsmål'}
             </button>
           </div>
-        </div>
+        </header>
+
+        <div className="qq-rule" />
 
         {feedback && (
-          <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold ${feedback.type === 'success' ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
+          <div className={`qq-feedback ${feedback.type}`}>
             {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
           </div>
         )}
@@ -261,55 +647,46 @@ export default function QuizQuestions() {
         {showForm && renderForm(newQ, setNewQ, saveQuestion, () => setShowForm(false), 'Nytt spørsmål')}
 
         {questions.length === 0 && !showForm ? (
-          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
-            <p className="text-gray-400 mb-4">Ingen spørsmål ennå.</p>
-            <button onClick={() => setShowForm(true)}
-              className="bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black px-6 py-2 rounded-xl">
+          <div className="qq-empty">
+            <p>Ingen spørsmål ennå.</p>
+            <button onClick={() => setShowForm(true)} className="qq-btn-add">
               + Nytt spørsmål
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
             {questions.map((q, idx) => (
               <div key={q.id}>
                 {editingId === q.id ? (
                   renderForm(editForm, setEditForm, saveEdit, () => setEditingId(null), `Rediger spørsmål ${idx + 1}`)
                 ) : (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex flex-col gap-0.5 flex-shrink-0">
-                        <button onClick={() => moveQuestion(q.id, 'up')} disabled={idx === 0}
-                          className="text-gray-600 hover:text-white disabled:opacity-20 text-xs leading-none py-0.5">▲</button>
-                        <span className="text-gray-600 text-xs text-center leading-none">{idx + 1}</span>
-                        <button onClick={() => moveQuestion(q.id, 'down')} disabled={idx === questions.length - 1}
-                          className="text-gray-600 hover:text-white disabled:opacity-20 text-xs leading-none py-0.5">▼</button>
+                  <div className="qq-question">
+                    <div className="qq-sort">
+                      <button onClick={() => moveQuestion(q.id, 'up')} disabled={idx === 0} className="qq-sort-btn">▲</button>
+                      <span className="qq-sort-num">{idx + 1}</span>
+                      <button onClick={() => moveQuestion(q.id, 'down')} disabled={idx === questions.length - 1} className="qq-sort-btn">▼</button>
+                    </div>
+
+                    <div className="qq-q-body">
+                      <p className="qq-q-text">{q.question_text}</p>
+                      <div className="qq-q-opts">
+                        {options.map(opt => {
+                          const val = q[optionKeys[opt]] as string
+                          if (!val) return null
+                          const isCorrect = q.correct_answer === opt
+                          return (
+                            <p key={opt} className={`qq-q-opt ${isCorrect ? 'correct' : ''}`}>
+                              <strong>{opt}</strong>{val}{isCorrect && ' ✓'}
+                            </p>
+                          )
+                        })}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-semibold mb-2 leading-snug">{q.question_text}</p>
-                        <div className="grid grid-cols-2 gap-1">
-                          {options.map(opt => {
-                            const val = q[optionKeys[opt]] as string
-                            if (!val) return null
-                            const isCorrect = q.correct_answer === opt
-                            return (
-                              <p key={opt} className={`text-xs px-2 py-1 rounded-lg ${isCorrect ? 'bg-green-900/60 text-green-300' : 'bg-gray-800 text-gray-400'}`}>
-                                <span className="font-bold">{opt}:</span> {val}{isCorrect && ' ✓'}
-                              </p>
-                            )
-                          })}
-                        </div>
-                        {q.explanation && <p className="text-gray-500 text-xs mt-2">💡 {q.explanation}</p>}
-                      </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <button onClick={() => startEdit(q)}
-                          className="text-blue-400 hover:text-blue-200 text-xs px-2 py-1 bg-blue-900/30 rounded-lg transition-all">
-                          Rediger
-                        </button>
-                        <button onClick={() => deleteQuestion(q.id)}
-                          className="text-red-400 hover:text-red-200 text-xs px-2 py-1 bg-red-900/30 rounded-lg transition-all">
-                          Slett
-                        </button>
-                      </div>
+                      {q.explanation && <p className="qq-q-explanation">💡 {q.explanation}</p>}
+                    </div>
+
+                    <div className="qq-q-actions">
+                      <button onClick={() => startEdit(q)} className="qq-q-btn edit">Rediger</button>
+                      <button onClick={() => deleteQuestion(q.id)} className="qq-q-btn del">Slett</button>
                     </div>
                   </div>
                 )}
@@ -319,18 +696,17 @@ export default function QuizQuestions() {
         )}
 
         {questions.length > 0 && (
-          <div className="mt-6 flex gap-3 justify-end">
-            <Link href={`/admin/quizzes/${quizId}/analytics`}
-              className="bg-gray-800 hover:bg-gray-700 text-white font-semibold px-5 py-2 rounded-xl text-sm inline-block transition-all">
-              Se analytics →
+          <div className="qq-footer">
+            <Link href={`/admin/quizzes/${quizId}/analytics`} className="qq-btn-analytics">
+              Analytics →
             </Link>
-            <Link href="/admin/quizzes"
-              className="bg-green-600 hover:bg-green-500 text-white font-black px-6 py-2 rounded-xl inline-block transition-all text-sm">
-              ✅ Ferdig
+            <Link href="/admin/quizzes" className="qq-btn-done">
+              ✓ Ferdig
             </Link>
           </div>
         )}
+
       </div>
-    </main>
+    </>
   )
 }
