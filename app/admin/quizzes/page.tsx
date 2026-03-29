@@ -9,11 +9,17 @@ export default function AdminQuizzes() {
     const router = useRouter()
     const [quizzes, setQuizzes] = useState<Quiz[]>([])
     const [loading, setLoading] = useState(true)
+    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
     useEffect(() => {
         if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
         fetchQuizzes()
     }, [])
+
+    function showFeedback(type: 'success' | 'error', msg: string) {
+        setFeedback({ type, msg })
+        setTimeout(() => setFeedback(null), 3000)
+    }
 
     async function fetchQuizzes() {
         const { data } = await supabase
@@ -30,6 +36,24 @@ export default function AdminQuizzes() {
     async function deleteQuiz(id: string) {
         if (!confirm('Er du sikker på at du vil slette denne quizen? Dette kan ikke angres.')) return
         await supabase.from('quizzes').delete().eq('id', id)
+        fetchQuizzes()
+    }
+
+    async function resetQuiz(id: string, title: string) {
+        if (!confirm(`Nullstill "${title}"? Dette sletter alle resultater og lar alle spille på nytt.`)) return
+
+        const { data: attempts } = await supabase
+            .from('attempts').select('id').eq('quiz_id', id)
+
+        if (attempts && attempts.length > 0) {
+            const attemptIds = attempts.map((a: { id: string }) => a.id)
+            await supabase.from('attempt_answers').delete().in('attempt_id', attemptIds)
+            await supabase.from('attempts').delete().eq('quiz_id', id)
+        }
+
+        await supabase.from('played_log').delete().eq('quiz_id', id)
+
+        showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`)
         fetchQuizzes()
     }
 
@@ -61,6 +85,12 @@ export default function AdminQuizzes() {
                         + Ny quiz
                     </Link>
                 </div>
+
+                {feedback && (
+                    <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold ${feedback.type === 'success' ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
+                        {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+                    </div>
+                )}
 
                 {quizzes.length === 0 ? (
                     <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800">
@@ -108,6 +138,10 @@ export default function AdminQuizzes() {
                                                     : 'bg-green-900 hover:bg-green-800 text-green-200'
                                                 }`}>
                                             {quiz.is_active ? 'Skjul' : 'Publiser'}
+                                        </button>
+                                        <button onClick={() => resetQuiz(quiz.id, quiz.title)}
+                                            className="bg-purple-900 hover:bg-purple-800 text-purple-200 px-3 py-1.5 rounded-lg text-sm transition-all">
+                                            Reset
                                         </button>
                                         <button onClick={() => deleteQuiz(quiz.id)}
                                             className="bg-red-900 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded-lg text-sm transition-all">
