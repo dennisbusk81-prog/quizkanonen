@@ -1,4 +1,5 @@
 'use client'
+import QuizCountdown from '@/components/QuizCountdown'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase, Quiz } from '@/lib/supabase'
