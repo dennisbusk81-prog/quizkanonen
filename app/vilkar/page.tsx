@@ -39,9 +39,9 @@ export default function Vilkar() {
           <Section title="1. Hvem vi er">
             <P>Quizkanonen er en norsk quiz-plattform drevet av:</P>
             <Box>
-              <strong style={{ color: '#e8e0d0' }}>[Dennis Busk]</strong><br />
-              [Slåtteveien 12], [1084 Oslo]<br />
-              E-post: <a href="mailto:[quizkanonen@gmail.com]" style={{ color: '#c9a84c' }}>[din@epost.no]</a>
+              <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
+              Slåtteveien 12, 1084 Oslo<br />
+              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[din@epost.no]</a>
             </Box>
             <P>Tjenesten er tilgjengelig på <a href="https://quizkanonen.no" style={{ color: '#c9a84c' }}>quizkanonen.no</a>.</P>
           </Section>
@@ -123,7 +123,7 @@ export default function Vilkar() {
           <Section title="12. Kontakt">
             <P>Spørsmål om disse vilkårene? Ta kontakt:</P>
             <Box>
-              E-post: <a href="mailto:[quizkanonen@gmail.com]" style={{ color: '#c9a84c' }}>[din@epost.no]</a><br />
+              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[din@epost.no]</a><br />
               Vi svarer vanligvis innen 2–3 virkedager.
             </Box>
           </Section>
