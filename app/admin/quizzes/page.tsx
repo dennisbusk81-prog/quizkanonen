@@ -127,7 +127,7 @@ export default function AdminQuizzes() {
                                             Spørsmål
                                         </Link>
                                         <Link
-                                            href={`/admin/quizzes/${quiz.id}/questions`}
+                                            href={`/admin/quizzes/${quiz.id}`}
                                             className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm transition-all"
                                         >
                                             Rediger
