@@ -344,6 +344,7 @@ export default function Home() {
           <div className="qk-rule" />
         </header>
 
+        <QuizCountdown />
         <div className="qk-section">
           <span className="qk-section-text">Tilgjengelig nå</span>
           <div className="qk-section-line" />
