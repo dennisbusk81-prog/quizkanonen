@@ -2,40 +2,90 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
+const CONSENT_KEY = 'quizkanonen_consent_v1'
+
 export default function ConsentBanner() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    const consent = localStorage.getItem('qk_consent')
+    const consent = localStorage.getItem(CONSENT_KEY)
     if (!consent) setVisible(true)
   }, [])
 
   function accept() {
-    localStorage.setItem('qk_consent', 'true')
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ accepted: true, date: new Date().toISOString() }))
     setVisible(false)
   }
 
   if (!visible) return null
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
-      <div className="max-w-2xl mx-auto bg-gray-900 border border-yellow-400/30 rounded-2xl p-5 shadow-2xl">
-        <p className="text-white font-bold mb-1">🍪 Vi bruker lokal lagring</p>
-        <p className="text-gray-400 text-sm mb-4">
-          Quizkanonen lagrer en anonym enhets-ID lokalt i nettleseren din for å hindre dobbeltspilling og lagre fremgang. 
-          Ingen data deles med tredjeparter. Les vår{' '}
-          <Link href="/personvern" className="text-yellow-400 hover:underline">personvernerklæring</Link>.
-        </p>
-        <div className="flex gap-3">
-          <button onClick={accept}
-            className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black py-2.5 rounded-xl text-sm transition-all">
-            Jeg forstår og godtar
-          </button>
-          <Link href="/personvern"
-            className="px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-2.5 rounded-xl text-sm transition-all text-center">
-            Les mer
-          </Link>
+    <div
+      role="dialog"
+      aria-modal="false"
+      aria-label="Personvernsamtykke"
+      style={{
+        position: 'fixed',
+        bottom: '1.25rem',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'calc(100% - 2.5rem)',
+        maxWidth: '560px',
+        background: '#21242e',
+        border: '1px solid #2a2d38',
+        borderRadius: '16px',
+        padding: '1.25rem 1.5rem',
+        zIndex: 9999,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        fontFamily: "'Instrument Sans', sans-serif",
+      }}
+    >
+      <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start' }}>
+        {/* Ikon */}
+        <span style={{ fontSize: '1.4rem', flexShrink: 0, marginTop: '1px' }}>🍪</span>
+
+        {/* Tekst */}
+        <div>
+          <p style={{ color: '#e8e0d0', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+            Vi bruker kun nødvendige data
+          </p>
+          <p style={{ color: '#8a8d9a', fontSize: '0.85rem', lineHeight: 1.65 }}>
+            Quizkanonen lagrer en enhets-ID lokalt i nettleseren for å hindre dobbeltspilling. 
+            Vi bruker ingen sporings-cookies eller reklame. Les mer i vår{' '}
+            <Link href="/personvern" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
+              personvernerklæring
+            </Link>
+            {' '}og{' '}
+            <Link href="/vilkar" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
+              brukervilkår
+            </Link>
+            .
+          </p>
         </div>
+      </div>
+
+      {/* Knapper */}
+      <div style={{ display: 'flex', gap: '0.625rem', justifyContent: 'flex-end' }}>
+        <button
+          onClick={accept}
+          style={{
+            background: '#c9a84c',
+            color: '#1a1c23',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '0.6rem 1.4rem',
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Forstått
+        </button>
       </div>
     </div>
   )
