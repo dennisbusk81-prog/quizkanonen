@@ -5,6 +5,316 @@ import { supabase, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal } from '@/lib/ranking'
 import Link from 'next/link'
 
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #1a1c23;
+    --card:     #21242e;
+    --border:   #2a2d38;
+    --gold:     #c9a84c;
+    --gold-bg:  rgba(201,168,76,0.10);
+    --gold-bdr: rgba(201,168,76,0.22);
+    --white:    #ffffff;
+    --body:     #9a9590;
+    --muted:    #6a6860;
+    --green:    #4ade80;
+    --radius-card: 20px;
+    --radius-btn:  10px;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'Instrument Sans', sans-serif;
+    color: var(--body);
+    min-height: 100vh;
+  }
+
+  .lb-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+  }
+
+  /* ── HEADER ── */
+  .lb-header {
+    padding: 48px 0 36px;
+    text-align: center;
+  }
+
+  .lb-back {
+    display: inline-block;
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 20px;
+    transition: color 0.15s;
+    letter-spacing: 0.04em;
+  }
+
+  .lb-back:hover { color: var(--gold); }
+
+  .lb-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .lb-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: clamp(28px, 6vw, 38px);
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  .lb-title em { font-style: italic; color: var(--gold); }
+
+  .lb-subtitle {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 14px;
+    color: var(--body);
+    font-style: italic;
+  }
+
+  .lb-rule {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin-top: 32px;
+  }
+
+  /* ── SECTION LABEL ── */
+  .lb-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 32px 0 14px;
+  }
+
+  .lb-section-text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .lb-section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .lb-section-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
+
+  /* ── ROW ── */
+  .lb-row {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .lb-row.gold-row {
+    border-color: var(--gold-bdr);
+    background: linear-gradient(135deg, rgba(201,168,76,0.07) 0%, var(--card) 60%);
+  }
+
+  .lb-row.gold-row::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--gold);
+    border-radius: 3px 0 0 3px;
+  }
+
+  /* ── RANK ── */
+  .lb-rank {
+    width: 32px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .lb-rank-medal {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .lb-rank-num {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .lb-rank-num.tied {
+    font-size: 13px;
+    color: var(--gold);
+  }
+
+  /* ── NAME BLOCK ── */
+  .lb-name-block {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lb-name {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--white);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+
+  .lb-name-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── SCORE BLOCK ── */
+  .lb-score-block {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .lb-score {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+
+  .lb-score-pct {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .lb-score-pct .tied-label {
+    color: var(--gold);
+    margin-left: 4px;
+  }
+
+  /* ── EMPTY / HIDDEN ── */
+  .lb-empty {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 56px 32px;
+    text-align: center;
+    margin-top: 32px;
+  }
+
+  .lb-empty-icon {
+    font-size: 44px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .lb-empty-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 20px;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+
+  .lb-empty-sub {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .lb-btn-primary {
+    display: inline-block;
+    background: var(--gold);
+    color: #0f0f10;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px 24px;
+    border-radius: var(--radius-btn);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+
+  .lb-btn-primary:hover { background: #d9b85c; }
+
+  /* ── LOADING ── */
+  .lb-loading {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lb-loading p {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 18px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* ── SHIMMER SKELETON ── */
+  .lb-skeleton {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+
+  .lb-shimmer {
+    background: linear-gradient(90deg, var(--border) 25%, #2f3340 50%, var(--border) 75%);
+    background-size: 400% 100%;
+    animation: shimmer 1.6s ease infinite;
+    border-radius: 6px;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  @media (max-width: 400px) {
+    .lb-name { font-size: 14px; }
+    .lb-score { font-size: 17px; }
+    .lb-row { padding: 14px 16px; }
+  }
+`
+
 export default function LeaderboardPage() {
   const params = useParams()
   const quizId = params.id as string
@@ -35,24 +345,27 @@ export default function LeaderboardPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center">
-      <p className="text-white text-xl animate-pulse">Laster leaderboard...</p>
-    </div>
+    <>
+      <style>{STYLES}</style>
+      <div className="lb-loading"><p>Laster leaderboard...</p></div>
+    </>
   )
 
   if (!quiz) return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center">
-      <p className="text-white text-xl">Fant ikke quizen.</p>
-    </div>
+    <>
+      <style>{STYLES}</style>
+      <div className="lb-loading"><p>Fant ikke quizen.</p></div>
+    </>
   )
 
   if (!quiz.show_leaderboard) return (
-    <div className="min-h-screen bg-blue-950 flex items-center justify-center px-4">
-      <div className="text-center">
-        <p className="text-white text-xl">Leaderboard er ikke aktivert for denne quizen.</p>
-        <Link href="/" className="text-blue-300 hover:text-white mt-4 block">← Tilbake</Link>
+    <>
+      <style>{STYLES}</style>
+      <div className="lb-loading" style={{ flexDirection: 'column', gap: 16 }}>
+        <p>Leaderboard er ikke aktivert for denne quizen.</p>
+        <Link href="/" style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
       </div>
-    </div>
+    </>
   )
 
   const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz)
@@ -60,54 +373,66 @@ export default function LeaderboardPage() {
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 px-4 py-8 sm:py-12">
-      <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-6 sm:mb-8">
-          <Link href="/" className="text-blue-300 hover:text-white text-sm mb-4 inline-block">← Tilbake</Link>
-          <h1 className="text-3xl sm:text-4xl font-black text-white">🏆 Leaderboard</h1>
-          <p className="text-blue-200 mt-2 text-sm sm:text-base">{quiz?.title}</p>
-        </div>
+    <>
+      <style>{STYLES}</style>
+      <div className="lb-page">
+
+        <header className="lb-header">
+          <Link href="/" className="lb-back">← Tilbake til forsiden</Link>
+          <p className="lb-eyebrow">Quizkanonen</p>
+          <h1 className="lb-title">Quiz<em>kanonen</em></h1>
+          <p className="lb-subtitle">{quiz.title}</p>
+          <div className="lb-rule" />
+        </header>
 
         {isHidden ? (
-          <div className="bg-white/10 rounded-3xl p-8 text-center border border-white/20">
-            <p className="text-6xl mb-4">🔒</p>
-            <p className="text-white text-xl font-bold">Leaderboardet er skjult</p>
-            <p className="text-blue-200 mt-2 text-sm">
+          <div className="lb-empty">
+            <div className="lb-empty-icon">🔒</div>
+            <p className="lb-empty-title">Leaderboardet er skjult</p>
+            <p className="lb-empty-sub">
               Vises når quizen stenger:<br />
               {new Date(quiz.closes_at).toLocaleString('no-NO')}
             </p>
-            <Link href={`/quiz/${quizId}`}
-              className="inline-block mt-6 bg-yellow-400 hover:bg-yellow-300 text-blue-950 font-black px-6 py-3 rounded-2xl transition-all">
-              Spill quizen! 🎯
+            <Link href={`/quiz/${quizId}`} className="lb-btn-primary">
+              Spill quizen →
             </Link>
           </div>
         ) : attempts.length === 0 ? (
-          <div className="bg-white/10 rounded-3xl p-8 text-center border border-white/20">
-            <p className="text-white text-xl">Ingen resultater ennå.</p>
+          <div className="lb-empty">
+            <div className="lb-empty-icon">🏔️</div>
+            <p className="lb-empty-title">Ingen resultater ennå</p>
+            <p className="lb-empty-sub">Vær den første til å fullføre denne quizen.</p>
+            <Link href={`/quiz/${quizId}`} className="lb-btn-primary">
+              Spill quizen →
+            </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* Enkeltpersoner */}
+          <>
             {soloAttempts.length > 0 && (
               <>
-                <h2 className="text-white font-bold text-base sm:text-lg px-2">👤 Enkeltpersoner</h2>
-                {soloAttempts.map((attempt) => (
-                  <div key={attempt.id}
-                    className={`rounded-2xl p-3 sm:p-4 border flex items-center gap-3 sm:gap-4 ${attempt.rank === 1 ? 'bg-yellow-400/20 border-yellow-400/40' : 'bg-white/10 border-white/20'}`}>
-                    <span className="text-xl sm:text-2xl w-8 sm:w-10 text-center flex-shrink-0">
-                      {attempt.isTied ? `${attempt.rank}.` : getMedal(attempt.rank)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-base sm:text-lg truncate">{attempt.player_name}</p>
-                      <p className="text-blue-300 text-xs sm:text-sm">{formatTime(attempt.total_time_ms)} spilletid</p>
+                <div className="lb-section">
+                  <span className="lb-section-text">Enkeltpersoner</span>
+                  <div className="lb-section-line" />
+                  <span className="lb-section-count">{soloAttempts.length}</span>
+                </div>
+
+                {soloAttempts.map(attempt => (
+                  <div key={attempt.id} className={`lb-row ${attempt.rank === 1 ? 'gold-row' : ''}`}>
+                    <div className="lb-rank">
+                      {attempt.isTied
+                        ? <span className="lb-rank-num tied">{attempt.rank}=</span>
+                        : <span className="lb-rank-medal">{getMedal(attempt.rank)}</span>
+                      }
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-yellow-400 font-black text-lg sm:text-xl">
-                        {attempt.correct_answers}/{attempt.total_questions}
-                      </p>
-                      <p className="text-blue-300 text-xs">
+                    <div className="lb-name-block">
+                      <p className="lb-name">{attempt.player_name}</p>
+                      <p className="lb-name-meta">⏱ {formatTime(attempt.total_time_ms)}</p>
+                    </div>
+                    <div className="lb-score-block">
+                      <p className="lb-score">{attempt.correct_answers}/{attempt.total_questions}</p>
+                      <p className="lb-score-pct">
                         {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
-                        {attempt.isTied && <span className="ml-1 text-yellow-400">delt</span>}
+                        {attempt.isTied && <span className="tied-label">delt</span>}
                       </p>
                     </div>
                   </div>
@@ -115,39 +440,45 @@ export default function LeaderboardPage() {
               </>
             )}
 
-            {/* Lag */}
             {teamAttempts.length > 0 && (
               <>
-                <h2 className="text-white font-bold text-base sm:text-lg px-2 mt-4">👥 Lag</h2>
-                {teamAttempts.map((attempt) => (
-                  <div key={attempt.id}
-                    className={`rounded-2xl p-3 sm:p-4 border flex items-center gap-3 sm:gap-4 ${attempt.rank === 1 ? 'bg-yellow-400/20 border-yellow-400/40' : 'bg-white/10 border-white/20'}`}>
-                    <span className="text-xl sm:text-2xl w-8 sm:w-10 text-center flex-shrink-0">
-                      {attempt.isTied ? `${attempt.rank}.` : getMedal(attempt.rank)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-base sm:text-lg truncate">
-                        {attempt.player_name}
-                        <span className="text-blue-300 text-xs ml-2">({attempt.team_size} stk)</span>
-                      </p>
-                      <p className="text-blue-300 text-xs sm:text-sm">{formatTime(attempt.total_time_ms)} spilletid</p>
+                <div className="lb-section">
+                  <span className="lb-section-text">Lag</span>
+                  <div className="lb-section-line" />
+                  <span className="lb-section-count">{teamAttempts.length}</span>
+                </div>
+
+                {teamAttempts.map(attempt => (
+                  <div key={attempt.id} className={`lb-row ${attempt.rank === 1 ? 'gold-row' : ''}`}>
+                    <div className="lb-rank">
+                      {attempt.isTied
+                        ? <span className="lb-rank-num tied">{attempt.rank}=</span>
+                        : <span className="lb-rank-medal">{getMedal(attempt.rank)}</span>
+                      }
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-yellow-400 font-black text-lg sm:text-xl">
-                        {attempt.correct_answers}/{attempt.total_questions}
+                    <div className="lb-name-block">
+                      <p className="lb-name">
+                        {attempt.player_name}
+                        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, marginLeft: 6 }}>
+                          {attempt.team_size} stk
+                        </span>
                       </p>
-                      <p className="text-blue-300 text-xs">
+                      <p className="lb-name-meta">⏱ {formatTime(attempt.total_time_ms)}</p>
+                    </div>
+                    <div className="lb-score-block">
+                      <p className="lb-score">{attempt.correct_answers}/{attempt.total_questions}</p>
+                      <p className="lb-score-pct">
                         {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
-                        {attempt.isTied && <span className="ml-1 text-yellow-400">delt</span>}
+                        {attempt.isTied && <span className="tied-label">delt</span>}
                       </p>
                     </div>
                   </div>
                 ))}
               </>
             )}
-          </div>
+          </>
         )}
       </div>
-    </main>
+    </>
   )
 }
