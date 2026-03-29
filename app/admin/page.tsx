@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-auth'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import NextQuizSetting from '@/components/NextQuizSetting'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -232,7 +233,7 @@ export default function AdminHome() {
         </header>
 
         <div className="adm-rule" />
-
+<NextQuizSetting />
         <div className="adm-stats">
           {[
             { label: 'Quizer', value: stats.quizzes, icon: '🎯' },
