@@ -13,7 +13,7 @@ export default function Personvern() {
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2025</span>
+          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
         </div>
       </div>
 
@@ -43,7 +43,7 @@ export default function Personvern() {
               <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
               Slåtteveien 12<br />
               1084 Oslo<br />
-              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[din@epost.no]</a>
+              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>quizkanonen@gmail.com</a>
             </Box>
             <P>Ved spørsmål om behandling av personopplysninger kan du kontakte oss på e-postadressen over.</P>
           </Section>

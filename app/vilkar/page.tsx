@@ -13,7 +13,7 @@ export default function Vilkar() {
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2025</span>
+          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
         </div>
       </div>
 
@@ -41,7 +41,7 @@ export default function Vilkar() {
             <Box>
               <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
               Slåtteveien 12, 1084 Oslo<br />
-              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[din@epost.no]</a>
+              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>quizkanonen@gmail.com</a>
             </Box>
             <P>Tjenesten er tilgjengelig på <a href="https://quizkanonen.no" style={{ color: '#c9a84c' }}>quizkanonen.no</a>.</P>
           </Section>
@@ -123,7 +123,7 @@ export default function Vilkar() {
           <Section title="12. Kontakt">
             <P>Spørsmål om disse vilkårene? Ta kontakt:</P>
             <Box>
-              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[din@epost.no]</a><br />
+              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>quizkanonen@gmail.com</a><br />
               Vi svarer vanligvis innen 2–3 virkedager.
             </Box>
           </Section>
