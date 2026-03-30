@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { Suspense } from 'react'
+import { useRouter } from 'next/navigation'
+import { setAdminSession } from '@/lib/admin-auth'
+import { verifyAdminPassword } from '@/lib/admin-actions'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -120,18 +120,6 @@ const STYLES = `
     border-radius: var(--radius-btn);
   }
 
-  .login-success {
-    font-size: 13px;
-    color: #4ade80;
-    text-align: center;
-    margin-bottom: 16px;
-    padding: 14px;
-    background: rgba(74,222,128,0.08);
-    border: 1px solid rgba(74,222,128,0.18);
-    border-radius: var(--radius-btn);
-    line-height: 1.5;
-  }
-
   .login-btn {
     width: 100%;
     background: var(--gold);
@@ -150,84 +138,54 @@ const STYLES = `
   .login-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 `
 
-function AdminLoginForm() {
-  const searchParams = useSearchParams()
-  const notAdmin = searchParams.get('error') === 'not_admin'
-
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState(notAdmin ? 'Denne e-postadressen har ikke admintilgang.' : '')
-  const [sent, setSent] = useState(false)
+export default function AdminLogin() {
+  const router = useRouter()
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSend = async () => {
-    if (!email.trim()) return
+  const handleLogin = async () => {
     setLoading(true)
     setError('')
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/admin`,
-      },
-    })
-
-    if (error) {
-      setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
+    const ok = await verifyAdminPassword(password)
+    if (ok) {
+      setAdminSession()
+      router.push('/admin')
     } else {
-      setSent(true)
+      setError('Feil passord. Prøv igjen.')
     }
     setLoading(false)
   }
 
   return (
     <>
-      <p className="login-eyebrow">Quizkanonen</p>
-      <h1 className="login-title">Admin<em>panel</em></h1>
-      <p className="login-sub">Logg inn for å administrere quizer</p>
-      <div className="login-rule" />
+      <style>{STYLES}</style>
+      <div className="login-screen">
+        <div className="login-panel">
+          <p className="login-eyebrow">Quizkanonen</p>
+          <h1 className="login-title">Admin<em>panel</em></h1>
+          <p className="login-sub">Logg inn for å administrere quizer</p>
+          <div className="login-rule" />
 
-      {sent ? (
-        <p className="login-success">
-          Sjekk innboksen din!<br />
-          Vi har sendt en innloggingslenke til <strong>{email}</strong>.
-        </p>
-      ) : (
-        <>
-          <label className="login-label">E-postadresse</label>
+          <label className="login-label">Passord</label>
           <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="din@epost.no"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            placeholder="Skriv inn adminpassord..."
             className="login-input"
-            autoComplete="email"
           />
 
           {error && <p className="login-error">{error}</p>}
 
           <button
-            onClick={handleSend}
-            disabled={loading || !email.trim()}
+            onClick={handleLogin}
+            disabled={loading || !password}
             className="login-btn"
           >
-            {loading ? 'Sender...' : 'Send innloggingslenke →'}
+            {loading ? 'Logger inn...' : 'Logg inn →'}
           </button>
-        </>
-      )}
-    </>
-  )
-}
-
-export default function AdminLogin() {
-  return (
-    <>
-      <style>{STYLES}</style>
-      <div className="login-screen">
-        <div className="login-panel">
-          <Suspense fallback={null}>
-            <AdminLoginForm />
-          </Suspense>
         </div>
       </div>
     </>

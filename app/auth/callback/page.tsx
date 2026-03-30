@@ -2,7 +2,6 @@
 import { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { checkIsAdmin, setAdminSession } from '@/lib/admin-auth'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;1,400&display=swap');
@@ -46,18 +45,6 @@ function CallbackHandler() {
       if (error || !data.session) {
         router.replace('/login?error=auth_failed')
         return
-      }
-
-      const email = data.session.user.email ?? ''
-
-      if (next.startsWith('/admin')) {
-        const isAdmin = await checkIsAdmin(email)
-        if (!isAdmin) {
-          await supabase.auth.signOut()
-          router.replace('/admin/login?error=not_admin')
-          return
-        }
-        setAdminSession()
       }
 
       router.replace(next)
