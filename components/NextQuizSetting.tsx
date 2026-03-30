@@ -15,7 +15,6 @@ export default function NextQuizSetting() {
         .eq('key', 'next_quiz_at')
         .single()
       if (data?.value) {
-        // Konverter til norsk format for datetime-local input
         const d = new Date(data.value)
         const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
           .toISOString()
@@ -43,30 +42,71 @@ export default function NextQuizSetting() {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6">
-      <h2 className="text-white font-bold mb-1">⏱️ Neste quiz</h2>
-      <p className="text-gray-500 text-sm mb-4">Vises som nedtelling på forsiden.</p>
+    <div style={{
+      background: '#21242e',
+      border: '1px solid #2a2d38',
+      borderRadius: 20,
+      padding: '20px 24px',
+      marginBottom: 24,
+    }}>
+      <h2 style={{ color: '#fff', fontWeight: 700, fontSize: 15, marginBottom: 4 }}>⏱️ Neste quiz</h2>
+      <p style={{ color: '#6a6860', fontSize: 12, marginBottom: 16 }}>Vises som nedtelling på forsiden.</p>
 
       {feedback && (
-        <div className={`mb-3 px-4 py-2 rounded-xl text-sm font-semibold ${feedback.type === 'success' ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
+        <div style={{
+          marginBottom: 12,
+          padding: '8px 14px',
+          borderRadius: 10,
+          fontSize: 13,
+          fontWeight: 600,
+          background: feedback.type === 'success' ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
+          border: `1px solid ${feedback.type === 'success' ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+          color: feedback.type === 'success' ? '#4ade80' : '#f87171',
+        }}>
           {feedback.msg}
         </div>
       )}
 
-      <div className="flex gap-3 items-end">
-        <div className="flex-1">
-          <label className="text-gray-400 text-xs font-semibold mb-1 block">Dato og klokkeslett</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6a6860', display: 'block', marginBottom: 8 }}>
+            Dato og klokkeslett
+          </label>
           <input
             type="datetime-local"
             value={value}
             onChange={e => setValue(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400 text-sm"
+            style={{
+              width: '100%',
+              background: '#1a1c23',
+              border: '1px solid #2a2d38',
+              borderRadius: 10,
+              padding: '10px 14px',
+              color: '#fff',
+              fontSize: 14,
+              fontFamily: 'inherit',
+              outline: 'none',
+              colorScheme: 'dark',
+            }}
           />
         </div>
         <button
           onClick={save}
-          disabled={saving}
-          className="bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-gray-950 font-black px-5 py-2.5 rounded-xl text-sm transition-all"
+          disabled={saving || !value}
+          style={{
+            alignSelf: 'flex-start',
+            background: '#c9a84c',
+            color: '#0f0f10',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            fontWeight: 700,
+            padding: '10px 20px',
+            borderRadius: 10,
+            border: 'none',
+            cursor: saving || !value ? 'not-allowed' : 'pointer',
+            opacity: saving || !value ? 0.4 : 1,
+            transition: 'background 0.15s',
+          }}
         >
           {saving ? 'Lagrer...' : 'Lagre'}
         </button>
