@@ -1,8 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Suspense } from 'react'
+import Link from 'next/link'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -148,14 +147,23 @@ const STYLES = `
 
   .login-btn:hover { background: #d9b85c; }
   .login-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .login-back {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .login-back:hover { color: var(--body); }
 `
 
-function AdminLoginForm() {
-  const searchParams = useSearchParams()
-  const notAdmin = searchParams.get('error') === 'not_admin'
-
+export default function LoginPage() {
   const [email, setEmail] = useState('')
-  const [error, setError] = useState(notAdmin ? 'Denne e-postadressen har ikke admintilgang.' : '')
+  const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -167,7 +175,7 @@ function AdminLoginForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/admin`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 
@@ -181,53 +189,45 @@ function AdminLoginForm() {
 
   return (
     <>
-      <p className="login-eyebrow">Quizkanonen</p>
-      <h1 className="login-title">Admin<em>panel</em></h1>
-      <p className="login-sub">Logg inn for å administrere quizer</p>
-      <div className="login-rule" />
-
-      {sent ? (
-        <p className="login-success">
-          Sjekk innboksen din!<br />
-          Vi har sendt en innloggingslenke til <strong>{email}</strong>.
-        </p>
-      ) : (
-        <>
-          <label className="login-label">E-postadresse</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="din@epost.no"
-            className="login-input"
-            autoComplete="email"
-          />
-
-          {error && <p className="login-error">{error}</p>}
-
-          <button
-            onClick={handleSend}
-            disabled={loading || !email.trim()}
-            className="login-btn"
-          >
-            {loading ? 'Sender...' : 'Send innloggingslenke →'}
-          </button>
-        </>
-      )}
-    </>
-  )
-}
-
-export default function AdminLogin() {
-  return (
-    <>
       <style>{STYLES}</style>
       <div className="login-screen">
         <div className="login-panel">
-          <Suspense fallback={null}>
-            <AdminLoginForm />
-          </Suspense>
+          <p className="login-eyebrow">Quizkanonen</p>
+          <h1 className="login-title">Logg <em>inn</em></h1>
+          <p className="login-sub">Ingen passord — vi sender deg en innloggingslenke</p>
+          <div className="login-rule" />
+
+          {sent ? (
+            <p className="login-success">
+              Sjekk innboksen din!<br />
+              Vi har sendt en innloggingslenke til <strong>{email}</strong>.
+            </p>
+          ) : (
+            <>
+              <label className="login-label">E-postadresse</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                placeholder="din@epost.no"
+                className="login-input"
+                autoComplete="email"
+              />
+
+              {error && <p className="login-error">{error}</p>}
+
+              <button
+                onClick={handleSend}
+                disabled={loading || !email.trim()}
+                className="login-btn"
+              >
+                {loading ? 'Sender...' : 'Send innloggingslenke →'}
+              </button>
+            </>
+          )}
+
+          <Link href="/" className="login-back">← Tilbake til forsiden</Link>
         </div>
       </div>
     </>

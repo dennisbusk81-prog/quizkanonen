@@ -1,9 +1,17 @@
-export const ADMIN_EMAIL = 'quizkanonen@gmail.com'
+import { supabase } from './supabase'
 
-export function checkAdminPassword(password: string): boolean {
-  return password === 'QuizAdmin2025!'
+export async function checkIsAdmin(email: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('admin_users')
+    .select('email')
+    .eq('email', email)
+    .maybeSingle()
+  return !!data
 }
 
+// Legacy localStorage helpers — still used by existing admin pages.
+// The auth callback writes these after verifying admin_users, so
+// the rest of the admin section continues to work unchanged.
 export function setAdminSession(): void {
   if (typeof window === 'undefined') return
   localStorage.setItem('qk_admin', 'true')
@@ -23,4 +31,5 @@ export function logoutAdmin(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem('qk_admin')
   localStorage.removeItem('qk_admin_time')
+  supabase.auth.signOut()
 }

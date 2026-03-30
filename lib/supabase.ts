@@ -4,6 +4,14 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
+
+export type Profile = {
+  id: string
+  email: string
+  display_name: string | null
+  created_at: string
+}
+
 export type Quiz = {
   id: string
   title: string
