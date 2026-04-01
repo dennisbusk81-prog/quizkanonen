@@ -1,23 +1,40 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const bodySchema = z.object({
+  id: z.string().uuid('id must be a valid UUID'),
+  display_name: z
+    .string()
+    .trim()
+    .min(1, 'display_name cannot be empty')
+    .max(50, 'display_name max 50 characters'),
+  avatar_color: z.string().nullable().optional(),
+})
 
 export async function POST(request: NextRequest) {
-  let body: { id?: string; display_name?: string | null; avatar_color?: string | null }
-
+  let raw: unknown
   try {
-    body = await request.json()
+    raw = await request.json()
   } catch {
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 })
   }
 
-  const { id, display_name, avatar_color } = body
-
-  if (!id) {
-    return NextResponse.json({ error: 'missing id' }, { status: 400 })
+  const parsed = bodySchema.safeParse(raw)
+  if (!parsed.success) {
+    const message = parsed.error.issues.map((e: { message: string }) => e.message).join(', ')
+    return NextResponse.json({ error: message }, { status: 422 })
   }
 
+  const { id, display_name, avatar_color } = parsed.data
+
   const { error } = await supabaseAdmin.from('profiles').upsert(
-    { id, display_name: display_name ?? null, avatar_color: avatar_color ?? null, last_seen_at: new Date().toISOString() },
+    {
+      id,
+      display_name,
+      avatar_color: avatar_color ?? null,
+      last_seen_at: new Date().toISOString(),
+    },
     { onConflict: 'id' }
   )
 
