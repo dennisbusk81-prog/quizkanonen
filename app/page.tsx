@@ -2,6 +2,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 type QuizRow = {
   id: string
   title: string
