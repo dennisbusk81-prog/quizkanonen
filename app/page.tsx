@@ -2,7 +2,7 @@
 import QuizCountdown from '@/components/QuizCountdown'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase, Quiz } from '@/lib/supabase'
+import { supabaseData, Quiz } from '@/lib/supabase'
 
 type QuizStats = Record<string, { questions: number; participants: number }>
 
@@ -16,7 +16,7 @@ export default function Home() {
   }, [])
 
   async function fetchQuizzes() {
-    const { data } = await supabase
+    const { data } = await supabaseData
       .from('quizzes')
       .select('*')
       .eq('is_active', true)
@@ -27,8 +27,8 @@ export default function Home() {
     if (quizList.length > 0) {
       const ids = quizList.map(q => q.id)
       const [{ data: qData }, { data: aData }] = await Promise.all([
-        supabase.from('questions').select('quiz_id').in('quiz_id', ids),
-        supabase.from('attempts').select('quiz_id').in('quiz_id', ids),
+        supabaseData.from('questions').select('quiz_id').in('quiz_id', ids),
+        supabaseData.from('attempts').select('quiz_id').in('quiz_id', ids),
       ])
       const computed: QuizStats = {}
       for (const id of ids) {
