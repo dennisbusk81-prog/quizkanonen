@@ -6,9 +6,14 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Data-only client: no auth session detection, safe to use in parallel with auth init.
-// Use this for public read queries that must not be blocked by OAuth callback processing.
+// Uses a separate storageKey so its lock never conflicts with the main auth client.
 export const supabaseData = createClient(supabaseUrl, supabaseKey, {
-  auth: { detectSessionInUrl: false, persistSession: false, autoRefreshToken: false },
+  auth: {
+    detectSessionInUrl: false,
+    persistSession: false,
+    autoRefreshToken: false,
+    storageKey: 'qk-data-client',
+  },
 })
 
 
