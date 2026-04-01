@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Quiz, Question } from '@/lib/supabase'
+import { supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
@@ -493,16 +493,16 @@ export default function QuizPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: quizData } = await supabase.from('quizzes').select('*').eq('id', quizId).single()
+      const { data: quizData } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
       const deviceId = getDeviceId()
-      const { data: played } = await supabase
+      const { data: played } = await supabaseData
         .from('played_log').select('id')
         .eq('quiz_id', quizId).eq('identifier', deviceId).single()
 
       if (played) {
         setPhase('already_played')
         setQuiz(quizData)
-        const { data: setting } = await supabase.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+        const { data: setting } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
         if (setting?.value) setNextQuizAt(setting.value)
         setLoading(false)
         return
@@ -513,10 +513,10 @@ export default function QuizPage() {
 
       let qData: Question[] = []
       if (quizData?.randomize_questions) {
-        const { data } = await supabase.from('questions').select('*').eq('quiz_id', quizId)
+        const { data } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId)
         qData = (data || []).sort(() => Math.random() - 0.5)
       } else {
-        const { data } = await supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index')
+        const { data } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId).order('order_index')
         qData = data || []
       }
 
@@ -550,7 +550,7 @@ export default function QuizPage() {
 
   const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
     if (!quiz?.show_live_placement) return
-    const { data } = await supabase.from('attempts').select('correct_answers, total_time_ms').eq('quiz_id', quizId)
+    const { data } = await supabaseData.from('attempts').select('correct_answers, total_time_ms').eq('quiz_id', quizId)
     if (!data) return
     const better = data.filter(a =>
       a.correct_answers > correctSoFar ||
@@ -564,7 +564,7 @@ export default function QuizPage() {
     const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
 
-    const { data } = await supabase.from('attempts').insert({
+    const { data } = await supabaseData.from('attempts').insert({
       quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
       team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0
     }).select().single()
@@ -613,19 +613,19 @@ export default function QuizPage() {
     const deviceId = getDeviceId()
 
     if (attemptId) {
-      await supabase.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
+      await supabaseData.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
       for (const ans of answers) {
-        await supabase.from('attempt_answers').insert({
+        await supabaseData.from('attempt_answers').insert({
           attempt_id: attemptId, question_id: ans.questionId,
           selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs
         })
       }
-      await supabase.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
+      await supabaseData.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
     }
 
     localStorage.removeItem(`qk_progress_${quizId}`)
 
-    const { data: allAttempts } = await supabase
+    const { data: allAttempts } = await supabaseData
       .from('attempts')
       .select('correct_answers, total_time_ms')
       .eq('quiz_id', quizId)

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Quiz, Attempt } from '@/lib/supabase'
+import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
@@ -437,8 +437,8 @@ export default function LeaderboardPage() {
   useEffect(() => {
     async function fetchData() {
       const [{ data: quizData }, { data: attemptData }] = await Promise.all([
-        supabase.from('quizzes').select('*').eq('id', quizId).single(),
-        supabase.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
+        supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
+        supabaseData.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
       ])
       setQuiz(quizData)
       setAttempts(attemptData || [])
@@ -451,7 +451,7 @@ export default function LeaderboardPage() {
     const s = await getSession()
     setSession(s)
     if (s?.user) {
-      const { data: profile } = await supabase
+      const { data: profile } = await supabaseData
         .from('profiles')
         .select('display_name, avatar_url')
         .eq('id', s.user.id)

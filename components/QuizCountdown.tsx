@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabaseData } from '@/lib/supabase'
 
 type TimeLeft = {
   dager: number
@@ -31,7 +31,7 @@ export default function QuizCountdown() {
 
   useEffect(() => {
     async function fetchDate() {
-      const { data } = await supabase
+      const { data } = await supabaseData
         .from('site_settings')
         .select('value')
         .eq('key', 'next_quiz_at')

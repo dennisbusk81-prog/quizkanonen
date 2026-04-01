@@ -23,7 +23,11 @@ export default function UserMenu() {
   }
 
   useEffect(() => {
+    // Timeout ensures ready=true even if getSession() hangs during OAuth init
+    const timeout = setTimeout(() => setReady(true), 3000)
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      clearTimeout(timeout)
       setSession(s)
       if (s?.user) loadProfile(s.user.id, s.user.email)
       setReady(true)
