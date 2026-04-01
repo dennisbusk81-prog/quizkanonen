@@ -1,47 +1,33 @@
-'use client'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabaseData, Quiz } from '@/lib/supabase'
 
-type QuizStats = Record<string, { questions: number; participants: number }>
+type QuizRow = {
+  id: string
+  title: string
+  allow_teams: boolean
+  requires_access_code: boolean
+  time_limit_seconds: number | null
+  questions: { count: number }[]
+  attempts: { count: number }[]
+}
 
-export default function Home() {
-  const [quizzes, setQuizzes] = useState<Quiz[]>([])
-  const [stats, setStats] = useState<QuizStats>({})
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchQuizzes()
-  }, [])
-
-  async function fetchQuizzes() {
-    const { data } = await supabaseData
+export default async function Home() {
+  const [{ data: quizzes }, { data: settings }] = await Promise.all([
+    supabaseAdmin
       .from('quizzes')
-      .select('*')
+      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, questions(count), attempts(count)')
       .eq('is_active', true)
-      .order('created_at', { ascending: false })
-    const quizList = data || []
-    setQuizzes(quizList)
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'next_quiz_at')
+      .single(),
+  ])
 
-    if (quizList.length > 0) {
-      const ids = quizList.map(q => q.id)
-      const [{ data: qData }, { data: aData }] = await Promise.all([
-        supabaseData.from('questions').select('quiz_id').in('quiz_id', ids),
-        supabaseData.from('attempts').select('quiz_id').in('quiz_id', ids),
-      ])
-      const computed: QuizStats = {}
-      for (const id of ids) {
-        computed[id] = {
-          questions: qData?.filter(q => q.quiz_id === id).length ?? 0,
-          participants: aData?.filter(a => a.quiz_id === id).length ?? 0,
-        }
-      }
-      setStats(computed)
-    }
-
-    setLoading(false)
-  }
+  const quizList = (quizzes as QuizRow[] | null) ?? []
+  const nextQuizAt: string | null = settings?.value ?? null
 
   return (
     <>
@@ -294,29 +280,6 @@ export default function Home() {
           line-height: 1.6;
         }
 
-        .qk-skeleton {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-card);
-          padding: 28px;
-          margin-bottom: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .qk-shimmer {
-          background: linear-gradient(90deg, var(--border) 25%, #2f3340 50%, var(--border) 75%);
-          background-size: 400% 100%;
-          animation: shimmer 1.6s ease infinite;
-          border-radius: 6px;
-        }
-
-        @keyframes shimmer {
-          0%   { background-position: 100% 0; }
-          100% { background-position: -100% 0; }
-        }
-
         /* Slik fungerer det */
         .qk-how-grid {
           display: grid;
@@ -405,23 +368,14 @@ export default function Home() {
           <div className="qk-rule" />
         </header>
 
-        <QuizCountdown />
+        <QuizCountdown initialDate={nextQuizAt} />
+
         <div className="qk-section">
           <span className="qk-section-text">Tilgjengelig nå</span>
           <div className="qk-section-line" />
         </div>
 
-        {loading ? (
-          <>
-            {[1, 2].map(i => (
-              <div key={i} className="qk-skeleton">
-                <div className="qk-shimmer" style={{ height: 12, width: '30%' }} />
-                <div className="qk-shimmer" style={{ height: 22, width: '70%' }} />
-                <div className="qk-shimmer" style={{ height: 12, width: '45%' }} />
-              </div>
-            ))}
-          </>
-        ) : quizzes.length === 0 ? (
+        {quizList.length === 0 ? (
           <div className="qk-empty">
             <div className="qk-empty-icon">🏔️</div>
             <p className="qk-empty-title">Ingen aktive quizer akkurat nå</p>
@@ -431,8 +385,9 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          quizzes.map(quiz => {
-            const s = stats[quiz.id]
+          quizList.map(quiz => {
+            const questionCount = quiz.questions[0]?.count ?? 0
+            const participantCount = quiz.attempts[0]?.count ?? 0
             return (
               <div key={quiz.id} className="qk-card">
                 <div className="qk-card-left">
@@ -445,11 +400,11 @@ export default function Home() {
                   <h2 className="qk-title">{quiz.title}</h2>
 
                   <div className="qk-details">
-                    {s && s.questions > 0 && (
-                      <span className="qk-detail">📋 {s.questions} spørsmål</span>
+                    {questionCount > 0 && (
+                      <span className="qk-detail">📋 {questionCount} spørsmål</span>
                     )}
-                    {s && s.participants > 0 && (
-                      <span className="qk-detail">👥 {s.participants} deltakere</span>
+                    {participantCount > 0 && (
+                      <span className="qk-detail">👥 {participantCount} deltakere</span>
                     )}
                     {quiz.time_limit_seconds && (
                       <span className="qk-detail">⏱ {quiz.time_limit_seconds}s per spørsmål</span>

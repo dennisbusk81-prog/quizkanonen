@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabaseData } from '@/lib/supabase'
 
 type TimeLeft = {
   dager: number
@@ -24,32 +23,18 @@ function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
-export default function QuizCountdown() {
-  const [target, setTarget] = useState<Date | null>(null)
+export default function QuizCountdown({ initialDate }: { initialDate: string | null }) {
+  const [target] = useState<Date | null>(() => (initialDate ? new Date(initialDate) : null))
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
-  const [quizOpen, setQuizOpen] = useState(false)
-
-  useEffect(() => {
-    async function fetchDate() {
-      const { data } = await supabaseData
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'next_quiz_at')
-        .single()
-      if (data?.value) {
-        const d = new Date(data.value)
-        setTarget(d)
-        setQuizOpen(d.getTime() <= Date.now())
-      }
-    }
-    fetchDate()
-  }, [])
+  const [quizOpen, setQuizOpen] = useState(() => {
+    if (!initialDate) return false
+    return new Date(initialDate).getTime() <= Date.now()
+  })
 
   useEffect(() => {
     if (!target) return
     const interval = setInterval(() => {
-      const tl = getTimeLeft(target)
-      setTimeLeft(tl)
+      setTimeLeft(getTimeLeft(target))
       setQuizOpen(target.getTime() <= Date.now())
     }, 1000)
     return () => clearInterval(interval)
@@ -104,7 +89,6 @@ export default function QuizCountdown() {
         Neste quiz
       </p>
 
-      {/* Countdown */}
       {timeLeft && (
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginBottom: '1rem' }}>
           {[
