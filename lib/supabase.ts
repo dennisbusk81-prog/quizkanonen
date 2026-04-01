@@ -36,6 +36,7 @@ export type Quiz = {
   allow_teams: boolean
   requires_access_code: boolean
   is_active: boolean
+  scheduled_at: string | null
 }
 
 export type Question = {

@@ -278,6 +278,7 @@ export default function NewQuiz() {
     category: 'Allmennkunnskap',
     opens_at: '',
     closes_at: '',
+    scheduled_at: '',
     time_limit_seconds: 30,
     num_options: 4,
     show_leaderboard: true,
@@ -322,6 +323,7 @@ export default function NewQuiz() {
       ...form,
       opens_at: new Date(form.opens_at).toISOString(),
       closes_at: new Date(form.closes_at).toISOString(),
+      scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
     }).select().single()
 
     if (error) {
@@ -394,6 +396,21 @@ export default function NewQuiz() {
             </div>
           </div>
           <p className="nq-hint">Standard: åpner neste fredag kl 17:00, stenger uken etter.</p>
+          <div className="nq-field" style={{ marginTop: 16, marginBottom: 0 }}>
+            <label className="nq-label">⏰ Auto-publiser (valgfritt)</label>
+            <input
+              type="datetime-local"
+              value={form.scheduled_at}
+              onChange={e => {
+                update('scheduled_at', e.target.value)
+                if (e.target.value) update('is_active', false)
+              }}
+              className="nq-input"
+            />
+            <p className="nq-hint" style={{ textAlign: 'left', marginTop: 6 }}>
+              Quizen publiseres automatisk på dette tidspunktet. Sett «Publisert» til Av nedenfor.
+            </p>
+          </div>
         </div>
 
         {/* Spillinnstillinger */}

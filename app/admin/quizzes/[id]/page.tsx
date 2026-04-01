@@ -29,6 +29,7 @@ export default function QuizCockpit() {
     description: '',
     opens_at: '',
     closes_at: '',
+    scheduled_at: '',
     time_limit_seconds: 30,
     num_options: 4,
     is_active: false,
@@ -59,6 +60,7 @@ export default function QuizCockpit() {
         description: quizData.description || '',
         opens_at: toLocalInput(quizData.opens_at),
         closes_at: toLocalInput(quizData.closes_at),
+        scheduled_at: quizData.scheduled_at ? toLocalInput(quizData.scheduled_at) : '',
         time_limit_seconds: quizData.time_limit_seconds,
         num_options: quizData.num_options,
         is_active: quizData.is_active,
@@ -87,6 +89,7 @@ export default function QuizCockpit() {
       description: form.description,
       opens_at: toISO(form.opens_at),
       closes_at: toISO(form.closes_at),
+      scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
       time_limit_seconds: form.time_limit_seconds,
       num_options: form.num_options,
       is_active: form.is_active,
@@ -204,6 +207,19 @@ export default function QuizCockpit() {
                 <input type="datetime-local" value={form.closes_at} onChange={e => upd('closes_at', e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400" />
               </div>
+            </div>
+            <div>
+              <label className="text-gray-400 text-xs font-semibold mb-1 block">⏰ Auto-publiser (valgfritt)</label>
+              <input
+                type="datetime-local"
+                value={form.scheduled_at}
+                onChange={e => {
+                  upd('scheduled_at', e.target.value)
+                  if (e.target.value) upd('is_active', false)
+                }}
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400"
+              />
+              <p className="text-gray-500 text-xs mt-1">Publiseres automatisk på dette tidspunktet. Tøm feltet for å deaktivere.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
