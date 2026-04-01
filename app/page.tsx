@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase, Quiz } from '@/lib/supabase'
 
+type QuizStats = Record<string, { questions: number; participants: number }>
+
 export default function Home() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [stats, setStats] = useState<QuizStats>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,7 +21,25 @@ export default function Home() {
       .select('*')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
-    setQuizzes(data || [])
+    const quizList = data || []
+    setQuizzes(quizList)
+
+    if (quizList.length > 0) {
+      const ids = quizList.map(q => q.id)
+      const [{ data: qData }, { data: aData }] = await Promise.all([
+        supabase.from('questions').select('quiz_id').in('quiz_id', ids),
+        supabase.from('attempts').select('quiz_id').in('quiz_id', ids),
+      ])
+      const computed: QuizStats = {}
+      for (const id of ids) {
+        computed[id] = {
+          questions: qData?.filter(q => q.quiz_id === id).length ?? 0,
+          participants: aData?.filter(a => a.quiz_id === id).length ?? 0,
+        }
+      }
+      setStats(computed)
+    }
+
     setLoading(false)
   }
 
@@ -296,6 +317,44 @@ export default function Home() {
           100% { background-position: -100% 0; }
         }
 
+        /* Slik fungerer det */
+        .qk-how-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .qk-how-card {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-card);
+          padding: 22px 18px;
+        }
+
+        .qk-how-num {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 28px;
+          font-weight: 700;
+          color: var(--gold);
+          opacity: 0.6;
+          line-height: 1;
+          margin-bottom: 12px;
+        }
+
+        .qk-how-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--white);
+          margin-bottom: 6px;
+        }
+
+        .qk-how-desc {
+          font-size: 12px;
+          color: var(--muted);
+          line-height: 1.55;
+        }
+
         .qk-footer {
           margin-top: 64px;
           padding-top: 28px;
@@ -317,6 +376,7 @@ export default function Home() {
         .qk-footer-nav {
           display: flex;
           gap: 20px;
+          flex-wrap: wrap;
         }
 
         .qk-footer-link {
@@ -332,6 +392,7 @@ export default function Home() {
           .qk-card { flex-direction: column; gap: 16px; }
           .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
           .qk-header { padding: 40px 0 32px; }
+          .qk-how-grid { grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -370,47 +431,74 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          quizzes.map(quiz => (
-            <div key={quiz.id} className="qk-card">
-              <div className="qk-card-left">
-                <div className="qk-tags">
-                  <span className="qk-tag">● Åpen</span>
-                  {quiz.allow_teams && <span className="qk-tag qk-tag-muted">👥 Lag</span>}
-                  {quiz.requires_access_code && <span className="qk-tag qk-tag-muted">🔒 Kode</span>}
+          quizzes.map(quiz => {
+            const s = stats[quiz.id]
+            return (
+              <div key={quiz.id} className="qk-card">
+                <div className="qk-card-left">
+                  <div className="qk-tags">
+                    <span className="qk-tag">● Åpen</span>
+                    {quiz.allow_teams && <span className="qk-tag qk-tag-muted">👥 Lag</span>}
+                    {quiz.requires_access_code && <span className="qk-tag qk-tag-muted">🔒 Kode</span>}
+                  </div>
+
+                  <h2 className="qk-title">{quiz.title}</h2>
+
+                  <div className="qk-details">
+                    {s && s.questions > 0 && (
+                      <span className="qk-detail">📋 {s.questions} spørsmål</span>
+                    )}
+                    {s && s.participants > 0 && (
+                      <span className="qk-detail">👥 {s.participants} deltakere</span>
+                    )}
+                    {quiz.time_limit_seconds && (
+                      <span className="qk-detail">⏱ {quiz.time_limit_seconds}s per spørsmål</span>
+                    )}
+                  </div>
                 </div>
 
-                <h2 className="qk-title">{quiz.title}</h2>
-
-                <div className="qk-details">
-                  {quiz.time_limit_seconds && (
-                    <span className="qk-detail">⏱ {quiz.time_limit_seconds}s per spørsmål</span>
-                  )}
-                  {quiz.num_options && (
-                    <span className="qk-detail">{quiz.num_options} alternativer</span>
-                  )}
+                <div className="qk-card-right">
+                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-play">
+                    <svg width="11" height="12" viewBox="0 0 11 12" fill="#0f0f10" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M1 1.5L10 6 1 10.5V1.5Z" />
+                    </svg>
+                    Spill nå
+                  </Link>
+                  <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-ghost">
+                    Toppliste ↗
+                  </Link>
                 </div>
               </div>
-
-              <div className="qk-card-right">
-                <Link href={`/quiz/${quiz.id}`} className="qk-btn-play">
-                  <svg width="11" height="12" viewBox="0 0 11 12" fill="#0f0f10" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M1 1.5L10 6 1 10.5V1.5Z" />
-                  </svg>
-                  Spill nå
-                </Link>
-                <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-ghost">
-                  Toppliste ↗
-                </Link>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
+
+        <div className="qk-section" style={{ marginTop: 48 }}>
+          <span className="qk-section-text">Slik fungerer det</span>
+          <div className="qk-section-line" />
+        </div>
+
+        <div className="qk-how-grid">
+          {[
+            { num: '1', title: 'Åpne quizen', desc: 'Velg en aktiv quiz og skriv inn navnet ditt for å starte.' },
+            { num: '2', title: 'Svar på spørsmål', desc: 'Svar raskt — du har begrenset tid per spørsmål.' },
+            { num: '3', title: 'Se rangeringen', desc: 'Sjekk topplisten og se hvor du havnet blant alle deltakerne.' },
+          ].map(({ num, title, desc }) => (
+            <div key={num} className="qk-how-card">
+              <div className="qk-how-num">{num}</div>
+              <p className="qk-how-title">{title}</p>
+              <p className="qk-how-desc">{desc}</p>
+            </div>
+          ))}
+        </div>
 
         <footer className="qk-footer">
           <span className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
           <nav className="qk-footer-nav">
-            <a href="https://facebook.com" target="_blank" rel="noopener" className="qk-footer-link">Facebook-gruppen</a>
-            <Link href="/admin" className="qk-footer-link">Admin</Link>
+            <a href="https://facebook.com" target="_blank" rel="noopener" className="qk-footer-link">Facebook</a>
+            <Link href="/personvern" className="qk-footer-link">Personvern</Link>
+            <Link href="/vilkar" className="qk-footer-link">Vilkår</Link>
+            <a href="mailto:quizkanonen@gmail.com" className="qk-footer-link">Kontakt</a>
           </nav>
         </footer>
 

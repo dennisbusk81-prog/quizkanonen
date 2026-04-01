@@ -488,6 +488,8 @@ export default function QuizPage() {
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
+  const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
+  const [estimatedPlacement, setEstimatedPlacement] = useState<{ low: number; high: number; total: number } | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -497,7 +499,14 @@ export default function QuizPage() {
         .from('played_log').select('id')
         .eq('quiz_id', quizId).eq('identifier', deviceId).single()
 
-      if (played) { setPhase('already_played'); setQuiz(quizData); setLoading(false); return }
+      if (played) {
+        setPhase('already_played')
+        setQuiz(quizData)
+        const { data: setting } = await supabase.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+        if (setting?.value) setNextQuizAt(setting.value)
+        setLoading(false)
+        return
+      }
 
       const savedProgress = localStorage.getItem(`qk_progress_${quizId}`)
       if (savedProgress) { try { setResumeData(JSON.parse(savedProgress)) } catch {} }
@@ -615,6 +624,24 @@ export default function QuizPage() {
     }
 
     localStorage.removeItem(`qk_progress_${quizId}`)
+
+    const { data: allAttempts } = await supabase
+      .from('attempts')
+      .select('correct_answers, total_time_ms')
+      .eq('quiz_id', quizId)
+    if (allAttempts && allAttempts.length > 0) {
+      const total = allAttempts.length
+      const better = allAttempts.filter(a =>
+        a.correct_answers > correct ||
+        (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
+      ).length
+      const strictlyWorse = allAttempts.filter(a =>
+        a.correct_answers < correct ||
+        (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
+      ).length
+      setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
+    }
+
     setPhase('finished')
   }
 
@@ -641,22 +668,41 @@ export default function QuizPage() {
   )
 
   // ALLEREDE SPILT
-  if (phase === 'already_played') return (
-    <><style>{styles}</style>
-    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <span className="qk-result-icon">🔒</span>
-      <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
-      <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
-      <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz. Ny quiz kommer neste fredag!</p>
-      <div className="qk-divider"/>
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {quiz.show_leaderboard && (
-          <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
+  if (phase === 'already_played') {
+    const nextDate = nextQuizAt ? new Date(nextQuizAt) : null
+    const nextDateStr = nextDate
+      ? nextDate.toLocaleString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+      : null
+    return (
+      <><style>{styles}</style>
+      <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+        <span className="qk-result-icon">🔒</span>
+        <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
+        <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
+        <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz.</p>
+        {nextDateStr && (
+          <div style={{
+            margin:'16px 0 0',
+            padding:'12px 16px',
+            background:'rgba(201,168,76,0.08)',
+            border:'1px solid rgba(201,168,76,0.2)',
+            borderRadius:10,
+            fontSize:13,
+            color:'var(--gold)',
+          }}>
+            Neste quiz: <strong>{nextDateStr}</strong>
+          </div>
         )}
-        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
-      </div>
-    </div></div></div></>
-  )
+        <div className="qk-divider"/>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {quiz.show_leaderboard && (
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
+          )}
+          <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
+        </div>
+      </div></div></div></>
+    )
+  }
 
   // REGISTRERING
   if (phase === 'register') return (
@@ -825,6 +871,51 @@ export default function QuizPage() {
       </div>
 
       <div className="qk-divider"/>
+
+      {estimatedPlacement && (
+        <div style={{marginBottom:16}}>
+          <div style={{
+            background:'rgba(201,168,76,0.08)',
+            border:'1px solid rgba(201,168,76,0.2)',
+            borderRadius:10,
+            padding:'14px 16px',
+            textAlign:'center',
+            marginBottom:12,
+          }}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:6}}>
+              Estimert plassering
+            </div>
+            <div style={{fontFamily:'Libre Baskerville, serif',fontSize:22,fontWeight:700,color:'var(--gold)',marginBottom:2}}>
+              {estimatedPlacement.low === estimatedPlacement.high
+                ? `Plass ${estimatedPlacement.low}`
+                : `Mellom plass ${estimatedPlacement.low} og ${estimatedPlacement.high}`}
+            </div>
+            <div style={{fontSize:12,color:'var(--muted)'}}>av {estimatedPlacement.total} deltakere</div>
+          </div>
+
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            gap:10,
+            padding:'12px 16px',
+            background:'rgba(255,255,255,0.03)',
+            border:'1px solid rgba(255,255,255,0.07)',
+            borderRadius:10,
+            opacity:0.5,
+            cursor:'not-allowed',
+            userSelect:'none',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.131 17.64 11.862 17.64 9.2z" fill="#4285F4"/>
+              <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+              <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
+              <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 6.294C4.672 4.169 6.656 3.58 9 3.58z" fill="#EA4335"/>
+            </svg>
+            <span style={{fontSize:14,color:'var(--body)',flex:1}}>Logg inn med Google</span>
+            <span style={{fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--muted)'}}>Kommer snart</span>
+          </div>
+        </div>
+      )}
 
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={() => {
