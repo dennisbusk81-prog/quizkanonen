@@ -5,6 +5,12 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
+// Server-only admin client — bypasses RLS. Never import in client components.
+export const supabaseAdmin = createClient(
+  supabaseUrl,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 export type Profile = {
   id: string
   display_name: string | null
