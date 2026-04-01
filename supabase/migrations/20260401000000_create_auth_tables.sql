@@ -1,10 +1,10 @@
 -- profiles: one row per auth user
 create table if not exists public.profiles (
-  id            uuid        primary key references auth.users on delete cascade,
-  display_name  text,
-  avatar_url    text,
-  premium_status boolean    not null default false,
-  created_at    timestamptz not null default now()
+  id           uuid        primary key references auth.users on delete cascade,
+  display_name text,
+  avatar_color text,
+  created_at   timestamptz not null default now(),
+  last_seen_at timestamptz
 );
 
 alter table public.profiles enable row level security;

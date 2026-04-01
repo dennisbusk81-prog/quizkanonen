@@ -9,9 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 export type Profile = {
   id: string
   display_name: string | null
-  avatar_url: string | null
-  premium_status: boolean
+  avatar_color: string | null
   created_at: string
+  last_seen_at: string | null
 }
 
 export type Quiz = {

@@ -7,9 +7,12 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
 
-  if (!code) return NextResponse.redirect(`${origin}${next}`)
+  if (!code) {
+    console.log('[auth/callback] no code in URL, redirecting to', next)
+    return NextResponse.redirect(`${origin}${next}`)
+  }
 
-  // Exchange PKCE code using anon client (code exchange doesn't need service role)
+  // Exchange PKCE code using anon client
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -18,24 +21,33 @@ export async function GET(request: NextRequest) {
   const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
   if (exchangeError || !data.session) {
-    console.error('[auth/callback] exchangeCodeForSession failed:', exchangeError)
+    console.error('[auth/callback] exchangeCodeForSession failed:', exchangeError?.message ?? 'no session')
     return NextResponse.redirect(`${origin}/login?error=auth_failed`)
   }
 
   const { session, user } = data
+  console.log('[auth/callback] session ok, user id:', user.id, 'email:', user.email)
 
-  // Upsert profile using service role to bypass RLS entirely
-  const { error: upsertError } = await supabaseAdmin.from('profiles').upsert({
+  // Upsert profile — columns must match the actual profiles table:
+  // id, display_name, avatar_color, created_at, last_seen_at
+  const profilePayload = {
     id: user.id,
     display_name: (user.user_metadata?.full_name as string | undefined)
       ?? user.email?.split('@')[0]
       ?? null,
-    avatar_url: (user.user_metadata?.avatar_url as string | undefined) ?? null,
-  }, { onConflict: 'id', ignoreDuplicates: true })
+    avatar_color: null as string | null,
+    last_seen_at: new Date().toISOString(),
+  }
+  console.log('[auth/callback] upserting profile:', profilePayload)
+
+  const { error: upsertError } = await supabaseAdmin
+    .from('profiles')
+    .upsert(profilePayload, { onConflict: 'id' })
 
   if (upsertError) {
-    console.error('[auth/callback] profile upsert failed:', upsertError)
-    // Non-fatal: continue to redirect so the user is still logged in
+    console.error('[auth/callback] profile upsert failed — code:', upsertError.code, 'message:', upsertError.message, 'details:', upsertError.details)
+  } else {
+    console.log('[auth/callback] profile upserted ok for user', user.id)
   }
 
   // Pass session to the browser via URL hash.
