@@ -7,8 +7,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 
 export type Profile = {
   id: string
-  email: string
   display_name: string | null
+  avatar_url: string | null
+  premium_status: boolean
   created_at: string
 }
 

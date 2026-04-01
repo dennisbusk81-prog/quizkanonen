@@ -1,9 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal } from '@/lib/ranking'
+import { getSession, signOut } from '@/lib/auth'
+import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
+import type { Session } from '@supabase/supabase-js'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -223,6 +226,110 @@ const STYLES = `
     margin-left: 4px;
   }
 
+  /* ── AUTH GATE ── */
+  .qk-auth-gate {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 20px 24px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .qk-auth-gate-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .qk-auth-gate-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--white);
+    margin-bottom: 3px;
+  }
+
+  .qk-auth-gate-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .qk-auth-gate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold);
+    color: #0f0f10;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 16px;
+    border-radius: var(--radius-btn);
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+
+  .qk-auth-gate-btn:hover { background: #d9b85c; }
+
+  .qk-profile-bar {
+    background: rgba(201,168,76,0.06);
+    border: 1px solid rgba(201,168,76,0.18);
+    border-radius: var(--radius-card);
+    padding: 14px 20px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .qk-profile-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 1.5px solid var(--gold-bdr);
+    object-fit: cover;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--gold);
+    overflow: hidden;
+  }
+
+  .qk-profile-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--white);
+  }
+
+  .qk-profile-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .qk-signout-btn {
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color 0.15s;
+    font-family: 'Instrument Sans', sans-serif;
+  }
+
+  .qk-signout-btn:hover { color: var(--body); }
+
   /* ── EMPTY / HIDDEN ── */
   .lb-empty {
     background: var(--card);
@@ -312,6 +419,7 @@ const STYLES = `
     .lb-name { font-size: 14px; }
     .lb-score { font-size: 17px; }
     .lb-row { padding: 14px 16px; }
+    .qk-auth-gate { flex-direction: column; align-items: flex-start; }
   }
 `
 
@@ -321,18 +429,52 @@ export default function LeaderboardPage() {
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<Session | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [displayName, setDisplayName] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
-      const { data: quizData } = await supabase.from('quizzes').select('*').eq('id', quizId).single()
-      const { data: attemptData } = await supabase
-        .from('attempts').select('*').eq('quiz_id', quizId).limit(200)
+      const [{ data: quizData }, { data: attemptData }] = await Promise.all([
+        supabase.from('quizzes').select('*').eq('id', quizId).single(),
+        supabase.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
+      ])
       setQuiz(quizData)
       setAttempts(attemptData || [])
       setLoading(false)
     }
     fetchData()
   }, [quizId])
+
+  const loadSession = useCallback(async () => {
+    const s = await getSession()
+    setSession(s)
+    if (s?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, avatar_url')
+        .eq('id', s.user.id)
+        .single()
+      setDisplayName(profile?.display_name ?? s.user.email?.split('@')[0] ?? null)
+      setAvatarUrl(profile?.avatar_url ?? null)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSession()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      loadSession()
+    })
+    return () => subscription.unsubscribe()
+  }, [loadSession])
+
+  const handleSignOut = async () => {
+    await signOut()
+    setSession(null)
+    setDisplayName(null)
+    setAvatarUrl(null)
+  }
 
   const isOpen = (q: Quiz) => {
     const now = new Date()
@@ -375,6 +517,8 @@ export default function LeaderboardPage() {
   return (
     <>
       <style>{STYLES}</style>
+      <AuthModal open={showModal} onClose={() => setShowModal(false)} />
+
       <div className="lb-page">
 
         <header className="lb-header">
@@ -384,6 +528,39 @@ export default function LeaderboardPage() {
           <p className="lb-subtitle">{quiz.title}</p>
           <div className="lb-rule" />
         </header>
+
+        {/* Auth gate / profile bar */}
+        {session ? (
+          <div className="qk-profile-bar">
+            <div className="qk-profile-avatar">
+              {avatarUrl
+                ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : (displayName?.[0]?.toUpperCase() ?? '?')
+              }
+            </div>
+            <div style={{ flex: 1 }}>
+              <p className="qk-profile-name">{displayName}</p>
+              <p className="qk-profile-sub">Din nøyaktige plassering vises i listen nedenfor</p>
+            </div>
+            <button onClick={handleSignOut} className="qk-signout-btn">Logg ut</button>
+          </div>
+        ) : (
+          <div className="qk-auth-gate">
+            <div className="qk-auth-gate-text">
+              <p className="qk-auth-gate-title">Finn din plassering</p>
+              <p className="qk-auth-gate-sub">Logg inn med Google for å se nøyaktig hvor du havnet</p>
+            </div>
+            <button onClick={() => setShowModal(true)} className="qk-auth-gate-btn">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
+                <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
+                <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
+                <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
+              </svg>
+              Logg inn med Google
+            </button>
+          </div>
+        )}
 
         {isHidden ? (
           <div className="lb-empty">
