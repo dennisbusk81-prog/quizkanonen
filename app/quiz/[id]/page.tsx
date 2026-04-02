@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabaseData, Quiz, Question } from '@/lib/supabase'
+import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
@@ -564,9 +564,11 @@ export default function QuizPage() {
     const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
 
+    const { data: { session } } = await supabase.auth.getSession()
     const { data } = await supabaseData.from('attempts').insert({
       quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
-      team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0
+      team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
+      user_id: session?.user?.id ?? null,
     }).select().single()
 
     setAttemptId(data?.id || null)
