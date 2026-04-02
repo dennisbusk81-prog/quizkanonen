@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
-import UserMenu from "@/components/UserMenu";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+
+const UserMenu = dynamic(() => import("@/components/UserMenu"), { ssr: false });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
