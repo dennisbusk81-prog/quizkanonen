@@ -24,8 +24,8 @@ const s = {
 }
 
 const PLANS = [
-  { id: 'weekly', name: 'Ukespass', price: 'kr 19', desc: '7 dagers full tilgang', priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_UKESPASS },
-  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY },
+  { id: 'weekly', name: 'Ukespass', price: 'kr 19', desc: '7 dagers full tilgang', priceId: 'STRIPE_PRICE_UKESPASS' },
+  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' },
 ]
 
 const FEATURES = [

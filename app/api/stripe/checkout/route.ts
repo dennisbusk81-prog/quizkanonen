@@ -20,9 +20,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mangler priceId eller userId', debug: { priceId, userId } }, { status: 400 })
     }
 
+    const resolvedPriceId = priceId === 'STRIPE_PRICE_UKESPASS'
+      ? process.env.STRIPE_PRICE_UKESPASS!
+      : process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
+    const mode = priceId === 'STRIPE_PRICE_UKESPASS' ? 'payment' : 'subscription'
+
     const session = await stripe.checkout.sessions.create({
-      mode: priceId === process.env.STRIPE_PRICE_UKESPASS ? 'payment' : 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
+      mode,
+      line_items: [{ price: resolvedPriceId, quantity: 1 }],
       customer_email: email ?? undefined,
       metadata: { userId },
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
