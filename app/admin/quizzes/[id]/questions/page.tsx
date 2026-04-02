@@ -429,18 +429,21 @@ export default function QuizQuestions() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchData()
   }, [])
 
   async function fetchData() {
-    const [{ data: quizData }, { data: questionData }] = await Promise.all([
-      supabase.from('quizzes').select('*').eq('id', quizId).single(),
-      supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
-    ])
-    setQuiz(quizData)
-    setQuestions(questionData || [])
-    setLoading(false)
+    try {
+      const [{ data: quizData }, { data: questionData }] = await Promise.all([
+        supabase.from('quizzes').select('*').eq('id', quizId).single(),
+        supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
+      ])
+      setQuiz(quizData)
+      setQuestions(questionData || [])
+    } finally {
+      setLoading(false)
+    }
   }
 
   function showFeedback(type: 'success' | 'error', msg: string) {
