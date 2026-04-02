@@ -2,426 +2,70 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
-import { rankAttempts, getMedal } from '@/lib/ranking'
+import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import type { Session } from '@supabase/supabase-js'
 
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+const s = {
+  wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590' },
+  page:         { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
+  centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  header:   { padding: '48px 0 36px', textAlign: 'center' as const },
+  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
+  eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
+  title:    { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(28px, 6vw, 38px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
+  titleEm:  { fontStyle: 'italic', color: '#c9a84c' },
+  subtitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#9a9590', fontStyle: 'italic' as const },
+  rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 32 },
 
-  :root {
-    --bg:       #1a1c23;
-    --card:     #21242e;
-    --border:   #2a2d38;
-    --gold:     #c9a84c;
-    --gold-bg:  rgba(201,168,76,0.10);
-    --gold-bdr: rgba(201,168,76,0.22);
-    --white:    #ffffff;
-    --body:     #9a9590;
-    --muted:    #6a6860;
-    --green:    #4ade80;
-    --radius-card: 20px;
-    --radius-btn:  10px;
-  }
+  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 14px' },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', whiteSpace: 'nowrap' as const },
+  sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
+  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#6a6860', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
-  body {
-    background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
-    color: var(--body);
-    min-height: 100vh;
-  }
+  row:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowGold:      { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowHighlight: { background: '#252836', border: '1px solid #c9a84c', borderRadius: 20, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  goldStripe:   { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
 
-  .lb-page {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 0 20px 80px;
-  }
+  rankCell: { width: 32, textAlign: 'center' as const, flexShrink: 0 },
+  medal:    { fontSize: 22, lineHeight: '1', display: 'block' },
+  rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#6a6860', display: 'block' },
+  rankTied: { fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: '#c9a84c', display: 'block' },
 
-  /* ── HEADER ── */
-  .lb-header {
-    padding: 48px 0 36px;
-    text-align: center;
-  }
+  nameBlock: { flex: 1, minWidth: 0 },
+  name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
+  nameSub:   { fontSize: 12, color: '#6a6860' },
 
-  .lb-back {
-    display: inline-block;
-    font-size: 12px;
-    color: var(--muted);
-    text-decoration: none;
-    margin-bottom: 20px;
-    transition: color 0.15s;
-    letter-spacing: 0.04em;
-  }
+  scoreBlock: { textAlign: 'right' as const, flexShrink: 0 },
+  score:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 3 },
+  scoreSub:   { fontSize: 11, color: '#6a6860' },
+  tiedLabel:  { color: '#c9a84c', marginLeft: 4 },
 
-  .lb-back:hover { color: var(--gold); }
+  profileBar: { background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '14px 20px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 },
+  avatar:     { width: 34, height: 34, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c9a84c', overflow: 'hidden' as const },
 
-  .lb-eyebrow {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 8px;
-  }
+  card:       { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginBottom: 12 },
+  cardRow:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' as const },
+  cardTitle:  { fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 3 },
+  cardSub:    { fontSize: 12, color: '#6a6860' },
 
-  .lb-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: clamp(28px, 6vw, 38px);
-    font-weight: 700;
-    color: var(--white);
-    letter-spacing: -0.02em;
-    margin-bottom: 6px;
-  }
+  btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
+  btnOutline: { background: 'none', color: '#6a6860', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
+  btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#9a9590', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
 
-  .lb-title em { font-style: italic; color: var(--gold); }
+  separator: { textAlign: 'center' as const, fontSize: 11, color: '#6a6860', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
 
-  .lb-subtitle {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 14px;
-    color: var(--body);
-    font-style: italic;
-  }
-
-  .lb-rule {
-    width: 100%;
-    height: 1px;
-    background: var(--border);
-    margin-top: 32px;
-  }
-
-  /* ── SECTION LABEL ── */
-  .lb-section {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 32px 0 14px;
-  }
-
-  .lb-section-text {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-
-  .lb-section-line {
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  .lb-section-count {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
-    background: var(--card);
-    border: 1px solid var(--border);
-    padding: 2px 8px;
-    border-radius: 20px;
-  }
-
-  /* ── ROW ── */
-  .lb-row {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
-    transition: border-color 0.15s;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .lb-row.gold-row {
-    border-color: var(--gold-bdr);
-    background: linear-gradient(135deg, rgba(201,168,76,0.07) 0%, var(--card) 60%);
-  }
-
-  .lb-row.gold-row::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-    background: var(--gold);
-    border-radius: 3px 0 0 3px;
-  }
-
-  /* ── RANK ── */
-  .lb-rank {
-    width: 32px;
-    text-align: center;
-    flex-shrink: 0;
-  }
-
-  .lb-rank-medal {
-    font-size: 22px;
-    line-height: 1;
-  }
-
-  .lb-rank-num {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--muted);
-  }
-
-  .lb-rank-num.tied {
-    font-size: 13px;
-    color: var(--gold);
-  }
-
-  /* ── NAME BLOCK ── */
-  .lb-name-block {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .lb-name {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--white);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 2px;
-  }
-
-  .lb-name-meta {
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  /* ── SCORE BLOCK ── */
-  .lb-score-block {
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  .lb-score {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--gold);
-    line-height: 1;
-    margin-bottom: 3px;
-  }
-
-  .lb-score-pct {
-    font-size: 11px;
-    color: var(--muted);
-  }
-
-  .lb-score-pct .tied-label {
-    color: var(--gold);
-    margin-left: 4px;
-  }
-
-  /* ── AUTH GATE ── */
-  .qk-auth-gate {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 20px 24px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-
-  .qk-auth-gate-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .qk-auth-gate-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--white);
-    margin-bottom: 3px;
-  }
-
-  .qk-auth-gate-sub {
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .qk-auth-gate-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--gold);
-    color: #0f0f10;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 9px 16px;
-    border-radius: var(--radius-btn);
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s;
-    flex-shrink: 0;
-  }
-
-  .qk-auth-gate-btn:hover { background: #d9b85c; }
-
-  .qk-profile-bar {
-    background: rgba(201,168,76,0.06);
-    border: 1px solid rgba(201,168,76,0.18);
-    border-radius: var(--radius-card);
-    padding: 14px 20px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .qk-profile-avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: var(--border);
-    border: 1.5px solid var(--gold-bdr);
-    object-fit: cover;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    color: var(--gold);
-    overflow: hidden;
-  }
-
-  .qk-profile-name {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--white);
-  }
-
-  .qk-profile-sub {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 1px;
-  }
-
-  .qk-signout-btn {
-    font-size: 12px;
-    color: var(--muted);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px 0;
-    transition: color 0.15s;
-    font-family: 'Instrument Sans', sans-serif;
-  }
-
-  .qk-signout-btn:hover { color: var(--body); }
-
-  /* ── EMPTY / HIDDEN ── */
-  .lb-empty {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 56px 32px;
-    text-align: center;
-    margin-top: 32px;
-  }
-
-  .lb-empty-icon {
-    font-size: 44px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-  }
-
-  .lb-empty-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 20px;
-    color: var(--white);
-    margin-bottom: 8px;
-  }
-
-  .lb-empty-sub {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.6;
-    margin-bottom: 24px;
-  }
-
-  .lb-btn-primary {
-    display: inline-block;
-    background: var(--gold);
-    color: #0f0f10;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 11px 24px;
-    border-radius: var(--radius-btn);
-    text-decoration: none;
-    transition: background 0.15s;
-  }
-
-  .lb-btn-primary:hover { background: #d9b85c; }
-
-  /* ── LOADING ── */
-  .lb-loading {
-    min-height: 100vh;
-    background: var(--bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .lb-loading p {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 18px;
-    color: var(--muted);
-    font-style: italic;
-  }
-
-  /* ── SHIMMER SKELETON ── */
-  .lb-skeleton {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
-  }
-
-  .lb-shimmer {
-    background: linear-gradient(90deg, var(--border) 25%, #2f3340 50%, var(--border) 75%);
-    background-size: 400% 100%;
-    animation: shimmer 1.6s ease infinite;
-    border-radius: 6px;
-  }
-
-  @keyframes shimmer {
-    0%   { background-position: 100% 0; }
-    100% { background-position: -100% 0; }
-  }
-
-  @media (max-width: 400px) {
-    .lb-name { font-size: 14px; }
-    .lb-score { font-size: 17px; }
-    .lb-row { padding: 14px 16px; }
-    .qk-auth-gate { flex-direction: column; align-items: flex-start; }
-  }
-`
+  empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 32 },
+  emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
+  emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
+  emptySub:  { fontSize: 13, color: '#6a6860', lineHeight: 1.6, marginBottom: 24 },
+  btnLink:   { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+}
 
 export default function LeaderboardPage() {
   const params = useParams()
@@ -435,6 +79,9 @@ export default function LeaderboardPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null, premium_status: boolean | null } | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [visibleSoloCount, setVisibleSoloCount] = useState(10)
+  const [visibleTeamCount, setVisibleTeamCount] = useState(10)
+  const [scrollPending, setScrollPending] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -450,17 +97,17 @@ export default function LeaderboardPage() {
   }, [quizId])
 
   const loadSession = useCallback(async () => {
-    const s = await getSession()
-    setSession(s)
-    if (s?.user) {
-      const { data: profile } = await supabaseData
+    const sess = await getSession()
+    setSession(sess)
+    if (sess?.user) {
+      const { data: prof } = await supabaseData
         .from('profiles')
         .select('display_name, avatar_url, premium_status')
-        .eq('id', s.user.id)
+        .eq('id', sess.user.id)
         .single()
-      setProfile(profile)
-      setDisplayName(profile?.display_name ?? s.user.email?.split('@')[0] ?? null)
-      setAvatarUrl(profile?.avatar_url ?? null)
+      setProfile(prof)
+      setDisplayName(prof?.display_name ?? sess.user.email?.split('@')[0] ?? null)
+      setAvatarUrl(prof?.avatar_url ?? null)
     }
     setAuthLoading(false)
   }, [])
@@ -472,6 +119,15 @@ export default function LeaderboardPage() {
     })
     return () => subscription.unsubscribe()
   }, [loadSession])
+
+  useEffect(() => {
+    if (!scrollPending) return
+    const el = document.getElementById('user-row')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setScrollPending(false)
+    }
+  }, [scrollPending])
 
   const handleSignOut = async () => {
     await signOut()
@@ -488,190 +144,204 @@ export default function LeaderboardPage() {
   }
 
   const formatTime = (ms: number) => {
-    const s = Math.floor(ms / 1000)
-    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+    const sec = Math.floor(ms / 1000)
+    return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`
   }
 
   if (loading) return (
-    <>
-      <style>{STYLES}</style>
-      <div className="lb-loading"><p>Laster leaderboard...</p></div>
-    </>
+    <div style={s.centered}><p style={s.centeredText}>Laster leaderboard...</p></div>
   )
 
   if (!quiz) return (
-    <>
-      <style>{STYLES}</style>
-      <div className="lb-loading"><p>Fant ikke quizen.</p></div>
-    </>
+    <div style={s.centered}><p style={s.centeredText}>Fant ikke quizen.</p></div>
   )
 
   if (!quiz.show_leaderboard) return (
-    <>
-      <style>{STYLES}</style>
-      <div className="lb-loading" style={{ flexDirection: 'column', gap: 16 }}>
-        <p>Leaderboard er ikke aktivert for denne quizen.</p>
-        <Link href="/" style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
-      </div>
-    </>
+    <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
+      <p style={s.centeredText}>Leaderboard er ikke aktivert for denne quizen.</p>
+      <Link href="/" style={{ fontSize: 13, color: '#6a6860', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
+    </div>
   )
 
   const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz)
   const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
+  const totalCount = soloAttempts.length + teamAttempts.length
+
+  const userSoloAttempt = displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null
+  const userTeamAttempt = displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null
+  const userAttempt = userSoloAttempt ?? userTeamAttempt
+
+  function handleGoToMyPlacement() {
+    if (!userAttempt) return
+    if (userSoloAttempt && userAttempt.rank > visibleSoloCount) setVisibleSoloCount(userAttempt.rank + 5)
+    if (userTeamAttempt && !userSoloAttempt && userAttempt.rank > visibleTeamCount) setVisibleTeamCount(userAttempt.rank + 5)
+    setScrollPending(true)
+  }
+
+  const renderRow = (attempt: RankedAttempt, isUser: boolean) => {
+    const isFirst = attempt.rank === 1 && !attempt.isTied
+    const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
+    return (
+      <div key={attempt.id} id={isUser ? 'user-row' : undefined} style={rowStyle}>
+        {isFirst && <div style={s.goldStripe} />}
+        <div style={s.rankCell}>
+          {attempt.isTied
+            ? <span style={s.rankTied}>{attempt.rank}=</span>
+            : attempt.rank <= 3
+              ? <span style={s.medal}>{getMedal(attempt.rank)}</span>
+              : <span style={s.rankNum}>{attempt.rank}</span>
+          }
+        </div>
+        <div style={s.nameBlock}>
+          <p style={s.name}>{attempt.player_name}</p>
+          <p style={s.nameSub}>
+            {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
+            ⏱ {formatTime(attempt.total_time_ms)}
+          </p>
+        </div>
+        <div style={s.scoreBlock}>
+          <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
+          <p style={s.scoreSub}>
+            {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
+            {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void) => {
+    if (ranked.length === 0) return null
+    const visible = ranked.slice(0, visibleCount)
+    const userInSection = displayName ? ranked.find(a => a.player_name === displayName) ?? null : null
+    const userOutsideVisible = userInSection && userInSection.rank > visibleCount
+    const remaining = ranked.length - visibleCount
+    return (
+      <div key={label}>
+        <div style={s.sectionHeader}>
+          <span style={s.sectionText}>{label}</span>
+          <div style={s.sectionLine} />
+          <span style={s.sectionCount}>{ranked.length}</span>
+        </div>
+        {visible.map(attempt => renderRow(attempt, attempt.player_name === displayName))}
+        {userOutsideVisible && (
+          <>
+            <p style={s.separator}>— Din plassering —</p>
+            {renderRow(userInSection, true)}
+          </>
+        )}
+        {remaining > 0 && (
+          <button style={s.btnMore} onClick={onShowMore}>
+            Vis {Math.min(10, remaining)} til
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <>
-      <style>{STYLES}</style>
       <AuthModal open={showModal} onClose={() => setShowModal(false)} />
+      <div style={s.wrap}>
+        <div style={s.page}>
 
-      <div className="lb-page">
+          <header style={s.header}>
+            <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
+            <p style={s.eyebrow}>Quizkanonen</p>
+            <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
+            <p style={s.subtitle}>{quiz.title}</p>
+            <div style={s.rule} />
+          </header>
 
-        <header className="lb-header">
-          <Link href="/" className="lb-back">← Tilbake til forsiden</Link>
-          <p className="lb-eyebrow">Quizkanonen</p>
-          <h1 className="lb-title">Quiz<em>kanonen</em></h1>
-          <p className="lb-subtitle">{quiz.title}</p>
-          <div className="lb-rule" />
-        </header>
-
-        {/* Auth gate / profile bar */}
-        {!authLoading && session ? (
-          <div className="qk-profile-bar">
-            <div className="qk-profile-avatar">
-              {avatarUrl
-                ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : (displayName?.[0]?.toUpperCase() ?? '?')
-              }
+          {/* Profile bar */}
+          {!authLoading && session && (
+            <div style={s.profileBar}>
+              <div style={s.avatar}>
+                {avatarUrl
+                  ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : (displayName?.[0]?.toUpperCase() ?? '?')
+                }
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{displayName}</p>
+                <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>
+                  {isPremium ? 'Premium-bruker' : 'Standardkonto'}
+                </p>
+              </div>
+              <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
             </div>
-            <div style={{ flex: 1 }}>
-              <p className="qk-profile-name">{displayName}</p>
-              <p className="qk-profile-sub">Din nøyaktige plassering vises i listen nedenfor</p>
-            </div>
-            <button onClick={handleSignOut} className="qk-signout-btn">Logg ut</button>
-          </div>
-        ) : !authLoading ? (
-          <div className="qk-auth-gate">
-            <div className="qk-auth-gate-text">
-              <p className="qk-auth-gate-title">Finn din plassering</p>
-              <p className="qk-auth-gate-sub">Logg inn med Google for å se nøyaktig hvor du havnet</p>
-            </div>
-            <button onClick={() => setShowModal(true)} className="qk-auth-gate-btn">
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
-                <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
-                <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
-                <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
-              </svg>
-              Logg inn med Google
-            </button>
-          </div>
-        ) : null}
+          )}
 
-        {!authLoading && session && !isPremium && (
-          <div style={{ background: '#21242e', border: '1px solid #c9a84c', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-            <div style={{ color: '#d0d3e0', fontSize: '0.95rem' }}>
-              🔒 Se nøyaktig plassering og historikk med <strong style={{ color: '#c9a84c' }}>Premium</strong>
-            </div>
-            <a href="/premium" style={{ background: '#c9a84c', color: '#1a1c23', padding: '8px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none', whiteSpace: 'nowrap' as const }}>
-              Bli Premium
-            </a>
-          </div>
-        )}
-
-        {isHidden ? (
-          <div className="lb-empty">
-            <div className="lb-empty-icon">🔒</div>
-            <p className="lb-empty-title">Leaderboardet er skjult</p>
-            <p className="lb-empty-sub">
-              Vises når quizen stenger:<br />
-              {new Date(quiz.closes_at).toLocaleString('no-NO')}
-            </p>
-            <Link href={`/quiz/${quizId}`} className="lb-btn-primary">
-              Spill quizen →
-            </Link>
-          </div>
-        ) : attempts.length === 0 ? (
-          <div className="lb-empty">
-            <div className="lb-empty-icon">🏔️</div>
-            <p className="lb-empty-title">Ingen resultater ennå</p>
-            <p className="lb-empty-sub">Vær den første til å fullføre denne quizen.</p>
-            <Link href={`/quiz/${quizId}`} className="lb-btn-primary">
-              Spill quizen →
-            </Link>
-          </div>
-        ) : (
-          <>
-            {soloAttempts.length > 0 && (
-              <>
-                <div className="lb-section">
-                  <span className="lb-section-text">Enkeltpersoner</span>
-                  <div className="lb-section-line" />
-                  <span className="lb-section-count">{soloAttempts.length}</span>
-                </div>
-
-                {soloAttempts.map(attempt => (
-                  <div key={attempt.id} className={`lb-row ${attempt.rank === 1 ? 'gold-row' : ''}`}>
-                    <div className="lb-rank">
-                      {attempt.isTied
-                        ? <span className="lb-rank-num tied">{attempt.rank}=</span>
-                        : <span className="lb-rank-medal">{getMedal(attempt.rank)}</span>
-                      }
-                    </div>
-                    <div className="lb-name-block">
-                      <p className="lb-name">{attempt.player_name}</p>
-                      <p className="lb-name-meta">⏱ {formatTime(attempt.total_time_ms)}</p>
-                    </div>
-                    <div className="lb-score-block">
-                      <p className="lb-score">{attempt.correct_answers}/{attempt.total_questions}</p>
-                      <p className="lb-score-pct">
-                        {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
-                        {attempt.isTied && <span className="tied-label">delt</span>}
-                      </p>
-                    </div>
+          {/* Placement card */}
+          {!authLoading && (
+            <div style={s.card}>
+              {!session ? (
+                <div style={s.cardRow}>
+                  <div>
+                    <p style={s.cardTitle}>Finn din plassering</p>
+                    <p style={s.cardSub}>Logg inn for å se nøyaktig hvor du havnet</p>
                   </div>
-                ))}
-              </>
-            )}
-
-            {teamAttempts.length > 0 && (
-              <>
-                <div className="lb-section">
-                  <span className="lb-section-text">Lag</span>
-                  <div className="lb-section-line" />
-                  <span className="lb-section-count">{teamAttempts.length}</span>
+                  <button onClick={() => setShowModal(true)} style={s.btnGold}>
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
+                      <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
+                      <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
+                      <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
+                    </svg>
+                    Logg inn med Google
+                  </button>
                 </div>
-
-                {teamAttempts.map(attempt => (
-                  <div key={attempt.id} className={`lb-row ${attempt.rank === 1 ? 'gold-row' : ''}`}>
-                    <div className="lb-rank">
-                      {attempt.isTied
-                        ? <span className="lb-rank-num tied">{attempt.rank}=</span>
-                        : <span className="lb-rank-medal">{getMedal(attempt.rank)}</span>
-                      }
-                    </div>
-                    <div className="lb-name-block">
-                      <p className="lb-name">
-                        {attempt.player_name}
-                        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, marginLeft: 6 }}>
-                          {attempt.team_size} stk
-                        </span>
-                      </p>
-                      <p className="lb-name-meta">⏱ {formatTime(attempt.total_time_ms)}</p>
-                    </div>
-                    <div className="lb-score-block">
-                      <p className="lb-score">{attempt.correct_answers}/{attempt.total_questions}</p>
-                      <p className="lb-score-pct">
-                        {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
-                        {attempt.isTied && <span className="tied-label">delt</span>}
-                      </p>
-                    </div>
+              ) : userAttempt ? (
+                <div style={s.cardRow}>
+                  <div>
+                    <p style={s.cardTitle}>Du er på plass {userAttempt.rank} av {totalCount}</p>
+                    {!isPremium && (
+                      <p style={s.cardSub}>Oppgrader til Premium for å se din historikk og statistikk</p>
+                    )}
                   </div>
-                ))}
-              </>
-            )}
-          </>
-        )}
+                  {isPremium ? (
+                    <button onClick={handleGoToMyPlacement} style={s.btnGold}>
+                      Gå til min plassering
+                    </button>
+                  ) : (
+                    <a href="/premium" style={s.btnGold}>Bli Premium</a>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p style={s.cardTitle}>Ingen treff på ditt navn</p>
+                  <p style={s.cardSub}>Vi fant ikke et forsøk med ditt navn i denne quizen</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isHidden ? (
+            <div style={s.empty}>
+              <div style={s.emptyIcon}>🔒</div>
+              <p style={s.emptyTitle}>Leaderboardet er skjult</p>
+              <p style={s.emptySub}>
+                Vises når quizen stenger:<br />
+                {new Date(quiz.closes_at).toLocaleString('no-NO')}
+              </p>
+              <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
+            </div>
+          ) : attempts.length === 0 ? (
+            <div style={s.empty}>
+              <div style={s.emptyIcon}>🏔️</div>
+              <p style={s.emptyTitle}>Ingen resultater ennå</p>
+              <p style={s.emptySub}>Vær den første til å fullføre denne quizen.</p>
+              <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
+            </div>
+          ) : (
+            <>
+              {renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10))}
+              {renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
+            </>
+          )}
+
+        </div>
       </div>
     </>
   )
