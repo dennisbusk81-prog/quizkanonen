@@ -563,24 +563,24 @@ export default function QuizPage() {
     if (!nameInput.trim() || !ageConfirmed) return
     const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
-
-    const { data: { session } } = await supabase.auth.getSession()
-    const { data } = await supabaseData.from('attempts').insert({
-      quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
-      team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
-      user_id: session?.user?.id ?? null,
-    }).select().single()
-
-    setAttemptId(data?.id || null)
-
-    if (resumeData) {
-      setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
-      setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(questions[resumeData.index]))
-    } else {
-      setTimeLeft(getTimeLimit(questions[0]))
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const { data } = await supabaseData.from('attempts').insert({
+        quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
+        team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
+        user_id: session?.user?.id ?? null,
+      }).select().single()
+      setAttemptId(data?.id || null)
+      if (resumeData) {
+        setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
+        setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(questions[resumeData.index]))
+      } else {
+        setTimeLeft(getTimeLimit(questions[0]))
+      }
+      setQuestionStartTime(Date.now()); setPhase('playing')
+    } catch {
+      setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
     }
-
-    setQuestionStartTime(Date.now()); setPhase('playing')
   }
 
   const handleAnswer = async (answer: string) => {
@@ -613,39 +613,39 @@ export default function QuizPage() {
     const correct = answers.filter(a => a.isCorrect).length
     const streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
     const deviceId = getDeviceId()
-
-    if (attemptId) {
-      await supabaseData.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
-      for (const ans of answers) {
-        await supabaseData.from('attempt_answers').insert({
-          attempt_id: attemptId, question_id: ans.questionId,
-          selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs
-        })
+    try {
+      if (attemptId) {
+        await supabaseData.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
+        for (const ans of answers) {
+          await supabaseData.from('attempt_answers').insert({
+            attempt_id: attemptId, question_id: ans.questionId,
+            selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs
+          })
+        }
+        await supabaseData.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
       }
-      await supabaseData.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
+      localStorage.removeItem(`qk_progress_${quizId}`)
+      localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: totalTimeMs }))
+      const { data: allAttempts } = await supabaseData
+        .from('attempts')
+        .select('correct_answers, total_time_ms')
+        .eq('quiz_id', quizId)
+      if (allAttempts && allAttempts.length > 0) {
+        const total = allAttempts.length
+        const better = allAttempts.filter(a =>
+          a.correct_answers > correct ||
+          (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
+        ).length
+        const strictlyWorse = allAttempts.filter(a =>
+          a.correct_answers < correct ||
+          (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
+        ).length
+        setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
+      }
+    } catch {}
+    finally {
+      setPhase('finished')
     }
-
-    localStorage.removeItem(`qk_progress_${quizId}`)
-    localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: totalTimeMs }))
-
-    const { data: allAttempts } = await supabaseData
-      .from('attempts')
-      .select('correct_answers, total_time_ms')
-      .eq('quiz_id', quizId)
-    if (allAttempts && allAttempts.length > 0) {
-      const total = allAttempts.length
-      const better = allAttempts.filter(a =>
-        a.correct_answers > correct ||
-        (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
-      ).length
-      const strictlyWorse = allAttempts.filter(a =>
-        a.correct_answers < correct ||
-        (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
-      ).length
-      setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
-    }
-
-    setPhase('finished')
   }
 
   const formatTime = (ms: number) => {

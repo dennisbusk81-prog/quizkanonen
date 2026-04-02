@@ -54,7 +54,6 @@ export default function PremiumPage() {
     setLoading(true)
     try {
       if (!session) {
-        setLoading(false)
         setShowLoginAlert(true)
         return
       }
@@ -76,8 +75,9 @@ export default function PremiumPage() {
       }
     } catch {
       alert('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

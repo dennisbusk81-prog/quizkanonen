@@ -138,7 +138,9 @@ export default function LeaderboardPage() {
   }, [scrollPending])
 
   const handleSignOut = async () => {
-    await signOut()
+    try {
+      await signOut()
+    } catch {}
     setSession(null)
     setDisplayName(null)
     setAvatarUrl(null)

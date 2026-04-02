@@ -29,17 +29,22 @@ export default function NextQuizSetting() {
   async function save() {
     if (!value) return
     setSaving(true)
-    const isoValue = new Date(value).toISOString()
-    const { error } = await supabase
-      .from('site_settings')
-      .upsert({ key: 'next_quiz_at', value: isoValue, updated_at: new Date().toISOString() })
-    if (error) {
-      setFeedback({ type: 'error', msg: 'Kunne ikke lagre: ' + error.message })
-    } else {
-      setFeedback({ type: 'success', msg: 'Neste quiz-dato lagret!' })
+    try {
+      const isoValue = new Date(value).toISOString()
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({ key: 'next_quiz_at', value: isoValue, updated_at: new Date().toISOString() })
+      if (error) {
+        setFeedback({ type: 'error', msg: 'Kunne ikke lagre: ' + error.message })
+      } else {
+        setFeedback({ type: 'success', msg: 'Neste quiz-dato lagret!' })
+      }
+    } catch {
+      setFeedback({ type: 'error', msg: 'Uventet feil ved lagring.' })
+    } finally {
+      setSaving(false)
+      setTimeout(() => setFeedback(null), 3000)
     }
-    setSaving(false)
-    setTimeout(() => setFeedback(null), 3000)
   }
 
   return (

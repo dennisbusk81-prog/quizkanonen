@@ -163,8 +163,9 @@ export default function FoundersPage() {
       }
     } catch {
       setErrorMsg('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // Mount: kjør pending action hvis bruker kom tilbake fra OAuth
@@ -213,10 +214,14 @@ export default function FoundersPage() {
       setModalOpen(true)
       return
     }
-    const { data: { session: s } } = await supabase.auth.getSession()
-    const token = s?.access_token
-    if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); return }
-    await runActivate(token)
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession()
+      const token = s?.access_token
+      if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); return }
+      await runActivate(token)
+    } catch {
+      setErrorMsg('Noe gikk galt. Prøv igjen.')
+    }
   }
 
   return (

@@ -171,20 +171,23 @@ export default function LoginPage() {
     if (!email.trim()) return
     setLoading(true)
     setError('')
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-
-    if (error) {
-      setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
-    } else {
-      setSent(true)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) {
+        setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
+      } else {
+        setSent(true)
+      }
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
