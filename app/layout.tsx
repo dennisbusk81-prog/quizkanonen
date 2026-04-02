@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
-import UserMenuWrapper from "@/components/UserMenuWrapper";
+import UserMenu from "@/components/UserMenu";
 import UserMenuErrorBoundary from "@/components/UserMenuErrorBoundary";
 import Link from "next/link";
 
@@ -34,7 +34,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <UserMenuErrorBoundary>
-          <UserMenuWrapper />
+          <UserMenu />
         </UserMenuErrorBoundary>
         {children}
         <AuthListener />

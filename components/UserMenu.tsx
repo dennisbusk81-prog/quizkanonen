@@ -13,20 +13,22 @@ export default function UserMenu() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [profileLoaded, setProfileLoaded] = useState(false)
+  const [sessionResolved, setSessionResolved] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('display_name, premium_status')
-      .eq('id', userId)
-      .maybeSingle()
-    setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
-    setIsPremium(data?.premium_status === true)
-    setProfileLoaded(true)
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('display_name, premium_status')
+        .eq('id', userId)
+        .maybeSingle()
+      setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
+      setIsPremium(data?.premium_status === true)
+    } catch {
+      // keep email fallback already set
+    }
   }
 
   useEffect(() => { setMounted(true) }, [])
@@ -82,26 +84,23 @@ export default function UserMenu() {
   }
 
   useEffect(() => {
-    // Fallback: if INITIAL_SESSION never fires, unblock after 3s
-    const timeout = setTimeout(() => {
-      setReady(true)
-      setProfileLoaded(true)
-    }, 3000)
+    // Fallback: unblock after 3s if INITIAL_SESSION never fires
+    const timeout = setTimeout(() => setSessionResolved(true), 3000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (event === 'INITIAL_SESSION') {
-        // Fires immediately with whatever is in localStorage — no lock issue
         clearTimeout(timeout)
-        if (s?.user) loadProfile(s.user.id, s.user.email)
-        else setProfileLoaded(true)
-        setReady(true)
+        if (s?.user) {
+          // Set email as immediate name, then load real profile in background
+          setDisplayName(s.user.email?.split('@')[0] ?? null)
+          loadProfile(s.user.id, s.user.email)
+        }
+        setSessionResolved(true)
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
-        setProfileLoaded(true)
       } else if (s?.user) {
-        // TOKEN_REFRESHED, USER_UPDATED etc — reload profile silently
         loadProfile(s.user.id, s.user.email)
       }
     })
@@ -119,8 +118,7 @@ export default function UserMenu() {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [dropdownOpen])
 
-  // Don't render until mounted on client, auth state known, and profile loaded
-  if (!mounted || !ready || !profileLoaded) return null
+  if (!mounted || !sessionResolved) return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
 
