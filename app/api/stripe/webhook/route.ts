@@ -43,5 +43,17 @@ export async function POST(request: NextRequest) {
       .eq('stripe_customer_id', customerId)
   }
 
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription
+    const customerId = subscription.customer as string
+    const inactive = subscription.cancel_at_period_end ||
+      ['canceled', 'unpaid', 'past_due'].includes(subscription.status)
+    const premiumStatus = !inactive && subscription.status === 'active'
+    await supabaseAdmin
+      .from('profiles')
+      .update({ premium_status: premiumStatus })
+      .eq('stripe_customer_id', customerId)
+  }
+
   return NextResponse.json({ received: true })
 }
