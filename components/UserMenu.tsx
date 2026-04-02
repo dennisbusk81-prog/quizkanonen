@@ -9,6 +9,7 @@ export default function UserMenu() {
   const [session, setSession] = useState<Session | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [ready, setReady] = useState(false)
@@ -23,6 +24,24 @@ export default function UserMenu() {
       .maybeSingle()
     setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
     setIsPremium(data?.premium_status === true)
+  }
+
+  useEffect(() => {
+    if (!isPremium) { setSubscriptionInfo(null); return }
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (!s?.access_token) return
+      fetch('/api/stripe/subscription', { headers: { 'Authorization': `Bearer ${s.access_token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setSubscriptionInfo(data) })
+    })
+  }, [isPremium])
+
+  function formatPeriodDate(unix: number): string {
+    const d = new Date(unix * 1000)
+    const day = d.getDate()
+    const month = d.toLocaleDateString('no-NO', { month: 'short' }).replace('.', '')
+    const year = d.getFullYear()
+    return `${day}. ${month} ${year}`
   }
 
   async function handlePortal() {
@@ -142,11 +161,29 @@ export default function UserMenu() {
                   <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6a6860', marginBottom: 3 }}>
                     Innlogget som
                   </p>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'Instrument Sans', sans-serif", wordBreak: 'break-all' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'Instrument Sans', sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
                     {displayName}
                   </p>
+                  {isPremium ? (
+                    <>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 4, padding: '2px 8px' }}>
+                        Premium
+                      </span>
+                      {subscriptionInfo?.current_period_end && (
+                        <p style={{ fontSize: 11, color: '#6a6860', marginTop: 5 }}>
+                          {subscriptionInfo.cancel_at_period_end
+                            ? `Avsluttes ${formatPeriodDate(subscriptionInfo.current_period_end)}`
+                            : `Fornyes ${formatPeriodDate(subscriptionInfo.current_period_end)}`}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: 'transparent', border: '1px solid #444', borderRadius: 4, padding: '2px 8px' }}>
+                      Standardkonto
+                    </span>
+                  )}
                 </div>
-                {isPremium && (
+                {isPremium ? (
                   <button
                     onClick={handlePortal}
                     disabled={portalLoading}
@@ -163,6 +200,22 @@ export default function UserMenu() {
                   >
                     {portalLoading ? 'Laster...' : 'Administrer abonnement'}
                   </button>
+                ) : (
+                  <a
+                    href="/premium"
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 10px', background: 'none', border: 'none',
+                      borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      textDecoration: 'none', transition: 'background 0.12s',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    Oppgrader til Premium
+                  </a>
                 )}
                 <button
                   onClick={async () => { setDropdownOpen(false); setSession(null); setDisplayName(null); setIsPremium(false); await signOut() }}
