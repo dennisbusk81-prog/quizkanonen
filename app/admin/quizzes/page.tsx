@@ -242,8 +242,13 @@ export default function AdminQuizzes() {
     console.log('[AdminQuizzes] fetchQuizzes starter')
     try {
       console.log('[AdminQuizzes] før Supabase-kall')
-      const { data, error } = await supabase
-        .from('quizzes').select('*').order('created_at', { ascending: false })
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase-kall tidsavbrutt etter 10s')), 10_000)
+      )
+      const { data, error } = await Promise.race([
+        supabase.from('quizzes').select('*').order('created_at', { ascending: false }),
+        timeout,
+      ])
       console.log('[AdminQuizzes] etter Supabase-kall, data:', data, 'error:', error)
       if (error) throw error
       setQuizzes(data || [])
