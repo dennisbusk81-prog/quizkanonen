@@ -913,7 +913,6 @@ export default function QuizPage() {
               <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 6.294C4.672 4.169 6.656 3.58 9 3.58z" fill="#EA4335"/>
             </svg>
             <span style={{fontSize:14,color:'var(--body)',flex:1}}>Logg inn med Google</span>
-            <span style={{fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--muted)'}}>Kommer snart</span>
           </div>
         </div>
       )}
