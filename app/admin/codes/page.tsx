@@ -287,7 +287,7 @@ export default function AdminCodes() {
 
   useEffect(() => {
     setMounted(true)
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchCodes()
   }, [])
 
@@ -297,11 +297,14 @@ export default function AdminCodes() {
   }
 
   async function fetchCodes() {
-    const { data, error } = await supabase
-      .from('access_codes').select('*').order('created_at', { ascending: false })
-    if (error) showFeedback('error', 'Kunne ikke hente koder: ' + error.message)
-    setCodes(data || [])
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('access_codes').select('*').order('created_at', { ascending: false })
+      if (error) showFeedback('error', 'Kunne ikke hente koder: ' + error.message)
+      setCodes(data || [])
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function saveCode() {

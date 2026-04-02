@@ -190,18 +190,21 @@ export default function AdminHome() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchStats()
   }, [])
 
   async function fetchStats() {
-    const [{ count: quizzes }, { count: attempts }, { count: codes }] = await Promise.all([
-      supabase.from('quizzes').select('*', { count: 'exact', head: true }),
-      supabase.from('attempts').select('*', { count: 'exact', head: true }),
-      supabase.from('access_codes').select('*', { count: 'exact', head: true }),
-    ])
-    setStats({ quizzes: quizzes || 0, attempts: attempts || 0, codes: codes || 0 })
-    setLoading(false)
+    try {
+      const [{ count: quizzes }, { count: attempts }, { count: codes }] = await Promise.all([
+        supabase.from('quizzes').select('*', { count: 'exact', head: true }),
+        supabase.from('attempts').select('*', { count: 'exact', head: true }),
+        supabase.from('access_codes').select('*', { count: 'exact', head: true }),
+      ])
+      setStats({ quizzes: quizzes || 0, attempts: attempts || 0, codes: codes || 0 })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleLogout = () => {

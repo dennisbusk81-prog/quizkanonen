@@ -306,35 +306,37 @@ export default function QuizAnalytics() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchData()
   }, [])
 
   async function fetchData() {
-    const [
-      { data: quizData },
-      { data: questionData },
-      { data: attemptData },
-    ] = await Promise.all([
-      supabase.from('quizzes').select('*').eq('id', quizId).single(),
-      supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
-      supabase.from('attempts').select('*').eq('quiz_id', quizId),
-    ])
+    try {
+      const [
+        { data: quizData },
+        { data: questionData },
+        { data: attemptData },
+      ] = await Promise.all([
+        supabase.from('quizzes').select('*').eq('id', quizId).single(),
+        supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
+        supabase.from('attempts').select('*').eq('quiz_id', quizId),
+      ])
 
-    setQuiz(quizData)
-    setQuestions(questionData || [])
-    setAttempts(attemptData || [])
+      setQuiz(quizData)
+      setQuestions(questionData || [])
+      setAttempts(attemptData || [])
 
-    const ids = (attemptData || []).map((a: { id: string }) => a.id)
-    if (ids.length > 0) {
-      const { data: answerData } = await supabase
-        .from('attempt_answers')
-        .select('question_id, is_correct, selected_answer, time_ms')
-        .in('attempt_id', ids)
-      setAnswers(answerData || [])
+      const ids = (attemptData || []).map((a: { id: string }) => a.id)
+      if (ids.length > 0) {
+        const { data: answerData } = await supabase
+          .from('attempt_answers')
+          .select('question_id, is_correct, selected_answer, time_ms')
+          .in('attempt_id', ids)
+        setAnswers(answerData || [])
+      }
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const totalStarts = attempts.length

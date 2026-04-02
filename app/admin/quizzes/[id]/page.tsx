@@ -43,38 +43,41 @@ export default function QuizCockpit() {
   })
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchData()
   }, [])
 
   async function fetchData() {
-    const [{ data: quizData }, { data: attempts }, { data: questions }] = await Promise.all([
-      supabase.from('quizzes').select('*').eq('id', quizId).single(),
-      supabase.from('attempts').select('id').eq('quiz_id', quizId),
-      supabase.from('questions').select('id').eq('quiz_id', quizId),
-    ])
-    if (quizData) {
-      setQuiz(quizData)
-      setForm({
-        title: quizData.title,
-        description: quizData.description || '',
-        opens_at: toLocalInput(quizData.opens_at),
-        closes_at: toLocalInput(quizData.closes_at),
-        scheduled_at: quizData.scheduled_at ? toLocalInput(quizData.scheduled_at) : '',
-        time_limit_seconds: quizData.time_limit_seconds,
-        num_options: quizData.num_options,
-        is_active: quizData.is_active,
-        show_leaderboard: quizData.show_leaderboard,
-        hide_leaderboard_until_closed: quizData.hide_leaderboard_until_closed,
-        show_live_placement: quizData.show_live_placement,
-        show_answer_explanation: quizData.show_answer_explanation,
-        randomize_questions: quizData.randomize_questions,
-        allow_teams: quizData.allow_teams,
-        requires_access_code: quizData.requires_access_code,
-      })
+    try {
+      const [{ data: quizData }, { data: attempts }, { data: questions }] = await Promise.all([
+        supabase.from('quizzes').select('*').eq('id', quizId).single(),
+        supabase.from('attempts').select('id').eq('quiz_id', quizId),
+        supabase.from('questions').select('id').eq('quiz_id', quizId),
+      ])
+      if (quizData) {
+        setQuiz(quizData)
+        setForm({
+          title: quizData.title,
+          description: quizData.description || '',
+          opens_at: toLocalInput(quizData.opens_at),
+          closes_at: toLocalInput(quizData.closes_at),
+          scheduled_at: quizData.scheduled_at ? toLocalInput(quizData.scheduled_at) : '',
+          time_limit_seconds: quizData.time_limit_seconds,
+          num_options: quizData.num_options,
+          is_active: quizData.is_active,
+          show_leaderboard: quizData.show_leaderboard,
+          hide_leaderboard_until_closed: quizData.hide_leaderboard_until_closed,
+          show_live_placement: quizData.show_live_placement,
+          show_answer_explanation: quizData.show_answer_explanation,
+          randomize_questions: quizData.randomize_questions,
+          allow_teams: quizData.allow_teams,
+          requires_access_code: quizData.requires_access_code,
+        })
+      }
+      setStats({ plays: attempts?.length || 0, questions: questions?.length || 0 })
+    } finally {
+      setLoading(false)
     }
-    setStats({ plays: attempts?.length || 0, questions: questions?.length || 0 })
-    setLoading(false)
   }
 
   function showFeedback(type: 'success' | 'error', msg: string) {
