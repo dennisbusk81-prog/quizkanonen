@@ -3,10 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
-import dynamic from "next/dynamic";
+import UserMenuWrapper from "@/components/UserMenuWrapper";
 import Link from "next/link";
-
-const UserMenu = dynamic(() => import("@/components/UserMenu"), { ssr: false });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +32,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <UserMenu />
+        <UserMenuWrapper />
         {children}
         <AuthListener />
         <ConsentBanner />
