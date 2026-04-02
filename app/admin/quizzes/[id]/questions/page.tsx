@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
-import { supabase, Quiz, Question } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
+import { Quiz, Question } from '@/lib/supabase'
 import Link from 'next/link'
 
 type QuestionForm = {
@@ -435,14 +436,11 @@ export default function QuizQuestions() {
 
   async function fetchData() {
     try {
-      const [{ data: quizData, error: quizError }, { data: questionData, error: questionError }] = await Promise.all([
-        supabase.from('quizzes').select('*').eq('id', quizId).single(),
-        supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
-      ])
-      if (quizError) throw quizError
-      if (questionError) throw questionError
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions`)
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const { quiz: quizData, questions: questionData } = await res.json()
       setQuiz(quizData)
-      setQuestions(questionData || [])
+      setQuestions(questionData)
     } catch (e) {
       console.error('fetchData feilet:', e)
       setFeedback({ type: 'error', msg: 'Kunne ikke laste inn quiz. Sjekk tilkoblingen og prøv igjen.' })
@@ -469,25 +467,22 @@ export default function QuizQuestions() {
     }
     setSaving(true)
     try {
-      const { error } = await supabase.from('questions').insert({
-        quiz_id: quizId,
-        question_text: newQ.question_text,
-        option_a: newQ.option_a,
-        option_b: newQ.option_b,
-        option_c: newQ.option_c || null,
-        option_d: newQ.option_d || null,
-        correct_answer: newQ.correct_answer,
-        explanation: newQ.explanation || null,
-        time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
-        order_index: questions.length + 1,
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions`, {
+        method: 'POST',
+        body: JSON.stringify({
+          question_text: newQ.question_text,
+          option_a: newQ.option_a,
+          option_b: newQ.option_b,
+          option_c: newQ.option_c || null,
+          option_d: newQ.option_d || null,
+          correct_answer: newQ.correct_answer,
+          explanation: newQ.explanation || null,
+          time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
+          order_index: questions.length + 1,
+        }),
       })
-      if (error) { showFeedback('error', 'Feil ved lagring: ' + error.message) }
-      else {
-        showFeedback('success', 'Spørsmål lagret!')
-        setNewQ(emptyForm())
-        setShowForm(false)
-        fetchData()
-      }
+      if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved lagring: ' + d.error) }
+      else { showFeedback('success', 'Spørsmål lagret!'); setNewQ(emptyForm()); setShowForm(false); fetchData() }
     } catch {
       showFeedback('error', 'Uventet feil ved lagring.')
     } finally {
@@ -499,22 +494,21 @@ export default function QuizQuestions() {
     if (!editingId) return
     setSaving(true)
     try {
-      const { error } = await supabase.from('questions').update({
-        question_text: editForm.question_text,
-        option_a: editForm.option_a,
-        option_b: editForm.option_b,
-        option_c: editForm.option_c || null,
-        option_d: editForm.option_d || null,
-        correct_answer: editForm.correct_answer,
-        explanation: editForm.explanation || null,
-        time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
-      }).eq('id', editingId)
-      if (error) { showFeedback('error', 'Feil ved oppdatering: ' + error.message) }
-      else {
-        showFeedback('success', 'Spørsmål oppdatert!')
-        setEditingId(null)
-        fetchData()
-      }
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions/${editingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          question_text: editForm.question_text,
+          option_a: editForm.option_a,
+          option_b: editForm.option_b,
+          option_c: editForm.option_c || null,
+          option_d: editForm.option_d || null,
+          correct_answer: editForm.correct_answer,
+          explanation: editForm.explanation || null,
+          time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved oppdatering: ' + d.error) }
+      else { showFeedback('success', 'Spørsmål oppdatert!'); setEditingId(null); fetchData() }
     } catch {
       showFeedback('error', 'Uventet feil ved oppdatering.')
     } finally {
@@ -525,8 +519,8 @@ export default function QuizQuestions() {
   async function deleteQuestion(id: string) {
     if (!confirm('Slett dette spørsmålet?')) return
     try {
-      const { error } = await supabase.from('questions').delete().eq('id', id)
-      if (error) { showFeedback('error', 'Kunne ikke slette: ' + error.message) }
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions/${id}`, { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json(); showFeedback('error', 'Kunne ikke slette: ' + d.error) }
       else { showFeedback('success', 'Spørsmål slettet.'); fetchData() }
     } catch {
       showFeedback('error', 'Uventet feil ved sletting.')
@@ -554,8 +548,14 @@ export default function QuizQuestions() {
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
     try {
       await Promise.all([
-        supabase.from('questions').update({ order_index: questions[swapIdx].order_index }).eq('id', questions[idx].id),
-        supabase.from('questions').update({ order_index: questions[idx].order_index }).eq('id', questions[swapIdx].id),
+        adminFetch(`/api/admin/quizzes/${quizId}/questions/${questions[idx].id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ order_index: questions[swapIdx].order_index }),
+        }),
+        adminFetch(`/api/admin/quizzes/${quizId}/questions/${questions[swapIdx].id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ order_index: questions[idx].order_index }),
+        }),
       ])
       fetchData()
     } catch {

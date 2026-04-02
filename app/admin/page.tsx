@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-auth'
-import { supabase } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
 import Link from 'next/link'
 import NextQuizSetting from '@/components/NextQuizSetting'
 
@@ -196,18 +196,10 @@ export default function AdminHome() {
 
   async function fetchStats() {
     try {
-      const [
-        { count: quizzes, error: e1 },
-        { count: attempts, error: e2 },
-        { count: codes,   error: e3 },
-      ] = await Promise.all([
-        supabase.from('quizzes').select('*', { count: 'exact', head: true }),
-        supabase.from('attempts').select('*', { count: 'exact', head: true }),
-        supabase.from('access_codes').select('*', { count: 'exact', head: true }),
-      ])
-      const err = e1 ?? e2 ?? e3
-      if (err) throw err
-      setStats({ quizzes: quizzes || 0, attempts: attempts || 0, codes: codes || 0 })
+      const res = await adminFetch('/api/admin/stats')
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const data = await res.json()
+      setStats(data)
     } catch (e) {
       console.error('fetchStats feilet:', e)
     } finally {

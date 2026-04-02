@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
-import { supabase, Quiz, Question } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
+import { Quiz, Question } from '@/lib/supabase'
 import Link from 'next/link'
 
 type AttemptRow = {
@@ -312,31 +313,15 @@ export default function QuizAnalytics() {
 
   async function fetchData() {
     try {
-      const [
-        { data: quizData, error: e1 },
-        { data: questionData, error: e2 },
-        { data: attemptData, error: e3 },
-      ] = await Promise.all([
-        supabase.from('quizzes').select('*').eq('id', quizId).single(),
-        supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
-        supabase.from('attempts').select('*').eq('quiz_id', quizId),
-      ])
-      const err = e1 ?? e2 ?? e3
-      if (err) throw err
-
-      setQuiz(quizData)
-      setQuestions(questionData || [])
-      setAttempts(attemptData || [])
-
-      const ids = (attemptData || []).map((a: { id: string }) => a.id)
-      if (ids.length > 0) {
-        const { data: answerData, error: e4 } = await supabase
-          .from('attempt_answers')
-          .select('question_id, is_correct, selected_answer, time_ms')
-          .in('attempt_id', ids)
-        if (e4) throw e4
-        setAnswers(answerData || [])
-      }
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/analytics`)
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const data = await res.json()
+      setQuiz(data.quiz)
+      setQuestions(data.questions)
+      setAttempts(data.attempts)
+      setAnswers(data.answers)
+    } catch (e) {
+      console.error('fetchData feilet:', e)
     } finally {
       setLoading(false)
     }

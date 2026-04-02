@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn, getAdminPassword } from '@/lib/admin-auth'
-import { supabase, Quiz } from '@/lib/supabase'
+import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { adminFetch } from '@/lib/admin-fetch'
+import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'
 
 const STYLES = `
@@ -224,12 +225,8 @@ export default function AdminQuizzes() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    console.log('[AdminQuizzes] useEffect kjører')
     setMounted(true)
-    console.log('[AdminQuizzes] før isAdminLoggedIn()')
-    const loggedIn = isAdminLoggedIn()
-    console.log('[AdminQuizzes] etter isAdminLoggedIn(), resultat:', loggedIn)
-    if (!loggedIn) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchQuizzes()
   }, [])
 
@@ -239,18 +236,8 @@ export default function AdminQuizzes() {
   }
 
   async function fetchQuizzes() {
-    console.log('[AdminQuizzes] fetchQuizzes starter')
     try {
-      const password = getAdminPassword()
-      console.log('[AdminQuizzes] før API-kall')
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('API-kall tidsavbrutt etter 10s')), 10_000)
-      )
-      const res = await Promise.race([
-        fetch('/api/admin/quizzes', { headers: { 'x-admin-password': password ?? '' } }),
-        timeout,
-      ])
-      console.log('[AdminQuizzes] etter API-kall, status:', res.status)
+      const res = await adminFetch('/api/admin/quizzes')
       if (!res.ok) throw new Error(`API svarte ${res.status}`)
       const data: Quiz[] = await res.json()
       setQuizzes(data)
@@ -263,8 +250,12 @@ export default function AdminQuizzes() {
 
   async function toggleActive(quiz: Quiz) {
     try {
-      await supabase.from('quizzes').update({ is_active: !quiz.is_active }).eq('id', quiz.id)
-      fetchQuizzes()
+      const res = await adminFetch(`/api/admin/quizzes/${quiz.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !quiz.is_active }),
+      })
+      if (!res.ok) showFeedback('error', 'Kunne ikke oppdatere quiz.')
+      else fetchQuizzes()
     } catch {
       showFeedback('error', 'Kunne ikke oppdatere quiz.')
     }
@@ -273,8 +264,9 @@ export default function AdminQuizzes() {
   async function deleteQuiz(id: string) {
     if (!confirm('Er du sikker på at du vil slette denne quizen? Dette kan ikke angres.')) return
     try {
-      await supabase.from('quizzes').delete().eq('id', id)
-      fetchQuizzes()
+      const res = await adminFetch(`/api/admin/quizzes/${id}`, { method: 'DELETE' })
+      if (!res.ok) showFeedback('error', 'Kunne ikke slette quiz.')
+      else fetchQuizzes()
     } catch {
       showFeedback('error', 'Kunne ikke slette quiz.')
     }
@@ -283,15 +275,9 @@ export default function AdminQuizzes() {
   async function resetQuiz(id: string, title: string) {
     if (!confirm(`Nullstill "${title}"? Dette sletter alle resultater og lar alle spille på nytt.`)) return
     try {
-      const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', id)
-      if (attempts && attempts.length > 0) {
-        const attemptIds = attempts.map((a: { id: string }) => a.id)
-        await supabase.from('attempt_answers').delete().in('attempt_id', attemptIds)
-        await supabase.from('attempts').delete().eq('quiz_id', id)
-      }
-      await supabase.from('played_log').delete().eq('quiz_id', id)
-      showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`)
-      fetchQuizzes()
+      const res = await adminFetch(`/api/admin/quizzes/${id}/reset`, { method: 'POST' })
+      if (!res.ok) showFeedback('error', `Kunne ikke nullstille "${title}".`)
+      else { showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`); fetchQuizzes() }
     } catch {
       showFeedback('error', `Kunne ikke nullstille "${title}".`)
     }

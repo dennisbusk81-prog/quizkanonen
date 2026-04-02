@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
-import { supabase, Quiz } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
+import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'
 
 const toLocalInput = (iso: string) => {
@@ -49,17 +50,9 @@ export default function QuizCockpit() {
 
   async function fetchData() {
     try {
-      const [
-        { data: quizData, error: e1 },
-        { data: attempts, error: e2 },
-        { data: questions, error: e3 },
-      ] = await Promise.all([
-        supabase.from('quizzes').select('*').eq('id', quizId).single(),
-        supabase.from('attempts').select('id').eq('quiz_id', quizId),
-        supabase.from('questions').select('id').eq('quiz_id', quizId),
-      ])
-      const err = e1 ?? e2 ?? e3
-      if (err) throw err
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}`)
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const { quiz: quizData, plays, questions_count } = await res.json()
       if (quizData) {
         setQuiz(quizData)
         setForm({
@@ -80,7 +73,9 @@ export default function QuizCockpit() {
           requires_access_code: quizData.requires_access_code,
         })
       }
-      setStats({ plays: attempts?.length || 0, questions: questions?.length || 0 })
+      setStats({ plays, questions: questions_count })
+    } catch (e) {
+      console.error('fetchData feilet:', e)
     } finally {
       setLoading(false)
     }
@@ -94,26 +89,29 @@ export default function QuizCockpit() {
   async function saveQuiz() {
     setSaving(true)
     try {
-      const { error } = await supabase.from('quizzes').update({
-        title: form.title,
-        description: form.description,
-        opens_at: toISO(form.opens_at),
-        closes_at: toISO(form.closes_at),
-        scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
-        time_limit_seconds: form.time_limit_seconds,
-        num_options: form.num_options,
-        is_active: form.is_active,
-        show_leaderboard: form.show_leaderboard,
-        hide_leaderboard_until_closed: form.hide_leaderboard_until_closed,
-        show_live_placement: form.show_live_placement,
-        show_answer_explanation: form.show_answer_explanation,
-        randomize_questions: form.randomize_questions,
-        allow_teams: form.allow_teams,
-        requires_access_code: form.requires_access_code,
-      }).eq('id', quizId)
-      if (error) showFeedback('error', 'Feil ved lagring: ' + error.message)
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          opens_at: toISO(form.opens_at),
+          closes_at: toISO(form.closes_at),
+          scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
+          time_limit_seconds: form.time_limit_seconds,
+          num_options: form.num_options,
+          is_active: form.is_active,
+          show_leaderboard: form.show_leaderboard,
+          hide_leaderboard_until_closed: form.hide_leaderboard_until_closed,
+          show_live_placement: form.show_live_placement,
+          show_answer_explanation: form.show_answer_explanation,
+          randomize_questions: form.randomize_questions,
+          allow_teams: form.allow_teams,
+          requires_access_code: form.requires_access_code,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved lagring: ' + d.error) }
       else { showFeedback('success', 'Quiz lagret!'); fetchData() }
-    } catch (e) {
+    } catch {
       showFeedback('error', 'Uventet feil ved lagring.')
     } finally {
       setSaving(false)
@@ -123,15 +121,9 @@ export default function QuizCockpit() {
   async function resetQuiz() {
     if (!confirm(`Nullstill "${form.title}"? Dette sletter alle resultater og lar alle spille på nytt.`)) return
     try {
-      const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', quizId)
-      if (attempts && attempts.length > 0) {
-        const ids = attempts.map((a: { id: string }) => a.id)
-        await supabase.from('attempt_answers').delete().in('attempt_id', ids)
-        await supabase.from('attempts').delete().eq('quiz_id', quizId)
-      }
-      await supabase.from('played_log').delete().eq('quiz_id', quizId)
-      showFeedback('success', 'Quiz nullstilt — alle kan spille igjen.')
-      fetchData()
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/reset`, { method: 'POST' })
+      if (!res.ok) showFeedback('error', 'Kunne ikke nullstille quizen.')
+      else { showFeedback('success', 'Quiz nullstilt — alle kan spille igjen.'); fetchData() }
     } catch {
       showFeedback('error', 'Kunne ikke nullstille quizen.')
     }
@@ -140,8 +132,9 @@ export default function QuizCockpit() {
   async function deleteQuiz() {
     if (!confirm(`Slett "${form.title}" permanent? Dette kan ikke angres.`)) return
     try {
-      await supabase.from('quizzes').delete().eq('id', quizId)
-      router.push('/admin/quizzes')
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}`, { method: 'DELETE' })
+      if (!res.ok) showFeedback('error', 'Kunne ikke slette quizen.')
+      else router.push('/admin/quizzes')
     } catch {
       showFeedback('error', 'Kunne ikke slette quizen.')
     }

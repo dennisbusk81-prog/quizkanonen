@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
-import { supabase } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
 import Link from 'next/link'
 
 const STYLES = `
@@ -320,17 +320,21 @@ export default function NewQuiz() {
     }
     setSaving(true)
     try {
-      const { data, error } = await supabase.from('quizzes').insert({
-        ...form,
-        opens_at: new Date(form.opens_at).toISOString(),
-        closes_at: new Date(form.closes_at).toISOString(),
-        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
-      }).select().single()
-
-      if (error) {
-        alert('Feil ved lagring: ' + error.message)
+      const res = await adminFetch('/api/admin/quizzes', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          opens_at: new Date(form.opens_at).toISOString(),
+          closes_at: new Date(form.closes_at).toISOString(),
+          scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        alert('Feil ved lagring: ' + d.error)
         return
       }
+      const data = await res.json()
       router.push(`/admin/quizzes/${data.id}/questions`)
     } catch {
       alert('Uventet feil ved lagring.')

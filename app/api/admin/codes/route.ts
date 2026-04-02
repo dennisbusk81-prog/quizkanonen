@@ -9,7 +9,7 @@ function auth(req: NextRequest) {
 export async function GET(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await supabaseAdmin
-    .from('quizzes').select('*').order('created_at', { ascending: false })
+    .from('access_codes').select('*').order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
-  const { data, error } = await supabaseAdmin.from('quizzes').insert(body).select().single()
+  const { error } = await supabaseAdmin.from('access_codes').insert(body)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ ok: true })
 }

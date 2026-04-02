@@ -6,18 +6,25 @@ function auth(req: NextRequest) {
   return !!pw && pw === process.env.ADMIN_PASSWORD
 }
 
-export async function GET(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; qid: string }> }
+) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data, error } = await supabaseAdmin
-    .from('quizzes').select('*').order('created_at', { ascending: false })
+  const { qid } = await params
+  const body = await request.json()
+  const { error } = await supabaseAdmin.from('questions').update(body).eq('id', qid)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ ok: true })
 }
 
-export async function POST(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; qid: string }> }
+) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const body = await request.json()
-  const { data, error } = await supabaseAdmin.from('quizzes').insert(body).select().single()
+  const { qid } = await params
+  const { error } = await supabaseAdmin.from('questions').delete().eq('id', qid)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json({ ok: true })
 }

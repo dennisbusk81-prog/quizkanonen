@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
-import { supabase } from '@/lib/supabase'
+import { adminFetch } from '@/lib/admin-fetch'
 import Link from 'next/link'
 
 type Code = {
@@ -298,10 +298,13 @@ export default function AdminCodes() {
 
   async function fetchCodes() {
     try {
-      const { data, error } = await supabase
-        .from('access_codes').select('*').order('created_at', { ascending: false })
-      if (error) showFeedback('error', 'Kunne ikke hente koder: ' + error.message)
-      setCodes(data || [])
+      const res = await adminFetch('/api/admin/codes')
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const data = await res.json()
+      setCodes(data)
+    } catch (e) {
+      console.error('fetchCodes feilet:', e)
+      showFeedback('error', 'Kunne ikke hente koder.')
     } finally {
       setLoading(false)
     }
@@ -317,16 +320,20 @@ export default function AdminCodes() {
       const validUntil = form.valid_days
         ? new Date(Date.now() + parseInt(form.valid_days) * 24 * 60 * 60 * 1000).toISOString()
         : null
-      const { error } = await supabase.from('access_codes').insert({
-        code: form.code.trim().toUpperCase(),
-        description: form.description.trim(),
-        valid_until: validUntil,
-        max_uses: parseInt(form.max_uses) || 100,
-        used_count: 0,
-        is_active: true,
+      const res = await adminFetch('/api/admin/codes', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: form.code.trim().toUpperCase(),
+          description: form.description.trim(),
+          valid_until: validUntil,
+          max_uses: parseInt(form.max_uses) || 100,
+          used_count: 0,
+          is_active: true,
+        }),
       })
-      if (error) {
-        showFeedback('error', 'Feil ved lagring: ' + error.message)
+      if (!res.ok) {
+        const d = await res.json()
+        showFeedback('error', 'Feil ved lagring: ' + d.error)
       } else {
         showFeedback('success', 'Kode opprettet: ' + form.code.toUpperCase())
         setForm({ code: '', description: '', valid_days: '60', max_uses: '100' })
@@ -342,9 +349,16 @@ export default function AdminCodes() {
 
   async function toggleCode(id: string, current: boolean) {
     try {
-      const { error } = await supabase.from('access_codes').update({ is_active: !current }).eq('id', id)
-      if (error) showFeedback('error', 'Kunne ikke oppdatere: ' + error.message)
-      else fetchCodes()
+      const res = await adminFetch(`/api/admin/codes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !current }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        showFeedback('error', 'Kunne ikke oppdatere: ' + d.error)
+      } else {
+        fetchCodes()
+      }
     } catch {
       showFeedback('error', 'Uventet feil ved oppdatering.')
     }
