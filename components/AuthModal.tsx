@@ -5,9 +5,10 @@ import { signInWithGoogle } from '@/lib/auth'
 type Props = {
   open: boolean
   onClose: () => void
+  next?: string
 }
 
-export default function AuthModal({ open, onClose }: Props) {
+export default function AuthModal({ open, onClose, next }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   // Close on Escape
@@ -116,7 +117,7 @@ export default function AuthModal({ open, onClose }: Props) {
 
         {/* Google button */}
         <button
-          onClick={() => signInWithGoogle()}
+          onClick={() => signInWithGoogle(next)}
           style={{
             width: '100%',
             display: 'flex',

@@ -147,37 +147,13 @@ export default function FoundersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s)
-      if (s?.user) {
-        supabase
-          .from('profiles')
-          .select('premium_status')
-          .eq('id', s.user.id)
-          .maybeSingle()
-          .then(({ data }) => setIsPremium(data?.premium_status === true))
-      } else {
-        setIsPremium(false)
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  async function handleActivate() {
-    if (!session) {
-      setModalOpen(true)
-      return
-    }
+  async function runActivate(accessToken: string) {
     setLoading(true)
     setErrorMsg(null)
     try {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const token = s?.access_token
-      if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); setLoading(false); return }
       const res = await fetch('/api/stripe/founders-activate', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${accessToken}` },
       })
       const data = await res.json()
       if (data.success) {
@@ -189,6 +165,58 @@ export default function FoundersPage() {
       setErrorMsg('Noe gikk galt. Prøv igjen.')
     }
     setLoading(false)
+  }
+
+  // Mount: kjør pending action hvis bruker kom tilbake fra OAuth
+  useEffect(() => {
+    async function checkPending() {
+      const pending = localStorage.getItem('qk_pending_action')
+      if (pending !== 'founders_checkout') return
+      const { data: { session: s } } = await supabase.auth.getSession()
+      if (!s?.access_token) return
+      localStorage.removeItem('qk_pending_action')
+      await runActivate(s.access_token)
+    }
+    checkPending()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s)
+      if (s?.user) {
+        supabase
+          .from('profiles')
+          .select('premium_status')
+          .eq('id', s.user.id)
+          .maybeSingle()
+          .then(({ data }) => setIsPremium(data?.premium_status === true))
+        // Fullfør pending checkout etter OAuth-redirect
+        if (event === 'SIGNED_IN') {
+          const pending = localStorage.getItem('qk_pending_action')
+          if (pending === 'founders_checkout' && s.access_token) {
+            localStorage.removeItem('qk_pending_action')
+            runActivate(s.access_token)
+          }
+        }
+      } else {
+        setIsPremium(false)
+      }
+    })
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleActivate() {
+    if (!session) {
+      localStorage.setItem('qk_pending_action', 'founders_checkout')
+      setModalOpen(true)
+      return
+    }
+    const { data: { session: s } } = await supabase.auth.getSession()
+    const token = s?.access_token
+    if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); return }
+    await runActivate(token)
   }
 
   return (
@@ -241,7 +269,7 @@ export default function FoundersPage() {
         </div>
       </div>
 
-      <AuthModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <AuthModal open={modalOpen} onClose={() => setModalOpen(false)} next="/founders" />
     </div>
   )
 }

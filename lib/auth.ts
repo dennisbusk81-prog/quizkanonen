@@ -2,12 +2,13 @@ import { supabase } from './supabase'
 import type { Profile } from './supabase'
 import type { Session } from '@supabase/supabase-js'
 
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(next?: string): Promise<void> {
+  const redirectTo = next
+    ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+    : `${window.location.origin}/auth/callback`
   await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-    },
+    options: { redirectTo },
   })
 }
 
