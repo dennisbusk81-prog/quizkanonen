@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { setAdminSession } from '@/lib/admin-auth'
+import { setAdminSession, setAdminPassword } from '@/lib/admin-auth'
 import { verifyAdminPassword } from '@/lib/admin-actions'
 
 const STYLES = `
@@ -151,6 +151,7 @@ export default function AdminLogin() {
       const ok = await verifyAdminPassword(password)
       if (ok) {
         setAdminSession()
+        setAdminPassword(password)
         router.push('/admin')
       } else {
         setError('Feil passord. Prøv igjen.')

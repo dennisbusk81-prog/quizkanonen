@@ -21,8 +21,31 @@ export function isAdminLoggedIn(): boolean {
   }
 }
 
+export function setAdminPassword(password: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem('qk_admin_pw', password)
+  } catch {
+    // ignore
+  }
+}
+
+export function getAdminPassword(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return sessionStorage.getItem('qk_admin_pw')
+  } catch {
+    return null
+  }
+}
+
 export function logoutAdmin(): void {
   if (typeof window === 'undefined') return
-  localStorage.removeItem('qk_admin')
-  localStorage.removeItem('qk_admin_time')
+  try {
+    localStorage.removeItem('qk_admin')
+    localStorage.removeItem('qk_admin_time')
+    sessionStorage.removeItem('qk_admin_pw')
+  } catch {
+    // ignore
+  }
 }

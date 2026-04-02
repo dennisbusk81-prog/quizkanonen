@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { isAdminLoggedIn, getAdminPassword } from '@/lib/admin-auth'
 import { supabase, Quiz } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -241,17 +241,19 @@ export default function AdminQuizzes() {
   async function fetchQuizzes() {
     console.log('[AdminQuizzes] fetchQuizzes starter')
     try {
-      console.log('[AdminQuizzes] før Supabase-kall')
+      const password = getAdminPassword()
+      console.log('[AdminQuizzes] før API-kall')
       const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Supabase-kall tidsavbrutt etter 10s')), 10_000)
+        setTimeout(() => reject(new Error('API-kall tidsavbrutt etter 10s')), 10_000)
       )
-      const { data, error } = await Promise.race([
-        supabase.from('quizzes').select('*').order('created_at', { ascending: false }),
+      const res = await Promise.race([
+        fetch('/api/admin/quizzes', { headers: { 'x-admin-password': password ?? '' } }),
         timeout,
       ])
-      console.log('[AdminQuizzes] etter Supabase-kall, data:', data, 'error:', error)
-      if (error) throw error
-      setQuizzes(data || [])
+      console.log('[AdminQuizzes] etter API-kall, status:', res.status)
+      if (!res.ok) throw new Error(`API svarte ${res.status}`)
+      const data: Quiz[] = await res.json()
+      setQuizzes(data)
     } catch (e) {
       console.error('fetchQuizzes feilet:', e)
     } finally {
