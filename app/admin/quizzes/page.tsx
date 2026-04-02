@@ -224,8 +224,12 @@ export default function AdminQuizzes() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    console.log('[AdminQuizzes] useEffect kjører')
     setMounted(true)
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    console.log('[AdminQuizzes] før isAdminLoggedIn()')
+    const loggedIn = isAdminLoggedIn()
+    console.log('[AdminQuizzes] etter isAdminLoggedIn(), resultat:', loggedIn)
+    if (!loggedIn) { router.push('/admin/login'); setLoading(false); return }
     fetchQuizzes()
   }, [])
 
@@ -235,9 +239,12 @@ export default function AdminQuizzes() {
   }
 
   async function fetchQuizzes() {
+    console.log('[AdminQuizzes] fetchQuizzes starter')
     try {
+      console.log('[AdminQuizzes] før Supabase-kall')
       const { data, error } = await supabase
         .from('quizzes').select('*').order('created_at', { ascending: false })
+      console.log('[AdminQuizzes] etter Supabase-kall, data:', data, 'error:', error)
       if (error) throw error
       setQuizzes(data || [])
     } catch (e) {
