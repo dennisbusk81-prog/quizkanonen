@@ -14,6 +14,7 @@ export default function UserMenu() {
   const [modalOpen, setModalOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [ready, setReady] = useState(false)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -25,6 +26,7 @@ export default function UserMenu() {
       .maybeSingle()
     setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
     setIsPremium(data?.premium_status === true)
+    setProfileLoaded(true)
   }
 
   useEffect(() => { setMounted(true) }, [])
@@ -87,13 +89,15 @@ export default function UserMenu() {
       clearTimeout(timeout)
       setSession(s)
       if (s?.user) loadProfile(s.user.id, s.user.email)
+      else setProfileLoaded(true)
       setReady(true)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
+      setProfileLoaded(false)
       if (s?.user) loadProfile(s.user.id, s.user.email)
-      else { setDisplayName(null); setIsPremium(false) }
+      else { setDisplayName(null); setIsPremium(false); setProfileLoaded(true) }
     })
 
     return () => subscription.unsubscribe()
@@ -109,8 +113,8 @@ export default function UserMenu() {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [dropdownOpen])
 
-  // Don't render until mounted on client and auth state is known (avoids hydration mismatch)
-  if (!mounted || !ready) return null
+  // Don't render until mounted on client, auth state known, and profile loaded
+  if (!mounted || !ready || !profileLoaded) return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
 
