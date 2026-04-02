@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
+import PendingActionRedirect from '@/components/PendingActionRedirect'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -361,6 +362,7 @@ export default async function Home() {
         }
       `}</style>
 
+      <PendingActionRedirect />
       <div className="qk-page">
 
         <header className="qk-header">
