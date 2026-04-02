@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 const bodySchema = z.object({
   id: z.string().uuid('id must be a valid UUID'),
@@ -13,6 +14,12 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const rl = rateLimit(`profile-upsert:${ip}`, 10, 60_000)
+  if (!rl.success) {
+    return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
+  }
+
   let raw: unknown
   try {
     raw = await request.json()
