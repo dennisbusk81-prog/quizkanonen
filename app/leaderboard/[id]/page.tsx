@@ -203,7 +203,7 @@ export default function LeaderboardPage() {
         <div style={s.scoreBlock}>
           <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
           <p style={s.scoreSub}>
-            {Math.round((attempt.correct_answers / attempt.total_questions) * 100)}%
+            {formatTime(attempt.total_time_ms)}
             {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
           </p>
         </div>
@@ -265,9 +265,7 @@ export default function LeaderboardPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{displayName}</p>
-                <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>
-                  {isPremium ? 'Premium-bruker' : 'Standardkonto'}
-                </p>
+                <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>Innlogget</p>
               </div>
               <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
             </div>
@@ -292,28 +290,7 @@ export default function LeaderboardPage() {
                     Logg inn med Google
                   </button>
                 </div>
-              ) : userAttempt ? (
-                <div style={s.cardRow}>
-                  <div>
-                    <p style={s.cardTitle}>Du er på plass {userAttempt.rank} av {totalCount}</p>
-                    {!isPremium && (
-                      <p style={s.cardSub}>Oppgrader til Premium for å se din historikk og statistikk</p>
-                    )}
-                  </div>
-                  {isPremium ? (
-                    <button onClick={handleGoToMyPlacement} style={s.btnGold}>
-                      Gå til min plassering
-                    </button>
-                  ) : (
-                    <a href="/premium" style={s.btnGold}>Bli Premium</a>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <p style={s.cardTitle}>Ingen treff på ditt navn</p>
-                  <p style={s.cardSub}>Vi fant ikke et forsøk med ditt navn i denne quizen</p>
-                </div>
-              )}
+              ) : null}
             </div>
           )}
 
