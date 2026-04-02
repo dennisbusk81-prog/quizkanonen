@@ -93,11 +93,16 @@ export default function UserMenu() {
       setReady(true)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      setProfileLoaded(false)
-      if (s?.user) loadProfile(s.user.id, s.user.email)
-      else { setDisplayName(null); setIsPremium(false); setProfileLoaded(true) }
+      if (event === 'SIGNED_OUT') {
+        setDisplayName(null)
+        setIsPremium(false)
+        setProfileLoaded(true)
+      } else if (s?.user) {
+        // Reload profile in background — do NOT reset profileLoaded to avoid UI flash
+        loadProfile(s.user.id, s.user.email)
+      }
     })
 
     return () => subscription.unsubscribe()
