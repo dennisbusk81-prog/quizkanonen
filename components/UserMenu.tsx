@@ -8,18 +8,42 @@ import type { Session } from '@supabase/supabase-js'
 export default function UserMenu() {
   const [session, setSession] = useState<Session | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const [isPremium, setIsPremium] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [ready, setReady] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
     const { data } = await supabase
       .from('profiles')
-      .select('display_name')
+      .select('display_name, premium_status')
       .eq('id', userId)
       .maybeSingle()
     setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
+    setIsPremium(data?.premium_status === true)
+  }
+
+  async function handlePortal() {
+    setPortalLoading(true)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('stripe_customer_id')
+        .eq('id', session!.user.id)
+        .maybeSingle()
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: profile?.stripe_customer_id }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch {
+      // silent
+    }
+    setPortalLoading(false)
   }
 
   useEffect(() => {
@@ -125,6 +149,24 @@ export default function UserMenu() {
                     {displayName}
                   </p>
                 </div>
+                {isPremium && (
+                  <button
+                    onClick={handlePortal}
+                    disabled={portalLoading}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 10px', background: 'none', border: 'none',
+                      borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      cursor: portalLoading ? 'default' : 'pointer', transition: 'background 0.12s',
+                      opacity: portalLoading ? 0.6 : 1,
+                    }}
+                    onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.background = 'rgba(201,168,76,0.08)' }}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    {portalLoading ? 'Laster...' : 'Administrer abonnement'}
+                  </button>
+                )}
                 <button
                   onClick={async () => { setDropdownOpen(false); await signOut() }}
                   style={{
