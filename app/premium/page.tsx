@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 
 const s = {
   page: { minHeight: '100vh', background: '#1a1c23', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '40px 20px', fontFamily: 'Instrument Sans, sans-serif' },
@@ -40,15 +41,18 @@ export default function PremiumPage() {
   const [selected, setSelected] = useState('monthly')
   const [loading, setLoading] = useState(false)
   const [showLoginAlert, setShowLoginAlert] = useState(false)
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
   const router = useRouter()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function handleCheckout() {
     setLoading(true)
     try {
-      const session = await Promise.race([
-        getSession(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
-      ]).catch(() => null) as Awaited<ReturnType<typeof getSession>>
       if (!session) {
         setLoading(false)
         setShowLoginAlert(true)
