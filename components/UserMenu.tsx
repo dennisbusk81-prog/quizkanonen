@@ -82,30 +82,31 @@ export default function UserMenu() {
   }
 
   useEffect(() => {
-    // Timeout ensures ready=true even if getSession() hangs during OAuth init
-    const timeout = setTimeout(() => setReady(true), 3000)
-
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      clearTimeout(timeout)
-      setSession(s)
-      if (s?.user) loadProfile(s.user.id, s.user.email)
-      else setProfileLoaded(true)
+    // Fallback: if INITIAL_SESSION never fires, unblock after 3s
+    const timeout = setTimeout(() => {
       setReady(true)
-    })
+      setProfileLoaded(true)
+    }, 3000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (event === 'SIGNED_OUT') {
+      if (event === 'INITIAL_SESSION') {
+        // Fires immediately with whatever is in localStorage — no lock issue
+        clearTimeout(timeout)
+        if (s?.user) loadProfile(s.user.id, s.user.email)
+        else setProfileLoaded(true)
+        setReady(true)
+      } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
         setProfileLoaded(true)
       } else if (s?.user) {
-        // Reload profile in background — do NOT reset profileLoaded to avoid UI flash
+        // TOKEN_REFRESHED, USER_UPDATED etc — reload profile silently
         loadProfile(s.user.id, s.user.email)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
   // Close dropdown on outside click
