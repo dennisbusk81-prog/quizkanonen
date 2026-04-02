@@ -12,6 +12,7 @@ export default function UserMenu() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [ready, setReady] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -26,14 +27,25 @@ export default function UserMenu() {
     setIsPremium(data?.premium_status === true)
   }
 
+  useEffect(() => { setMounted(true) }, [])
+
   useEffect(() => {
     if (!isPremium) { setSubscriptionInfo(null); return }
+    let cancelled = false
+    const timeout = setTimeout(() => { if (!cancelled) setSubscriptionInfo(null) }, 5000)
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (!s?.access_token) return
+      if (cancelled || !s?.access_token) return
       fetch('/api/stripe/subscription', { headers: { 'Authorization': `Bearer ${s.access_token}` } })
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setSubscriptionInfo(data) })
+        .then(data => {
+          if (!cancelled) {
+            clearTimeout(timeout)
+            setSubscriptionInfo(data ?? null)
+          }
+        })
+        .catch(() => { if (!cancelled) setSubscriptionInfo(null) })
     })
+    return () => { cancelled = true; clearTimeout(timeout) }
   }, [isPremium])
 
   function formatPeriodDate(unix: number): string {
@@ -62,8 +74,9 @@ export default function UserMenu() {
       }
     } catch (err) {
       console.error('[UserMenu] portal error', err)
+    } finally {
+      setPortalLoading(false)
     }
-    setPortalLoading(false)
   }
 
   useEffect(() => {
@@ -96,8 +109,8 @@ export default function UserMenu() {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [dropdownOpen])
 
-  // Don't render until we know auth state (avoids flash)
-  if (!ready) return null
+  // Don't render until mounted on client and auth state is known (avoids hydration mismatch)
+  if (!mounted || !ready) return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
 
