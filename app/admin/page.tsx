@@ -196,12 +196,20 @@ export default function AdminHome() {
 
   async function fetchStats() {
     try {
-      const [{ count: quizzes }, { count: attempts }, { count: codes }] = await Promise.all([
+      const [
+        { count: quizzes, error: e1 },
+        { count: attempts, error: e2 },
+        { count: codes,   error: e3 },
+      ] = await Promise.all([
         supabase.from('quizzes').select('*', { count: 'exact', head: true }),
         supabase.from('attempts').select('*', { count: 'exact', head: true }),
         supabase.from('access_codes').select('*', { count: 'exact', head: true }),
       ])
+      const err = e1 ?? e2 ?? e3
+      if (err) throw err
       setStats({ quizzes: quizzes || 0, attempts: attempts || 0, codes: codes || 0 })
+    } catch (e) {
+      console.error('fetchStats feilet:', e)
     } finally {
       setLoading(false)
     }
