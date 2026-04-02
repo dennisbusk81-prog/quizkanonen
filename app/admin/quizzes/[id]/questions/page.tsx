@@ -435,12 +435,17 @@ export default function QuizQuestions() {
 
   async function fetchData() {
     try {
-      const [{ data: quizData }, { data: questionData }] = await Promise.all([
+      const [{ data: quizData, error: quizError }, { data: questionData, error: questionError }] = await Promise.all([
         supabase.from('quizzes').select('*').eq('id', quizId).single(),
         supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
       ])
+      if (quizError) throw quizError
+      if (questionError) throw questionError
       setQuiz(quizData)
       setQuestions(questionData || [])
+    } catch (e) {
+      console.error('fetchData feilet:', e)
+      setFeedback({ type: 'error', msg: 'Kunne ikke laste inn quiz. Sjekk tilkoblingen og prøv igjen.' })
     } finally {
       setLoading(false)
     }
