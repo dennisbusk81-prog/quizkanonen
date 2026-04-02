@@ -18,14 +18,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ugyldig signatur' }, { status: 400 })
   }
 
-  const session = event.data.object as Stripe.Checkout.Session
-  const userId = session.metadata?.userId
-
-  if (!userId) {
-    return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
-  }
-
   if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session
+    const userId = session.metadata?.userId
+    if (!userId) {
+      return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
+    }
     await supabaseAdmin
       .from('profiles')
       .update({
@@ -37,10 +35,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription
+    const customerId = subscription.customer as string
     await supabaseAdmin
       .from('profiles')
       .update({ premium_status: false })
-      .eq('id', userId)
+      .eq('stripe_customer_id', customerId)
   }
 
   return NextResponse.json({ received: true })
