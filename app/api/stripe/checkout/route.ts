@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const { priceId, userId, email } = await request.json()
 
     if (!priceId || !userId) {
-      return NextResponse.json({ error: 'Mangler priceId eller userId', debug: { priceId, userId } }, { status: 400 })
+      return NextResponse.json({ error: 'Mangler priceId eller userId' }, { status: 400 })
     }
 
     const resolvedPriceId = priceId === 'STRIPE_PRICE_UKESPASS'
