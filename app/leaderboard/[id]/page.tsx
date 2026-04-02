@@ -271,14 +271,17 @@ export default function LeaderboardPage() {
             </div>
           )}
 
-          {/* Placement card */}
-          {!authLoading && (
-            <div style={s.card}>
-              {!session ? (
+          {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
+          {!authLoading && !session && totalCount > 0 && (() => {
+            const center = Math.round(totalCount / 2)
+            const rangeX = Math.max(1, center - 4)
+            const rangeY = Math.min(totalCount, rangeX + 9)
+            return (
+              <div style={s.card}>
                 <div style={s.cardRow}>
                   <div>
-                    <p style={s.cardTitle}>Finn din plassering</p>
-                    <p style={s.cardSub}>Logg inn for å se nøyaktig hvor du havnet</p>
+                    <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
+                    <p style={s.cardSub}>Logg inn for å se nøyaktig plassering</p>
                   </div>
                   <button onClick={() => setShowModal(true)} style={s.btnGold}>
                     <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -290,9 +293,9 @@ export default function LeaderboardPage() {
                     Logg inn med Google
                   </button>
                 </div>
-              ) : null}
-            </div>
-          )}
+              </div>
+            )
+          })()}
 
           {isHidden ? (
             <div style={s.empty}>
