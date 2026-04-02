@@ -86,13 +86,20 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const [{ data: quizData }, { data: attemptData }] = await Promise.all([
-        supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-        supabaseData.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
-      ])
-      setQuiz(quizData)
-      setAttempts(attemptData || [])
-      setLoading(false)
+      try {
+        const [{ data: quizData, error: e1 }, { data: attemptData, error: e2 }] = await Promise.all([
+          supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
+          supabaseData.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
+        ])
+        const err = e1 ?? e2
+        if (err) throw err
+        setQuiz(quizData)
+        setAttempts(attemptData || [])
+      } catch (e) {
+        console.error('fetchData (leaderboard) feilet:', e)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchData()
   }, [quizId])

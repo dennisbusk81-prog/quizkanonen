@@ -313,14 +313,16 @@ export default function QuizAnalytics() {
   async function fetchData() {
     try {
       const [
-        { data: quizData },
-        { data: questionData },
-        { data: attemptData },
+        { data: quizData, error: e1 },
+        { data: questionData, error: e2 },
+        { data: attemptData, error: e3 },
       ] = await Promise.all([
         supabase.from('quizzes').select('*').eq('id', quizId).single(),
         supabase.from('questions').select('*').eq('quiz_id', quizId).order('order_index'),
         supabase.from('attempts').select('*').eq('quiz_id', quizId),
       ])
+      const err = e1 ?? e2 ?? e3
+      if (err) throw err
 
       setQuiz(quizData)
       setQuestions(questionData || [])
@@ -328,10 +330,11 @@ export default function QuizAnalytics() {
 
       const ids = (attemptData || []).map((a: { id: string }) => a.id)
       if (ids.length > 0) {
-        const { data: answerData } = await supabase
+        const { data: answerData, error: e4 } = await supabase
           .from('attempt_answers')
           .select('question_id, is_correct, selected_answer, time_ms')
           .in('attempt_id', ids)
+        if (e4) throw e4
         setAnswers(answerData || [])
       }
     } finally {

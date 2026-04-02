@@ -9,11 +9,12 @@ export default function NextQuizSetting() {
 
   useEffect(() => {
     async function fetch() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('site_settings')
         .select('value')
         .eq('key', 'next_quiz_at')
         .single()
+      if (error && error.code !== 'PGRST116') console.error('NextQuizSetting fetch feilet:', error)
       if (data?.value) {
         const d = new Date(data.value)
         const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)

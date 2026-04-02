@@ -49,11 +49,17 @@ export default function QuizCockpit() {
 
   async function fetchData() {
     try {
-      const [{ data: quizData }, { data: attempts }, { data: questions }] = await Promise.all([
+      const [
+        { data: quizData, error: e1 },
+        { data: attempts, error: e2 },
+        { data: questions, error: e3 },
+      ] = await Promise.all([
         supabase.from('quizzes').select('*').eq('id', quizId).single(),
         supabase.from('attempts').select('id').eq('quiz_id', quizId),
         supabase.from('questions').select('id').eq('quiz_id', quizId),
       ])
+      const err = e1 ?? e2 ?? e3
+      if (err) throw err
       if (quizData) {
         setQuiz(quizData)
         setForm({

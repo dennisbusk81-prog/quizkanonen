@@ -236,9 +236,12 @@ export default function AdminQuizzes() {
 
   async function fetchQuizzes() {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('quizzes').select('*').order('created_at', { ascending: false })
+      if (error) throw error
       setQuizzes(data || [])
+    } catch (e) {
+      console.error('fetchQuizzes feilet:', e)
     } finally {
       setLoading(false)
     }

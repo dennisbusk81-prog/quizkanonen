@@ -498,16 +498,19 @@ export default function QuizPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: quizData } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
+      const { data: quizData, error: quizError } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
+      if (quizError) console.error('Quiz fetch feilet:', quizError)
       const deviceId = getDeviceId()
-      const { data: played } = await supabaseData
+      const { data: played, error: playedError } = await supabaseData
         .from('played_log').select('id')
         .eq('quiz_id', quizId).eq('identifier', deviceId).single()
+      if (playedError && playedError.code !== 'PGRST116') console.error('played_log fetch feilet:', playedError)
 
       if (played) {
         setPhase('already_played')
         setQuiz(quizData)
-        const { data: setting } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+        const { data: setting, error: settingError } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+        if (settingError && settingError.code !== 'PGRST116') console.error('site_settings fetch feilet:', settingError)
         if (setting?.value) setNextQuizAt(setting.value)
         setLoading(false)
         return
@@ -518,10 +521,12 @@ export default function QuizPage() {
 
       let qData: Question[] = []
       if (quizData?.randomize_questions) {
-        const { data } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId)
+        const { data, error: qError } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId)
+        if (qError) console.error('Questions fetch feilet:', qError)
         qData = (data || []).sort(() => Math.random() - 0.5)
       } else {
-        const { data } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId).order('order_index')
+        const { data, error: qError } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId).order('order_index')
+        if (qError) console.error('Questions fetch feilet:', qError)
         qData = data || []
       }
 
