@@ -450,7 +450,7 @@ export default async function Home() {
         </div>
 
         <footer className="qk-footer">
-          <span className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
+          <span suppressHydrationWarning className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
           <nav className="qk-footer-nav">
             <a href="https://facebook.com" target="_blank" rel="noopener" className="qk-footer-link">Facebook</a>
             <Link href="/personvern" className="qk-footer-link">Personvern</Link>

@@ -82,6 +82,7 @@ export default function LeaderboardPage() {
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [visibleTeamCount, setVisibleTeamCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
+  const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -94,6 +95,13 @@ export default function LeaderboardPage() {
       setLoading(false)
     }
     fetchData()
+  }, [quizId])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`qk_result_${quizId}`)
+      if (saved) setSavedResult(JSON.parse(saved))
+    } catch {}
   }, [quizId])
 
   const loadSession = useCallback(async () => {
@@ -275,21 +283,18 @@ export default function LeaderboardPage() {
           {!authLoading && !session && totalCount > 0 && (() => {
             let rangeX = 1
             let rangeY = Math.min(10, totalCount)
-            try {
-              const saved = localStorage.getItem(`qk_result_${quizId}`)
-              if (saved) {
-                const { correct_answers, total_time_ms } = JSON.parse(saved)
-                const allRanked = [...soloAttempts, ...teamAttempts]
-                const better = allRanked.filter(a =>
-                  a.correct_answers > correct_answers ||
-                  (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
-                ).length
-                const est = better + 1
-                const tierStart = Math.floor((est - 1) / 10) * 10 + 1
-                rangeX = Math.max(1, tierStart)
-                rangeY = Math.min(totalCount, tierStart + 9)
-              }
-            } catch {}
+            if (savedResult) {
+              const { correct_answers, total_time_ms } = savedResult
+              const allRanked = [...soloAttempts, ...teamAttempts]
+              const better = allRanked.filter(a =>
+                a.correct_answers > correct_answers ||
+                (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
+              ).length
+              const est = better + 1
+              const tierStart = Math.floor((est - 1) / 10) * 10 + 1
+              rangeX = Math.max(1, tierStart)
+              rangeY = Math.min(totalCount, tierStart + 9)
+            }
             return (
               <div style={s.card}>
                 <div style={s.cardRow}>

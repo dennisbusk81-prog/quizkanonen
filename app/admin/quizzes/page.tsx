@@ -221,8 +221,10 @@ export default function AdminQuizzes() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
     fetchQuizzes()
   }, [])
@@ -267,6 +269,7 @@ export default function AdminQuizzes() {
   }
 
   const isOpen = (quiz: Quiz) => {
+    if (!mounted) return false
     const now = new Date()
     return new Date(quiz.opens_at) <= now && new Date(quiz.closes_at) >= now
   }

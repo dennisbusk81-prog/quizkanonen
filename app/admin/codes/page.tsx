@@ -283,8 +283,10 @@ export default function AdminCodes() {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [form, setForm] = useState({ code: '', description: '', valid_days: '60', max_uses: '100' })
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
     fetchCodes()
   }, [])
@@ -337,7 +339,7 @@ export default function AdminCodes() {
   }
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('no-NO') : 'Aldri'
-  const isExpired = (d: string | null) => d ? new Date(d) < new Date() : false
+  const isExpired = (d: string | null) => mounted && (d ? new Date(d) < new Date() : false)
 
   if (loading) return (
     <>

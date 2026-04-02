@@ -26,13 +26,12 @@ function pad(n: number) {
 export default function QuizCountdown({ initialDate }: { initialDate: string | null }) {
   const [target] = useState<Date | null>(() => (initialDate ? new Date(initialDate) : null))
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
-  const [quizOpen, setQuizOpen] = useState(() => {
-    if (!initialDate) return false
-    return new Date(initialDate).getTime() <= Date.now()
-  })
+  const [quizOpen, setQuizOpen] = useState(false)
 
   useEffect(() => {
     if (!target) return
+    setTimeLeft(getTimeLeft(target))
+    setQuizOpen(target.getTime() <= Date.now())
     const interval = setInterval(() => {
       setTimeLeft(getTimeLeft(target))
       setQuizOpen(target.getTime() <= Date.now())
