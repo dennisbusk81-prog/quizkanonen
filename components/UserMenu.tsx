@@ -70,7 +70,7 @@ export default function UserMenu() {
       console.log('[UserMenu] portal response', res.status, data)
       if (data.url) {
         console.log('[UserMenu] redirecting to', data.url)
-        window.location.href = data.url
+        window.open(data.url, '_blank')
       }
     } catch (err) {
       console.error('[UserMenu] portal error', err)
@@ -186,7 +186,7 @@ export default function UserMenu() {
                       <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 4, padding: '2px 8px' }}>
                         Premium
                       </span>
-                      {subscriptionInfo?.current_period_end && (
+                      {mounted && subscriptionInfo?.current_period_end && (
                         <p style={{ fontSize: 11, color: '#6a6860', marginTop: 5 }}>
                           {subscriptionInfo.cancel_at_period_end
                             ? `Avsluttes ${formatPeriodDate(subscriptionInfo.current_period_end)}`
