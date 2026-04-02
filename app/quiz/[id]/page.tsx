@@ -624,6 +624,7 @@ export default function QuizPage() {
     }
 
     localStorage.removeItem(`qk_progress_${quizId}`)
+    localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: totalTimeMs }))
 
     const { data: allAttempts } = await supabaseData
       .from('attempts')

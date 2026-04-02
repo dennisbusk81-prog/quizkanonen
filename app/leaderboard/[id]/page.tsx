@@ -273,9 +273,23 @@ export default function LeaderboardPage() {
 
           {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
           {!authLoading && !session && totalCount > 0 && (() => {
-            const center = Math.round(totalCount / 2)
-            const rangeX = Math.max(1, center - 4)
-            const rangeY = Math.min(totalCount, rangeX + 9)
+            let rangeX = 1
+            let rangeY = Math.min(10, totalCount)
+            try {
+              const saved = localStorage.getItem(`qk_result_${quizId}`)
+              if (saved) {
+                const { correct_answers, total_time_ms } = JSON.parse(saved)
+                const allRanked = [...soloAttempts, ...teamAttempts]
+                const better = allRanked.filter(a =>
+                  a.correct_answers > correct_answers ||
+                  (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
+                ).length
+                const est = better + 1
+                const tierStart = Math.floor((est - 1) / 10) * 10 + 1
+                rangeX = Math.max(1, tierStart)
+                rangeY = Math.min(totalCount, tierStart + 9)
+              }
+            } catch {}
             return (
               <div style={s.card}>
                 <div style={s.cardRow}>
