@@ -844,11 +844,6 @@ export default function QuizPage() {
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Resultat</p>
       <h1 className="qk-heading" style={{textAlign:'center'}}>
         {playerInfo.name}
-        {playerInfo.isTeam && (
-          <span style={{fontSize:15,color:'var(--muted)',fontFamily:'Instrument Sans',fontWeight:400,marginLeft:8}}>
-            ({playerInfo.teamSize} stk)
-          </span>
-        )}
       </h1>
       <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>{quiz.title}</p>
 
@@ -887,9 +882,14 @@ export default function QuizPage() {
               Estimert plassering
             </div>
             <div style={{fontFamily:'Libre Baskerville, serif',fontSize:22,fontWeight:700,color:'var(--gold)',marginBottom:2}}>
-              {estimatedPlacement.low === estimatedPlacement.high
-                ? `Plass ${estimatedPlacement.low}`
-                : `Mellom plass ${estimatedPlacement.low} og ${estimatedPlacement.high}`}
+              {estimatedPlacement.total <= 10
+                ? `Mellom plass 1 og ${estimatedPlacement.total}`
+                : (() => {
+                    const tierStart = Math.floor((estimatedPlacement.low - 1) / 10) * 10 + 1
+                    const rangeX = Math.max(1, tierStart)
+                    const rangeY = Math.min(estimatedPlacement.total, tierStart + 9)
+                    return `Mellom plass ${rangeX} og ${rangeY}`
+                  })()}
             </div>
             <div style={{fontSize:12,color:'var(--muted)'}}>av {estimatedPlacement.total} deltakere</div>
           </div>
