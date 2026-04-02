@@ -28,7 +28,11 @@ export async function POST(request: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     await supabaseAdmin
       .from('profiles')
-      .update({ premium_status: true, premium_since: new Date().toISOString() })
+      .update({
+        premium_status: true,
+        premium_since: new Date().toISOString(),
+        stripe_customer_id: session.customer as string ?? null,
+      })
       .eq('id', userId)
   }
 
