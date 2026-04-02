@@ -44,7 +44,10 @@ export default function PremiumPage() {
   async function handleCheckout() {
     setLoading(true)
     try {
-      const session = await getSession()
+      const session = await Promise.race([
+        getSession(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ]).catch(() => null) as Awaited<ReturnType<typeof getSession>>
       if (!session) {
         alert('Du må være innlogget for å kjøpe Premium.')
         setLoading(false)
