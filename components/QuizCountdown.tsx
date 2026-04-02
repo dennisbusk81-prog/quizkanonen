@@ -27,6 +27,9 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
   const [target] = useState<Date | null>(() => (initialDate ? new Date(initialDate) : null))
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null)
   const [quizOpen, setQuizOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!target) return
@@ -61,12 +64,12 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
     )
   }
 
-  const dateStr = target.toLocaleDateString('no-NO', {
+  const dateStr = mounted ? target.toLocaleDateString('no-NO', {
     weekday: 'long', day: 'numeric', month: 'long',
-  })
-  const timeStr = target.toLocaleTimeString('no-NO', {
+  }) : ''
+  const timeStr = mounted ? target.toLocaleTimeString('no-NO', {
     hour: '2-digit', minute: '2-digit',
-  })
+  }) : ''
 
   return (
     <div style={{
@@ -123,7 +126,7 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
       )}
 
       <p style={{ color: '#8a8d9a', fontSize: '0.875rem' }}>
-        {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)} kl. {timeStr}
+        {dateStr ? `${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)} kl. ${timeStr}` : ''}
       </p>
     </div>
   )
