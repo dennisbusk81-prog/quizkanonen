@@ -433,6 +433,7 @@ export default function LeaderboardPage() {
   const [showModal, setShowModal] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null, premium_status: boolean | null } | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -453,9 +454,10 @@ export default function LeaderboardPage() {
     if (s?.user) {
       const { data: profile } = await supabaseData
         .from('profiles')
-        .select('display_name, avatar_url')
+        .select('display_name, avatar_url, premium_status')
         .eq('id', s.user.id)
         .single()
+      setProfile(profile)
       setDisplayName(profile?.display_name ?? s.user.email?.split('@')[0] ?? null)
       setAvatarUrl(profile?.avatar_url ?? null)
     }
@@ -475,6 +477,8 @@ export default function LeaderboardPage() {
     setDisplayName(null)
     setAvatarUrl(null)
   }
+
+  const isPremium = profile?.premium_status === true
 
   const isOpen = (q: Quiz) => {
     const now = new Date()
@@ -559,6 +563,17 @@ export default function LeaderboardPage() {
               </svg>
               Logg inn med Google
             </button>
+          </div>
+        )}
+
+        {session && !isPremium && (
+          <div style={{ background: '#21242e', border: '1px solid #c9a84c', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <div style={{ color: '#d0d3e0', fontSize: '0.95rem' }}>
+              🔒 Se nøyaktig plassering og historikk med <strong style={{ color: '#c9a84c' }}>Premium</strong>
+            </div>
+            <a href="/premium" style={{ background: '#c9a84c', color: '#1a1c23', padding: '8px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none', whiteSpace: 'nowrap' as const }}>
+              Bli Premium
+            </a>
           </div>
         )}
 
