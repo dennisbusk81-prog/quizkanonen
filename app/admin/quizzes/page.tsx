@@ -225,7 +225,7 @@ export default function AdminQuizzes() {
 
   useEffect(() => {
     setMounted(true)
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchQuizzes()
   }, [])
 
@@ -235,10 +235,13 @@ export default function AdminQuizzes() {
   }
 
   async function fetchQuizzes() {
-    const { data } = await supabase
-      .from('quizzes').select('*').order('created_at', { ascending: false })
-    setQuizzes(data || [])
-    setLoading(false)
+    try {
+      const { data } = await supabase
+        .from('quizzes').select('*').order('created_at', { ascending: false })
+      setQuizzes(data || [])
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function toggleActive(quiz: Quiz) {
