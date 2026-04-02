@@ -39,6 +39,7 @@ const FEATURES = [
 export default function PremiumPage() {
   const [selected, setSelected] = useState('monthly')
   const [loading, setLoading] = useState(false)
+  const [showLoginAlert, setShowLoginAlert] = useState(false)
   const router = useRouter()
 
   async function handleCheckout() {
@@ -46,11 +47,11 @@ export default function PremiumPage() {
     try {
       const session = await Promise.race([
         getSession(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
       ]).catch(() => null) as Awaited<ReturnType<typeof getSession>>
       if (!session) {
-        alert('Du må være innlogget for å kjøpe Premium.')
         setLoading(false)
+        setShowLoginAlert(true)
         return
       }
       const plan = PLANS.find(p => p.id === selected)!
@@ -97,6 +98,11 @@ export default function PremiumPage() {
           ))}
         </div>
 
+        {showLoginAlert && (
+          <div style={{ background: '#2a1a1a', border: '1px solid #c9a84c', borderRadius: '10px', padding: '12px', marginBottom: '12px', color: '#c9a84c' }}>
+            Du må være innlogget for å kjøpe Premium. Klikk &quot;Logg inn&quot; øverst til høyre.
+          </div>
+        )}
         <button style={loading ? s.btnDisabled : s.btn} onClick={handleCheckout} disabled={loading}>
           {loading ? 'Laster...' : 'Gå til betaling'}
         </button>
