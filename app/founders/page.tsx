@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
 import type { Session } from '@supabase/supabase-js'
@@ -139,10 +140,12 @@ const PERKS = [
 ]
 
 export default function FoundersPage() {
+  const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
   const [isPremium, setIsPremium] = useState(false)
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
@@ -161,26 +164,29 @@ export default function FoundersPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function handleCheckout() {
+  async function handleActivate() {
     if (!session) {
       setModalOpen(true)
       return
     }
     setLoading(true)
+    setErrorMsg(null)
     try {
-      const res = await fetch('/api/stripe/checkout-founders', {
+      const { data: { session: s } } = await supabase.auth.getSession()
+      const token = s?.access_token
+      if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); setLoading(false); return }
+      const res = await fetch('/api/stripe/founders-activate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: session.user.id, email: session.user.email }),
+        headers: { 'Authorization': `Bearer ${token}` },
       })
       const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
+      if (data.success) {
+        router.push('/founders/success')
       } else {
-        alert(data.error ?? 'Noe gikk galt. Prøv igjen.')
+        setErrorMsg(data.error ?? 'Noe gikk galt. Prøv igjen.')
       }
     } catch {
-      alert('Noe gikk galt. Prøv igjen.')
+      setErrorMsg('Noe gikk galt. Prøv igjen.')
     }
     setLoading(false)
   }
@@ -211,15 +217,22 @@ export default function FoundersPage() {
               Du har allerede Premium — takk!
             </div>
           ) : (
-            <button
-              style={loading ? s.btnDisabled : s.btn}
-              onClick={handleCheckout}
-              disabled={loading}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-            >
-              {loading ? 'Laster...' : 'Start gratis måned'}
-            </button>
+            <>
+              <button
+                style={loading ? s.btnDisabled : s.btn}
+                onClick={handleActivate}
+                disabled={loading}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                {loading ? 'Aktiverer...' : 'Start gratis måned'}
+              </button>
+              {errorMsg && (
+                <p style={{ fontSize: 13, color: '#f87171', textAlign: 'center', marginBottom: 12 }}>
+                  {errorMsg}
+                </p>
+              )}
+            </>
           )}
 
           <p style={s.disclaimer}>
