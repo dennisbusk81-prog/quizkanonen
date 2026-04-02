@@ -87,26 +87,31 @@ export default function QuizCockpit() {
 
   async function saveQuiz() {
     setSaving(true)
-    const { error } = await supabase.from('quizzes').update({
-      title: form.title,
-      description: form.description,
-      opens_at: toISO(form.opens_at),
-      closes_at: toISO(form.closes_at),
-      scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
-      time_limit_seconds: form.time_limit_seconds,
-      num_options: form.num_options,
-      is_active: form.is_active,
-      show_leaderboard: form.show_leaderboard,
-      hide_leaderboard_until_closed: form.hide_leaderboard_until_closed,
-      show_live_placement: form.show_live_placement,
-      show_answer_explanation: form.show_answer_explanation,
-      randomize_questions: form.randomize_questions,
-      allow_teams: form.allow_teams,
-      requires_access_code: form.requires_access_code,
-    }).eq('id', quizId)
-    if (error) showFeedback('error', 'Feil ved lagring: ' + error.message)
-    else { showFeedback('success', 'Quiz lagret!'); fetchData() }
-    setSaving(false)
+    try {
+      const { error } = await supabase.from('quizzes').update({
+        title: form.title,
+        description: form.description,
+        opens_at: toISO(form.opens_at),
+        closes_at: toISO(form.closes_at),
+        scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
+        time_limit_seconds: form.time_limit_seconds,
+        num_options: form.num_options,
+        is_active: form.is_active,
+        show_leaderboard: form.show_leaderboard,
+        hide_leaderboard_until_closed: form.hide_leaderboard_until_closed,
+        show_live_placement: form.show_live_placement,
+        show_answer_explanation: form.show_answer_explanation,
+        randomize_questions: form.randomize_questions,
+        allow_teams: form.allow_teams,
+        requires_access_code: form.requires_access_code,
+      }).eq('id', quizId)
+      if (error) showFeedback('error', 'Feil ved lagring: ' + error.message)
+      else { showFeedback('success', 'Quiz lagret!'); fetchData() }
+    } catch (e) {
+      showFeedback('error', 'Uventet feil ved lagring.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function resetQuiz() {
