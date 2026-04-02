@@ -28,15 +28,12 @@ export default function UserMenu() {
   async function handlePortal() {
     setPortalLoading(true)
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('stripe_customer_id')
-        .eq('id', session!.user.id)
-        .maybeSingle()
+      const { data: { session: s } } = await supabase.auth.getSession()
+      const token = s?.access_token
+      if (!token) return
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: profile?.stripe_customer_id }),
+        headers: { 'Authorization': `Bearer ${token}` },
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url

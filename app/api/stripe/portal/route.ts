@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { rateLimit } from '@/lib/rate-limit'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
@@ -14,13 +15,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { customerId } = await request.json()
-    if (!customerId) {
-      return NextResponse.json({ error: 'Mangler customerId' }, { status: 400 })
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+    }
+
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.stripe_customer_id) {
+      return NextResponse.json({ error: 'Ingen Stripe-kunde funnet' }, { status: 400 })
     }
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
+      customer: profile.stripe_customer_id,
       return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium`,
     })
 
