@@ -245,30 +245,39 @@ export default function AdminQuizzes() {
   }
 
   async function toggleActive(quiz: Quiz) {
-    await supabase.from('quizzes').update({ is_active: !quiz.is_active }).eq('id', quiz.id)
-    fetchQuizzes()
+    try {
+      await supabase.from('quizzes').update({ is_active: !quiz.is_active }).eq('id', quiz.id)
+      fetchQuizzes()
+    } catch {
+      showFeedback('error', 'Kunne ikke oppdatere quiz.')
+    }
   }
 
   async function deleteQuiz(id: string) {
     if (!confirm('Er du sikker på at du vil slette denne quizen? Dette kan ikke angres.')) return
-    await supabase.from('quizzes').delete().eq('id', id)
-    fetchQuizzes()
+    try {
+      await supabase.from('quizzes').delete().eq('id', id)
+      fetchQuizzes()
+    } catch {
+      showFeedback('error', 'Kunne ikke slette quiz.')
+    }
   }
 
   async function resetQuiz(id: string, title: string) {
     if (!confirm(`Nullstill "${title}"? Dette sletter alle resultater og lar alle spille på nytt.`)) return
-
-    const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', id)
-
-    if (attempts && attempts.length > 0) {
-      const attemptIds = attempts.map((a: { id: string }) => a.id)
-      await supabase.from('attempt_answers').delete().in('attempt_id', attemptIds)
-      await supabase.from('attempts').delete().eq('quiz_id', id)
+    try {
+      const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', id)
+      if (attempts && attempts.length > 0) {
+        const attemptIds = attempts.map((a: { id: string }) => a.id)
+        await supabase.from('attempt_answers').delete().in('attempt_id', attemptIds)
+        await supabase.from('attempts').delete().eq('quiz_id', id)
+      }
+      await supabase.from('played_log').delete().eq('quiz_id', id)
+      showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`)
+      fetchQuizzes()
+    } catch {
+      showFeedback('error', `Kunne ikke nullstille "${title}".`)
     }
-
-    await supabase.from('played_log').delete().eq('quiz_id', id)
-    showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`)
-    fetchQuizzes()
   }
 
   const isOpen = (quiz: Quiz) => {

@@ -313,32 +313,41 @@ export default function AdminCodes() {
       return
     }
     setSaving(true)
-    const validUntil = form.valid_days
-      ? new Date(Date.now() + parseInt(form.valid_days) * 24 * 60 * 60 * 1000).toISOString()
-      : null
-    const { error } = await supabase.from('access_codes').insert({
-      code: form.code.trim().toUpperCase(),
-      description: form.description.trim(),
-      valid_until: validUntil,
-      max_uses: parseInt(form.max_uses) || 100,
-      used_count: 0,
-      is_active: true,
-    })
-    if (error) {
-      showFeedback('error', 'Feil ved lagring: ' + error.message)
-    } else {
-      showFeedback('success', 'Kode opprettet: ' + form.code.toUpperCase())
-      setForm({ code: '', description: '', valid_days: '60', max_uses: '100' })
-      setShowForm(false)
-      fetchCodes()
+    try {
+      const validUntil = form.valid_days
+        ? new Date(Date.now() + parseInt(form.valid_days) * 24 * 60 * 60 * 1000).toISOString()
+        : null
+      const { error } = await supabase.from('access_codes').insert({
+        code: form.code.trim().toUpperCase(),
+        description: form.description.trim(),
+        valid_until: validUntil,
+        max_uses: parseInt(form.max_uses) || 100,
+        used_count: 0,
+        is_active: true,
+      })
+      if (error) {
+        showFeedback('error', 'Feil ved lagring: ' + error.message)
+      } else {
+        showFeedback('success', 'Kode opprettet: ' + form.code.toUpperCase())
+        setForm({ code: '', description: '', valid_days: '60', max_uses: '100' })
+        setShowForm(false)
+        fetchCodes()
+      }
+    } catch {
+      showFeedback('error', 'Uventet feil ved lagring.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function toggleCode(id: string, current: boolean) {
-    const { error } = await supabase.from('access_codes').update({ is_active: !current }).eq('id', id)
-    if (error) showFeedback('error', 'Kunne ikke oppdatere: ' + error.message)
-    else fetchCodes()
+    try {
+      const { error } = await supabase.from('access_codes').update({ is_active: !current }).eq('id', id)
+      if (error) showFeedback('error', 'Kunne ikke oppdatere: ' + error.message)
+      else fetchCodes()
+    } catch {
+      showFeedback('error', 'Uventet feil ved oppdatering.')
+    }
   }
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('no-NO') : 'Aldri'

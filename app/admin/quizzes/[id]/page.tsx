@@ -116,21 +116,29 @@ export default function QuizCockpit() {
 
   async function resetQuiz() {
     if (!confirm(`Nullstill "${form.title}"? Dette sletter alle resultater og lar alle spille på nytt.`)) return
-    const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', quizId)
-    if (attempts && attempts.length > 0) {
-      const ids = attempts.map((a: { id: string }) => a.id)
-      await supabase.from('attempt_answers').delete().in('attempt_id', ids)
-      await supabase.from('attempts').delete().eq('quiz_id', quizId)
+    try {
+      const { data: attempts } = await supabase.from('attempts').select('id').eq('quiz_id', quizId)
+      if (attempts && attempts.length > 0) {
+        const ids = attempts.map((a: { id: string }) => a.id)
+        await supabase.from('attempt_answers').delete().in('attempt_id', ids)
+        await supabase.from('attempts').delete().eq('quiz_id', quizId)
+      }
+      await supabase.from('played_log').delete().eq('quiz_id', quizId)
+      showFeedback('success', 'Quiz nullstilt — alle kan spille igjen.')
+      fetchData()
+    } catch {
+      showFeedback('error', 'Kunne ikke nullstille quizen.')
     }
-    await supabase.from('played_log').delete().eq('quiz_id', quizId)
-    showFeedback('success', 'Quiz nullstilt — alle kan spille igjen.')
-    fetchData()
   }
 
   async function deleteQuiz() {
     if (!confirm(`Slett "${form.title}" permanent? Dette kan ikke angres.`)) return
-    await supabase.from('quizzes').delete().eq('id', quizId)
-    router.push('/admin/quizzes')
+    try {
+      await supabase.from('quizzes').delete().eq('id', quizId)
+      router.push('/admin/quizzes')
+    } catch {
+      showFeedback('error', 'Kunne ikke slette quizen.')
+    }
   }
 
   const upd = (key: string, val: unknown) => setForm(f => ({ ...f, [key]: val }))

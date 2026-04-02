@@ -319,19 +319,24 @@ export default function NewQuiz() {
       return
     }
     setSaving(true)
-    const { data, error } = await supabase.from('quizzes').insert({
-      ...form,
-      opens_at: new Date(form.opens_at).toISOString(),
-      closes_at: new Date(form.closes_at).toISOString(),
-      scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
-    }).select().single()
+    try {
+      const { data, error } = await supabase.from('quizzes').insert({
+        ...form,
+        opens_at: new Date(form.opens_at).toISOString(),
+        closes_at: new Date(form.closes_at).toISOString(),
+        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
+      }).select().single()
 
-    if (error) {
-      alert('Feil ved lagring: ' + error.message)
+      if (error) {
+        alert('Feil ved lagring: ' + error.message)
+        return
+      }
+      router.push(`/admin/quizzes/${data.id}/questions`)
+    } catch {
+      alert('Uventet feil ved lagring.')
+    } finally {
       setSaving(false)
-      return
     }
-    router.push(`/admin/quizzes/${data.id}/questions`)
   }
 
   const toggleItems = [

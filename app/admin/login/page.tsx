@@ -147,14 +147,19 @@ export default function AdminLogin() {
   const handleLogin = async () => {
     setLoading(true)
     setError('')
-    const ok = await verifyAdminPassword(password)
-    if (ok) {
-      setAdminSession()
-      router.push('/admin')
-    } else {
-      setError('Feil passord. Prøv igjen.')
+    try {
+      const ok = await verifyAdminPassword(password)
+      if (ok) {
+        setAdminSession()
+        router.push('/admin')
+      } else {
+        setError('Feil passord. Prøv igjen.')
+      }
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

@@ -463,55 +463,69 @@ export default function QuizQuestions() {
       return
     }
     setSaving(true)
-    const { error } = await supabase.from('questions').insert({
-      quiz_id: quizId,
-      question_text: newQ.question_text,
-      option_a: newQ.option_a,
-      option_b: newQ.option_b,
-      option_c: newQ.option_c || null,
-      option_d: newQ.option_d || null,
-      correct_answer: newQ.correct_answer,
-      explanation: newQ.explanation || null,
-      time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
-      order_index: questions.length + 1,
-    })
-    if (error) { showFeedback('error', 'Feil ved lagring: ' + error.message) }
-    else {
-      showFeedback('success', 'Spørsmål lagret!')
-      setNewQ(emptyForm())
-      setShowForm(false)
-      fetchData()
+    try {
+      const { error } = await supabase.from('questions').insert({
+        quiz_id: quizId,
+        question_text: newQ.question_text,
+        option_a: newQ.option_a,
+        option_b: newQ.option_b,
+        option_c: newQ.option_c || null,
+        option_d: newQ.option_d || null,
+        correct_answer: newQ.correct_answer,
+        explanation: newQ.explanation || null,
+        time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
+        order_index: questions.length + 1,
+      })
+      if (error) { showFeedback('error', 'Feil ved lagring: ' + error.message) }
+      else {
+        showFeedback('success', 'Spørsmål lagret!')
+        setNewQ(emptyForm())
+        setShowForm(false)
+        fetchData()
+      }
+    } catch {
+      showFeedback('error', 'Uventet feil ved lagring.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function saveEdit() {
     if (!editingId) return
     setSaving(true)
-    const { error } = await supabase.from('questions').update({
-      question_text: editForm.question_text,
-      option_a: editForm.option_a,
-      option_b: editForm.option_b,
-      option_c: editForm.option_c || null,
-      option_d: editForm.option_d || null,
-      correct_answer: editForm.correct_answer,
-      explanation: editForm.explanation || null,
-      time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
-    }).eq('id', editingId)
-    if (error) { showFeedback('error', 'Feil ved oppdatering: ' + error.message) }
-    else {
-      showFeedback('success', 'Spørsmål oppdatert!')
-      setEditingId(null)
-      fetchData()
+    try {
+      const { error } = await supabase.from('questions').update({
+        question_text: editForm.question_text,
+        option_a: editForm.option_a,
+        option_b: editForm.option_b,
+        option_c: editForm.option_c || null,
+        option_d: editForm.option_d || null,
+        correct_answer: editForm.correct_answer,
+        explanation: editForm.explanation || null,
+        time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
+      }).eq('id', editingId)
+      if (error) { showFeedback('error', 'Feil ved oppdatering: ' + error.message) }
+      else {
+        showFeedback('success', 'Spørsmål oppdatert!')
+        setEditingId(null)
+        fetchData()
+      }
+    } catch {
+      showFeedback('error', 'Uventet feil ved oppdatering.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function deleteQuestion(id: string) {
     if (!confirm('Slett dette spørsmålet?')) return
-    const { error } = await supabase.from('questions').delete().eq('id', id)
-    if (error) { showFeedback('error', 'Kunne ikke slette: ' + error.message) }
-    else { showFeedback('success', 'Spørsmål slettet.'); fetchData() }
+    try {
+      const { error } = await supabase.from('questions').delete().eq('id', id)
+      if (error) { showFeedback('error', 'Kunne ikke slette: ' + error.message) }
+      else { showFeedback('success', 'Spørsmål slettet.'); fetchData() }
+    } catch {
+      showFeedback('error', 'Uventet feil ved sletting.')
+    }
   }
 
   function startEdit(q: Question) {
@@ -533,11 +547,15 @@ export default function QuizQuestions() {
     if (direction === 'up' && idx === 0) return
     if (direction === 'down' && idx === questions.length - 1) return
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    await Promise.all([
-      supabase.from('questions').update({ order_index: questions[swapIdx].order_index }).eq('id', questions[idx].id),
-      supabase.from('questions').update({ order_index: questions[idx].order_index }).eq('id', questions[swapIdx].id),
-    ])
-    fetchData()
+    try {
+      await Promise.all([
+        supabase.from('questions').update({ order_index: questions[swapIdx].order_index }).eq('id', questions[idx].id),
+        supabase.from('questions').update({ order_index: questions[idx].order_index }).eq('id', questions[swapIdx].id),
+      ])
+      fetchData()
+    } catch {
+      showFeedback('error', 'Kunne ikke flytte spørsmålet.')
+    }
   }
 
   function renderForm(
