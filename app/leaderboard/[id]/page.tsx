@@ -434,6 +434,7 @@ export default function LeaderboardPage() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null, premium_status: boolean | null } | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
@@ -461,6 +462,7 @@ export default function LeaderboardPage() {
       setDisplayName(profile?.display_name ?? s.user.email?.split('@')[0] ?? null)
       setAvatarUrl(profile?.avatar_url ?? null)
     }
+    setAuthLoading(false)
   }, [])
 
   useEffect(() => {
@@ -534,7 +536,7 @@ export default function LeaderboardPage() {
         </header>
 
         {/* Auth gate / profile bar */}
-        {session ? (
+        {!authLoading && session ? (
           <div className="qk-profile-bar">
             <div className="qk-profile-avatar">
               {avatarUrl
@@ -548,7 +550,7 @@ export default function LeaderboardPage() {
             </div>
             <button onClick={handleSignOut} className="qk-signout-btn">Logg ut</button>
           </div>
-        ) : (
+        ) : !authLoading ? (
           <div className="qk-auth-gate">
             <div className="qk-auth-gate-text">
               <p className="qk-auth-gate-title">Finn din plassering</p>
@@ -564,9 +566,9 @@ export default function LeaderboardPage() {
               Logg inn med Google
             </button>
           </div>
-        )}
+        ) : null}
 
-        {session && !isPremium && (
+        {!authLoading && session && !isPremium && (
           <div style={{ background: '#21242e', border: '1px solid #c9a84c', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div style={{ color: '#d0d3e0', fontSize: '0.95rem' }}>
               🔒 Se nøyaktig plassering og historikk med <strong style={{ color: '#c9a84c' }}>Premium</strong>

@@ -57,7 +57,7 @@ export default function UserMenu() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       if (s?.user) loadProfile(s.user.id, s.user.email)
-      else setDisplayName(null)
+      else { setDisplayName(null); setIsPremium(false) }
     })
 
     return () => subscription.unsubscribe()
@@ -165,7 +165,7 @@ export default function UserMenu() {
                   </button>
                 )}
                 <button
-                  onClick={async () => { setDropdownOpen(false); await signOut() }}
+                  onClick={async () => { setDropdownOpen(false); setSession(null); setDisplayName(null); setIsPremium(false); await signOut() }}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none', border: 'none',
