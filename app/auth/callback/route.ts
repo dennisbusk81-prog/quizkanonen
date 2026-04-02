@@ -1,8 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const rl = rateLimit(`auth-callback:${ip}`, 20, 60_000)
+  if (!rl.success) {
+    return NextResponse.redirect(new URL('/?error=rate_limit', request.url))
+  }
+
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
