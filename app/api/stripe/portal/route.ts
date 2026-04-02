@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
+    console.log('[portal] stripe_customer_id:', profile?.stripe_customer_id ?? 'MANGLER')
     if (!profile?.stripe_customer_id) {
       return NextResponse.json({ error: 'Ingen Stripe-kunde funnet' }, { status: 400 })
     }
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
       return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium`,
     })
 
+    console.log('[portal] session url:', session.url)
     return NextResponse.json({ url: session.url })
   } catch (err) {
     console.error('Stripe portal error:', err)

@@ -55,9 +55,13 @@ export default function UserMenu() {
         headers: { 'Authorization': `Bearer ${token}` },
       })
       const data = await res.json()
-      if (data.url) window.location.href = data.url
-    } catch {
-      // silent
+      console.log('[UserMenu] portal response', res.status, data)
+      if (data.url) {
+        console.log('[UserMenu] redirecting to', data.url)
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('[UserMenu] portal error', err)
     }
     setPortalLoading(false)
   }
