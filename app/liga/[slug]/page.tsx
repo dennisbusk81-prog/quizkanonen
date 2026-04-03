@@ -140,20 +140,14 @@ export default function LigaPage() {
     if (!slug) return
     let cancelled = false
 
-    async function load() {
-      let { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        await new Promise<void>(r => setTimeout(r, 500))
-        if (cancelled) return
-        const { data } = await supabase.auth.getSession()
-        session = data.session
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
       if (cancelled) return
+
       if (!session) { router.replace('/'); return }
 
       setAccessToken(session.access_token)
 
-      // Hent alle ligaer → finn denne via slug
       const listRes = await fetch('/api/leagues', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -167,7 +161,6 @@ export default function LigaPage() {
       setLeague(found)
       setInviteUrl(`${window.location.origin}/liga/bli-med/${found.invite_token}`)
 
-      // Hent leaderboard
       const lbRes = await fetch(`/api/leagues/${found.id}/leaderboard`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -178,10 +171,9 @@ export default function LigaPage() {
       setSisteQuiz(lbJson.siste_quiz ?? null)
       setAllTime(lbJson.all_time ?? [])
       if (!cancelled) setLoadState('ready')
-    }
+    })
 
-    load().catch(() => { if (!cancelled) setLoadState('error') })
-    return () => { cancelled = true }
+    return () => { cancelled = true; subscription.unsubscribe() }
   }, [slug, router])
 
   async function handleCopy() {
@@ -197,9 +189,11 @@ export default function LigaPage() {
     setResetting(true)
     setResetError(null)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
       const res = await fetch(`/api/leagues/${league.id}/reset`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await res.json()
       if (!res.ok) {
@@ -208,7 +202,7 @@ export default function LigaPage() {
         setResetConfirm(false)
         // Reload leaderboard
         const lbRes = await fetch(`/api/leagues/${league.id}/leaderboard`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: { Authorization: `Bearer ${session.access_token}` },
         })
         if (lbRes.ok) {
           const lbJson = await lbRes.json()
