@@ -62,14 +62,17 @@ export default function UserMenu() {
   }
 
   async function handlePortal() {
-    setPortalLoading(true)
+    if (portalLoading) return
     setPortalError(null)
+    // Open blank window synchronously on the click event — prevents popup blockers
+    const win = window.open('', '_blank')
+    setPortalLoading(true)
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
+    const timeout = setTimeout(() => controller.abort(), 8000)
     try {
       const { data: { session: s } } = await supabase.auth.getSession()
       const token = s?.access_token
-      if (!token) { setPortalError('Ikke innlogget'); return }
+      if (!token) { win?.close(); setPortalError('Ikke innlogget'); return }
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -77,11 +80,14 @@ export default function UserMenu() {
       })
       const data = await res.json()
       if (data.url) {
-        window.open(data.url, '_blank')
+        if (win) win.location.href = data.url
+        else window.open(data.url, '_blank')
       } else {
+        win?.close()
         setPortalError(data.error ?? 'Noe gikk galt')
       }
     } catch (err) {
+      win?.close()
       if ((err as Error).name === 'AbortError') {
         setPortalError('Forespørselen tok for lang tid. Prøv igjen.')
       } else {
@@ -220,21 +226,35 @@ export default function UserMenu() {
                 </div>
                 {isPremium ? (
                   <>
+                    <a
+                      href="/historikk"
+                      onClick={() => setDropdownOpen(false)}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 10px', background: 'none',
+                        borderRadius: 8, fontSize: 13, color: '#9a9590',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        textDecoration: 'none', transition: 'background 0.12s',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      Din quizhistorikk
+                    </a>
                     <button
                       onClick={handlePortal}
-                      disabled={portalLoading}
                       style={{
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '8px 10px', background: 'none', border: 'none',
                         borderRadius: 8, fontSize: 13, color: '#c9a84c',
                         fontFamily: "'Instrument Sans', sans-serif",
-                        cursor: portalLoading ? 'default' : 'pointer', transition: 'background 0.12s',
-                        opacity: portalLoading ? 0.6 : 1,
+                        cursor: 'pointer', transition: 'background 0.12s',
                       }}
-                      onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.background = 'rgba(201,168,76,0.08)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
-                      {portalLoading ? 'Laster...' : 'Administrer abonnement'}
+                      Administrer abonnement
                     </button>
                     {portalError && (
                       <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
