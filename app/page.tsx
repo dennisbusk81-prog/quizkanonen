@@ -738,6 +738,25 @@ export default async function Home() {
           </div>
         </section>
 
+        <div className="qk-section" style={{ marginTop: 8 }}>
+          <span className="qk-section-text">Slik fungerer det</span>
+          <div className="qk-section-line" />
+        </div>
+
+        <div className="qk-how-grid">
+          {[
+            { num: '1', title: 'Åpne quizen', desc: 'Velg en aktiv quiz og skriv inn navnet ditt for å starte.' },
+            { num: '2', title: 'Svar på spørsmål', desc: 'Svar raskt — du har begrenset tid per spørsmål.' },
+            { num: '3', title: 'Se rangeringen', desc: 'Sjekk topplisten og se hvor du havnet blant alle deltakerne.' },
+          ].map(({ num, title, desc }) => (
+            <div key={num} className="qk-how-card">
+              <div className="qk-how-num">{num}</div>
+              <p className="qk-how-title">{title}</p>
+              <p className="qk-how-desc">{desc}</p>
+            </div>
+          ))}
+        </div>
+
         <QuizCountdown initialDate={nextQuizAt} />
 
         <div className="qk-section">
@@ -774,7 +793,7 @@ export default async function Home() {
                       <span className="qk-detail">📋 {questionCount} spørsmål</span>
                     )}
                     {participantCount > 0 && (
-                      <span className="qk-detail">👥 {participantCount} deltakere</span>
+                      <span className="qk-detail">👥 {participantCount} deltakere denne uken</span>
                     )}
                     {quiz.time_limit_seconds && (
                       <span className="qk-detail">⏱ {quiz.time_limit_seconds}s per spørsmål</span>
@@ -797,25 +816,6 @@ export default async function Home() {
             )
           })
         )}
-
-        <div className="qk-section" style={{ marginTop: 48 }}>
-          <span className="qk-section-text">Slik fungerer det</span>
-          <div className="qk-section-line" />
-        </div>
-
-        <div className="qk-how-grid">
-          {[
-            { num: '1', title: 'Åpne quizen', desc: 'Velg en aktiv quiz og skriv inn navnet ditt for å starte.' },
-            { num: '2', title: 'Svar på spørsmål', desc: 'Svar raskt — du har begrenset tid per spørsmål.' },
-            { num: '3', title: 'Se rangeringen', desc: 'Sjekk topplisten og se hvor du havnet blant alle deltakerne.' },
-          ].map(({ num, title, desc }) => (
-            <div key={num} className="qk-how-card">
-              <div className="qk-how-num">{num}</div>
-              <p className="qk-how-title">{title}</p>
-              <p className="qk-how-desc">{desc}</p>
-            </div>
-          ))}
-        </div>
 
         <footer className="qk-footer">
           <span suppressHydrationWarning className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
