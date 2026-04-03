@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
+import LigaSection from '@/components/LigaSection'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -1054,36 +1055,7 @@ export default async function Home() {
               <Link href="/founders" className="qk-feat-btn">Prøv gratis i 1 måned →</Link>
             </div>
             <div>
-              <div className="qk-liga-widget">
-                <p className="qk-liga-label">Venneliga — uke 14</p>
-                <div className="qk-liga-row">
-                  <span className="qk-liga-rank">1</span>
-                  <div className="qk-liga-avatar qk-liga-avatar--gold">MH</div>
-                  <div className="qk-liga-info">
-                    <div className="qk-liga-name">Marte H.</div>
-                    <div className="qk-liga-score">9/10 riktige · 1m 12s</div>
-                  </div>
-                  <span className="qk-liga-streak">🔥 6 uker</span>
-                </div>
-                <div className="qk-liga-row">
-                  <span className="qk-liga-rank">2</span>
-                  <div className="qk-liga-avatar qk-liga-avatar--grey">TL</div>
-                  <div className="qk-liga-info">
-                    <div className="qk-liga-name">Tor L.</div>
-                    <div className="qk-liga-score">9/10 riktige · 1m 34s</div>
-                  </div>
-                  <span className="qk-liga-streak">🔥 3 uker</span>
-                </div>
-                <div className="qk-liga-row">
-                  <span className="qk-liga-rank">3</span>
-                  <div className="qk-liga-avatar qk-liga-avatar--grey">KR</div>
-                  <div className="qk-liga-info">
-                    <div className="qk-liga-name">Kari R.</div>
-                    <div className="qk-liga-score">8/10 riktige · 1m 48s</div>
-                  </div>
-                  <span className="qk-liga-streak">–</span>
-                </div>
-              </div>
+              <LigaSection />
             </div>
           </div>
         </section>
