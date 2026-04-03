@@ -509,11 +509,119 @@ export default async function Home() {
           margin-top: 40px;
         }
 
+        /* ── Hva er inkludert ── */
+        .qk-pricing {
+          margin-bottom: 8px;
+        }
+
+        .qk-pricing-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          align-items: start;
+        }
+
+        .qk-pricing-col {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-card);
+          padding: 22px 18px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .qk-pricing-col--premium {
+          background: #1c1f2b;
+          border-color: rgba(201,168,76,0.3);
+        }
+
+        .qk-pricing-tier {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          margin-bottom: 2px;
+        }
+
+        .qk-pricing-tier--muted   { color: var(--muted); }
+        .qk-pricing-tier--free    { color: var(--white); }
+        .qk-pricing-tier--premium { color: var(--gold); }
+
+        .qk-pricing-price {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--gold);
+          margin-bottom: 16px;
+        }
+
+        .qk-pricing-head-spacer {
+          margin-bottom: 16px;
+        }
+
+        .qk-pricing-list {
+          list-style: none;
+          padding: 0;
+          margin: 0 0 18px;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .qk-pricing-item {
+          font-size: 13px;
+          line-height: 1.4;
+        }
+
+        .qk-pricing-item--yes     { color: var(--body); }
+        .qk-pricing-item--no      { color: var(--muted); opacity: 0.55; }
+        .qk-pricing-item--premium { color: var(--gold); }
+
+        .qk-pricing-btn {
+          display: block;
+          padding: 10px 14px;
+          border-radius: var(--radius-btn);
+          font-family: 'Instrument Sans', sans-serif;
+          font-size: 13px;
+          font-weight: 700;
+          text-align: center;
+          text-decoration: none;
+          margin-bottom: 8px;
+          transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+        }
+
+        .qk-pricing-btn--free {
+          background: transparent;
+          color: var(--body);
+          border: 1px solid var(--border);
+        }
+
+        .qk-pricing-btn--free:hover {
+          border-color: rgba(201,168,76,0.35);
+          color: var(--gold);
+        }
+
+        .qk-pricing-btn--premium {
+          background: var(--gold);
+          color: #0f0f10;
+          border: 1px solid transparent;
+        }
+
+        .qk-pricing-btn--premium:hover { opacity: 0.88; }
+
+        .qk-pricing-sub {
+          font-size: 11px;
+          color: var(--muted);
+          text-align: center;
+        }
+
         @media (max-width: 520px) {
           .qk-card { flex-direction: column; gap: 16px; }
           .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
           .qk-header { padding: 40px 0 32px; }
           .qk-how-grid { grid-template-columns: 1fr; }
+          .qk-pricing-grid { grid-template-columns: 1fr; }
           .qk-nav-play { display: none; }
           .qk-hero { padding: 36px 0 28px; }
         }
@@ -563,6 +671,68 @@ export default async function Home() {
           </div>
           <p className="qk-reassurance"><strong>Ingen kortinfo. Ingen spam. Bare quiz.</strong> · Avslutt når du vil.</p>
           <div className="qk-hero-rule" />
+        </section>
+
+        {/* Hva er inkludert */}
+        <section className="qk-pricing">
+          <div className="qk-section">
+            <span className="qk-section-text">Hva er inkludert</span>
+            <div className="qk-section-line" />
+          </div>
+
+          <div className="qk-pricing-grid">
+
+            {/* Kolonne 1 — Uten konto */}
+            <div className="qk-pricing-col">
+              <p className="qk-pricing-tier qk-pricing-tier--muted">Uten konto</p>
+              <div className="qk-pricing-head-spacer" />
+              <ul className="qk-pricing-list">
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Spill quizen</li>
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Se omtrentlig plassering</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Fast spillernavn</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Nøyaktig plassering</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Historikk</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Private ligaer</li>
+              </ul>
+            </div>
+
+            {/* Kolonne 2 — Innlogget gratis */}
+            <div className="qk-pricing-col">
+              <p className="qk-pricing-tier qk-pricing-tier--free">Innlogget — gratis</p>
+              <div className="qk-pricing-head-spacer" />
+              <ul className="qk-pricing-list">
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Spill quizen</li>
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Du huskes på topplisten</li>
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Fast spillernavn</li>
+                <li className="qk-pricing-item qk-pricing-item--yes">✓ Nøyaktig plassering</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Historikk</li>
+                <li className="qk-pricing-item qk-pricing-item--no">– Private ligaer</li>
+              </ul>
+              <Link href="/auth/callback" className="qk-pricing-btn qk-pricing-btn--free">
+                Logg inn med Google
+              </Link>
+              <p className="qk-pricing-sub">Ingen kortinfo nødvendig</p>
+            </div>
+
+            {/* Kolonne 3 — Premium */}
+            <div className="qk-pricing-col qk-pricing-col--premium">
+              <p className="qk-pricing-tier qk-pricing-tier--premium">Premium</p>
+              <p className="qk-pricing-price">kr 49/mnd</p>
+              <ul className="qk-pricing-list">
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Alt fra innlogget</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Quizhistorikk og statistikk</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Se om du blir bedre uke for uke</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Private ligaer</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ XP og rangtitler</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Avslutt når du vil</li>
+              </ul>
+              <Link href="/founders" className="qk-pricing-btn qk-pricing-btn--premium">
+                Prøv gratis i 1 måned
+              </Link>
+              <p className="qk-pricing-sub">Ingen kortinfo nødvendig</p>
+            </div>
+
+          </div>
         </section>
 
         <QuizCountdown initialDate={nextQuizAt} />
