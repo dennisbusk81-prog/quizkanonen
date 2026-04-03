@@ -305,11 +305,8 @@ export default function FoundersPage() {
             </>
           )}
 
-          <p style={s.disclaimer}>
-            Ingen binding. Avsluttes automatisk etter 30 dager med mindre du velger å fortsette.
-          </p>
-          <p style={{ fontSize: 12, color: '#6a6860', fontStyle: 'italic', marginTop: 8, textAlign: 'center' }}>
-            Ingen automatisk trekk etter prøveperioden. Du velger selv.
+          <p style={{ fontSize: 12, color: '#6a6860', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
+            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter 30 dager.
           </p>
         </div>
       </div>
