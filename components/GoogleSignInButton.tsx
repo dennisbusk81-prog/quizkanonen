@@ -12,7 +12,7 @@ export default function GoogleSignInButton({ className, children }: Props) {
     <button
       type="button"
       className={className}
-      style={{ width: '100%', border: 'none', cursor: 'pointer' }}
+      style={{ width: '100%', cursor: 'pointer', background: 'transparent' }}
       onClick={() => {
         console.log('klikk registrert')
         signInWithGoogle()

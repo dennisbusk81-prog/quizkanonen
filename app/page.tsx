@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
-import GoogleSignInButton from '@/components/GoogleSignInButton'
+import nextDynamic from 'next/dynamic'
+const GoogleSignInButton = nextDynamic(() => import('@/components/GoogleSignInButton'), { ssr: false })
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
