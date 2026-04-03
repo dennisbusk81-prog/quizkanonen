@@ -60,6 +60,11 @@ const s = {
 
   separator: { textAlign: 'center' as const, fontSize: 11, color: '#6a6860', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
 
+  tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 16 },
+  tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#6a6860', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#6a6860', fontStyle: 'italic' as const },
+
   empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 32 },
   emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
   emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
@@ -83,6 +88,9 @@ export default function LeaderboardPage() {
   const [visibleTeamCount, setVisibleTeamCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
+  const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState<'alle' | 'venner' | 'lag'>('alle')
+  const [visibleVennerCount, setVisibleVennerCount] = useState(10)
 
   useEffect(() => {
     async function fetchData() {
@@ -123,6 +131,41 @@ export default function LeaderboardPage() {
       setProfile(prof)
       setDisplayName(prof?.display_name ?? sess.user.email?.split('@')[0] ?? null)
       setAvatarUrl(prof?.avatar_url ?? null)
+
+      // Hent ligamedlemmer for "Blant venner"-fane
+      try {
+        const leaguesRes = await fetch('/api/leagues', {
+          headers: { Authorization: `Bearer ${sess.access_token}` },
+        })
+        if (leaguesRes.ok) {
+          const leaguesJson = await leaguesRes.json()
+          const leagues: { id: string }[] = leaguesJson.leagues ?? []
+          const memberResponses = await Promise.all(
+            leagues.map(l =>
+              fetch(`/api/leagues/${l.id}`, {
+                headers: { Authorization: `Bearer ${sess.access_token}` },
+              }).then(r => r.ok ? r.json() : null)
+            )
+          )
+          const userIds = new Set<string>()
+          for (const res of memberResponses) {
+            for (const m of (res?.members ?? []) as { user_id: string }[]) {
+              userIds.add(m.user_id)
+            }
+          }
+          if (userIds.size > 0) {
+            const { data: friendProfiles } = await supabaseData
+              .from('profiles')
+              .select('display_name')
+              .in('id', [...userIds])
+            setFriendNames(new Set(
+              (friendProfiles ?? [])
+                .map((p: { display_name: string | null }) => p.display_name)
+                .filter((n): n is string => !!n)
+            ))
+          }
+        }
+      } catch { /* ikke kritisk */ }
     }
     setAuthLoading(false)
   }, [])
@@ -183,6 +226,8 @@ export default function LeaderboardPage() {
   const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz)
   const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
+  const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
+  const showVennerTab = !!session && friendAttempts.length > 0
   const totalCount = soloAttempts.length + teamAttempts.length
 
   const userSoloAttempt = displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null
@@ -344,8 +389,38 @@ export default function LeaderboardPage() {
             </div>
           ) : (
             <>
-              {renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10))}
-              {renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
+              <div style={s.tabRow}>
+                <button
+                  style={activeTab === 'alle' ? s.tabActive : s.tabInactive}
+                  onClick={() => setActiveTab('alle')}
+                >
+                  Alle
+                </button>
+                {showVennerTab && (
+                  <button
+                    style={activeTab === 'venner' ? s.tabActive : s.tabInactive}
+                    onClick={() => setActiveTab('venner')}
+                  >
+                    Blant venner
+                  </button>
+                )}
+                <button
+                  style={activeTab === 'lag' ? s.tabActive : s.tabInactive}
+                  onClick={() => setActiveTab('lag')}
+                >
+                  Lag
+                </button>
+              </div>
+
+              {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10))}
+
+              {activeTab === 'venner' && (
+                friendAttempts.length > 0
+                  ? renderSection(friendAttempts, 'Blant venner', visibleVennerCount, () => setVisibleVennerCount(c => c + 10))
+                  : <p style={s.tabEmpty}>Ingen ligavenner har spilt denne quizen ennå</p>
+              )}
+
+              {activeTab === 'lag' && renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
             </>
           )}
 
