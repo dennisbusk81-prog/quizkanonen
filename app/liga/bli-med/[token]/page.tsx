@@ -110,61 +110,32 @@ export default function BliMedPage() {
     }
   }
 
-  // Mount: sjekk pending action (for OAuth-redirect-tilbake)
-  useEffect(() => {
-    if (!token) return
-
-    async function checkPending() {
-      const pending = localStorage.getItem(PENDING_KEY)
-      if (pending !== `liga_join`) return
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) return
-      localStorage.removeItem(PENDING_KEY)
-      await runJoin(session.access_token)
-    }
-    checkPending()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
-
-  // Mount: sjekk session
   useEffect(() => {
     if (!token) return
     let cancelled = false
+    let handled = false
 
-    async function check() {
-      let { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        await new Promise<void>(r => setTimeout(r, 500))
-        if (cancelled) return
-        const { data } = await supabase.auth.getSession()
-        session = data.session
-      }
-      if (cancelled) return
-      if (session?.access_token) {
-        await runJoin(session.access_token)
-      } else {
-        setJoinState('not-logged-in')
-      }
+    async function joinWithSession(accessToken: string) {
+      if (handled || cancelled) return
+      handled = true
+      localStorage.removeItem(PENDING_KEY)
+      await runJoin(accessToken)
     }
 
-    check()
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token])
-
-  // Auth state change: fullfør join etter innlogging
-  useEffect(() => {
-    if (!token) return
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.access_token) {
-        const pending = localStorage.getItem(PENDING_KEY)
-        if (pending === 'liga_join') {
-          localStorage.removeItem(PENDING_KEY)
-          runJoin(session.access_token)
+      if (cancelled) return
+      if (event === 'INITIAL_SESSION') {
+        if (session?.access_token) {
+          joinWithSession(session.access_token)
+        } else {
+          if (!handled) setJoinState('not-logged-in')
         }
+      } else if (event === 'SIGNED_IN' && session?.access_token) {
+        joinWithSession(session.access_token)
       }
     })
-    return () => subscription.unsubscribe()
+
+    return () => { cancelled = true; subscription.unsubscribe() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
