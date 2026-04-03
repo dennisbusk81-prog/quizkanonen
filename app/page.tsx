@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -936,9 +937,9 @@ export default async function Home() {
                 <li className="qk-pricing-item qk-pricing-item--no">– Historikk</li>
                 <li className="qk-pricing-item qk-pricing-item--no">– Private ligaer</li>
               </ul>
-              <Link href="/auth/callback" className="qk-pricing-btn qk-pricing-btn--free">
+              <GoogleSignInButton className="qk-pricing-btn qk-pricing-btn--free">
                 Logg inn med Google
-              </Link>
+              </GoogleSignInButton>
               <p className="qk-pricing-sub">Ingen kortinfo nødvendig</p>
             </div>
 
