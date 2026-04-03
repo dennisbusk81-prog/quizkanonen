@@ -3,6 +3,8 @@ import QuizCountdown from '@/components/QuizCountdown'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import Link from 'next/link'
 
+const FOUNDERS_ACTIVE = true
+
 export const dynamic = 'force-dynamic'
 
 type QuizRow = {
@@ -354,23 +356,214 @@ export default async function Home() {
 
         .qk-footer-link:hover { color: var(--gold); }
 
+        /* ── Nav ── */
+        .qk-nav {
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          background: rgba(26,28,35,0.92);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--border);
+        }
+
+        .qk-nav-inner {
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 0 20px;
+          height: 54px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .qk-nav-logo {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 17px;
+          font-weight: 700;
+          color: var(--white);
+          text-decoration: none;
+          flex-shrink: 0;
+        }
+
+        .qk-nav-logo em {
+          font-style: italic;
+          color: var(--gold);
+        }
+
+        .qk-nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .qk-nav-login {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--body);
+          text-decoration: none;
+          padding: 6px 14px;
+          border-radius: var(--radius-btn);
+          border: 1px solid var(--border);
+          transition: border-color 0.15s, color 0.15s;
+          white-space: nowrap;
+        }
+
+        .qk-nav-login:hover {
+          border-color: rgba(201,168,76,0.35);
+          color: var(--gold);
+        }
+
+        .qk-nav-play {
+          font-size: 13px;
+          font-weight: 600;
+          color: #0f0f10;
+          background: var(--gold);
+          text-decoration: none;
+          padding: 6px 14px;
+          border-radius: var(--radius-btn);
+          white-space: nowrap;
+          transition: background 0.15s;
+        }
+
+        .qk-nav-play:hover { background: #d9b85c; }
+
+        /* ── Hero ── */
+        .qk-hero {
+          padding: 56px 0 40px;
+        }
+
+        .qk-live-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          color: #4caf7d;
+          background: rgba(76,175,77,0.10);
+          border: 1px solid rgba(76,175,77,0.25);
+          border-radius: 20px;
+          padding: 4px 12px;
+          margin-bottom: 14px;
+        }
+
+        .qk-hero-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: clamp(26px, 5.5vw, 42px);
+          font-weight: 700;
+          color: var(--white);
+          line-height: 1.18;
+          letter-spacing: -0.02em;
+          margin: 10px 0 18px;
+          max-width: 540px;
+        }
+
+        .qk-hero-title em {
+          font-style: italic;
+          color: var(--gold);
+        }
+
+        .qk-hero-body {
+          font-size: 15px;
+          color: var(--body);
+          line-height: 1.65;
+          max-width: 480px;
+          margin-bottom: 28px;
+        }
+
+        .qk-hero-actions {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+
+        .qk-btn-secondary {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--gold);
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: var(--radius-btn);
+          border: 1px solid rgba(201,168,76,0.35);
+          transition: background 0.15s, border-color 0.15s;
+          white-space: nowrap;
+        }
+
+        .qk-btn-secondary:hover {
+          background: rgba(201,168,76,0.08);
+          border-color: rgba(201,168,76,0.55);
+        }
+
+        .qk-reassurance {
+          font-size: 12px;
+          color: var(--muted);
+        }
+
+        .qk-hero-rule {
+          width: 100%;
+          height: 1px;
+          background: var(--border);
+          margin-top: 40px;
+        }
+
         @media (max-width: 520px) {
           .qk-card { flex-direction: column; gap: 16px; }
           .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
           .qk-header { padding: 40px 0 32px; }
           .qk-how-grid { grid-template-columns: 1fr; }
+          .qk-nav-play { display: none; }
+          .qk-hero { padding: 36px 0 28px; }
         }
       `}</style>
 
       <PendingActionRedirect />
+
+      <nav className="qk-nav">
+        <div className="qk-nav-inner">
+          <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
+          <div className="qk-nav-actions">
+            <Link href="/login" className="qk-nav-login">Logg inn gratis</Link>
+            {quizList.length > 0 && (
+              <Link href={`/quiz/${quizList[0].id}`} className="qk-nav-play">
+                Spill ukens quiz →
+              </Link>
+            )}
+          </div>
+        </div>
+      </nav>
+
       <div className="qk-page">
 
-        <header className="qk-header">
+        <section className="qk-hero">
+          {quizList.length > 0 && (
+            <div><span className="qk-live-badge">● Live nå</span></div>
+          )}
           <p className="qk-eyebrow">Den ukentlige quizen</p>
-          <h1 className="qk-logo">Quiz<em>kanonen</em></h1>
-          <p className="qk-sub">Ukentlige quizer for deg som liker å utfordre kunnskapen sin — og andre.</p>
-          <div className="qk-rule" />
-        </header>
+          <h1 className="qk-hero-title">
+            Fredagsquizen der du <em>følger med over tid.</em>
+          </h1>
+          <p className="qk-hero-body">
+            Spill gratis — ingen konto nødvendig. Logg inn for å se nøyaktig plassering og følge fremgangen din uke etter uke. Ny quiz hver fredag.
+          </p>
+          <div className="qk-hero-actions">
+            {quizList.length > 0 && (
+              <Link href={`/quiz/${quizList[0].id}`} className="qk-btn-play">
+                <svg width="11" height="12" viewBox="0 0 11 12" fill="#0f0f10" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1.5L10 6 1 10.5V1.5Z" />
+                </svg>
+                Spill ukens quiz
+              </Link>
+            )}
+            {FOUNDERS_ACTIVE && (
+              <Link href="/founders" className="qk-btn-secondary">Prøv én måned gratis →</Link>
+            )}
+          </div>
+          <p className="qk-reassurance">Ingen kortinfo. Ingen spam. Bare quiz. · Avslutt når du vil.</p>
+          <div className="qk-hero-rule" />
+        </section>
 
         <QuizCountdown initialDate={nextQuizAt} />
 
