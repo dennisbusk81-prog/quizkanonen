@@ -207,6 +207,9 @@ export default function ProfilPage() {
                   {saving ? 'Lagrer…' : 'Lagre'}
                 </button>
               </div>
+              <p style={{ fontSize: 12, color: '#6a6860', marginTop: 6, fontStyle: 'italic' }}>
+                Tips: bruk ditt vanlige navn så andre kjenner deg igjen på leaderboard
+              </p>
               {saveError && <p style={s.saveError}>{saveError}</p>}
               {saveSuccess && <p style={s.saveSuccess}>Brukernavn oppdatert!</p>}
             </div>
