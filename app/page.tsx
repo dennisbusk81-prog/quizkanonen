@@ -539,7 +539,7 @@ export default async function Home() {
 
         <section className="qk-hero">
           {quizList.length > 0 && (
-            <div><span className="qk-live-badge">● Live nå</span></div>
+            <div><span className="qk-live-badge">● Fredagsquizen er åpen nå</span></div>
           )}
           <p className="qk-eyebrow">Den ukentlige quizen</p>
           <h1 className="qk-hero-title">
@@ -561,7 +561,7 @@ export default async function Home() {
               <Link href="/founders" className="qk-btn-secondary">Prøv én måned gratis →</Link>
             )}
           </div>
-          <p className="qk-reassurance">Ingen kortinfo. Ingen spam. Bare quiz. · Avslutt når du vil.</p>
+          <p className="qk-reassurance"><strong>Ingen kortinfo. Ingen spam. Bare quiz.</strong> · Avslutt når du vil.</p>
           <div className="qk-hero-rule" />
         </section>
 
