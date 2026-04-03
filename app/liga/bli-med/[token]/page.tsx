@@ -88,7 +88,6 @@ export default function BliMedPage() {
   const [modalOpen, setModalOpen] = useState(false)
 
   async function runJoin(accessToken: string) {
-    console.log('[bli-med] runJoin kalt')
     setJoinState('joining')
     setJoinError(null)
     try {
@@ -124,7 +123,6 @@ export default function BliMedPage() {
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[bli-med] auth event:', event, 'session:', session?.user?.id ?? 'null')
       if (cancelled) return
       if (event === 'INITIAL_SESSION') {
         if (session?.access_token) {
