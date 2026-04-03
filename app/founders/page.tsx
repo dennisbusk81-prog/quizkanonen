@@ -226,23 +226,28 @@ export default function FoundersPage() {
   }, [])
 
   async function handleActivate() {
-    // getSession() is authoritative — don't rely on session state which may
-    // not yet be set if onAuthStateChange hasn't fired INITIAL_SESSION.
-    let { data: { session: s } } = await supabase.auth.getSession()
-    if (!s) {
-      await new Promise<void>(resolve => setTimeout(resolve, 500))
-      const { data } = await supabase.auth.getSession()
-      s = data.session
-    }
-    if (!s?.access_token) {
-      localStorage.setItem('qk_pending_action', 'founders_checkout')
-      setModalOpen(true)
-      return
-    }
+    // Show loading immediately — don't wait for async session check.
+    setLoading(true)
+    setErrorMsg(null)
     try {
+      // getSession() is authoritative — don't rely on session state which may
+      // not yet be set if onAuthStateChange hasn't fired INITIAL_SESSION.
+      let { data: { session: s } } = await supabase.auth.getSession()
+      if (!s) {
+        await new Promise<void>(resolve => setTimeout(resolve, 500))
+        const { data } = await supabase.auth.getSession()
+        s = data.session
+      }
+      if (!s?.access_token) {
+        localStorage.setItem('qk_pending_action', 'founders_checkout')
+        setLoading(false)
+        setModalOpen(true)
+        return
+      }
       await runActivate(s.access_token)
     } catch {
       setErrorMsg('Noe gikk galt. Prøv igjen.')
+      setLoading(false)
     }
   }
 
