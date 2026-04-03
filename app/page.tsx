@@ -511,14 +511,14 @@ export default async function Home() {
 
         /* ── Hva er inkludert ── */
         .qk-pricing {
-          margin-bottom: 8px;
-          margin-top: -16px;
+          margin-bottom: 4px;
+          margin-top: -20px;
         }
 
         .qk-pricing-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
+          gap: 8px;
           align-items: stretch;
         }
 
@@ -526,7 +526,7 @@ export default async function Home() {
           background: var(--card);
           border: 1px solid var(--border);
           border-radius: var(--radius-card);
-          padding: 22px 18px;
+          padding: 16px 14px;
           display: flex;
           flex-direction: column;
         }
@@ -550,24 +550,24 @@ export default async function Home() {
 
         .qk-pricing-price {
           font-family: 'Libre Baskerville', serif;
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 700;
           color: var(--gold);
-          margin-bottom: 16px;
+          margin-bottom: 10px;
         }
 
         .qk-pricing-head-spacer {
-          margin-bottom: 16px;
+          margin-bottom: 10px;
         }
 
         .qk-pricing-list {
           list-style: none;
           padding: 0;
-          margin: 0 0 18px;
+          margin: 0 0 12px;
           flex: 1;
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
         }
 
         .qk-pricing-item {
@@ -581,14 +581,14 @@ export default async function Home() {
 
         .qk-pricing-btn {
           display: block;
-          padding: 10px 14px;
+          padding: 8px 14px;
           border-radius: var(--radius-btn);
           font-family: 'Instrument Sans', sans-serif;
           font-size: 13px;
           font-weight: 700;
           text-align: center;
           text-decoration: none;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
         }
 
@@ -722,7 +722,7 @@ export default async function Home() {
               <ul className="qk-pricing-list">
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Alt fra innlogget</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Quizhistorikk og statistikk</li>
-                <li className="qk-pricing-item qk-pricing-item--premium">✦ Bedre uke for uke</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Følg din utvikling</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Private ligaer</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ XP og rangtitler</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Avslutt når du vil</li>
