@@ -6,13 +6,13 @@ export async function signInWithGoogle(next?: string): Promise<void> {
   const redirectTo = next
     ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
     : `${window.location.origin}/auth/callback`
-  console.log('[signInWithGoogle] redirectTo:', redirectTo)
+  console.error('[signInWithGoogle] redirectTo:', redirectTo)
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo },
   })
-  console.log('[signInWithGoogle] data:', data)
-  console.log('[signInWithGoogle] error:', error)
+  console.error('[signInWithGoogle] data:', data)
+  console.error('[signInWithGoogle] error:', error)
 }
 
 export async function signOut(): Promise<void> {
