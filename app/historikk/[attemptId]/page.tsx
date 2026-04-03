@@ -151,33 +151,41 @@ export default function AttemptDetailPage() {
 
   useEffect(() => {
     let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout>
-
-    // 5-second fallback — if session refresh or fetch hangs, show error instead of spinning forever
-    timeoutId = setTimeout(() => {
-      if (!cancelled) setLoadState('error')
-    }, 5000)
+    const CACHE_KEY = `qk_attempt_${attemptId}`
+    const CACHE_TTL = 10 * 60 * 1000 // 10 min — attempt data is immutable
 
     async function load() {
       try {
+        // Get session — retry once if Supabase hasn't initialised from localStorage yet
         let { data: { session } } = await supabase.auth.getSession()
-
-        // Supabase may still be initialising from localStorage on first page load.
-        // If we get null, wait 500ms and retry once before giving up.
         if (!session) {
           await new Promise<void>((resolve) => setTimeout(resolve, 500))
           if (cancelled) return
-          const retried = await supabase.auth.getSession()
-          session = retried.data.session
+          const { data } = await supabase.auth.getSession()
+          session = data.session
         }
 
         if (cancelled) return
-        clearTimeout(timeoutId)
 
         if (!session) {
           router.replace(`/login?next=/historikk/${attemptId}`)
           return
         }
+
+        // Serve from cache for instant client-side navigation
+        try {
+          const raw = sessionStorage.getItem(CACHE_KEY)
+          if (raw) {
+            const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
+            if (Date.now() - cached.fetchedAt < CACHE_TTL) {
+              if (!cancelled) {
+                setDetail(cached.data)
+                setLoadState('ready')
+              }
+              return
+            }
+          }
+        } catch { /* sessionStorage unavailable — continue to fetch */ }
 
         const res = await fetch(`/api/historikk/${attemptId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -193,19 +201,19 @@ export default function AttemptDetailPage() {
         const json = await res.json() as AttemptDetail
         if (cancelled) return
 
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), data: json }))
+        } catch { /* ignore */ }
+
         setDetail(json)
         setLoadState('ready')
       } catch {
-        clearTimeout(timeoutId)
         if (!cancelled) setLoadState('error')
       }
     }
 
     load()
-    return () => {
-      cancelled = true
-      clearTimeout(timeoutId)
-    }
+    return () => { cancelled = true }
   }, [router, attemptId])
 
   if (loadState === 'loading') {
