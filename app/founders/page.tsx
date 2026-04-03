@@ -209,16 +209,21 @@ export default function FoundersPage() {
   }, [])
 
   async function handleActivate() {
-    if (!session) {
+    // getSession() is authoritative — don't rely on session state which may
+    // not yet be set if onAuthStateChange hasn't fired INITIAL_SESSION.
+    let { data: { session: s } } = await supabase.auth.getSession()
+    if (!s) {
+      await new Promise<void>(resolve => setTimeout(resolve, 500))
+      const { data } = await supabase.auth.getSession()
+      s = data.session
+    }
+    if (!s?.access_token) {
       localStorage.setItem('qk_pending_action', 'founders_checkout')
       setModalOpen(true)
       return
     }
     try {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      const token = s?.access_token
-      if (!token) { setErrorMsg('Kunne ikke hente sesjon. Prøv igjen.'); return }
-      await runActivate(token)
+      await runActivate(s.access_token)
     } catch {
       setErrorMsg('Noe gikk galt. Prøv igjen.')
     }
@@ -246,9 +251,16 @@ export default function FoundersPage() {
           </ul>
 
           {isPremium ? (
-            <div style={s.alreadyPremium}>
-              Du har allerede Premium — takk!
-            </div>
+            <>
+              <div style={s.alreadyPremium}>
+                Du har allerede Premium — takk!
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <a href="/" style={{ fontSize: 13, color: '#6a6860', textDecoration: 'none' }}>
+                  ← Tilbake til forsiden
+                </a>
+              </div>
+            </>
           ) : (
             <>
               <button

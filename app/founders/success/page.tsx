@@ -71,6 +71,13 @@ const s = {
     textDecoration: 'none',
     transition: 'opacity 0.15s',
   },
+  btnBack: {
+    display: 'inline-block',
+    marginTop: 16,
+    fontSize: 13,
+    color: '#6a6860',
+    textDecoration: 'none',
+  },
 }
 
 export default function FoundersSuccessPage() {
@@ -96,6 +103,9 @@ export default function FoundersSuccessPage() {
           >
             Gå til quizen
           </Link>
+          <div>
+            <Link href="/" style={s.btnBack}>← Tilbake til forsiden</Link>
+          </div>
         </div>
       </div>
     </div>
