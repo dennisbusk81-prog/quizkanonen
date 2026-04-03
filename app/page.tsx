@@ -524,6 +524,12 @@ export default async function Home() {
           align-items: stretch;
         }
 
+        @media (max-width: 640px) {
+          .qk-pricing-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
         .qk-pricing-col {
           background: var(--card);
           border: 1px solid var(--border);
@@ -573,12 +579,12 @@ export default async function Home() {
         }
 
         .qk-pricing-item {
-          font-size: 13px;
+          font-size: 14px;
           line-height: 1.4;
         }
 
-        .qk-pricing-item--yes     { color: var(--body); }
-        .qk-pricing-item--no      { color: var(--muted); opacity: 0.55; }
+        .qk-pricing-item--yes     { color: #9a9590; }
+        .qk-pricing-item--no      { color: #9a9590; opacity: 0.45; }
         .qk-pricing-item--premium { color: var(--gold); }
 
         .qk-pricing-btn {
