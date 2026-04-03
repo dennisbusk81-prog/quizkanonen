@@ -144,8 +144,19 @@ export default function AttemptDetailPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [detail, setDetail] = useState<AttemptDetail | null>(null)
 
+  // Scroll to top on mount (prevents inheriting scroll position from list page)
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout>
+
+    // 5-second fallback — if session refresh or fetch hangs, show error instead of spinning forever
+    timeoutId = setTimeout(() => {
+      if (!cancelled) setLoadState('error')
+    }, 5000)
 
     async function load() {
       try {
@@ -154,6 +165,7 @@ export default function AttemptDetailPage() {
         if (cancelled) return
 
         if (!session) {
+          clearTimeout(timeoutId)
           router.replace(`/login?next=/historikk/${attemptId}`)
           return
         }
@@ -163,6 +175,7 @@ export default function AttemptDetailPage() {
         })
 
         if (cancelled) return
+        clearTimeout(timeoutId)
 
         if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
         if (res.status === 403) { router.replace('/premium'); return }
@@ -175,12 +188,16 @@ export default function AttemptDetailPage() {
         setDetail(json)
         setLoadState('ready')
       } catch {
+        clearTimeout(timeoutId)
         if (!cancelled) setLoadState('error')
       }
     }
 
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [router, attemptId])
 
   if (loadState === 'loading') {

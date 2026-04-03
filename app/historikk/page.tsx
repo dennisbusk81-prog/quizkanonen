@@ -87,11 +87,11 @@ const s = {
 
   // Graph card — progresjon msg inside
   graphCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px 10px', marginBottom: 10, marginTop: 10 },
-  graphHeader:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  graphHeader:  { marginBottom: 10 },
   graphLabel:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860' },
-  progPositive: { fontSize: 12, fontWeight: 500, color: '#4caf7d' },
-  progNegative: { fontSize: 12, fontWeight: 500, color: '#c94c4c' },
-  progNeutral:  { fontSize: 12, fontWeight: 500, color: '#6a6860' },
+  progPositive: { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(76,175,77,0.08)', border: '1px solid rgba(76,175,77,0.2)', color: '#4caf7d' },
+  progNegative: { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(201,76,76,0.08)', border: '1px solid rgba(201,76,76,0.2)', color: '#c94c4c' },
+  progNeutral:  { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(106,104,96,0.1)', border: '1px solid #2a2d38', color: '#6a6860' },
   graphEmpty:   { padding: '20px 0', textAlign: 'center' as const, fontSize: 13, color: '#6a6860', fontStyle: 'italic' as const },
 
   // Stats — featured row + small grid
@@ -206,7 +206,6 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
     <div style={s.graphCard}>
       <div style={s.graphHeader}>
         <span style={s.graphLabel}>Utvikling</span>
-        {progMsg && <span style={progStyle}>{progMsg.tekst}</span>}
       </div>
       {n < 2 ? (
         <div style={s.graphEmpty}>Spill flere quizer for å se utviklingen din</div>
@@ -242,6 +241,7 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
           {tooltip}
         </svg>
       )}
+      {progMsg && <div style={progStyle}>{progMsg.tekst}</div>}
     </div>
   )
 }
@@ -372,6 +372,16 @@ export default function HistorikkPage() {
               </div>
             )}
             <div style={s.heroRule} />
+            {history.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <Link
+                  href={`/leaderboard/${history[0].quiz_id}`}
+                  style={{ fontSize: 12, color: '#6a6860', textDecoration: 'none', letterSpacing: '0.02em' }}
+                >
+                  Se ukens leaderboard →
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Graph with inline progresjon */}
@@ -400,11 +410,11 @@ export default function HistorikkPage() {
               <div style={s.smallGrid}>
                 <div style={s.smallCard}>
                   <div style={s.smallNum}>{stats.total_attempts}</div>
-                  <div style={s.smallLbl}>Spilt</div>
+                  <div style={s.smallLbl}>Quizer spilt</div>
                 </div>
                 <div style={s.smallCard}>
                   <div style={s.smallNum}>{stats.avg_score_pct}%</div>
-                  <div style={s.smallLbl}>Snitt</div>
+                  <div style={s.smallLbl}>Snitt score</div>
                 </div>
                 <div style={s.smallCard}>
                   <div style={s.smallNum}>{stats.best_streak}</div>
@@ -414,7 +424,7 @@ export default function HistorikkPage() {
                   <div style={s.smallNum}>
                     {stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—'}
                   </div>
-                  <div style={s.smallLbl}>Beste plass</div>
+                  <div style={s.smallLbl}>Beste plassering</div>
                 </div>
               </div>
             </>
