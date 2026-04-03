@@ -1,6 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -160,50 +159,13 @@ const STYLES = `
   }
 
   .login-back:hover { color: var(--body); }
-
-  .login-redirecting {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    padding: 8px 0 16px;
-  }
-
-  .login-spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid rgba(201,168,76,0.2);
-    border-top-color: #c9a84c;
-    border-radius: 50%;
-    animation: spin 0.75s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .login-redirecting-text {
-    font-size: 14px;
-    color: var(--body);
-    text-align: center;
-  }
 `
 
-function LoginContent() {
-  const searchParams = useSearchParams()
-  const googleRedirect = searchParams.get('google') === '1'
+export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (googleRedirect) {
-      const redirectTo = encodeURIComponent('https://www.quizkanonen.no/auth/callback')
-      const url = `https://nbfyarftteitbjglgfyd.supabase.co/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
-      window.open(url, '_self')
-    }
-  }, [googleRedirect])
 
   const handleSend = async () => {
     if (!email.trim()) return
@@ -238,12 +200,7 @@ function LoginContent() {
           <p className="login-sub">Ingen passord — vi sender deg en innloggingslenke</p>
           <div className="login-rule" />
 
-          {googleRedirect ? (
-            <div className="login-redirecting">
-              <div className="login-spinner" />
-              <p className="login-redirecting-text">Sender deg til Google…</p>
-            </div>
-          ) : sent ? (
+          {sent ? (
             <p className="login-success">
               Sjekk innboksen din!<br />
               Vi har sendt en innloggingslenke til <strong>{email}</strong>.
@@ -277,13 +234,5 @@ function LoginContent() {
         </div>
       </div>
     </>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginContent />
-    </Suspense>
   )
 }

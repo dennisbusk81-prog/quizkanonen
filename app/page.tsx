@@ -936,7 +936,7 @@ export default async function Home() {
                 <li className="qk-pricing-item qk-pricing-item--no">– Historikk</li>
                 <li className="qk-pricing-item qk-pricing-item--no">– Private ligaer</li>
               </ul>
-              <Link href="/login?google=1" className="qk-pricing-btn qk-pricing-btn--free">
+              <Link href="/login" className="qk-pricing-btn qk-pricing-btn--free">
                 Logg inn med Google
               </Link>
               <p className="qk-pricing-sub">Ingen kortinfo nødvendig</p>
