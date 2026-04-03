@@ -160,7 +160,9 @@ export default function AttemptDetailPage() {
 
     async function load() {
       try {
+        console.log('[detail] getSession() start')
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('[detail] getSession() done — user:', session?.user?.id ?? 'ingen session')
 
         if (cancelled) return
 
@@ -170,24 +172,34 @@ export default function AttemptDetailPage() {
           return
         }
 
+        // Clear timeout once we have a valid session — the API call can take longer
+        clearTimeout(timeoutId)
+
+        console.log('[detail] fetch start — attemptId:', attemptId)
         const res = await fetch(`/api/historikk/${attemptId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
+        console.log('[detail] fetch done — status:', res.status, 'ok:', res.ok)
 
         if (cancelled) return
-        clearTimeout(timeoutId)
 
         if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
         if (res.status === 403) { router.replace('/premium'); return }
         if (res.status === 404) { setLoadState('not-found'); return }
-        if (!res.ok) { setLoadState('error'); return }
+        if (!res.ok) {
+          console.error('[detail] unexpected status:', res.status)
+          setLoadState('error')
+          return
+        }
 
         const json = await res.json() as AttemptDetail
+        console.log('[detail] json ok — quiz_title:', json.quiz_title, 'answers:', json.answers?.length)
         if (cancelled) return
 
         setDetail(json)
         setLoadState('ready')
-      } catch {
+      } catch (err) {
+        console.error('[detail] caught error:', err)
         clearTimeout(timeoutId)
         if (!cancelled) setLoadState('error')
       }
