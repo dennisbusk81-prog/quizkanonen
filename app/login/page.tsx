@@ -2,7 +2,6 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { signInWithGoogle } from '@/lib/auth'
 import Link from 'next/link'
 
 const STYLES = `
@@ -200,7 +199,9 @@ function LoginContent() {
 
   useEffect(() => {
     if (googleRedirect) {
-      signInWithGoogle()
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const redirectTo = encodeURIComponent('https://www.quizkanonen.no/auth/callback')
+      window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
     }
   }, [googleRedirect])
 
