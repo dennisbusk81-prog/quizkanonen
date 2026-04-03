@@ -200,7 +200,8 @@ function LoginContent() {
   useEffect(() => {
     if (googleRedirect) {
       const redirectTo = encodeURIComponent('https://www.quizkanonen.no/auth/callback')
-      window.location.href = `https://nbfyarftteitbjglgfyd.supabase.co/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
+      const url = `https://nbfyarftteitbjglgfyd.supabase.co/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
+      window.open(url, '_self')
     }
   }, [googleRedirect])
 
