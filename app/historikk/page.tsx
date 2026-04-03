@@ -301,6 +301,8 @@ export default function HistorikkPage() {
 
   useEffect(() => {
     let cancelled = false
+    const CACHE_KEY = 'qk_historikk'
+    const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -308,6 +310,28 @@ export default function HistorikkPage() {
       if (!session) {
         router.replace('/login?next=/historikk')
         return
+      }
+
+      // Restore from cache for instant back-navigation
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY)
+        if (raw) {
+          const cached = JSON.parse(raw) as {
+            userId: string
+            fetchedAt: number
+            data: { history: HistoryAttempt[]; stats: PlayerStats }
+          }
+          if (cached.userId === session.user.id && Date.now() - cached.fetchedAt < CACHE_TTL) {
+            if (!cancelled) {
+              setHistory(cached.data.history)
+              setStats(cached.data.stats)
+              setLoadState('ready')
+            }
+            return
+          }
+        }
+      } catch {
+        // sessionStorage unavailable or corrupt — continue to fetch
       }
 
       const res = await fetch('/api/historikk', {
@@ -327,6 +351,17 @@ export default function HistorikkPage() {
       }
 
       const json = await res.json() as { history: HistoryAttempt[]; stats: PlayerStats }
+
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          userId: session.user.id,
+          fetchedAt: Date.now(),
+          data: json,
+        }))
+      } catch {
+        // sessionStorage full or unavailable — ignore
+      }
+
       setHistory(json.history)
       setStats(json.stats)
       setLoadState('ready')

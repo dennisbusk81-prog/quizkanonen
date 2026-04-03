@@ -40,9 +40,11 @@ export type PlayerStats = {
 export type AttemptAnswerDetail = {
   question_id: string
   question_text: string
-  selected_answer: string | null
+  selected_answer: string | null       // letter code: 'A' | 'B' | 'C' | 'D' | null
+  selected_answer_text: string | null  // option text, null if no answer given
   is_correct: boolean
-  correct_answer: string
+  correct_answer: string               // letter code: 'A' | 'B' | 'C' | 'D'
+  correct_answer_text: string          // option text for the correct answer
   time_ms: number
 }
 
@@ -189,12 +191,28 @@ function computeProgresjon(
   return { type: 'trend', diff: lastPct - firstPct }
 }
 
-function resolveTitle(
-  raw: unknown
-): string {
+function resolveTitle(raw: unknown): string {
   const v = raw as { title: string } | { title: string }[] | null
   if (Array.isArray(v)) return v[0]?.title ?? 'Ukjent quiz'
   return v?.title ?? 'Ukjent quiz'
+}
+
+type QuestionRow = {
+  id: string
+  question_text: string
+  correct_answer: string
+  option_a: string
+  option_b: string
+  option_c: string | null
+  option_d: string | null
+}
+
+function getOptionText(q: QuestionRow, letter: string | null): string | null {
+  if (!letter) return null
+  const opts: Record<string, string | null | undefined> = {
+    A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d,
+  }
+  return opts[letter.toUpperCase()] ?? letter
 }
 
 // ─── Public functions ─────────────────────────────────────────────────────────
@@ -373,12 +391,11 @@ export async function getAttemptDetail(
       .eq('attempt_id', attemptId),
     supabaseAdmin
       .from('questions')
-      .select('id, question_text, correct_answer')
+      .select('id, question_text, correct_answer, option_a, option_b, option_c, option_d')
       .eq('quiz_id', attempt.quiz_id),
   ])
 
   // Build a lookup map for questions
-  type QuestionRow = { id: string; question_text: string; correct_answer: string }
   const questionMap = new Map<string, QuestionRow>()
   for (const q of questions ?? []) {
     questionMap.set(q.id, q as QuestionRow)
@@ -396,13 +413,17 @@ export async function getAttemptDetail(
   const rank = ranks.get(attempt.id)
 
   const mappedAnswers: AttemptAnswerDetail[] = (answers ?? []).map((a) => {
-    const q = questionMap.get(a.question_id)
+    const q = questionMap.get(a.question_id) ?? null
+    const selectedLetter = (a.selected_answer as string | null) ?? null
+    const correctLetter = q?.correct_answer ?? ''
     return {
       question_id: a.question_id,
       question_text: q?.question_text ?? '',
-      selected_answer: (a.selected_answer as string | null) ?? null,
+      selected_answer: selectedLetter,
+      selected_answer_text: q ? getOptionText(q, selectedLetter) : null,
       is_correct: a.is_correct as boolean,
-      correct_answer: q?.correct_answer ?? '',
+      correct_answer: correctLetter,
+      correct_answer_text: q ? (getOptionText(q, correctLetter) ?? correctLetter) : correctLetter,
       time_ms: a.time_ms as number,
     }
   })
