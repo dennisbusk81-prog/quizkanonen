@@ -104,6 +104,7 @@ async function computeRanks(
     .select('quiz_id, correct_answers, total_time_ms')
     .in('quiz_id', quizIds)
     .not('correct_streak', 'is', null)
+    .limit(5000) // prevent unbounded scans on popular quizzes
 
   if (!data) return new Map()
 
