@@ -1,11 +1,13 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import type { Session } from '@supabase/supabase-js'
 
 export default function UserMenu() {
+  const pathname = usePathname()
   const [session, setSession] = useState<Session | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
@@ -135,6 +137,7 @@ export default function UserMenu() {
   }, [dropdownOpen])
 
   if (!mounted || !sessionResolved) return null
+  if (pathname === '/') return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
 
