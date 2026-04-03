@@ -1,6 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { signInWithGoogle } from '@/lib/auth'
 import Link from 'next/link'
 
 const STYLES = `
@@ -162,10 +164,17 @@ const STYLES = `
 `
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('google') === '1') {
+      signInWithGoogle()
+    }
+  }, [searchParams])
 
   const handleSend = async () => {
     if (!email.trim()) return
