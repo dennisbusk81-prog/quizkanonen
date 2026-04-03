@@ -42,11 +42,8 @@ export default function PricingSection() {
           <button
             type="button"
             className="qk-pricing-btn qk-pricing-btn--free"
-            style={{ width: '100%', cursor: 'pointer', background: 'transparent' }}
-            onClick={() => {
-              console.log('klikk registrert')
-              signInWithGoogle()
-            }}
+            style={{ width: '100%', cursor: 'pointer', background: 'transparent', border: 'none' }}
+            onClick={() => signInWithGoogle()}
           >
             Logg inn med Google
           </button>
