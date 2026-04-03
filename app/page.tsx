@@ -430,7 +430,7 @@ export default async function Home() {
 
         /* ── Hero ── */
         .qk-hero {
-          padding: 56px 0 40px;
+          padding: 32px 0 20px;
         }
 
         .qk-live-badge {
@@ -506,13 +506,13 @@ export default async function Home() {
           width: 100%;
           height: 1px;
           background: var(--border);
-          margin-top: 40px;
+          margin-top: 24px;
         }
 
         /* ── Hva er inkludert ── */
         .qk-pricing {
           margin-bottom: 4px;
-          margin-top: -20px;
+          margin-top: -8px;
         }
 
         .qk-pricing-grid {
@@ -593,6 +593,7 @@ export default async function Home() {
         }
 
         .qk-pricing-btn--free {
+          padding: 8px 14px;
           background: transparent;
           color: var(--white);
           border: 1px solid rgba(255,255,255,0.18);
@@ -604,6 +605,7 @@ export default async function Home() {
         }
 
         .qk-pricing-btn--premium {
+          padding: 8px 14px;
           background: var(--gold);
           color: #0f0f10;
           border: 1px solid transparent;
@@ -624,7 +626,7 @@ export default async function Home() {
           .qk-how-grid { grid-template-columns: 1fr; }
           .qk-pricing-grid { grid-template-columns: 1fr; }
           .qk-nav-play { display: none; }
-          .qk-hero { padding: 36px 0 28px; }
+          .qk-hero { padding: 24px 0 16px; }
         }
       `}</style>
 
