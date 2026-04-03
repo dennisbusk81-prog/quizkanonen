@@ -491,18 +491,26 @@ export default function QuizPage() {
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
   const [estimatedPlacement, setEstimatedPlacement] = useState<{ low: number; high: number; total: number } | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
+  const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
+  const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setIsLoggedIn(!!session)
       if (session?.user) {
+        setLoggedInUserId(session.user.id)
         const { data: prof } = await supabaseData
           .from('profiles')
-          .select('display_name')
+          .select('display_name, age_confirmed_at')
           .eq('id', session.user.id)
           .maybeSingle()
         const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
-        if (name) setNameInput(name)
+        if (name) { setNameInput(name); setLoggedInDisplayName(name) }
+        if (prof?.age_confirmed_at) {
+          setAgeAlreadyConfirmed(true)
+          setAgeConfirmed(true)
+        }
       }
     })
   }, [])
@@ -584,6 +592,19 @@ export default function QuizPage() {
     if (!nameInput.trim() || !ageConfirmed) return
     const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
+
+    // Lagre aldersbekreftelse i bakgrunnen hvis dette er første gang
+    if (loggedInUserId && loggedInDisplayName && !ageAlreadyConfirmed) {
+      const { data: { session: sess } } = await supabase.auth.getSession()
+      if (sess?.access_token) {
+        fetch('/api/profile/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess.access_token}` },
+          body: JSON.stringify({ id: loggedInUserId, display_name: loggedInDisplayName, age_confirmed_at: new Date().toISOString() }),
+        }).catch(() => { /* ikke kritisk */ })
+      }
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const { data } = await supabaseData.from('attempts').insert({
@@ -767,19 +788,21 @@ export default function QuizPage() {
         </>
       )}
 
-      <div className="qk-check-row" onClick={() => setAgeConfirmed(!ageConfirmed)}>
-        <div className={`qk-check-box${ageConfirmed ? ' checked' : ''}`}>
-          {ageConfirmed && (
-            <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-              <path d="M1 4L4 7L10 1" stroke="#0f0f10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
+      {!ageAlreadyConfirmed && (
+        <div className="qk-check-row" onClick={() => setAgeConfirmed(!ageConfirmed)}>
+          <div className={`qk-check-box${ageConfirmed ? ' checked' : ''}`}>
+            {ageConfirmed && (
+              <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                <path d="M1 4L4 7L10 1" stroke="#0f0f10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </div>
+          <span className="qk-check-text">
+            Jeg er 13 år eller eldre og godtar{' '}
+            <a href="/personvern" onClick={e => e.stopPropagation()}>personvernerklæringen</a>
+          </span>
         </div>
-        <span className="qk-check-text">
-          Jeg er 13 år eller eldre og godtar{' '}
-          <a href="/personvern" onClick={e => e.stopPropagation()}>personvernerklæringen</a>
-        </span>
-      </div>
+      )}
 
       <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary">
         {resumeData ? 'Fortsett quiz' : 'Start quiz'}
