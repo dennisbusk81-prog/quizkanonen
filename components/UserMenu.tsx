@@ -243,6 +243,22 @@ export default function UserMenu() {
                 >
                   Min profil
                 </a>
+                <a
+                  href="/liga"
+                  onClick={() => setDropdownOpen(false)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', background: 'none',
+                    borderRadius: 8, fontSize: 13, color: '#9a9590',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    textDecoration: 'none', transition: 'background 0.12s',
+                    boxSizing: 'border-box',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  Mine ligaer
+                </a>
                 {isPremium ? (
                   <>
                     <a
