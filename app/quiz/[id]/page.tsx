@@ -493,7 +493,18 @@ export default function QuizPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setIsLoggedIn(!!session))
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setIsLoggedIn(!!session)
+      if (session?.user) {
+        const { data: prof } = await supabaseData
+          .from('profiles')
+          .select('display_name')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
+        if (name) setNameInput(name)
+      }
+    })
   }, [])
 
   useEffect(() => {
