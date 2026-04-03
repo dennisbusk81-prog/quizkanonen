@@ -512,13 +512,14 @@ export default async function Home() {
         /* ── Hva er inkludert ── */
         .qk-pricing {
           margin-bottom: 8px;
+          margin-top: -16px;
         }
 
         .qk-pricing-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 10px;
-          align-items: start;
+          align-items: stretch;
         }
 
         .qk-pricing-col {
@@ -593,12 +594,12 @@ export default async function Home() {
 
         .qk-pricing-btn--free {
           background: transparent;
-          color: var(--body);
-          border: 1px solid var(--border);
+          color: var(--white);
+          border: 1px solid rgba(255,255,255,0.18);
         }
 
         .qk-pricing-btn--free:hover {
-          border-color: rgba(201,168,76,0.35);
+          border-color: rgba(201,168,76,0.55);
           color: var(--gold);
         }
 
@@ -721,7 +722,7 @@ export default async function Home() {
               <ul className="qk-pricing-list">
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Alt fra innlogget</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Quizhistorikk og statistikk</li>
-                <li className="qk-pricing-item qk-pricing-item--premium">✦ Se om du blir bedre uke for uke</li>
+                <li className="qk-pricing-item qk-pricing-item--premium">✦ Bedre uke for uke</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Private ligaer</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ XP og rangtitler</li>
                 <li className="qk-pricing-item qk-pricing-item--premium">✦ Avslutt når du vil</li>
