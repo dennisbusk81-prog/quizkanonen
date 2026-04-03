@@ -199,9 +199,8 @@ function LoginContent() {
 
   useEffect(() => {
     if (googleRedirect) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const redirectTo = encodeURIComponent('https://www.quizkanonen.no/auth/callback')
-      window.location.href = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
+      window.location.href = `https://nbfyarftteitbjglgfyd.supabase.co/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`
     }
   }, [googleRedirect])
 
