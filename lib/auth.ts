@@ -14,7 +14,7 @@ export async function signInWithGoogle(next?: string): Promise<void> {
     console.error('[signInWithGoogle] feil:', error, 'url:', data?.url)
     return
   }
-  window.location.href = data.url
+  window.location.replace(data.url)
 }
 
 export async function signOut(): Promise<void> {
