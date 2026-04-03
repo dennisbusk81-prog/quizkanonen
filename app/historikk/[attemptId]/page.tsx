@@ -122,40 +122,47 @@ export default function AttemptDetailPage() {
     let cancelled = false
 
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        router.replace(`/login?next=/historikk/${attemptId}`)
-        return
-      }
+        if (cancelled) return
 
-      const res = await fetch(`/api/historikk/${attemptId}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
+        if (!session) {
+          router.replace(`/login?next=/historikk/${attemptId}`)
+          return
+        }
 
-      if (cancelled) return
+        const res = await fetch(`/api/historikk/${attemptId}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
 
-      if (res.status === 401) {
-        router.replace(`/login?next=/historikk/${attemptId}`)
-        return
-      }
-      if (res.status === 403) {
-        router.replace('/premium')
-        return
-      }
-      if (res.status === 404) {
-        // Not found or not owned by this user
-        setLoadState('not-found')
-        return
-      }
-      if (!res.ok) {
-        setLoadState('error')
-        return
-      }
+        if (cancelled) return
 
-      const json = await res.json() as AttemptDetail
-      setDetail(json)
-      setLoadState('ready')
+        if (res.status === 401) {
+          router.replace(`/login?next=/historikk/${attemptId}`)
+          return
+        }
+        if (res.status === 403) {
+          router.replace('/premium')
+          return
+        }
+        if (res.status === 404) {
+          setLoadState('not-found')
+          return
+        }
+        if (!res.ok) {
+          setLoadState('error')
+          return
+        }
+
+        const json = await res.json() as AttemptDetail
+        if (cancelled) return
+
+        setDetail(json)
+        setLoadState('ready')
+      } catch {
+        if (!cancelled) setLoadState('error')
+      }
     }
 
     load()

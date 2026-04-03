@@ -81,11 +81,11 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
 
   back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
-  header:   { padding: '48px 0 28px', textAlign: 'center' as const },
+  header:   { padding: '24px 0 16px', textAlign: 'center' as const },
   eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
   title:    { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 6vw, 36px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
   subtitle: { fontSize: 14, color: '#6a6860', fontStyle: 'italic' as const },
-  rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 20 },
+  rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 8 },
 
   // Graph
   graphCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px 12px', marginBottom: 12 },
@@ -98,7 +98,7 @@ const s = {
   progNeutral:  { borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13, fontWeight: 500, background: 'rgba(106,104,96,0.12)', border: '1px solid #2a2d38', color: '#9a9590' },
 
   // Stats grid — 2 rows × 3 columns
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
   statCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '18px 12px', textAlign: 'center' as const },
   statNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 5 },
   statLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: '#6a6860', lineHeight: 1.4 },
