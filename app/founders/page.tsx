@@ -125,6 +125,23 @@ const s = {
     textAlign: 'center' as const,
     marginBottom: 14,
   },
+  btnSecondary: {
+    display: 'block',
+    width: '100%',
+    padding: '13px 24px',
+    background: 'transparent',
+    color: '#9a9590',
+    border: '1px solid #2a2d38',
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 600,
+    fontFamily: "'Instrument Sans', sans-serif",
+    cursor: 'pointer',
+    textAlign: 'center' as const,
+    textDecoration: 'none',
+    transition: 'border-color 0.15s, color 0.15s',
+    marginBottom: 14,
+  },
   disclaimer: {
     fontSize: 12,
     color: '#6a6860',
@@ -255,11 +272,14 @@ export default function FoundersPage() {
               <div style={s.alreadyPremium}>
                 Du har allerede Premium — takk!
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <a href="/" style={{ fontSize: 13, color: '#6a6860', textDecoration: 'none' }}>
-                  ← Tilbake til forsiden
-                </a>
-              </div>
+              <a
+                href="/"
+                style={s.btnSecondary}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)'; e.currentTarget.style.color = '#c9a84c' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#9a9590' }}
+              >
+                ← Tilbake til forsiden
+              </a>
             </>
           ) : (
             <>
