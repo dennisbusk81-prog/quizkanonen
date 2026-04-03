@@ -103,6 +103,12 @@ export default function FoundersSuccessPage() {
           >
             Gå til quizen
           </Link>
+          <div style={{ marginTop: 24, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '14px 18px', textAlign: 'left' as const }}>
+            <p style={{ fontSize: 13, color: '#9a9590', lineHeight: 1.6, margin: 0 }}>
+              Etter 30 dager får du en e-post med spørsmål om du vil fortsette.
+              Ingen automatisk trekk — du velger selv om du vil beholde Premium.
+            </p>
+          </div>
           <div>
             <Link href="/" style={s.btnBack}>← Tilbake til forsiden</Link>
           </div>
