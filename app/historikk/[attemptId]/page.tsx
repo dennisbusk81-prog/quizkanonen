@@ -38,6 +38,7 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
 
   back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
+  backBtn:  { display: 'inline-block', fontSize: 12, color: '#6a6860', background: 'none', border: 'none', padding: 0, marginBottom: 14, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" },
 
   // Hero card
   heroCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 12 },
@@ -232,7 +233,7 @@ export default function AttemptDetailPage() {
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
-              <Link href="/historikk" style={s.back}>← Tilbake til historikk</Link>
+              <button onClick={() => router.back()} style={s.backBtn}>← Tilbake</button>
             </div>
             <div style={s.empty}>
               <div style={s.emptyTitle}>Ikke funnet</div>
@@ -264,7 +265,7 @@ export default function AttemptDetailPage() {
 
           {/* Back */}
           <div style={{ paddingTop: 20 }}>
-            <Link href="/historikk" style={s.back}>← Tilbake til historikk</Link>
+            <button onClick={() => router.back()} style={s.backBtn}>← Tilbake</button>
           </div>
 
           {/* Hero card */}

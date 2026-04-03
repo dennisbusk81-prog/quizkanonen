@@ -371,6 +371,7 @@ export async function getAttemptDetail(
   attemptId: string,
   userId: string
 ): Promise<AttemptDetail | null> {
+  console.time('getAttemptDetail')
   // Fetch attempt — the .eq('user_id', userId) doubles as ownership verification
   const { data: attempt, error: attemptError } = await supabaseAdmin
     .from('attempts')
@@ -381,7 +382,10 @@ export async function getAttemptDetail(
     .eq('user_id', userId)
     .single()
 
-  if (attemptError || !attempt) return null
+  if (attemptError || !attempt) {
+    console.timeEnd('getAttemptDetail')
+    return null
+  }
 
   // Fetch attempt_answers and questions for this quiz in parallel
   const [{ data: answers }, { data: questions }] = await Promise.all([
@@ -427,6 +431,9 @@ export async function getAttemptDetail(
       time_ms: a.time_ms as number,
     }
   })
+
+  console.timeEnd('getAttemptDetail')
+  console.log('getAttemptDetail answers:', mappedAnswers.length, '| total_players for rank:', rank?.total_players ?? 'N/A')
 
   return {
     attempt_id: attempt.id,
