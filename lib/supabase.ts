@@ -23,6 +23,9 @@ export type Profile = {
   avatar_color: string | null
   created_at: string
   last_seen_at: string | null
+  premium_status: boolean
+  premium_since: string | null
+  stripe_customer_id: string | null
 }
 
 export type Quiz = {
@@ -67,5 +70,7 @@ export type Attempt = {
   correct_answers: number
   total_questions: number
   total_time_ms: number
+  correct_streak: number | null
+  user_id: string | null
   completed_at: string
 }
