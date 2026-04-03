@@ -33,12 +33,13 @@ function scorePct(correct: number, total: number): number {
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590' },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
 
+  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
   header:   { padding: '48px 0 36px', textAlign: 'center' as const },
   eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
   title:    { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 6vw, 36px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
@@ -154,6 +155,11 @@ export default function HistorikkPage() {
       <style>{FONT_IMPORT}</style>
       <div style={s.wrap}>
         <div style={s.page}>
+
+          {/* Back link */}
+          <div style={{ paddingTop: 28 }}>
+            <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
+          </div>
 
           {/* Header */}
           <div style={s.header}>
