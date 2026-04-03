@@ -139,12 +139,11 @@ export default function LigaPage() {
   useEffect(() => {
     if (!slug) return
     let cancelled = false
+    let handled = false
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
-      if (cancelled) return
-
-      if (!session) { router.replace('/'); return }
+    async function loadWithSession(session: import('@supabase/supabase-js').Session) {
+      if (handled || cancelled) return
+      handled = true
 
       setAccessToken(session.access_token)
 
@@ -171,6 +170,22 @@ export default function LigaPage() {
       setSisteQuiz(lbJson.siste_quiz ?? null)
       setAllTime(lbJson.all_time ?? [])
       if (!cancelled) setLoadState('ready')
+    }
+
+    // Prøv umiddelbart
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return
+      if (session) {
+        loadWithSession(session)
+      }
+    })
+
+    // Fallback via onAuthStateChange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
+      if (cancelled) return
+      if (!session) { if (!handled) router.replace('/'); return }
+      loadWithSession(session)
     })
 
     return () => { cancelled = true; subscription.unsubscribe() }
