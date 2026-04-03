@@ -91,6 +91,7 @@ export default function LeaderboardPage() {
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'alle' | 'venner' | 'lag'>('alle')
   const [visibleVennerCount, setVisibleVennerCount] = useState(10)
+  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number, show_member_number: boolean }>>(new Map())
 
   useEffect(() => {
     async function fetchData() {
@@ -102,7 +103,25 @@ export default function LeaderboardPage() {
         const err = e1 ?? e2
         if (err) throw err
         setQuiz(quizData)
-        setAttempts(attemptData || [])
+        const attemptsResult = attemptData || []
+        setAttempts(attemptsResult)
+
+        const userIds = [...new Set(attemptsResult.map((a: Attempt) => a.user_id).filter((id): id is string => !!id))]
+        if (userIds.length > 0) {
+          const { data: memberProfiles } = await supabaseData
+            .from('profiles')
+            .select('id, member_number, show_member_number')
+            .in('id', userIds)
+          if (memberProfiles) {
+            const map = new Map<string, { member_number: number, show_member_number: boolean }>()
+            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null }[]) {
+              if (p.member_number !== null) {
+                map.set(p.id, { member_number: p.member_number, show_member_number: p.show_member_number ?? false })
+              }
+            }
+            setMemberInfoMap(map)
+          }
+        }
       } catch (e) {
         console.error('fetchData (leaderboard) feilet:', e)
       } finally {
@@ -256,6 +275,11 @@ export default function LeaderboardPage() {
           }
         </div>
         <div style={s.nameBlock}>
+          {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && (
+            <p style={{ fontSize: 11, color: '#6a6860', marginBottom: 2 }}>
+              {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
+            </p>
+          )}
           <p style={s.name}>{attempt.player_name}</p>
           <p style={s.nameSub}>
             {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
