@@ -32,77 +32,103 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590', flexGrow: 1 },
-  page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
+  page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
 
-  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
-  eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 10 },
+  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  // Header card
-  headerCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '28px', marginBottom: 16 },
-  quizTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 14 },
-  metaRow:     { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const, marginBottom: 12 },
-  dateText:    { fontSize: 13, color: '#6a6860' },
-  rankBadge:   { fontSize: 13, color: '#c9a84c', fontWeight: 600 },
-  divider:     { width: 1, height: 14, background: '#2a2d38' },
-  scoreRow:    { display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' as const },
-  scoreNum:    { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1 },
-  scoreOf:     { fontSize: 14, color: '#6a6860' },
-  scoreSub:    { fontSize: 13, color: '#6a6860', marginLeft: 2 },
+  // Hero card
+  heroCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 12 },
+  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', marginBottom: 6 },
+  heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 12 },
+  heroDate:    { fontSize: 12, color: '#6a6860', marginBottom: 14 },
 
-  // Section header
-  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 12px' },
+  // Three key numbers row
+  statsRow:   { display: 'flex', gap: 0, borderTop: '1px solid #2a2d38', paddingTop: 14 },
+  statCell:   { flex: 1, textAlign: 'center' as const },
+  statDivider:{ width: 1, background: '#2a2d38', margin: '0 4px' },
+  statBig:    { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 3 },
+  statBigGrey:{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 },
+  statLbl:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#6a6860' },
+  heroSub:    { fontSize: 12, color: '#6a6860', textAlign: 'center' as const, marginTop: 10 },
+
+  // Section
+  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
   sectionCount:  { fontSize: 11, fontWeight: 600, color: '#6a6860', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
   // Question cards
-  qCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginBottom: 10 },
-  qNum:       { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
-  qText:      { fontFamily: "'Libre Baskerville', serif", fontSize: 16, color: '#ffffff', lineHeight: 1.45, marginBottom: 14 },
+  qCardCorrect: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '12px 16px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10 },
+  qCardWrong:   { background: '#21242e', border: '1px solid rgba(201,76,76,0.25)', borderRadius: 14, padding: '12px 16px', marginBottom: 6 },
+  qCardNoAns:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '10px 16px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10, opacity: 0.7 },
 
-  // Answer rows
-  ansCorrect: { background: 'rgba(76,175,77,0.09)', border: '1px solid rgba(76,175,77,0.3)', borderRadius: 10, padding: '10px 14px', color: '#4caf7d', fontSize: 14, lineHeight: 1.4 },
-  ansWrong:   { background: 'rgba(201,76,76,0.09)', border: '1px solid rgba(201,76,76,0.3)', borderRadius: 10, padding: '10px 14px', color: '#c94c4c', fontSize: 14, lineHeight: 1.4, marginBottom: 8 },
-  ansCorrectHint: { background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 10, padding: '10px 14px', color: '#c9a84c', fontSize: 13, lineHeight: 1.4 },
-  ansNoAnswer:{ background: 'rgba(106,104,96,0.12)', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', color: '#6a6860', fontSize: 13, lineHeight: 1.4, marginBottom: 8 },
-  ansTime:    { fontSize: 11, color: '#6a6860', marginTop: 10, textAlign: 'right' as const },
+  // Correct card elements
+  checkIcon:  { fontSize: 14, color: '#4caf7d', marginTop: 1, flexShrink: 0 },
+  qTextShort: { fontSize: 13, color: '#9a9590', lineHeight: 1.4, marginBottom: 2, flex: 1 },
+  ansTextOk:  { fontSize: 13, color: '#4caf7d', fontWeight: 500 },
+  ansTime:    { fontSize: 10, color: '#6a6860', marginTop: 6, textAlign: 'right' as const },
 
-  // Empty / error
-  empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '48px 32px', textAlign: 'center' as const, marginTop: 32 },
-  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
-  emptySub:   { fontSize: 13, color: '#6a6860', lineHeight: 1.6, marginBottom: 24 },
-  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  // Wrong card elements
+  wrongTop:     { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+  xIcon:        { fontSize: 14, color: '#c94c4c', marginTop: 1, flexShrink: 0 },
+  qTextWrong:   { fontSize: 13, color: '#9a9590', lineHeight: 1.4, flex: 1 },
+  wrongAnswers: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
+  ansWrong:     { fontSize: 12, color: '#c94c4c', background: 'rgba(201,76,76,0.08)', border: '1px solid rgba(201,76,76,0.2)', borderRadius: 8, padding: '6px 10px' },
+  ansGold:      { fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, padding: '6px 10px' },
+  wrongTime:    { fontSize: 10, color: '#6a6860', marginTop: 6, textAlign: 'right' as const },
+
+  // No-answer elements
+  dashIcon:   { fontSize: 14, color: '#6a6860', marginTop: 1, flexShrink: 0 },
+  qTextGrey:  { fontSize: 12, color: '#6a6860', lineHeight: 1.4, flex: 1 },
+
+  // Not found / error
+  empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 24 },
+  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 6 },
+  emptySub:   { fontSize: 13, color: '#6a6860', lineHeight: 1.6, marginBottom: 20 },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
-// ─── Answer card ──────────────────────────────────────────────────────────────
+// ─── Answer cards ─────────────────────────────────────────────────────────────
 
-function AnswerCard({ a }: { a: AttemptAnswerDetail }) {
-  if (a.is_correct) {
-    return (
-      <div style={s.ansCorrect}>
-        ✓ {a.selected_answer_text ?? a.selected_answer ?? '–'}
-      </div>
-    )
-  }
-
+function CorrectCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
   return (
-    <>
-      {a.selected_answer ? (
-        <div style={s.ansWrong}>
-          ✗ {a.selected_answer_text ?? a.selected_answer}
+    <div style={s.qCardCorrect}>
+      <span style={s.checkIcon}>✓</span>
+      <div style={{ flex: 1 }}>
+        <div style={s.qTextShort}>
+          <span style={{ fontSize: 10, color: '#6a6860', marginRight: 6 }}>Q{num}</span>
+          {a.question_text}
         </div>
-      ) : (
-        <div style={s.ansNoAnswer}>
-          — Svarte ikke
-        </div>
-      )}
-      <div style={s.ansCorrectHint}>
-        Riktig svar: {a.correct_answer_text || a.correct_answer}
+        <div style={s.ansTextOk}>{a.selected_answer_text ?? a.selected_answer ?? '–'}</div>
+        <div style={s.ansTime}>{formatTime(a.time_ms)}</div>
       </div>
-    </>
+    </div>
+  )
+}
+
+function WrongCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
+  return (
+    <div style={s.qCardWrong}>
+      <div style={s.wrongTop}>
+        <span style={s.xIcon}>✗</span>
+        <div style={s.qTextWrong}>
+          <span style={{ fontSize: 10, color: '#6a6860', marginRight: 6 }}>Q{num}</span>
+          {a.question_text}
+        </div>
+      </div>
+      <div style={s.wrongAnswers}>
+        {a.selected_answer ? (
+          <div style={s.ansWrong}>Ditt svar: {a.selected_answer_text ?? a.selected_answer}</div>
+        ) : (
+          <div style={{ ...s.ansWrong, color: '#6a6860' }}>— Svarte ikke</div>
+        )}
+        <div style={s.ansGold}>Riktig: {a.correct_answer_text || a.correct_answer}</div>
+      </div>
+      <div style={s.wrongTime}>{formatTime(a.time_ms)}</div>
+    </div>
   )
 }
 
@@ -138,22 +164,10 @@ export default function AttemptDetailPage() {
 
         if (cancelled) return
 
-        if (res.status === 401) {
-          router.replace(`/login?next=/historikk/${attemptId}`)
-          return
-        }
-        if (res.status === 403) {
-          router.replace('/premium')
-          return
-        }
-        if (res.status === 404) {
-          setLoadState('not-found')
-          return
-        }
-        if (!res.ok) {
-          setLoadState('error')
-          return
-        }
+        if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
+        if (res.status === 403) { router.replace('/premium'); return }
+        if (res.status === 404) { setLoadState('not-found'); return }
+        if (!res.ok) { setLoadState('error'); return }
 
         const json = await res.json() as AttemptDetail
         if (cancelled) return
@@ -173,9 +187,7 @@ export default function AttemptDetailPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}>
-          <p style={s.spinner}>Laster quiz-detaljer…</p>
-        </div>
+        <div style={s.centered}><p style={s.spinner}>Laster quiz-detaljer…</p></div>
       </>
     )
   }
@@ -186,7 +198,7 @@ export default function AttemptDetailPage() {
         <style>{FONT_IMPORT}</style>
         <div style={s.wrap}>
           <div style={s.page}>
-            <div style={{ paddingTop: 28 }}>
+            <div style={{ paddingTop: 20 }}>
               <Link href="/historikk" style={s.back}>← Tilbake til historikk</Link>
             </div>
             <div style={s.empty}>
@@ -204,9 +216,7 @@ export default function AttemptDetailPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}>
-          <p style={s.spinner}>Noe gikk galt. Prøv igjen.</p>
-        </div>
+        <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
       </>
     )
   }
@@ -219,36 +229,50 @@ export default function AttemptDetailPage() {
       <div style={s.wrap}>
         <div style={s.page}>
 
-          {/* Back link */}
-          <div style={{ paddingTop: 28 }}>
+          {/* Back */}
+          <div style={{ paddingTop: 20 }}>
             <Link href="/historikk" style={s.back}>← Tilbake til historikk</Link>
           </div>
 
-          {/* Header card */}
-          <div style={s.headerCard}>
-            <div style={s.eyebrow}>Premium · Gjennomgang</div>
-            <div style={s.quizTitle}>{detail.quiz_title}</div>
+          {/* Hero card */}
+          <div style={s.heroCard}>
+            <div style={s.heroEyebrow}>Premium · Gjennomgang</div>
+            <div style={s.heroTitle}>{detail.quiz_title}</div>
+            <div style={s.heroDate}>{formatDate(detail.completed_at)}</div>
 
-            <div style={s.metaRow}>
-              <span style={s.dateText}>{formatDate(detail.completed_at)}</span>
-              {detail.rank !== null && detail.total_players !== null && (
-                <>
-                  <span style={s.divider} />
-                  <span style={s.rankBadge}>Plass {detail.rank} av {detail.total_players}</span>
-                </>
+            <div style={s.statsRow}>
+              {detail.rank !== null && detail.total_players !== null ? (
+                <div style={s.statCell}>
+                  <div style={s.statBig}>#{detail.rank}</div>
+                  <div style={s.statLbl}>Plassering</div>
+                </div>
+              ) : (
+                <div style={s.statCell}>
+                  <div style={s.statBig}>—</div>
+                  <div style={s.statLbl}>Plassering</div>
+                </div>
               )}
-              <span style={s.divider} />
-              <span style={s.dateText}>{formatTime(detail.total_time_ms)}</span>
+              <div style={s.statDivider} />
+              <div style={s.statCell}>
+                <div style={s.statBigGrey}>{pct}%</div>
+                <div style={s.statLbl}>Score</div>
+              </div>
+              <div style={s.statDivider} />
+              <div style={s.statCell}>
+                <div style={s.statBigGrey}>{formatTime(detail.total_time_ms)}</div>
+                <div style={s.statLbl}>Tid</div>
+              </div>
             </div>
 
-            <div style={s.scoreRow}>
-              <span style={s.scoreNum}>{detail.correct_answers}</span>
-              <span style={s.scoreOf}>av {detail.total_questions} riktige</span>
-              <span style={s.scoreSub}>· {pct}%</span>
+            <div style={s.heroSub}>
+              {detail.correct_answers} av {detail.total_questions} riktige
+              {detail.rank !== null && detail.total_players !== null && (
+                <> · av {detail.total_players} deltakere</>
+              )}
             </div>
           </div>
 
-          {/* Questions list */}
+          {/* Questions */}
           {detail.answers.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyTitle}>Ingen svar registrert</div>
@@ -262,14 +286,11 @@ export default function AttemptDetailPage() {
                 <span style={s.sectionCount}>{detail.answers.length}</span>
               </div>
 
-              {detail.answers.map((a, i) => (
-                <div key={a.question_id} style={s.qCard}>
-                  <div style={s.qNum}>Spørsmål {i + 1}</div>
-                  <div style={s.qText}>{a.question_text}</div>
-                  <AnswerCard a={a} />
-                  <div style={s.ansTime}>{formatTime(a.time_ms)}</div>
-                </div>
-              ))}
+              {detail.answers.map((a, i) =>
+                a.is_correct
+                  ? <CorrectCard key={a.question_id} a={a} num={i + 1} />
+                  : <WrongCard key={a.question_id} a={a} num={i + 1} />
+              )}
             </>
           )}
 
