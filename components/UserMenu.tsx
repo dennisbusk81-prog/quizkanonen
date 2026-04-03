@@ -18,6 +18,7 @@ export default function UserMenu() {
   const [sessionResolved, setSessionResolved] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
@@ -32,6 +33,7 @@ export default function UserMenu() {
     } catch {
       // keep email fallback already set
     }
+    setProfileLoaded(true)
   }
 
   useEffect(() => { setMounted(true) }, [])
@@ -208,7 +210,7 @@ export default function UserMenu() {
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'Instrument Sans', sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
                     {displayName}
                   </p>
-                  {isPremium ? (
+                  {profileLoaded && (isPremium ? (
                     <>
                       <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 4, padding: '2px 8px' }}>
                         Premium
@@ -225,7 +227,7 @@ export default function UserMenu() {
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: 'transparent', border: '1px solid #444', borderRadius: 4, padding: '2px 8px' }}>
                       Standardkonto
                     </span>
-                  )}
+                  ))}
                 </div>
                 <a
                   href="/profil"
