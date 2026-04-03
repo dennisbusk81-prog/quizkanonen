@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -257,6 +257,31 @@ export default function HistorikkPage() {
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+
+  // Read any qk_historikk_* cache before first paint — prevents loading flash on back-navigation.
+  // Runs synchronously before the browser paints; safe because this is a client-only component.
+  // The fetch useEffect below still validates the session and refreshes if the cache is stale.
+  useLayoutEffect(() => {
+    const TTL = 5 * 60 * 1000
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i)
+        if (!key?.startsWith('qk_historikk_')) continue
+        const raw = sessionStorage.getItem(key)
+        if (!raw) continue
+        const cached = JSON.parse(raw) as {
+          fetchedAt: number
+          data: { history: HistoryAttempt[]; stats: PlayerStats }
+        }
+        if (Date.now() - cached.fetchedAt < TTL && cached.data) {
+          setHistory(cached.data.history)
+          setStats(cached.data.stats)
+          setLoadState('ready')
+          return
+        }
+      }
+    } catch { /* sessionStorage unavailable */ }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
