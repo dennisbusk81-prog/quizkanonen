@@ -160,46 +160,42 @@ export default function AttemptDetailPage() {
 
     async function load() {
       try {
-        console.log('[detail] getSession() start')
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('[detail] getSession() done — user:', session?.user?.id ?? 'ingen session')
+        let { data: { session } } = await supabase.auth.getSession()
+
+        // Supabase may still be initialising from localStorage on first page load.
+        // If we get null, wait 500ms and retry once before giving up.
+        if (!session) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 500))
+          if (cancelled) return
+          const retried = await supabase.auth.getSession()
+          session = retried.data.session
+        }
 
         if (cancelled) return
+        clearTimeout(timeoutId)
 
         if (!session) {
-          clearTimeout(timeoutId)
           router.replace(`/login?next=/historikk/${attemptId}`)
           return
         }
 
-        // Clear timeout once we have a valid session — the API call can take longer
-        clearTimeout(timeoutId)
-
-        console.log('[detail] fetch start — attemptId:', attemptId)
         const res = await fetch(`/api/historikk/${attemptId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
-        console.log('[detail] fetch done — status:', res.status, 'ok:', res.ok)
 
         if (cancelled) return
 
         if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
         if (res.status === 403) { router.replace('/premium'); return }
         if (res.status === 404) { setLoadState('not-found'); return }
-        if (!res.ok) {
-          console.error('[detail] unexpected status:', res.status)
-          setLoadState('error')
-          return
-        }
+        if (!res.ok) { setLoadState('error'); return }
 
         const json = await res.json() as AttemptDetail
-        console.log('[detail] json ok — quiz_title:', json.quiz_title, 'answers:', json.answers?.length)
         if (cancelled) return
 
         setDetail(json)
         setLoadState('ready')
-      } catch (err) {
-        console.error('[detail] caught error:', err)
+      } catch {
         clearTimeout(timeoutId)
         if (!cancelled) setLoadState('error')
       }
