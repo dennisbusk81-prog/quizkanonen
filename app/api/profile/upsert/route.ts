@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('[api/profile/upsert] failed:', error.code, error.message)
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'Dette brukernavnet er allerede tatt. Velg et annet.' }, { status: 409 })
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
