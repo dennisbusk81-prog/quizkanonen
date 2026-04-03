@@ -47,6 +47,10 @@ const s = {
   ctaSub:   { fontSize: 13, color: '#6a6860', marginBottom: 20, lineHeight: 1.6 },
 } as const
 
+function formatMemberNumber(n: number): string {
+  return '#' + String(n).padStart(3, '0')
+}
+
 type LoadState = 'loading' | 'ready' | 'error'
 
 export default function ProfilPage() {
@@ -56,6 +60,9 @@ export default function ProfilPage() {
   const [displayName, setDisplayName] = useState('')
   const [editName, setEditName] = useState('')
   const [isPremium, setIsPremium] = useState(false)
+  const [memberNumber, setMemberNumber] = useState<number | null>(null)
+  const [memberSince, setMemberSince] = useState<string | null>(null)
+  const [showMemberNumber, setShowMemberNumber] = useState(false)
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -80,7 +87,7 @@ export default function ProfilPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, premium_status')
+        .select('display_name, premium_status, member_number, show_member_number, created_at')
         .eq('id', uid)
         .maybeSingle()
 
@@ -91,6 +98,15 @@ export default function ProfilPage() {
       setEditName(name)
       const premium = profile?.premium_status === true
       setIsPremium(premium)
+      setMemberNumber(profile?.member_number ?? null)
+      setShowMemberNumber(profile?.show_member_number ?? false)
+      if (profile?.created_at) {
+        const d = new Date(profile.created_at)
+        const day = d.getDate()
+        const month = d.toLocaleDateString('no-NO', { month: 'long' })
+        const year = d.getFullYear()
+        setMemberSince(`${day}. ${month} ${year}`)
+      }
 
       if (premium) {
         try {
@@ -141,6 +157,23 @@ export default function ProfilPage() {
     }
   }
 
+  async function handleToggleShowMember() {
+    if (!userId) return
+    const next = !showMemberNumber
+    setShowMemberNumber(next)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch('/api/profile/upsert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ id: userId, display_name: displayName, show_member_number: next }),
+      })
+    } catch { /* silent — optimistic update already applied */ }
+  }
+
   if (loadState === 'loading') {
     return (
       <>
@@ -180,6 +213,11 @@ export default function ProfilPage() {
               ? <span style={s.badgePremium}>Premium</span>
               : <span style={s.badgeStandard}>Standardkonto</span>
             }
+            {memberNumber !== null && (
+              <p style={{ fontSize: 12, color: '#6a6860', marginTop: 8 }}>
+                {formatMemberNumber(memberNumber)}{memberSince ? ` · Medlem siden ${memberSince}` : ''}
+              </p>
+            )}
           </div>
 
           <div style={s.rule} />
@@ -210,6 +248,19 @@ export default function ProfilPage() {
               <p style={{ fontSize: 12, color: '#6a6860', marginTop: 6, fontStyle: 'italic' }}>
                 Tips: bruk ditt vanlige navn så andre kjenner deg igjen på leaderboard
               </p>
+              {memberNumber !== null && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showMemberNumber}
+                    onChange={handleToggleShowMember}
+                    style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13, color: '#9a9590' }}>
+                    Vis medlemsnummer på leaderboard og profil
+                  </span>
+                </label>
+              )}
               {saveError && <p style={s.saveError}>{saveError}</p>}
               {saveSuccess && <p style={s.saveSuccess}>Brukernavn oppdatert!</p>}
             </div>

@@ -11,6 +11,7 @@ const bodySchema = z.object({
     .min(1, 'display_name cannot be empty')
     .max(50, 'display_name max 50 characters'),
   avatar_color: z.string().nullable().optional(),
+  show_member_number: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -33,15 +34,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 422 })
   }
 
-  const { id, display_name, avatar_color } = parsed.data
+  const { id, display_name, avatar_color, show_member_number } = parsed.data
+
+  const upsertData: Record<string, unknown> = {
+    id,
+    display_name,
+    avatar_color: avatar_color ?? null,
+    last_seen_at: new Date().toISOString(),
+  }
+  if (show_member_number !== undefined) {
+    upsertData.show_member_number = show_member_number
+  }
 
   const { error } = await supabaseAdmin.from('profiles').upsert(
-    {
-      id,
-      display_name,
-      avatar_color: avatar_color ?? null,
-      last_seen_at: new Date().toISOString(),
-    },
+    upsertData,
     { onConflict: 'id' }
   )
 
