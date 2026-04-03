@@ -20,6 +20,8 @@ export default function NavAuth() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
@@ -55,6 +57,41 @@ export default function NavAuth() {
 
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
+
+  async function handlePortal() {
+    if (portalLoading) return
+    setPortalError(null)
+    const win = window.open('', '_blank')
+    setPortalLoading(true)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { win?.close(); setPortalError('Ikke innlogget'); return }
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      })
+      const data = await res.json()
+      if (data.url) {
+        if (win) win.location.href = data.url
+        else window.open(data.url, '_blank')
+      } else {
+        win?.close()
+        setPortalError(data.error ?? 'Noe gikk galt')
+      }
+    } catch (err) {
+      win?.close()
+      setPortalError((err as Error).name === 'AbortError'
+        ? 'Forespørselen tok for lang tid. Prøv igjen.'
+        : 'Noe gikk galt. Prøv igjen.')
+    } finally {
+      clearTimeout(timeout)
+      setPortalLoading(false)
+    }
+  }
 
   // Lukk dropdown ved klikk utenfor
   useEffect(() => {
@@ -149,6 +186,29 @@ export default function NavAuth() {
             >
               Din quizhistorikk
             </a>
+          )}
+          {isPremium && (
+            <>
+              <button
+                onClick={handlePortal}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '8px 10px', background: 'none', border: 'none',
+                  borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: 'pointer', transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Administrer abonnement
+              </button>
+              {portalError && (
+                <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                  {portalError}
+                </p>
+              )}
+            </>
           )}
           <button
             onClick={async () => {
