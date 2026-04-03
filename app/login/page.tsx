@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
@@ -190,7 +190,7 @@ const STYLES = `
   }
 `
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams()
   const googleRedirect = searchParams.get('google') === '1'
   const [email, setEmail] = useState('')
@@ -276,5 +276,13 @@ export default function LoginPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   )
 }
