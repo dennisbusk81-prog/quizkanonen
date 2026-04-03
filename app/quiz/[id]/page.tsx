@@ -494,6 +494,7 @@ export default function QuizPage() {
   const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
   const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
   const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
+  const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -553,6 +554,28 @@ export default function QuizPage() {
     }
     fetchData()
   }, [quizId])
+
+  useEffect(() => {
+    if (phase !== 'finished' || !isLoggedIn) return
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.access_token) return
+      try {
+        const res = await fetch('/api/leagues', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const leagues: { name: string; slug: string }[] = json.leagues ?? []
+        if (leagues.length === 0) {
+          setLigaBox({ type: 'cta' })
+        } else if (leagues.length === 1) {
+          setLigaBox({ type: 'liga', name: leagues[0].name, slug: leagues[0].slug })
+        } else {
+          setLigaBox({ type: 'multi' })
+        }
+      } catch { /* ikke kritisk */ }
+    })
+  }, [phase, isLoggedIn])
 
   const getTimeLimit = useCallback((question: Question) =>
     question.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
@@ -983,6 +1006,33 @@ export default function QuizPage() {
 
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
+
+      {ligaBox && (
+        <div style={{ marginTop: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 20px', textAlign: 'left' }}>
+          {ligaBox.type === 'liga' ? (
+            <a href={`/liga/${ligaBox.slug}`} style={{ textDecoration: 'none' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+                Se hvordan du gjør det mot vennene dine →
+              </p>
+              <p style={{ fontSize: 12, color: '#6a6860' }}>{ligaBox.name}</p>
+            </a>
+          ) : ligaBox.type === 'multi' ? (
+            <a href="/liga" style={{ textDecoration: 'none' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+                Se hvordan du gjør det mot vennene dine →
+              </p>
+              <p style={{ fontSize: 12, color: '#6a6860' }}>Se dine ligaer</p>
+            </a>
+          ) : (
+            <a href="/liga" style={{ textDecoration: 'none' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+                Konkurrer mot venner
+              </p>
+              <p style={{ fontSize: 12, color: '#6a6860' }}>Opprett en privat liga og inviter vennegjengen</p>
+            </a>
+          )}
+        </div>
+      )}
     </div></div></div></>
   )
 }
