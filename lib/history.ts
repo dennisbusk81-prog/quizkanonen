@@ -372,7 +372,6 @@ export async function getAttemptDetail(
   attemptId: string,
   userId: string
 ): Promise<AttemptDetail | null> {
-  console.time('getAttemptDetail')
   // Fetch attempt — the .eq('user_id', userId) doubles as ownership verification
   const { data: attempt, error: attemptError } = await supabaseAdmin
     .from('attempts')
@@ -384,7 +383,6 @@ export async function getAttemptDetail(
     .single()
 
   if (attemptError || !attempt) {
-    console.timeEnd('getAttemptDetail')
     return null
   }
 
@@ -432,9 +430,6 @@ export async function getAttemptDetail(
       time_ms: a.time_ms as number,
     }
   })
-
-  console.timeEnd('getAttemptDetail')
-  console.log('getAttemptDetail answers:', mappedAnswers.length, '| total_players for rank:', rank?.total_players ?? 'N/A')
 
   return {
     attempt_id: attempt.id,

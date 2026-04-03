@@ -283,6 +283,53 @@ export default function HistorikkPage() {
     } catch { /* sessionStorage unavailable */ }
   }, [])
 
+  // Background prefetch: after list is shown, silently cache the 3 most recent
+  // attempt details so clicking a row opens instantly.
+  useEffect(() => {
+    if (loadState !== 'ready' || history.length === 0) return
+
+    const CACHE_TTL = 10 * 60 * 1000
+    const toPreload = history.slice(0, 3).filter((attempt) => {
+      try {
+        const raw = sessionStorage.getItem(`qk_attempt_${attempt.id}`)
+        if (!raw) return true
+        const cached = JSON.parse(raw) as { fetchedAt: number }
+        return Date.now() - cached.fetchedAt >= CACHE_TTL
+      } catch { return true }
+    })
+
+    if (toPreload.length === 0) return
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      if (cancelled) return
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session || cancelled) return
+        await Promise.allSettled(
+          toPreload.map(async (attempt) => {
+            try {
+              const res = await fetch(`/api/historikk/${attempt.id}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              })
+              if (!res.ok || cancelled) return
+              const data = await res.json()
+              if (cancelled) return
+              try {
+                sessionStorage.setItem(
+                  `qk_attempt_${attempt.id}`,
+                  JSON.stringify({ fetchedAt: Date.now(), data })
+                )
+              } catch { /* ignore */ }
+            } catch { /* ignore */ }
+          })
+        )
+      } catch { /* ignore */ }
+    }, 1000)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [loadState, history])
+
   useEffect(() => {
     let cancelled = false
     const CACHE_TTL = 5 * 60 * 1000

@@ -15,6 +15,7 @@ export default function UserMenu() {
   const [mounted, setMounted] = useState(false)
   const [sessionResolved, setSessionResolved] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
@@ -62,23 +63,32 @@ export default function UserMenu() {
 
   async function handlePortal() {
     setPortalLoading(true)
+    setPortalError(null)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
     try {
       const { data: { session: s } } = await supabase.auth.getSession()
       const token = s?.access_token
-      if (!token) return
+      if (!token) { setPortalError('Ikke innlogget'); return }
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal,
       })
       const data = await res.json()
-      console.log('[UserMenu] portal response', res.status, data)
       if (data.url) {
-        console.log('[UserMenu] redirecting to', data.url)
         window.open(data.url, '_blank')
+      } else {
+        setPortalError(data.error ?? 'Noe gikk galt')
       }
     } catch (err) {
-      console.error('[UserMenu] portal error', err)
+      if ((err as Error).name === 'AbortError') {
+        setPortalError('Forespørselen tok for lang tid. Prøv igjen.')
+      } else {
+        setPortalError('Noe gikk galt. Prøv igjen.')
+      }
     } finally {
+      clearTimeout(timeout)
       setPortalLoading(false)
     }
   }
@@ -209,22 +219,29 @@ export default function UserMenu() {
                   )}
                 </div>
                 {isPremium ? (
-                  <button
-                    onClick={handlePortal}
-                    disabled={portalLoading}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '8px 10px', background: 'none', border: 'none',
-                      borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                      fontFamily: "'Instrument Sans', sans-serif",
-                      cursor: portalLoading ? 'default' : 'pointer', transition: 'background 0.12s',
-                      opacity: portalLoading ? 0.6 : 1,
-                    }}
-                    onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.background = 'rgba(201,168,76,0.08)' }}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                  >
-                    {portalLoading ? 'Laster...' : 'Administrer abonnement'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handlePortal}
+                      disabled={portalLoading}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 10px', background: 'none', border: 'none',
+                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        cursor: portalLoading ? 'default' : 'pointer', transition: 'background 0.12s',
+                        opacity: portalLoading ? 0.6 : 1,
+                      }}
+                      onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.background = 'rgba(201,168,76,0.08)' }}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      {portalLoading ? 'Laster...' : 'Administrer abonnement'}
+                    </button>
+                    {portalError && (
+                      <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                        {portalError}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <a
                     href="/premium"

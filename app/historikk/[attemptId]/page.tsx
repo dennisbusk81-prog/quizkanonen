@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -135,7 +135,7 @@ function WrongCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type LoadState = 'loading' | 'ready' | 'not-found' | 'error'
+type LoadState = 'loading' | 'ready' | 'not-found' | 'error' | 'timeout'
 
 export default function AttemptDetailPage() {
   const router = useRouter()
@@ -144,6 +144,21 @@ export default function AttemptDetailPage() {
 
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [detail, setDetail] = useState<AttemptDetail | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+
+  // Read cache before first paint — if prefetch already ran, skip loading state entirely.
+  useLayoutEffect(() => {
+    const CACHE_TTL = 10 * 60 * 1000
+    try {
+      const raw = sessionStorage.getItem(`qk_attempt_${attemptId}`)
+      if (!raw) return
+      const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
+      if (Date.now() - cached.fetchedAt < CACHE_TTL) {
+        setDetail(cached.data)
+        setLoadState('ready')
+      }
+    } catch { /* sessionStorage unavailable */ }
+  }, [attemptId])
 
   // Scroll to top on mount (prevents inheriting scroll position from list page)
   useEffect(() => {
@@ -154,6 +169,8 @@ export default function AttemptDetailPage() {
     let cancelled = false
     const CACHE_KEY = `qk_attempt_${attemptId}`
     const CACHE_TTL = 10 * 60 * 1000 // 10 min — attempt data is immutable
+    const controller = new AbortController()
+    const fetchTimeout = setTimeout(() => controller.abort(), 12000)
 
     async function load() {
       try {
@@ -179,6 +196,7 @@ export default function AttemptDetailPage() {
           if (raw) {
             const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
             if (Date.now() - cached.fetchedAt < CACHE_TTL) {
+              clearTimeout(fetchTimeout)
               if (!cancelled) {
                 setDetail(cached.data)
                 setLoadState('ready')
@@ -190,8 +208,10 @@ export default function AttemptDetailPage() {
 
         const res = await fetch(`/api/historikk/${attemptId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
         })
 
+        clearTimeout(fetchTimeout)
         if (cancelled) return
 
         if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
@@ -208,14 +228,17 @@ export default function AttemptDetailPage() {
 
         setDetail(json)
         setLoadState('ready')
-      } catch {
-        if (!cancelled) setLoadState('error')
+      } catch (err) {
+        clearTimeout(fetchTimeout)
+        if (!cancelled) {
+          setLoadState((err as Error).name === 'AbortError' ? 'timeout' : 'error')
+        }
       }
     }
 
     load()
-    return () => { cancelled = true }
-  }, [router, attemptId])
+    return () => { cancelled = true; clearTimeout(fetchTimeout); controller.abort() }
+  }, [router, attemptId, retryKey])
 
   if (loadState === 'loading') {
     return (
@@ -246,11 +269,52 @@ export default function AttemptDetailPage() {
     )
   }
 
+  if (loadState === 'timeout') {
+    return (
+      <>
+        <style>{FONT_IMPORT}</style>
+        <div style={s.wrap}>
+          <div style={s.page}>
+            <div style={{ paddingTop: 20 }}>
+              <button onClick={() => router.back()} style={s.backBtn}>← Tilbake</button>
+            </div>
+            <div style={s.empty}>
+              <div style={s.emptyTitle}>Tok for lang tid</div>
+              <p style={s.emptySub}>Serveren svarte ikke i tide. Dette kan skje rett etter at tjenesten har vært inaktiv.</p>
+              <button
+                onClick={() => { setLoadState('loading'); setRetryKey(k => k + 1) }}
+                style={{ ...s.btnGold, background: 'none', border: '1px solid #c9a84c', color: '#c9a84c', cursor: 'pointer' }}
+              >
+                Prøv igjen
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   if (loadState === 'error' || !detail) {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
+        <div style={s.wrap}>
+          <div style={s.page}>
+            <div style={{ paddingTop: 20 }}>
+              <button onClick={() => router.back()} style={s.backBtn}>← Tilbake</button>
+            </div>
+            <div style={s.empty}>
+              <div style={s.emptyTitle}>Noe gikk galt</div>
+              <p style={s.emptySub}>Kunne ikke laste quiz-detaljene.</p>
+              <button
+                onClick={() => { setLoadState('loading'); setRetryKey(k => k + 1) }}
+                style={{ ...s.btnGold, background: 'none', border: '1px solid #c9a84c', color: '#c9a84c', cursor: 'pointer' }}
+              >
+                Prøv igjen
+              </button>
+            </div>
+          </div>
+        </div>
       </>
     )
   }
