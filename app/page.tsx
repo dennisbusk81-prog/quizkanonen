@@ -963,6 +963,9 @@ export default async function Home() {
             </div>
 
           </div>
+          <p style={{ textAlign: 'center', fontSize: 14, color: '#6a6860', fontStyle: 'italic', marginTop: 16, marginBottom: 0 }}>
+            Spill med folk du kjenner — og bli kjent med dem du møter uke etter uke.
+          </p>
         </section>
 
         <div className="qk-section" style={{ marginTop: 8 }}>
