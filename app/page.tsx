@@ -619,12 +619,237 @@ export default async function Home() {
           text-align: center;
         }
 
+        /* ── Feature-seksjoner ── */
+        .qk-feat {
+          margin-top: 40px;
+        }
+
+        .qk-feat-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 28px;
+          align-items: center;
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-card);
+          padding: 28px;
+        }
+
+        .qk-feat-badge {
+          display: inline-flex;
+          align-items: center;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--gold);
+          background: rgba(201,168,76,0.10);
+          border: 1px solid rgba(201,168,76,0.25);
+          border-radius: 20px;
+          padding: 3px 10px;
+          margin-bottom: 12px;
+        }
+
+        .qk-feat-h2 {
+          font-family: 'Libre Baskerville', serif;
+          font-size: clamp(17px, 3vw, 22px);
+          font-weight: 700;
+          color: var(--white);
+          line-height: 1.3;
+          letter-spacing: -0.01em;
+          margin-bottom: 12px;
+        }
+
+        .qk-feat-body {
+          font-size: 14px;
+          color: var(--body);
+          line-height: 1.65;
+          margin-bottom: 8px;
+        }
+
+        .qk-feat-btn {
+          display: inline-flex;
+          align-items: center;
+          background: var(--gold);
+          color: #0f0f10;
+          font-family: 'Instrument Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 700;
+          padding: 10px 20px;
+          border-radius: var(--radius-btn);
+          text-decoration: none;
+          margin-top: 8px;
+          transition: opacity 0.15s;
+        }
+
+        .qk-feat-btn:hover { opacity: 0.88; }
+
+        /* Liga mock widget */
+        .qk-liga-widget {
+          background: #1a1c23;
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          padding: 14px 16px;
+        }
+
+        .qk-liga-label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--muted);
+          margin-bottom: 10px;
+        }
+
+        .qk-liga-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 7px 0;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .qk-liga-row:last-child { border-bottom: none; }
+
+        .qk-liga-rank {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--muted);
+          width: 12px;
+          flex-shrink: 0;
+          text-align: center;
+        }
+
+        .qk-liga-avatar {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: 700;
+          flex-shrink: 0;
+        }
+
+        .qk-liga-avatar--gold {
+          background: rgba(201,168,76,0.15);
+          border: 1.5px solid rgba(201,168,76,0.4);
+          color: var(--gold);
+        }
+
+        .qk-liga-avatar--grey {
+          background: rgba(106,104,96,0.12);
+          border: 1.5px solid rgba(106,104,96,0.22);
+          color: var(--muted);
+        }
+
+        .qk-liga-info { flex: 1; min-width: 0; }
+
+        .qk-liga-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--white);
+          margin-bottom: 1px;
+        }
+
+        .qk-liga-score { font-size: 11px; color: var(--muted); }
+
+        .qk-liga-streak { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+        /* Premium-seksjon */
+        .qk-premium-section { margin-top: 12px; }
+
+        .qk-premium-card {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-top: 3px solid var(--gold);
+          border-radius: var(--radius-card);
+          padding: 28px;
+        }
+
+        .qk-premium-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 28px;
+          align-items: start;
+        }
+
+        .qk-premium-offer {
+          background: rgba(201,168,76,0.05);
+          border: 1px solid rgba(201,168,76,0.28);
+          border-radius: 12px;
+          padding: 16px 18px;
+          margin-top: 16px;
+        }
+
+        .qk-premium-offer-label {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--gold);
+          margin-bottom: 4px;
+        }
+
+        .qk-premium-offer-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--white);
+          margin-bottom: 6px;
+        }
+
+        .qk-premium-offer-text {
+          font-size: 13px;
+          color: var(--body);
+          line-height: 1.55;
+          margin-bottom: 12px;
+        }
+
+        .qk-premium-price-big {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 46px;
+          font-weight: 700;
+          color: var(--gold);
+          line-height: 1;
+          margin-bottom: 4px;
+        }
+
+        .qk-premium-price-sub {
+          font-size: 13px;
+          color: var(--muted);
+          margin-bottom: 18px;
+        }
+
+        .qk-premium-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .qk-premium-item {
+          font-size: 14px;
+          color: var(--body);
+          line-height: 1.4;
+        }
+
+        .qk-premium-item--bold {
+          font-weight: 600;
+          color: var(--white);
+        }
+
         @media (max-width: 520px) {
           .qk-card { flex-direction: column; gap: 16px; }
           .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
           .qk-header { padding: 40px 0 32px; }
           .qk-how-grid { grid-template-columns: 1fr; }
           .qk-pricing-grid { grid-template-columns: 1fr; }
+          .qk-feat-grid { grid-template-columns: 1fr; }
+          .qk-premium-grid { grid-template-columns: 1fr; }
           .qk-nav-play { display: none; }
           .qk-hero { padding: 24px 0 16px; }
         }
@@ -816,6 +1041,85 @@ export default async function Home() {
             )
           })
         )}
+
+        {/* Seksjon 1 — Private ligaer */}
+        <section className="qk-feat">
+          <div className="qk-feat-grid">
+            <div>
+              <span className="qk-feat-badge">✦ Premium-funksjon</span>
+              <h2 className="qk-feat-h2">Spill mot de samme personene uke etter uke.</h2>
+              <p className="qk-feat-body">Lag en privat liga for vennegjengen, familien eller kollegaene. Del en lenke, og alle kan bli med.</p>
+              <p className="qk-feat-body">Bli kjent med navnene du ser uke etter uke. Opprett din liga på under ett minutt.</p>
+              <Link href="/founders" className="qk-feat-btn">Prøv gratis i 1 måned →</Link>
+            </div>
+            <div>
+              <div className="qk-liga-widget">
+                <p className="qk-liga-label">Venneliga — uke 14</p>
+                <div className="qk-liga-row">
+                  <span className="qk-liga-rank">1</span>
+                  <div className="qk-liga-avatar qk-liga-avatar--gold">MH</div>
+                  <div className="qk-liga-info">
+                    <div className="qk-liga-name">Marte H.</div>
+                    <div className="qk-liga-score">9/10 riktige · 1m 12s</div>
+                  </div>
+                  <span className="qk-liga-streak">🔥 6 uker</span>
+                </div>
+                <div className="qk-liga-row">
+                  <span className="qk-liga-rank">2</span>
+                  <div className="qk-liga-avatar qk-liga-avatar--grey">TL</div>
+                  <div className="qk-liga-info">
+                    <div className="qk-liga-name">Tor L.</div>
+                    <div className="qk-liga-score">9/10 riktige · 1m 34s</div>
+                  </div>
+                  <span className="qk-liga-streak">🔥 3 uker</span>
+                </div>
+                <div className="qk-liga-row">
+                  <span className="qk-liga-rank">3</span>
+                  <div className="qk-liga-avatar qk-liga-avatar--grey">KR</div>
+                  <div className="qk-liga-info">
+                    <div className="qk-liga-name">Kari R.</div>
+                    <div className="qk-liga-score">8/10 riktige · 1m 48s</div>
+                  </div>
+                  <span className="qk-liga-streak">–</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Seksjon 2 — Premium */}
+        <section className="qk-premium-section">
+          <div className="qk-premium-card">
+            <div className="qk-premium-grid">
+              <div>
+                <span className="qk-feat-badge">✦ Premium</span>
+                <h2 className="qk-feat-h2">For deg som vil mer enn å vinne én gang.</h2>
+                <p className="qk-feat-body">Følg fremgangen din over tid. Se statistikk fra alle ukene du har spilt. Opprett private ligaer og utfordre venner og kolleger direkte.</p>
+                {FOUNDERS_ACTIVE && (
+                  <div className="qk-premium-offer">
+                    <p className="qk-premium-offer-label">Tilgjengelig nå</p>
+                    <p className="qk-premium-offer-title">1 måned gratis — ingen kortinfo</p>
+                    <p className="qk-premium-offer-text">Prøv alle Premium-funksjoner. Avslutt når du vil — ingen binding.</p>
+                    <Link href="/founders" className="qk-feat-btn">Prøv gratis i 1 måned →</Link>
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="qk-premium-price-big">kr 49</p>
+                <p className="qk-premium-price-sub">/ mnd etter prøveperiode</p>
+                <ul className="qk-premium-list">
+                  <li className="qk-premium-item qk-premium-item--bold">✦ Avslutt når du vil — ingen binding</li>
+                  <li className="qk-premium-item">✦ Nøyaktig plassering hver uke</li>
+                  <li className="qk-premium-item">✦ Quizhistorikk og score over tid</li>
+                  <li className="qk-premium-item">✦ Følg din utvikling</li>
+                  <li className="qk-premium-item">✦ Private ligaer</li>
+                  <li className="qk-premium-item">✦ Avansert statistikk per quiz</li>
+                  <li className="qk-premium-item">✦ XP-system og rangtitler</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <footer className="qk-footer">
           <span suppressHydrationWarning className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
