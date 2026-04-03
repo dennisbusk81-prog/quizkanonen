@@ -9,7 +9,15 @@ interface Props {
 
 export default function GoogleSignInButton({ className, children }: Props) {
   return (
-    <button type="button" className={className} onClick={() => signInWithGoogle()}>
+    <button
+      type="button"
+      className={className}
+      style={{ width: '100%', border: 'none', cursor: 'pointer' }}
+      onClick={() => {
+        console.log('klikk registrert')
+        signInWithGoogle()
+      }}
+    >
       {children}
     </button>
   )
