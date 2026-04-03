@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import QuizCountdown from '@/components/QuizCountdown'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
+import NavAuth from '@/components/NavAuth'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -861,7 +862,7 @@ export default async function Home() {
         <div className="qk-nav-inner">
           <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
           <div className="qk-nav-actions">
-            <Link href="/login" className="qk-nav-login">Logg inn gratis</Link>
+            <NavAuth />
             {quizList.length > 0 && (
               <Link href={`/quiz/${quizList[0].id}`} className="qk-nav-play">
                 Spill ukens quiz →
