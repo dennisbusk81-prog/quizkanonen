@@ -141,26 +141,19 @@ export default function LigaPage() {
     let cancelled = false
 
     async function load() {
-      console.log('[liga] load() start')
       let { data: { session } } = await supabase.auth.getSession()
-      console.log('[liga] session etter getSession:', session?.user?.id ?? 'null')
       if (!session) {
         await new Promise<void>(r => setTimeout(r, 500))
         if (cancelled) return
         const { data } = await supabase.auth.getSession()
         session = data.session
-        console.log('[liga] session etter retry:', session?.user?.id ?? 'null')
       }
       if (cancelled) return
-      if (!session) {
-        console.log('[liga] ingen session — redirecter')
-        router.replace('/'); return
-      }
+      if (!session) { router.replace('/'); return }
 
       setAccessToken(session.access_token)
 
       // Hent alle ligaer → finn denne via slug
-      console.log('[liga] kaller /api/leagues')
       const listRes = await fetch('/api/leagues', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
