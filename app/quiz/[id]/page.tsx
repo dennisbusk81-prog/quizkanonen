@@ -752,7 +752,9 @@ export default function QuizPage() {
   // REGISTRERING
   if (phase === 'register') return (
     <><style>{styles}</style>
-    <div className="qk-shell"><div className="qk-box"><div className="qk-panel">
+    <div className="qk-shell"><div className="qk-box">
+      <a href="/" style={{ display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' }}>← Tilbake til forsiden</a>
+      <div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz.title}</h1>
       <p className="qk-sub">Fyll inn navn og trykk start. Lykke til!</p>
