@@ -42,6 +42,8 @@ const s = {
 
   btnGold:          { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutlineGold:   { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid #c9a84c' },
+  redeemBtn:        { padding: '10px 16px', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #4a4d5a', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:     { padding: '10px 16px', background: 'transparent', color: '#7a7873', border: '0.5px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '32px 24px', textAlign: 'center' as const },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
@@ -71,6 +73,10 @@ export default function ProfilPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [codeInput, setCodeInput] = useState('')
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [codeSuccess, setCodeSuccess] = useState<string | null>(null)
+  const [codeError, setCodeError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -177,6 +183,39 @@ export default function ProfilPage() {
         body: JSON.stringify({ id: userId, display_name: displayName, email_reminders: next }),
       })
     } catch { /* silent — optimistic update already applied */ }
+  }
+
+  async function handleRedeemCode() {
+    if (!codeInput.trim() || codeLoading) return
+    setCodeLoading(true)
+    setCodeSuccess(null)
+    setCodeError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/codes/redeem', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ code: codeInput.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setCodeError(data.error ?? 'Noe gikk galt. Prøv igjen.')
+        setTimeout(() => setCodeError(null), 3000)
+      } else {
+        setCodeSuccess('Kode aktivert! Du har nå Premium.')
+        setCodeInput('')
+        setIsPremium(true)
+        setTimeout(() => setCodeSuccess(null), 3000)
+      }
+    } catch {
+      setCodeError('Noe gikk galt. Prøv igjen.')
+      setTimeout(() => setCodeError(null), 3000)
+    } finally {
+      setCodeLoading(false)
+    }
   }
 
   async function handleDeleteAccount() {
@@ -320,6 +359,35 @@ export default function ProfilPage() {
               </label>
               {saveError && <p style={s.saveError}>{saveError}</p>}
               {saveSuccess && <p style={s.saveSuccess}>Brukernavn oppdatert!</p>}
+            </div>
+          </div>
+
+          {/* Redeem code */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={s.card}>
+              <p style={s.sectionLabel}>Verdikode</p>
+              <div style={s.inputRow}>
+                <input
+                  type="text"
+                  value={codeInput}
+                  onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
+                  placeholder="Skriv inn kode..."
+                  maxLength={60}
+                  style={{ ...s.input, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                />
+                <button
+                  onClick={handleRedeemCode}
+                  disabled={codeLoading || !codeInput.trim()}
+                  style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
+                >
+                  {codeLoading ? 'Løser inn…' : 'Løs inn →'}
+                </button>
+              </div>
+              {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{codeSuccess}</p>}
+              {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{codeError}</p>}
             </div>
           </div>
 
