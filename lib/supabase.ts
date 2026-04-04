@@ -26,6 +26,7 @@ export type Profile = {
   premium_status: boolean
   premium_since: string | null
   stripe_customer_id: string | null
+  email_reminders: boolean
 }
 
 export type Quiz = {
