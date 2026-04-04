@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
   const windowStart = new Date(now + 55 * 60 * 1000).toISOString()
   const windowEnd   = new Date(now + 65 * 60 * 1000).toISOString()
 
+  console.log('[cron/send-reminders] window:', { windowStart, windowEnd })
+
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at')
@@ -30,8 +32,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!nextQuiz) {
+    console.log('[cron/send-reminders] no quiz in window, skipping')
     return NextResponse.json({ skipped: true, reason: 'No quiz opening soon' })
   }
+
+  console.log('[cron/send-reminders] quiz found:', { title: nextQuiz.title, opens_at: nextQuiz.opens_at })
 
   // Fetch profiles that have opted in to reminders
   const { data: profiles, error: profilesError } = await supabaseAdmin
