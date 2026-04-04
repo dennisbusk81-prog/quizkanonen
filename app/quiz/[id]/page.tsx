@@ -976,9 +976,9 @@ export default function QuizPage() {
   return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <p className="qk-eyebrow" style={{textAlign:'center'}}>Resultat</p>
-      <h1 className="qk-heading" style={{textAlign:'center'}}>
-        {playerInfo.name}
+      <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
+      <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+        {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
       <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>{quiz.title}</p>
 
@@ -1005,17 +1005,23 @@ export default function QuizPage() {
 
       {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
-        const kommentar = prosent >= 80
-          ? 'Du er blant de beste i dag!'
-          : prosent >= 50
-          ? `Du er bedre enn ${prosent}% av deltakerne.`
-          : prosent >= 20
-          ? `Du er bedre enn ${prosent}% av deltakerne. Prøv igjen neste fredag!`
-          : 'Tøff quiz — prøv igjen neste fredag!'
+        const toppX = 100 - prosent
         return (
-          <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', marginBottom: 14 }}>
-            {kommentar}
-          </p>
+          <div style={{
+            background: '#1e1a0e',
+            border: '0.5px solid rgba(201,168,76,0.3)',
+            borderRadius: 16,
+            padding: 16,
+            textAlign: 'center',
+            marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c', marginBottom: 4 }}>
+              Topp {toppX}%
+            </div>
+            <div style={{ fontSize: 13, color: '#e8e4dd' }}>
+              Du er bedre enn {prosent}% av deltakerne
+            </div>
+          </div>
         )
       })()}
 
