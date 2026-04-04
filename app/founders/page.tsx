@@ -152,7 +152,7 @@ const s = {
 const PERKS = [
   '1 måned gratis — ingen kortinfo nødvendig',
   'Tilgang til alle Premium-funksjoner',
-  'Kun tilgjengelig i en begrenset periode',
+  'For deg som er tidlig ute og vil forme produktet.',
 ]
 
 export default function FoundersPage() {

@@ -7,10 +7,7 @@ import UserMenuWrapper from '@/components/UserMenuWrapper'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
-const PLANS = [
-  { id: 'weekly',  name: 'Ukespass',          price: 'kr 19',     desc: '7 dagers full tilgang',                   priceId: 'STRIPE_PRICE_UKESPASS' },
-  { id: 'monthly', name: 'Premium månedlig',   price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' },
-]
+const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' }
 
 const FEATURES = [
   'Nøyaktig plassering på leaderboard',
@@ -21,7 +18,6 @@ const FEATURES = [
 ]
 
 export default function PremiumPage() {
-  const [selected, setSelected] = useState('monthly')
   const [loading, setLoading] = useState(false)
   const [showLoginAlert, setShowLoginAlert] = useState(false)
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -39,7 +35,7 @@ export default function PremiumPage() {
         setShowLoginAlert(true)
         return
       }
-      const plan = PLANS.find(p => p.id === selected)!
+      const plan = PLAN
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,31 +116,22 @@ export default function PremiumPage() {
               ))}
             </ul>
 
-            {/* Plan cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-              {PLANS.map(plan => (
-                <div
-                  key={plan.id}
-                  onClick={() => setSelected(plan.id)}
-                  style={{
-                    background: '#1a1c23',
-                    border: selected === plan.id ? '2px solid #c9a84c' : '1px solid #2a2d38',
-                    borderRadius: 12, padding: '16px 18px',
-                    cursor: 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{plan.name}</div>
-                      <div style={{ fontSize: 12, color: '#7a7873' }}>{plan.desc}</div>
-                    </div>
-                    <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
-                      {plan.price}
-                    </div>
-                  </div>
+            {/* Pricing */}
+            <div style={{
+              background: '#1a1c23',
+              border: '2px solid #c9a84c',
+              borderRadius: 12, padding: '16px 18px',
+              marginBottom: 24,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{PLAN.name}</div>
+                  <div style={{ fontSize: 12, color: '#7a7873' }}>{PLAN.desc}</div>
                 </div>
-              ))}
+                <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
+                  {PLAN.price}
+                </div>
+              </div>
             </div>
 
             {showLoginAlert && (
