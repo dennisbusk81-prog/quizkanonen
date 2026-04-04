@@ -125,7 +125,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           Logg inn
         </a>
         {quizId && (
-          <Link href={`/quiz/${quizId}`} className="qk-nav-play">
+          <Link
+            href={`/quiz/${quizId}`}
+            style={{
+              fontSize: 13, fontWeight: 600,
+              color: '#e8e4dd', background: 'transparent',
+              textDecoration: 'none', padding: '6px 14px',
+              borderRadius: 10, border: '0.5px solid #3a3d4a',
+              whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
+              transition: 'border-color 0.15s, color 0.15s',
+            }}
+          >
             Spill ukens quiz →
           </Link>
         )}
