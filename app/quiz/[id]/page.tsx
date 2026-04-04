@@ -515,6 +515,7 @@ export default function QuizPage() {
   const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -523,11 +524,12 @@ export default function QuizPage() {
         setLoggedInUserId(session.user.id)
         const { data: prof } = await supabaseData
           .from('profiles')
-          .select('display_name, age_confirmed_at')
+          .select('display_name, age_confirmed_at, premium_status')
           .eq('id', session.user.id)
           .maybeSingle()
         const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
         if (name) { setNameInput(name); setLoggedInDisplayName(name) }
+        setIsPremium(prof?.premium_status === true)
         if (prof?.age_confirmed_at) {
           setAgeAlreadyConfirmed(true)
           setAgeConfirmed(true)
@@ -574,6 +576,12 @@ export default function QuizPage() {
     }
     fetchData()
   }, [quizId])
+
+  useEffect(() => {
+    if (phase !== 'finished') return
+    supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+      .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
+  }, [phase])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -1034,8 +1042,8 @@ export default function QuizPage() {
             padding:'14px 16px',
             textAlign:'center',
           }}>
-            <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:6}}>
-              Estimert plassering
+            <div style={{fontSize:11,color:'#7a7873',marginBottom:6}}>
+              Din plassering
             </div>
             <div style={{fontFamily:'Libre Baskerville, serif',fontSize:22,fontWeight:700,color:'var(--gold)',marginBottom:2}}>
               {estimatedPlacement.total <= 10
@@ -1092,6 +1100,32 @@ export default function QuizPage() {
           </div>
         )}
 
+        {isLoggedIn && !isPremium && (
+          <div style={{
+            background:'#21242e',
+            border:'0.5px solid #2a2d38',
+            borderRadius:12,
+            padding:'14px 16px',
+            textAlign:'left',
+          }}>
+            <p style={{fontSize:13,color:'#7a7873',lineHeight:1.5,marginBottom:12}}>
+              Oppgrader til Premium for å se historikken din og følge fremgangen uke etter uke.
+            </p>
+            <a href="/founders" style={{
+              display:'block',textAlign:'center',
+              background:'transparent',border:'1px solid rgba(201,168,76,0.35)',
+              borderRadius:8,padding:'10px 14px',
+              fontSize:13,fontWeight:600,color:'#c9a84c',
+              textDecoration:'none',transition:'border-color 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(201,168,76,0.65)'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(201,168,76,0.06)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(201,168,76,0.35)'; (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
+            >
+              Oppgrader til Premium →
+            </a>
+          </div>
+        )}
+
         {quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se topplisten</a>
@@ -1099,6 +1133,25 @@ export default function QuizPage() {
         )}
 
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
+
+        {nextQuizAt && (() => {
+          const d = new Date(nextQuizAt)
+          const dateStr = d.toLocaleString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+          return (
+            <p style={{fontSize:13,color:'#7a7873',textAlign:'center',marginTop:4}}>
+              Neste quiz: {dateStr}
+            </p>
+          )
+        })()}
+
+        {!isLoggedIn && (
+          <a href="/login" style={{
+            display:'block',textAlign:'center',fontSize:13,color:'#c9a84c',
+            textDecoration:'none',marginTop:4,
+          }}>
+            Få påminnelse på e-post →
+          </a>
+        )}
       </div>
 
       {ligaBox && (
