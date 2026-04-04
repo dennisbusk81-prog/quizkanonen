@@ -261,6 +261,22 @@ export default function UserMenu() {
                 >
                   Mine ligaer
                 </a>
+                <a
+                  href="/toppliste"
+                  onClick={() => setDropdownOpen(false)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', background: 'none',
+                    borderRadius: 8, fontSize: 13, color: '#e8e4dd',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    textDecoration: 'none', transition: 'background 0.12s',
+                    boxSizing: 'border-box', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  Sesong-topplisten →
+                </a>
                 {isPremium ? (
                   <>
                     <a

@@ -226,6 +226,15 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Mine ligaer
             </a>
+            <a
+              href="/toppliste"
+              onClick={() => setDropdownOpen(false)}
+              style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Sesong-topplisten →
+            </a>
             {isPremium && (
               <a
                 href="/historikk"

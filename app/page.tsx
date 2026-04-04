@@ -553,6 +553,7 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
+              <Link href="/toppliste" className="qk-all-link">Se sesong-topplisten →</Link>
               {quizList.length > 1 && (
                 <Link href="/quizer" className="qk-all-link">Se alle aktive quizer →</Link>
               )}
