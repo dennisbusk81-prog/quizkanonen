@@ -12,7 +12,17 @@ const toLocalInput = (iso: string) => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-const toISO = (local: string) => new Date(local).toISOString()
+// Parse a datetime-local string ("YYYY-MM-DDTHH:mm") as local time and
+// return a UTC ISO string. new Date(str) is unreliable for strings without
+// an explicit timezone offset — some browsers (notably Safari) treat them
+// as UTC rather than local time, causing saves to shift by the UTC offset.
+const toISO = (local: string): string => {
+  const [datePart, timePart] = local.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hours, minutes] = timePart.split(':').map(Number)
+  const d = new Date(year, month - 1, day, hours, minutes, 0, 0)
+  return d.toISOString()
+}
 
 export default function QuizCockpit() {
   const params = useParams()
