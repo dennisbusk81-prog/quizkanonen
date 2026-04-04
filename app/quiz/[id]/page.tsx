@@ -516,6 +516,7 @@ export default function QuizPage() {
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
+  const [shareResultCopied, setShareResultCopied] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -979,7 +980,12 @@ export default function QuizPage() {
   const correctCount = answers.filter(a => a.isCorrect).length
   const percentage = Math.round((correctCount / questions.length) * 100)
   const streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
-  const shareText = `Jeg fikk ${correctCount}/${questions.length} (${percentage}%) på ${quiz.title} på Quizkanonen! 🎯 Klarer du bedre?`
+  const toppXShare = estimatedPlacement && estimatedPlacement.total > 1
+    ? 100 - Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+    : null
+  const shareResultText = toppXShare !== null
+    ? `Jeg er topp ${toppXShare}% på Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
+    : `Jeg fikk ${correctCount}/${questions.length} på Quizkanonen! Kan du slå meg? quizkanonen.no`
 
   return (
     <><style>{styles}</style>
@@ -1039,17 +1045,17 @@ export default function QuizPage() {
 
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={() => {
-          if (navigator.share) {
-            navigator.share({ text: shareText, url: window.location.origin })
-          } else {
-            navigator.clipboard.writeText(shareText + ' ' + window.location.origin)
-            alert('Kopiert! Lim inn og del 😊')
-          }
+          navigator.clipboard.writeText(shareResultText).then(() => {
+            setShareResultCopied(true)
+            setTimeout(() => setShareResultCopied(false), 2000)
+          }).catch(() => {})
         }} style={{
           width:'100%',background:'transparent',border:'0.5px solid #3a3d4a',
           borderRadius:10,padding:'8px 20px',fontSize:14,color:'#e8e4dd',
           fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
-        }}>Del resultatet →</button>
+        }}>
+          {shareResultCopied ? 'Kopiert!' : 'Del resultatet →'}
+        </button>
 
         {quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
