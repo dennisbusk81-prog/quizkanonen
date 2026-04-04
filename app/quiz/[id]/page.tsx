@@ -153,26 +153,26 @@ const styles = `
   .qk-toggle.on .qk-toggle-thumb { transform: translateX(20px); }
   .qk-toggle-label { font-size: 14px; color: var(--body); }
 
-  .qk-sizes { display: flex; gap: 8px; margin-bottom: 20px; }
+  .qk-sizes { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 
   .qk-size-btn {
     flex: 1;
-    padding: 8px 4px;
+    padding: 6px 14px;
     border-radius: var(--rbtn);
     font-family: 'Instrument Sans', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    background: var(--bg);
+    background: transparent;
     color: var(--muted);
-    border: 1px solid var(--border);
+    border: 0.5px solid #3a3d4a;
     cursor: pointer;
     transition: all 0.15s;
   }
 
   .qk-size-btn.active {
-    background: rgba(201,168,76,0.12);
-    color: var(--gold);
-    border-color: rgba(201,168,76,0.35);
+    background: #c9a84c;
+    color: #1a1c23;
+    border-color: #c9a84c;
   }
 
   .qk-check-row {
@@ -306,12 +306,13 @@ const styles = `
 
   .qk-timer {
     font-family: 'Libre Baskerville', serif;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--white);
     transition: color 0.3s;
-    min-width: 52px;
-    text-align: right;
+    text-align: center;
+    display: block;
+    margin-bottom: 6px;
   }
 
   .qk-timer.urgent { color: var(--red); }
@@ -319,12 +320,12 @@ const styles = `
   .qk-timer-bar-wrap {
     background: var(--border);
     border-radius: 4px;
-    height: 3px;
+    height: 4px;
     margin-bottom: 20px;
     overflow: hidden;
   }
 
-  .qk-timer-bar { height: 3px; border-radius: 4px; transition: width 1s linear, background-color 0.5s; }
+  .qk-timer-bar { height: 4px; border-radius: 4px; transition: width 1s linear, background-color 0.5s; }
 
   .qk-score-row {
     display: flex;
@@ -356,20 +357,20 @@ const styles = `
   .qk-question-card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--rcard);
+    border-radius: 16px;
     padding: 28px 24px;
     margin-bottom: 14px;
   }
 
   .qk-question-text {
     font-family: 'Libre Baskerville', serif;
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 400;
-    color: var(--white);
+    color: #ffffff;
     line-height: 1.5;
   }
 
-  @media (max-width: 400px) { .qk-question-text { font-size: 17px; } }
+  @media (max-width: 400px) { .qk-question-text { font-size: 16px; } }
 
   .qk-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 
@@ -378,18 +379,24 @@ const styles = `
     align-items: center;
     gap: 14px;
     background: var(--card);
-    border: 1.5px solid var(--border);
+    border: 0.5px solid #3a3d4a;
     border-radius: var(--rcard);
-    padding: 11px 18px;
+    padding: 14px 16px;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    transition: border-color 0.15s, background 0.15s;
     text-align: left;
     width: 100%;
   }
 
-  .qk-option:hover:not(:disabled) { border-color: rgba(201,168,76,0.4); transform: translateX(3px); }
+  .qk-option:hover:not(:disabled) { border-color: #4a4d5a; background: #262930; }
   .qk-option:disabled { cursor: default; }
-  .qk-option.correct { background: rgba(76,175,125,0.1); border-color: var(--green); }
+  @keyframes qkcorrectpulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+
+  .qk-option.correct { background: rgba(76,175,125,0.1); border-color: var(--green); animation: qkcorrectpulse 300ms ease-out; }
   .qk-option.wrong { background: rgba(201,76,76,0.1); border-color: var(--red); opacity: 0.7; }
   .qk-option.idle { opacity: 0.4; }
 
@@ -397,14 +404,14 @@ const styles = `
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: var(--bg);
-    border: 1.5px solid var(--border);
+    background: #2a2d38;
+    border: 1.5px solid #3a3d4a;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
     font-weight: 700;
-    color: var(--muted);
+    color: #e8e4dd;
     flex-shrink: 0;
     transition: all 0.15s;
   }
@@ -442,14 +449,12 @@ const styles = `
     font-family: 'Libre Baskerville', serif;
     font-size: 24px;
     font-weight: 700;
-    color: var(--white);
+    color: #c9a84c;
     line-height: 1;
     margin-bottom: 5px;
   }
 
-  .qk-stat-value.gold { color: var(--gold); }
-  .qk-stat-value.green { color: var(--green); }
-  .qk-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .qk-stat-label { font-size: 11px; color: #7a7873; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
 
   /* LOADING */
   .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
@@ -829,10 +834,13 @@ export default function QuizPage() {
         </div>
       )}
 
-      <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary">
-        {resumeData ? 'Fortsett quiz' : 'Start quiz'}
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary"
+          style={{ width: 'auto', padding: '10px 28px' }}>
+          {resumeData ? 'Fortsett quiz' : 'Start quiz'}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+        </button>
+      </div>
 
       <p className="qk-hint">{quiz.time_limit_seconds}s per spørsmål · Kun én gjennomspilling</p>
     </div></div></div></>
@@ -859,9 +867,9 @@ export default function QuizPage() {
       <div className="qk-play-shell">
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
-          <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}`}>{timeLeft}s</span>
         </div>
 
+        <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}`}>{timeLeft}s</span>
         <div className="qk-timer-bar-wrap">
           <div className="qk-timer-bar" style={{width:`${timerPercent}%`,background:timerColor}}/>
         </div>
@@ -909,9 +917,6 @@ export default function QuizPage() {
   return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <span className="qk-result-icon">
-        {percentage >= 80 ? '🏆' : percentage >= 60 ? '🎯' : percentage >= 40 ? '💪' : '📚'}
-      </span>
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Resultat</p>
       <h1 className="qk-heading" style={{textAlign:'center'}}>
         {playerInfo.name}
@@ -920,11 +925,11 @@ export default function QuizPage() {
 
       <div className="qk-stat-grid">
         <div className="qk-stat">
-          <div className="qk-stat-value gold">{correctCount}/{questions.length}</div>
+          <div className="qk-stat-value">{correctCount}/{questions.length}</div>
           <div className="qk-stat-label">Riktige svar</div>
         </div>
         <div className="qk-stat">
-          <div className="qk-stat-value green">{percentage}%</div>
+          <div className="qk-stat-value">{percentage}%</div>
           <div className="qk-stat-label">Score</div>
         </div>
         <div className="qk-stat">
@@ -947,7 +952,6 @@ export default function QuizPage() {
             borderRadius:10,
             padding:'14px 16px',
             textAlign:'center',
-            marginBottom:12,
           }}>
             <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--muted)',marginBottom:6}}>
               Estimert plassering
@@ -964,29 +968,6 @@ export default function QuizPage() {
             </div>
             <div style={{fontSize:12,color:'var(--muted)'}}>av {estimatedPlacement.total} deltakere</div>
           </div>
-
-          {!isLoggedIn && (
-            <div style={{
-              display:'flex',
-              alignItems:'center',
-              gap:10,
-              padding:'12px 16px',
-              background:'rgba(255,255,255,0.03)',
-              border:'1px solid rgba(255,255,255,0.07)',
-              borderRadius:10,
-              opacity:0.5,
-              cursor:'not-allowed',
-              userSelect:'none',
-            }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.131 17.64 11.862 17.64 9.2z" fill="#4285F4"/>
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-                <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 6.294C4.672 4.169 6.656 3.58 9 3.58z" fill="#EA4335"/>
-              </svg>
-              <span style={{fontSize:14,color:'var(--body)',flex:1}}>Logg inn med Google</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -998,7 +979,37 @@ export default function QuizPage() {
             navigator.clipboard.writeText(shareText + ' ' + window.location.origin)
             alert('Kopiert! Lim inn og del 😊')
           }
-        }} className="qk-btn-secondary">Del resultatet 📤</button>
+        }} className="qk-btn-secondary">Del resultatet →</button>
+
+        {!isLoggedIn && (
+          <div style={{
+            background:'#21242e',
+            border:'0.5px solid #2a2d38',
+            borderRadius:12,
+            padding:'14px 16px',
+            textAlign:'left',
+          }}>
+            <p style={{fontSize:13,color:'#7a7873',lineHeight:1.5,marginBottom:12}}>
+              Logg inn for å se nøyaktig plassering og lagre historikken din.
+            </p>
+            <a href="/login" style={{
+              display:'flex',alignItems:'center',gap:10,
+              background:'#2a2d38',borderRadius:8,padding:'10px 14px',
+              textDecoration:'none',transition:'background 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#32353f' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#2a2d38' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.131 17.64 11.862 17.64 9.2z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 6.294C4.672 4.169 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </svg>
+              <span style={{fontSize:13,color:'#e8e4dd',fontFamily:"'Instrument Sans', sans-serif"}}>Logg inn med Google</span>
+            </a>
+          </div>
+        )}
 
         {quiz.show_leaderboard && (
           <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
