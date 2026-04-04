@@ -185,6 +185,7 @@ export default function TopplisterPage() {
   const [data, setData] = useState<ApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [pointsOpen, setPointsOpen] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -368,6 +369,44 @@ export default function TopplisterPage() {
           {countdown && (
             <p style={s.countdown}>{countdown}</p>
           )}
+
+          {/* Poengforklaring */}
+          <div style={{ marginBottom: 16, textAlign: 'center' }}>
+            <button
+              onClick={() => setPointsOpen(o => !o)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
+            >
+              Hvordan beregnes poeng? {pointsOpen ? '↑' : '↓'}
+            </button>
+            {pointsOpen && (
+              <div style={{ marginTop: 8, background: '#21242e', border: '0.5px solid #2a2d38', borderRadius: 10, padding: 12, textAlign: 'left' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                  Poengfordeling per quiz
+                </div>
+                {[
+                  ['1. plass', '12 poeng'],
+                  ['2. plass', '10 poeng'],
+                  ['3. plass', '8 poeng'],
+                  ['4. plass', '7 poeng'],
+                  ['5. plass', '6 poeng'],
+                  ['6. plass', '5 poeng'],
+                  ['7. plass', '4 poeng'],
+                  ['8. plass', '3 poeng'],
+                  ['9. plass', '2 poeng'],
+                  ['10. plass', '1 poeng'],
+                  ['11+ plass', '1 poeng'],
+                ].map(([place, pts]) => (
+                  <div key={place} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#e8e4dd', padding: '3px 0', borderBottom: '0.5px solid #2a2d38' }}>
+                    <span style={{ color: '#7a7873' }}>{place}</span>
+                    <span style={{ fontWeight: 600 }}>{pts}</span>
+                  </div>
+                ))}
+                <p style={{ fontSize: 11, color: '#7a7873', fontStyle: 'italic', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+                  Poengene summeres over alle quizer i perioden. Konsistens belønnes.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Top 10 */}
           {!loading && data?.entries.length === 0 ? (
