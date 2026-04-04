@@ -131,7 +131,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               fontSize: 13, fontWeight: 600,
               color: '#e8e4dd', background: 'transparent',
               textDecoration: 'none', padding: '6px 14px',
-              borderRadius: 10, border: '0.5px solid #3a3d4a',
+              borderRadius: 10, border: '1px solid #4a4d5a',
               whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
               transition: 'border-color 0.15s, color 0.15s',
             }}
