@@ -187,7 +187,7 @@ export default function UserMenu() {
                 width="9" height="5" viewBox="0 0 9 5" fill="none"
                 style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
               >
-                <path d="M1 1L4.5 4L8 1" stroke="#6a6860" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M1 1L4.5 4L8 1" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
 
@@ -204,7 +204,7 @@ export default function UserMenu() {
                   borderBottom: '0.5px solid #2a2d38',
                   marginBottom: 4,
                 }}>
-                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6a6860', marginBottom: 3 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 3 }}>
                     Innlogget som
                   </p>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'Instrument Sans', sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
@@ -216,7 +216,7 @@ export default function UserMenu() {
                         Premium
                       </span>
                       {mounted && subscriptionInfo?.current_period_end && (
-                        <p style={{ fontSize: 11, color: '#6a6860', marginTop: 5 }}>
+                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 5 }}>
                           {subscriptionInfo.cancel_at_period_end
                             ? `Avsluttes ${formatPeriodDate(subscriptionInfo.current_period_end)}`
                             : `Fornyes ${formatPeriodDate(subscriptionInfo.current_period_end)}`}

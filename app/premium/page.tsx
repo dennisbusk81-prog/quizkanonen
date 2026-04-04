@@ -1,32 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
+import UserMenuWrapper from '@/components/UserMenuWrapper'
 
-const s = {
-  page: { minHeight: '100vh', background: '#1a1c23', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '40px 20px', fontFamily: 'Instrument Sans, sans-serif' },
-  card: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: '20px', padding: '40px', maxWidth: '500px', width: '100%', textAlign: 'center' as const },
-  title: { fontFamily: 'Libre Baskerville, serif', fontSize: '2rem', color: '#c9a84c', marginBottom: '8px' },
-  subtitle: { color: '#8a8fa8', marginBottom: '40px', fontSize: '1rem' },
-  plans: { display: 'flex', flexDirection: 'column' as const, gap: '16px', marginBottom: '32px' },
-  plan: { background: '#1a1c23', border: '2px solid #2a2d38', borderRadius: '12px', padding: '20px', cursor: 'pointer', transition: 'border-color 0.2s' },
-  planSelected: { background: '#1a1c23', border: '2px solid #c9a84c', borderRadius: '12px', padding: '20px', cursor: 'pointer' },
-  planName: { color: '#ffffff', fontWeight: 700, fontSize: '1.1rem', marginBottom: '4px' },
-  planPrice: { color: '#c9a84c', fontSize: '1.5rem', fontWeight: 700 },
-  planDesc: { color: '#8a8fa8', fontSize: '0.85rem', marginTop: '4px' },
-  btn: { width: '100%', padding: '11px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' },
-  btnDisabled: { width: '100%', padding: '11px', background: '#3a3d4a', color: '#8a8fa8', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'not-allowed' },
-  features: { textAlign: 'left' as const, marginBottom: '32px' },
-  feature: { color: '#c9a84c', marginBottom: '8px', fontSize: '0.95rem' },
-  featureText: { color: '#d0d3e0' },
-  loginNote: { color: '#8a8fa8', fontSize: '0.85rem', marginTop: '16px' },
-}
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 const PLANS = [
-  { id: 'weekly', name: 'Ukespass', price: 'kr 19', desc: '7 dagers full tilgang', priceId: 'STRIPE_PRICE_UKESPASS' },
-  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' },
+  { id: 'weekly',  name: 'Ukespass',          price: 'kr 19',     desc: '7 dagers full tilgang',                   priceId: 'STRIPE_PRICE_UKESPASS' },
+  { id: 'monthly', name: 'Premium månedlig',   price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' },
 ]
 
 const FEATURES = [
@@ -42,7 +25,6 @@ export default function PremiumPage() {
   const [loading, setLoading] = useState(false)
   const [showLoginAlert, setShowLoginAlert] = useState(false)
   const [session, setSession] = useState<Session | null | undefined>(undefined)
-  const router = useRouter()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -81,37 +63,127 @@ export default function PremiumPage() {
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <div style={s.title}>Bli Premium</div>
-        <div style={s.subtitle}>Få full tilgang til Quizkanonen</div>
+    <>
+      <style>{FONT_IMPORT}</style>
+      <UserMenuWrapper />
+      <div style={{
+        minHeight: '100vh',
+        background: '#1a1c23',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '60px 20px',
+        fontFamily: "'Instrument Sans', sans-serif",
+        color: '#e8e4dd',
+      }}>
+        <div style={{ maxWidth: 480, width: '100%' }}>
 
-        <div style={s.features}>
-          {FEATURES.map(f => (
-            <div key={f} style={s.feature}>✓ <span style={s.featureText}>{f}</span></div>
-          ))}
-        </div>
+          <a href="/" style={{
+            display: 'inline-block', fontSize: 12, color: '#7a7873',
+            textDecoration: 'none', marginBottom: 28, letterSpacing: '0.04em',
+            transition: 'color 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#e8e4dd' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#7a7873' }}
+          >
+            ← Tilbake til forsiden
+          </a>
 
-        <div style={s.plans}>
-          {PLANS.map(plan => (
-            <div key={plan.id} style={selected === plan.id ? s.planSelected : s.plan} onClick={() => setSelected(plan.id)}>
-              <div style={s.planName}>{plan.name}</div>
-              <div style={s.planPrice}>{plan.price}</div>
-              <div style={s.planDesc}>{plan.desc}</div>
+          <p style={{
+            fontSize: 10, fontWeight: 600, letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8,
+          }}>
+            Quizkanonen
+          </p>
+          <h1 style={{
+            fontFamily: "'Libre Baskerville', serif",
+            fontSize: 'clamp(28px, 6vw, 36px)',
+            fontWeight: 700, color: '#ffffff',
+            letterSpacing: '-0.02em', marginBottom: 32,
+          }}>
+            Bli <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>Premium</em>
+          </h1>
+
+          <div style={{
+            background: '#21242e', border: '1px solid #2a2d38',
+            borderRadius: 20, padding: '32px',
+          }}>
+
+            {/* Feature list */}
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {FEATURES.map(f => (
+                <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, fontSize: 15, color: '#e8e4dd', lineHeight: 1.4 }}>
+                  <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: 16, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Plan cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              {PLANS.map(plan => (
+                <div
+                  key={plan.id}
+                  onClick={() => setSelected(plan.id)}
+                  style={{
+                    background: '#1a1c23',
+                    border: selected === plan.id ? '2px solid #c9a84c' : '1px solid #2a2d38',
+                    borderRadius: 12, padding: '16px 18px',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{plan.name}</div>
+                      <div style={{ fontSize: 12, color: '#7a7873' }}>{plan.desc}</div>
+                    </div>
+                    <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
+                      {plan.price}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {showLoginAlert && (
-          <div style={{ background: '#2a1a1a', border: '1px solid #c9a84c', borderRadius: '10px', padding: '12px', marginBottom: '12px', color: '#c9a84c' }}>
-            Du må være innlogget for å kjøpe Premium. Klikk &quot;Logg inn&quot; øverst til høyre.
+            {showLoginAlert && (
+              <div style={{
+                background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)',
+                borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+                color: '#c9a84c', fontSize: 13,
+              }}>
+                Du må være innlogget for å kjøpe Premium. Klikk &quot;Logg inn&quot; øverst til høyre.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+              <button
+                onClick={handleCheckout}
+                disabled={loading}
+                style={{
+                  padding: '10px 28px',
+                  background: loading ? '#3a3d4a' : '#c9a84c',
+                  color: loading ? '#7a7873' : '#0f0f10',
+                  border: 'none', borderRadius: 10,
+                  fontSize: 15, fontWeight: 700,
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                {loading ? 'Laster...' : 'Gå til betaling'}
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', lineHeight: 1.6 }}>
+              Du må være innlogget for å kjøpe. Betaling håndteres trygt av Stripe.
+            </p>
           </div>
-        )}
-        <button style={loading ? s.btnDisabled : s.btn} onClick={handleCheckout} disabled={loading}>
-          {loading ? 'Laster...' : 'Gå til betaling'}
-        </button>
-        <div style={s.loginNote}>Du må være innlogget for å kjøpe. Betaling håndteres trygt av Stripe.</div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

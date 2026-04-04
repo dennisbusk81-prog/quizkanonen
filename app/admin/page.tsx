@@ -19,7 +19,7 @@ const STYLES = `
     --white: #ffffff;
     --body:  #e8e4dd;
     --hint:  #7a7873;
-    --muted: #6a6860;
+    --muted: #7a7873;
   }
 
   body {
@@ -111,18 +111,18 @@ const STYLES = `
   .adm-btn-primary-sm {
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
-    font-weight: 600;
-    background: #c9a84c;
-    color: #1a1c23;
-    border: none;
+    font-weight: 500;
+    background: transparent;
+    color: var(--body);
+    border: 0.5px solid var(--border);
     border-radius: 8px;
     padding: 7px 14px;
     cursor: pointer;
     white-space: nowrap;
-    transition: opacity 0.15s;
+    transition: border-color 0.15s, color 0.15s;
     flex-shrink: 0;
   }
-  .adm-btn-primary-sm:hover { opacity: 0.88; }
+  .adm-btn-primary-sm:hover { border-color: rgba(255,255,255,0.2); color: var(--white); }
   .adm-btn-primary-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .adm-btn-outline {

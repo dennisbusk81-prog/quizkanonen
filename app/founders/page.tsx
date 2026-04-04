@@ -88,8 +88,8 @@ const s = {
     marginTop: 1,
   },
   btn: {
-    width: '100%',
-    padding: '11px 24px',
+    width: 'auto',
+    padding: '10px 28px',
     background: '#c9a84c',
     color: '#0f0f10',
     border: 'none',
@@ -99,13 +99,12 @@ const s = {
     fontFamily: "'Instrument Sans', sans-serif",
     cursor: 'pointer',
     transition: 'opacity 0.15s',
-    marginBottom: 14,
   },
   btnDisabled: {
-    width: '100%',
-    padding: '11px 24px',
+    width: 'auto',
+    padding: '10px 28px',
     background: '#3a3d4a',
-    color: '#6a6860',
+    color: '#7a7873',
     border: 'none',
     borderRadius: 10,
     fontSize: 15,
@@ -144,7 +143,7 @@ const s = {
   },
   disclaimer: {
     fontSize: 12,
-    color: '#6a6860',
+    color: '#7a7873',
     lineHeight: 1.6,
     textAlign: 'center' as const,
   },
@@ -288,15 +287,17 @@ export default function FoundersPage() {
             </>
           ) : (
             <>
-              <button
-                style={loading ? s.btnDisabled : s.btn}
-                onClick={handleActivate}
-                disabled={loading}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-              >
-                {loading ? 'Aktiverer...' : 'Start gratis måned'}
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                <button
+                  style={loading ? s.btnDisabled : s.btn}
+                  onClick={handleActivate}
+                  disabled={loading}
+                  onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                >
+                  {loading ? 'Aktiverer...' : 'Start gratis måned'}
+                </button>
+              </div>
               {errorMsg && (
                 <p style={{ fontSize: 13, color: '#f87171', textAlign: 'center', marginBottom: 12 }}>
                   {errorMsg}
@@ -305,7 +306,7 @@ export default function FoundersPage() {
             </>
           )}
 
-          <p style={{ fontSize: 12, color: '#6a6860', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
             Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter 30 dager.
           </p>
         </div>

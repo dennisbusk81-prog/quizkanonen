@@ -12,39 +12,40 @@ const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
-  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  back:     { display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   avatarSection: { paddingTop: 32, paddingBottom: 24, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
   avatar:        { width: 72, height: 72, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', marginBottom: 16 },
   displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px' },
-  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#6a6860', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 6, padding: '3px 10px' },
+  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 6, padding: '3px 10px' },
   rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 24 },
 
   card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '24px 24px' },
-  sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#6a6860', marginBottom: 12 },
+  sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 },
   inputRow:      { display: 'flex', gap: 8 },
   input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   saveBtn:       { padding: '10px 20px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  saveBtnDis:    { padding: '10px 20px', background: '#3a3d4a', color: '#6a6860', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
+  saveBtnDis:    { padding: '10px 20px', background: '#3a3d4a', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
   statsCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px', textAlign: 'center' as const },
   statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 6 },
-  statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#6a6860', lineHeight: 1.3 },
+  statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 },
 
-  btnGold:      { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnGold:          { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnOutlineGold:   { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid #c9a84c' },
 
   ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '32px 24px', textAlign: 'center' as const },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
-  ctaSub:   { fontSize: 13, color: '#6a6860', marginBottom: 20, lineHeight: 1.6 },
+  ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 20, lineHeight: 1.6 },
 } as const
 
 function formatMemberNumber(n: number): string {
@@ -259,7 +260,7 @@ export default function ProfilPage() {
               : <span style={s.badgeStandard}>Standardkonto</span>
             }
             {memberNumber !== null && (
-              <p style={{ fontSize: 12, color: '#6a6860', marginTop: 8 }}>
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
                 {formatMemberNumber(memberNumber)}{memberSince ? ` · Medlem siden ${memberSince}` : ''}
               </p>
             )}
@@ -290,7 +291,7 @@ export default function ProfilPage() {
                   {saving ? 'Lagrer…' : 'Lagre'}
                 </button>
               </div>
-              <p style={{ fontSize: 12, color: '#6a6860', marginTop: 6, fontStyle: 'italic' }}>
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 6, fontStyle: 'italic' }}>
                 Tips: bruk ditt vanlige navn så andre kjenner deg igjen på leaderboard
               </p>
               {memberNumber !== null && (
@@ -362,7 +363,7 @@ export default function ProfilPage() {
                 Oppgrader til Premium for å se alle quizene du har spilt,
                 din score-utvikling og statistikk.
               </p>
-              <Link href="/premium" style={s.btnGold}>Oppgrader til Premium</Link>
+              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium</Link>
             </div>
           )}
 

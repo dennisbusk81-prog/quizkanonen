@@ -196,7 +196,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             width="9" height="5" viewBox="0 0 9 5" fill="none"
             style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
           >
-            <path d="M1 1L4.5 4L8 1" stroke="#6a6860" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M1 1L4.5 4L8 1" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </button>
 
