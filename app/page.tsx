@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
 import AccordionSection from '@/components/AccordionSection'
+import LoginCTAButton from '@/components/LoginCTAButton'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -229,8 +230,8 @@ export default async function Home() {
           background: var(--card);
           border: 1px solid var(--border);
           border-radius: var(--radius-card);
-          padding: 24px;
-          margin-bottom: 12px;
+          padding: 14px 18px;
+          margin-bottom: 8px;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -428,48 +429,31 @@ export default async function Home() {
 
         .qk-value-btn {
           display: inline-block;
-          padding: 10px 24px;
-          background: var(--gold);
-          color: #1a1c23;
+          padding: 9px 22px;
+          background: transparent;
+          border: 1px solid var(--gold);
+          color: var(--gold);
           font-family: 'Instrument Sans', sans-serif;
           font-size: 14px;
           font-weight: 700;
           border-radius: var(--radius-btn);
           text-decoration: none;
-          transition: opacity 0.15s;
+          transition: background 0.15s;
         }
 
-        .qk-value-btn:hover { opacity: 0.88; }
+        .qk-value-btn:hover { background: rgba(201,168,76,0.08); }
 
-        /* ── Footer ── */
-        .qk-footer {
-          margin-top: 56px;
-          padding-top: 24px;
-          border-top: 1px solid var(--border);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 12px;
-        }
-
-        .qk-footer-brand {
-          font-family: 'Libre Baskerville', serif;
+        .qk-all-link {
+          display: inline-block;
           font-size: 13px;
           color: var(--hint);
-          font-style: italic;
-        }
-
-        .qk-footer-nav { display: flex; gap: 20px; flex-wrap: wrap; }
-
-        .qk-footer-link {
-          font-size: 12px;
-          color: var(--hint);
           text-decoration: none;
+          margin-top: 4px;
+          margin-bottom: 4px;
           transition: color 0.15s;
         }
 
-        .qk-footer-link:hover { color: var(--gold); }
+        .qk-all-link:hover { color: var(--gold); }
 
         /* ── Responsive ── */
         @media (max-width: 520px) {
@@ -533,12 +517,13 @@ export default async function Home() {
               Følg med i Facebook-gruppen for varsling.
             </p>
           </div>
-        ) : (
-          quizList.map(quiz => {
-            const questionCount = quiz.questions[0]?.count ?? 0
-            const participantCount = quiz.attempts[0]?.count ?? 0
-            return (
-              <div key={quiz.id} className="qk-card">
+        ) : (() => {
+          const quiz = quizList[0]
+          const questionCount = quiz.questions[0]?.count ?? 0
+          const participantCount = quiz.attempts[0]?.count ?? 0
+          return (
+            <>
+              <div className="qk-card">
                 <div className="qk-card-left">
                   <div className="qk-tags">
                     <span className="qk-tag">● Åpen</span>
@@ -567,9 +552,12 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
-            )
-          })
-        )}
+              {quizList.length > 1 && (
+                <Link href="/quizer" className="qk-all-link">Se alle aktive quizer →</Link>
+              )}
+            </>
+          )
+        })()}
 
         {/* Accordion */}
         <div style={{ marginTop: 24, marginBottom: 28 }}>
@@ -587,12 +575,7 @@ export default async function Home() {
         )}
 
         {/* Verdikort */}
-        <div className="qk-section">
-          <span className="qk-section-text">Hva er inkludert</span>
-          <div className="qk-section-line" />
-        </div>
-
-        <div className="qk-value-stack">
+        <div className="qk-value-stack" style={{ marginTop: 10 }}>
           <div className="qk-value-card">
             <p className="qk-value-tier qk-value-tier--free">Innlogget — gratis</p>
             <ul className="qk-value-list">
@@ -601,6 +584,7 @@ export default async function Home() {
               <li className="qk-value-item">✓ Fast spillernavn</li>
               <li className="qk-value-item">✓ Nøyaktig plassering</li>
             </ul>
+            <LoginCTAButton />
           </div>
 
           <div className="qk-value-card qk-value-card--premium">
@@ -618,15 +602,6 @@ export default async function Home() {
           </div>
         </div>
 
-        <footer className="qk-footer">
-          <span suppressHydrationWarning className="qk-footer-brand">Quizkanonen &copy; {new Date().getFullYear()}</span>
-          <nav className="qk-footer-nav">
-            <a href="https://facebook.com" target="_blank" rel="noopener" className="qk-footer-link">Facebook</a>
-            <Link href="/personvern" className="qk-footer-link">Personvern</Link>
-            <Link href="/vilkar" className="qk-footer-link">Vilkår</Link>
-            <a href="mailto:quizkanonen@gmail.com" className="qk-footer-link">Kontakt</a>
-          </nav>
-        </footer>
 
       </div>
     </>
