@@ -13,6 +13,7 @@ const bodySchema = z.object({
   avatar_color: z.string().nullable().optional(),
   show_member_number: z.boolean().optional(),
   age_confirmed_at: z.string().datetime().optional(),
+  email_reminders: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 422 })
   }
 
-  const { id, display_name, avatar_color, show_member_number, age_confirmed_at } = parsed.data
+  const { id, display_name, avatar_color, show_member_number, age_confirmed_at, email_reminders } = parsed.data
 
   const upsertData: Record<string, unknown> = {
     id,
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
   }
   if (age_confirmed_at !== undefined) {
     upsertData.age_confirmed_at = age_confirmed_at
+  }
+  if (email_reminders !== undefined) {
+    upsertData.email_reminders = email_reminders
   }
 
   const { error } = await supabaseAdmin.from('profiles').upsert(

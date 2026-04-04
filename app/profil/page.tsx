@@ -63,6 +63,7 @@ export default function ProfilPage() {
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
   const [memberSince, setMemberSince] = useState<string | null>(null)
   const [showMemberNumber, setShowMemberNumber] = useState(false)
+  const [emailReminders, setEmailReminders] = useState(false)
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -87,7 +88,7 @@ export default function ProfilPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, premium_status, member_number, show_member_number, created_at')
+        .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at')
         .eq('id', uid)
         .maybeSingle()
 
@@ -100,6 +101,7 @@ export default function ProfilPage() {
       setIsPremium(premium)
       setMemberNumber(profile?.member_number ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
+      setEmailReminders(profile?.email_reminders ?? false)
       if (profile?.created_at) {
         const d = new Date(profile.created_at)
         const day = d.getDate()
@@ -155,6 +157,23 @@ export default function ProfilPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleToggleEmailReminders() {
+    if (!userId) return
+    const next = !emailReminders
+    setEmailReminders(next)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch('/api/profile/upsert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ id: userId, display_name: displayName, email_reminders: next }),
+      })
+    } catch { /* silent — optimistic update already applied */ }
   }
 
   async function handleToggleShowMember() {
@@ -261,6 +280,17 @@ export default function ProfilPage() {
                   </span>
                 </label>
               )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={emailReminders}
+                  onChange={handleToggleEmailReminders}
+                  style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: '#9a9590' }}>
+                  Send meg påminnelse når quizen åpner
+                </span>
+              </label>
               {saveError && <p style={s.saveError}>{saveError}</p>}
               {saveSuccess && <p style={s.saveSuccess}>Brukernavn oppdatert!</p>}
             </div>
