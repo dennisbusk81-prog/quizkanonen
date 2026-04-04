@@ -990,23 +990,18 @@ export default function QuizPage() {
       </h1>
       <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>{quiz.title}</p>
 
-      <div className="qk-stat-grid">
-        <div className="qk-stat">
-          <div className="qk-stat-value">{correctCount}/{questions.length}</div>
-          <div className="qk-stat-label">Riktige svar</div>
-        </div>
-        <div className="qk-stat">
-          <div className="qk-stat-value">{percentage}%</div>
-          <div className="qk-stat-label">Score</div>
-        </div>
-        <div className="qk-stat">
-          <div className="qk-stat-value">{formatTime(totalTimeMs)}</div>
-          <div className="qk-stat-label">Spilletid</div>
-        </div>
-        <div className="qk-stat">
-          <div className="qk-stat-value">{streak}</div>
-          <div className="qk-stat-label">Beste streak</div>
-        </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:6,marginBottom:10}}>
+        {[
+          { val: `${correctCount}/${questions.length}`, label: 'Riktige' },
+          { val: `${percentage}%`, label: 'Score' },
+          { val: formatTime(totalTimeMs), label: 'Tid' },
+          { val: String(streak), label: 'Streak' },
+        ].map(({ val, label }) => (
+          <div key={label} style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:10,padding:'8px 4px',textAlign:'center'}}>
+            <div style={{fontSize:14,fontWeight:500,color:'#c9a84c',lineHeight:1.2}}>{val}</div>
+            <div style={{fontSize:8,color:'#7a7873',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:3}}>{label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="qk-divider"/>
@@ -1014,6 +1009,12 @@ export default function QuizPage() {
       {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
         const toppX = 100 - prosent
+        const tierStart = estimatedPlacement.total <= 10
+          ? 1
+          : Math.max(1, Math.floor((estimatedPlacement.low - 1) / 10) * 10 + 1)
+        const rangeY = estimatedPlacement.total <= 10
+          ? estimatedPlacement.total
+          : Math.min(estimatedPlacement.total, tierStart + 9)
         return (
           <div style={{
             background: '#1e1a0e',
@@ -1023,42 +1024,18 @@ export default function QuizPage() {
             textAlign: 'center',
             marginBottom: 14,
           }}>
-            <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c', marginBottom: 4 }}>
+            <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c' }}>
               Topp {toppX}%
             </div>
-            <div style={{ fontSize: 13, color: '#e8e4dd' }}>
+            <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4 }}>
               Du er bedre enn {prosent}% av deltakerne
+            </div>
+            <div style={{ fontSize: 11, color: '#7a7873', marginTop: 6 }}>
+              Estimert mellom plass {tierStart} og {rangeY} · av {estimatedPlacement.total} deltakere
             </div>
           </div>
         )
       })()}
-
-      {estimatedPlacement && (
-        <div style={{marginBottom:16}}>
-          <div style={{
-            background:'rgba(201,168,76,0.08)',
-            border:'1px solid rgba(201,168,76,0.2)',
-            borderRadius:10,
-            padding:'14px 16px',
-            textAlign:'center',
-          }}>
-            <div style={{fontSize:11,color:'#7a7873',marginBottom:6}}>
-              Din plassering
-            </div>
-            <div style={{fontFamily:'Libre Baskerville, serif',fontSize:22,fontWeight:700,color:'var(--gold)',marginBottom:2}}>
-              {estimatedPlacement.total <= 10
-                ? `Mellom plass 1 og ${estimatedPlacement.total}`
-                : (() => {
-                    const tierStart = Math.floor((estimatedPlacement.low - 1) / 10) * 10 + 1
-                    const rangeX = Math.max(1, tierStart)
-                    const rangeY = Math.min(estimatedPlacement.total, tierStart + 9)
-                    return `Mellom plass ${rangeX} og ${rangeY}`
-                  })()}
-            </div>
-            <div style={{fontSize:12,color:'var(--muted)'}}>av {estimatedPlacement.total} deltakere</div>
-          </div>
-        </div>
-      )}
 
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={() => {
