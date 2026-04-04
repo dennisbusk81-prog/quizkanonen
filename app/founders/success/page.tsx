@@ -47,17 +47,24 @@ const s = {
   },
   heading: {
     fontFamily: "'Libre Baskerville', serif",
-    fontSize: 'clamp(24px, 5vw, 30px)',
+    fontSize: 'clamp(22px, 5vw, 28px)',
     fontWeight: 700,
     color: '#ffffff',
     letterSpacing: '-0.02em',
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  activated: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#4ade80',
+    letterSpacing: '0.04em',
+    marginBottom: 24,
   },
   body: {
     fontSize: 15,
     color: '#9a9590',
     lineHeight: 1.65,
-    marginBottom: 36,
+    marginBottom: 0,
   },
   btn: {
     display: 'inline-block',
@@ -80,6 +87,12 @@ const s = {
   },
 }
 
+const features = [
+  { icon: '📊', label: 'Quizhistorikk og score-utvikling' },
+  { icon: '🏆', label: 'Detaljert statistikk og beste streak' },
+  { icon: '🔒', label: 'Private ligaer med venner og kolleger' },
+]
+
 export default function FoundersSuccessPage() {
   return (
     <div style={s.page}>
@@ -91,24 +104,40 @@ export default function FoundersSuccessPage() {
 
         <div style={s.card}>
           <h2 style={s.heading}>Velkommen som Founder! 🎉</h2>
-          <p style={s.body}>
-            Din gratis måned er nå aktivert.
-            Du har tilgang til alle Premium-funksjoner.
-          </p>
+          <p style={s.activated}>30 dager gratis tilgang er aktivert</p>
+
+          {/* Feature list */}
+          <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', marginBottom: 28, textAlign: 'left' as const }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', marginBottom: 12, margin: '0 0 12px' }}>
+              Du har nå tilgang til
+            </p>
+            {features.map(f => (
+              <div key={f.label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 16 }}>{f.icon}</span>
+                <span style={{ fontSize: 14, color: '#e0e0e0' }}>{f.label}</span>
+              </div>
+            ))}
+          </div>
+
           <Link
             href="/"
             style={s.btn}
             onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.88' }}
             onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1' }}
           >
-            Gå til quizen
+            Spill ukens quiz →
           </Link>
+
+          {/* Disclaimer */}
           <div style={{ marginTop: 24, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '14px 18px', textAlign: 'left' as const }}>
+            <p style={{ fontSize: 13, color: '#9a9590', lineHeight: 1.6, margin: '0 0 6px' }}>
+              <strong style={{ color: '#e0e0e0' }}>Ingen automatisk trekk</strong> — du bestemmer selv om du vil fortsette etter prøveperioden.
+            </p>
             <p style={{ fontSize: 13, color: '#9a9590', lineHeight: 1.6, margin: 0 }}>
-              Etter 30 dager får du en e-post med spørsmål om du vil fortsette.
-              Ingen automatisk trekk — du velger selv om du vil beholde Premium.
+              Vi sender deg en påminnelse på e-post før de 30 dagene utløper.
             </p>
           </div>
+
           <div>
             <Link href="/" style={s.btnBack}>← Tilbake til forsiden</Link>
           </div>
