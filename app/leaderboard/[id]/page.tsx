@@ -396,13 +396,18 @@ export default function LeaderboardPage() {
 
           {isHidden ? (
             <div style={s.empty}>
-              <div style={s.emptyIcon}>🔒</div>
-              <p style={s.emptyTitle}>Leaderboardet er skjult</p>
+              <div style={{ ...s.emptyIcon, fontSize: undefined }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <p style={s.emptyTitle}>Topplisten publiseres når quizen stenger</p>
               <p style={s.emptySub}>
                 Vises når quizen stenger:<br />
                 {new Date(quiz.closes_at).toLocaleString('no-NO')}
               </p>
-              <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
+              <Link href="/" style={s.btnLink}>Tilbake til forsiden →</Link>
             </div>
           ) : attempts.length === 0 ? (
             <div style={s.empty}>

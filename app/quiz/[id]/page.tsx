@@ -836,7 +836,7 @@ export default function QuizPage() {
 
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary"
-          style={{ width: 'auto', padding: '10px 28px' }}>
+          style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
           {resumeData ? 'Fortsett quiz' : 'Start quiz'}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
         </button>
@@ -875,13 +875,23 @@ export default function QuizPage() {
         </div>
 
         <div className="qk-score-row">
-          <span className="qk-score-pill">✓ {correctSoFar} riktige</span>
+          <span className="qk-score-pill">{correctSoFar > 0 ? '✓' : '–'} {correctSoFar} riktige</span>
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
         <div className="qk-question-card">
           <p className="qk-question-text">{question?.question_text}</p>
         </div>
+
+        {answered && selectedAnswer === null && (
+          <div style={{
+            background: 'rgba(201,76,76,0.12)', border: '1px solid var(--red)',
+            borderRadius: 8, padding: '10px 14px', marginBottom: 12,
+            fontSize: 13, fontWeight: 600, color: '#f87171', textAlign: 'center',
+          }}>
+            Tiden er ute
+          </div>
+        )}
 
         <div className="qk-options">
           {availableOptions.map(opt => (
@@ -1012,7 +1022,9 @@ export default function QuizPage() {
         )}
 
         {quiz.show_leaderboard && (
-          <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se topplisten</a>
+          </div>
         )}
 
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
