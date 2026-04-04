@@ -87,7 +87,7 @@ const s = {
     justifyContent: 'center',
     fontSize: 11,
     fontWeight: 700,
-    color: '#9a9590',
+    color: '#7a7873',
     flexShrink: 0,
   },
   avatarGold: {
@@ -137,7 +137,7 @@ const s = {
   pendingRow: {
     padding: '14px 16px',
     fontSize: 13,
-    color: '#9a9590',
+    color: '#e8e4dd',
     lineHeight: 1.5,
     borderBottom: '1px solid #2a2d38',
   },

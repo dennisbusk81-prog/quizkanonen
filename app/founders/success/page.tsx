@@ -62,7 +62,7 @@ const s = {
   },
   body: {
     fontSize: 15,
-    color: '#9a9590',
+    color: '#e8e4dd',
     lineHeight: 1.65,
     marginBottom: 0,
   },
@@ -130,10 +130,10 @@ export default function FoundersSuccessPage() {
 
           {/* Disclaimer */}
           <div style={{ marginTop: 24, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '14px 18px', textAlign: 'left' as const }}>
-            <p style={{ fontSize: 13, color: '#9a9590', lineHeight: 1.6, margin: '0 0 6px' }}>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, margin: '0 0 6px' }}>
               <strong style={{ color: '#e0e0e0' }}>Ingen automatisk trekk</strong> — du bestemmer selv om du vil fortsette etter prøveperioden.
             </p>
-            <p style={{ fontSize: 13, color: '#9a9590', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, margin: 0 }}>
               Vi sender deg en påminnelse på e-post før de 30 dagene utløper.
             </p>
           </div>

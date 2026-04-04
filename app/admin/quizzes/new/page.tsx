@@ -18,7 +18,7 @@ const STYLES = `
     --gold-bg:  rgba(201,168,76,0.10);
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
-    --body:     #9a9590;
+    --body:     #e8e4dd;
     --muted:    #6a6860;
     --radius-card: 20px;
     --radius-btn:  10px;

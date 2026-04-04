@@ -9,7 +9,7 @@ import type { PlayerStats } from '@/lib/history'
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
@@ -301,7 +301,7 @@ export default function ProfilPage() {
                     onChange={handleToggleShowMember}
                     style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
                   />
-                  <span style={{ fontSize: 13, color: '#9a9590' }}>
+                  <span style={{ fontSize: 13, color: '#e8e4dd' }}>
                     Vis medlemsnummer på leaderboard og profil
                   </span>
                 </label>
@@ -313,7 +313,7 @@ export default function ProfilPage() {
                   onChange={handleToggleEmailReminders}
                   style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: 13, color: '#9a9590' }}>
+                <span style={{ fontSize: 13, color: '#e8e4dd' }}>
                   Send meg påminnelse når quizen åpner
                 </span>
               </label>
@@ -367,37 +367,27 @@ export default function ProfilPage() {
           )}
 
           {/* Slett konto */}
-          <div style={{ marginTop: 40 }}>
-            <div style={s.sectionHeader}>
-              <span style={s.sectionText}>Konto</span>
-              <div style={s.sectionLine} />
-            </div>
-            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '24px 24px' }}>
-              <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 600, color: '#ffffff' }}>Slett konto</p>
-              <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6a6860', lineHeight: 1.6 }}>
-                Kontoen og all tilknyttet data slettes permanent. Aktivt abonnement avsluttes automatisk.
-              </p>
-              {deleteError && (
-                <p style={{ margin: '0 0 12px', fontSize: 13, color: '#f87171' }}>{deleteError}</p>
-              )}
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleting}
-                style={{
-                  padding: '10px 20px',
-                  background: deleting ? '#3a2020' : '#7f1d1d',
-                  color: deleting ? '#6a6860' : '#fca5a5',
-                  border: '1px solid #991b1b',
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  fontFamily: "'Instrument Sans', sans-serif",
-                  cursor: deleting ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {deleting ? 'Sletter…' : 'Slett konto'}
-              </button>
-            </div>
+          <div style={{ marginTop: 48, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+            {deleteError && (
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{deleteError}</p>
+            )}
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                fontSize: 12,
+                color: '#7a7873',
+                cursor: deleting ? 'not-allowed' : 'pointer',
+                fontFamily: "'Instrument Sans', sans-serif",
+                textDecoration: 'underline',
+                textDecorationColor: '#4a4d5a',
+              }}
+            >
+              {deleting ? 'Sletter…' : 'Slett konto'}
+            </button>
           </div>
 
         </div>

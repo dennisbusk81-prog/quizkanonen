@@ -60,7 +60,7 @@ const s = {
     fontFamily: "'Libre Baskerville', serif",
     fontStyle: 'italic',
     fontSize: 16,
-    color: '#9a9590',
+    color: '#e8e4dd',
     marginBottom: 32,
     lineHeight: 1.5,
   },
@@ -130,7 +130,7 @@ const s = {
     width: '100%',
     padding: '13px 24px',
     background: 'transparent',
-    color: '#9a9590',
+    color: '#7a7873',
     border: '1px solid #2a2d38',
     borderRadius: 10,
     fontSize: 14,
@@ -281,7 +281,7 @@ export default function FoundersPage() {
                 href="/"
                 style={s.btnSecondary}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)'; e.currentTarget.style.color = '#c9a84c' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#9a9590' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#7a7873' }}
               >
                 ← Tilbake til forsiden
               </a>

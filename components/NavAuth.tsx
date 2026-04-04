@@ -9,7 +9,7 @@ import type React from 'react'
 const menuItemStyle: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
-  borderRadius: 8, fontSize: 13, color: '#9a9590',
+  borderRadius: 8, fontSize: 13, color: '#e8e4dd',
   fontFamily: "'Instrument Sans', sans-serif",
   textDecoration: 'none', transition: 'background 0.12s',
   boxSizing: 'border-box',
@@ -136,7 +136,7 @@ export default function NavAuth() {
           {initial}
         </div>
         <span style={{
-          fontSize: 13, fontWeight: 500, color: '#9a9590',
+          fontSize: 13, fontWeight: 500, color: '#e8e4dd',
           maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {displayName}

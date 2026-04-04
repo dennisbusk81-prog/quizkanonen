@@ -65,7 +65,7 @@ function rankColor(rank: number | null): string {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
@@ -81,13 +81,13 @@ const s = {
   inviteCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 18px', marginBottom: 12 },
   inviteLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', marginBottom: 8 },
   inviteRow:   { display: 'flex', gap: 8 },
-  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#9a9590', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', flexShrink: 0 },
   copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "'Instrument Sans', sans-serif", cursor: 'default', flexShrink: 0 },
 
   // Owner actions
   ownerActions: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 },
-  resetBtn:     { padding: '8px 16px', background: 'none', border: '1px solid #2a2d38', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#9a9590', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  resetBtn:     { padding: '8px 16px', background: 'none', border: '1px solid #2a2d38', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   resetConfirmRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, marginBottom: 12 },
   resetConfirmText: { fontSize: 13, color: '#f87171', flex: 1 },
   resetConfirmBtn:  { padding: '6px 14px', background: '#f87171', color: '#0f0f10', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
@@ -319,7 +319,7 @@ export default function LigaPage() {
                     onClick={() => setResetConfirm(true)}
                     style={s.resetBtn}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(248,113,113,0.4)'; e.currentTarget.style.color = '#f87171' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#9a9590' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#7a7873' }}
                   >
                     Nullstill all-time
                   </button>

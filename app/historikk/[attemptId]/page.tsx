@@ -31,7 +31,7 @@ function scorePct(correct: number, total: number): number {
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590', flexGrow: 1 },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd', flexGrow: 1 },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -68,14 +68,14 @@ const s = {
 
   // Correct card elements
   checkIcon:  { fontSize: 14, color: '#4caf7d', marginTop: 1, flexShrink: 0 },
-  qTextShort: { fontSize: 13, color: '#9a9590', lineHeight: 1.4, marginBottom: 2, flex: 1 },
+  qTextShort: { fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, marginBottom: 2, flex: 1 },
   ansTextOk:  { fontSize: 13, color: '#4caf7d', fontWeight: 500 },
   ansTime:    { fontSize: 10, color: '#6a6860', marginTop: 6, textAlign: 'right' as const },
 
   // Wrong card elements
   wrongTop:     { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   xIcon:        { fontSize: 14, color: '#c94c4c', marginTop: 1, flexShrink: 0 },
-  qTextWrong:   { fontSize: 13, color: '#9a9590', lineHeight: 1.4, flex: 1 },
+  qTextWrong:   { fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, flex: 1 },
   wrongAnswers: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
   ansWrong:     { fontSize: 12, color: '#c94c4c', background: 'rgba(201,76,76,0.08)', border: '1px solid rgba(201,76,76,0.2)', borderRadius: 8, padding: '6px 10px' },
   ansGold:      { fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, padding: '6px 10px' },

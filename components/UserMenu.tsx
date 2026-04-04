@@ -178,7 +178,7 @@ export default function UserMenu() {
                 {initial}
               </div>
               <span style={{
-                fontSize: 13, fontWeight: 500, color: '#9a9590',
+                fontSize: 13, fontWeight: 500, color: '#e8e4dd',
                 maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 {displayName}
@@ -235,7 +235,7 @@ export default function UserMenu() {
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none',
-                    borderRadius: 8, fontSize: 13, color: '#9a9590',
+                    borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                     fontFamily: "'Instrument Sans', sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
                     boxSizing: 'border-box',
@@ -251,7 +251,7 @@ export default function UserMenu() {
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none',
-                    borderRadius: 8, fontSize: 13, color: '#9a9590',
+                    borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                     fontFamily: "'Instrument Sans', sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
                     boxSizing: 'border-box',
@@ -269,7 +269,7 @@ export default function UserMenu() {
                       style={{
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '8px 10px', background: 'none',
-                        borderRadius: 8, fontSize: 13, color: '#9a9590',
+                        borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                         fontFamily: "'Instrument Sans', sans-serif",
                         textDecoration: 'none', transition: 'background 0.12s',
                         boxSizing: 'border-box',
@@ -342,13 +342,13 @@ export default function UserMenu() {
               borderRadius: 999,
               padding: '7px 16px',
               fontSize: 13, fontWeight: 600,
-              color: '#9a9590',
+              color: '#7a7873',
               fontFamily: "'Instrument Sans', sans-serif",
               cursor: 'pointer',
               transition: 'border-color 0.15s, color 0.15s',
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)'; e.currentTarget.style.color = '#c9a84c' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#9a9590' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#7a7873' }}
           >
             Logg inn
           </button>

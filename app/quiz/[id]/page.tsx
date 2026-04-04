@@ -28,7 +28,7 @@ const styles = `
     --border:  #2a2d38;
     --gold:    #c9a84c;
     --white:   #ffffff;
-    --body:    #9a9590;
+    --body:     #e8e4dd;
     --muted:   #6a6860;
     --green:   #4caf7d;
     --red:     #c94c4c;

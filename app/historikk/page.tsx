@@ -69,7 +69,7 @@ function toProgMsg(p: Progresjon): ProgMsg {
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#9a9590', flexGrow: 1 },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd', flexGrow: 1 },
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -98,7 +98,7 @@ const s = {
   featuredRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 },
   featuredCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
   featuredNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
-  featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#9a9590', marginBottom: 2 },
+  featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#7a7873', marginBottom: 2 },
   featuredCtx:  { fontSize: 10, color: '#6a6860', lineHeight: 1.4 },
 
   smallGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 },
@@ -119,10 +119,10 @@ const s = {
   rowMeta:  { fontSize: 11, color: '#6a6860' },
   rowRight: { textAlign: 'right' as const, flexShrink: 0 },
   rowRank:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 2 },
-  rowScore: { fontSize: 11, color: '#9a9590', marginBottom: 1 },
+  rowScore: { fontSize: 11, color: '#7a7873', marginBottom: 1 },
   rowSub:   { fontSize: 10, color: '#6a6860' },
 
-  btnMore: { width: '100%', padding: '10px 0', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#9a9590', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4 },
+  btnMore: { width: '100%', padding: '10px 0', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#7a7873', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4 },
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 24 },
   emptyIcon:  { fontSize: 36, marginBottom: 12, opacity: 0.5 },
@@ -188,7 +188,7 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
     return (
       <g style={{ pointerEvents: 'none' }}>
         <rect x={tx} y={ty} width={TW} height={TH} rx={6} fill="#21242e" stroke="#c9a84c" strokeWidth={1} />
-        <text x={tx + TW / 2} y={ty + 13} textAnchor="middle" fontSize={10} fill="#9a9590"
+        <text x={tx + TW / 2} y={ty + 13} textAnchor="middle" fontSize={10} fill="#7a7873"
           style={{ fontFamily: "'Instrument Sans', sans-serif" }}>{label}</text>
         <text x={tx + TW / 2} y={ty + 30} textAnchor="middle" fontSize={13} fill="#c9a84c"
           style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}>

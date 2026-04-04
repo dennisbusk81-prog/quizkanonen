@@ -52,7 +52,7 @@ const s = {
     fontWeight: 700, color: '#ffffff',
     letterSpacing: '-0.01em', marginBottom: 10,
   },
-  sub: { fontSize: 14, color: '#9a9590', lineHeight: 1.6, marginBottom: 28 },
+  sub: { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 28 },
   btn: {
     width: '100%', padding: '14px 24px',
     background: '#c9a84c', color: '#0f0f10',
