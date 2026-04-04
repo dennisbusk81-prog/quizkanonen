@@ -36,7 +36,7 @@ export default async function Home() {
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
-  const lastParticipants: number = (lastQuiz as { attempts: { count: number }[] } | null)?.attempts?.[0]?.count ?? 312
+  const lastParticipants: number | null = (lastQuiz as { attempts: { count: number }[] } | null)?.attempts?.[0]?.count ?? null
 
   return (
     <>
@@ -55,7 +55,7 @@ export default async function Home() {
           --hint:     #7a7873;
           --muted:    #6a6860;
           --green:    #7ab87a;
-          --radius-card: 20px;
+          --radius-card: 16px;
           --radius-btn:  10px;
         }
 
@@ -130,7 +130,7 @@ export default async function Home() {
 
         /* ── Hero ── */
         .qk-hero {
-          padding: 48px 0 28px;
+          padding: 56px 0 40px;
           text-align: center;
         }
 
@@ -164,12 +164,13 @@ export default async function Home() {
         .qk-btn-primary {
           display: inline-flex;
           align-items: center;
+          width: auto;
           background: var(--gold);
           color: #1a1c23;
           font-family: 'Instrument Sans', sans-serif;
           font-size: 15px;
           font-weight: 700;
-          padding: 11px 28px;
+          padding: 10px 28px;
           border-radius: var(--radius-btn);
           text-decoration: none;
           white-space: nowrap;
@@ -203,7 +204,7 @@ export default async function Home() {
           font-size: 14px;
           color: var(--hint);
           font-style: italic;
-          padding: 12px 0 20px;
+          padding: 16px 0 28px;
         }
 
         /* ── Section divider ── */
@@ -385,13 +386,20 @@ export default async function Home() {
         .qk-founders-btn:hover { background: rgba(201,168,76,0.08); }
 
         /* ── Verdikort ── */
-        .qk-value-stack { display: flex; flex-direction: column; gap: 10px; }
+        .qk-value-stack {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          align-items: stretch;
+        }
 
         .qk-value-card {
           background: var(--card);
           border: 1px solid var(--border);
           border-radius: var(--radius-card);
           padding: 24px;
+          display: flex;
+          flex-direction: column;
         }
 
         .qk-value-card--premium { border-color: rgba(201,168,76,0.3); }
@@ -419,6 +427,7 @@ export default async function Home() {
           list-style: none;
           padding: 0;
           margin: 0 0 18px;
+          flex: 1;
           display: flex;
           flex-direction: column;
           gap: 6px;
@@ -446,21 +455,22 @@ export default async function Home() {
         .qk-all-link {
           display: inline-block;
           font-size: 13px;
-          color: var(--hint);
+          color: var(--gold);
           text-decoration: none;
-          margin-top: 4px;
-          margin-bottom: 4px;
-          transition: color 0.15s;
+          margin-top: 12px;
+          margin-bottom: 8px;
+          transition: opacity 0.15s;
         }
 
-        .qk-all-link:hover { color: var(--gold); }
+        .qk-all-link:hover { opacity: 0.75; }
 
         /* ── Responsive ── */
         @media (max-width: 520px) {
           .qk-card { flex-direction: column; gap: 16px; }
           .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
-          .qk-hero { padding: 32px 0 20px; }
+          .qk-hero { padding: 36px 0 28px; }
           .qk-nav-play { display: none; }
+          .qk-value-stack { grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -505,7 +515,9 @@ export default async function Home() {
         </section>
 
         {/* Sosialt bevis */}
-        <p className="qk-social">{lastParticipants} spillere konkurrerte sist fredag.</p>
+        {lastParticipants !== null && lastParticipants > 0 && (
+          <p className="qk-social">{lastParticipants} spillere konkurrerte sist fredag.</p>
+        )}
 
         {/* Aktiv quiz */}
         {quizList.length === 0 ? (
@@ -560,13 +572,13 @@ export default async function Home() {
         })()}
 
         {/* Accordion */}
-        <div style={{ marginTop: 24, marginBottom: 28 }}>
+        <div style={{ marginTop: 36, marginBottom: 36 }}>
           <AccordionSection />
         </div>
 
         {/* Founders */}
         {FOUNDERS_ACTIVE && (
-          <div className="qk-founders">
+          <div className="qk-founders" style={{ marginBottom: 20 }}>
             <p className="qk-founders-eyebrow">Founders Access</p>
             <h2 className="qk-founders-title">Prøv Premium gratis i én måned</h2>
             <p className="qk-founders-sub">Ingen kortinfo. Ingen automatisk trekk. Vi minner deg på e-post før perioden utløper.</p>
@@ -575,7 +587,7 @@ export default async function Home() {
         )}
 
         {/* Verdikort */}
-        <div className="qk-value-stack" style={{ marginTop: 10 }}>
+        <div className="qk-value-stack" style={{ marginTop: 20 }}>
           <div className="qk-value-card">
             <p className="qk-value-tier qk-value-tier--free">Innlogget — gratis</p>
             <ul className="qk-value-list">
@@ -584,7 +596,9 @@ export default async function Home() {
               <li className="qk-value-item">✓ Fast spillernavn</li>
               <li className="qk-value-item">✓ Nøyaktig plassering</li>
             </ul>
-            <LoginCTAButton />
+            <div style={{ marginTop: 'auto' }}>
+              <LoginCTAButton />
+            </div>
           </div>
 
           <div className="qk-value-card qk-value-card--premium">

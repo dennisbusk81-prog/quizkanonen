@@ -20,24 +20,45 @@ const items = [
   },
 ]
 
+const Chevron = ({ open }: { open: boolean }) => (
+  <svg
+    width="14"
+    height="9"
+    viewBox="0 0 14 9"
+    fill="none"
+    style={{
+      flexShrink: 0,
+      transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+      transition: 'transform 0.22s ease',
+    }}
+  >
+    <path d="M1 1L7 7.5L13 1" stroke="#7a7873" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 export default function AccordionSection() {
   const [open, setOpen] = useState<number | null>(null)
 
   return (
-    <div>
+    <>
+      <style>{`
+        .qk-acc-item {
+          background: #21242e;
+          border: 1px solid #2a2d38;
+          border-radius: 16px;
+          margin-bottom: 8px;
+          overflow: hidden;
+          transition: background 0.15s, border-color 0.15s;
+        }
+        .qk-acc-item:hover {
+          background: #242731;
+          border-color: #333646;
+        }
+      `}</style>
       {items.map((item, i) => {
         const isOpen = open === i
         return (
-          <div
-            key={i}
-            style={{
-              background: '#21242e',
-              border: '1px solid #2a2d38',
-              borderRadius: 14,
-              marginBottom: 8,
-              overflow: 'hidden',
-            }}
-          >
+          <div key={i} className="qk-acc-item">
             <button
               onClick={() => setOpen(isOpen ? null : i)}
               style={{
@@ -55,26 +76,14 @@ export default function AccordionSection() {
               }}
             >
               <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', marginBottom: isOpen ? 0 : 3 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', marginBottom: isOpen ? 0 : 4 }}>
                   {item.title}
                 </div>
                 {!isOpen && (
-                  <div style={{ fontSize: 13, color: '#7a7873' }}>{item.teaser}</div>
+                  <div style={{ fontSize: 13, fontWeight: 400, color: '#7a7873' }}>{item.teaser}</div>
                 )}
               </div>
-              <span
-                style={{
-                  fontSize: 20,
-                  color: '#7a7873',
-                  flexShrink: 0,
-                  lineHeight: 1,
-                  transform: isOpen ? 'rotate(45deg)' : 'none',
-                  transition: 'transform 0.2s',
-                  display: 'inline-block',
-                }}
-              >
-                +
-              </span>
+              <Chevron open={isOpen} />
             </button>
             {isOpen && (
               <div style={{ padding: '0 20px 18px', fontSize: 14, color: '#e8e4dd', lineHeight: 1.65 }}>
@@ -84,6 +93,6 @@ export default function AccordionSection() {
           </div>
         )
       })}
-    </div>
+    </>
   )
 }
