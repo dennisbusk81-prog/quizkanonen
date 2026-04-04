@@ -50,8 +50,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!profiles || profiles.length === 0) {
+    console.log('[cron/send-reminders] no subscribers with email_reminders=true')
     return NextResponse.json({ sent: 0, reason: 'no subscribers' })
   }
+
+  console.log('[cron/send-reminders] subscribers:', profiles.length)
 
   const html = quizReminderEmail(nextQuiz.opens_at)
   let sent = 0
@@ -60,8 +63,13 @@ export async function GET(request: NextRequest) {
   for (const profile of profiles) {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
 
-    if (userError || !user?.email) {
-      console.warn('[cron/send-reminders] no email for user:', profile.id)
+    if (userError) {
+      console.error('[cron/send-reminders] getUserById failed for:', profile.id, userError.message)
+      failed++
+      continue
+    }
+    if (!user?.email) {
+      console.warn('[cron/send-reminders] no email address for user:', profile.id)
       failed++
       continue
     }
