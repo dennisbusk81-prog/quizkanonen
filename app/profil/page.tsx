@@ -68,6 +68,8 @@ export default function ProfilPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -174,6 +176,30 @@ export default function ProfilPage() {
         body: JSON.stringify({ id: userId, display_name: displayName, email_reminders: next }),
       })
     } catch { /* silent — optimistic update already applied */ }
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirm('Er du sikker? Dette kan ikke angres.')) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/profile/delete', {
+        method: 'DELETE',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setDeleteError(d.error ?? 'Noe gikk galt. Prøv igjen.')
+        setDeleting(false)
+        return
+      }
+      await supabase.auth.signOut()
+      router.replace('/')
+    } catch {
+      setDeleteError('Noe gikk galt. Prøv igjen.')
+      setDeleting(false)
+    }
   }
 
   async function handleToggleShowMember() {
@@ -339,6 +365,41 @@ export default function ProfilPage() {
               <Link href="/premium" style={s.btnGold}>Oppgrader til Premium</Link>
             </div>
           )}
+
+          {/* Slett konto */}
+          <div style={{ marginTop: 40 }}>
+            <div style={s.sectionHeader}>
+              <span style={s.sectionText}>Konto</span>
+              <div style={s.sectionLine} />
+            </div>
+            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '24px 24px' }}>
+              <p style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 600, color: '#ffffff' }}>Slett konto</p>
+              <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6a6860', lineHeight: 1.6 }}>
+                Kontoen og all tilknyttet data slettes permanent. Aktivt abonnement avsluttes automatisk.
+              </p>
+              {deleteError && (
+                <p style={{ margin: '0 0 12px', fontSize: 13, color: '#f87171' }}>{deleteError}</p>
+              )}
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                style={{
+                  padding: '10px 20px',
+                  background: deleting ? '#3a2020' : '#7f1d1d',
+                  color: deleting ? '#6a6860' : '#fca5a5',
+                  border: '1px solid #991b1b',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {deleting ? 'Sletter…' : 'Slett konto'}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </>
