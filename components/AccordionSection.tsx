@@ -29,7 +29,7 @@ const Chevron = ({ open }: { open: boolean }) => (
     style={{
       flexShrink: 0,
       transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-      transition: 'transform 0.22s ease',
+      transition: 'transform 0.25s ease-in-out',
     }}
   >
     <path d="M1 1L7 7.5L13 1" stroke="#7a7873" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -54,6 +54,10 @@ export default function AccordionSection() {
           background: #242731;
           border-color: #333646;
         }
+        .qk-acc-body {
+          overflow: hidden;
+          transition: max-height 250ms ease-in-out;
+        }
       `}</style>
       {items.map((item, i) => {
         const isOpen = open === i
@@ -76,20 +80,31 @@ export default function AccordionSection() {
               }}
             >
               <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', marginBottom: isOpen ? 0 : 4 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', marginBottom: 4 }}>
                   {item.title}
                 </div>
-                {!isOpen && (
-                  <div style={{ fontSize: 13, fontWeight: 400, color: '#7a7873' }}>{item.teaser}</div>
-                )}
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: '#7a7873',
+                  maxHeight: isOpen ? '0' : '22px',
+                  overflow: 'hidden',
+                  transition: 'max-height 200ms ease-in-out, opacity 200ms ease-in-out',
+                  opacity: isOpen ? 0 : 1,
+                }}>
+                  {item.teaser}
+                </div>
               </div>
               <Chevron open={isOpen} />
             </button>
-            {isOpen && (
+            <div
+              className="qk-acc-body"
+              style={{ maxHeight: isOpen ? '300px' : '0' }}
+            >
               <div style={{ padding: '0 20px 18px', fontSize: 14, color: '#e8e4dd', lineHeight: 1.65 }}>
                 {item.content}
               </div>
-            )}
+            </div>
           </div>
         )
       })}

@@ -134,12 +134,6 @@ export default async function Home() {
           text-align: center;
         }
 
-        @media (min-width: 641px) {
-          .qk-hero { text-align: left; }
-          .qk-hero-actions { justify-content: flex-start; }
-          .qk-hero-status { justify-content: flex-start; }
-        }
-
         .qk-hero-title {
           font-family: 'Libre Baskerville', serif;
           font-size: clamp(28px, 6vw, 44px);
@@ -147,7 +141,7 @@ export default async function Home() {
           color: var(--white);
           line-height: 1.15;
           letter-spacing: -0.02em;
-          margin-bottom: 24px;
+          margin: 0 auto 24px;
           max-width: 540px;
         }
 
@@ -347,7 +341,7 @@ export default async function Home() {
         .qk-founders-eyebrow {
           font-size: 11px;
           font-weight: 600;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
           color: var(--gold);
           margin-bottom: 10px;
@@ -395,19 +389,19 @@ export default async function Home() {
 
         .qk-value-card {
           background: var(--card);
-          border: 1px solid var(--border);
+          border: 0.5px solid #2a2d38;
           border-radius: var(--radius-card);
           padding: 24px;
           display: flex;
           flex-direction: column;
         }
 
-        .qk-value-card--premium { border-color: rgba(201,168,76,0.3); }
+        .qk-value-card--premium { border: 1px solid rgba(201,168,76,0.3); }
 
         .qk-value-tier {
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
           margin-bottom: 6px;
         }
