@@ -1044,11 +1044,19 @@ export default function QuizPage() {
       })()}
 
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        <button onClick={() => {
-          navigator.clipboard.writeText(shareResultText).then(() => {
-            setShareResultCopied(true)
-            setTimeout(() => setShareResultCopied(false), 2000)
-          }).catch(() => {})
+        <button onClick={async () => {
+          const shareText = toppPercent !== null
+            ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg?`
+            : `Jeg spilte Quizkanonen denne uken! Kan du slå meg?`
+          const shareData = { title: 'Quizkanonen', text: shareText, url: 'https://quizkanonen.no' }
+          if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData)
+          } else {
+            navigator.clipboard.writeText(shareText + ' quizkanonen.no').then(() => {
+              setShareResultCopied(true)
+              setTimeout(() => setShareResultCopied(false), 2000)
+            }).catch(() => {})
+          }
         }} style={{
           width:'100%',background:'transparent',border:'0.5px solid #3a3d4a',
           borderRadius:10,padding:'8px 20px',fontSize:14,color:'#e8e4dd',
