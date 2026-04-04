@@ -9,7 +9,7 @@ const s = {
   icon: { fontSize: '3rem', marginBottom: '16px' },
   title: { fontFamily: 'Libre Baskerville, serif', fontSize: '2rem', color: '#c9a84c', marginBottom: '8px' },
   subtitle: { color: '#d0d3e0', marginBottom: '32px', fontSize: '1rem' },
-  btn: { padding: '14px 32px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' },
+  btn: { padding: '11px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' },
   note: { color: '#8a8fa8', fontSize: '0.85rem', marginTop: '16px' },
 }
 

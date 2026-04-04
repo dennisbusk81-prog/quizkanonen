@@ -54,7 +54,7 @@ const s = {
   },
   sub: { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 28 },
   btn: {
-    width: '100%', padding: '14px 24px',
+    width: '100%', padding: '11px 24px',
     background: '#c9a84c', color: '#0f0f10',
     border: 'none', borderRadius: 10,
     fontSize: 15, fontWeight: 700,

@@ -208,7 +208,7 @@ const styles = `
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
-    padding: 14px;
+    padding: 11px;
     border-radius: var(--rbtn);
     border: none;
     cursor: pointer;
@@ -231,7 +231,7 @@ const styles = `
     font-family: 'Instrument Sans', sans-serif;
     font-size: 14px;
     font-weight: 500;
-    padding: 12px;
+    padding: 10px;
     border-radius: var(--rbtn);
     border: 1px solid var(--border);
     cursor: pointer;
@@ -380,7 +380,7 @@ const styles = `
     background: var(--card);
     border: 1.5px solid var(--border);
     border-radius: var(--rcard);
-    padding: 14px 18px;
+    padding: 11px 18px;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s, transform 0.1s;
     text-align: left;

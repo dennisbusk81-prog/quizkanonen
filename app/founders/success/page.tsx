@@ -73,7 +73,7 @@ const s = {
     fontFamily: "'Instrument Sans', sans-serif",
     fontSize: 15,
     fontWeight: 700,
-    padding: '14px 32px',
+    padding: '11px 28px',
     borderRadius: 10,
     textDecoration: 'none',
     transition: 'opacity 0.15s',

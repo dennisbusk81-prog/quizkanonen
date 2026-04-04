@@ -158,7 +158,7 @@ const STYLES = `
     font-family: 'Instrument Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
-    padding: 12px;
+    padding: 11px;
     border-radius: var(--radius-btn);
     border: none;
     cursor: pointer;

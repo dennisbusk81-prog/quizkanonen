@@ -72,7 +72,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
             padding: 4,
             transition: 'color 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#9a9590')}
+          onMouseEnter={e => (e.currentTarget.style.color = '#7a7873')}
           onMouseLeave={e => (e.currentTarget.style.color = '#6a6860')}
         >
           ×

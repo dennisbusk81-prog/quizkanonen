@@ -89,7 +89,7 @@ const s = {
   },
   btn: {
     width: '100%',
-    padding: '15px 24px',
+    padding: '11px 24px',
     background: '#c9a84c',
     color: '#0f0f10',
     border: 'none',
@@ -103,7 +103,7 @@ const s = {
   },
   btnDisabled: {
     width: '100%',
-    padding: '15px 24px',
+    padding: '11px 24px',
     background: '#3a3d4a',
     color: '#6a6860',
     border: 'none',
@@ -118,7 +118,7 @@ const s = {
     background: 'rgba(201,168,76,0.08)',
     border: '1px solid rgba(201,168,76,0.3)',
     borderRadius: 10,
-    padding: '14px 18px',
+    padding: '11px 18px',
     color: '#c9a84c',
     fontSize: 14,
     fontWeight: 600,
@@ -128,7 +128,7 @@ const s = {
   btnSecondary: {
     display: 'block',
     width: '100%',
-    padding: '13px 24px',
+    padding: '10px 24px',
     background: 'transparent',
     color: '#7a7873',
     border: '1px solid #2a2d38',
