@@ -9,11 +9,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Find the next upcoming quiz
+  // Find a quiz opening in the 55–65 minute window from now
+  const now = Date.now()
+  const windowStart = new Date(now + 55 * 60 * 1000).toISOString()
+  const windowEnd   = new Date(now + 65 * 60 * 1000).toISOString()
+
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at')
-    .gt('opens_at', new Date().toISOString())
+    .gte('opens_at', windowStart)
+    .lte('opens_at', windowEnd)
     .order('opens_at', { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -24,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!nextQuiz) {
-    return NextResponse.json({ sent: 0, reason: 'no upcoming quiz' })
+    return NextResponse.json({ skipped: true, reason: 'No quiz opening soon' })
   }
 
   // Fetch profiles that have opted in to reminders
