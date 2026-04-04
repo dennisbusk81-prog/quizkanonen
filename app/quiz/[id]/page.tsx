@@ -29,7 +29,7 @@ const styles = `
     --gold:    #c9a84c;
     --white:   #ffffff;
     --body:     #e8e4dd;
-    --muted:   #6a6860;
+    --muted:   #7a7873;
     --green:   #4caf7d;
     --red:     #c94c4c;
     --rcard:   20px;
@@ -85,7 +85,7 @@ const styles = `
 
   .qk-sub {
     font-size: 14px;
-    color: var(--muted);
+    color: var(--body);
     line-height: 1.5;
     margin-bottom: 28px;
   }
@@ -198,7 +198,7 @@ const styles = `
   }
 
   .qk-check-box.checked { background: var(--gold); border-color: var(--gold); }
-  .qk-check-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .qk-check-text { font-size: 13px; color: var(--body); line-height: 1.5; }
   .qk-check-text a { color: var(--gold); text-decoration: underline; }
 
   .qk-btn-primary {
@@ -759,7 +759,7 @@ export default function QuizPage() {
   if (!quiz) return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <p style={{color:'var(--muted)',fontSize:14}}>Fant ikke quizen.</p>
+      <p style={{color:'#7a7873',fontSize:14}}>Fant ikke quizen.</p>
       <a href="/" style={{color:'var(--gold)',fontSize:13,marginTop:16,display:'block'}}>← Tilbake</a>
     </div></div></div></>
   )
@@ -805,7 +805,7 @@ export default function QuizPage() {
   if (phase === 'register') return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box">
-      <a href="/" style={{ display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' }}>← Tilbake til forsiden</a>
+      <a href="/" style={{ display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' }}>← Tilbake til forsiden</a>
       <div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz.title}</h1>
@@ -994,7 +994,7 @@ export default function QuizPage() {
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
-      <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>{quiz.title}</p>
+      <p style={{fontSize:13,color:'#7a7873',marginBottom:24}}>{quiz.title}</p>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:6,marginBottom:10}}>
         {[
@@ -1113,7 +1113,7 @@ export default function QuizPage() {
             padding:16,
             textAlign:'left',
           }}>
-            <p style={{fontSize:13,color:'#7a7873',lineHeight:1.5,marginBottom:12}}>
+            <p style={{fontSize:13,color:'#e8e4dd',lineHeight:1.5,marginBottom:12}}>
               Logg inn for å se nøyaktig plassering og lagre historikken din.
             </p>
             <a href="/login" style={{
@@ -1143,7 +1143,7 @@ export default function QuizPage() {
             padding:16,
             textAlign:'left',
           }}>
-            <p style={{fontSize:13,color:'#7a7873',lineHeight:1.5,marginBottom:12}}>
+            <p style={{fontSize:13,color:'#e8e4dd',lineHeight:1.5,marginBottom:12}}>
               Oppgrader til Premium for å se historikken din og følge fremgangen uke etter uke.
             </p>
             <a href="/founders" style={{
@@ -1171,21 +1171,21 @@ export default function QuizPage() {
               <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
-              <p style={{ fontSize: 12, color: '#6a6860' }}>{ligaBox.name}</p>
+              <p style={{ fontSize: 12, color: '#7a7873' }}>{ligaBox.name}</p>
             </a>
           ) : ligaBox.type === 'multi' ? (
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
-              <p style={{ fontSize: 12, color: '#6a6860' }}>Se dine ligaer</p>
+              <p style={{ fontSize: 12, color: '#7a7873' }}>Se dine ligaer</p>
             </a>
           ) : (
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
                 Konkurrer mot venner
               </p>
-              <p style={{ fontSize: 12, color: '#6a6860' }}>Opprett en privat liga og inviter vennegjengen</p>
+              <p style={{ fontSize: 12, color: '#7a7873' }}>Opprett en privat liga og inviter vennegjengen</p>
             </a>
           )}
         </div>
