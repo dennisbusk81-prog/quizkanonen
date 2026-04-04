@@ -819,7 +819,7 @@ export default function QuizPage() {
 
       <label className="qk-label">Navn / Lagnavn</label>
       <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
-        placeholder="Skriv inn navn..." className="qk-input"
+        placeholder="Skriv inn navn..." className="qk-input" maxLength={30}
         onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
 
       {quiz.allow_teams && (
@@ -1132,14 +1132,27 @@ export default function QuizPage() {
           </div>
         )}
 
-        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
-
-        {nextQuizAt && (() => {
-          const d = new Date(nextQuizAt)
-          const dateStr = d.toLocaleString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+        {(() => {
+          let displayStr: string | null = null
+          if (nextQuizAt) {
+            const d = new Date(nextQuizAt)
+            if (d > new Date()) {
+              displayStr = d.toLocaleString('nb-NO', { timeZone: 'Europe/Oslo', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+            }
+          }
+          if (!displayStr) {
+            const nowOslo = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
+            const day = nowOslo.getDay()
+            let daysUntil = (5 - day + 7) % 7
+            if (daysUntil === 0 && nowOslo.getHours() >= 12) daysUntil = 7
+            const nextFri = new Date()
+            nextFri.setDate(new Date().getDate() + daysUntil)
+            const dateStr = nextFri.toLocaleDateString('nb-NO', { timeZone: 'Europe/Oslo', day: 'numeric', month: 'long' })
+            displayStr = `fredag ${dateStr} kl. 12:00`
+          }
           return (
-            <p style={{fontSize:13,color:'#7a7873',textAlign:'center',marginTop:4}}>
-              Neste quiz: {dateStr}
+            <p style={{fontSize:13,color:'#7a7873',textAlign:'center'}}>
+              Neste quiz: {displayStr}
             </p>
           )
         })()}
@@ -1147,11 +1160,13 @@ export default function QuizPage() {
         {!isLoggedIn && (
           <a href="/login" style={{
             display:'block',textAlign:'center',fontSize:13,color:'#c9a84c',
-            textDecoration:'none',marginTop:4,
+            textDecoration:'none',
           }}>
             Få påminnelse på e-post →
           </a>
         )}
+
+        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
 
       {ligaBox && (
