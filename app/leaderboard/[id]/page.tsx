@@ -72,6 +72,24 @@ const s = {
   btnLink:   { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
 }
 
+type BadgeKind = 'krone' | 'pil' | 'flamme' | 'lyn' | 'medalje'
+
+function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
+  const bg = badge === 'krone' ? '#c9a84c' : badge === 'pil' ? '#3B6D11' : badge === 'flamme' ? '#E24B4A' : badge === 'lyn' ? '#7ABFFF' : '#639922'
+  const iconSize = Math.round(size * 0.65)
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none">
+        {badge === 'krone'   && <path d="M2 8L4 3L8 6L12 3L14 8H2Z" fill="#1a1c23"/>}
+        {badge === 'pil'     && <path d="M8 3L13 10H3L8 3Z" fill="white"/>}
+        {badge === 'flamme'  && <path d="M8 2C8 2 12 5 12 8.5C12 11 10 13 8 14C6 13 4 11 4 8.5C4 5 8 2 8 2Z" fill="white"/>}
+        {badge === 'lyn'     && <path d="M10 2L5 9H9L6 14L13 6H9L10 2Z" fill="white"/>}
+        {badge === 'medalje' && <circle cx="8" cy="8" r="4" fill="white"/>}
+      </svg>
+    </div>
+  )
+}
+
 export default function LeaderboardPage() {
   const params = useParams()
   const quizId = params.id as string
@@ -91,7 +109,9 @@ export default function LeaderboardPage() {
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'alle' | 'venner' | 'lag'>('alle')
   const [visibleVennerCount, setVisibleVennerCount] = useState(10)
-  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number, show_member_number: boolean }>>(new Map())
+  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null }>>(new Map())
+  const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
+  const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -110,17 +130,44 @@ export default function LeaderboardPage() {
         if (userIds.length > 0) {
           const { data: memberProfiles } = await supabaseData
             .from('profiles')
-            .select('id, member_number, show_member_number')
+            .select('id, member_number, show_member_number, avatar_url')
             .in('id', userIds)
           if (memberProfiles) {
-            const map = new Map<string, { member_number: number, show_member_number: boolean }>()
-            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null }[]) {
-              if (p.member_number !== null) {
-                map.set(p.id, { member_number: p.member_number, show_member_number: p.show_member_number ?? false })
-              }
+            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null }>()
+            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null }[]) {
+              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null })
             }
             setMemberInfoMap(map)
           }
+        }
+
+        // Fetch previous quiz for "pil opp" badge
+        if (quizData) {
+          try {
+            const { data: prevQuiz } = await supabaseData
+              .from('quizzes')
+              .select('id')
+              .lt('closes_at', quizData.closes_at)
+              .order('closes_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            if (prevQuiz) {
+              const { data: prevAttemptData } = await supabaseData
+                .from('attempts')
+                .select('id, quiz_id, player_name, is_team, team_size, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at')
+                .eq('quiz_id', prevQuiz.id)
+                .eq('is_team', false)
+                .limit(200)
+              if (prevAttemptData && prevAttemptData.length > 0) {
+                const prevRanked = rankAttempts(prevAttemptData as Attempt[])
+                const map = new Map<string, number>()
+                for (const a of prevRanked) {
+                  if (!map.has(a.player_name)) map.set(a.player_name, a.rank)
+                }
+                setPrevRankMap(map)
+              }
+            }
+          } catch { /* Previous quiz data is optional */ }
         }
       } catch (e) {
         console.error('fetchData (leaderboard) feilet:', e)
@@ -198,6 +245,22 @@ export default function LeaderboardPage() {
   }, [loadSession])
 
   useEffect(() => {
+    if (prevRankMap.size === 0 || attempts.length === 0) return
+    const currentRanked = rankAttempts(attempts.filter(a => !a.is_team))
+    let best: { name: string; improvement: number } | null = null
+    for (const a of currentRanked) {
+      const prevRank = prevRankMap.get(a.player_name)
+      if (prevRank !== undefined) {
+        const improvement = prevRank - a.rank
+        if (improvement > 0 && (!best || improvement > best.improvement)) {
+          best = { name: a.player_name, improvement }
+        }
+      }
+    }
+    setMostImprovedName(best?.name ?? null)
+  }, [prevRankMap, attempts])
+
+  useEffect(() => {
     if (!scrollPending) return
     const el = document.getElementById('user-row')
     if (el) {
@@ -260,9 +323,24 @@ export default function LeaderboardPage() {
     setScrollPending(true)
   }
 
+  const fastestSoloName = soloAttempts.length > 0
+    ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
+    : null
+
   const renderRow = (attempt: RankedAttempt, isUser: boolean) => {
     const isFirst = attempt.rank === 1 && !attempt.isTied
     const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
+
+    const avatarUrl = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.avatar_url ?? null) : null
+    const initial = attempt.player_name[0]?.toUpperCase() ?? '?'
+
+    let badge: BadgeKind | null = null
+    if (attempt.rank === 1) badge = 'krone'
+    else if (attempt.player_name === mostImprovedName) badge = 'pil'
+    else if ((attempt.correct_streak ?? 0) >= 3) badge = 'flamme'
+    else if (attempt.player_name === fastestSoloName) badge = 'lyn'
+    else if (attempt.rank <= 3) badge = 'medalje'
+
     return (
       <div key={attempt.id} id={isUser ? 'user-row' : undefined} style={rowStyle}>
         {isFirst && <div style={s.goldStripe} />}
@@ -274,9 +352,23 @@ export default function LeaderboardPage() {
               : <span style={s.rankNum}>{attempt.rank}</span>
           }
         </div>
+        <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
+          ) : (
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>
+              {initial}
+            </div>
+          )}
+          {badge && (
+            <div style={{ position: 'absolute', bottom: -1, right: -1, border: '2px solid #1a1c23', borderRadius: '50%' }}>
+              <BadgeCircle badge={badge} />
+            </div>
+          )}
+        </div>
         <div style={s.nameBlock}>
-          {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && (
-            <p style={{ fontSize: 11, color: '#6a6860', marginBottom: 2 }}>
+          {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && memberInfoMap.get(attempt.user_id)?.member_number != null && (
+            <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 2 }}>
               {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
             </p>
           )}
@@ -450,6 +542,22 @@ export default function LeaderboardPage() {
               )}
 
               {activeTab === 'lag' && renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
+
+              {/* Badge legend */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38' }}>
+                {([
+                  { badge: 'krone', label: 'Leder' },
+                  { badge: 'pil', label: 'Størst fremgang' },
+                  { badge: 'flamme', label: 'Streak 3+' },
+                  { badge: 'lyn', label: 'Raskest' },
+                  { badge: 'medalje', label: 'Topp 3' },
+                ] as { badge: BadgeKind; label: string }[]).map(({ badge, label }) => (
+                  <span key={badge} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#7a7873' }}>
+                    <BadgeCircle badge={badge} size={14} />
+                    {label}
+                  </span>
+                ))}
+              </div>
             </>
           )}
 

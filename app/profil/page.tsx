@@ -63,6 +63,7 @@ export default function ProfilPage() {
   const [displayName, setDisplayName] = useState('')
   const [editName, setEditName] = useState('')
   const [isPremium, setIsPremium] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
   const [memberSince, setMemberSince] = useState<string | null>(null)
   const [showMemberNumber, setShowMemberNumber] = useState(false)
@@ -97,7 +98,7 @@ export default function ProfilPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at')
+        .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at, avatar_url')
         .eq('id', uid)
         .maybeSingle()
 
@@ -108,6 +109,7 @@ export default function ProfilPage() {
       setEditName(name)
       const premium = profile?.premium_status === true
       setIsPremium(premium)
+      setAvatarUrl(profile?.avatar_url ?? null)
       setMemberNumber(profile?.member_number ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
       setEmailReminders(profile?.email_reminders ?? false)
@@ -292,7 +294,11 @@ export default function ProfilPage() {
 
           {/* Avatar + identity */}
           <div style={s.avatarSection}>
-            <div style={s.avatar}>{initial}</div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" width={80} height={80} style={{ borderRadius: '50%', objectFit: 'cover', width: 80, height: 80, border: '2px solid #2a2d38', marginBottom: 16, display: 'block' }} />
+            ) : (
+              <div style={s.avatar}>{initial}</div>
+            )}
             <div style={s.displayName}>{displayName}</div>
             {isPremium
               ? <span style={s.badgePremium}>Premium</span>
