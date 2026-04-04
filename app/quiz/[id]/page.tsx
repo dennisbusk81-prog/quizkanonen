@@ -980,12 +980,12 @@ export default function QuizPage() {
   const correctCount = answers.filter(a => a.isCorrect).length
   const percentage = Math.round((correctCount / questions.length) * 100)
   const streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
-  const toppXShare = estimatedPlacement && estimatedPlacement.total > 1
-    ? 100 - Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+  const toppPercent = estimatedPlacement && estimatedPlacement.total > 1
+    ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
     : null
-  const shareResultText = toppXShare !== null
-    ? `Jeg er topp ${toppXShare}% på Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
-    : `Jeg fikk ${correctCount}/${questions.length} på Quizkanonen! Kan du slå meg? quizkanonen.no`
+  const shareResultText = toppPercent !== null
+    ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
+    : `Jeg spilte Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
 
   return (
     <><style>{styles}</style>
