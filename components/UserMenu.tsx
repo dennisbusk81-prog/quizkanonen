@@ -195,13 +195,13 @@ export default function UserMenu() {
             {dropdownOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                background: '#21242e', border: '1px solid #2a2d38',
+                background: '#21242e', border: '0.5px solid #2a2d38',
                 borderRadius: 12, padding: 6, minWidth: 170,
                 boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
               }}>
                 <div style={{
                   padding: '8px 10px 10px',
-                  borderBottom: '1px solid #2a2d38',
+                  borderBottom: '0.5px solid #2a2d38',
                   marginBottom: 4,
                 }}>
                   <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6a6860', marginBottom: 3 }}>
@@ -224,7 +224,7 @@ export default function UserMenu() {
                       )}
                     </>
                   ) : (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: 'transparent', border: '1px solid #444', borderRadius: 4, padding: '2px 8px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 400, color: '#7a7873', background: 'transparent', border: '1px solid #3a3d4a', borderRadius: 4, padding: '2px 8px' }}>
                       Standardkonto
                     </span>
                   ))}

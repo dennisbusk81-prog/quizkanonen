@@ -89,7 +89,9 @@ export default function AccordionSection() {
                   color: '#7a7873',
                   maxHeight: isOpen ? '0' : '22px',
                   overflow: 'hidden',
-                  transition: 'max-height 200ms ease-in-out, opacity 200ms ease-in-out',
+                  transition: isOpen
+                    ? 'opacity 200ms ease, max-height 0ms linear 200ms'
+                    : 'max-height 0ms linear, opacity 200ms ease',
                   opacity: isOpen ? 0 : 1,
                 }}>
                   {item.teaser}

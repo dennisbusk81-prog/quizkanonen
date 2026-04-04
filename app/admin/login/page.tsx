@@ -94,9 +94,9 @@ const STYLES = `
 
   .login-input {
     width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-btn);
+    background: #16191f;
+    border: 1px solid #3a3d4a;
+    border-radius: 8px;
     padding: 12px 16px;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
@@ -120,14 +120,18 @@ const STYLES = `
     border-radius: var(--radius-btn);
   }
 
+  .login-btn-wrap {
+    display: flex;
+    justify-content: center;
+  }
+
   .login-btn {
-    width: 100%;
     background: var(--gold);
     color: #0f0f10;
     font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    padding: 11px;
+    padding: 10px 24px;
     border-radius: var(--radius-btn);
     border: none;
     cursor: pointer;
@@ -185,13 +189,15 @@ export default function AdminLogin() {
 
           {error && <p className="login-error">{error}</p>}
 
-          <button
-            onClick={handleLogin}
-            disabled={loading || !password}
-            className="login-btn"
-          >
-            {loading ? 'Logger inn...' : 'Logg inn →'}
-          </button>
+          <div className="login-btn-wrap">
+            <button
+              onClick={handleLogin}
+              disabled={loading || !password}
+              className="login-btn"
+            >
+              {loading ? 'Logger inn...' : 'Logg inn →'}
+            </button>
+          </div>
         </div>
       </div>
     </>
