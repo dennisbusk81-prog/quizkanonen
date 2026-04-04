@@ -46,6 +46,7 @@ export type Quiz = {
   requires_access_code: boolean
   is_active: boolean
   scheduled_at: string | null
+  category: string | null
 }
 
 export type Question = {

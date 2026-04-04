@@ -456,6 +456,20 @@ const styles = `
 
   .qk-stat-label { font-size: 11px; color: #7a7873; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
 
+  @keyframes qkstreakfade {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .qk-streak-badge {
+    font-size: 12px;
+    font-weight: 700;
+    color: #c9a84c;
+    text-align: center;
+    margin-bottom: 10px;
+    animation: qkstreakfade 300ms ease-out;
+  }
+
   /* LOADING */
   .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   .qk-loading-dot {
@@ -500,6 +514,7 @@ export default function QuizPage() {
   const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
   const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -785,6 +800,9 @@ export default function QuizPage() {
       <div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz.title}</h1>
+      {quiz.category && (
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873', marginBottom: 16 }}>{quiz.category}</p>
+      )}
       <p className="qk-sub">Fyll inn navn og trykk start. Lykke til!</p>
 
       {resumeData && (
@@ -842,6 +860,21 @@ export default function QuizPage() {
         </button>
       </div>
 
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+        <button onClick={() => {
+          navigator.clipboard.writeText(window.location.href).then(() => {
+            setLinkCopied(true)
+            setTimeout(() => setLinkCopied(false), 2000)
+          }).catch(() => {})
+        }} style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 13, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif",
+          padding: '4px 0',
+        }}>
+          {linkCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
+        </button>
+      </div>
+
       <p className="qk-hint">{quiz.time_limit_seconds}s per spørsmål · Kun én gjennomspilling</p>
     </div></div></div></>
   )
@@ -862,11 +895,23 @@ export default function QuizPage() {
       return ' idle'
     }
 
+    const currentStreak = (() => {
+      let s = 0
+      for (let i = answers.length - 1; i >= 0; i--) {
+        if (answers[i].isCorrect) s++
+        else break
+      }
+      return s
+    })()
+
     return (
       <><style>{styles}</style>
       <div className="qk-play-shell">
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
+          {quiz.category && (
+            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873' }}>{quiz.category}</span>
+          )}
         </div>
 
         <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}`}>{timeLeft}s</span>
@@ -882,6 +927,10 @@ export default function QuizPage() {
         <div className="qk-question-card">
           <p className="qk-question-text">{question?.question_text}</p>
         </div>
+
+        {!answered && currentStreak >= 2 && (
+          <div className="qk-streak-badge">{currentStreak} på rad!</div>
+        )}
 
         {answered && selectedAnswer === null && (
           <div style={{
@@ -953,6 +1002,22 @@ export default function QuizPage() {
       </div>
 
       <div className="qk-divider"/>
+
+      {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
+        const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+        const kommentar = prosent >= 80
+          ? 'Du er blant de beste i dag!'
+          : prosent >= 50
+          ? `Du er bedre enn ${prosent}% av deltakerne.`
+          : prosent >= 20
+          ? `Du er bedre enn ${prosent}% av deltakerne. Prøv igjen neste fredag!`
+          : 'Tøff quiz — prøv igjen neste fredag!'
+        return (
+          <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', marginBottom: 14 }}>
+            {kommentar}
+          </p>
+        )
+      })()}
 
       {estimatedPlacement && (
         <div style={{marginBottom:16}}>
