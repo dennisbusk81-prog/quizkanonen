@@ -238,9 +238,9 @@ export default function UserMenu() {
                     borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                     fontFamily: "'Instrument Sans', sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
-                    boxSizing: 'border-box',
+                    boxSizing: 'border-box', whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
                   Min profil
@@ -254,9 +254,9 @@ export default function UserMenu() {
                     borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                     fontFamily: "'Instrument Sans', sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
-                    boxSizing: 'border-box',
+                    boxSizing: 'border-box', whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
                   Mine ligaer
@@ -272,12 +272,12 @@ export default function UserMenu() {
                         borderRadius: 8, fontSize: 13, color: '#e8e4dd',
                         fontFamily: "'Instrument Sans', sans-serif",
                         textDecoration: 'none', transition: 'background 0.12s',
-                        boxSizing: 'border-box',
+                        boxSizing: 'border-box', whiteSpace: 'nowrap',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                       onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
-                      Din quizhistorikk
+                      Quizhistorikk
                     </a>
                     <button
                       onClick={handlePortal}
@@ -286,12 +286,12 @@ export default function UserMenu() {
                         padding: '8px 10px', background: 'none', border: 'none',
                         borderRadius: 8, fontSize: 13, color: '#c9a84c',
                         fontFamily: "'Instrument Sans', sans-serif",
-                        cursor: 'pointer', transition: 'background 0.12s',
+                        cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
+                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                       onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
-                      Administrer abonnement
+                      Mitt abonnement
                     </button>
                     {portalError && (
                       <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
@@ -308,14 +308,15 @@ export default function UserMenu() {
                       borderRadius: 8, fontSize: 13, color: '#c9a84c',
                       fontFamily: "'Instrument Sans', sans-serif",
                       textDecoration: 'none', transition: 'background 0.12s',
-                      boxSizing: 'border-box',
+                      boxSizing: 'border-box', whiteSpace: 'nowrap',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
                     Oppgrader til Premium
                   </a>
                 )}
+                <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
                 <button
                   onClick={async () => { setDropdownOpen(false); setSession(null); setDisplayName(null); setIsPremium(false); await signOut() }}
                   style={{
@@ -323,7 +324,7 @@ export default function UserMenu() {
                     padding: '8px 10px', background: 'none', border: 'none',
                     borderRadius: 8, fontSize: 13, color: '#f87171',
                     fontFamily: "'Instrument Sans', sans-serif",
-                    cursor: 'pointer', transition: 'background 0.12s',
+                    cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}

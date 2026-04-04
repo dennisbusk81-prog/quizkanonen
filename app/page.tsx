@@ -118,7 +118,7 @@ export default async function Home() {
           text-decoration: none;
           padding: 6px 14px;
           border-radius: var(--radius-btn);
-          border: 0.5px solid #4a4d5a;
+          border: 0.5px solid #3a3d4a;
           white-space: nowrap;
           transition: border-color 0.15s, color 0.15s;
         }
@@ -474,12 +474,7 @@ export default async function Home() {
         <div className="qk-nav-inner">
           <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
           <div className="qk-nav-actions">
-            <NavAuth />
-            {quizList.length > 0 && (
-              <Link href={`/quiz/${quizList[0].id}`} className="qk-nav-play">
-                Spill ukens quiz →
-              </Link>
-            )}
+            <NavAuth quizId={quizList[0]?.id} />
           </div>
         </div>
       </nav>

@@ -6,19 +6,20 @@ import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import type React from 'react'
 
-const menuItemStyle: React.CSSProperties = {
+const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
   borderRadius: 8, fontSize: 13, color: '#e8e4dd',
   fontFamily: "'Instrument Sans', sans-serif",
   textDecoration: 'none', transition: 'background 0.12s',
-  boxSizing: 'border-box',
+  boxSizing: 'border-box', whiteSpace: 'nowrap',
 }
 
-export default function NavAuth() {
+export default function NavAuth({ quizId }: { quizId?: string }) {
   const [sessionResolved, setSessionResolved] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
@@ -34,6 +35,7 @@ export default function NavAuth() {
       setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
       setIsPremium(data?.premium_status === true)
     } catch { /* keep fallback */ }
+    setProfileLoaded(true)
   }
 
   useEffect(() => {
@@ -45,11 +47,14 @@ export default function NavAuth() {
         if (session?.user) {
           setDisplayName(session.user.email?.split('@')[0] ?? null)
           loadProfile(session.user.id, session.user.email)
+        } else {
+          setProfileLoaded(true)
         }
         setSessionResolved(true)
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
+        setProfileLoaded(true)
       } else if (session?.user) {
         loadProfile(session.user.id, session.user.email)
       }
@@ -93,7 +98,6 @@ export default function NavAuth() {
     }
   }
 
-  // Lukk dropdown ved klikk utenfor
   useEffect(() => {
     if (!dropdownOpen) return
     function onMouseDown(e: MouseEvent) {
@@ -105,132 +109,170 @@ export default function NavAuth() {
 
   if (!sessionResolved) return null
 
+  // ── Not logged in ──
   if (!displayName) {
-    return <Link href="/login" className="qk-nav-login">Logg inn gratis</Link>
+    return (
+      <>
+        <a
+          href="/login"
+          style={{
+            fontSize: 13, color: '#e8e4dd',
+            textDecoration: 'none',
+            fontFamily: "'Instrument Sans', sans-serif",
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Logg inn
+        </a>
+        {quizId && (
+          <Link href={`/quiz/${quizId}`} className="qk-nav-play">
+            Spill ukens quiz →
+          </Link>
+        )}
+      </>
+    )
   }
 
   const initial = displayName[0]?.toUpperCase() ?? '?'
 
+  // ── Logged in ──
   return (
-    <div ref={dropdownRef} style={{ position: 'relative' }}>
-      {/* Avatar pill */}
-      <button
-        onClick={() => setDropdownOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          background: '#21242e', border: '1px solid #2a2d38',
-          borderRadius: 999, padding: '4px 12px 4px 4px',
-          cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
-          transition: 'border-color 0.15s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(201,168,76,0.3)'}
-        onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2d38'}
-      >
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%',
-          background: 'rgba(201,168,76,0.12)',
-          border: '1.5px solid rgba(201,168,76,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 11, fontWeight: 700, color: '#c9a84c', flexShrink: 0,
-        }}>
-          {initial}
-        </div>
-        <span style={{
-          fontSize: 13, fontWeight: 500, color: '#e8e4dd',
-          maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {displayName}
-        </span>
-        <svg
-          width="9" height="5" viewBox="0 0 9 5" fill="none"
-          style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
+    <>
+      {/* Free users: show upgrade nudge */}
+      {profileLoaded && !isPremium && (
+        <a
+          href="/premium"
+          style={{
+            fontSize: 13, color: '#c9a84c',
+            textDecoration: 'none',
+            fontFamily: "'Instrument Sans', sans-serif",
+            whiteSpace: 'nowrap',
+          }}
         >
-          <path d="M1 1L4.5 4L8 1" stroke="#6a6860" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      </button>
+          Oppgrader til Premium
+        </a>
+      )}
 
-      {/* Dropdown */}
-      {dropdownOpen && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-          background: '#21242e', border: '1px solid #2a2d38',
-          borderRadius: 12, padding: 6, minWidth: 170,
-          boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
-          zIndex: 9000,
-        }}>
-          <a
-            href="/profil"
-            onClick={() => setDropdownOpen(false)}
-            style={menuItemStyle}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+      {/* Avatar pill + dropdown */}
+      <div ref={dropdownRef} style={{ position: 'relative' }}>
+        <button
+          onClick={() => setDropdownOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: '#21242e', border: '1px solid #2a2d38',
+            borderRadius: 999, padding: '4px 12px 4px 4px',
+            cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+            transition: 'border-color 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(201,168,76,0.3)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = '#2a2d38'}
+        >
+          <div style={{
+            width: 26, height: 26, borderRadius: '50%',
+            background: 'rgba(201,168,76,0.12)',
+            border: '1.5px solid rgba(201,168,76,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: '#c9a84c', flexShrink: 0,
+          }}>
+            {initial}
+          </div>
+          <span style={{
+            fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+            maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {displayName}
+          </span>
+          <svg
+            width="9" height="5" viewBox="0 0 9 5" fill="none"
+            style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
           >
-            Min profil
-          </a>
-          <a
-            href="/liga"
-            onClick={() => setDropdownOpen(false)}
-            style={menuItemStyle}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-          >
-            Mine ligaer
-          </a>
-          {isPremium && (
+            <path d="M1 1L4.5 4L8 1" stroke="#6a6860" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+
+        {dropdownOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+            background: '#21242e', border: '0.5px solid #2a2d38',
+            borderRadius: 12, padding: 6, minWidth: 170,
+            boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+            zIndex: 9000,
+          }}>
             <a
-              href="/historikk"
+              href="/profil"
               onClick={() => setDropdownOpen(false)}
-              style={menuItemStyle}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >
-              Din quizhistorikk
+              Min profil
             </a>
-          )}
-          {isPremium && (
-            <>
-              <button
-                onClick={handlePortal}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '8px 10px', background: 'none', border: 'none',
-                  borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                  fontFamily: "'Instrument Sans', sans-serif",
-                  cursor: 'pointer', transition: 'background 0.12s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
+            <a
+              href="/liga"
+              onClick={() => setDropdownOpen(false)}
+              style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Mine ligaer
+            </a>
+            {isPremium && (
+              <a
+                href="/historikk"
+                onClick={() => setDropdownOpen(false)}
+                style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                Administrer abonnement
-              </button>
-              {portalError && (
-                <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
-                  {portalError}
-                </p>
-              )}
-            </>
-          )}
-          <button
-            onClick={async () => {
-              setDropdownOpen(false)
-              setDisplayName(null)
-              setIsPremium(false)
-              await signOut()
-            }}
-            style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '8px 10px', background: 'none', border: 'none',
-              borderRadius: 8, fontSize: 13, color: '#f87171',
-              fontFamily: "'Instrument Sans', sans-serif",
-              cursor: 'pointer', transition: 'background 0.12s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-          >
-            Logg ut
-          </button>
-        </div>
-      )}
-    </div>
+                Quizhistorikk
+              </a>
+            )}
+            {isPremium && (
+              <>
+                <button
+                  onClick={handlePortal}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', background: 'none', border: 'none',
+                    borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  Mitt abonnement
+                </button>
+                {portalError && (
+                  <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                    {portalError}
+                  </p>
+                )}
+              </>
+            )}
+            <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
+            <button
+              onClick={async () => {
+                setDropdownOpen(false)
+                setDisplayName(null)
+                setIsPremium(false)
+                await signOut()
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '8px 10px', background: 'none', border: 'none',
+                borderRadius: 8, fontSize: 13, color: '#f87171',
+                fontFamily: "'Instrument Sans', sans-serif",
+                cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Logg ut
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
