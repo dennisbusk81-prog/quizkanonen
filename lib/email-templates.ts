@@ -52,10 +52,10 @@ export function quizReminderEmail(nextQuizDate: string): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
-              <p style="margin:0 0 8px;font-size:15px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0 0 8px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Hei! En ny quiz er på vei på Quizkanonen.
               </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Sett av tid — quizen åpner
                 <strong style="color:#ffffff;">${formattedDate}</strong>.
                 Vær klar fra første sekund for best mulig plassering.
@@ -79,7 +79,7 @@ export function quizReminderEmail(nextQuizDate: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#6a6860;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
                 Du mottar denne e-posten fordi du har slått på quiz-påminnelser.<br />
                 Du kan skru det av under
                 <a href="https://www.quizkanonen.no/profil" style="color:#c9a84c;text-decoration:none;">profilen din</a>.
