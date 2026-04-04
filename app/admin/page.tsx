@@ -33,7 +33,7 @@ const STYLES = `
 
   /* Header */
   .adm-header {
-    padding: 48px 0 32px;
+    padding: 24px 0 28px;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -95,8 +95,8 @@ const STYLES = `
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
-    background: var(--gold);
-    color: #0f0f10;
+    background: #c9a84c;
+    color: #1a1c23;
     border: none;
     border-radius: 8px;
     padding: 8px 16px;
@@ -112,8 +112,8 @@ const STYLES = `
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
-    background: var(--gold);
-    color: #0f0f10;
+    background: #c9a84c;
+    color: #1a1c23;
     border: none;
     border-radius: 8px;
     padding: 7px 14px;
@@ -309,7 +309,7 @@ const STYLES = `
 `
 
 type Stats = { quizzes: number; players: number; active30d: number; premium: number }
-type QuizRow = { id: string; title: string; is_active: boolean; created_at: string }
+type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string }
 
 export default function AdminHome() {
   const router = useRouter()
@@ -339,7 +339,8 @@ export default function AdminHome() {
       }
       if (quizzesRes.ok) {
         const all: QuizRow[] = await quizzesRes.json()
-        setRecentQuizzes(all.slice(0, 3))
+        const sorted = [...all].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        setRecentQuizzes(sorted.slice(0, 3))
       }
     } catch (e) {
       console.error('fetchAll feilet:', e)
