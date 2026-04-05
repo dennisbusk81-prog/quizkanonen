@@ -757,10 +757,11 @@ export default function QuizPage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const COLORS = ['#c9a84c', '#f5d78e', '#ffffff']
-    const count = 60
-    const originX = W / 2
-    const originY = H * 0.42
+    const COLORS = ['#c9a84c', '#ffffff', '#f5d78e']
+    const count  = 60
+    // Spawn zone: 10%–90% of screen width, just above the visible area
+    const spawnMargin = W * 0.1
+    const spawnWidth  = W * 0.8
 
     type Piece = {
       x: number; y: number
@@ -768,54 +769,67 @@ export default function QuizPage() {
       w: number; h: number
       color: string; alpha: number
       angle: number; spin: number
+      driftAmp: number; driftFreq: number; driftPhase: number
+      born: number
     }
 
     const pieces: Piece[] = []
     for (let i = 0; i < count; i++) {
-      // Spread across at least 60% of screen width: fan angle ±70° from straight down
-      const spread = (Math.random() - 0.5) * Math.PI * 1.4   // ±70° in radians
-      const baseAngle = Math.PI / 2 + spread                  // downward direction + spread
-      const speed = 4 + Math.random() * 9
       const size = 6 + Math.random() * 6
       pieces.push({
-        x: originX,
-        y: originY,
-        vx: Math.cos(baseAngle) * speed,
-        vy: Math.sin(baseAngle) * speed - (2 + Math.random() * 3),
-        w: size,
-        h: size * (0.4 + Math.random() * 0.35),
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-        alpha: 1,
-        angle: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * 0.3,
+        x:          spawnMargin + Math.random() * spawnWidth,
+        y:          -size,                              // start just above viewport
+        vx:         (Math.random() - 0.5) * 2,         // gentle initial horizontal drift
+        vy:         2 + Math.random() * 4,             // downward speed
+        w:          size,
+        h:          size * (0.35 + Math.random() * 0.3),
+        color:      COLORS[Math.floor(Math.random() * COLORS.length)],
+        alpha:      1,
+        angle:      Math.random() * Math.PI * 2,
+        spin:       (Math.random() - 0.5) * 0.18,     // rotation per frame
+        driftAmp:   0.8 + Math.random() * 1.2,        // horizontal sine amplitude
+        driftFreq:  0.04 + Math.random() * 0.04,      // sine frequency
+        driftPhase: Math.random() * Math.PI * 2,      // per-piece phase offset
+        born:       performance.now(),
       })
     }
 
-    const start = performance.now()
-    const duration = 1200
+    const duration    = 1200
+    const fadeStart   = duration - 300  // last 300ms fade
 
     const tick = (now: number) => {
-      const elapsed = now - start
+      // Use the first piece's born time as the animation start reference
+      const elapsed = now - pieces[0].born
       if (elapsed >= duration) {
         canvas.style.display = 'none'
         return
       }
+
       ctx.clearRect(0, 0, W, H)
-      const t = elapsed / duration
+
       for (const p of pieces) {
-        p.x += p.vx
-        p.y += p.vy
-        p.vy += 0.25
+        const age = now - p.born
+        p.vy  += 0.15                              // gravity
+        p.x   += p.vx + p.driftAmp * Math.sin(p.driftFreq * age + p.driftPhase)
+        p.y   += p.vy
         p.angle += p.spin
-        p.alpha = 1 - t * t
+
+        // Fade only in the last 300ms
+        p.alpha = age < fadeStart
+          ? 1
+          : 1 - (age - fadeStart) / 300
+
+        if (p.alpha <= 0) continue
+
         ctx.save()
         ctx.globalAlpha = p.alpha
-        ctx.fillStyle = p.color
+        ctx.fillStyle   = p.color
         ctx.translate(p.x, p.y)
         ctx.rotate(p.angle)
         ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
         ctx.restore()
       }
+
       particleFrameRef.current = requestAnimationFrame(tick)
     }
     particleFrameRef.current = requestAnimationFrame(tick)
