@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
-import confetti from 'canvas-confetti'
 
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
@@ -722,7 +721,7 @@ export default function QuizPage() {
     }
   }
 
-  const handleAnswer = async (answer: string) => {
+  const handleAnswer = async (answer: string, buttonEl?: HTMLButtonElement) => {
     if (answered) return
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
@@ -738,21 +737,60 @@ export default function QuizPage() {
     }
     if (isCorrect) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(100)
-      fireConfetti()
+      fireGoldGlow(buttonEl)
     }
   }
 
-  function fireConfetti() {
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#c9a84c', '#f5d78e', '#ffffff'],
-      ticks: 200,
-      gravity: 1.2,
-      scalar: 1.1,
-      drift: 0.1,
-    })
+  function fireGoldGlow(buttonEl?: HTMLButtonElement) {
+    // 1. Gull-pulse på svarknappen
+    if (buttonEl) {
+      buttonEl.style.transition = 'box-shadow 150ms ease-in'
+      requestAnimationFrame(() => {
+        buttonEl.style.boxShadow = '0 0 0 2px #c9a84c, 0 0 24px 8px rgba(201,168,76,0.35)'
+      })
+      setTimeout(() => {
+        buttonEl.style.transition = 'box-shadow 300ms ease-out'
+        buttonEl.style.boxShadow = ''
+      }, 350) // 150ms fade-in + 200ms hold
+    }
+
+    // 2. Tre stigende gullpartikler
+    const rect = buttonEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+
+    for (let i = 0; i < 3; i++) {
+      const tx = Math.round((Math.random() - 0.5) * 30)   // -15px til +15px
+      const ty = -Math.round(40 + Math.random() * 40)     // -40px til -80px
+
+      const dot = document.createElement('div')
+      dot.style.cssText = [
+        'position:fixed',
+        `left:${cx - 2.5}px`,
+        `top:${cy - 2.5}px`,
+        'width:5px',
+        'height:5px',
+        'border-radius:50%',
+        'background:#c9a84c',
+        'opacity:0.9',
+        'pointer-events:none',
+        'z-index:9999',
+        'transition:transform 600ms ease-out,opacity 600ms ease-out',
+      ].join(';')
+      document.body.appendChild(dot)
+
+      // To rAF-er: første renderer initial-tilstand, andre trigger transition
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          dot.style.transform = `translate(${tx}px,${ty}px)`
+          dot.style.opacity = '0'
+        })
+      })
+
+      setTimeout(() => {
+        if (dot.parentNode) dot.parentNode.removeChild(dot)
+      }, 650)
+    }
   }
 
   const goToNext = async () => {
@@ -1091,50 +1129,55 @@ export default function QuizPage() {
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
-        <div key={questionKey} className="qk-question-card qk-animate-in">
-          <p className="qk-question-text">{question?.question_text}</p>
-        </div>
-
-        {!answered && currentStreak >= 2 && (
-          <div className="qk-streak-badge">{currentStreak} på rad!</div>
-        )}
-
-        {answered && selectedAnswer === null && (
-          <div style={{
-            background: 'rgba(201,76,76,0.12)', border: '1px solid var(--red)',
-            borderRadius: 8, padding: '10px 14px', marginBottom: 12,
-            fontSize: 13, fontWeight: 600, color: '#f87171', textAlign: 'center',
-          }}>
-            Tiden er ute
+        <div style={{
+          minHeight: 420,
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        }}>
+          <div key={questionKey} className="qk-question-card qk-animate-in">
+            <p className="qk-question-text">{question?.question_text}</p>
           </div>
-        )}
 
-        <div className="qk-options">
-          {availableOptions.map((opt, i) => (
-            <button
-              key={`${questionKey}-${opt}`}
-              onClick={() => handleAnswer(opt)}
-              disabled={answered}
-              className={`qk-option qk-animate-in${getOptionClass(opt)}`}
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <span className="qk-opt-letter">{opt}</span>
-              <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
-            </button>
-          ))}
-        </div>
+          {!answered && currentStreak >= 2 && (
+            <div className="qk-streak-badge">{currentStreak} på rad!</div>
+          )}
 
-        {answered && (
-          <div>
-            {quiz.show_answer_explanation && question?.explanation && (
-              <div className="qk-explanation">{question.explanation}</div>
-            )}
-            <button onClick={goToNext} className="qk-btn-primary">
-              {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
-            </button>
+          {answered && selectedAnswer === null && (
+            <div style={{
+              background: 'rgba(201,76,76,0.12)', border: '1px solid var(--red)',
+              borderRadius: 8, padding: '10px 14px', marginBottom: 12,
+              fontSize: 13, fontWeight: 600, color: '#f87171', textAlign: 'center',
+            }}>
+              Tiden er ute
+            </div>
+          )}
+
+          <div className="qk-options">
+            {availableOptions.map((opt, i) => (
+              <button
+                key={`${questionKey}-${opt}`}
+                onClick={e => handleAnswer(opt, e.currentTarget as HTMLButtonElement)}
+                disabled={answered}
+                className={`qk-option qk-animate-in${getOptionClass(opt)}`}
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <span className="qk-opt-letter">{opt}</span>
+                <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
+              </button>
+            ))}
           </div>
-        )}
+
+          {answered && (
+            <div>
+              {quiz.show_answer_explanation && question?.explanation && (
+                <div className="qk-explanation">{question.explanation}</div>
+              )}
+              <button onClick={goToNext} className="qk-btn-primary">
+                {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+              </button>
+            </div>
+          )}
+        </div>
       </div></>
     )
   }
