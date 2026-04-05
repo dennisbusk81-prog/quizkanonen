@@ -542,7 +542,8 @@ export default function QuizPage() {
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
-  const [interRank, setInterRank] = useState<number | null>(null)
+  const [interLow, setInterLow] = useState<number | null>(null)
+  const [interHigh, setInterHigh] = useState<number | null>(null)
   const [interQLeft, setInterQLeft] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleFrameRef = useRef<number | null>(null)
@@ -661,14 +662,29 @@ export default function QuizPage() {
 
   const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
     if (!quiz?.show_live_placement) return
-    const { data } = await supabaseData.from('attempts').select('correct_answers, total_time_ms').eq('quiz_id', quizId)
-    if (!data) return
-    const better = data.filter(a =>
-      a.correct_answers > correctSoFar ||
-      (a.correct_answers === correctSoFar && a.total_time_ms < timeSoFar)
-    )
-    setLiveRank(better.length + 1)
-  }, [quiz, quizId])
+    try {
+      const res = await fetch(
+        `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}`
+      )
+      if (!res.ok) return
+      const data: { rank: number } = await res.json()
+      setLiveRank(data.rank)
+    } catch { /* ikke kritisk */ }
+  }, [quiz, quizId, currentIndex])
+
+  const fetchRankingSnapshot = useCallback(async (
+    questionIndex: number,
+    correctSoFar: number,
+    timeSoFar: number
+  ): Promise<{ rank: number; total: number; low: number; high: number } | null> => {
+    try {
+      const res = await fetch(
+        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}`
+      )
+      if (!res.ok) return null
+      return await res.json()
+    } catch { return null }
+  }, [quizId])
 
   const startQuiz = async () => {
     if (!nameInput.trim() || !ageConfirmed) return
@@ -805,18 +821,6 @@ export default function QuizPage() {
     particleFrameRef.current = requestAnimationFrame(tick)
   }, [])
 
-  const fetchInterRank = useCallback(async (correctSoFar: number, timeSoFar: number): Promise<number | null> => {
-    try {
-      const { data } = await supabaseData.from('attempts').select('correct_answers, total_time_ms').eq('quiz_id', quizId)
-      if (!data || data.length < 2) return null
-      const better = data.filter((a: { correct_answers: number; total_time_ms: number }) =>
-        a.correct_answers > correctSoFar ||
-        (a.correct_answers === correctSoFar && a.total_time_ms < timeSoFar)
-      ).length
-      return better + 1
-    } catch { return null }
-  }, [quizId])
-
   const goToNext = async () => {
     const isLast = currentIndex === questions.length - 1
     if (isLast) {
@@ -826,27 +830,32 @@ export default function QuizPage() {
 
     const nextIndex = currentIndex + 1
     const qLeft = questions.length - nextIndex
-
-    // Fetch live rank for intermediate screen
     const correctSoFar = answers.filter(a => a.isCorrect).length
-    const rank = await fetchInterRank(correctSoFar, totalTimeMs)
 
-    // Show intermediate screen only when rank is available or when not logged in
-    const showInter = qLeft > 0
-    if (showInter) {
-      setInterRank(rank)
-      setInterQLeft(qLeft)
-      setInterPhase('in')
-      await new Promise<void>(resolve => {
-        setTimeout(() => {
-          setInterPhase('out')
-          setTimeout(() => {
-            setInterPhase('hidden')
-            resolve()
-          }, 150)
-        }, 1850)
-      })
+    // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil
+    let low: number | null = null
+    let high: number | null = null
+    if (isLoggedIn) {
+      const result = await fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs)
+      if (result && result.total > 1) {
+        low = result.low
+        high = result.high
+      }
     }
+
+    setInterLow(low)
+    setInterHigh(high)
+    setInterQLeft(qLeft)
+    setInterPhase('in')
+    await new Promise<void>(resolve => {
+      setTimeout(() => {
+        setInterPhase('out')
+        setTimeout(() => {
+          setInterPhase('hidden')
+          resolve()
+        }, 150)
+      }, 1850)
+    })
 
     setCurrentIndex(nextIndex)
     setAnswered(false)
@@ -873,21 +882,37 @@ export default function QuizPage() {
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
       localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: totalTimeMs }))
-      const { data: allAttempts } = await supabaseData
-        .from('attempts')
-        .select('correct_answers, total_time_ms')
-        .eq('quiz_id', quizId)
-      if (allAttempts && allAttempts.length > 0) {
-        const total = allAttempts.length
-        const better = allAttempts.filter(a =>
-          a.correct_answers > correct ||
-          (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
-        ).length
-        const strictlyWorse = allAttempts.filter(a =>
-          a.correct_answers < correct ||
-          (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
-        ).length
-        setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
+      // Hent rangering fra snapshot-endepunkt; fallback til direkte spørring
+      let placementSet = false
+      try {
+        const snapshotRes = await fetch(
+          `/api/quiz/${quizId}/ranking-snapshot?question=${questions.length - 1}&correct=${correct}&time=${totalTimeMs}`
+        )
+        if (snapshotRes.ok) {
+          const snapData: { rank: number; total: number; low: number; high: number } = await snapshotRes.json()
+          if (snapData.total > 1) {
+            setEstimatedPlacement({ low: snapData.low, high: snapData.high, total: snapData.total })
+            placementSet = true
+          }
+        }
+      } catch { /* snapshot feilet — fall through til fallback */ }
+      if (!placementSet) {
+        const { data: allAttempts } = await supabaseData
+          .from('attempts')
+          .select('correct_answers, total_time_ms')
+          .eq('quiz_id', quizId)
+        if (allAttempts && allAttempts.length > 0) {
+          const total = allAttempts.length
+          const better = allAttempts.filter(a =>
+            a.correct_answers > correct ||
+            (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
+          ).length
+          const strictlyWorse = allAttempts.filter(a =>
+            a.correct_answers < correct ||
+            (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
+          ).length
+          setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
+        }
       }
     } catch {}
     finally {
@@ -1082,28 +1107,44 @@ export default function QuizPage() {
           className={interPhase === 'in' ? 'qk-intermediate-in' : 'qk-intermediate-out'}
           style={{
             position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 24px',
           }}
         >
-          {interRank !== null ? (
-            <p style={{
-              fontFamily: "'Libre Baskerville', serif", fontSize: 32, fontWeight: 700,
-              color: '#ffffff', textAlign: 'center', lineHeight: 1.2,
-            }}>
-              Du er på {interRank}. plass!
+          <div style={{
+            background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
+            padding: '32px 36px', textAlign: 'center', maxWidth: 360, width: '100%',
+          }}>
+            {interLow !== null && interHigh !== null ? (
+              <>
+                <p style={{
+                  fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
+                  textTransform: 'uppercase', color: '#7a7873', marginBottom: 10,
+                }}>
+                  Din rangering
+                </p>
+                <p style={{
+                  fontFamily: "'Libre Baskerville', serif", fontSize: 38, fontWeight: 700,
+                  color: '#c9a84c', lineHeight: 1, marginBottom: 6,
+                }}>
+                  {interLow}–{interHigh}
+                </p>
+                <p style={{ fontSize: 13, color: '#e8e4dd' }}>
+                  Et sted mellom plass {interLow} og {interHigh}
+                </p>
+              </>
+            ) : (
+              <p style={{
+                fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700,
+                color: '#ffffff', lineHeight: 1.2,
+              }}>
+                Bra!
+              </p>
+            )}
+            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 14 }}>
+              {interQLeft} spørsmål igjen
             </p>
-          ) : (
-            <p style={{
-              fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700,
-              color: '#ffffff', textAlign: 'center', lineHeight: 1.2,
-            }}>
-              Godt svar!
-            </p>
-          )}
-          <p style={{ fontSize: 14, color: '#7a7873', textAlign: 'center' }}>
-            {interQLeft} spørsmål igjen
-          </p>
+          </div>
         </div>
       )}
       <div className="qk-play-shell">
