@@ -540,6 +540,7 @@ export default function QuizPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [shareResultCopied, setShareResultCopied] = useState(false)
+  const [nameConflict, setNameConflict] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
   const [interLow, setInterLow] = useState<number | null>(null)
@@ -699,6 +700,23 @@ export default function QuizPage() {
 
   const startQuiz = async () => {
     if (!nameInput.trim() || !ageConfirmed) return
+
+    // Sjekk navnekonflikt kun for ikke-innloggede brukere
+    if (!isLoggedIn) {
+      const { data: conflict } = await supabaseData
+        .from('attempts')
+        .select('id')
+        .eq('quiz_id', quizId)
+        .ilike('player_name', nameInput.trim())
+        .is('user_id', null)
+        .limit(1)
+      if (conflict && conflict.length > 0) {
+        setNameConflict(true)
+        return
+      }
+    }
+    setNameConflict(false)
+
     const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
 
@@ -1024,9 +1042,14 @@ export default function QuizPage() {
       )}
 
       <label className="qk-label">Navn / Lagnavn</label>
-      <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
+      <input type="text" value={nameInput} onChange={e => { setNameInput(e.target.value); setNameConflict(false) }}
         placeholder="Skriv inn navn..." className="qk-input" maxLength={30}
         onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
+      {nameConflict && (
+        <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: -14, marginBottom: 16 }}>
+          Dette navnet er allerede i bruk på denne quizen, velg et annet.
+        </p>
+      )}
 
       {quiz.allow_teams && (
         <>
