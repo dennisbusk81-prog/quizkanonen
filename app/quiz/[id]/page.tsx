@@ -749,7 +749,6 @@ export default function QuizPage() {
   }
 
   function fireCorrectAnswer(buttonEl?: HTMLButtonElement) {
-    // Rydd opp eventuelle løpende animasjoner
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
 
@@ -758,62 +757,56 @@ export default function QuizPage() {
       animationTimeoutsRef.current.push(id)
     }
 
-    // 5. Haptikk — 0ms
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
 
-    // 1. Gull-pulse på svarknappen — 0ms, total varighet 1100ms
+    // 1. Knapp: gullkant + scale(1.02) på 150ms, tilbake på 400ms
     if (buttonEl) {
-      buttonEl.style.transition = 'box-shadow 200ms ease-in'
+      buttonEl.style.transition = 'transform 150ms ease-out, border-color 150ms ease-out'
       requestAnimationFrame(() => {
-        buttonEl.style.boxShadow = '0 0 0 2px #c9a84c, 0 0 28px 10px rgba(201,168,76,0.4)'
+        buttonEl.style.transform = 'scale(1.02)'
+        buttonEl.style.borderColor = '#c9a84c'
       })
-      t(600, () => { // 200ms inn + 400ms hold
-        buttonEl.style.transition = 'box-shadow 500ms ease-out'
-        buttonEl.style.boxShadow = ''
+      t(400, () => {
+        // Transition til klasse-basert grønn border (correct-state)
+        buttonEl.style.transition = 'transform 200ms ease-in, border-color 300ms ease-out'
+        buttonEl.style.transform = ''
+        buttonEl.style.borderColor = ''
       })
     }
 
-    // 2. Kortbakgrunn varmes opp — 0ms
+    // 2. Bakgrunns-glød: fade inn 300ms, hold 400ms, fade ut 500ms
     const card = questionCardRef.current
     if (card) {
       card.style.transition = 'background-color 300ms ease-in'
       requestAnimationFrame(() => {
-        card.style.backgroundColor = 'rgba(201,168,76,0.06)'
+        card.style.backgroundColor = 'rgba(201,168,76,0.10)'
       })
-      t(600, () => { // hold 300ms, fade ut
+      t(700, () => {
         card.style.transition = 'background-color 500ms ease-out'
         card.style.backgroundColor = ''
       })
     }
 
-    // 3. Score-badge hopper — 150ms forsinkelse
+    // 3. Streak-badge flyr inn fra høyre med snap — 150ms forsinkelse
     t(150, () => {
-      const badge = scoreBadgeRef.current
-      if (!badge) return
-      badge.style.transition = 'transform 150ms ease-out'
-      badge.style.transform = 'scale(1.18)'
-      t(300, () => { // 150ms + 150ms
-        badge.style.transition = 'transform 200ms ease-in'
-        badge.style.transform = 'scale(1)'
-      })
-    })
-
-    // 4. Streak-badge bouncer — 200ms forsinkelse, kun hvis badge finnes
-    t(200, () => {
       const streak = streakBadgeRef.current
       if (!streak) return
-      // Step 1 (0ms): scale(0.8) umiddelbart
+      streak.style.animation = 'none'
       streak.style.transition = 'none'
-      streak.style.transform = 'scale(0.8)'
-      // Step 2 (200ms): scale(1.05)
-      t(200, () => {
-        streak.style.transition = 'transform 120ms ease-out'
-        streak.style.transform = 'scale(1.05)'
+      streak.style.transform = 'translateX(32px)'
+      streak.style.opacity = '0'
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          streak.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out'
+          streak.style.transform = 'translateX(0)'
+          streak.style.opacity = '1'
+        })
       })
-      // Step 3 (350ms): scale(1.0)
-      t(350, () => {
-        streak.style.transition = 'transform 120ms ease-in'
-        streak.style.transform = 'scale(1)'
+      t(550, () => {
+        streak.style.animation = ''
+        streak.style.transition = ''
+        streak.style.transform = ''
+        streak.style.opacity = ''
       })
     })
   }
@@ -825,6 +818,12 @@ export default function QuizPage() {
     if (questionCardRef.current) {
       questionCardRef.current.style.transition = ''
       questionCardRef.current.style.backgroundColor = ''
+    }
+    if (streakBadgeRef.current) {
+      streakBadgeRef.current.style.animation = ''
+      streakBadgeRef.current.style.transition = ''
+      streakBadgeRef.current.style.transform = ''
+      streakBadgeRef.current.style.opacity = ''
     }
 
     const isLast = currentIndex === questions.length - 1
