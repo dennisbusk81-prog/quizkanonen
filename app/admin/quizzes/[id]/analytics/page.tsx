@@ -400,14 +400,13 @@ export default function QuizAnalytics() {
 
             <div className="an-stats">
               {[
-                { label: 'Gjennomspillinger', value: totalStarts, icon: '🎮' },
-                { label: 'Gjennomsnittsscore', value: `${avgScore}%`, icon: '🎯' },
-                { label: 'Snitt spilletid', value: formatTime(avgTimeSec), icon: '⏱' },
-                { label: 'Enkeltspillere', value: soloCount, icon: '👤' },
-                { label: 'Lag', value: teamCount, icon: '👥' },
+                { label: 'Gjennomspillinger', value: totalStarts },
+                { label: 'Gjennomsnittsscore', value: `${avgScore}%` },
+                { label: 'Snitt spilletid', value: formatTime(avgTimeSec) },
+                { label: 'Enkeltspillere', value: soloCount },
+                { label: 'Lag', value: teamCount },
               ].map(s => (
                 <div key={s.label} className="an-stat">
-                  <div className="an-stat-icon">{s.icon}</div>
                   <div className="an-stat-value">{s.value}</div>
                   <div className="an-stat-label">{s.label}</div>
                 </div>
@@ -466,7 +465,7 @@ export default function QuizAnalytics() {
                     <div className="an-q-score">
                       <p className={`an-q-pct ${dc}`}>{qs.correct_pct}%</p>
                       <p className={`an-q-difficulty ${dc}`}>{diffLabel(qs.correct_pct)}</p>
-                      <p className="an-q-time">⏱ {qs.avg_time_ms}s snitt</p>
+                      <p className="an-q-time">{qs.avg_time_ms}s snitt</p>
                     </div>
                   </div>
 

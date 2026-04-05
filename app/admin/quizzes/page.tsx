@@ -138,8 +138,8 @@ const STYLES = `
   }
 
   .aqz-badge.open   { background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
-  .aqz-badge.closed { background: rgba(96,165,250,0.10); color: #60a5fa;     border: 1px solid rgba(96,165,250,0.2); }
-  .aqz-badge.hidden { background: var(--border);         color: var(--muted); border: 1px solid var(--border); }
+  .aqz-badge.closed { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .aqz-badge.hidden { background: transparent; color: var(--muted); border: 1px solid var(--border); }
 
   .aqz-card-desc { font-size: 13px; color: var(--muted); }
 
@@ -176,12 +176,12 @@ const STYLES = `
 
   .aqz-action:hover { opacity: 0.8; }
 
-  .aqz-action.blue   { background: rgba(96,165,250,0.12); color: #60a5fa; }
-  .aqz-action.gray   { background: rgba(255,255,255,0.06); color: var(--body); }
-  .aqz-action.orange { background: rgba(251,146,60,0.12); color: #fb923c; }
-  .aqz-action.green  { background: rgba(74,222,128,0.12); color: var(--green); }
-  .aqz-action.purple { background: rgba(167,139,250,0.12); color: #a78bfa; }
-  .aqz-action.red    { background: rgba(248,113,113,0.10); color: #f87171; }
+  .aqz-action.blue,
+  .aqz-action.gray,
+  .aqz-action.orange,
+  .aqz-action.green,
+  .aqz-action.purple,
+  .aqz-action.red    { background: transparent; color: #e8e4dd; border: 1px solid #2a2d38; }
 
   /* Empty */
   .aqz-empty {
@@ -347,9 +347,9 @@ export default function AdminQuizzes() {
                       <p className="aqz-card-desc">{quiz.description}</p>
                     )}
                     <div className="aqz-card-meta">
-                      <span>📅 {formatDate(quiz.opens_at)}</span>
-                      <span>🔒 {formatDate(quiz.closes_at)}</span>
-                      <span>⏱ {quiz.time_limit_seconds}s</span>
+                      <span>{formatDate(quiz.opens_at)}</span>
+                      <span>{formatDate(quiz.closes_at)}</span>
+                      <span>{quiz.time_limit_seconds}s</span>
                     </div>
                   </div>
                 </div>
