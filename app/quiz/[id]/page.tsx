@@ -1276,6 +1276,7 @@ export default function QuizPage() {
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
+        {!isLoggedIn && <span style={{ fontSize: 15, color: '#7a7873', fontWeight: 400, marginLeft: 8 }}>(guest)</span>}
       </h1>
       <p style={{fontSize:13,color:'#7a7873',marginBottom:24}}>{quiz.title}</p>
 

@@ -395,7 +395,10 @@ export default function LeaderboardPage() {
               {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
             </p>
           )}
-          <p style={s.name}>{attempt.player_name}</p>
+          <p style={s.name}>
+            {attempt.player_name}
+            {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
+          </p>
           <p style={s.nameSub}>
             {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
             ⏱ {formatTime(attempt.total_time_ms)}
