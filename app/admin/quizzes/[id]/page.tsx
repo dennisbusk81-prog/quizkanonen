@@ -12,16 +12,46 @@ const toLocalInput = (iso: string) => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// Parse a datetime-local string ("YYYY-MM-DDTHH:mm") as local time and
-// return a UTC ISO string. new Date(str) is unreliable for strings without
-// an explicit timezone offset — some browsers (notably Safari) treat them
-// as UTC rather than local time, causing saves to shift by the UTC offset.
 const toISO = (local: string): string => {
   const [datePart, timePart] = local.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hours, minutes] = timePart.split(':').map(Number)
   const d = new Date(year, month - 1, day, hours, minutes, 0, 0)
   return d.toISOString()
+}
+
+const s = {
+  page:       { minHeight: '100vh', background: '#1a1c23', padding: '32px 16px', fontFamily: "'Instrument Sans', sans-serif" } as React.CSSProperties,
+  inner:      { maxWidth: 680, margin: '0 auto' } as React.CSSProperties,
+  backLink:   { fontSize: 12, color: '#7a7873', textDecoration: 'none', display: 'inline-block', marginBottom: 16 } as React.CSSProperties,
+  header:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 } as React.CSSProperties,
+  h1:         { fontSize: 22, fontWeight: 700, color: '#ffffff', margin: 0 } as React.CSSProperties,
+  badge:      (active: boolean): React.CSSProperties => ({
+    fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+    background: active ? 'rgba(76,175,125,0.12)' : 'transparent',
+    border: `1px solid ${active ? 'rgba(76,175,125,0.3)' : '#2a2d38'}`,
+    color: active ? '#4caf7d' : '#7a7873',
+  }),
+  feedback:   (type: 'success' | 'error'): React.CSSProperties => ({
+    marginBottom: 16, padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+    background: type === 'success' ? 'rgba(76,175,125,0.1)' : 'rgba(201,76,76,0.1)',
+    border: `1px solid ${type === 'success' ? 'rgba(76,175,125,0.25)' : 'rgba(201,76,76,0.25)'}`,
+    color: type === 'success' ? '#4caf7d' : '#c94c4c',
+  }),
+  navGrid:    { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 } as React.CSSProperties,
+  navCard:    { display: 'block', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, padding: '14px 12px', textAlign: 'center' as const, textDecoration: 'none' },
+  navTitle:   { fontSize: 13, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 } as React.CSSProperties,
+  navSub:     { fontSize: 11, color: '#7a7873' } as React.CSSProperties,
+  card:       { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 20px', marginBottom: 16 } as React.CSSProperties,
+  h2:         { fontSize: 14, fontWeight: 600, color: '#ffffff', margin: '0 0 16px' } as React.CSSProperties,
+  label:      { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#7a7873', display: 'block', marginBottom: 6 } as React.CSSProperties,
+  input:      { width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', color: '#ffffff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const } as React.CSSProperties,
+  hint:       { fontSize: 11, color: '#7a7873', marginTop: 4 } as React.CSSProperties,
+  row2:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } as React.CSSProperties,
+  toggleRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #2a2d38' } as React.CSSProperties,
+  toggleLast: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' } as React.CSSProperties,
+  saveBtn:    { width: '100%', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '12px', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16, fontFamily: 'inherit' } as React.CSSProperties,
+  outlineBtn: { flex: 1, background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: 'inherit' } as React.CSSProperties,
 }
 
 export default function QuizCockpit() {
@@ -152,153 +182,145 @@ export default function QuizCockpit() {
 
   const upd = (key: string, val: unknown) => setForm(f => ({ ...f, [key]: val }))
 
-  const Toggle = ({ label, field }: { label: string; field: string }) => (
-    <div className="flex items-center justify-between py-2.5 border-b border-gray-800 last:border-0">
-      <span className="text-gray-300 text-sm">{label}</span>
-      <button onClick={() => upd(field, !(form as any)[field])}
-        className={`w-12 h-6 rounded-full transition-all relative ${(form as any)[field] ? 'bg-yellow-400' : 'bg-gray-700'}`}>
-        <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(form as any)[field] ? 'left-7' : 'left-1'}`} />
-      </button>
-    </div>
-  )
+  const toggleFields = [
+    { label: 'Publisert (synlig for spillere)', field: 'is_active' },
+    { label: 'Vis leaderboard', field: 'show_leaderboard' },
+    { label: 'Skjul leaderboard til quiz stenger', field: 'hide_leaderboard_until_closed' },
+    { label: 'Vis plassering underveis', field: 'show_live_placement' },
+    { label: 'Vis forklaring etter svar', field: 'show_answer_explanation' },
+    { label: 'Tilfeldig rekkefølge på spørsmål', field: 'randomize_questions' },
+    { label: 'Tillat lag', field: 'allow_teams' },
+    { label: 'Krev verdikode', field: 'requires_access_code' },
+  ]
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <p className="text-white animate-pulse">Laster...</p>
+    <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
     </div>
   )
 
   return (
-    <main className="min-h-screen bg-gray-950 px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <Link href="/admin/quizzes" className="text-gray-400 hover:text-white text-sm mb-2 inline-block">← Alle quizer</Link>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-black text-white">🎛️ {form.title || 'Quiz-cockpit'}</h1>
-          <span className={`px-3 py-1 rounded-full text-xs font-bold ${form.is_active ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
-            {form.is_active ? 'Publisert' : 'Skjult'}
-          </span>
+    <main style={s.page}>
+      <div style={s.inner}>
+        <Link href="/admin/quizzes" style={s.backLink}>← Alle quizer</Link>
+
+        <div style={s.header}>
+          <h1 style={s.h1}>{form.title || 'Quiz-cockpit'}</h1>
+          <span style={s.badge(form.is_active)}>{form.is_active ? 'Publisert' : 'Skjult'}</span>
         </div>
 
         {feedback && (
-          <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-semibold ${feedback.type === 'success' ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'}`}>
-            {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
-          </div>
+          <div style={s.feedback(feedback.type)}>{feedback.msg}</div>
         )}
 
-        {/* Snarveier */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <Link href={`/admin/quizzes/${quizId}/questions`}
-            className="bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-2xl p-4 text-center transition-all">
-            <p className="text-2xl mb-1">❓</p>
-            <p className="font-bold text-sm">Spørsmål</p>
-            <p className="text-xs text-blue-400 mt-0.5">{stats.questions} stk</p>
+        {/* Navigasjon */}
+        <div style={s.navGrid}>
+          <Link href={`/admin/quizzes/${quizId}/questions`} style={s.navCard}>
+            <p style={s.navTitle}>Spørsmål</p>
+            <p style={s.navSub}>{stats.questions} stk</p>
           </Link>
-          <Link href={`/admin/quizzes/${quizId}/analytics`}
-            className="bg-gray-900 hover:bg-gray-800 text-gray-200 rounded-2xl p-4 text-center transition-all border border-gray-800">
-            <p className="text-2xl mb-1">📊</p>
-            <p className="font-bold text-sm">Analytics</p>
-            <p className="text-xs text-gray-400 mt-0.5">{stats.plays} spill</p>
+          <Link href={`/admin/quizzes/${quizId}/analytics`} style={s.navCard}>
+            <p style={s.navTitle}>Analytics</p>
+            <p style={s.navSub}>{stats.plays} spill</p>
           </Link>
-          <Link href={`/quiz/${quizId}`} target="_blank"
-            className="bg-gray-900 hover:bg-gray-800 text-gray-200 rounded-2xl p-4 text-center transition-all border border-gray-800">
-            <p className="text-2xl mb-1">👁️</p>
-            <p className="font-bold text-sm">Forhåndsvis</p>
-            <p className="text-xs text-gray-400 mt-0.5">Åpner i ny fane</p>
+          <Link href={`/quiz/${quizId}`} target="_blank" style={s.navCard}>
+            <p style={s.navTitle}>Forhåndsvis</p>
+            <p style={s.navSub}>Åpner i ny fane</p>
           </Link>
         </div>
 
         {/* Grunninfo */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-4">
-          <h2 className="text-white font-bold mb-4">Grunninfo</h2>
-          <div className="space-y-3">
+        <div style={s.card}>
+          <h2 style={s.h2}>Grunninfo</h2>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={s.label}>Tittel</label>
+            <input type="text" value={form.title} onChange={e => upd('title', e.target.value)} style={s.input} />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={s.label}>Beskrivelse</label>
+            <textarea value={form.description} onChange={e => upd('description', e.target.value)}
+              rows={2} style={{ ...s.input, resize: 'none' }} />
+          </div>
+
+          <div style={{ ...s.row2, marginBottom: 12 }}>
             <div>
-              <label className="text-gray-400 text-xs font-semibold mb-1 block">Tittel</label>
-              <input type="text" value={form.title} onChange={e => upd('title', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400" />
-            </div>
-            <div>
-              <label className="text-gray-400 text-xs font-semibold mb-1 block">Beskrivelse</label>
-              <textarea value={form.description} onChange={e => upd('description', e.target.value)}
-                rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400 resize-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-gray-400 text-xs font-semibold mb-1 block">📅 Åpner</label>
-                <input type="datetime-local" value={form.opens_at} onChange={e => upd('opens_at', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400" />
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs font-semibold mb-1 block">🔒 Stenger</label>
-                <input type="datetime-local" value={form.closes_at} onChange={e => upd('closes_at', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400" />
-              </div>
+              <label style={s.label}>Åpner</label>
+              <input type="datetime-local" value={form.opens_at} onChange={e => upd('opens_at', e.target.value)} style={s.input} />
             </div>
             <div>
-              <label className="text-gray-400 text-xs font-semibold mb-1 block">⏰ Auto-publiser (valgfritt)</label>
-              <input
-                type="datetime-local"
-                value={form.scheduled_at}
-                onChange={e => {
-                  upd('scheduled_at', e.target.value)
-                  if (e.target.value) upd('is_active', false)
-                }}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-400"
-              />
-              <p className="text-gray-500 text-xs mt-1">Publiseres automatisk på dette tidspunktet. Tøm feltet for å deaktivere.</p>
+              <label style={s.label}>Stenger</label>
+              <input type="datetime-local" value={form.closes_at} onChange={e => upd('closes_at', e.target.value)} style={s.input} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-gray-400 text-xs font-semibold mb-1 block">⏱️ Tid per spørsmål: {form.time_limit_seconds}s</label>
-                <input type="range" min={10} max={120} value={form.time_limit_seconds}
-                  onChange={e => upd('time_limit_seconds', parseInt(e.target.value))}
-                  className="w-full accent-yellow-400" />
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs font-semibold mb-1 block">Antall svaralternativer</label>
-                <div className="flex gap-2">
-                  {[2, 3, 4].map(n => (
-                    <button key={n} onClick={() => upd('num_options', n)}
-                      className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${form.num_options === n ? 'bg-yellow-400 text-gray-950' : 'bg-gray-800 text-white'}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={s.label}>Auto-publiser (valgfritt)</label>
+            <input type="datetime-local" value={form.scheduled_at}
+              onChange={e => { upd('scheduled_at', e.target.value); if (e.target.value) upd('is_active', false) }}
+              style={s.input} />
+            <p style={s.hint}>Publiseres automatisk på dette tidspunktet. Tøm feltet for å deaktivere.</p>
+          </div>
+
+          <div style={s.row2}>
+            <div>
+              <label style={s.label}>Tid per spørsmål: {form.time_limit_seconds}s</label>
+              <input type="range" min={10} max={120} value={form.time_limit_seconds}
+                onChange={e => upd('time_limit_seconds', parseInt(e.target.value))}
+                style={{ width: '100%', accentColor: '#c9a84c' }} />
+            </div>
+            <div>
+              <label style={s.label}>Antall svaralternativer</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[2, 3, 4].map(n => (
+                  <button key={n} onClick={() => upd('num_options', n)} style={{
+                    flex: 1, padding: '8px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                    background: form.num_options === n ? '#c9a84c' : 'transparent',
+                    color: form.num_options === n ? '#1a1c23' : '#e8e4dd',
+                    border: `1px solid ${form.num_options === n ? '#c9a84c' : '#2a2d38'}`,
+                  }}>{n}</button>
+                ))}
               </div>
             </div>
           </div>
         </div>
 
         {/* Innstillinger */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-4">
-          <h2 className="text-white font-bold mb-2">Innstillinger</h2>
-          <Toggle label="Publisert (synlig for spillere)" field="is_active" />
-          <Toggle label="Vis leaderboard" field="show_leaderboard" />
-          <Toggle label="Skjul leaderboard til quiz stenger" field="hide_leaderboard_until_closed" />
-          <Toggle label="Vis plassering underveis" field="show_live_placement" />
-          <Toggle label="Vis forklaring etter svar" field="show_answer_explanation" />
-          <Toggle label="Tilfeldig rekkefølge på spørsmål" field="randomize_questions" />
-          <Toggle label="Tillat lag" field="allow_teams" />
-          <Toggle label="Krev verdikode" field="requires_access_code" />
+        <div style={s.card}>
+          <h2 style={s.h2}>Innstillinger</h2>
+          {toggleFields.map(({ label, field }, i) => {
+            const on = (form as Record<string, unknown>)[field] as boolean
+            const isLast = i === toggleFields.length - 1
+            return (
+              <div key={field} style={isLast ? s.toggleLast : s.toggleRow}>
+                <span style={{ color: '#e8e4dd', fontSize: 14 }}>{label}</span>
+                <button onClick={() => upd(field, !on)} style={{
+                  width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: on ? '#c9a84c' : '#2a2d38', position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
+                    left: on ? 23 : 3, transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+            )
+          })}
         </div>
 
         {/* Lagre */}
-        <button onClick={saveQuiz} disabled={saving}
-          className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-gray-950 font-black py-3 rounded-2xl text-lg transition-all mb-4">
-          {saving ? 'Lagrer...' : '💾 Lagre endringer'}
+        <button onClick={saveQuiz} disabled={saving} style={{ ...s.saveBtn, opacity: saving ? 0.5 : 1 }}>
+          {saving ? 'Lagrer...' : 'Lagre endringer'}
         </button>
 
-        {/* Farlige handlinger */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-          <h2 className="text-white font-bold mb-3">Handlinger</h2>
-          <div className="flex gap-3">
-            <button onClick={resetQuiz}
-              className="flex-1 bg-purple-900 hover:bg-purple-800 text-purple-200 py-2.5 rounded-xl font-semibold text-sm transition-all">
-              🔄 Nullstill resultater
-            </button>
-            <button onClick={deleteQuiz}
-              className="flex-1 bg-red-900 hover:bg-red-800 text-red-200 py-2.5 rounded-xl font-semibold text-sm transition-all">
-              🗑️ Slett quiz
-            </button>
+        {/* Handlinger */}
+        <div style={s.card}>
+          <h2 style={s.h2}>Handlinger</h2>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={resetQuiz} style={s.outlineBtn}>Nullstill resultater</button>
+            <button onClick={deleteQuiz} style={s.outlineBtn}>Slett quiz</button>
           </div>
         </div>
       </div>
