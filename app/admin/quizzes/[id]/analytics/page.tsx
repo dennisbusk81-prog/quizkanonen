@@ -20,6 +20,7 @@ type AnswerRow = {
   is_correct: boolean
   selected_answer: string | null
   time_ms: number
+  player_name: string
 }
 
 type QuestionStat = {
@@ -29,6 +30,7 @@ type QuestionStat = {
   correct_pct: number
   avg_time_ms: number
   option_counts: Record<string, number>
+  option_players: Record<string, string[]>
 }
 
 const STYLES = `
@@ -66,7 +68,7 @@ const STYLES = `
   .an-page { max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
 
   /* Header */
-  .an-header { padding: 48px 0 28px; }
+  .an-header { padding: 24px 0 20px; }
 
   .an-back {
     font-size: 12px;
@@ -259,6 +261,107 @@ const STYLES = `
   .an-opt-name { font-size: 11px; color: var(--muted); width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .an-opt-count { font-size: 11px; color: var(--muted); width: 48px; text-align: right; flex-shrink: 0; }
 
+  .an-opt-toggle {
+    width: 14px;
+    font-size: 10px;
+    color: var(--muted);
+    flex-shrink: 0;
+    text-align: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .an-opt-toggle:hover { color: var(--gold); }
+
+  .an-opt-players {
+    padding: 4px 0 8px 30px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* Change correct answer */
+  .an-change-btn {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 9px;
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+    margin-top: 8px;
+    display: block;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .an-change-btn:hover { color: var(--gold); border-color: var(--gold-bdr); }
+
+  .an-change-panel {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .an-change-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .an-change-opts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  .an-change-opt {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--body);
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .an-change-opt.selected { border-color: var(--gold); color: var(--gold); background: var(--gold-bg); }
+
+  .an-change-actions { display: flex; gap: 6px; }
+
+  .an-change-confirm {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: none;
+    background: var(--gold);
+    color: #0f0f10;
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+  }
+  .an-change-confirm:disabled { opacity: 0.5; cursor: default; }
+
+  .an-change-cancel {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+  }
+
+  /* Feedback */
+  .an-feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .an-feedback.success { background: rgba(74,222,128,0.10); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+  .an-feedback.error   { background: rgba(248,113,113,0.10); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+
   /* Empty */
   .an-empty {
     background: var(--card);
@@ -305,6 +408,11 @@ export default function QuizAnalytics() {
   const [attempts, setAttempts] = useState<AttemptRow[]>([])
   const [answers, setAnswers] = useState<AnswerRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedOpts, setExpandedOpts] = useState<Set<string>>(new Set())
+  const [editingQuestion, setEditingQuestion] = useState<string | null>(null)
+  const [pendingCorrect, setPendingCorrect] = useState<string | null>(null)
+  const [savingCorrect, setSavingCorrect] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -343,9 +451,11 @@ export default function QuizAnalytics() {
     const total = qAnswers.length
     const avgTime = total > 0 ? Math.round(qAnswers.reduce((s, a) => s + a.time_ms, 0) / total / 1000) : 0
     const option_counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 }
+    const option_players: Record<string, string[]> = { A: [], B: [], C: [], D: [] }
     qAnswers.forEach(a => {
       if (a.selected_answer && option_counts[a.selected_answer] !== undefined) {
         option_counts[a.selected_answer]++
+        option_players[a.selected_answer].push(a.player_name || 'Ukjent')
       }
     })
     return {
@@ -355,8 +465,38 @@ export default function QuizAnalytics() {
       correct_pct: total > 0 ? Math.round((correct / total) * 100) : 0,
       avg_time_ms: avgTime,
       option_counts,
+      option_players,
     }
   })
+
+  async function saveCorrectAnswer(questionId: string, newAnswer: string) {
+    setSavingCorrect(true)
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions/${questionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ correct_answer: newAnswer }),
+      })
+      if (!res.ok) setFeedback({ type: 'error', msg: 'Kunne ikke oppdatere riktig svar.' })
+      else {
+        setFeedback({ type: 'success', msg: 'Riktig svar oppdatert og resultater rekalkulert.' })
+        setEditingQuestion(null)
+        setPendingCorrect(null)
+        fetchData()
+      }
+    } catch {
+      setFeedback({ type: 'error', msg: 'Kunne ikke oppdatere riktig svar.' })
+    } finally {
+      setSavingCorrect(false)
+    }
+  }
+
+  function toggleExpandOpt(key: string) {
+    setExpandedOpts(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   const formatTime = (sec: number) => sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`
 
@@ -382,6 +522,12 @@ export default function QuizAnalytics() {
         </header>
 
         <div className="an-rule" />
+
+        {feedback && (
+          <div className={`an-feedback ${feedback.type}`}>
+            {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+          </div>
+        )}
 
         {totalStarts === 0 ? (
           <div className="an-empty">
@@ -466,8 +612,38 @@ export default function QuizAnalytics() {
                       <p className={`an-q-pct ${dc}`}>{qs.correct_pct}%</p>
                       <p className={`an-q-difficulty ${dc}`}>{diffLabel(qs.correct_pct)}</p>
                       <p className="an-q-time">{qs.avg_time_ms}s snitt</p>
+                      <button className="an-change-btn"
+                        onClick={() => { setEditingQuestion(qs.question.id); setPendingCorrect(qs.question.correct_answer) }}>
+                        Endre svar
+                      </button>
                     </div>
                   </div>
+
+                  {editingQuestion === qs.question.id && (
+                    <div className="an-change-panel">
+                      <p className="an-change-label">Velg nytt riktig svar:</p>
+                      <div className="an-change-opts">
+                        {opts.map(o => (
+                          <button key={o}
+                            className={`an-change-opt ${pendingCorrect === o ? 'selected' : ''}`}
+                            onClick={() => setPendingCorrect(o)}>
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="an-change-actions">
+                        <button className="an-change-confirm"
+                          disabled={savingCorrect || pendingCorrect === qs.question.correct_answer}
+                          onClick={() => pendingCorrect && saveCorrectAnswer(qs.question.id, pendingCorrect)}>
+                          {savingCorrect ? 'Lagrer...' : 'Bekreft'}
+                        </button>
+                        <button className="an-change-cancel"
+                          onClick={() => { setEditingQuestion(null); setPendingCorrect(null) }}>
+                          Avbryt
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     {opts.map(opt => {
@@ -477,15 +653,30 @@ export default function QuizAnalytics() {
                       const count = qs.option_counts[opt] || 0
                       const pct = qs.total_answers > 0 ? Math.round((count / qs.total_answers) * 100) : 0
                       const isCorrect = qs.question.correct_answer === opt
+                      const players = qs.option_players[opt] || []
+                      const expandKey = `${qs.question.id}_${opt}`
+                      const isExpanded = expandedOpts.has(expandKey)
                       return (
-                        <div key={opt} className="an-opt-row">
-                          <span className={`an-opt-letter ${isCorrect ? 'correct' : ''}`}>{opt}</span>
-                          <div className="an-opt-track">
-                            <div className={`an-opt-fill ${isCorrect ? 'correct' : ''}`}
-                              style={{ width: `${(count / maxCount) * 100}%` }} />
+                        <div key={opt}>
+                          <div className="an-opt-row"
+                            style={{ cursor: players.length > 0 ? 'pointer' : 'default' }}
+                            onClick={() => players.length > 0 && toggleExpandOpt(expandKey)}>
+                            <span className={`an-opt-letter ${isCorrect ? 'correct' : ''}`}>{opt}</span>
+                            <div className="an-opt-track">
+                              <div className={`an-opt-fill ${isCorrect ? 'correct' : ''}`}
+                                style={{ width: `${(count / maxCount) * 100}%` }} />
+                            </div>
+                            <span className="an-opt-name">{label}</span>
+                            <span className="an-opt-count">{count} ({pct}%)</span>
+                            {players.length > 0 && (
+                              <button className="an-opt-toggle" onClick={e => { e.stopPropagation(); toggleExpandOpt(expandKey) }}>
+                                {isExpanded ? '▾' : '▸'}
+                              </button>
+                            )}
                           </div>
-                          <span className="an-opt-name">{label}</span>
-                          <span className="an-opt-count">{count} ({pct}%)</span>
+                          {isExpanded && players.length > 0 && (
+                            <div className="an-opt-players">{players.join(', ')}</div>
+                          )}
                         </div>
                       )
                     })}

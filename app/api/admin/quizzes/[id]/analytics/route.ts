@@ -29,10 +29,20 @@ export async function GET(
   if (ids.length > 0) {
     const { data: answerData, error: e4 } = await supabaseAdmin
       .from('attempt_answers')
-      .select('question_id, is_correct, selected_answer, time_ms')
+      .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
       .in('attempt_id', ids)
     if (e4) return NextResponse.json({ error: e4.message }, { status: 500 })
-    answers = answerData ?? []
+    const attemptPlayerMap: Record<string, string> = {}
+    for (const a of (attempts ?? [])) {
+      attemptPlayerMap[(a as { id: string; player_name: string }).id] = (a as { id: string; player_name: string }).player_name || ''
+    }
+    answers = (answerData ?? []).map((a: { question_id: string; is_correct: boolean; selected_answer: string | null; time_ms: number; attempt_id: string }) => ({
+      question_id: a.question_id,
+      is_correct: a.is_correct,
+      selected_answer: a.selected_answer,
+      time_ms: a.time_ms,
+      player_name: attemptPlayerMap[a.attempt_id] || '',
+    }))
   }
 
   return NextResponse.json({ quiz, questions: questions ?? [], attempts: attempts ?? [], answers })

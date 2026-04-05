@@ -15,6 +15,15 @@ export async function PATCH(
   const body = await request.json()
   const { error } = await supabaseAdmin.from('questions').update(body).eq('id', qid)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (body.correct_answer) {
+    const newCorrect: string = body.correct_answer
+    await Promise.all([
+      supabaseAdmin.from('attempt_answers').update({ is_correct: true }).eq('question_id', qid).eq('selected_answer', newCorrect),
+      supabaseAdmin.from('attempt_answers').update({ is_correct: false }).eq('question_id', qid).neq('selected_answer', newCorrect),
+    ])
+  }
+
   return NextResponse.json({ ok: true })
 }
 
