@@ -541,8 +541,6 @@ export default function QuizPage() {
   const [isPremium, setIsPremium] = useState(false)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
-  const [showParticles, setShowParticles] = useState(false)
-  const [particleOrigin, setParticleOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
   const [interRank, setInterRank] = useState<number | null>(null)
   const [interQLeft, setInterQLeft] = useState(0)
@@ -709,7 +707,7 @@ export default function QuizPage() {
     }
   }
 
-  const handleAnswer = async (answer: string, buttonEl?: HTMLElement | null) => {
+  const handleAnswer = async (answer: string) => {
     if (answered) return
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
@@ -725,42 +723,60 @@ export default function QuizPage() {
     }
     if (isCorrect) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(100)
-      if (buttonEl) {
-        const rect = buttonEl.getBoundingClientRect()
-        fireParticles(rect.left + rect.width / 2, rect.top + rect.height / 2)
-      }
+      fireParticles()
     }
   }
 
-  const fireParticles = useCallback((originX: number, originY: number) => {
+  const fireParticles = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     if (particleFrameRef.current) cancelAnimationFrame(particleFrameRef.current)
 
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
+    const W = window.innerWidth
+    const H = window.innerHeight
+    canvas.width = W
+    canvas.height = H
     canvas.style.display = 'block'
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const count = 16 + Math.floor(Math.random() * 4)
-    const particles: { x: number; y: number; vx: number; vy: number; size: number; color: string; alpha: number }[] = []
+    const COLORS = ['#c9a84c', '#f5d78e', '#ffffff']
+    const count = 60
+    const originX = W / 2
+    const originY = H * 0.42
+
+    type Piece = {
+      x: number; y: number
+      vx: number; vy: number
+      w: number; h: number
+      color: string; alpha: number
+      angle: number; spin: number
+    }
+
+    const pieces: Piece[] = []
     for (let i = 0; i < count; i++) {
-      const angle = (Math.random() * Math.PI * 2)
-      const speed = 2 + Math.random() * 4
-      particles.push({
-        x: originX, y: originY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 2,
-        size: 4 + Math.random() * 4,
-        color: Math.random() > 0.4 ? '#c9a84c' : '#ffffff',
+      // Spread across at least 60% of screen width: fan angle ±70° from straight down
+      const spread = (Math.random() - 0.5) * Math.PI * 1.4   // ±70° in radians
+      const baseAngle = Math.PI / 2 + spread                  // downward direction + spread
+      const speed = 4 + Math.random() * 9
+      const size = 6 + Math.random() * 6
+      pieces.push({
+        x: originX,
+        y: originY,
+        vx: Math.cos(baseAngle) * speed,
+        vy: Math.sin(baseAngle) * speed - (2 + Math.random() * 3),
+        w: size,
+        h: size * (0.4 + Math.random() * 0.35),
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
         alpha: 1,
+        angle: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.3,
       })
     }
 
     const start = performance.now()
-    const duration = 800
+    const duration = 1200
 
     const tick = (now: number) => {
       const elapsed = now - start
@@ -768,20 +784,22 @@ export default function QuizPage() {
         canvas.style.display = 'none'
         return
       }
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.clearRect(0, 0, W, H)
       const t = elapsed / duration
-      for (const p of particles) {
+      for (const p of pieces) {
         p.x += p.vx
         p.y += p.vy
-        p.vy += 0.18
-        p.alpha = 1 - t
+        p.vy += 0.25
+        p.angle += p.spin
+        p.alpha = 1 - t * t
+        ctx.save()
         ctx.globalAlpha = p.alpha
         ctx.fillStyle = p.color
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.angle)
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
+        ctx.restore()
       }
-      ctx.globalAlpha = 1
       particleFrameRef.current = requestAnimationFrame(tick)
     }
     particleFrameRef.current = requestAnimationFrame(tick)
@@ -1128,7 +1146,7 @@ export default function QuizPage() {
           {availableOptions.map((opt, i) => (
             <button
               key={`${questionKey}-${opt}`}
-              onClick={e => handleAnswer(opt, e.currentTarget)}
+              onClick={() => handleAnswer(opt)}
               disabled={answered}
               className={`qk-option qk-animate-in${getOptionClass(opt)}`}
               style={{ animationDelay: `${i * 60}ms` }}
