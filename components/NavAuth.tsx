@@ -114,6 +114,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     return (
       <>
         <a
+          href="/bedrift"
+          style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+        >
+          For bedrifter
+        </a>
+        <a
           href="/login"
           style={{
             fontSize: 13, color: '#e8e4dd',
@@ -148,6 +156,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // ── Logged in ──
   return (
     <>
+      <a
+        href="/bedrift"
+        style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+        onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+      >
+        For bedrifter
+      </a>
       {/* Free users: show upgrade nudge */}
       {profileLoaded && !isPremium && (
         <a
