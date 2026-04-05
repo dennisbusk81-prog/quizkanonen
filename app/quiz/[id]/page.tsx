@@ -639,7 +639,12 @@ export default function QuizPage() {
   }, [phase, isLoggedIn])
 
   useEffect(() => {
-    return () => { animationTimeoutsRef.current.forEach(clearTimeout) }
+    return () => {
+      animationTimeoutsRef.current.forEach(clearTimeout)
+      document.body.style.backgroundColor = ''
+      document.body.style.transition = ''
+      document.getElementById('qk-glow-overlay')?.remove()
+    }
   }, [])
 
   const getTimeLimit = useCallback((question: Question) =>
