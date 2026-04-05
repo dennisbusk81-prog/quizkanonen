@@ -759,34 +759,31 @@ export default function QuizPage() {
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
 
-    // 0ms: Knapp — box-shadow + border-color inn over 400ms
+    // 0ms: Knapp og bakgrunn starter simultant over 500ms
     if (buttonEl) {
-      buttonEl.style.transition = 'box-shadow 400ms cubic-bezier(0.4, 0, 0.2, 1), border-color 400ms cubic-bezier(0.4, 0, 0.2, 1)'
+      buttonEl.style.transition = 'box-shadow 500ms cubic-bezier(0.4, 0, 0.2, 1), border-color 500ms cubic-bezier(0.4, 0, 0.2, 1)'
       requestAnimationFrame(() => {
         buttonEl.style.boxShadow = '0 0 40px 12px rgba(201,168,76,0.35)'
         buttonEl.style.borderColor = '#c9a84c'
       })
-      // 900ms: box-shadow + border-color fader ut over 600ms
-      t(900, () => {
-        buttonEl.style.transition = 'box-shadow 600ms cubic-bezier(0.4, 0, 0.2, 1), border-color 600ms cubic-bezier(0.4, 0, 0.2, 1)'
+      // 1200ms: Knapp fader ut over 800ms
+      t(1200, () => {
+        buttonEl.style.transition = 'box-shadow 800ms cubic-bezier(0.4, 0, 0.2, 1), border-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
         buttonEl.style.boxShadow = ''
         buttonEl.style.borderColor = ''
       })
     }
 
-    // 200ms: Bakgrunn varmes opp over 700ms
     if (typeof document !== 'undefined') {
-      t(200, () => {
-        document.body.style.transition = 'background-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
-        requestAnimationFrame(() => { document.body.style.backgroundColor = '#201d13' })
-      })
-      // 1000ms: Bakgrunn tilbake til #1a1c23 over 800ms
-      t(1000, () => {
+      document.body.style.transition = 'background-color 500ms cubic-bezier(0.4, 0, 0.2, 1)'
+      requestAnimationFrame(() => { document.body.style.backgroundColor = '#221e12' })
+      // 1200ms: Bakgrunn fader tilbake over 800ms — nøyaktig simultant med knappen
+      t(1200, () => {
         document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
         document.body.style.backgroundColor = '#1a1c23'
       })
-      // 1800ms: Rydd opp body inline styles
-      t(1800, () => {
+      // 2000ms: Rydd opp body inline styles
+      t(2000, () => {
         document.body.style.transition = ''
         document.body.style.backgroundColor = ''
       })
