@@ -771,7 +771,7 @@ export default function QuizPage() {
     if (buttonEl) {
       buttonEl.style.transition = 'box-shadow 500ms cubic-bezier(0.4, 0, 0.2, 1), border-color 500ms cubic-bezier(0.4, 0, 0.2, 1)'
       requestAnimationFrame(() => {
-        buttonEl.style.boxShadow = '0 0 120px 60px rgba(201,168,76,0.25)'
+        buttonEl.style.boxShadow = '0 0 150px 80px rgba(201,168,76,0.20)'
         buttonEl.style.borderColor = '#c9a84c'
       })
       // 1400ms: Knapp slukner sist — 700ms ut
