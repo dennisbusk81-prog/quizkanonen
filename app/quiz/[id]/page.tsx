@@ -751,6 +751,9 @@ export default function QuizPage() {
   function fireCorrectAnswer(buttonEl?: HTMLButtonElement) {
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
+    if (typeof document !== 'undefined') {
+      document.getElementById('qk-glow-overlay')?.remove()
+    }
 
     const t = (ms: number, fn: () => void) => {
       const id = setTimeout(fn, ms)
@@ -775,20 +778,33 @@ export default function QuizPage() {
     }
 
     if (typeof document !== 'undefined') {
-      // 150ms: Bakgrunn varmes opp over 700ms
+      // 150ms: Bakgrunn + overlay fader inn over 700ms
       t(150, () => {
         document.body.style.transition = 'background-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
-        requestAnimationFrame(() => { document.body.style.backgroundColor = '#2e2608' })
+        const overlay = document.createElement('div')
+        overlay.id = 'qk-glow-overlay'
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;background:radial-gradient(ellipse at center,rgba(201,168,76,0.08) 0%,transparent 70%);opacity:0;transition:opacity 700ms cubic-bezier(0.4,0,0.2,1)'
+        document.body.appendChild(overlay)
+        requestAnimationFrame(() => {
+          document.body.style.backgroundColor = '#2a1f00'
+          overlay.style.opacity = '1'
+        })
       })
-      // 1200ms: Bakgrunn tilbake over 900ms — slukner før knappen
+      // 1200ms: Bakgrunn + overlay fader ut over 900ms — slukner før knappen
       t(1200, () => {
         document.body.style.transition = 'background-color 900ms cubic-bezier(0.4, 0, 0.2, 1)'
         document.body.style.backgroundColor = '#1a1c23'
+        const overlay = document.getElementById('qk-glow-overlay')
+        if (overlay) {
+          overlay.style.transition = 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1)'
+          overlay.style.opacity = '0'
+        }
       })
-      // 2100ms: Rydd opp body inline styles
+      // 2100ms: Rydd opp body inline styles og fjern overlay fra DOM
       t(2100, () => {
         document.body.style.transition = ''
         document.body.style.backgroundColor = ''
+        document.getElementById('qk-glow-overlay')?.remove()
       })
     }
 
@@ -814,6 +830,7 @@ export default function QuizPage() {
     if (typeof document !== 'undefined') {
       document.body.style.transition = ''
       document.body.style.backgroundColor = ''
+      document.getElementById('qk-glow-overlay')?.remove()
       const correctBtn = document.querySelector('.qk-option.correct') as HTMLButtonElement | null
       if (correctBtn) {
         correctBtn.style.transition = ''
