@@ -545,6 +545,10 @@ export default function QuizPage() {
   const [interLow, setInterLow] = useState<number | null>(null)
   const [interHigh, setInterHigh] = useState<number | null>(null)
   const [interQLeft, setInterQLeft] = useState(0)
+  const questionCardRef      = useRef<HTMLDivElement | null>(null)
+  const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
+  const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
+  const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -633,6 +637,10 @@ export default function QuizPage() {
       } catch { /* ikke kritisk */ }
     })
   }, [phase, isLoggedIn])
+
+  useEffect(() => {
+    return () => { animationTimeoutsRef.current.forEach(clearTimeout) }
+  }, [])
 
   const getTimeLimit = useCallback((question: Question) =>
     question.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
@@ -736,64 +744,89 @@ export default function QuizPage() {
       await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
     }
     if (isCorrect) {
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(100)
-      fireGoldGlow(buttonEl)
+      fireCorrectAnswer(buttonEl)
     }
   }
 
-  function fireGoldGlow(buttonEl?: HTMLButtonElement) {
-    // 1. Gull-pulse på svarknappen
+  function fireCorrectAnswer(buttonEl?: HTMLButtonElement) {
+    // Rydd opp eventuelle løpende animasjoner
+    animationTimeoutsRef.current.forEach(clearTimeout)
+    animationTimeoutsRef.current = []
+
+    const t = (ms: number, fn: () => void) => {
+      const id = setTimeout(fn, ms)
+      animationTimeoutsRef.current.push(id)
+    }
+
+    // 5. Haptikk — 0ms
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
+
+    // 1. Gull-pulse på svarknappen — 0ms, total varighet 1100ms
     if (buttonEl) {
-      buttonEl.style.transition = 'box-shadow 150ms ease-in'
+      buttonEl.style.transition = 'box-shadow 200ms ease-in'
       requestAnimationFrame(() => {
-        buttonEl.style.boxShadow = '0 0 0 2px #c9a84c, 0 0 24px 8px rgba(201,168,76,0.35)'
+        buttonEl.style.boxShadow = '0 0 0 2px #c9a84c, 0 0 28px 10px rgba(201,168,76,0.4)'
       })
-      setTimeout(() => {
-        buttonEl.style.transition = 'box-shadow 300ms ease-out'
+      t(600, () => { // 200ms inn + 400ms hold
+        buttonEl.style.transition = 'box-shadow 500ms ease-out'
         buttonEl.style.boxShadow = ''
-      }, 350) // 150ms fade-in + 200ms hold
-    }
-
-    // 2. Tre stigende gullpartikler
-    const rect = buttonEl?.getBoundingClientRect()
-    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
-    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
-
-    for (let i = 0; i < 3; i++) {
-      const tx = Math.round((Math.random() - 0.5) * 30)   // -15px til +15px
-      const ty = -Math.round(40 + Math.random() * 40)     // -40px til -80px
-
-      const dot = document.createElement('div')
-      dot.style.cssText = [
-        'position:fixed',
-        `left:${cx - 2.5}px`,
-        `top:${cy - 2.5}px`,
-        'width:5px',
-        'height:5px',
-        'border-radius:50%',
-        'background:#c9a84c',
-        'opacity:0.9',
-        'pointer-events:none',
-        'z-index:9999',
-        'transition:transform 600ms ease-out,opacity 600ms ease-out',
-      ].join(';')
-      document.body.appendChild(dot)
-
-      // To rAF-er: første renderer initial-tilstand, andre trigger transition
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          dot.style.transform = `translate(${tx}px,${ty}px)`
-          dot.style.opacity = '0'
-        })
       })
-
-      setTimeout(() => {
-        if (dot.parentNode) dot.parentNode.removeChild(dot)
-      }, 650)
     }
+
+    // 2. Kortbakgrunn varmes opp — 0ms
+    const card = questionCardRef.current
+    if (card) {
+      card.style.transition = 'background-color 300ms ease-in'
+      requestAnimationFrame(() => {
+        card.style.backgroundColor = 'rgba(201,168,76,0.06)'
+      })
+      t(600, () => { // hold 300ms, fade ut
+        card.style.transition = 'background-color 500ms ease-out'
+        card.style.backgroundColor = ''
+      })
+    }
+
+    // 3. Score-badge hopper — 150ms forsinkelse
+    t(150, () => {
+      const badge = scoreBadgeRef.current
+      if (!badge) return
+      badge.style.transition = 'transform 150ms ease-out'
+      badge.style.transform = 'scale(1.18)'
+      t(300, () => { // 150ms + 150ms
+        badge.style.transition = 'transform 200ms ease-in'
+        badge.style.transform = 'scale(1)'
+      })
+    })
+
+    // 4. Streak-badge bouncer — 200ms forsinkelse, kun hvis badge finnes
+    t(200, () => {
+      const streak = streakBadgeRef.current
+      if (!streak) return
+      // Step 1 (0ms): scale(0.8) umiddelbart
+      streak.style.transition = 'none'
+      streak.style.transform = 'scale(0.8)'
+      // Step 2 (200ms): scale(1.05)
+      t(200, () => {
+        streak.style.transition = 'transform 120ms ease-out'
+        streak.style.transform = 'scale(1.05)'
+      })
+      // Step 3 (350ms): scale(1.0)
+      t(350, () => {
+        streak.style.transition = 'transform 120ms ease-in'
+        streak.style.transform = 'scale(1)'
+      })
+    })
   }
 
   const goToNext = async () => {
+    // Rydd opp alle løpende animasjonstimere og inline-stiler
+    animationTimeoutsRef.current.forEach(clearTimeout)
+    animationTimeoutsRef.current = []
+    if (questionCardRef.current) {
+      questionCardRef.current.style.transition = ''
+      questionCardRef.current.style.backgroundColor = ''
+    }
+
     const isLast = currentIndex === questions.length - 1
     if (isLast) {
       await finishQuiz()
@@ -1125,11 +1158,11 @@ export default function QuizPage() {
         </div>
 
         <div className="qk-score-row">
-          <span className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} riktige</span>
+          <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} riktige</span>
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
-        <div style={{
+        <div ref={questionCardRef} style={{
           minHeight: 420,
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
@@ -1137,8 +1170,8 @@ export default function QuizPage() {
             <p className="qk-question-text">{question?.question_text}</p>
           </div>
 
-          {!answered && currentStreak >= 2 && (
-            <div className="qk-streak-badge">{currentStreak} på rad!</div>
+          {currentStreak >= 2 && (
+            <div ref={streakBadgeRef} className="qk-streak-badge">{currentStreak} på rad!</div>
           )}
 
           {answered && selectedAnswer === null && (
