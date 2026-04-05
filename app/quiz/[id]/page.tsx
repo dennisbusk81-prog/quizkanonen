@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
@@ -470,6 +470,29 @@ const styles = `
     animation: qkstreakfade 300ms ease-out;
   }
 
+  /* ANIMATION: question slide-in */
+  @keyframes questionIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .qk-animate-in {
+    animation: questionIn 200ms ease-out both;
+  }
+
+  /* ANIMATION: timer pulse when urgent */
+  @keyframes timerPulse {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+  .qk-timer.pulse { animation: timerPulse 600ms ease-in-out infinite; }
+
+  /* ANIMATION: intermediate screen fade */
+  @keyframes qkFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes qkFadeOut { from { opacity: 1; } to { opacity: 0; } }
+  .qk-intermediate-in  { animation: qkFadeIn  150ms ease-out both; }
+  .qk-intermediate-out { animation: qkFadeOut 150ms ease-in  both; }
+
   /* LOADING */
   .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   .qk-loading-dot {
@@ -517,6 +540,14 @@ export default function QuizPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [shareResultCopied, setShareResultCopied] = useState(false)
+  const [questionKey, setQuestionKey] = useState(0)
+  const [showParticles, setShowParticles] = useState(false)
+  const [particleOrigin, setParticleOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
+  const [interRank, setInterRank] = useState<number | null>(null)
+  const [interQLeft, setInterQLeft] = useState(0)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const particleFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -627,6 +658,7 @@ export default function QuizPage() {
     const newAnswers = [...answers, record]
     setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
     setAnswered(true); saveProgress(currentIndex, newAnswers, totalTimeMs + timeMs)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200)
   }, [questions, currentIndex, getTimeLimit, answers, totalTimeMs, saveProgress])
 
   const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
@@ -677,7 +709,7 @@ export default function QuizPage() {
     }
   }
 
-  const handleAnswer = async (answer: string) => {
+  const handleAnswer = async (answer: string, buttonEl?: HTMLElement | null) => {
     if (answered) return
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
@@ -691,16 +723,119 @@ export default function QuizPage() {
     if (quiz?.show_live_placement) {
       await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
     }
+    if (isCorrect) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(100)
+      if (buttonEl) {
+        const rect = buttonEl.getBoundingClientRect()
+        fireParticles(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      }
+    }
   }
 
-  const goToNext = async () => {
-    if (currentIndex === questions.length - 1) {
-      await finishQuiz()
-    } else {
-      const nextIndex = currentIndex + 1
-      setCurrentIndex(nextIndex); setAnswered(false); setSelectedAnswer(null)
-      setTimeLeft(getTimeLimit(questions[nextIndex])); setQuestionStartTime(Date.now())
+  const fireParticles = useCallback((originX: number, originY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (particleFrameRef.current) cancelAnimationFrame(particleFrameRef.current)
+
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    canvas.style.display = 'block'
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const count = 16 + Math.floor(Math.random() * 4)
+    const particles: { x: number; y: number; vx: number; vy: number; size: number; color: string; alpha: number }[] = []
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.random() * Math.PI * 2)
+      const speed = 2 + Math.random() * 4
+      particles.push({
+        x: originX, y: originY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        size: 4 + Math.random() * 4,
+        color: Math.random() > 0.4 ? '#c9a84c' : '#ffffff',
+        alpha: 1,
+      })
     }
+
+    const start = performance.now()
+    const duration = 800
+
+    const tick = (now: number) => {
+      const elapsed = now - start
+      if (elapsed >= duration) {
+        canvas.style.display = 'none'
+        return
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const t = elapsed / duration
+      for (const p of particles) {
+        p.x += p.vx
+        p.y += p.vy
+        p.vy += 0.18
+        p.alpha = 1 - t
+        ctx.globalAlpha = p.alpha
+        ctx.fillStyle = p.color
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      particleFrameRef.current = requestAnimationFrame(tick)
+    }
+    particleFrameRef.current = requestAnimationFrame(tick)
+  }, [])
+
+  const fetchInterRank = useCallback(async (correctSoFar: number, timeSoFar: number): Promise<number | null> => {
+    try {
+      const { data } = await supabaseData.from('attempts').select('correct_answers, total_time_ms').eq('quiz_id', quizId)
+      if (!data || data.length < 2) return null
+      const better = data.filter((a: { correct_answers: number; total_time_ms: number }) =>
+        a.correct_answers > correctSoFar ||
+        (a.correct_answers === correctSoFar && a.total_time_ms < timeSoFar)
+      ).length
+      return better + 1
+    } catch { return null }
+  }, [quizId])
+
+  const goToNext = async () => {
+    const isLast = currentIndex === questions.length - 1
+    if (isLast) {
+      await finishQuiz()
+      return
+    }
+
+    const nextIndex = currentIndex + 1
+    const qLeft = questions.length - nextIndex
+
+    // Fetch live rank for intermediate screen
+    const correctSoFar = answers.filter(a => a.isCorrect).length
+    const rank = await fetchInterRank(correctSoFar, totalTimeMs)
+
+    // Show intermediate screen only when rank is available or when not logged in
+    const showInter = qLeft > 0
+    if (showInter) {
+      setInterRank(rank)
+      setInterQLeft(qLeft)
+      setInterPhase('in')
+      await new Promise<void>(resolve => {
+        setTimeout(() => {
+          setInterPhase('out')
+          setTimeout(() => {
+            setInterPhase('hidden')
+            resolve()
+          }, 150)
+        }, 1850)
+      })
+    }
+
+    setCurrentIndex(nextIndex)
+    setAnswered(false)
+    setSelectedAnswer(null)
+    setTimeLeft(getTimeLimit(questions[nextIndex]))
+    setQuestionStartTime(Date.now())
+    setQuestionKey(k => k + 1)
   }
 
   const finishQuiz = async () => {
@@ -915,6 +1050,44 @@ export default function QuizPage() {
 
     return (
       <><style>{styles}</style>
+      {/* Particle canvas overlay */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 10, display: 'none',
+          width: '100%', height: '100%',
+        }}
+      />
+      {/* Intermediate screen */}
+      {interPhase !== 'hidden' && (
+        <div
+          className={interPhase === 'in' ? 'qk-intermediate-in' : 'qk-intermediate-out'}
+          style={{
+            position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          {interRank !== null ? (
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif", fontSize: 32, fontWeight: 700,
+              color: '#ffffff', textAlign: 'center', lineHeight: 1.2,
+            }}>
+              Du er på {interRank}. plass!
+            </p>
+          ) : (
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700,
+              color: '#ffffff', textAlign: 'center', lineHeight: 1.2,
+            }}>
+              Godt svar!
+            </p>
+          )}
+          <p style={{ fontSize: 14, color: '#7a7873', textAlign: 'center' }}>
+            {interQLeft} spørsmål igjen
+          </p>
+        </div>
+      )}
       <div className="qk-play-shell">
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
@@ -923,17 +1096,17 @@ export default function QuizPage() {
           )}
         </div>
 
-        <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}`}>{timeLeft}s</span>
+        <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}${timeLeft <= 3 && !answered ? ' pulse' : ''}`}>{timeLeft}s</span>
         <div className="qk-timer-bar-wrap">
           <div className="qk-timer-bar" style={{width:`${timerPercent}%`,background:timerColor}}/>
         </div>
 
         <div className="qk-score-row">
-          <span className="qk-score-pill">{correctSoFar > 0 ? '✓' : '–'} {correctSoFar} riktige</span>
+          <span className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} riktige</span>
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
-        <div className="qk-question-card">
+        <div key={questionKey} className="qk-question-card qk-animate-in">
           <p className="qk-question-text">{question?.question_text}</p>
         </div>
 
@@ -952,9 +1125,14 @@ export default function QuizPage() {
         )}
 
         <div className="qk-options">
-          {availableOptions.map(opt => (
-            <button key={opt} onClick={() => handleAnswer(opt)} disabled={answered}
-              className={`qk-option${getOptionClass(opt)}`}>
+          {availableOptions.map((opt, i) => (
+            <button
+              key={`${questionKey}-${opt}`}
+              onClick={e => handleAnswer(opt, e.currentTarget)}
+              disabled={answered}
+              className={`qk-option qk-animate-in${getOptionClass(opt)}`}
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
               <span className="qk-opt-letter">{opt}</span>
               <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
             </button>
@@ -964,7 +1142,7 @@ export default function QuizPage() {
         {answered && (
           <div>
             {quiz.show_answer_explanation && question?.explanation && (
-              <div className="qk-explanation">💡 {question.explanation}</div>
+              <div className="qk-explanation">{question.explanation}</div>
             )}
             <button onClick={goToNext} className="qk-btn-primary">
               {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}

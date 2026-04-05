@@ -8,6 +8,18 @@ import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import type { Session } from '@supabase/supabase-js'
 
+const podiumStyles = `
+  @keyframes podiumSlideIn {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .podium-row-1 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 400ms; }
+  .podium-row-2 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 200ms; }
+  .podium-row-3 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 0ms; }
+  @keyframes podiumFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .podium-rest  { animation: podiumFadeIn 200ms ease-out both; animation-delay: 700ms; }
+`
+
 const s = {
   wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:         { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
@@ -112,6 +124,7 @@ export default function LeaderboardPage() {
   const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null }>>(new Map())
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
+  const [podiumActive, setPodiumActive] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -269,6 +282,16 @@ export default function LeaderboardPage() {
     }
   }, [scrollPending])
 
+  // Activate podium animation when quiz is closed and data is loaded
+  useEffect(() => {
+    if (!quiz || loading) return
+    const closed = new Date(quiz.closes_at) < new Date()
+    if (closed && attempts.length > 0) {
+      const t = setTimeout(() => setPodiumActive(true), 50)
+      return () => clearTimeout(t)
+    }
+  }, [quiz, loading, attempts])
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -327,7 +350,7 @@ export default function LeaderboardPage() {
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
     : null
 
-  const renderRow = (attempt: RankedAttempt, isUser: boolean) => {
+  const renderRow = (attempt: RankedAttempt, isUser: boolean, extraClass?: string) => {
     const isFirst = attempt.rank === 1 && !attempt.isTied
     const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
 
@@ -342,7 +365,7 @@ export default function LeaderboardPage() {
     else if (attempt.rank <= 3) badge = 'medalje'
 
     return (
-      <div key={attempt.id} id={isUser ? 'user-row' : undefined} style={rowStyle}>
+      <div key={attempt.id} id={isUser ? 'user-row' : undefined} style={rowStyle} className={extraClass}>
         {isFirst && <div style={s.goldStripe} />}
         <div style={s.rankCell}>
           {attempt.isTied
@@ -389,12 +412,21 @@ export default function LeaderboardPage() {
     )
   }
 
-  const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void) => {
+  const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void, isPodium = false) => {
     if (ranked.length === 0) return null
     const visible = ranked.slice(0, visibleCount)
     const userInSection = displayName ? ranked.find(a => a.player_name === displayName) ?? null : null
     const userOutsideVisible = userInSection && userInSection.rank > visibleCount
     const remaining = ranked.length - visibleCount
+
+    const podiumClass = (rank: number): string | undefined => {
+      if (!isPodium || !podiumActive) return undefined
+      if (rank === 1) return 'podium-row-1'
+      if (rank === 2) return 'podium-row-2'
+      if (rank === 3) return 'podium-row-3'
+      return 'podium-rest'
+    }
+
     return (
       <div key={label}>
         <div style={s.sectionHeader}>
@@ -402,7 +434,7 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{ranked.length}</span>
         </div>
-        {visible.map(attempt => renderRow(attempt, attempt.player_name === displayName))}
+        {visible.map(attempt => renderRow(attempt, attempt.player_name === displayName, podiumClass(attempt.rank)))}
         {userOutsideVisible && (
           <>
             <p style={s.separator}>— Din plassering —</p>
@@ -418,8 +450,11 @@ export default function LeaderboardPage() {
     )
   }
 
+  const isClosed = quiz ? new Date(quiz.closes_at) < new Date() : false
+
   return (
     <>
+      <style>{podiumStyles}</style>
       <AuthModal open={showModal} onClose={() => setShowModal(false)} />
       <div style={s.wrap}>
         <div style={s.page}>
@@ -533,7 +568,7 @@ export default function LeaderboardPage() {
                 </button>
               </div>
 
-              {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10))}
+              {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
 
               {activeTab === 'venner' && (
                 friendAttempts.length > 0
