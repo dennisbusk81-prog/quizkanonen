@@ -759,31 +759,40 @@ export default function QuizPage() {
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
 
-    // LAG 1: Bakgrunnen varmes opp — 800ms inn, 600ms hold, 800ms ut (totalt 2200ms)
-    if (typeof document !== 'undefined') {
-      document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
+    // 0ms: Knapp — box-shadow + border-color inn over 400ms
+    if (buttonEl) {
+      buttonEl.style.transition = 'box-shadow 400ms cubic-bezier(0.4, 0, 0.2, 1), border-color 400ms cubic-bezier(0.4, 0, 0.2, 1)'
       requestAnimationFrame(() => {
-        document.body.style.backgroundColor = '#1e1b14'
+        buttonEl.style.boxShadow = '0 0 40px 12px rgba(201,168,76,0.35)'
+        buttonEl.style.borderColor = '#c9a84c'
       })
-      t(1400, () => {
+      // 900ms: box-shadow + border-color fader ut over 600ms
+      t(900, () => {
+        buttonEl.style.transition = 'box-shadow 600ms cubic-bezier(0.4, 0, 0.2, 1), border-color 600ms cubic-bezier(0.4, 0, 0.2, 1)'
+        buttonEl.style.boxShadow = ''
+        buttonEl.style.borderColor = ''
+      })
+    }
+
+    // 200ms: Bakgrunn varmes opp over 700ms
+    if (typeof document !== 'undefined') {
+      t(200, () => {
+        document.body.style.transition = 'background-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
+        requestAnimationFrame(() => { document.body.style.backgroundColor = '#201d13' })
+      })
+      // 1000ms: Bakgrunn tilbake til #1a1c23 over 800ms
+      t(1000, () => {
         document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
         document.body.style.backgroundColor = '#1a1c23'
       })
-      t(2200, () => {
+      // 1800ms: Rydd opp body inline styles
+      t(1800, () => {
         document.body.style.transition = ''
         document.body.style.backgroundColor = ''
       })
     }
 
-    // LAG 2: Gullkant på knappen — 400ms, blir stående til goToNext
-    if (buttonEl) {
-      buttonEl.style.transition = 'border-color 400ms cubic-bezier(0.22, 1, 0.36, 1)'
-      requestAnimationFrame(() => {
-        buttonEl.style.borderColor = '#c9a84c'
-      })
-    }
-
-    // LAG 3: Streak-badge fader mykt inn — opacity 0→1 over 400ms
+    // Streak-badge fader mykt inn — opacity 0→1 over 400ms (uendret)
     const streak = streakBadgeRef.current
     if (streak) {
       streak.style.animation = 'none'
@@ -805,6 +814,12 @@ export default function QuizPage() {
     if (typeof document !== 'undefined') {
       document.body.style.transition = ''
       document.body.style.backgroundColor = ''
+      const correctBtn = document.querySelector('.qk-option.correct') as HTMLButtonElement | null
+      if (correctBtn) {
+        correctBtn.style.transition = ''
+        correctBtn.style.boxShadow = ''
+        correctBtn.style.borderColor = ''
+      }
     }
     if (streakBadgeRef.current) {
       streakBadgeRef.current.style.animation = ''
