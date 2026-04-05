@@ -759,70 +759,56 @@ export default function QuizPage() {
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
 
-    // 1. Knapp: gullkant + scale(1.02) på 150ms, tilbake på 400ms
-    if (buttonEl) {
-      buttonEl.style.transition = 'transform 150ms ease-out, border-color 150ms ease-out'
+    // LAG 1: Bakgrunnen varmes opp — 800ms inn, 600ms hold, 800ms ut (totalt 2200ms)
+    if (typeof document !== 'undefined') {
+      document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
       requestAnimationFrame(() => {
-        buttonEl.style.transform = 'scale(1.02)'
+        document.body.style.backgroundColor = '#1e1b14'
+      })
+      t(1400, () => {
+        document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
+        document.body.style.backgroundColor = '#1a1c23'
+      })
+      t(2200, () => {
+        document.body.style.transition = ''
+        document.body.style.backgroundColor = ''
+      })
+    }
+
+    // LAG 2: Gullkant på knappen — 400ms, blir stående til goToNext
+    if (buttonEl) {
+      buttonEl.style.transition = 'border-color 400ms cubic-bezier(0.22, 1, 0.36, 1)'
+      requestAnimationFrame(() => {
         buttonEl.style.borderColor = '#c9a84c'
       })
-      t(400, () => {
-        // Transition til klasse-basert grønn border (correct-state)
-        buttonEl.style.transition = 'transform 200ms ease-in, border-color 300ms ease-out'
-        buttonEl.style.transform = ''
-        buttonEl.style.borderColor = ''
-      })
     }
 
-    // 2. Bakgrunns-glød: fade inn 300ms, hold 400ms, fade ut 500ms
-    const card = questionCardRef.current
-    if (card) {
-      card.style.transition = 'background-color 300ms ease-in'
-      requestAnimationFrame(() => {
-        card.style.backgroundColor = 'rgba(201,168,76,0.10)'
-      })
-      t(700, () => {
-        card.style.transition = 'background-color 500ms ease-out'
-        card.style.backgroundColor = ''
-      })
-    }
-
-    // 3. Streak-badge flyr inn fra høyre med snap — 150ms forsinkelse
-    t(150, () => {
-      const streak = streakBadgeRef.current
-      if (!streak) return
+    // LAG 3: Streak-badge fader mykt inn — opacity 0→1 over 400ms
+    const streak = streakBadgeRef.current
+    if (streak) {
       streak.style.animation = 'none'
       streak.style.transition = 'none'
-      streak.style.transform = 'translateX(32px)'
       streak.style.opacity = '0'
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          streak.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out'
-          streak.style.transform = 'translateX(0)'
+          streak.style.transition = 'opacity 400ms cubic-bezier(0.4, 0, 0.2, 1)'
           streak.style.opacity = '1'
         })
       })
-      t(550, () => {
-        streak.style.animation = ''
-        streak.style.transition = ''
-        streak.style.transform = ''
-        streak.style.opacity = ''
-      })
-    })
+    }
   }
 
   const goToNext = async () => {
     // Rydd opp alle løpende animasjonstimere og inline-stiler
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
-    if (questionCardRef.current) {
-      questionCardRef.current.style.transition = ''
-      questionCardRef.current.style.backgroundColor = ''
+    if (typeof document !== 'undefined') {
+      document.body.style.transition = ''
+      document.body.style.backgroundColor = ''
     }
     if (streakBadgeRef.current) {
       streakBadgeRef.current.style.animation = ''
       streakBadgeRef.current.style.transition = ''
-      streakBadgeRef.current.style.transform = ''
       streakBadgeRef.current.style.opacity = ''
     }
 
