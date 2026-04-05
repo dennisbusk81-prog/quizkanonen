@@ -472,8 +472,8 @@ const styles = `
 
   /* ANIMATION: question slide-in */
   @keyframes questionIn {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
   .qk-animate-in {
     animation: questionIn 200ms ease-out both;
@@ -1191,7 +1191,6 @@ export default function QuizPage() {
                 onClick={e => handleAnswer(opt, e.currentTarget as HTMLButtonElement)}
                 disabled={answered}
                 className={`qk-option qk-animate-in${getOptionClass(opt)}`}
-                style={{ animationDelay: `${i * 60}ms` }}
               >
                 <span className="qk-opt-letter">{opt}</span>
                 <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
