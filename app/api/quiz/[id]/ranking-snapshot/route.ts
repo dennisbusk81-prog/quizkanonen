@@ -17,9 +17,9 @@ const CACHE_TTL_MS = 60_000
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<RankResult | { error: string }>> {
-  const quizId = params.id
+  const { id: quizId } = await params
   const { searchParams } = new URL(request.url)
 
   const questionIndex = parseInt(searchParams.get('question') ?? '0', 10)
