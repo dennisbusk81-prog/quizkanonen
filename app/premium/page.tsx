@@ -107,7 +107,7 @@ export default function PremiumPage() {
           }}>
 
             {/* Feature list */}
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {FEATURES.map(f => (
                 <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, fontSize: 15, color: '#e8e4dd', lineHeight: 1.4 }}>
                   <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: 16, flexShrink: 0, marginTop: 1 }}>✓</span>
@@ -120,7 +120,7 @@ export default function PremiumPage() {
             <div style={{
               background: '#1a1c23',
               border: '2px solid #c9a84c',
-              borderRadius: 12, padding: '16px 18px',
+              borderRadius: 12, padding: '20px 24px',
               marginBottom: 24,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

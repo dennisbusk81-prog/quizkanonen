@@ -206,13 +206,13 @@ export default async function Home() {
           display: flex;
           align-items: center;
           gap: 10px;
-          margin: 32px 0 16px;
+          margin: 40px 0 20px;
         }
 
         .qk-section-text {
-          font-size: 10px;
+          font-size: 11px;
           font-weight: 600;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.14em;
           text-transform: uppercase;
           color: var(--muted);
           white-space: nowrap;
@@ -225,7 +225,7 @@ export default async function Home() {
           background: var(--card);
           border: 1px solid var(--border);
           border-radius: var(--radius-card);
-          padding: 14px 18px;
+          padding: 20px 24px;
           margin-bottom: 8px;
           display: flex;
           align-items: flex-start;
@@ -238,7 +238,7 @@ export default async function Home() {
 
         .qk-card-left { flex: 1; min-width: 0; }
 
-        .qk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .qk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 
         .qk-tag {
           font-size: 10px;
@@ -287,7 +287,7 @@ export default async function Home() {
           font-family: 'Instrument Sans', sans-serif;
           font-size: 13px;
           font-weight: 600;
-          padding: 9px 18px;
+          padding: 10px 20px;
           border-radius: var(--radius-btn);
           border: 0.5px solid #4a4d5a;
           text-decoration: none;
