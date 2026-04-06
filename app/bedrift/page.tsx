@@ -26,6 +26,7 @@ const STYLES = `
     font-family: 'Instrument Sans', sans-serif;
     color: var(--body);
     min-height: 100vh;
+    overflow-x: hidden;
   }
 
   .page { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; overflow-x: hidden; }
@@ -64,7 +65,8 @@ const STYLES = `
 
   /* Comparison table — overflow-x: auto so table scrolls on mobile instead of clipping */
   .section-title { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
-  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow-x: auto; margin-bottom: 48px; }
+  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 48px; }
+  .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
   th { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hint); padding: 14px 16px; text-align: left; border-bottom: 0.5px solid var(--border); background: #1e2028; }
   th:not(:first-child) { text-align: center; }
@@ -215,6 +217,7 @@ export default function BedriftPage() {
         {/* Comparison table */}
         <div className="section-title">Sammenligning</div>
         <div className="table-wrap">
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -291,6 +294,7 @@ export default function BedriftPage() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Notes accordion */}
