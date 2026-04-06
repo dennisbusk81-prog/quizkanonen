@@ -331,11 +331,11 @@ export default async function Home() {
 
         .qk-card-toplist {
           font-size: 12px;
-          color: #7a7873;
+          color: var(--body);
           text-decoration: none;
           transition: color 0.15s;
         }
-        .qk-card-toplist:hover { color: var(--body); }
+        .qk-card-toplist:hover { color: var(--white); }
 
         .qk-btn-outline {
           display: inline-flex;
@@ -507,14 +507,14 @@ export default async function Home() {
         .qk-all-link {
           display: block;
           font-size: 13px;
-          color: var(--hint);
+          color: var(--body);
           text-decoration: none;
           margin-top: 12px;
           margin-bottom: 8px;
           transition: color 0.15s;
         }
 
-        .qk-all-link:hover { color: var(--body); }
+        .qk-all-link:hover { color: var(--white); }
 
         /* ── Responsive ── */
         @media (max-width: 520px) {
