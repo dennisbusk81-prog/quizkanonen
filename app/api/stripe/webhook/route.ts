@@ -29,15 +29,34 @@ export async function POST(request: NextRequest) {
 
       const subscriptionId = session.subscription as string
       let periodEnd: string | null = null
+
+      // 1. Try to fetch subscription details from Stripe
       try {
         const sub = await stripe.subscriptions.retrieve(subscriptionId)
         periodEnd = new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
-      } catch { /* not critical */ }
+      } catch (err) {
+        console.error('[webhook] stripe.subscriptions.retrieve failed for', subscriptionId, err)
+      }
+
+      // 2. Fallback: check if session already has expanded subscription data
+      if (!periodEnd) {
+        const sessionSub = session.subscription as unknown as { current_period_end?: number } | null
+        if (sessionSub && typeof sessionSub === 'object' && sessionSub.current_period_end) {
+          periodEnd = new Date(sessionSub.current_period_end * 1000).toISOString()
+          console.log('[webhook] used expanded session.subscription for period_end')
+        }
+      }
+
+      // 3. Last resort: 30 days from now so the field is never null
+      if (!periodEnd) {
+        periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        console.warn('[webhook] could not determine period_end, using 30-day fallback for org', organizationId)
+      }
 
       await supabaseAdmin.from('organizations').update({
         stripe_customer_id: session.customer as string,
         stripe_subscription_id: subscriptionId,
-        ...(periodEnd ? { stripe_period_end: periodEnd } : {}),
+        stripe_period_end: periodEnd,
       }).eq('id', organizationId)
 
       // Activate premium for all current members
