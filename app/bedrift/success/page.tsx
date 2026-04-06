@@ -33,6 +33,12 @@ function SuccessContent() {
   // Bust router cache so fresh data is shown after Stripe redirect
   useEffect(() => { router.refresh() }, [router])
 
+  // Hard timeout — show page after 5s even if session/data is slow
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 5000)
+    return () => clearTimeout(t)
+  }, [])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
@@ -63,7 +69,7 @@ function SuccessContent() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (session === undefined || loading) {
+  if (loading) {
     return (
       <>
         <style>{FONT}</style>
