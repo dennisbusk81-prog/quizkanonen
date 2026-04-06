@@ -234,6 +234,21 @@ export default async function Home() {
 
         .qk-card-left { min-width: 0; }
 
+        .qk-card-eyebrow {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--gold);
+          margin-bottom: 10px;
+        }
+
+        .qk-card-tagline {
+          font-size: 13px;
+          color: var(--gold);
+          margin-top: 8px;
+        }
+
         .qk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 
         .qk-tag {
@@ -256,12 +271,12 @@ export default async function Home() {
 
         .qk-title {
           font-family: 'Libre Baskerville', serif;
-          font-size: 20px;
+          font-size: 26px;
           font-weight: 700;
           color: #ffffff;
-          line-height: 1.25;
-          margin-bottom: 10px;
-          letter-spacing: -0.01em;
+          line-height: 1.2;
+          margin-bottom: 0;
+          letter-spacing: -0.02em;
         }
 
         .qk-details { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -522,29 +537,16 @@ export default async function Home() {
           </div>
         ) : (() => {
           const quiz = quizList[0]
-          const questionCount = quiz.questions[0]?.count ?? 0
           const participantCount = quiz.attempts[0]?.count ?? 0
           return (
             <>
               <div className="qk-card">
                 <div className="qk-card-left">
-                  <div className="qk-tags">
-                    <span className="qk-tag">● Åpen</span>
-                    {quiz.allow_teams && <span className="qk-tag qk-tag-muted">👥 Lag</span>}
-                    {quiz.requires_access_code && <span className="qk-tag qk-tag-muted">🔒 Kode</span>}
-                  </div>
+                  <p className="qk-card-eyebrow">Denne uken</p>
                   <h2 className="qk-title">{quiz.title}</h2>
-                  <div className="qk-details">
-                    {questionCount > 0 && (
-                      <span className="qk-detail">📋 {questionCount} spørsmål</span>
-                    )}
-                    {participantCount > 0 && (
-                      <span className="qk-detail">👥 {participantCount} deltakere denne uken</span>
-                    )}
-                    {quiz.time_limit_seconds && (
-                      <span className="qk-detail">⏱ {quiz.time_limit_seconds}s per spørsmål</span>
-                    )}
-                  </div>
+                  <p className="qk-card-tagline">
+                    {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
+                  </p>
                 </div>
                 <div className="qk-card-actions">
                   <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
