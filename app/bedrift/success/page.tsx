@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -20,7 +20,7 @@ const STEPS = [
   { n: '3', title: 'Spill neste quiz', desc: 'Alle ser eget leaderboard — kun for din bedrift. Premium inkludert for alle.' },
 ]
 
-export default function BedriftSuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams()
   const orgSlug = searchParams.get('org')
 
@@ -159,5 +159,13 @@ export default function BedriftSuccessPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function BedriftSuccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <SuccessContent />
+    </Suspense>
   )
 }
