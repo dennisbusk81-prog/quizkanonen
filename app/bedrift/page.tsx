@@ -2,10 +2,6 @@
 import { useState } from 'react'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
     --bg: #1a1c23;
     --card: #21242e;
@@ -21,15 +17,7 @@ const STYLES = `
     --green-bg: rgba(59,109,17,0.12);
   }
 
-  body {
-    background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
-    color: var(--body);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  .page { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; overflow-x: hidden; }
+  .page { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; overflow-x: hidden; font-family: 'Instrument Sans', sans-serif; }
 
   /* Header */
   .header { text-align: center; margin-bottom: 56px; }
