@@ -225,18 +225,14 @@ export default async function Home() {
           background: var(--card);
           border: 1px solid var(--border);
           border-radius: var(--radius-card);
-          padding: 20px 24px;
+          padding: 28px;
           margin-bottom: 8px;
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 20px;
           transition: border-color 0.18s;
         }
 
         .qk-card:hover { border-color: rgba(201,168,76,0.3); }
 
-        .qk-card-left { flex: 1; min-width: 0; }
+        .qk-card-left { min-width: 0; }
 
         .qk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 
@@ -260,9 +256,9 @@ export default async function Home() {
 
         .qk-title {
           font-family: 'Libre Baskerville', serif;
-          font-size: 19px;
+          font-size: 20px;
           font-weight: 700;
-          color: var(--white);
+          color: #ffffff;
           line-height: 1.25;
           margin-bottom: 10px;
           letter-spacing: -0.01em;
@@ -271,13 +267,21 @@ export default async function Home() {
         .qk-details { display: flex; flex-wrap: wrap; gap: 12px; }
         .qk-detail { font-size: 12px; color: var(--hint); }
 
-        .qk-card-right {
-          flex-shrink: 0;
+        .qk-card-actions {
+          margin-top: 20px;
           display: flex;
           flex-direction: column;
-          align-items: flex-end;
-          gap: 8px;
+          align-items: center;
+          gap: 10px;
         }
+
+        .qk-card-toplist {
+          font-size: 12px;
+          color: #7a7873;
+          text-decoration: none;
+          transition: color 0.15s;
+        }
+        .qk-card-toplist:hover { color: var(--body); }
 
         .qk-btn-outline {
           display: inline-flex;
@@ -460,8 +464,6 @@ export default async function Home() {
 
         /* ── Responsive ── */
         @media (max-width: 520px) {
-          .qk-card { flex-direction: column; gap: 16px; }
-          .qk-card-right { flex-direction: row; width: 100%; justify-content: flex-start; }
           .qk-hero { padding: 36px 0 28px; }
           .qk-nav-play { display: none; }
           .qk-value-stack { grid-template-columns: 1fr; }
@@ -544,11 +546,11 @@ export default async function Home() {
                     )}
                   </div>
                 </div>
-                <div className="qk-card-right">
-                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-outline">
+                <div className="qk-card-actions">
+                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
                     Spill nå
                   </Link>
-                  <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-ghost">
+                  <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
                     Toppliste ↗
                   </Link>
                 </div>
