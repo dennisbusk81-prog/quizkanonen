@@ -207,8 +207,12 @@ export default async function Home() {
 
         .qk-hero-status {
           font-size: 13px;
-          color: var(--hint);
           text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          flex-wrap: wrap;
         }
 
         .qk-card-date {
@@ -545,7 +549,13 @@ export default async function Home() {
               </Link>
             )}
           </div>
-          <p className="qk-hero-status">Gratis å spille — ingen konto nødvendig · Premium fra kr 49/mnd</p>
+          <div className="qk-hero-status">
+            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Gratis</span></span>
+            <span style={{ color: '#7a7873' }}>·</span>
+            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Innlogget</span></span>
+            <span style={{ color: '#7a7873' }}>·</span>
+            <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
+          </div>
         </section>
 
         {/* Sosialt bevis */}
