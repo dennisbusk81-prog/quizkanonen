@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
+import QuizInterlude from '@/components/QuizInterlude'
 
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
@@ -550,7 +551,11 @@ export default function QuizPage() {
   const [interCorrectAnswerText, setInterCorrectAnswerText] = useState<string | null>(null)
   const [interScore, setInterScore] = useState(0)
   const [interStreak, setInterStreak] = useState(0)
+  const [interWrongInARow, setInterWrongInARow] = useState(0)
   const [interNextQNum, setInterNextQNum] = useState(1)
+  const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
+  const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
+  const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
@@ -752,6 +757,19 @@ export default function QuizPage() {
         setTimeLeft(getTimeLimit(questions[0]))
       }
       setQuestionStartTime(Date.now()); setPhase('playing')
+
+      // Parallel: fetch rival and percentile data (non-blocking)
+      const uid = session?.user?.id
+      if (uid) {
+        fetch(`/api/quiz/rival?quizId=${quizId}&userId=${uid}`)
+          .then(r => r.ok ? r.json() : { rival: null })
+          .then(j => { if (j.rival) setRivalData(j.rival) })
+          .catch(() => {})
+      }
+      fetch(`/api/quiz/percentile?quizId=${quizId}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(j => { if (Array.isArray(j)) setPercentileData(j) })
+        .catch(() => {})
     } catch {
       setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
     }
@@ -904,32 +922,42 @@ export default function QuizPage() {
       }
       return s
     })()
+    const wrongInARow = (() => {
+      let s = 0
+      for (let i = answers.length - 1; i >= 0; i--) {
+        if (!answers[i].isCorrect) s++; else break
+      }
+      return s
+    })()
+
     setInterLastCorrect(lastAns?.isCorrect ?? null)
     setInterCorrectAnswerText(correctText)
     setInterScore(correctSoFar)
     setInterStreak(streak)
+    setInterWrongInARow(wrongInARow)
     setInterNextQNum(nextIndex + 1)
     setInterLow(low)
     setInterHigh(high)
     setInterQLeft(qLeft)
+    setPendingNextIndex(nextIndex)
     setInterPhase('in')
-    await new Promise<void>(resolve => {
-      setTimeout(() => {
-        setInterPhase('out')
-        setTimeout(() => {
-          setInterPhase('hidden')
-          resolve()
-        }, 150)
-      }, 1850)
-    })
-
-    setCurrentIndex(nextIndex)
-    setAnswered(false)
-    setSelectedAnswer(null)
-    setTimeLeft(getTimeLimit(questions[nextIndex]))
-    setQuestionStartTime(Date.now())
-    setQuestionKey(k => k + 1)
   }
+
+  const handleInterludeNext = useCallback(() => {
+    if (pendingNextIndex === null) return
+    setInterPhase('out')
+    const ni = pendingNextIndex
+    setTimeout(() => {
+      setInterPhase('hidden')
+      setCurrentIndex(ni)
+      setAnswered(false)
+      setSelectedAnswer(null)
+      setTimeLeft(getTimeLimit(questions[ni]))
+      setQuestionStartTime(Date.now())
+      setQuestionKey(k => k + 1)
+      setPendingNextIndex(null)
+    }, 150)
+  }, [pendingNextIndex, questions, getTimeLimit])
 
   const finishQuiz = async () => {
     const correct = answers.filter(a => a.isCorrect).length
@@ -1166,62 +1194,21 @@ export default function QuizPage() {
       <><style>{styles}</style>
       {/* Intermediate screen */}
       {interPhase !== 'hidden' && (
-        <div
-          className={interPhase === 'in' ? 'qk-intermediate-in' : 'qk-intermediate-out'}
-          style={{
-            position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 32px',
-          }}
-        >
-          <div style={{ textAlign: 'center', maxWidth: 360, width: '100%' }}>
-
-            {/* Resultat forrige spørsmål */}
-            {interLastCorrect === true ? (
-              <div style={{
-                display: 'inline-block',
-                background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
-                borderRadius: 10, padding: '10px 22px', marginBottom: 24,
-                color: '#4caf7d', fontSize: 15, fontWeight: 600,
-              }}>
-                ✓ Riktig svar
-              </div>
-            ) : interLastCorrect === false ? (
-              <div style={{
-                display: 'inline-block',
-                background: 'rgba(201,76,76,0.10)', border: '1px solid rgba(201,76,76,0.25)',
-                borderRadius: 10, padding: '10px 22px', marginBottom: 24,
-                color: '#e8e4dd', fontSize: 14,
-              }}>
-                Riktig svar var: <strong>{interCorrectAnswerText}</strong>
-              </div>
-            ) : null}
-
-            {/* Rangering (innloggede) */}
-            {interLow !== null && interHigh !== null && (
-              <div style={{ marginBottom: 18 }}>
-                <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-                  Din rangering
-                </p>
-                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 36, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
-                  {interLow}–{interHigh}
-                </p>
-              </div>
-            )}
-
-            {/* Score og streak */}
-            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 20 }}>
-              {interScore} av {questions.length} riktige
-              {interStreak >= 2 ? ` · Streak: ${interStreak} på rad` : ''}
-            </p>
-
-            {/* Spenningsbygger */}
-            <p style={{ fontSize: 13, color: '#7a7873' }}>
-              Spørsmål {interNextQNum} av {questions.length} kommer straks...
-            </p>
-
-          </div>
-        </div>
+        <QuizInterlude
+          phase={interPhase}
+          lastCorrect={interLastCorrect}
+          correctAnswerText={interCorrectAnswerText}
+          score={interScore}
+          totalQuestions={questions.length}
+          streak={interStreak}
+          wrongInARow={interWrongInARow}
+          questionIndex={interNextQNum - 2}
+          low={interLow}
+          high={interHigh}
+          rival={rivalData}
+          percentileData={percentileData}
+          onNext={handleInterludeNext}
+        />
       )}
       <div className="qk-play-shell">
         <div className="qk-play-header">
