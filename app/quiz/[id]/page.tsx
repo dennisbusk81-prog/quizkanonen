@@ -492,7 +492,7 @@ const styles = `
   @keyframes qkFadeIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes qkFadeOut { from { opacity: 1; } to { opacity: 0; } }
   .qk-intermediate-in  { animation: qkFadeIn  150ms ease-out both; }
-  .qk-intermediate-out { animation: qkFadeOut 150ms ease-in  both; }
+  .qk-intermediate-out { animation: qkFadeOut 250ms ease-in  both; }
 
   /* LOADING */
   .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
@@ -655,6 +655,7 @@ export default function QuizPage() {
       document.body.style.backgroundColor = ''
       document.body.style.transition = ''
       document.getElementById('qk-glow-overlay')?.remove()
+      document.querySelectorAll('.qk-spark').forEach(s => s.remove())
     }
   }, [])
 
@@ -799,6 +800,7 @@ export default function QuizPage() {
     animationTimeoutsRef.current = []
     if (typeof document !== 'undefined') {
       document.getElementById('qk-glow-overlay')?.remove()
+      document.querySelectorAll('.qk-spark').forEach(s => s.remove())
     }
 
     const t = (ms: number, fn: () => void) => {
@@ -808,36 +810,92 @@ export default function QuizPage() {
 
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
 
-    // 0ms: Knapp tennes — sterkere glow, 500ms inn
+    // Senterpunkt for partikler og gradient — bruk knappens posisjon
+    const rect = buttonEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
+    const cy = rect ? rect.top + rect.height / 2 : (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
+    const bxPct = typeof window !== 'undefined' ? ((cx / window.innerWidth) * 100).toFixed(1) + '%' : '50%'
+    const byPct = typeof window !== 'undefined' ? ((cy / window.innerHeight) * 100).toFixed(1) + '%' : '50%'
+
+    // 0ms: Knapp tennes — sterk glow, 800ms inn
     if (buttonEl) {
-      buttonEl.style.transition = 'box-shadow 500ms cubic-bezier(0.4, 0, 0.2, 1), border-color 500ms cubic-bezier(0.4, 0, 0.2, 1)'
+      buttonEl.style.transition = 'box-shadow 800ms cubic-bezier(0.4, 0, 0.2, 1), border-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
       requestAnimationFrame(() => {
-        buttonEl.style.boxShadow = '0 0 150px 80px rgba(201,168,76,0.20)'
+        buttonEl.style.boxShadow = '0 0 220px 120px rgba(201,168,76,0.30)'
         buttonEl.style.borderColor = '#c9a84c'
       })
-      // 1400ms: Knapp slukner sist — 700ms ut
-      t(1400, () => {
+      // 1700ms: Knapp slukner — 700ms ut
+      t(1700, () => {
         buttonEl.style.transition = 'box-shadow 700ms cubic-bezier(0.4, 0, 0.2, 1), border-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
         buttonEl.style.boxShadow = ''
         buttonEl.style.borderColor = ''
       })
     }
 
+    // 0ms: 8 gullpartikler spres utover fra knapp-senteret
     if (typeof document !== 'undefined') {
-      // 150ms: Bakgrunn + overlay fader inn over 700ms
+      const sparks: HTMLElement[] = []
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.5
+        const dist = 90 + Math.random() * 140
+        const size = 3 + Math.random() * 3
+        const spark = document.createElement('div')
+        spark.className = 'qk-spark'
+        spark.style.cssText = [
+          'position:fixed',
+          `left:${cx.toFixed(1)}px`,
+          `top:${cy.toFixed(1)}px`,
+          `width:${size.toFixed(1)}px`,
+          `height:${size.toFixed(1)}px`,
+          'border-radius:50%',
+          'background:#c9a84c',
+          'pointer-events:none',
+          'z-index:10000',
+          'transform:translate(-50%,-50%)',
+          'opacity:0',
+          'transition:transform 900ms cubic-bezier(0.2,0,0.4,1),opacity 300ms ease-out',
+        ].join(';')
+        document.body.appendChild(spark)
+        sparks.push(spark)
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            spark.style.opacity = '0.85'
+            spark.style.transform = `translate(calc(-50% + ${(Math.cos(angle) * dist).toFixed(1)}px), calc(-50% + ${(Math.sin(angle) * dist).toFixed(1)}px))`
+          })
+        })
+      }
+      // 900ms: partikler fader ut
+      t(900, () => {
+        sparks.forEach(s => {
+          s.style.transition = 'opacity 400ms ease-out'
+          s.style.opacity = '0'
+        })
+      })
+      // 1350ms: fjern fra DOM
+      t(1350, () => sparks.forEach(s => s.remove()))
+    }
+
+    if (typeof document !== 'undefined') {
+      // 150ms: Full-screen bakgrunnsglow sentrert på knappen, 800ms inn
       t(150, () => {
-        document.body.style.transition = 'background-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
+        document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
         const overlay = document.createElement('div')
         overlay.id = 'qk-glow-overlay'
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;background:radial-gradient(ellipse at center,rgba(201,168,76,0.08) 0%,transparent 70%);opacity:0;transition:opacity 700ms cubic-bezier(0.4,0,0.2,1)'
+        overlay.style.cssText = [
+          'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+          'pointer-events:none', 'z-index:9999',
+          `background:radial-gradient(ellipse at ${bxPct} ${byPct},rgba(201,168,76,0.22) 0%,rgba(201,168,76,0.08) 40%,transparent 72%)`,
+          'opacity:0',
+          'transition:opacity 800ms cubic-bezier(0.4,0,0.2,1)',
+        ].join(';')
         document.body.appendChild(overlay)
         requestAnimationFrame(() => {
           document.body.style.backgroundColor = '#2a1f00'
           overlay.style.opacity = '1'
         })
       })
-      // 1200ms: Bakgrunn + overlay fader ut over 900ms — slukner før knappen
-      t(1200, () => {
+      // 1500ms: Bakgrunn + overlay fader ut over 900ms
+      t(1500, () => {
         document.body.style.transition = 'background-color 900ms cubic-bezier(0.4, 0, 0.2, 1)'
         document.body.style.backgroundColor = '#1a1c23'
         const overlay = document.getElementById('qk-glow-overlay')
@@ -846,8 +904,8 @@ export default function QuizPage() {
           overlay.style.opacity = '0'
         }
       })
-      // 2100ms: Rydd opp body inline styles og fjern overlay fra DOM
-      t(2100, () => {
+      // 2500ms: Rydd opp body inline styles og fjern overlay fra DOM
+      t(2500, () => {
         document.body.style.transition = ''
         document.body.style.backgroundColor = ''
         document.getElementById('qk-glow-overlay')?.remove()
@@ -877,6 +935,7 @@ export default function QuizPage() {
       document.body.style.transition = ''
       document.body.style.backgroundColor = ''
       document.getElementById('qk-glow-overlay')?.remove()
+      document.querySelectorAll('.qk-spark').forEach(s => s.remove())
       const correctBtn = document.querySelector('.qk-option.correct') as HTMLButtonElement | null
       if (correctBtn) {
         correctBtn.style.transition = ''
@@ -945,18 +1004,19 @@ export default function QuizPage() {
 
   const handleInterludeNext = useCallback(() => {
     if (pendingNextIndex === null) return
-    setInterPhase('out')
     const ni = pendingNextIndex
-    setTimeout(() => {
-      setInterPhase('hidden')
-      setCurrentIndex(ni)
-      setAnswered(false)
-      setSelectedAnswer(null)
-      setTimeLeft(getTimeLimit(questions[ni]))
-      setQuestionStartTime(Date.now())
-      setQuestionKey(k => k + 1)
-      setPendingNextIndex(null)
-    }, 150)
+    // Oppdater spørsmålsstatus umiddelbart så nytt spørsmål rendres
+    // under den uthviskende interluden (unngår visuell flash)
+    setCurrentIndex(ni)
+    setAnswered(false)
+    setSelectedAnswer(null)
+    setTimeLeft(getTimeLimit(questions[ni]))
+    setQuestionStartTime(Date.now())
+    setQuestionKey(k => k + 1)
+    setPendingNextIndex(null)
+    // Start utvisningstransisjon (250ms) etter at nytt spørsmål er klart
+    setInterPhase('out')
+    setTimeout(() => setInterPhase('hidden'), 250)
   }, [pendingNextIndex, questions, getTimeLimit])
 
   const finishQuiz = async () => {
