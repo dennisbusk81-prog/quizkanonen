@@ -19,6 +19,7 @@ export default function UserMenu() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
   const [profileLoaded, setProfileLoaded] = useState(false)
+  const [adminOrgs, setAdminOrgs] = useState<{ orgName: string; orgSlug: string }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
@@ -34,6 +35,25 @@ export default function UserMenu() {
       // keep email fallback already set
     }
     setProfileLoaded(true)
+
+    // Load org admin memberships
+    try {
+      const { data: memberships } = await supabase
+        .from('organization_members')
+        .select('organizations(name, slug)')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+      const orgs = (memberships ?? [])
+        .map(m => {
+          const raw = (m as unknown as { organizations: { name: string; slug: string } | { name: string; slug: string }[] | null }).organizations
+          const org = Array.isArray(raw) ? raw[0] ?? null : raw
+          return org ? { orgName: org.name, orgSlug: org.slug } : null
+        })
+        .filter((x): x is { orgName: string; orgSlug: string } => x !== null)
+      setAdminOrgs(orgs)
+    } catch {
+      // non-critical
+    }
   }
 
   useEffect(() => { setMounted(true) }, [])
@@ -120,6 +140,7 @@ export default function UserMenu() {
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
+        setAdminOrgs([])
       } else if (s?.user) {
         loadProfile(s.user.id, s.user.email)
       }
@@ -261,6 +282,25 @@ export default function UserMenu() {
                 >
                   Mine ligaer
                 </a>
+                {adminOrgs.map(org => (
+                  <a
+                    key={org.orgSlug}
+                    href={`/org/${org.orgSlug}/admin`}
+                    onClick={() => setDropdownOpen(false)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 10px', background: 'none',
+                      borderRadius: 8, fontSize: 13, color: '#e8e4dd',
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      textDecoration: 'none', transition: 'background 0.12s',
+                      boxSizing: 'border-box', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    {adminOrgs.length === 1 ? 'Bedriftspanel →' : `${org.orgName} →`}
+                  </a>
+                ))}
                 <a
                   href="/toppliste"
                   onClick={() => setDropdownOpen(false)}
