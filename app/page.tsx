@@ -603,7 +603,13 @@ export default async function Home() {
                   </div>
                 )}
                 <div className="qk-card-actions">
-                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
+                  <Link href={`/quiz/${quiz.id}`} style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'transparent', border: '1px solid #c9a84c',
+                    color: '#c9a84c', padding: '10px 28px', borderRadius: 10,
+                    fontSize: 15, fontWeight: 600, textDecoration: 'none',
+                    fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s',
+                  }}>
                     Spill nå
                   </Link>
                   <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
