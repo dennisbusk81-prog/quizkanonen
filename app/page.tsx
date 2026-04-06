@@ -223,7 +223,7 @@ export default async function Home() {
         /* ── Quiz card ── */
         .qk-card {
           background: var(--card);
-          border: 1px solid var(--border);
+          border: 1px solid rgba(201,168,76,0.2);
           border-radius: var(--radius-card);
           padding: 28px;
           margin-bottom: 8px;
