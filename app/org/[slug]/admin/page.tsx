@@ -235,7 +235,7 @@ export default function OrgAdminPage() {
               { label: 'Plan', value: data?.org.plan ?? '—' },
               { label: 'Medlemmer', value: String(data?.members.length ?? 0) },
               { label: 'Aktive invitasjoner', value: String(activeInvites.length) },
-              { label: 'Premium utløper', value: data?.org.stripe_period_end ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO') : '—' },
+              { label: 'Premium utløper', value: data?.org.stripe_period_end ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) : '—' },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, color: '#7a7873', marginBottom: 4, letterSpacing: '0.04em' }}>{item.label}</div>

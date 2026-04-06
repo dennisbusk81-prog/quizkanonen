@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2026-03-25.dahlia',
+})
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +27,7 @@ export async function GET(
   // Get org
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, plan, stripe_period_end, allow_global_league, admin_can_see_answers')
+    .select('id, name, plan, stripe_subscription_id, stripe_period_end, allow_global_league, admin_can_see_answers')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -59,6 +64,19 @@ export async function GET(
     display_name: profileMap[m.user_id] ?? m.user_id.slice(0, 8),
   }))
 
+  // If stripe_period_end is missing but we have a subscription ID, fetch it live from Stripe
+  let stripePeriodEnd = org.stripe_period_end
+  if (!stripePeriodEnd && org.stripe_subscription_id) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(org.stripe_subscription_id)
+      stripePeriodEnd = new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
+      // Persist so next load is instant
+      await supabaseAdmin.from('organizations')
+        .update({ stripe_period_end: stripePeriodEnd })
+        .eq('id', org.id)
+    } catch { /* not critical */ }
+  }
+
   // Active invites
   const { data: invites } = await supabaseAdmin
     .from('organization_invites')
@@ -71,7 +89,7 @@ export async function GET(
       id: org.id,
       name: org.name,
       plan: org.plan,
-      stripe_period_end: org.stripe_period_end,
+      stripe_period_end: stripePeriodEnd,
       allow_global_league: org.allow_global_league,
       admin_can_see_answers: org.admin_can_see_answers,
     },
