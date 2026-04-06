@@ -224,7 +224,8 @@ export default async function Home() {
           gap: 16px;
           font-size: 12px;
           color: var(--hint);
-          margin-top: 12px;
+          margin-top: 16px;
+          margin-bottom: 16px;
         }
 
         /* ── Social proof ── */
@@ -318,7 +319,6 @@ export default async function Home() {
         .qk-detail { font-size: 12px; color: var(--hint); }
 
         .qk-card-actions {
-          margin-top: 20px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -503,14 +503,14 @@ export default async function Home() {
         .qk-all-link {
           display: block;
           font-size: 13px;
-          color: var(--gold);
+          color: var(--hint);
           text-decoration: none;
           margin-top: 12px;
           margin-bottom: 8px;
-          transition: opacity 0.15s;
+          transition: color 0.15s;
         }
 
-        .qk-all-link:hover { opacity: 0.75; }
+        .qk-all-link:hover { color: var(--body); }
 
         /* ── Responsive ── */
         @media (max-width: 520px) {
@@ -585,6 +585,13 @@ export default async function Home() {
                     <p className="qk-card-date">Neste quiz: {formatNextQuiz(nextQuizAt)}</p>
                   )}
                 </div>
+                {top3.length > 0 && (
+                  <div className="qk-top3">
+                    {top3[0] && <span><span style={{ color: '#c9a84c' }}>🥇</span> {top3[0].player_name}</span>}
+                    {top3[1] && <span><span style={{ color: '#a8a8a8' }}>🥈</span> {top3[1].player_name}</span>}
+                    {top3[2] && <span><span style={{ color: '#cd7f32' }}>🥉</span> {top3[2].player_name}</span>}
+                  </div>
+                )}
                 <div className="qk-card-actions">
                   <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
                     Spill nå
@@ -594,13 +601,6 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
-              {top3.length > 0 && (
-                <div className="qk-top3">
-                  {top3[0] && <span><span style={{ color: '#c9a84c' }}>🥇</span> {top3[0].player_name}</span>}
-                  {top3[1] && <span><span style={{ color: '#a8a8a8' }}>🥈</span> {top3[1].player_name}</span>}
-                  {top3[2] && <span><span style={{ color: '#cd7f32' }}>🥉</span> {top3[2].player_name}</span>}
-                </div>
-              )}
               <Link href="/toppliste" className="qk-all-link">Se sesong-topplisten →</Link>
               {quizList.length > 1 && (
                 <Link href="/quizer" className="qk-all-link">Se alle aktive quizer →</Link>
