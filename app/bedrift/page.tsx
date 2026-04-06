@@ -26,7 +26,7 @@ const STYLES = `
   .eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; }
   .title { font-family: 'Libre Baskerville', serif; font-size: clamp(32px, 5vw, 48px); font-weight: 700; color: var(--white); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 8px; }
   .title em { font-style: italic; color: var(--gold); }
-  .subtitle { font-size: 15px; color: var(--hint); margin-top: 16px; line-height: 1.6; max-width: 520px; margin-left: auto; margin-right: auto; }
+  .subtitle { font-size: 15px; color: var(--body); margin-top: 16px; line-height: 1.6; max-width: 520px; margin-left: auto; margin-right: auto; }
 
   /* Packages grid — minmax(0,1fr) prevents columns from overflowing viewport */
   .packages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 48px; }
