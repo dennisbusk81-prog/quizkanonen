@@ -2,6 +2,8 @@
 import { useState } from 'react'
 
 const STYLES = `
+  html { overflow-x: hidden; }
+
   :root {
     --bg: #1a1c23;
     --card: #21242e;
