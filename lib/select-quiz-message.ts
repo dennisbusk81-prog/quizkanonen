@@ -7,6 +7,7 @@ export interface QuizMessageState {
   totalQuestions: number
   questionIndex: number   // 0-based index of question just answered (before advancing)
   rival: { name: string } | null
+  scoreIsAboveMedian: boolean
 }
 
 function pick(category: QuizMessageCategory): QuizMessage {
@@ -31,10 +32,12 @@ export function selectQuizMessage(state: QuizMessageState): QuizMessage {
     totalQuestions,
     questionIndex,
     rival,
+    scoreIsAboveMedian,
   } = state
 
   const questionsAnswered = questionIndex + 1
-  const percent = Math.round((correctSoFar / questionsAnswered) * 100)
+  // Prosent riktige: correctSoFar / questionIndex * 100 (bruker questionIndex som nevner)
+  const percent = Math.round(correctSoFar / (questionIndex || 1) * 100)
   const remaining = totalQuestions - questionsAnswered
   const isHalftime =
     questionsAnswered === Math.floor(totalQuestions / 2) && remaining > 0
@@ -55,9 +58,13 @@ export function selectQuizMessage(state: QuizMessageState): QuizMessage {
   }
 
   // Priority 4: halftime
+  // halftime_good: kun hvis scoreIsAboveMedian OG ≥ 60% riktige
+  // halftime_bad: aldri med prosentvariabel
   if (isHalftime) {
-    const category = percent >= 50 ? 'halftime_good' : 'halftime_bad'
-    return fill(pick(category), { percent })
+    if (scoreIsAboveMedian && correctSoFar / (questionIndex || 1) >= 0.6) {
+      return fill(pick('halftime_good'), { percent })
+    }
+    return fill(pick('halftime_bad'), {})
   }
 
   // Priority 5: final push (3 or fewer questions left)

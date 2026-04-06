@@ -72,6 +72,10 @@ export default function QuizInterlude({
   percentileData,
   onNext,
 }: QuizInterludeProps) {
+  // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
+  const percentileEntry = percentileData.find(p => p.score === score)
+  const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
+
   const msgState: QuizMessageState = {
     streak,
     wrongInARow,
@@ -79,16 +83,13 @@ export default function QuizInterlude({
     totalQuestions,
     questionIndex,
     rival,
+    scoreIsAboveMedian,
   }
 
   const message = useMemo(() => selectQuizMessage(msgState), [
     streak, wrongInARow, score, totalQuestions, questionIndex,
-    rival?.name,
+    rival?.name, scoreIsAboveMedian,
   ])
-
-  // Percentile: what % of existing players scored below current score
-  const percentileEntry = percentileData.find(p => p.score === score)
-  const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
 
   const animClass = phase === 'in' ? 'qk-intermediate-in' : 'qk-intermediate-out'
 
