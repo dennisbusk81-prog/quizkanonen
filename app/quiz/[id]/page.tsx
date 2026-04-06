@@ -473,8 +473,8 @@ const styles = `
 
   /* ANIMATION: question slide-in */
   @keyframes questionIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   .qk-animate-in {
     animation: questionIn 200ms ease-out both;
@@ -483,7 +483,7 @@ const styles = `
   /* ANIMATION: timer pulse when urgent */
   @keyframes timerPulse {
     0%   { transform: scale(1); }
-    50%  { transform: scale(1.08); }
+    50%  { transform: scale(1.05); }
     100% { transform: scale(1); }
   }
   .qk-timer.pulse { animation: timerPulse 600ms ease-in-out infinite; }
@@ -680,7 +680,7 @@ export default function QuizPage() {
     const newAnswers = [...answers, record]
     setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
     setAnswered(true); saveProgress(currentIndex, newAnswers, totalTimeMs + timeMs)
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(200)
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
   }, [questions, currentIndex, getTimeLimit, answers, totalTimeMs, saveProgress])
 
   const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
@@ -808,7 +808,7 @@ export default function QuizPage() {
       animationTimeoutsRef.current.push(id)
     }
 
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40)
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(50)
 
     // Senterpunkt for partikler og gradient — bruk knappens posisjon
     const rect = buttonEl?.getBoundingClientRect()
@@ -835,8 +835,8 @@ export default function QuizPage() {
     // 0ms: 8 gullpartikler spres utover fra knapp-senteret
     if (typeof document !== 'undefined') {
       const sparks: HTMLElement[] = []
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.5
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2 + (Math.random() - 0.5) * 0.4
         const dist = 90 + Math.random() * 140
         const size = 3 + Math.random() * 3
         const spark = document.createElement('div')
@@ -1316,6 +1316,7 @@ export default function QuizPage() {
                 key={`${questionKey}-${opt}`}
                 onClick={e => handleAnswer(opt, e.currentTarget as HTMLButtonElement)}
                 disabled={answered}
+                style={{ animationDelay: `${i * 50}ms` }}
                 className={`qk-option qk-animate-in${getOptionClass(opt)}`}
               >
                 <span className="qk-opt-letter">{opt}</span>

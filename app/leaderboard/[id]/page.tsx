@@ -10,14 +10,14 @@ import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
   @keyframes podiumSlideIn {
-    from { opacity: 0; transform: translateY(24px); }
+    from { opacity: 0; transform: translateY(16px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .podium-row-1 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 400ms; }
-  .podium-row-2 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 200ms; }
   .podium-row-3 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 0ms; }
+  .podium-row-2 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 400ms; }
+  .podium-row-1 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 1000ms; }
   @keyframes podiumFadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .podium-rest  { animation: podiumFadeIn 200ms ease-out both; animation-delay: 700ms; }
+  .podium-rest  { animation: podiumFadeIn 200ms ease-out both; animation-delay: 1400ms; }
 `
 
 const s = {
