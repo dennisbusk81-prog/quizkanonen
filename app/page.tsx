@@ -205,12 +205,6 @@ export default async function Home() {
 
         .qk-btn-primary:hover { background: #d9b85c; }
 
-        .qk-hero-hint {
-          font-size: 13px;
-          color: var(--hint);
-          margin-bottom: 12px;
-        }
-
         .qk-hero-status {
           font-size: 13px;
           color: var(--hint);
@@ -551,8 +545,7 @@ export default async function Home() {
               </Link>
             )}
           </div>
-          <p className="qk-hero-hint">Gratis — ingen konto nødvendig</p>
-          <p className="qk-hero-status">Alltid gratis å spille · Premium fra kr 49/mnd</p>
+          <p className="qk-hero-status">Gratis å spille — ingen konto nødvendig · Premium fra kr 49/mnd</p>
         </section>
 
         {/* Sosialt bevis */}
@@ -603,9 +596,9 @@ export default async function Home() {
               </div>
               {top3.length > 0 && (
                 <div className="qk-top3">
-                  {top3[0] && <span>🥇 {top3[0].player_name}</span>}
-                  {top3[1] && <span>🥈 {top3[1].player_name}</span>}
-                  {top3[2] && <span>🥉 {top3[2].player_name}</span>}
+                  {top3[0] && <span><span style={{ color: '#c9a84c' }}>🥇</span> {top3[0].player_name}</span>}
+                  {top3[1] && <span><span style={{ color: '#a8a8a8' }}>🥈</span> {top3[1].player_name}</span>}
+                  {top3[2] && <span><span style={{ color: '#cd7f32' }}>🥉</span> {top3[2].player_name}</span>}
                 </div>
               )}
               <Link href="/toppliste" className="qk-all-link">Se sesong-topplisten →</Link>
