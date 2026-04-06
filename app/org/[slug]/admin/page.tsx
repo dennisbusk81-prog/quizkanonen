@@ -73,8 +73,11 @@ export default function OrgAdminPage() {
   const [allowGlobal, setAllowGlobal] = useState(false)
   const [adminAnswers, setAdminAnswers] = useState(false)
 
-  // Bust router cache so fresh data is shown after navigation
-  useEffect(() => { router.refresh() }, [router])
+  // Hard timeout — show error state after 8s if session never resolves
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 8000)
+    return () => clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -175,7 +178,7 @@ export default function OrgAdminPage() {
     setTimeout(() => setCopiedToken(null), 2000)
   }
 
-  if (session === undefined || loading) {
+  if (loading) {
     return (
       <>
         <style>{FONT}</style>
