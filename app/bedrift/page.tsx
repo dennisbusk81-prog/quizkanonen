@@ -1,8 +1,5 @@
-import type { Metadata } from 'next'
-
-export const metadata: Metadata = {
-  title: 'Quizkanonen for bedrifter',
-}
+'use client'
+import { useState } from 'react'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -31,7 +28,7 @@ const STYLES = `
     min-height: 100vh;
   }
 
-  .page { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; }
+  .page { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; overflow-x: hidden; }
 
   /* Header */
   .header { text-align: center; margin-bottom: 56px; }
@@ -40,10 +37,10 @@ const STYLES = `
   .title em { font-style: italic; color: var(--gold); }
   .subtitle { font-size: 15px; color: var(--hint); margin-top: 16px; line-height: 1.6; max-width: 520px; margin-left: auto; margin-right: auto; }
 
-  /* Packages grid */
-  .packages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 48px; }
-  @media (max-width: 780px) { .packages { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 480px) { .packages { grid-template-columns: 1fr; } }
+  /* Packages grid — minmax(0,1fr) prevents columns from overflowing viewport */
+  .packages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 48px; }
+  @media (max-width: 780px) { .packages { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  @media (max-width: 480px) { .packages { grid-template-columns: minmax(0, 1fr); } }
 
   .pkg { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column; position: relative; }
   .pkg-featured { background: #1e1a0e; border: 1px solid var(--gold-border); }
@@ -65,9 +62,9 @@ const STYLES = `
   .pkg-btn { display: block; text-align: center; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: 'Instrument Sans', sans-serif; text-decoration: none; border: 1px solid var(--border); color: var(--body); background: transparent; cursor: pointer; }
   .pkg-btn-featured { background: var(--gold); color: #1a1c23; border-color: var(--gold); }
 
-  /* Comparison table */
+  /* Comparison table — overflow-x: auto so table scrolls on mobile instead of clipping */
   .section-title { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
-  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 48px; }
+  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow-x: auto; margin-bottom: 48px; }
   table { width: 100%; border-collapse: collapse; }
   th { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hint); padding: 14px 16px; text-align: left; border-bottom: 0.5px solid var(--border); background: #1e2028; }
   th:not(:first-child) { text-align: center; }
@@ -81,12 +78,38 @@ const STYLES = `
   .td-no { color: var(--border); font-size: 14px; }
   .col-featured { background: var(--gold-dim); }
 
-  /* FAQ / notes */
+  /* Notes accordion */
   .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
   @media (max-width: 580px) { .notes { grid-template-columns: 1fr; } }
-  .note { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 16px 18px; }
-  .note-title { font-size: 12px; font-weight: 500; color: var(--white); margin-bottom: 6px; }
-  .note-body { font-size: 12px; color: var(--hint); line-height: 1.6; }
+
+  .note {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s;
+  }
+  .note:hover { border-color: rgba(201,168,76,0.2); }
+
+  .note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .note-title { font-size: 12px; font-weight: 500; color: var(--white); }
+
+  .note-chevron {
+    flex-shrink: 0;
+    color: var(--hint);
+    transition: transform 0.2s ease;
+  }
+  .note-chevron.open { transform: rotate(180deg); }
+
+  .note-body { font-size: 12px; color: var(--hint); line-height: 1.6; margin-top: 10px; }
 
   /* CTA */
   .cta { background: #1e1a0e; border: 1px solid var(--gold-border); border-radius: 16px; padding: 32px; text-align: center; }
@@ -96,7 +119,16 @@ const STYLES = `
   .cta-note { font-size: 12px; color: var(--hint); margin-top: 12px; font-style: italic; }
 `
 
+const NOTES = [
+  { title: 'Ingen bindingstid', body: 'Avslutt når du vil. Ingen skjulte kostnader. Prisen gjelder per bedrift — ikke per ansatt.' },
+  { title: 'Gratis oppstart', body: 'Vi setter opp alt for deg. Inviter ansatte med én lenke. Første uke er gratis — ingen kortinfo nødvendig.' },
+  { title: 'Fungerer i nettleseren', body: 'Ingen app å laste ned. Fungerer på mobil og desktop. Del en lenke — alle er med på 30 sekunder.' },
+  { title: 'Ukentlig statistikk', body: 'Standard og opp får ukentlig rapport: hvem deltok, hvem vant, fremgang over tid. Enkelt å følge med.' },
+]
+
 export default function BedriftPage() {
+  const [openNote, setOpenNote] = useState<number | null>(null)
+
   return (
     <>
       <style>{STYLES}</style>
@@ -261,24 +293,28 @@ export default function BedriftPage() {
           </table>
         </div>
 
-        {/* Notes */}
+        {/* Notes accordion */}
         <div className="notes">
-          <div className="note">
-            <div className="note-title">Ingen bindingstid</div>
-            <div className="note-body">Avslutt når du vil. Ingen skjulte kostnader. Prisen gjelder per bedrift — ikke per ansatt.</div>
-          </div>
-          <div className="note">
-            <div className="note-title">Gratis oppstart</div>
-            <div className="note-body">Vi setter opp alt for deg. Inviter ansatte med én lenke. Første uke er gratis — ingen kortinfo nødvendig.</div>
-          </div>
-          <div className="note">
-            <div className="note-title">Fungerer i nettleseren</div>
-            <div className="note-body">Ingen app å laste ned. Fungerer på mobil og desktop. Del en lenke — alle er med på 30 sekunder.</div>
-          </div>
-          <div className="note">
-            <div className="note-title">Ukentlig statistikk</div>
-            <div className="note-body">Standard og opp får ukentlig rapport: hvem deltok, hvem vant, fremgang over tid. Enkelt å følge med.</div>
-          </div>
+          {NOTES.map((note, i) => (
+            <div
+              key={i}
+              className="note"
+              onClick={() => setOpenNote(openNote === i ? null : i)}
+            >
+              <div className="note-header">
+                <div className="note-title">{note.title}</div>
+                <svg
+                  className={`note-chevron${openNote === i ? ' open' : ''}`}
+                  width="12" height="7" viewBox="0 0 12 7" fill="none"
+                >
+                  <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              {openNote === i && (
+                <div className="note-body">{note.body}</div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* CTA */}
