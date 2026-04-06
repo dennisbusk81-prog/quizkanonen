@@ -125,34 +125,20 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   if (!sessionResolved) return null
 
-  // Org admins go directly to their panel; others go to /bedrift
-  const bedriftHref = adminOrgs.length > 0 ? `/org/${adminOrgs[0].orgSlug}/admin` : '/bedrift'
-  const bedriftLabel = adminOrgs.length > 0 ? 'Bedriftspanel' : 'For bedrifter'
+  const navLink: React.CSSProperties = {
+    fontSize: 13, color: '#7a7873', textDecoration: 'none',
+    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+  }
 
   // ── Not logged in ──
   if (!displayName) {
     return (
       <>
-        <a
-          href="/bedrift"
-          style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+        <a href="/bedrift" style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
-        >
-          For bedrifter
-        </a>
-
-        <a
-          href="/login"
-          style={{
-            fontSize: 13, color: '#e8e4dd',
-            textDecoration: 'none',
-            fontFamily: "'Instrument Sans', sans-serif",
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Logg inn
-        </a>
+        >For bedrifter</a>
+        <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
         {quizId && (
           <Link
             href={`/quiz/${quizId}`}
@@ -177,28 +163,21 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // ── Logged in ──
   return (
     <>
-      <a
-        href={bedriftHref}
-        style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
-        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-        onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
-      >
-        {bedriftLabel}
-      </a>
-      {/* Free users: show upgrade nudge */}
-      {profileLoaded && !isPremium && (
+      {/* Bedriftspanel — only for org admins */}
+      {adminOrgs.length > 0 && (
         <a
-          href="/premium"
-          style={{
-            fontSize: 13, color: '#c9a84c',
-            textDecoration: 'none',
-            fontFamily: "'Instrument Sans', sans-serif",
-            whiteSpace: 'nowrap',
-          }}
+          href={`/org/${adminOrgs[0].orgSlug}/admin`}
+          style={navLink}
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
         >
-          Oppgrader til Premium
+          Bedriftspanel
         </a>
       )}
+      <a href="/bedrift" style={navLink}
+        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+        onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+      >For bedrifter</a>
 
       {/* Avatar pill + dropdown */}
       <div ref={dropdownRef} style={{ position: 'relative' }}>
