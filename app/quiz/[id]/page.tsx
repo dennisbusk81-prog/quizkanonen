@@ -832,11 +832,11 @@ export default function QuizPage() {
       })
     }
 
-    // 0ms: 40 gullpartikler spres organisk utover fra knapp-senteret
+    // 0ms: 100 gullpartikler spres organisk utover fra knapp-senteret
     if (typeof document !== 'undefined') {
       const sparks: HTMLElement[] = []
-      for (let i = 0; i < 40; i++) {
-        const angle = (i / 40) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI / 12) // ±15 grader avvik
+      for (let i = 0; i < 100; i++) {
+        const angle = (i / 100) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI / 12) // ±15 grader avvik
         const dist = 60 + Math.random() * 220                                            // 60–280px
         const size = 3 + Math.random() * 5                                               // 3–8px
         const dur = Math.round(700 + Math.random() * 400)                                // 700–1100ms
