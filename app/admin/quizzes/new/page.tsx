@@ -417,7 +417,7 @@ export default function NewQuiz() {
               className="nq-input"
             />
             <p className="nq-hint" style={{ textAlign: 'left', marginTop: 6 }}>
-              Quizen publiseres automatisk på dette tidspunktet. Sett «Publisert» til Av nedenfor.
+              Quizen publiseres automatisk på valgt tidspunkt. For at dette skal fungere må «Publisert»-togglen være satt til Av — systemet slår den på for deg.
             </p>
           </div>
         </div>

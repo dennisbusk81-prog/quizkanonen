@@ -260,7 +260,7 @@ export default function QuizCockpit() {
             <input type="datetime-local" value={form.scheduled_at}
               onChange={e => { upd('scheduled_at', e.target.value); if (e.target.value) upd('is_active', false) }}
               style={s.input} />
-            <p style={s.hint}>Publiseres automatisk på dette tidspunktet. Tøm feltet for å deaktivere.</p>
+            <p style={s.hint}>Quizen publiseres automatisk på valgt tidspunkt. For at dette skal fungere må «Publisert»-togglen være satt til Av — systemet slår den på for deg.</p>
           </div>
 
           <div style={s.row2}>
