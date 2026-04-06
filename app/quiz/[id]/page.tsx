@@ -546,6 +546,11 @@ export default function QuizPage() {
   const [interLow, setInterLow] = useState<number | null>(null)
   const [interHigh, setInterHigh] = useState<number | null>(null)
   const [interQLeft, setInterQLeft] = useState(0)
+  const [interLastCorrect, setInterLastCorrect] = useState<boolean | null>(null)
+  const [interCorrectAnswerText, setInterCorrectAnswerText] = useState<string | null>(null)
+  const [interScore, setInterScore] = useState(0)
+  const [interStreak, setInterStreak] = useState(0)
+  const [interNextQNum, setInterNextQNum] = useState(1)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
@@ -888,6 +893,22 @@ export default function QuizPage() {
       }
     }
 
+    const lastAns = answers[answers.length - 1]
+    const optMap: Record<string, keyof Question> = { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
+    const q = questions[currentIndex]
+    const correctText = q ? (q[optMap[q.correct_answer]] as string) || q.correct_answer : ''
+    const streak = (() => {
+      let s = 0
+      for (let i = answers.length - 1; i >= 0; i--) {
+        if (answers[i].isCorrect) s++; else break
+      }
+      return s
+    })()
+    setInterLastCorrect(lastAns?.isCorrect ?? null)
+    setInterCorrectAnswerText(correctText)
+    setInterScore(correctSoFar)
+    setInterStreak(streak)
+    setInterNextQNum(nextIndex + 1)
     setInterLow(low)
     setInterHigh(high)
     setInterQLeft(qLeft)
@@ -1150,42 +1171,55 @@ export default function QuizPage() {
           style={{
             position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '0 24px',
+            padding: '0 32px',
           }}
         >
-          <div style={{
-            background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
-            padding: '32px 36px', textAlign: 'center', maxWidth: 360, width: '100%',
-          }}>
-            {interLow !== null && interHigh !== null ? (
-              <>
-                <p style={{
-                  fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
-                  textTransform: 'uppercase', color: '#7a7873', marginBottom: 10,
-                }}>
+          <div style={{ textAlign: 'center', maxWidth: 360, width: '100%' }}>
+
+            {/* Resultat forrige spørsmål */}
+            {interLastCorrect === true ? (
+              <div style={{
+                display: 'inline-block',
+                background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
+                borderRadius: 10, padding: '10px 22px', marginBottom: 24,
+                color: '#4caf7d', fontSize: 15, fontWeight: 600,
+              }}>
+                ✓ Riktig svar
+              </div>
+            ) : interLastCorrect === false ? (
+              <div style={{
+                display: 'inline-block',
+                background: 'rgba(201,76,76,0.10)', border: '1px solid rgba(201,76,76,0.25)',
+                borderRadius: 10, padding: '10px 22px', marginBottom: 24,
+                color: '#e8e4dd', fontSize: 14,
+              }}>
+                Riktig svar var: <strong>{interCorrectAnswerText}</strong>
+              </div>
+            ) : null}
+
+            {/* Rangering (innloggede) */}
+            {interLow !== null && interHigh !== null && (
+              <div style={{ marginBottom: 18 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
                   Din rangering
                 </p>
-                <p style={{
-                  fontFamily: "'Libre Baskerville', serif", fontSize: 38, fontWeight: 700,
-                  color: '#c9a84c', lineHeight: 1, marginBottom: 6,
-                }}>
+                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 36, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                   {interLow}–{interHigh}
                 </p>
-                <p style={{ fontSize: 13, color: '#e8e4dd' }}>
-                  Et sted mellom plass {interLow} og {interHigh}
-                </p>
-              </>
-            ) : (
-              <p style={{
-                fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700,
-                color: '#ffffff', lineHeight: 1.2,
-              }}>
-                Bra!
-              </p>
+              </div>
             )}
-            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 14 }}>
-              {interQLeft} spørsmål igjen
+
+            {/* Score og streak */}
+            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 20 }}>
+              {interScore} av {questions.length} riktige
+              {interStreak >= 2 ? ` · Streak: ${interStreak} på rad` : ''}
             </p>
+
+            {/* Spenningsbygger */}
+            <p style={{ fontSize: 13, color: '#7a7873' }}>
+              Spørsmål {interNextQNum} av {questions.length} kommer straks...
+            </p>
+
           </div>
         </div>
       )}
