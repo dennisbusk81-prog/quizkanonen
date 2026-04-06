@@ -15,28 +15,60 @@ type QuizRow = {
   allow_teams: boolean
   requires_access_code: boolean
   time_limit_seconds: number | null
+  opens_at: string | null
+  closes_at: string | null
   questions: { count: number }[]
   attempts: { count: number }[]
 }
 
+function formatNextQuiz(iso: string) {
+  const d = new Date(iso)
+  const weekday = d.toLocaleDateString('nb-NO', { weekday: 'long', timeZone: 'Europe/Oslo' })
+  const day = d.toLocaleDateString('nb-NO', { day: 'numeric', timeZone: 'Europe/Oslo' })
+  const month = d.toLocaleDateString('nb-NO', { month: 'long', timeZone: 'Europe/Oslo' })
+  const time = d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo', hour12: false })
+  return `${weekday} ${day}. ${month} kl. ${time}`
+}
+
 export default async function Home() {
-  const [{ data: quizzes }, { data: lastQuiz }] = await Promise.all([
+  const now = new Date()
+
+  const [{ data: quizzes }, { data: lastQuizData }, { data: nextQuizSetting }] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
-      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, questions(count), attempts(count)')
+      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
       .eq('is_active', true)
       .order('created_at', { ascending: false }),
     supabaseAdmin
       .from('quizzes')
-      .select('attempts(count)')
+      .select('id, attempts(count)')
       .eq('is_active', false)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabaseAdmin
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'next_quiz_at')
+      .maybeSingle(),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
-  const lastParticipants: number | null = (lastQuiz as { attempts: { count: number }[] } | null)?.attempts?.[0]?.count ?? null
+  const lastParticipants: number | null = (lastQuizData as { id: string; attempts: { count: number }[] } | null)?.attempts?.[0]?.count ?? null
+  const lastQuizId: string | null = (lastQuizData as { id: string } | null)?.id ?? null
+  const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
+
+  let top3: { player_name: string }[] = []
+  if (lastQuizId) {
+    const { data: top3Data } = await supabaseAdmin
+      .from('attempts')
+      .select('player_name, correct_answers, total_time_ms')
+      .eq('quiz_id', lastQuizId)
+      .order('correct_answers', { ascending: false })
+      .order('total_time_ms', { ascending: true })
+      .limit(3)
+    top3 = (top3Data as { player_name: string }[] | null) ?? []
+  }
 
   return (
     <>
@@ -180,17 +212,26 @@ export default async function Home() {
         }
 
         .qk-hero-status {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-          gap: 5px;
           font-size: 13px;
           color: var(--hint);
+          text-align: center;
         }
 
-        .qk-status-free { color: var(--green); font-weight: 600; }
-        .qk-status-premium { color: var(--gold); font-weight: 600; }
+        .qk-card-date {
+          font-size: 12px;
+          color: var(--hint);
+          text-align: center;
+          margin-top: 6px;
+        }
+
+        .qk-top3 {
+          display: flex;
+          justify-content: center;
+          gap: 16px;
+          font-size: 12px;
+          color: var(--hint);
+          margin-top: 12px;
+        }
 
         /* ── Social proof ── */
         .qk-social {
@@ -511,13 +552,7 @@ export default async function Home() {
             )}
           </div>
           <p className="qk-hero-hint">Gratis — ingen konto nødvendig</p>
-          <div className="qk-hero-status">
-            <span className="qk-status-free">✓ Gratis</span>
-            <span>·</span>
-            <span className="qk-status-free">✓ Innlogget</span>
-            <span>·</span>
-            <span className="qk-status-premium">★ Premium kr 49/mnd</span>
-          </div>
+          <p className="qk-hero-status">Alltid gratis å spille · Premium fra kr 49/mnd</p>
         </section>
 
         {/* Sosialt bevis */}
@@ -534,10 +569,16 @@ export default async function Home() {
               Ny quiz legges ut hver fredag.<br />
               Følg med i Facebook-gruppen for varsling.
             </p>
+            {nextQuizAt && (
+              <p className="qk-card-date" style={{ marginTop: 12 }}>
+                Neste quiz: {formatNextQuiz(nextQuizAt)}
+              </p>
+            )}
           </div>
         ) : (() => {
           const quiz = quizList[0]
           const participantCount = quiz.attempts[0]?.count ?? 0
+          const quizNotYetOpen = quiz.opens_at != null && new Date(quiz.opens_at) > now
           return (
             <>
               <div className="qk-card">
@@ -547,6 +588,9 @@ export default async function Home() {
                   <p className="qk-card-tagline">
                     {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
                   </p>
+                  {quizNotYetOpen && nextQuizAt && (
+                    <p className="qk-card-date">Neste quiz: {formatNextQuiz(nextQuizAt)}</p>
+                  )}
                 </div>
                 <div className="qk-card-actions">
                   <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
@@ -557,6 +601,13 @@ export default async function Home() {
                   </Link>
                 </div>
               </div>
+              {top3.length > 0 && (
+                <div className="qk-top3">
+                  {top3[0] && <span>🥇 {top3[0].player_name}</span>}
+                  {top3[1] && <span>🥈 {top3[1].player_name}</span>}
+                  {top3[2] && <span>🥉 {top3[2].player_name}</span>}
+                </div>
+              )}
               <Link href="/toppliste" className="qk-all-link">Se sesong-topplisten →</Link>
               {quizList.length > 1 && (
                 <Link href="/quizer" className="qk-all-link">Se alle aktive quizer →</Link>
