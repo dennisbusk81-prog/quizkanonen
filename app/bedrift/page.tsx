@@ -155,7 +155,7 @@ export default function BedriftPage() {
               <li><span className="check check-dim">—</span>Ukentlig statistikk-rapport</li>
               <li><span className="check check-dim">—</span>Egne quizer</li>
             </ul>
-            <a href="mailto:support@quizkanonen.no?subject=Starter-pakke" className="pkg-btn">Kom i gang</a>
+            <a href="/bedrift/registrer?plan=starter" className="pkg-btn">Kom i gang</a>
           </div>
 
           <div className="pkg pkg-featured">
@@ -172,7 +172,7 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
               <li><span className="check check-dim">—</span>Egne quizer</li>
             </ul>
-            <a href="mailto:support@quizkanonen.no?subject=Standard-pakke" className="pkg-btn pkg-btn-featured">Velg Standard</a>
+            <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>
 
           <div className="pkg">
@@ -188,7 +188,7 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
               <li><span className="check">✓</span>Egne quizer (kommer)</li>
             </ul>
-            <a href="mailto:support@quizkanonen.no?subject=Pro-pakke" className="pkg-btn">Velg Pro</a>
+            <a href="/bedrift/registrer?plan=pro" className="pkg-btn">Velg Pro</a>
           </div>
 
           <div className="pkg">
@@ -319,9 +319,9 @@ export default function BedriftPage() {
         {/* CTA */}
         <div className="cta">
           <div className="cta-title">Klar til å prøve?</div>
-          <div className="cta-sub">Vi setter opp bedriftens liga og sender invitasjonslenke til alle ansatte. Første uke er gratis.</div>
-          <a href="mailto:support@quizkanonen.no?subject=Bedriftsquiz%20-%20demo" className="cta-btn">Ta kontakt for en demo →</a>
-          <div className="cta-note">Eller skriv til support@quizkanonen.no — vi svarer samme dag.</div>
+          <div className="cta-sub">Registrer bedriften, betal via Stripe, og del invitasjonslenken med teamet. Ingen binding — avslutt når du vil.</div>
+          <a href="/bedrift/registrer" className="cta-btn">Kom i gang →</a>
+          <div className="cta-note">Alle ansatte får Premium inkludert i abonnementet.</div>
         </div>
 
       </div>

@@ -1,0 +1,82 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit } from '@/lib/rate-limit'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`org-admin-data:${ip}`, 30, 60_000).success) {
+    return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
+  }
+
+  const bearerToken = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!bearerToken) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(bearerToken)
+  if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
+
+  const { slug } = await params
+
+  // Get org
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, plan, stripe_period_end, allow_global_league, admin_can_see_answers')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (!org) return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+
+  // Must be admin
+  const { data: membership } = await supabaseAdmin
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', org.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membership?.role !== 'admin') {
+    return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+  }
+
+  // Members with profile names
+  const { data: membersRaw } = await supabaseAdmin
+    .from('organization_members')
+    .select('id, user_id, role, joined_at')
+    .eq('organization_id', org.id)
+    .order('joined_at', { ascending: true })
+
+  const memberIds = (membersRaw ?? []).map(m => m.user_id)
+  const { data: profiles } = await supabaseAdmin
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', memberIds)
+
+  const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.display_name]))
+  const members = (membersRaw ?? []).map(m => ({
+    ...m,
+    display_name: profileMap[m.user_id] ?? m.user_id.slice(0, 8),
+  }))
+
+  // Active invites
+  const { data: invites } = await supabaseAdmin
+    .from('organization_invites')
+    .select('id, token, use_count, is_active, created_at, expires_at, max_uses')
+    .eq('organization_id', org.id)
+    .order('created_at', { ascending: false })
+
+  return NextResponse.json({
+    org: {
+      id: org.id,
+      name: org.name,
+      plan: org.plan,
+      stripe_period_end: org.stripe_period_end,
+      allow_global_league: org.allow_global_league,
+      admin_can_see_answers: org.admin_can_see_answers,
+    },
+    members,
+    invites: invites ?? [],
+    currentUserId: user.id,
+  })
+}
