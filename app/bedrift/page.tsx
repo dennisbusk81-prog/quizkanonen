@@ -70,6 +70,11 @@ const STYLES = `
   .td-no { color: var(--border); font-size: 14px; }
   .col-featured { background: var(--gold-dim); }
 
+  @media (max-width: 640px) {
+    .table-wrap { display: none; }
+    .section-title { display: none; }
+  }
+
   /* Notes accordion */
   .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
   @media (max-width: 580px) { .notes { grid-template-columns: 1fr; } }
