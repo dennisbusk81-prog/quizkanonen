@@ -22,7 +22,7 @@ export default function UserMenu() {
   const [adminOrgs, setAdminOrgs] = useState<{ orgName: string; orgSlug: string }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  async function loadProfile(userId: string, fallbackEmail: string | undefined) {
+  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
     try {
       const { data } = await supabase
         .from('profiles')
@@ -36,23 +36,18 @@ export default function UserMenu() {
     }
     setProfileLoaded(true)
 
-    // Load org admin memberships
+    // Load org admin memberships via API (uses service role — bypasses RLS)
+    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) { console.log('[UserMenu] adminOrgs: no token, skipping'); return }
     try {
-      const { data: memberships } = await supabase
-        .from('organization_members')
-        .select('organizations(name, slug)')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-      const orgs = (memberships ?? [])
-        .map(m => {
-          const raw = (m as unknown as { organizations: { name: string; slug: string } | { name: string; slug: string }[] | null }).organizations
-          const org = Array.isArray(raw) ? raw[0] ?? null : raw
-          return org ? { orgName: org.name, orgSlug: org.slug } : null
-        })
-        .filter((x): x is { orgName: string; orgSlug: string } => x !== null)
-      setAdminOrgs(orgs)
-    } catch {
-      // non-critical
+      const res = await fetch('/api/org/my-admin-orgs', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = res.ok ? await res.json() : { orgs: [] }
+      console.log('[UserMenu] adminOrgs:', json.orgs)
+      setAdminOrgs(json.orgs ?? [])
+    } catch (err) {
+      console.error('[UserMenu] adminOrgs fetch error:', err)
     }
   }
 
@@ -134,7 +129,7 @@ export default function UserMenu() {
         if (s?.user) {
           // Set email as immediate name, then load real profile in background
           setDisplayName(s.user.email?.split('@')[0] ?? null)
-          loadProfile(s.user.id, s.user.email)
+          loadProfile(s.user.id, s.user.email, s.access_token)
         }
         setSessionResolved(true)
       } else if (event === 'SIGNED_OUT') {
@@ -142,7 +137,7 @@ export default function UserMenu() {
         setIsPremium(false)
         setAdminOrgs([])
       } else if (s?.user) {
-        loadProfile(s.user.id, s.user.email)
+        loadProfile(s.user.id, s.user.email, s.access_token)
       }
     })
 
