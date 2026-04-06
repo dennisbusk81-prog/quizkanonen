@@ -261,7 +261,7 @@ export default async function Home() {
           background: var(--card);
           border: 1px solid rgba(201,168,76,0.2);
           border-radius: var(--radius-card);
-          padding: 28px;
+          padding: 28px 28px 20px;
           margin-bottom: 8px;
           transition: border-color 0.18s;
         }
