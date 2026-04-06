@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
@@ -21,6 +21,7 @@ const STEPS = [
 ]
 
 function SuccessContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const orgSlug = searchParams.get('org')
 
@@ -28,6 +29,9 @@ function SuccessContent() {
   const [data, setData] = useState<OrgData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+
+  // Bust router cache so fresh data is shown after Stripe redirect
+  useEffect(() => { router.refresh() }, [router])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
