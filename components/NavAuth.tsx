@@ -23,9 +23,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+  const [adminOrgs, setAdminOrgs] = useState<{ orgName: string; orgSlug: string }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  async function loadProfile(userId: string, fallbackEmail: string | undefined) {
+  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
     try {
       const { data } = await supabase
         .from('profiles')
@@ -36,6 +37,20 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       setIsPremium(data?.premium_status === true)
     } catch { /* keep fallback */ }
     setProfileLoaded(true)
+
+    // Fetch admin org memberships via service-role API
+    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
+    if (!token) return
+    try {
+      const res = await fetch('/api/org/my-admin-orgs', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = res.ok ? await res.json() : { orgs: [] }
+      console.log('[NavAuth] adminOrgs:', json.orgs)
+      setAdminOrgs(json.orgs ?? [])
+    } catch (err) {
+      console.error('[NavAuth] adminOrgs fetch error:', err)
+    }
   }
 
   useEffect(() => {
@@ -46,7 +61,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         clearTimeout(timeout)
         if (session?.user) {
           setDisplayName(session.user.email?.split('@')[0] ?? null)
-          loadProfile(session.user.id, session.user.email)
+          loadProfile(session.user.id, session.user.email, session.access_token)
         } else {
           setProfileLoaded(true)
         }
@@ -54,9 +69,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
+        setAdminOrgs([])
         setProfileLoaded(true)
       } else if (session?.user) {
-        loadProfile(session.user.id, session.user.email)
+        loadProfile(session.user.id, session.user.email, session.access_token)
       }
     })
 
@@ -109,6 +125,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   if (!sessionResolved) return null
 
+  // Org admins go directly to their panel; others go to /bedrift
+  const bedriftHref = adminOrgs.length > 0 ? `/org/${adminOrgs[0].orgSlug}/admin` : '/bedrift'
+  const bedriftLabel = adminOrgs.length > 0 ? 'Bedriftspanel' : 'For bedrifter'
+
   // ── Not logged in ──
   if (!displayName) {
     return (
@@ -121,6 +141,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         >
           For bedrifter
         </a>
+
         <a
           href="/login"
           style={{
@@ -157,12 +178,12 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   return (
     <>
       <a
-        href="/bedrift"
+        href={bedriftHref}
         style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
       >
-        For bedrifter
+        {bedriftLabel}
       </a>
       {/* Free users: show upgrade nudge */}
       {profileLoaded && !isPremium && (
