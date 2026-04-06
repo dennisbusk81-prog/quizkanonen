@@ -56,8 +56,8 @@ const STYLES = `
   /* Comparison table — overflow-x: auto so table scrolls on mobile instead of clipping */
   .section-title { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
   .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 48px; }
-  .table-scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+  table { width: 100%; min-width: 480px; border-collapse: collapse; }
   th { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hint); padding: 14px 16px; text-align: left; border-bottom: 0.5px solid var(--border); background: #1e2028; }
   th:not(:first-child) { text-align: center; }
   td { padding: 12px 16px; font-size: 12px; color: var(--body); border-bottom: 0.5px solid var(--border); vertical-align: middle; }
@@ -69,11 +69,6 @@ const STYLES = `
   .td-yes { color: var(--gold); font-size: 14px; }
   .td-no { color: var(--border); font-size: 14px; }
   .col-featured { background: var(--gold-dim); }
-
-  @media (max-width: 640px) {
-    .table-wrap { display: none; }
-    .section-title { display: none; }
-  }
 
   /* Notes accordion */
   .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 48px; }
