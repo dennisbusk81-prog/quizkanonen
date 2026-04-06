@@ -832,13 +832,14 @@ export default function QuizPage() {
       })
     }
 
-    // 0ms: 8 gullpartikler spres utover fra knapp-senteret
+    // 0ms: 40 gullpartikler spres organisk utover fra knapp-senteret
     if (typeof document !== 'undefined') {
       const sparks: HTMLElement[] = []
-      for (let i = 0; i < 20; i++) {
-        const angle = (i / 20) * Math.PI * 2 + (Math.random() - 0.5) * 0.4
-        const dist = 90 + Math.random() * 140
-        const size = 3 + Math.random() * 3
+      for (let i = 0; i < 40; i++) {
+        const angle = (i / 40) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI / 12) // ±15 grader avvik
+        const dist = 60 + Math.random() * 220                                            // 60–280px
+        const size = 3 + Math.random() * 5                                               // 3–8px
+        const dur = Math.round(700 + Math.random() * 400)                                // 700–1100ms
         const spark = document.createElement('div')
         spark.className = 'qk-spark'
         spark.style.cssText = [
@@ -853,7 +854,7 @@ export default function QuizPage() {
           'z-index:10000',
           'transform:translate(-50%,-50%)',
           'opacity:0',
-          'transition:transform 900ms cubic-bezier(0.2,0,0.4,1),opacity 300ms ease-out',
+          `transition:transform ${dur}ms cubic-bezier(0.2,0,0.4,1),opacity 300ms ease-out`,
         ].join(';')
         document.body.appendChild(spark)
         sparks.push(spark)
