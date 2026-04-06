@@ -447,7 +447,7 @@ export default async function Home() {
         .qk-value-btn:hover { background: rgba(201,168,76,0.08); }
 
         .qk-all-link {
-          display: inline-block;
+          display: block;
           font-size: 13px;
           color: var(--gold);
           text-decoration: none;
