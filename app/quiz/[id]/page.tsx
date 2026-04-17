@@ -630,8 +630,8 @@ export default function QuizPage() {
       const deviceId = getDeviceId()
       const { data: played, error: playedError } = await supabaseData
         .from('played_log').select('id')
-        .eq('quiz_id', quizId).eq('identifier', deviceId).single()
-      if (playedError && playedError.code !== 'PGRST116') console.error('played_log fetch feilet:', playedError)
+        .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
+      if (playedError) console.error('played_log fetch feilet:', playedError)
 
       if (played) {
         setPhase('already_played')
