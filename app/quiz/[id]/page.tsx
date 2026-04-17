@@ -494,6 +494,28 @@ const styles = `
   .qk-intermediate-in  { animation: qkFadeIn  150ms ease-out both; }
   .qk-intermediate-out { animation: qkFadeOut 250ms ease-in  both; }
 
+  /* SOCIAL PROOF */
+  .qk-social-proof {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+    margin-bottom: 16px;
+  }
+
+  .qk-social-proof-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  @media (max-width: 480px) {
+    .qk-social-proof { flex-direction: column; gap: 6px; }
+  }
+
   /* LOADING */
   .qk-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   .qk-loading-dot {
@@ -556,6 +578,7 @@ export default function QuizPage() {
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
+  const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
@@ -584,6 +607,12 @@ export default function QuizPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Social proof hentes parallelt — ikke-blokkerende
+      fetch(`/api/quiz/social-proof?quizId=${quizId}`)
+        .then(r => r.ok ? r.json() : { totalPlayers: 0, sampleNames: [] })
+        .then(d => setSocialProof(d))
+        .catch(() => {})
+
       const { data: quizData, error: quizError } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
       if (quizError) console.error('Quiz fetch feilet:', quizError)
       const deviceId = getDeviceId()
@@ -1181,6 +1210,38 @@ export default function QuizPage() {
             </>
           )}
         </>
+      )}
+
+      {socialProof && socialProof.totalPlayers >= 1 && (
+        <div className="qk-social-proof">
+          <span style={{
+            fontSize: 13, color: '#7a7873',
+            fontFamily: "'Instrument Sans', sans-serif",
+            whiteSpace: 'nowrap',
+          }}>
+            <span style={{ color: '#e8e4dd' }}>{socialProof.totalPlayers}</span>
+            {' '}
+            {socialProof.totalPlayers <= 2 ? 'har spilt denne uken' : 'spiller denne uken'}
+          </span>
+          {socialProof.totalPlayers >= 3 && socialProof.sampleNames.length > 0 && (
+            <div className="qk-social-proof-pills">
+              {socialProof.sampleNames.map(name => (
+                <span key={name} style={{
+                  background: '#21242e',
+                  border: '0.5px solid #2a2d38',
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  color: '#e8e4dd',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  whiteSpace: 'nowrap',
+                }}>
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {!ageAlreadyConfirmed && (
