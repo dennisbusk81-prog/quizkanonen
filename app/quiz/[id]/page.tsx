@@ -495,14 +495,26 @@ const styles = `
   .qk-intermediate-out { animation: qkFadeOut 250ms ease-in  both; }
 
   /* SOCIAL PROOF */
-  .qk-social-proof {
+  .qk-social-proof-wrap {
+    background: rgba(201,168,76,0.04);
+    border: 0.5px solid rgba(201,168,76,0.15);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 16px 0;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 20px;
-    margin-bottom: 16px;
+    gap: 10px;
+  }
+
+  .qk-social-proof-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--gold);
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: qkpulse 2s ease-in-out infinite;
   }
 
   .qk-social-proof-pills {
@@ -513,7 +525,7 @@ const styles = `
   }
 
   @media (max-width: 480px) {
-    .qk-social-proof { flex-direction: column; gap: 6px; }
+    .qk-social-proof-wrap { flex-direction: column; gap: 8px; }
   }
 
   /* LOADING */
@@ -1190,38 +1202,17 @@ export default function QuizPage() {
         </p>
       )}
 
-      {quiz.allow_teams && (
-        <>
-          <div className="qk-toggle-row" onClick={() => setIsTeamInput(!isTeamInput)}>
-            <div className={`qk-toggle${isTeamInput ? ' on' : ''}`}>
-              <div className="qk-toggle-thumb"/>
-            </div>
-            <span className="qk-toggle-label">Vi spiller som lag</span>
-          </div>
-          {isTeamInput && (
-            <>
-              <label className="qk-label">Antall på laget</label>
-              <div className="qk-sizes">
-                {[2,3,4,5,6].map(n => (
-                  <button key={n} onClick={() => setTeamSizeInput(n)}
-                    className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      )}
-
       {socialProof && socialProof.totalPlayers >= 1 && (
-        <div className="qk-social-proof">
+        <div className="qk-social-proof-wrap">
+          <span className="qk-social-proof-dot" />
           <span style={{
-            fontSize: 13, color: '#7a7873',
+            fontSize: 14, color: '#7a7873',
             fontFamily: "'Instrument Sans', sans-serif",
             whiteSpace: 'nowrap',
           }}>
-            <span style={{ color: '#e8e4dd' }}>{socialProof.totalPlayers}</span>
+            <span style={{ color: '#e8e4dd', fontWeight: 600 }}>{socialProof.totalPlayers}</span>
             {' '}
-            {socialProof.totalPlayers <= 2 ? 'har spilt denne uken' : 'spiller denne uken'}
+            {socialProof.totalPlayers <= 2 ? 'har allerede spilt denne uken' : 'spiller denne uken'}
           </span>
           {socialProof.totalPlayers >= 3 && socialProof.sampleNames.length > 0 && (
             <div className="qk-social-proof-pills">
@@ -1242,6 +1233,28 @@ export default function QuizPage() {
             </div>
           )}
         </div>
+      )}
+
+      {quiz.allow_teams && (
+        <>
+          <div className="qk-toggle-row" onClick={() => setIsTeamInput(!isTeamInput)}>
+            <div className={`qk-toggle${isTeamInput ? ' on' : ''}`}>
+              <div className="qk-toggle-thumb"/>
+            </div>
+            <span className="qk-toggle-label">Vi spiller som lag</span>
+          </div>
+          {isTeamInput && (
+            <>
+              <label className="qk-label">Antall på laget</label>
+              <div className="qk-sizes">
+                {[2,3,4,5,6].map(n => (
+                  <button key={n} onClick={() => setTeamSizeInput(n)}
+                    className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {!ageAlreadyConfirmed && (
