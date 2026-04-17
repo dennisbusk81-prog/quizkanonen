@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// Finn mandag 00:00 UTC for inneværende uke
-function getMondayUTC(): string {
-  const now = new Date()
-  const day = now.getUTCDay() // 0=søn, 1=man, ..., 6=lør
-  const daysFromMonday = day === 0 ? 6 : day - 1
-  const monday = new Date(now)
-  monday.setUTCDate(now.getUTCDate() - daysFromMonday)
-  monday.setUTCHours(0, 0, 0, 0)
-  return monday.toISOString()
+function emptyResponse() {
+  return NextResponse.json(
+    { totalPlayers: 0, sampleNames: [] },
+    { headers: { 'Cache-Control': 'public, s-maxage=60' } }
+  )
 }
 
 function firstName(name: string): string {
@@ -29,23 +25,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const quizId = searchParams.get('quizId')
 
-  const empty = NextResponse.json(
-    { totalPlayers: 0, sampleNames: [] },
-    { headers: { 'Cache-Control': 'public, s-maxage=60' } }
-  )
-
-  if (!quizId) return empty
+  if (!quizId) return emptyResponse()
 
   try {
-    const weekStart = getMondayUTC()
-
-    const { data: attempts } = await supabaseAdmin
+    const { data: attempts, error: attemptsError } = await supabaseAdmin
       .from('attempts')
       .select('user_id, player_name')
       .eq('quiz_id', quizId)
-      .gte('created_at', weekStart)
 
-    if (!attempts || attempts.length === 0) return empty
+    if (attemptsError) {
+      console.error('[social-proof] attempts query error:', attemptsError)
+      return emptyResponse()
+    }
+
+    if (!attempts || attempts.length === 0) return emptyResponse()
 
     // Unike innloggede brukere og unike gjester (player_name uten user_id)
     const loggedInIds = [...new Set(
@@ -61,13 +54,18 @@ export async function GET(request: NextRequest) {
 
     if (loggedInIds.length > 0) {
       const sample = shuffle(loggedInIds).slice(0, 3)
-      const { data: profiles } = await supabaseAdmin
+      const { data: profiles, error: profilesError } = await supabaseAdmin
         .from('profiles')
         .select('display_name')
         .in('id', sample)
-      for (const p of profiles ?? []) {
-        if (p.display_name && sampleNames.length < 3) {
-          sampleNames.push(firstName(p.display_name))
+
+      if (profilesError) {
+        console.error('[social-proof] profiles query error:', profilesError)
+      } else {
+        for (const p of profiles ?? []) {
+          if (p.display_name && sampleNames.length < 3) {
+            sampleNames.push(firstName(p.display_name))
+          }
         }
       }
     }
@@ -83,7 +81,8 @@ export async function GET(request: NextRequest) {
       { totalPlayers, sampleNames },
       { headers: { 'Cache-Control': 'public, s-maxage=60' } }
     )
-  } catch {
-    return empty
+  } catch (err) {
+    console.error('[social-proof] unexpected error:', err)
+    return emptyResponse()
   }
 }
