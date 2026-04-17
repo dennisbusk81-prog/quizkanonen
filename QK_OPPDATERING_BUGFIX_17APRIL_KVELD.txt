@@ -1,0 +1,54 @@
+QUIZKANONEN — OPPDATERING ETTER BUGFIX-ØKT (17. APRIL 2026, KVELD)
+====================================================================
+
+Kort økt. To bugs fra teknisk gjeld fjernet før Stripe-aktivering.
+
+
+BUGS FIKSET
+-----------
+
+OK  "Mai"-bugen i org-admin
+      Fil: app/org/[slug]/admin/page.tsx
+      To linjer endret:
+        - Fjernet textTransform: 'capitalize' fra stat-verdi-div (linje 245)
+          Dette var rotårsaken — CSS-en kapitaliserte første bokstav i
+          hvert ord etter rendering, så "6. mai 2026" → "6. Mai 2026"
+        - Fjernet .replace(/\b([A-ZÆØÅ])/g, c => c.toLowerCase())
+          fra datoformateringen (linje 241) — dødt workaround som CSS-en
+          overkjørte
+      Verifisert: nb-NO-locale returnerer "mai" lowercase direkte
+      Ingen andre steder i kodebasen har samme problem — sjekket alle
+      toLocaleDateString-kall
+
+OK  played_log 406 for ikke-innloggede brukere
+      Fil: app/quiz/[id]/page.tsx, linje 631-634
+      To linjer endret:
+        - .single() → .maybeSingle() eliminerer HTTP 406 ved 0 rader
+        - Forenklet logging: fjernet playedError.code !== 'PGRST116'-
+          unntaket (ble dødt når .single() ikke lenger kan gi den feilen)
+      Klient: supabaseData (anon-klient, NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      Dobbeltspilling-logikken uendret: if (played) fungerer likt med
+      null som med undefined
+
+
+OPPDATER TEKNISK GJELD (QK_4 og tidligere oppdateringsfiler)
+-------------------------------------------------------------
+STRYK fra MEDIUM-lista:
+-  "Mai" vises med stor M i "Premium utløper"-feltet (norsk datoformat-bug)
+   [kilde: QK_OPPDATERING_B2B_OKT2.md linje 63]
+-  played_log returnerer 406 i klienten for ikke-innloggede brukere
+   [kilde: QK_OPPDATERING_SOSIALT_BEVIS_OG_LESBARHET.txt linje 165-167]
+
+
+MERK TIL NESTE ØKT
+-------------------
+- Stripe fortsatt i Test Mode
+- Dennis må opprette ENK før Stripe-KYC kan startes
+- Neste naturlige byggesteg: forklaringstekst per spørsmål
+  (siste store [○] på B2C-sjekklisten som ikke krever ekstern avklaring)
+- Ikke-startet oppgave: sjekkliste for manuell røyktest etter endringer
+  (foreslått i økten, ikke utført ennå — 20 min oppgave når det passer)
+
+Endrede filer denne økten:
+  - app/org/[slug]/admin/page.tsx
+  - app/quiz/[id]/page.tsx
