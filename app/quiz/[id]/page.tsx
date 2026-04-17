@@ -248,7 +248,7 @@ const styles = `
     display: block;
     text-align: center;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--body);
     text-decoration: none;
     padding: 10px 0;
     transition: color 0.15s;
@@ -1179,7 +1179,7 @@ export default function QuizPage() {
   if (phase === 'register') return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box">
-      <a href="/" style={{ display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' }}>← Tilbake til forsiden</a>
+      <a href="/" style={{ display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' }}>← Tilbake til forsiden</a>
       <div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz.title}</h1>
@@ -1289,7 +1289,7 @@ export default function QuizPage() {
           }).catch(() => {})
         }} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 13, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif",
+          fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif",
           padding: '4px 0',
         }}>
           {linkCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
@@ -1539,7 +1539,7 @@ export default function QuizPage() {
 
         {!isLoggedIn && (
           <a href="/login" style={{
-            display:'block',textAlign:'center',fontSize:13,color:'#c9a84c',
+            display:'block',textAlign:'center',fontSize:13,color:'#e8e4dd',
             textDecoration:'none',
           }}>
             Få påminnelse på e-post →
@@ -1609,21 +1609,21 @@ export default function QuizPage() {
         <div style={{ marginTop: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 20px', textAlign: 'left' }}>
           {ligaBox.type === 'liga' ? (
             <a href={`/liga/${ligaBox.slug}`} style={{ textDecoration: 'none' }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
               <p style={{ fontSize: 12, color: '#7a7873' }}>{ligaBox.name}</p>
             </a>
           ) : ligaBox.type === 'multi' ? (
             <a href="/liga" style={{ textDecoration: 'none' }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
               <p style={{ fontSize: 12, color: '#7a7873' }}>Se dine ligaer</p>
             </a>
           ) : (
             <a href="/liga" style={{ textDecoration: 'none' }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#c9a84c', marginBottom: 3 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Konkurrer mot venner
               </p>
               <p style={{ fontSize: 12, color: '#7a7873' }}>Opprett en privat liga og inviter vennegjengen</p>

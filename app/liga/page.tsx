@@ -23,7 +23,7 @@ const s = {
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
-  back:     { display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
+  back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   hero:        { paddingTop: 24, paddingBottom: 20 },
   heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 6 },
@@ -50,7 +50,7 @@ const s = {
   input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   btnGoldDis:  { padding: '10px 20px', background: '#3a3d4a', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
-  cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#7a7873', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
+  cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
   createErrMsg:{ fontSize: 12, color: '#f87171', marginTop: 8 },
 
   openCreateBtn: { padding: '10px 28px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', marginBottom: 20 },

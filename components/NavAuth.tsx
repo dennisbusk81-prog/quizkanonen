@@ -126,7 +126,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   if (!sessionResolved) return null
 
   const navLink: React.CSSProperties = {
-    fontSize: 13, color: '#7a7873', textDecoration: 'none',
+    fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
     fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
   }
 
@@ -136,7 +136,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       <>
         <a href="/bedrift" style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
         <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
         {quizId && (
@@ -169,14 +169,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           href={`/org/${adminOrgs[0].orgSlug}/admin`}
           style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >
           Bedriftspanel
         </a>
       )}
       <a href="/bedrift" style={navLink}
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-        onMouseLeave={e => e.currentTarget.style.color = '#7a7873'}
+        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >For bedrifter</a>
 
       {/* Avatar pill + dropdown */}

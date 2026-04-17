@@ -34,14 +34,14 @@ const css = `
   .qz-back {
     display: inline-block;
     font-size: 12px;
-    color: #6a6860;
+    color: #e8e4dd;
     text-decoration: none;
     letter-spacing: 0.04em;
     margin-bottom: 28px;
     transition: color 0.15s;
   }
 
-  .qz-back:hover { color: #c9a84c; }
+  .qz-back:hover { color: #ffffff; }
 
   .qz-header { margin-bottom: 28px; }
 
@@ -141,7 +141,7 @@ const css = `
   .qz-btn-ghost {
     font-size: 12px;
     font-weight: 500;
-    color: #7a7873;
+    color: #e8e4dd;
     text-decoration: none;
     transition: color 0.15s;
     padding: 4px 0;

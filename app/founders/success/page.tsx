@@ -82,7 +82,7 @@ const s = {
     display: 'inline-block',
     marginTop: 16,
     fontSize: 13,
-    color: '#6a6860',
+    color: '#e8e4dd',
     textDecoration: 'none',
   },
 }

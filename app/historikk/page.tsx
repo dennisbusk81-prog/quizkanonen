@@ -75,7 +75,7 @@ const s = {
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
-  back:     { display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
+  back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   // Hero section
   hero:         { padding: '16px 0 12px', textAlign: 'center' as const },
@@ -455,7 +455,7 @@ export default function HistorikkPage() {
               <div style={{ marginTop: 10 }}>
                 <Link
                   href={`/leaderboard/${history[0].quiz_id}`}
-                  style={{ fontSize: 12, color: '#7a7873', textDecoration: 'none', letterSpacing: '0.02em' }}
+                  style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.02em' }}
                 >
                   Se ukens leaderboard →
                 </Link>

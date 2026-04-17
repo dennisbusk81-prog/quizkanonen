@@ -76,12 +76,12 @@ export default function PremiumPage() {
         <div style={{ maxWidth: 480, width: '100%' }}>
 
           <a href="/" style={{
-            display: 'inline-block', fontSize: 12, color: '#7a7873',
+            display: 'inline-block', fontSize: 12, color: '#e8e4dd',
             textDecoration: 'none', marginBottom: 28, letterSpacing: '0.04em',
             transition: 'color 0.15s',
           }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#e8e4dd' }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#7a7873' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ffffff' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#e8e4dd' }}
           >
             ← Tilbake til forsiden
           </a>

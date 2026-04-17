@@ -183,7 +183,7 @@ export default function BliMedPage() {
               <div style={{ marginTop: 20 }}>
                 <a
                   href="/liga"
-                  style={{ fontSize: 13, color: '#6a6860', textDecoration: 'none' }}
+                  style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}
                 >
                   ← Mine ligaer
                 </a>

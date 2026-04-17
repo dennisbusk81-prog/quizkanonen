@@ -394,13 +394,13 @@ export default function UserMenu() {
               borderRadius: 999,
               padding: '7px 16px',
               fontSize: 13, fontWeight: 600,
-              color: '#7a7873',
+              color: '#e8e4dd',
               fontFamily: "'Instrument Sans', sans-serif",
               cursor: 'pointer',
               transition: 'border-color 0.15s, color 0.15s',
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)'; e.currentTarget.style.color = '#c9a84c' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#7a7873' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#e8e4dd' }}
           >
             Logg inn
           </button>

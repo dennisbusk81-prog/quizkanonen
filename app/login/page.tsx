@@ -193,12 +193,12 @@ const STYLES = `
     text-align: center;
     margin-top: 20px;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--body);
     text-decoration: none;
     transition: color 0.15s;
   }
 
-  .login-back:hover { color: var(--body); }
+  .login-back:hover { color: #ffffff; }
 `
 
 export default function LoginPage() {
