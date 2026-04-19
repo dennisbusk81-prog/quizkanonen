@@ -183,7 +183,7 @@ export default async function Home() {
 
         /* ── Hero ── */
         .qk-hero {
-          padding: 56px 0 40px;
+          padding: 48px 24px 24px;
           text-align: center;
         }
 
@@ -206,7 +206,7 @@ export default async function Home() {
           opacity: 0.85;
           line-height: 1.6;
           text-align: center;
-          margin: 0 auto 32px;
+          margin: 0 auto 24px;
           max-width: 440px;
           padding: 0 16px;
         }
@@ -254,7 +254,7 @@ export default async function Home() {
           color: var(--hint);
           text-align: center;
           max-width: 460px;
-          margin: 0 auto 28px;
+          margin: 0 auto 20px;
           line-height: 1.7;
           padding: 0 24px;
         }
@@ -264,7 +264,7 @@ export default async function Home() {
           display: flex;
           gap: 16px;
           max-width: 680px;
-          margin: 0 auto 40px;
+          margin: 0 auto 28px;
           padding: 0 24px;
         }
 
@@ -299,7 +299,7 @@ export default async function Home() {
           height: 1px;
           background: var(--border);
           max-width: 680px;
-          margin: 0 auto 32px;
+          margin: 0 auto 24px;
         }
 
         /* ── Quiz card ── */
@@ -731,7 +731,7 @@ export default async function Home() {
         <div className="qk-biz">
           <div className="qk-biz-inner">
             <h2 className="qk-biz-title">Bruker dere Quizkanonen på jobben?</h2>
-            <p className="qk-biz-desc">Ferdig oppsatt på 5 minutter. Ingen teknisk kunnskap nødvendig.</p>
+            <p className="qk-biz-desc">Ukentlig fredagsquiz til teamet. Vi lager quizen. Dere spiller.</p>
             <Link href="/bedrift" className="qk-biz-link">Se løsninger for bedrifter →</Link>
           </div>
         </div>
