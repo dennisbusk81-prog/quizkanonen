@@ -8,6 +8,11 @@ import type { Session } from '@supabase/supabase-js'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
+const EXTRA_STYLES = `
+  .tp-tab-row::-webkit-scrollbar { display: none; }
+  .tp-tab-row { scrollbar-width: none; -ms-overflow-style: none; }
+`
+
 type Period = 'last_quiz' | 'month' | 'quarter' | 'year' | 'alltime'
 type BadgeKind = 'krone' | 'flamme' | 'lyn' | 'medalje'
 
@@ -143,7 +148,7 @@ const s = {
   titleEm: { fontStyle: 'italic', color: '#c9a84c' },
   rule:    { width: '100%', height: 1, background: '#2a2d38', marginTop: 28 },
 
-  tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 28, overflowX: 'auto' as const },
+  tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 28, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
   tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
   tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
 
@@ -375,7 +380,7 @@ export default function TopplisterPage() {
   if (loading && !data) {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
+        <style>{FONT_IMPORT + EXTRA_STYLES}</style>
         <UserMenuWrapper />
         <div style={s.centered}><p style={s.spinner}>Laster toppliste…</p></div>
       </>
@@ -386,7 +391,7 @@ export default function TopplisterPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
+      <style>{FONT_IMPORT + EXTRA_STYLES}</style>
       <UserMenuWrapper />
       <div style={s.wrap}>
         <div style={s.page}>
@@ -407,7 +412,7 @@ export default function TopplisterPage() {
           </div>
 
           {/* Period tabs */}
-          <div style={s.tabRow}>
+          <div className="tp-tab-row" style={s.tabRow}>
             {(['last_quiz', 'month', 'quarter', 'year', 'alltime'] as Period[]).map(p => (
               <button
                 key={p}
