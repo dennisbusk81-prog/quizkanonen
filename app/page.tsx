@@ -60,12 +60,10 @@ export default async function Home() {
       .order('created_at', { ascending: false }),
     supabaseAdmin
       .from('quizzes')
-      .select('id')
+      .select('id, title, closes_at')
       .lt('closes_at', now.toISOString())
-      .eq('is_published', true)
       .order('closes_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(3),
     supabaseAdmin
       .from('site_settings')
       .select('value')
@@ -74,8 +72,13 @@ export default async function Home() {
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
-  const lastQuizId: string | null = (lastQuizData as { id: string } | null)?.id ?? null
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
+
+  // Log closed quizzes to diagnose which quiz is picked for topp 3
+  const closedQuizzes = (lastQuizData as { id: string; title: string; closes_at: string }[] | null) ?? []
+  console.log('[page] closed quizzes (newest first):', closedQuizzes.map(q => `${q.id} | ${q.title} | ${q.closes_at}`))
+  const lastQuizId: string | null = closedQuizzes[0]?.id ?? null
+  console.log('[page] using quiz_id for topp 3:', lastQuizId)
 
   let top3: Top3Entry[] = []
   if (lastQuizId) {
@@ -86,6 +89,7 @@ export default async function Home() {
       .order('correct_answers', { ascending: false })
       .order('total_time_ms', { ascending: true })
       .limit(3)
+    console.log('[page] top3 attempts:', top3Data)
     top3 = (top3Data as Top3Entry[] | null) ?? []
   }
 
@@ -714,11 +718,16 @@ export default async function Home() {
                 <Link
                   href={`/quiz/${quiz.id}`}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'transparent', border: '1px solid #c9a84c',
-                    color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif",
-                    fontSize: 15, fontWeight: 600, padding: '10px 28px',
-                    borderRadius: 10, textDecoration: 'none', whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    background: 'transparent',
+                    border: '1px solid #c9a84c',
+                    color: '#c9a84c',
+                    padding: '10px 28px',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    textDecoration: 'none',
+                    marginBottom: '10px',
                   }}
                 >
                   Spill nå
