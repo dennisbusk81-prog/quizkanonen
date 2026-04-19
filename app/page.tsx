@@ -721,11 +721,14 @@ export default async function Home() {
           )
         })()}
 
-        <p style={{ textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, marginBottom: 32 }}>
+          <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+            Se sesong-topplisten →
+          </Link>
           <Link href="/quizer" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
             Se alle quizer →
           </Link>
-        </p>
+        </div>
 
         {/* ── Accordion ── */}
         <div className="qk-acc-wrap">

@@ -129,10 +129,16 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
   }
 
+  const toplisteLinkStyle: React.CSSProperties = {
+    fontSize: 14, color: '#e8e4dd', textDecoration: 'none',
+    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+  }
+
   // ── Not logged in ──
   if (!displayName) {
     return (
       <>
+        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
         <a href="/bedrift" style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -162,6 +168,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // ── Logged in ──
   return (
     <>
+      <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
       {/* Bedriftspanel — only for org admins */}
       {myOrgs.some(o => o.isAdmin) && (
         <a
