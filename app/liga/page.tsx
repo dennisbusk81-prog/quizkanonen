@@ -176,6 +176,41 @@ export default function MineLigaerPage() {
 
           <div style={s.rule} />
 
+          {/* Informasjonsseksjon */}
+          <div style={{ background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            {[
+              {
+                text: 'Inviter opptil 9 venner via en delbar lenke',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 8v6M22 11h-6"/>
+                  </svg>
+                ),
+              },
+              {
+                text: 'Poengsummene samles uke for uke — ligaen viser hvem som leder over tid',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9H4a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2"/><path d="M6 9V6a6 6 0 0 1 12 0v3"/><path d="M6 14v1a6 6 0 0 0 12 0v-1"/><path d="M12 19v3M9 22h6"/>
+                  </svg>
+                ),
+              },
+              {
+                text: 'Krever Premium å opprette — gratis å bli med for alle som får lenken',
+                icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                ),
+              },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: i < 2 ? 14 : 0 }}>
+                <div style={{ flexShrink: 0, marginTop: 1 }}>{item.icon}</div>
+                <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.55, margin: 0 }}>{item.text}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Create flow (Premium only) */}
           {isPremium && (
             showCreate ? (
