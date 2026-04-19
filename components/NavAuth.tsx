@@ -23,7 +23,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
-  const [adminOrgs, setAdminOrgs] = useState<{ orgName: string; orgSlug: string }[]>([])
+  const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
@@ -38,18 +38,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     } catch { /* keep fallback */ }
     setProfileLoaded(true)
 
-    // Fetch admin org memberships via service-role API
+    // Fetch all org memberships
     const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
     if (!token) return
     try {
-      const res = await fetch('/api/org/my-admin-orgs', {
+      const res = await fetch('/api/org/my-orgs', {
         headers: { Authorization: `Bearer ${token}` },
       })
       const json = res.ok ? await res.json() : { orgs: [] }
-      console.log('[NavAuth] adminOrgs:', json.orgs)
-      setAdminOrgs(json.orgs ?? [])
-    } catch (err) {
-      console.error('[NavAuth] adminOrgs fetch error:', err)
+      setMyOrgs(json.orgs ?? [])
+    } catch {
+      // ignore
     }
   }
 
@@ -69,7 +68,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
-        setAdminOrgs([])
+        setMyOrgs([])
         setProfileLoaded(true)
       } else if (session?.user) {
         loadProfile(session.user.id, session.user.email, session.access_token)
@@ -164,9 +163,9 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   return (
     <>
       {/* Bedriftspanel — only for org admins */}
-      {adminOrgs.length > 0 && (
+      {myOrgs.some(o => o.isAdmin) && (
         <a
-          href={`/org/${adminOrgs[0].orgSlug}/admin`}
+          href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`}
           style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -242,6 +241,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Mine ligaer
             </a>
+            {myOrgs.length > 0 && (
+              <a
+                href={`/org/${myOrgs[0].orgSlug}`}
+                onClick={() => setDropdownOpen(false)}
+                style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Min bedrift
+              </a>
+            )}
             <a
               href="/toppliste"
               onClick={() => setDropdownOpen(false)}

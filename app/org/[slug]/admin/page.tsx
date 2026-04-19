@@ -61,6 +61,10 @@ export default function OrgAdminPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  // Winner cards state
+  type WinnerEntry = { displayName: string; avatarUrl: string | null; points: number } | null
+  const [winners, setWinners] = useState<{ month: WinnerEntry; quarter: WinnerEntry; year: WinnerEntry } | null>(null)
+
   // Action states
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -85,6 +89,22 @@ export default function OrgAdminPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  const loadWinners = useCallback((orgId: string) => {
+    const periods = ['month', 'quarter', 'year'] as const
+    Promise.all(
+      periods.map(p =>
+        fetch(`/api/toppliste?period=${p}&scope=organization&scope_id=${encodeURIComponent(orgId)}`)
+          .then(r => r.ok ? r.json() : { entries: [] })
+          .then(json => json.entries?.[0] ?? null)
+          .catch(() => null)
+      )
+    ).then(([month, quarter, year]) => {
+      const toWinner = (e: { displayName: string; avatarUrl: string | null; points: number } | null) =>
+        e ? { displayName: e.displayName, avatarUrl: e.avatarUrl, points: e.points } : null
+      setWinners({ month: toWinner(month), quarter: toWinner(quarter), year: toWinner(year) })
+    })
+  }, [])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -99,11 +119,12 @@ export default function OrgAdminPage() {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
           setAdminAnswers(d.org.admin_can_see_answers)
+          loadWinners(d.org.id)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, loadWinners])
 
   useEffect(() => {
     if (session === undefined) return
@@ -245,6 +266,49 @@ export default function OrgAdminPage() {
                 <div style={{ fontSize: 18, fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff' }}>{item.value}</div>
               </div>
             ))}
+          </div>
+
+          {/* ── SESONG-VINNERE ──────────────────────────── */}
+          <SectionHeader title="Sesong-vinnere" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 8 }}>
+            {([
+              { label: 'MÅNEDENS VINNER',  winner: winners?.month },
+              { label: 'KVARTALETS VINNER', winner: winners?.quarter },
+              { label: 'ÅRETS KANON',       winner: winners?.year },
+            ] as { label: string; winner: { displayName: string; avatarUrl: string | null; points: number } | null | undefined }[]).map(({ label, winner }) => (
+              <div key={label} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '18px 20px' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 }}>
+                  {label}
+                </div>
+                {winner === undefined ? (
+                  <div style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</div>
+                ) : winner === null ? (
+                  <div style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ingen data ennå</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' }}>
+                        {winner.avatarUrl
+                          ? <img src={winner.avatarUrl} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
+                          : (winner.displayName[0]?.toUpperCase() ?? '?')
+                        }
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                          {winner.displayName}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ textAlign: 'right' as const, marginBottom: 8 }}>
+            <a href={`/org/${slug}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.04em' }}>
+              Se full toppliste →
+            </a>
           </div>
 
           {/* ── INVITE LINKS ────────────────────────────── */}
