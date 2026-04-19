@@ -27,11 +27,12 @@ function getCurrentPeriodKey(period: string): string {
   return String(now.getUTCFullYear())
 }
 
-// GET /api/toppliste/history?period=month|quarter|year|last_quiz&scope=global
+// GET /api/toppliste/history?period=month|quarter|year|last_quiz&scope=global&scope_id=<uuid>
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const period = searchParams.get('period') ?? 'month'
-  const scope  = searchParams.get('scope')  ?? 'global'
+  const period  = searchParams.get('period')   ?? 'month'
+  const scope   = searchParams.get('scope')    ?? 'global'
+  const scopeId = searchParams.get('scope_id') ?? null
 
   if (!['month', 'quarter', 'year', 'last_quiz'].includes(period)) {
     return NextResponse.json({ entries: [] })
@@ -57,13 +58,15 @@ export async function GET(request: NextRequest) {
     const quizIds = quizzes.map(q => q.id)
 
     // Finn rank=1 fra season_scores for disse quizene
-    const { data: winners } = await supabaseAdmin
+    let winnersQuery = supabaseAdmin
       .from('season_scores')
       .select('quiz_id, user_id, points')
       .in('quiz_id', quizIds)
-      .eq('scope_type', 'global')
-      .is('scope_id', null)
+      .eq('scope_type', scope)
       .eq('rank', 1)
+    if (scopeId) winnersQuery = winnersQuery.eq('scope_id', scopeId)
+    else         winnersQuery = winnersQuery.is('scope_id', null)
+    const { data: winners } = await winnersQuery
 
     const winnerByQuiz = new Map<string, { user_id: string; points: number }>()
     for (const w of (winners ?? []) as { quiz_id: string; user_id: string; points: number }[]) {
@@ -132,7 +135,9 @@ export async function GET(request: NextRequest) {
     .from('season_scores')
     .select('user_id, points, closes_at')
     .eq('scope_type', scope)
-    .is('scope_id', null)
+
+  if (scopeId) scoresQuery = scoresQuery.eq('scope_id', scopeId)
+  else         scoresQuery = scoresQuery.is('scope_id', null)
 
   // Øvre grense: closes_at < start of current period
   const now = new Date()
