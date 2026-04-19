@@ -39,8 +39,8 @@ const s = {
 
   rowBase:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const, transition: 'border-color 0.12s' },
   rowHover:  { background: '#252836', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const },
-  rowName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 3 },
-  rowMeta:   { fontSize: 12, color: '#7a7873' },
+  rowName:   { fontFamily: "'Instrument Sans', sans-serif", fontSize: 18, fontWeight: 500, color: '#ffffff', marginBottom: 3 },
+  rowMeta:   { fontSize: 13, color: '#7a7873' },
   rowRight:  { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   ownerBadge:{ fontSize: 10, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 4, padding: '2px 7px' },
   rowArrow:  { fontSize: 14, color: '#7a7873' },
