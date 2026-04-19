@@ -289,11 +289,12 @@ const s = {
 interface Props {
   scope: 'global' | 'league' | 'organization'
   scopeId?: string | null
+  loginHref?: string
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SeasonLeaderboard({ scope, scopeId }: Props) {
+export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste' }: Props) {
   const scopeInfix = scope === 'league' ? ' i ligaen' : scope === 'organization' ? ' i bedriften' : ''
   const notPlayedSuffix = scope !== 'global' ? ' Bli med de andre!' : ''
 
@@ -470,7 +471,7 @@ export default function SeasonLeaderboard({ scope, scopeId }: Props) {
           </div>
           <div style={s.userCard}>
             <p style={s.ctaText}>Logg inn for å se din plassering på topplisten.</p>
-            <Link href="/login?next=/toppliste" style={s.btnGold}>Logg inn</Link>
+            <Link href={loginHref} style={s.btnGold}>Logg inn</Link>
           </div>
         </>
       )

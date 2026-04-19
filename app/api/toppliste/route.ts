@@ -95,6 +95,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Hent ekskluderte brukere for dette scopet
+  let excludedQuery = supabaseAdmin
+    .from('excluded_members')
+    .select('user_id')
+    .eq('scope_type', scope)
+  if (scopeId) excludedQuery = excludedQuery.eq('scope_id', scopeId)
+  else         excludedQuery = excludedQuery.is('scope_id', null)
+  const { data: excludedRows } = await excludedQuery
+  const excludedSet = new Set((excludedRows ?? []).map((e: { user_id: string }) => e.user_id))
+
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
     const now = new Date().toISOString()
@@ -124,6 +134,7 @@ export async function GET(request: NextRequest) {
 
     const bestByUser = new Map<string, RawAttempt>()
     for (const a of rawAttempts as RawAttempt[]) {
+      if (excludedSet.has(a.user_id)) continue
       const existing = bestByUser.get(a.user_id)
       bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) : a)
     }
@@ -214,6 +225,7 @@ export async function GET(request: NextRequest) {
   const quizClosedAtMap = new Map<string, string>() // quiz_id → closes_at (for streakberegning)
 
   for (const row of scores as ScoreRow[]) {
+    if (excludedSet.has(row.user_id)) continue
     if (!userStats.has(row.user_id)) {
       userStats.set(row.user_id, { userId: row.user_id, points: 0, quizCount: 0, quizIds: new Set(), topStreak: 0 })
     }

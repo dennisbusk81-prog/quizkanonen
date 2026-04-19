@@ -310,6 +310,7 @@ const STYLES = `
 
 type Stats = { quizzes: number; players: number; active30d: number; premium: number }
 type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string }
+type ResetModal = null | 'all' | 'test'
 
 export default function AdminHome() {
   const router = useRouter()
@@ -319,6 +320,10 @@ export default function AdminHome() {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [resetModal, setResetModal] = useState<ResetModal>(null)
+  const [resetInput, setResetInput] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetDone, setResetDone] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -376,6 +381,25 @@ export default function AdminHome() {
     )
     setSaving(false)
     setTimeout(() => setFeedback(null), 3000)
+  }
+
+  async function handleReset() {
+    if (!resetModal || resetInput !== 'NULLSTILL' || resetting) return
+    setResetting(true)
+    try {
+      const res = await adminFetch('/api/admin/season-scores/reset', {
+        method: 'POST',
+        body: JSON.stringify({ scope: resetModal }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error ?? 'Noe gikk galt.'); return }
+      setResetModal(null)
+      setResetInput('')
+      setResetDone(resetModal === 'all' ? 'All sesong-data nullstilt.' : 'Testdata nullstilt.')
+      setTimeout(() => setResetDone(null), 4000)
+    } finally {
+      setResetting(false)
+    }
   }
 
   const handleLogout = () => { logoutAdmin(); router.push('/admin/login') }
@@ -483,6 +507,36 @@ export default function AdminHome() {
           </div>
         )}
 
+        {/* Sesong-toppliste */}
+        <div className="adm-section">
+          <p className="adm-section-label">Sesong-toppliste</p>
+          <p style={{ fontSize: 12, color: 'var(--hint)', marginBottom: 12, lineHeight: 1.5 }}>
+            Nullstilling sletter alle season_scores og setter season_points_awarded = false på quizer.
+            Ved neste cron-kjøring fylles data inn igjen for alle stengte quizer.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={() => { setResetModal('all'); setResetInput('') }}
+              style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s', fontFamily: "'Instrument Sans', sans-serif" }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              Nullstill all data
+            </button>
+            <button
+              onClick={() => { setResetModal('test'); setResetInput('') }}
+              className="adm-btn-outline"
+            >
+              Nullstill kun testdata
+            </button>
+            {resetDone && (
+              <span style={{ fontSize: 12, color: '#4ade80', background: 'rgba(74,222,128,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+                {resetDone}
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Nav grid */}
         <div className="adm-nav">
           <Link href="/admin/quizzes" className="adm-nav-card">
@@ -515,6 +569,48 @@ export default function AdminHome() {
         </div>
 
       </div>
+
+      {/* Reset-modal */}
+      {resetModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
+              {resetModal === 'all' ? 'Nullstill all sesong-data' : 'Nullstill testdata'}
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
+              {resetModal === 'all'
+                ? 'Dette sletter ALLE season_scores og resetter alle quizer. Handlingen kan ikke angres.'
+                : 'Dette sletter season_scores for quizer med "test" i tittelen.'}
+            </p>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
+            <input
+              type="text"
+              value={resetInput}
+              onChange={e => setResetInput(e.target.value)}
+              placeholder="NULLSTILL"
+              autoFocus
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              onKeyDown={e => { if (e.key === 'Enter') handleReset() }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setResetModal(null); setResetInput('') }}
+                className="adm-btn-outline"
+                style={{ padding: '8px 16px' }}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetInput !== 'NULLSTILL' || resetting}
+                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#0f0f10' : '#7a7873', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
+              >
+                {resetting ? 'Nullstiller…' : 'Nullstill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

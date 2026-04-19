@@ -133,7 +133,7 @@ export default function OrgLeaderboardPage() {
           )}
 
           {/* Sesong-toppliste scopet til bedriften */}
-          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} />}
+          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} loginHref={`/login?next=/org/${slug}`} />}
 
         </div>
       </div>

@@ -77,6 +77,20 @@ export default function OrgAdminPage() {
   const [allowGlobal, setAllowGlobal] = useState(false)
   const [adminAnswers, setAdminAnswers] = useState(false)
 
+  // Sesong-administrasjon
+  const [seasonOpen, setSeasonOpen]         = useState(false)
+  const [seasonResetModal, setSeasonResetModal] = useState(false)
+  const [seasonResetInput, setSeasonResetInput] = useState('')
+  const [seasonResetting, setSeasonResetting]   = useState(false)
+  const [seasonResetDone, setSeasonResetDone]   = useState(false)
+
+  // Medlemsoversikt
+  type MemberActivity = { userId: string; displayName: string; role: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
+  const [activityPeriod, setActivityPeriod]   = useState<'month' | 'quarter' | 'year'>('month')
+  const [activityData, setActivityData]       = useState<MemberActivity[] | null>(null)
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [excludingId, setExcludingId]         = useState<string | null>(null)
+
   // Hard timeout — show error state after 8s if session never resolves
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 8000)
@@ -89,11 +103,14 @@ export default function OrgAdminPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const loadWinners = useCallback((orgId: string) => {
+  const loadWinners = useCallback((orgId: string, token: string) => {
     const periods = ['month', 'quarter', 'year'] as const
     Promise.all(
       periods.map(p =>
-        fetch(`/api/toppliste?period=${p}&scope=organization&scope_id=${encodeURIComponent(orgId)}`)
+        fetch(`/api/toppliste?period=${p}&scope=organization&scope_id=${encodeURIComponent(orgId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
           .then(r => r.ok ? r.json() : { entries: [] })
           .then(json => json.entries?.[0] ?? null)
           .catch(() => null)
@@ -103,6 +120,22 @@ export default function OrgAdminPage() {
         e ? { displayName: e.displayName, avatarUrl: e.avatarUrl, points: e.points } : null
       setWinners({ month: toWinner(month), quarter: toWinner(quarter), year: toWinner(year) })
     })
+  }, [])
+
+  const loadActivity = useCallback(async (orgId: string, token: string, period: 'month' | 'quarter' | 'year') => {
+    setActivityLoading(true)
+    setActivityData(null)
+    try {
+      const res = await fetch(`/api/org/${orgId}/members-activity?period=${period}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = res.ok ? await res.json() : { members: [] }
+      setActivityData(json.members ?? [])
+    } catch {
+      setActivityData([])
+    } finally {
+      setActivityLoading(false)
+    }
   }, [])
 
   const loadData = useCallback((sess: Session) => {
@@ -119,18 +152,26 @@ export default function OrgAdminPage() {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
           setAdminAnswers(d.org.admin_can_see_answers)
-          loadWinners(d.org.id)
+          loadWinners(d.org.id, sess.access_token)
+          loadActivity(d.org.id, sess.access_token, 'month')
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners])
+  }, [slug, loadWinners, loadActivity])
 
   useEffect(() => {
     if (session === undefined) return
     if (!session) { router.push(`/login?next=/org/${slug}/admin`); return }
     loadData(session)
   }, [session, slug, router, loadData])
+
+  // Reload aktivitet ved periodebytte
+  useEffect(() => {
+    if (!data || !session) return
+    loadActivity(data.org.id, session.access_token, activityPeriod)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activityPeriod])
 
   const createInvite = async () => {
     if (!session || !data) return
@@ -197,6 +238,60 @@ export default function OrgAdminPage() {
     await navigator.clipboard.writeText(url)
     setCopiedToken(token)
     setTimeout(() => setCopiedToken(null), 2000)
+  }
+
+  const handleSeasonReset = async () => {
+    if (!data || !session || seasonResetting || seasonResetInput !== 'NULLSTILL') return
+    setSeasonResetting(true)
+    try {
+      const res = await fetch(`/api/org/${data.org.id}/reset-season`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) {
+        setSeasonResetModal(false)
+        setSeasonResetInput('')
+        setSeasonResetDone(true)
+        setActivityData(null)
+        loadWinners(data.org.id, session.access_token)
+        setTimeout(() => setSeasonResetDone(false), 4000)
+      }
+    } finally {
+      setSeasonResetting(false)
+    }
+  }
+
+
+  const handleExclude = async (userId: string, currentlyExcluded: boolean) => {
+    if (!data || !session) return
+    setExcludingId(userId)
+    try {
+      await fetch('/api/admin/exclude-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ scope_type: 'organization', scope_id: data.org.id, user_id: userId, action: currentlyExcluded ? 'unexclude' : 'exclude' }),
+      })
+      loadActivity(data.org.id, session.access_token, activityPeriod)
+    } finally {
+      setExcludingId(null)
+    }
+  }
+
+  const downloadCsv = () => {
+    if (!data || !session) return
+    const url = `/api/org/${data.org.id}/members-activity?period=${activityPeriod}&format=csv`
+    fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = `aktivitet-${activityPeriod}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(blobUrl)
+      })
   }
 
   if (loading) {
@@ -310,6 +405,99 @@ export default function OrgAdminPage() {
               Se full toppliste →
             </a>
           </div>
+
+          {/* ── SESONG-ADMINISTRASJON (accordion) ───────── */}
+          <div style={{ margin: '32px 0 0' }}>
+            <button
+              onClick={() => setSeasonOpen(o => !o)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #3a3d4a', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#c9a84c'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = '#3a3d4a'}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Sesong-administrasjon</span>
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: seasonOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
+                <path d="M1 1L5 5L9 1" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+            {seasonOpen && (
+              <div style={{ background: '#21242e', border: '1px solid #3a3d4a', borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '18px 20px 20px' }}>
+                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 }}>
+                  Nullstiller alle sesong-poeng for bedriftens toppliste. Handlingen kan ikke angres.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => { setSeasonResetModal(true); setSeasonResetInput('') }}
+                    style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    Nullstill all data
+                  </button>
+                  {seasonResetDone && (
+                    <span style={{ fontSize: 12, color: '#4ade80', background: 'rgba(74,222,128,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+                      Sesong-data nullstilt.
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── MEDLEMSOVERSIKT ──────────────────────────── */}
+          <SectionHeader title="Medlemsoversikt" />
+
+          {/* Period tabs + CSV */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 4, background: '#1a1c23', borderRadius: 10, padding: 3 }}>
+              {(['month', 'quarter', 'year'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setActivityPeriod(p)}
+                  style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: activityPeriod === p ? '#21242e' : 'transparent', color: activityPeriod === p ? '#c9a84c' : '#e8e4dd', transition: 'background 0.15s, color 0.15s' }}
+                >
+                  {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={downloadCsv}
+              style={{ fontSize: 12, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+            >
+              Last ned CSV
+            </button>
+          </div>
+
+          {activityLoading ? (
+            <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', marginBottom: 16 }}>Laster…</p>
+          ) : activityData && activityData.length > 0 ? (
+            <div style={{ marginBottom: 16 }}>
+              {activityData.map(m => (
+                <div key={m.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, marginBottom: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.hasPlayed ? '#4ade80' : '#2a2d38', border: m.hasPlayed ? 'none' : '1px solid #3a3d4a', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.displayName}
+                      {m.role === 'admin' && <span style={{ fontSize: 10, color: '#c9a84c', fontWeight: 500, marginLeft: 6, letterSpacing: '0.06em' }}>ADMIN</span>}
+                      {m.isExcluded && <span style={{ fontSize: 10, color: '#7a7873', marginLeft: 6 }}>(ekskludert)</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>
+                      {m.hasPlayed ? `${m.totalPoints} poeng · ${m.quizCount} quiz${m.quizCount !== 1 ? 'er' : ''}` : 'Ikke spilt ennå'}
+                      {m.lastActiveAt && ` · sist aktiv ${new Date(m.lastActiveAt).toLocaleDateString('nb-NO')}`}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleExclude(m.userId, m.isExcluded)}
+                    disabled={excludingId === m.userId}
+                    style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {excludingId === m.userId ? '…' : m.isExcluded ? 'Vis igjen' : 'Ekskluder'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : activityData !== null ? (
+            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>Ingen aktivitetsdata for denne perioden.</p>
+          ) : null}
 
           {/* ── INVITE LINKS ────────────────────────────── */}
           <SectionHeader title="Invitasjonslenker" />
@@ -433,6 +621,43 @@ export default function OrgAdminPage() {
 
         </div>
       </div>
+
+      {/* Sesong-reset modal */}
+      {seasonResetModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>Nullstill sesong-data</p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
+              Dette sletter alle sesong-poeng for {data?.org.name}. Handlingen kan ikke angres.
+            </p>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
+            <input
+              type="text"
+              value={seasonResetInput}
+              onChange={e => setSeasonResetInput(e.target.value)}
+              placeholder="NULLSTILL"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSeasonReset() }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setSeasonResetModal(false); setSeasonResetInput('') }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleSeasonReset}
+                disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#0f0f10' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
