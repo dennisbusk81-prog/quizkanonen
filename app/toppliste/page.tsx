@@ -323,7 +323,6 @@ export default function TopplisterPage() {
   const [loading, setLoading]         = useState(true)
   const [session, setSession]         = useState<Session | null | undefined>(undefined)
   const [pointsOpen, setPointsOpen]   = useState(false)
-  const [badgesOpen, setBadgesOpen]   = useState(false)
 
   // Historikk
   const [histOpen, setHistOpen]           = useState(false)
@@ -744,19 +743,12 @@ export default function TopplisterPage() {
           {renderUserSection()}
 
           {/* Badge-forklaring */}
-          <div className="tp-accordion-wrap" style={{ marginTop: 20 }}>
-            <button className="tp-accordion-btn" onClick={() => setBadgesOpen(o => !o)}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Hva betyr badgene?</span>
-              <span style={{ fontSize: 11, color: '#c9a84c' }}>{badgesOpen ? '↑' : '↓'}</span>
-            </button>
-            {badgesOpen && (
-              <div style={{ background: '#21242e', borderTop: '1px solid #2a2d38', padding: '14px 20px' }}>
-                <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
-                <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
-                <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
-                <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
-              </div>
-            )}
+          <div style={{ marginTop: 24, padding: '0 2px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 10 }}>Hva betyr badgene?</div>
+            <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
+            <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
+            <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
+            <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
           </div>
 
         </div>
