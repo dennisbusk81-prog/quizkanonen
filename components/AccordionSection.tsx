@@ -9,8 +9,8 @@ const items = [
     content: 'Ny quiz hver fredag med ti spørsmål. Du har begrenset tid per spørsmål — jo raskere du svarer riktig, desto høyere plassering. Etter quizen ser du nøyaktig score og rangering blant alle deltakerne.',
   },
   {
-    title: 'Hva er en liga?',
-    teaser: 'Konkurrer mot folk du kjenner.',
+    title: 'Spill mot vennene dine',
+    teaser: 'Opprett en liga, inviter venner, se hvem som vinner.',
     content: 'En privat liga lar deg konkurrere mot venner, familie eller kolleger uke etter uke. Opprett en liga, del invitasjonslenken, og alle kan bli med. Poengsummene samles over tid, og ligaen viser hvem som leder.',
   },
   {
