@@ -55,6 +55,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Du er allerede medlem av denne ligaen.', slug: league.slug }, { status: 409 })
   }
 
+  // Sjekk at ligaen ikke er full (maks 10 medlemmer)
+  const { count: memberCount } = await supabaseAdmin
+    .from('league_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('league_id', league.id)
+
+  if ((memberCount ?? 0) >= 10) {
+    return NextResponse.json({ error: 'Denne ligaen er full (maks 10 medlemmer).' }, { status: 403 })
+  }
+
   const { error: insertError } = await supabaseAdmin
     .from('league_members')
     .insert({ league_id: league.id, user_id: user.id })

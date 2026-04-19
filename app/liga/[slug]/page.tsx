@@ -279,7 +279,7 @@ export default function LigaPage() {
             <p style={s.heroEyebrow}>Liga</p>
             <h1 style={s.heroTitle}>{league?.name}</h1>
             <span style={s.heroBadge}>
-              {league?.member_count} {league?.member_count === 1 ? 'medlem' : 'medlemmer'}
+              {league?.member_count} / 10 {league?.member_count === 1 ? 'medlem' : 'medlemmer'}
               {league?.is_owner && <> · <span style={{ color: '#c9a84c', fontWeight: 600 }}>Du er eier</span></>}
             </span>
           </div>
