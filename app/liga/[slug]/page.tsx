@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
+import NavAuth from '@/components/NavAuth'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -277,6 +278,13 @@ export default function LigaPage() {
 
   return (
     <>
+      <style>{FONT_IMPORT}</style>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(26,28,35,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid #2a2d38' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <a href="/" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>Quiz<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>kanonen</em></a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><NavAuth /></div>
+        </div>
+      </nav>
       <div style={s.wrap}>
         <div style={s.page}>
           <div style={{ paddingTop: 20 }}>

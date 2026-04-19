@@ -125,6 +125,7 @@ export default function LeaderboardPage() {
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
   const [podiumActive, setPodiumActive] = useState(false)
+  const [hasLeagues, setHasLeagues] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -219,6 +220,7 @@ export default function LeaderboardPage() {
         if (leaguesRes.ok) {
           const leaguesJson = await leaguesRes.json()
           const leagues: { id: string }[] = leaguesJson.leagues ?? []
+          setHasLeagues(leagues.length > 0)
           const memberResponses = await Promise.all(
             leagues.map(l =>
               fetch(`/api/leagues/${l.id}`, {
@@ -602,6 +604,14 @@ export default function LeaderboardPage() {
                 ))}
               </div>
             </>
+          )}
+
+          {/* Liga CTA for innloggede uten ligaer */}
+          {!authLoading && session && !hasLeagues && (
+            <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>
+              Vil du konkurrere mot vennene dine?{' '}
+              <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</a>
+            </p>
           )}
 
         </div>

@@ -1608,6 +1608,14 @@ export default function QuizPage() {
           </div>
         )}
 
+        {isLoggedIn && (
+          <p style={{ textAlign: 'center', marginTop: 4, marginBottom: 8 }}>
+            <a href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+              Spill mot vennene dine → Opprett en liga
+            </a>
+          </p>
+        )}
+
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
 
