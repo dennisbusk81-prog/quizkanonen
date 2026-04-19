@@ -790,6 +790,7 @@ export default function QuizPage() {
         quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
         team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
         user_id: session?.user?.id ?? null,
+        leader_display_name: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
       }).select().single()
       setAttemptId(data?.id || null)
       if (resumeData) {
@@ -1252,6 +1253,11 @@ export default function QuizPage() {
                     className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
                 ))}
               </div>
+              {isLoggedIn && (
+                <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, textAlign: 'center' }}>
+                  Sesong-poeng registreres på deg som er innlogget.
+                </p>
+              )}
             </>
           )}
         </>

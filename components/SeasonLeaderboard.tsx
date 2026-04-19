@@ -716,6 +716,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
         <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
       </div>
+
+      <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
+        Lagets sesong-poeng registreres på innlogget lagleder.
+      </p>
     </>
   )
 }

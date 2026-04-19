@@ -280,8 +280,10 @@ export default function ProfilPage() {
   }
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
+  const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
+  const nameValid = NAME_RE.test(editName.trim())
   const nameChanged = editName.trim() !== displayName
-  const saveBtnDisabled = saving || !nameChanged || !editName.trim()
+  const saveBtnDisabled = saving || !nameChanged || !nameValid
 
   return (
     <>
@@ -323,7 +325,8 @@ export default function ProfilPage() {
                   value={editName}
                   onChange={e => { setEditName(e.target.value); setSaveError(null); setSaveSuccess(false) }}
                   onKeyDown={e => { if (e.key === 'Enter' && !saveBtnDisabled) handleSave() }}
-                  maxLength={50}
+                  placeholder="Fornavn Etternavn"
+                  maxLength={40}
                   style={s.input}
                   onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
                   onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
@@ -336,6 +339,11 @@ export default function ProfilPage() {
                   {saving ? 'Lagrer…' : 'Lagre'}
                 </button>
               </div>
+              {editName.trim().length > 0 && !nameValid && (
+                <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>
+                  Kun bokstaver, mellomrom, bindestrek og apostrof (2–40 tegn)
+                </p>
+              )}
               <p style={{ fontSize: 12, color: '#7a7873', marginTop: 6, fontStyle: 'italic' }}>
                 Tips: bruk ditt vanlige navn så andre kjenner deg igjen på leaderboard
               </p>

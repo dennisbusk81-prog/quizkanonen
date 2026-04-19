@@ -403,6 +403,11 @@ export default function LeaderboardPage() {
             {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
             ⏱ {formatTime(attempt.total_time_ms)}
           </p>
+          {attempt.is_team && attempt.leader_display_name && (
+            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
+              Lagleder: {attempt.leader_display_name}
+            </p>
+          )}
         </div>
         <div style={s.scoreBlock}>
           <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>

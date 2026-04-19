@@ -8,8 +8,9 @@ const bodySchema = z.object({
   display_name: z
     .string()
     .trim()
-    .min(1, 'display_name cannot be empty')
-    .max(50, 'display_name max 50 characters'),
+    .min(2, 'Navn må være minst 2 tegn')
+    .max(40, 'Navn kan maks være 40 tegn')
+    .regex(/^[\p{L}\s\-']{2,40}$/u, 'Navnet kan bare inneholde bokstaver, mellomrom, bindestrek og apostrof'),
   avatar_color: z.string().nullable().optional(),
   show_member_number: z.boolean().optional(),
   age_confirmed_at: z.string().datetime().optional(),

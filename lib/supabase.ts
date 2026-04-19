@@ -75,4 +75,5 @@ export type Attempt = {
   correct_streak: number | null
   user_id: string | null
   completed_at: string
+  leader_display_name: string | null
 }
