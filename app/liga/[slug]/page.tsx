@@ -97,14 +97,23 @@ export default function LigaPage() {
 
       setAccessToken(session.access_token)
 
-      const listRes = await fetch('/api/leagues', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (cancelled) return
-      if (!listRes.ok) { setLoadState('error'); return }
+      // Retry opp til 3 ganger for å håndtere kort forsinkelse etter opprettelse
+      let found: LeagueInfo | undefined = undefined
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (cancelled) return
+        if (attempt > 0) await new Promise<void>(r => setTimeout(r, 700))
 
-      const listJson = await listRes.json()
-      const found = (listJson.leagues ?? []).find((l: LeagueInfo) => l.slug === slug)
+        const listRes = await fetch('/api/leagues', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (cancelled) return
+        if (!listRes.ok) { setLoadState('error'); return }
+
+        const listJson = await listRes.json()
+        found = (listJson.leagues ?? []).find((l: LeagueInfo) => l.slug === slug)
+        if (found) break
+      }
+
       if (!found) { setLoadState('notfound'); return }
 
       setLeague(found)
