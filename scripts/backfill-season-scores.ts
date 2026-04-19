@@ -12,31 +12,18 @@
 // For å rebehandle en quiz: sett season_points_awarded=false i Supabase
 // og kjør scriptet igjen — ON CONFLICT DO NOTHING beskytter mot dobling.
 
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
 
 // Last .env.local automatisk
-try {
-  const envContent = readFileSync(join(process.cwd(), '.env.local'), 'utf-8')
-  for (const line of envContent.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) continue
-    const eqIdx = trimmed.indexOf('=')
-    if (eqIdx === -1) continue
-    const key = trimmed.slice(0, eqIdx).trim()
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-    if (key && !process.env[key]) process.env[key] = val
-  }
-} catch {
-  // .env.local ikke funnet — forventer at env-variabler er satt eksplisitt
-}
+config({ path: '.env.local' })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !serviceRoleKey) {
-  console.error('Mangler NEXT_PUBLIC_SUPABASE_URL eller SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl) console.error('Mangler: NEXT_PUBLIC_SUPABASE_URL')
+  if (!serviceRoleKey) console.error('Mangler: SUPABASE_SERVICE_ROLE_KEY')
   process.exit(1)
 }
 

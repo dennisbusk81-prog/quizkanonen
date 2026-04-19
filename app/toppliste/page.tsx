@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
@@ -12,6 +12,8 @@ const EXTRA_STYLES = `
   .tp-tab-row::-webkit-scrollbar { display: none; }
   .tp-tab-row { scrollbar-width: none; -ms-overflow-style: none; }
 `
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Period = 'last_quiz' | 'month' | 'quarter' | 'year' | 'alltime'
 type BadgeKind = 'krone' | 'flamme' | 'lyn' | 'medalje'
@@ -42,12 +44,45 @@ type ApiResponse = {
   quizTitle?: string | null
 }
 
+type HistoryWinner = {
+  displayName: string
+  avatarUrl: string | null
+  score: number
+  scoreLabel: string
+}
+
+type HistoryEntry = {
+  key: string
+  label: string
+  closesAt: string
+  quizId?: string
+  winner: HistoryWinner | null
+}
+
+type ExpandedEntry = {
+  rank: number
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+  points: number
+  quizCount: number
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const PERIOD_LABELS: Record<Period, string> = {
   last_quiz: 'Siste quiz',
   month:     'Måned',
   quarter:   'Kvartal',
   year:      'År',
   alltime:   'All-time',
+}
+
+const HISTORY_TITLE: Record<Exclude<Period, 'alltime'>, string> = {
+  last_quiz: 'Tidligere quizer',
+  month:     'Tidligere måneder',
+  quarter:   'Tidligere kvartaler',
+  year:      'Tidligere år',
 }
 
 const EMPTY_TEXT: Record<Period, { title: string; sub: string }> = {
@@ -65,6 +100,10 @@ const NOT_PLAYED_TEXT: Record<Period, string> = {
   year:      'Du har ikke spilt ennå i år.',
   alltime:   'Du har ikke spilt ennå.',
 }
+
+const NB_MONTHS = ['Januar','Februar','Mars','April','Mai','Juni','Juli','August','September','Oktober','November','Desember']
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatTime(ms: number): string {
   const totalSec = Math.round(ms / 1000)
@@ -91,40 +130,70 @@ function getCountdown(period: Period): string | null {
   return `${days} dager igjen av ${label}`
 }
 
+function formatHistoryLabel(key: string, period: Period): string {
+  if (period === 'month') {
+    const [year, month] = key.split('-').map(Number)
+    return `${NB_MONTHS[month - 1]} ${year}`
+  }
+  if (period === 'quarter') {
+    const [year, q] = key.split('-Q')
+    return `K${q} ${year}`
+  }
+  return key
+}
+
+function getPeriodRange(key: string, period: 'month' | 'quarter' | 'year'): { start: string; end: string } {
+  if (period === 'month') {
+    const [year, month] = key.split('-').map(Number)
+    return {
+      start: new Date(Date.UTC(year, month - 1, 1)).toISOString(),
+      end:   new Date(Date.UTC(year, month, 1)).toISOString(),
+    }
+  }
+  if (period === 'quarter') {
+    const [yearStr, qStr] = key.split('-Q')
+    const year = parseInt(yearStr)
+    const q = parseInt(qStr) - 1
+    return {
+      start: new Date(Date.UTC(year, q * 3, 1)).toISOString(),
+      end:   new Date(Date.UTC(year, (q + 1) * 3, 1)).toISOString(),
+    }
+  }
+  const year = parseInt(key)
+  return {
+    start: new Date(Date.UTC(year, 0, 1)).toISOString(),
+    end:   new Date(Date.UTC(year + 1, 0, 1)).toISOString(),
+  }
+}
+
 function assignBadges(entries: Entry[]): Map<string, BadgeKind> {
   const badges = new Map<string, BadgeKind>()
-
   if (entries[0]) badges.set(entries[0].userId, 'krone')
-
   let flamme: Entry | null = null
   for (const e of entries) {
     if (badges.has(e.userId)) continue
     if (e.topStreak >= 3 && (!flamme || e.topStreak > flamme.topStreak)) flamme = e
   }
   if (flamme) badges.set(flamme.userId, 'flamme')
-
   let lyn: Entry | null = null
   for (const e of entries) {
     if (badges.has(e.userId)) continue
     if (e.fastestMs !== null && (!lyn || e.fastestMs < lyn.fastestMs!)) lyn = e
   }
   if (lyn) badges.set(lyn.userId, 'lyn')
-
   for (const e of entries) {
     if (e.rank >= 2 && e.rank <= 3 && !badges.has(e.userId)) badges.set(e.userId, 'medalje')
   }
-
   return badges
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
   const bg = badge === 'krone' ? '#c9a84c' : badge === 'flamme' ? '#E24B4A' : badge === 'lyn' ? '#7ABFFF' : '#639922'
   const iconSize = Math.round(size * 0.65)
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', background: bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none">
         {badge === 'krone'   && <path d="M2 8L4 3L8 6L12 3L14 8H2Z" fill="#1a1c23"/>}
         {badge === 'flamme'  && <path d="M8 2C8 2 12 5 12 8.5C12 11 10 13 8 14C6 13 4 11 4 8.5C4 5 8 2 8 2Z" fill="white"/>}
@@ -134,6 +203,8 @@ function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) 
     </div>
   )
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
@@ -148,14 +219,14 @@ const s = {
   titleEm: { fontStyle: 'italic', color: '#c9a84c' },
   rule:    { width: '100%', height: 1, background: '#2a2d38', marginTop: 28 },
 
-  tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 28, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
-  tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
-  tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
+  tabRow:      { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 28, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
+  tabActive:   { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
+  tabInactive: { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
 
   countdown: { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
 
-  row:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowGold: { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  row:        { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowGold:    { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   goldStripe: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
 
   rankCell: { width: 28, textAlign: 'center' as const, flexShrink: 0 },
@@ -178,30 +249,66 @@ const s = {
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
-  userCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
-  userCardGold:{ background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
+  userCard:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
+  userCardGold: { background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
 
-  ctaText: { fontSize: 14, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 },
-  btnGold: { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
+  ctaText:    { fontSize: 14, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutline: { display: 'inline-block', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
 
-  legendCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '18px 20px', marginTop: 12 },
-  legendTitle:{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 },
-  legendRow:  { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 13, color: '#e8e4dd' },
+  legendCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '18px 20px', marginTop: 12 },
+  legendTitle: { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 },
+  legendRow:   { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 13, color: '#e8e4dd' },
 
-  empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 12 },
-  emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
-  emptySub:  { fontSize: 13, color: '#7a7873', lineHeight: 1.6 },
+  empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 12 },
+  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
+  emptySub:   { fontSize: 13, color: '#7a7873', lineHeight: 1.6 },
 
   quizLabel: { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
+
+  // Historikk-accordion
+  histAccordion:  { marginTop: 28, border: '1px solid #2a2d38', borderRadius: 16, overflow: 'hidden' as const },
+  histHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', cursor: 'pointer', background: '#21242e', border: 'none', width: '100%', textAlign: 'left' as const, fontFamily: "'Instrument Sans', sans-serif" },
+  histHeaderTitle:{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' },
+  histHeaderChev: { fontSize: 11, color: '#7a7873' },
+  histBody:       { background: '#21242e', borderTop: '1px solid #2a2d38' },
+  histEmpty:      { padding: '24px 18px', fontSize: 13, color: '#7a7873', textAlign: 'center' as const },
+
+  histRow:        { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '0.5px solid #2a2d38', cursor: 'pointer' },
+  histRowLast:    { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px' },
+  histRowQuiz:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '0.5px solid #2a2d38' },
+  histRowQuizLast:{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px' },
+  histPeriodLabel:{ fontSize: 13, fontWeight: 600, color: '#ffffff', minWidth: 120, flexShrink: 0 },
+  histWinner:     { display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
+  histWinnerName: { fontSize: 13, color: '#e8e4dd', overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  histWinnerScore:{ fontSize: 12, color: '#c9a84c', fontWeight: 600, flexShrink: 0 },
+  histChevron:    { fontSize: 11, color: '#7a7873', flexShrink: 0, marginLeft: 8 },
+  histAvatarSm:   { width: 24, height: 24, borderRadius: '50%', background: '#2a2d38', border: '1px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' as const },
+
+  // Utvidet topp 10 for historiske perioder
+  expandedWrap:  { background: '#1a1c23', borderTop: '0.5px solid #2a2d38', padding: '12px 18px' },
+  expandedRow:   { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '0.5px solid rgba(42,45,56,0.6)' },
+  expandedRank:  { fontSize: 12, color: '#7a7873', width: 22, flexShrink: 0, textAlign: 'right' as const },
+  expandedName:  { fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  expandedScore: { fontSize: 13, fontWeight: 600, color: '#c9a84c', flexShrink: 0 },
+  expandedSpin:  { padding: '12px 0', fontSize: 12, color: '#7a7873', textAlign: 'center' as const },
 }
 
+// ── Page component ────────────────────────────────────────────────────────────
+
 export default function TopplisterPage() {
-  const [period, setPeriod] = useState<Period>('last_quiz')
-  const [data, setData] = useState<ApiResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
-  const [pointsOpen, setPointsOpen] = useState(false)
+  const [period, setPeriod]           = useState<Period>('last_quiz')
+  const [data, setData]               = useState<ApiResponse | null>(null)
+  const [loading, setLoading]         = useState(true)
+  const [session, setSession]         = useState<Session | null | undefined>(undefined)
+  const [pointsOpen, setPointsOpen]   = useState(false)
+
+  // Historikk
+  const [histOpen, setHistOpen]           = useState(false)
+  const [histData, setHistData]           = useState<HistoryEntry[] | null>(null)
+  const [histLoading, setHistLoading]     = useState(false)
+  const [expandedKey, setExpandedKey]     = useState<string | null>(null)
+  const [expandedData, setExpandedData]   = useState<Map<string, ExpandedEntry[] | 'loading'>>(new Map())
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -209,6 +316,7 @@ export default function TopplisterPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Hent toppliste-data
   useEffect(() => {
     if (session === undefined) return
     let cancelled = false
@@ -235,36 +343,93 @@ export default function TopplisterPage() {
     return () => { cancelled = true }
   }, [period, session])
 
-  const countdown = getCountdown(period)
-  const badges = data ? assignBadges(data.entries) : new Map<string, BadgeKind>()
+  // Reset historikk når periode bytter
+  useEffect(() => {
+    setHistOpen(false)
+    setHistData(null)
+    setExpandedKey(null)
+    setExpandedData(new Map())
+  }, [period])
+
+  // Hent historikk-data (lat — kun når accordion åpnes)
+  const loadHistory = useCallback(async () => {
+    if (histData !== null || period === 'alltime') return
+    setHistLoading(true)
+    try {
+      const res = await fetch(`/api/toppliste/history?period=${period}&scope=global`)
+      if (res.ok) {
+        const json = await res.json()
+        setHistData(json.entries ?? [])
+      } else {
+        setHistData([])
+      }
+    } catch {
+      setHistData([])
+    } finally {
+      setHistLoading(false)
+    }
+  }, [histData, period])
+
+  const toggleHistory = () => {
+    const willOpen = !histOpen
+    setHistOpen(willOpen)
+    if (willOpen) loadHistory()
+  }
+
+  // Hent topp 10 for en historisk periode (ved klikk)
+  async function loadExpanded(key: string) {
+    if (expandedKey === key) {
+      setExpandedKey(null)
+      return
+    }
+    setExpandedKey(key)
+    if (expandedData.has(key)) return
+
+    setExpandedData(prev => new Map(prev).set(key, 'loading'))
+
+    try {
+      const range = getPeriodRange(key, period as 'month' | 'quarter' | 'year')
+      const url = `/api/toppliste?scope=global&period_start=${encodeURIComponent(range.start)}&period_end=${encodeURIComponent(range.end)}&period=${period}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error()
+      const json = await res.json()
+      const entries: ExpandedEntry[] = (json.entries ?? []).map((e: Entry) => ({
+        rank: e.rank,
+        userId: e.userId,
+        displayName: e.displayName,
+        avatarUrl: e.avatarUrl,
+        points: e.points,
+        quizCount: e.quizCount,
+      }))
+      setExpandedData(prev => new Map(prev).set(key, entries))
+    } catch {
+      setExpandedData(prev => new Map(prev).set(key, []))
+    }
+  }
+
+  const countdown  = getCountdown(period)
+  const badges     = data ? assignBadges(data.entries) : new Map<string, BadgeKind>()
   const isLastQuiz = period === 'last_quiz'
+  const showHistory = period !== 'alltime'
+
+  // ── Row renderers ─────────────────────────────────────────────────────────
 
   function renderRow(entry: Entry) {
     const isFirst = entry.rank === 1
-    const badge = badges.get(entry.userId)
+    const badge   = badges.get(entry.userId)
     const initial = entry.displayName[0]?.toUpperCase() ?? '?'
 
     return (
       <div key={entry.userId} style={isFirst ? s.rowGold : s.row}>
         {isFirst && <div style={s.goldStripe} />}
-
-        <div style={s.rankCell}>
-          <span style={s.rankNum}>#{entry.rank}</span>
-        </div>
-
+        <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
         <div style={s.avatarWrap}>
-          {entry.avatarUrl ? (
-            <img src={entry.avatarUrl} alt="" style={s.avatarImg} referrerPolicy="no-referrer" />
-          ) : (
-            <div style={s.avatarInit}>{initial}</div>
-          )}
-          {badge && (
-            <div style={s.badgePos}>
-              <BadgeCircle badge={badge} size={18} />
-            </div>
-          )}
+          {entry.avatarUrl
+            ? <img src={entry.avatarUrl} alt="" style={s.avatarImg} referrerPolicy="no-referrer" />
+            : <div style={s.avatarInit}>{initial}</div>
+          }
+          {badge && <div style={s.badgePos}><BadgeCircle badge={badge} size={18} /></div>}
         </div>
-
         <div style={s.nameBlock}>
           <div style={s.name}>{entry.displayName}</div>
           <div style={s.nameSub}>
@@ -274,7 +439,6 @@ export default function TopplisterPage() {
             }
           </div>
         </div>
-
         <div style={s.pointsBlock}>
           <div style={s.points}>{entry.points}</div>
           <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
@@ -285,8 +449,6 @@ export default function TopplisterPage() {
 
   function renderUserSection() {
     if (session === undefined) return null
-
-    // Not logged in
     if (!session) {
       return (
         <>
@@ -301,25 +463,18 @@ export default function TopplisterPage() {
         </>
       )
     }
-
     if (!data) return null
 
     const ue = data.userEntry
 
-    // A) Bruker er i topp 10 — skjul boksen
     if (ue && ue.rank <= 10) return null
 
-    // B) Bruker har spilt men er ikke i topp 10
     if (ue && ue.rank > 10) {
       const initial = ue.displayName[0]?.toUpperCase() ?? '?'
-
       if (!data.userIsPremium) {
         return (
           <>
-            <div style={s.sectionHeader}>
-              <span style={s.sectionText}>Din plassering</span>
-              <div style={s.sectionLine} />
-            </div>
+            <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
             <div style={s.userCard}>
               <p style={{ fontSize: 14, color: '#7a7873', lineHeight: 1.6, marginBottom: 6 }}>
                 Du er på plass <strong style={{ color: '#e8e4dd' }}>#{ue.rank}</strong> — men du trenger Premium for å se fullstendig statistikk.
@@ -329,28 +484,21 @@ export default function TopplisterPage() {
           </>
         )
       }
-
       return (
         <>
-          <div style={s.sectionHeader}>
-            <span style={s.sectionText}>Din plassering</span>
-            <div style={s.sectionLine} />
-          </div>
+          <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
           <div style={s.userCardGold}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={s.rankCell}>
-                <span style={{ ...s.rankNum, color: '#c9a84c' }}>#{ue.rank}</span>
-              </div>
+              <div style={s.rankCell}><span style={{ ...s.rankNum, color: '#c9a84c' }}>#{ue.rank}</span></div>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' }}>
-                {ue.avatarUrl ? (
-                  <img src={ue.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
-                ) : initial}
+                {ue.avatarUrl
+                  ? <img src={ue.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
+                  : initial
+                }
               </div>
               <div style={s.nameBlock}>
                 <div style={s.name}>{ue.displayName}</div>
-                <div style={s.nameSub}>
-                  {isLastQuiz ? `${ue.points} riktige` : `${ue.quizCount} ${ue.quizCount === 1 ? 'quiz' : 'quizer'}`}
-                </div>
+                <div style={s.nameSub}>{isLastQuiz ? `${ue.points} riktige` : `${ue.quizCount} ${ue.quizCount === 1 ? 'quiz' : 'quizer'}`}</div>
               </div>
               <div style={s.pointsBlock}>
                 <div style={s.points}>{ue.points}</div>
@@ -362,13 +510,9 @@ export default function TopplisterPage() {
       )
     }
 
-    // C) Bruker har ikke spilt i denne perioden
     return (
       <>
-        <div style={s.sectionHeader}>
-          <span style={s.sectionText}>Din plassering</span>
-          <div style={s.sectionLine} />
-        </div>
+        <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
         <div style={s.userCard}>
           <p style={{ ...s.ctaText, marginBottom: 12 }}>{NOT_PLAYED_TEXT[period]}</p>
           <a href="/" style={s.btnOutline}>Se ukens quiz →</a>
@@ -376,6 +520,119 @@ export default function TopplisterPage() {
       </>
     )
   }
+
+  function renderHistoryRow(entry: HistoryEntry, isLast: boolean) {
+    const label = isLastQuiz ? entry.label : formatHistoryLabel(entry.key, period)
+    const initial = entry.winner?.displayName?.[0]?.toUpperCase() ?? '?'
+    const isExpanded = expandedKey === entry.key
+    const expandable = !isLastQuiz
+
+    if (isLastQuiz) {
+      // Quiz-modus: lenker til leaderboard
+      const rowStyle = isLast ? s.histRowQuizLast : s.histRowQuiz
+      return (
+        <div key={entry.key}>
+          <div style={rowStyle}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={s.histPeriodLabel}>{label}</div>
+              {entry.winner && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <div style={s.histAvatarSm}>
+                    {entry.winner.avatarUrl
+                      ? <img src={entry.winner.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                      : initial
+                    }
+                  </div>
+                  <span style={s.histWinnerName}>{entry.winner.displayName}</span>
+                  <span style={s.histWinnerScore}>{entry.winner.score} {entry.winner.scoreLabel}</span>
+                </div>
+              )}
+              {!entry.winner && <div style={{ fontSize: 12, color: '#7a7873', marginTop: 4 }}>Ingen innloggede spillere</div>}
+            </div>
+            {entry.quizId && (
+              <a href={`/leaderboard/${entry.quizId}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}>
+                Se toppliste →
+              </a>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // Periode-modus: ekspanderbar inline topp 10
+    const rowStyle = isLast && !isExpanded ? s.histRowLast : s.histRow
+    const expanded = expandedData.get(entry.key)
+
+    return (
+      <div key={entry.key}>
+        <div style={rowStyle} onClick={() => loadExpanded(entry.key)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && loadExpanded(entry.key)}>
+          <div style={s.histPeriodLabel}>{label}</div>
+          <div style={s.histWinner}>
+            {entry.winner ? (
+              <>
+                <div style={s.histAvatarSm}>
+                  {entry.winner.avatarUrl
+                    ? <img src={entry.winner.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                    : initial
+                  }
+                </div>
+                <span style={s.histWinnerName}>{entry.winner.displayName}</span>
+                <span style={s.histWinnerScore}>{entry.winner.score} {entry.winner.scoreLabel}</span>
+              </>
+            ) : (
+              <span style={{ fontSize: 12, color: '#7a7873' }}>Ingen data</span>
+            )}
+          </div>
+          {expandable && <span style={s.histChevron}>{isExpanded ? '↑' : '↓'}</span>}
+        </div>
+        {isExpanded && expanded !== undefined && (
+          <div style={s.expandedWrap}>
+            {expanded === 'loading' ? (
+              <div style={s.expandedSpin}>Laster…</div>
+            ) : expanded.length === 0 ? (
+              <div style={s.expandedSpin}>Ingen data for denne perioden</div>
+            ) : (
+              expanded.map((e, i) => (
+                <div key={e.userId} style={{ ...s.expandedRow, borderBottom: i === expanded.length - 1 ? 'none' : '0.5px solid rgba(42,45,56,0.6)' }}>
+                  <span style={s.expandedRank}>#{e.rank}</span>
+                  <span style={s.expandedName}>{e.displayName}</span>
+                  <span style={s.expandedScore}>{e.points} poeng</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderHistoryAccordion() {
+    if (!showHistory) return null
+
+    const title = HISTORY_TITLE[period as Exclude<Period, 'alltime'>]
+
+    return (
+      <div style={s.histAccordion}>
+        <button style={s.histHeader} onClick={toggleHistory}>
+          <span style={s.histHeaderTitle}>{title}</span>
+          <span style={s.histHeaderChev}>{histOpen ? '↑' : '↓'}</span>
+        </button>
+        {histOpen && (
+          <div style={s.histBody}>
+            {histLoading ? (
+              <div style={s.histEmpty}>Laster…</div>
+            ) : !histData || histData.length === 0 ? (
+              <div style={s.histEmpty}>Ingen avsluttede perioder ennå — kom tilbake om en stund</div>
+            ) : (
+              histData.map((entry, i) => renderHistoryRow(entry, i === histData.length - 1))
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading && !data) {
     return (
@@ -402,39 +659,29 @@ export default function TopplisterPage() {
 
           <div style={s.header}>
             <p style={s.eyebrow}>Quizkanonen · Sesong</p>
-            <h1 style={s.title}>
-              Sesong<em style={s.titleEm}>topplisten</em>
-            </h1>
+            <h1 style={s.title}>Sesong<em style={s.titleEm}>topplisten</em></h1>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#7a7873', fontStyle: 'italic' }}>
               Hvem dominerer over tid?
             </p>
             <div style={s.rule} />
           </div>
 
-          {/* Period tabs */}
+          {/* Fane-rad */}
           <div className="tp-tab-row" style={s.tabRow}>
             {(['last_quiz', 'month', 'quarter', 'year', 'alltime'] as Period[]).map(p => (
-              <button
-                key={p}
-                style={period === p ? s.tabActive : s.tabInactive}
-                onClick={() => setPeriod(p)}
-              >
+              <button key={p} style={period === p ? s.tabActive : s.tabInactive} onClick={() => setPeriod(p)}>
                 {PERIOD_LABELS[p]}
               </button>
             ))}
           </div>
 
-          {/* Subtitle for last_quiz: show quiz title if available */}
           {isLastQuiz && data?.quizTitle && (
             <p style={s.quizLabel}>Siste quiz: <em>{data.quizTitle}</em></p>
           )}
 
-          {/* Countdown (hidden for last_quiz and alltime) */}
-          {countdown && (
-            <p style={s.countdown}>{countdown}</p>
-          )}
+          {countdown && <p style={s.countdown}>{countdown}</p>}
 
-          {/* Poengforklaring — hidden for last_quiz */}
+          {/* Poengforklaring — skjult for last_quiz */}
           {!isLastQuiz && (
             <div style={{ marginBottom: 16, textAlign: 'center' }}>
               <button
@@ -445,22 +692,8 @@ export default function TopplisterPage() {
               </button>
               {pointsOpen && (
                 <div style={{ marginTop: 8, background: '#21242e', border: '0.5px solid #2a2d38', borderRadius: 10, padding: 12, textAlign: 'left' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
-                    Poengfordeling per quiz
-                  </div>
-                  {[
-                    ['1. plass', '12 poeng'],
-                    ['2. plass', '10 poeng'],
-                    ['3. plass', '8 poeng'],
-                    ['4. plass', '7 poeng'],
-                    ['5. plass', '6 poeng'],
-                    ['6. plass', '5 poeng'],
-                    ['7. plass', '4 poeng'],
-                    ['8. plass', '3 poeng'],
-                    ['9. plass', '2 poeng'],
-                    ['10. plass', '1 poeng'],
-                    ['11+ plass', '1 poeng'],
-                  ].map(([place, pts]) => (
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>Poengfordeling per quiz</div>
+                  {[['1. plass','12 poeng'],['2. plass','10 poeng'],['3. plass','8 poeng'],['4. plass','7 poeng'],['5. plass','6 poeng'],['6. plass','5 poeng'],['7. plass','4 poeng'],['8. plass','3 poeng'],['9. plass','2 poeng'],['10. plass','1 poeng'],['11+ plass','1 poeng']].map(([place, pts]) => (
                     <div key={place} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#e8e4dd', padding: '3px 0', borderBottom: '0.5px solid #2a2d38' }}>
                       <span style={{ color: '#7a7873' }}>{place}</span>
                       <span style={{ fontWeight: 600 }}>{pts}</span>
@@ -474,7 +707,7 @@ export default function TopplisterPage() {
             </div>
           )}
 
-          {/* Top 10 */}
+          {/* Topp 10 */}
           {!loading && data?.entries.length === 0 ? (
             <div style={s.empty}>
               <p style={s.emptyTitle}>{emptyText.title}</p>
@@ -484,28 +717,19 @@ export default function TopplisterPage() {
             data?.entries.map(entry => renderRow(entry))
           )}
 
-          {/* Din plassering (section header included inside) */}
+          {/* Historikk-accordion */}
+          {renderHistoryAccordion()}
+
+          {/* Din plassering */}
           {renderUserSection()}
 
           {/* Badge-forklaring */}
           <div style={{ ...s.legendCard, marginTop: 28 }}>
             <div style={s.legendTitle}>Hva betyr badgene?</div>
-            <div style={s.legendRow}>
-              <BadgeCircle badge="krone" size={20} />
-              <span>Krone — #1 på topplisten denne perioden</span>
-            </div>
-            <div style={s.legendRow}>
-              <BadgeCircle badge="flamme" size={20} />
-              <span>Flamme — lengst aktiv streak (minst 3 uker)</span>
-            </div>
-            <div style={s.legendRow}>
-              <BadgeCircle badge="lyn" size={20} />
-              <span>Lyn — raskeste fullførte quiz</span>
-            </div>
-            <div style={{ ...s.legendRow, marginBottom: 0 }}>
-              <BadgeCircle badge="medalje" size={20} />
-              <span>Medalje — topp 3 denne perioden</span>
-            </div>
+            <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
+            <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
+            <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
+            <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
           </div>
 
         </div>

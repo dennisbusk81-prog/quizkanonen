@@ -1,27 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-const POINTS_TABLE = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]
-
-function getPoints(rank: number): number {
-  return rank <= 10 ? POINTS_TABLE[rank - 1] : 1
-}
-
-function getPeriodStart(period: string): string {
-  const now = new Date()
-  let d: Date
-  if (period === 'month') {
-    d = new Date(now.getFullYear(), now.getMonth(), 1)
-  } else if (period === 'quarter') {
-    const q = Math.floor(now.getMonth() / 3)
-    d = new Date(now.getFullYear(), q * 3, 1)
-  } else if (period === 'year') {
-    d = new Date(now.getFullYear(), 0, 1)
-  } else {
-    return new Date(0).toISOString()
-  }
-  return d.toISOString()
-}
+// ── Ranking helpers (brukes av last_quiz-modus) ───────────────────────────────
 
 type RawAttempt = {
   user_id: string
@@ -53,10 +33,7 @@ function rankAttempts(attempts: RawAttempt[]): Array<RawAttempt & { rank: number
     let rank = i + 1
     if (i > 0) {
       const prev = sorted[i - 1]
-      if (
-        sorted[i].correct_answers === prev.correct_answers &&
-        sorted[i].total_time_ms === prev.total_time_ms
-      ) {
+      if (sorted[i].correct_answers === prev.correct_answers && sorted[i].total_time_ms === prev.total_time_ms) {
         rank = withRanks[i - 1].rank
       }
     }
@@ -65,14 +42,43 @@ function rankAttempts(attempts: RawAttempt[]): Array<RawAttempt & { rank: number
   return withRanks
 }
 
+// ── Period helpers ────────────────────────────────────────────────────────────
+
+function getPeriodStart(period: string): string {
+  const now = new Date()
+  let d: Date
+  if (period === 'month') {
+    d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  } else if (period === 'quarter') {
+    const q = Math.floor(now.getUTCMonth() / 3)
+    d = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 1))
+  } else if (period === 'year') {
+    d = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+  } else {
+    return new Date(0).toISOString() // alltime
+  }
+  return d.toISOString()
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const period = searchParams.get('period') ?? 'month'
+
   if (!['month', 'quarter', 'year', 'alltime', 'last_quiz'].includes(period)) {
     return NextResponse.json({ error: 'Ugyldig periode' }, { status: 400 })
   }
 
-  // Identify user if token present
+  // scope params — brukes av liga/org i Økt 4/5, global er default
+  const scope   = searchParams.get('scope')    ?? 'global'
+  const scopeId = searchParams.get('scope_id') ?? null
+
+  // Eksplisitt datoperiode — brukes av historikk-accordion
+  const periodStartParam = searchParams.get('period_start')
+  const periodEndParam   = searchParams.get('period_end')
+
+  // Identify user
   let userId: string | null = null
   let userIsPremium = false
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -116,7 +122,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
-    // Best attempt per user
     const bestByUser = new Map<string, RawAttempt>()
     for (const a of rawAttempts as RawAttempt[]) {
       const existing = bestByUser.get(a.user_id)
@@ -125,7 +130,6 @@ export async function GET(request: NextRequest) {
 
     const withRanks = rankAttempts([...bestByUser.values()])
 
-    // Fetch profiles for top 10 (+ current user if outside top 10)
     const top10Ids = withRanks.slice(0, 10).map(a => a.user_id)
     const allRankedIds = withRanks.map(a => a.user_id)
     const profileIds =
@@ -142,7 +146,6 @@ export async function GET(request: NextRequest) {
       profileMap.set(p.id, p)
     }
 
-    // For last_quiz: points = correctAnswers, fastestMs = totalTimeMs (for display)
     const entries = withRanks.slice(0, 10).map(a => {
       const profile = profileMap.get(a.user_id)
       return {
@@ -175,109 +178,80 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title })
   }
 
-  // ── PERIOD MODE ─────────────────────────────────────────────────────────────
-  const periodStart = getPeriodStart(period)
+  // ── PERIOD MODE — leser fra season_scores ─────────────────────────────────
+  const periodStart = periodStartParam ?? getPeriodStart(period)
+  const periodEnd   = periodEndParam ?? null   // null = ingen øvre grense
 
-  const { data: quizzes } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, closes_at')
+  // 1. Hent alle season_scores-rader for scope + periode
+  type ScoreRow = { user_id: string; points: number; quiz_id: string; closes_at: string }
+
+  let scoresQuery = supabaseAdmin
+    .from('season_scores')
+    .select('user_id, points, quiz_id, closes_at')
+    .eq('scope_type', scope)
     .gte('closes_at', periodStart)
-    .order('closes_at', { ascending: true })
 
-  if (!quizzes || quizzes.length === 0) {
+  if (periodEnd) scoresQuery = scoresQuery.lt('closes_at', periodEnd)
+  if (scopeId)   scoresQuery = scoresQuery.eq('scope_id', scopeId)
+  else            scoresQuery = scoresQuery.is('scope_id', null)
+
+  const { data: scores } = await scoresQuery
+
+  if (!scores || scores.length === 0) {
     return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
   }
 
-  const quizIds = quizzes.map((q: { id: string }) => q.id)
-
-  const { data: attempts } = await supabaseAdmin
-    .from('attempts')
-    .select('quiz_id, user_id, player_name, correct_answers, total_time_ms, correct_streak')
-    .in('quiz_id', quizIds)
-    .not('user_id', 'is', null)
-    .eq('is_team', false)
-
-  if (!attempts || attempts.length === 0) {
-    return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
-  }
-
-  type RawAttemptWithQuiz = RawAttempt & { quiz_id: string }
-
-  const byQuiz = new Map<string, RawAttemptWithQuiz[]>()
-  for (const a of attempts as RawAttemptWithQuiz[]) {
-    if (!byQuiz.has(a.quiz_id)) byQuiz.set(a.quiz_id, [])
-    byQuiz.get(a.quiz_id)!.push(a)
-  }
-
+  // 2. Aggregér per bruker
   type UserStats = {
     userId: string
     points: number
     quizCount: number
-    fastestMs: number
-    quizIndices: Set<number>
+    quizIds: Set<string>
     topStreak: number
-    playerName: string
   }
 
   const userStats = new Map<string, UserStats>()
+  const quizClosedAtMap = new Map<string, string>() // quiz_id → closes_at (for streakberegning)
 
-  for (let qi = 0; qi < quizzes.length; qi++) {
-    const quiz = quizzes[qi] as { id: string }
-    const quizAttempts = byQuiz.get(quiz.id) ?? []
-    if (quizAttempts.length === 0) continue
-
-    const bestByUser = new Map<string, RawAttemptWithQuiz>()
-    for (const a of quizAttempts) {
-      const existing = bestByUser.get(a.user_id)
-      bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) as RawAttemptWithQuiz : a)
+  for (const row of scores as ScoreRow[]) {
+    if (!userStats.has(row.user_id)) {
+      userStats.set(row.user_id, { userId: row.user_id, points: 0, quizCount: 0, quizIds: new Set(), topStreak: 0 })
     }
-
-    const ranked = [...bestByUser.values()].sort((a, b) => {
-      if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
-      if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
-      return (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
-    })
-
-    for (let ri = 0; ri < ranked.length; ri++) {
-      const a = ranked[ri]
-      const pts = getPoints(ri + 1)
-      if (!userStats.has(a.user_id)) {
-        userStats.set(a.user_id, {
-          userId: a.user_id,
-          points: 0,
-          quizCount: 0,
-          fastestMs: Infinity,
-          quizIndices: new Set(),
-          topStreak: 0,
-          playerName: a.player_name,
-        })
-      }
-      const stats = userStats.get(a.user_id)!
-      stats.points += pts
-      stats.quizCount += 1
-      if (a.total_time_ms < stats.fastestMs) stats.fastestMs = a.total_time_ms
-      stats.quizIndices.add(qi)
-    }
+    const stats = userStats.get(row.user_id)!
+    stats.points     += row.points
+    stats.quizCount  += 1
+    stats.quizIds.add(row.quiz_id)
+    quizClosedAtMap.set(row.quiz_id, row.closes_at)
   }
 
-  const totalQuizzes = quizzes.length
-  for (const stats of userStats.values()) {
+  // 3. Sorter: poeng DESC, quizCount ASC
+  const sorted = [...userStats.values()].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points
+    return a.quizCount - b.quizCount
+  })
+
+  // 4. Beregn topStreak for topp 10 (basert på quiz-deltagelse i perioden)
+  const allQuizIds = [...quizClosedAtMap.keys()].sort(
+    (a, b) => quizClosedAtMap.get(a)!.localeCompare(quizClosedAtMap.get(b)!)
+  )
+  const totalQuizCount = allQuizIds.length
+
+  for (const stats of sorted.slice(0, 10)) {
     let streak = 0
-    for (let i = totalQuizzes - 1; i >= 0; i--) {
-      if (stats.quizIndices.has(i)) streak++
+    for (let i = totalQuizCount - 1; i >= 0; i--) {
+      if (stats.quizIds.has(allQuizIds[i])) streak++
       else break
     }
     stats.topStreak = streak
   }
 
-  const sorted = [...userStats.values()].sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points
-    if (a.quizCount !== b.quizCount) return a.quizCount - b.quizCount
-    return a.fastestMs - b.fastestMs
-  })
-
-  const topIds = sorted.slice(0, 10).map(s => s.userId)
-  const profileIds = userId && !topIds.includes(userId) ? [...topIds, userId] : topIds
+  // 5. Profiloppslag for topp 10 + innlogget bruker
+  const top10 = sorted.slice(0, 10)
+  const top10Ids = top10.map(s => s.userId)
+  const profileIds =
+    userId && !top10Ids.includes(userId) && userStats.has(userId)
+      ? [...top10Ids, userId]
+      : top10Ids
 
   const { data: profiles } = profileIds.length > 0
     ? await supabaseAdmin.from('profiles').select('id, display_name, avatar_url').in('id', profileIds)
@@ -288,20 +262,44 @@ export async function GET(request: NextRequest) {
     profileMap.set(p.id, p)
   }
 
-  const entries = sorted.slice(0, 10).map((stats, i) => {
+  // 6. FastestMs — én query mot attempts for topp-10-brukere i perioden
+  //    (brukes av lyn-badge og tiebreak-visning)
+  const quizIdsInPeriod = [...quizClosedAtMap.keys()]
+  const fastestMsMap = new Map<string, number>()
+
+  if (profileIds.length > 0 && quizIdsInPeriod.length > 0) {
+    const { data: fastAttempts } = await supabaseAdmin
+      .from('attempts')
+      .select('user_id, total_time_ms')
+      .in('user_id', profileIds)
+      .in('quiz_id', quizIdsInPeriod)
+      .eq('is_team', false)
+      .not('user_id', 'is', null)
+
+    for (const a of (fastAttempts ?? []) as { user_id: string; total_time_ms: number }[]) {
+      const current = fastestMsMap.get(a.user_id)
+      if (current === undefined || a.total_time_ms < current) {
+        fastestMsMap.set(a.user_id, a.total_time_ms)
+      }
+    }
+  }
+
+  // 7. Bygg entries
+  const entries = top10.map((stats, i) => {
     const profile = profileMap.get(stats.userId)
     return {
       rank: i + 1,
       userId: stats.userId,
-      displayName: profile?.display_name ?? stats.playerName,
+      displayName: profile?.display_name ?? 'Spiller',
       avatarUrl: profile?.avatar_url ?? null,
       points: stats.points,
       quizCount: stats.quizCount,
       topStreak: stats.topStreak,
-      fastestMs: stats.fastestMs === Infinity ? null : stats.fastestMs,
+      fastestMs: fastestMsMap.get(stats.userId) ?? null,
     }
   })
 
+  // 8. Brukerens egen plassering
   let userEntry = null
   if (userId) {
     const userIdx = sorted.findIndex(s => s.userId === userId)
@@ -310,7 +308,7 @@ export async function GET(request: NextRequest) {
       const profile = profileMap.get(userId)
       userEntry = {
         rank: userIdx + 1,
-        displayName: profile?.display_name ?? stats.playerName,
+        displayName: profile?.display_name ?? 'Spiller',
         avatarUrl: profile?.avatar_url ?? null,
         points: stats.points,
         quizCount: stats.quizCount,
