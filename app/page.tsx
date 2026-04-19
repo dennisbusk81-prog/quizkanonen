@@ -62,6 +62,7 @@ export default async function Home() {
       .from('quizzes')
       .select('id')
       .lt('closes_at', now.toISOString())
+      .eq('is_published', true)
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -535,10 +536,10 @@ export default async function Home() {
 
         .qk-founders-btn {
           display: inline-block;
-          padding: 10px 24px;
-          border: 1px solid var(--gold);
-          border-radius: var(--radius-btn);
-          color: var(--gold);
+          padding: 10px 28px;
+          border: 1px solid #e8e4dd;
+          border-radius: 10px;
+          color: #e8e4dd;
           font-family: 'Instrument Sans', sans-serif;
           font-size: 14px;
           font-weight: 700;
@@ -546,7 +547,7 @@ export default async function Home() {
           transition: background 0.15s;
         }
 
-        .qk-founders-btn:hover { background: rgba(201,168,76,0.08); }
+        .qk-founders-btn:hover { background: rgba(232,228,221,0.06); }
 
         /* ── Responsive ── */
         @media (max-width: 600px) {
@@ -691,7 +692,7 @@ export default async function Home() {
 
               {showTop3 && (
                 <>
-                  <p className="qk-prev-label">Forrige uke</p>
+                  <p className="qk-prev-label">Forrige quiz</p>
                   <div className="qk-top3-rows">
                     {top3.map((entry, i) => (
                       <div key={i} className="qk-top3-row">
@@ -710,7 +711,16 @@ export default async function Home() {
               )}
 
               <div className="qk-card-actions">
-                <Link href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold">
+                <Link
+                  href={`/quiz/${quiz.id}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'transparent', border: '1px solid #c9a84c',
+                    color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif",
+                    fontSize: 15, fontWeight: 600, padding: '10px 28px',
+                    borderRadius: 10, textDecoration: 'none', whiteSpace: 'nowrap',
+                  }}
+                >
                   Spill nå
                 </Link>
                 <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
