@@ -163,6 +163,9 @@ export default function MineLigaerPage() {
       </nav>
       <div style={s.wrap}>
         <div style={s.page}>
+          <div style={{ paddingTop: 20 }}>
+            <a href="/" style={s.back}>← Tilbake til forsiden</a>
+          </div>
 
           <div style={s.hero}>
             <p style={s.heroEyebrow}>Quizkanonen</p>

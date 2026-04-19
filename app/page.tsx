@@ -591,7 +591,7 @@ export default async function Home() {
             Fredagsquizen der du <em>følger med over tid.</em>
           </h1>
           <p className="qk-hero-subtitle">
-            Møt de samme folkene hver fredag. Klatre på topplisten.
+            Slå de samme menneskene hver fredag. Kan du klatre på topplisten?
           </p>
           <div className="qk-hero-actions">
             {quizList.length > 0 && (

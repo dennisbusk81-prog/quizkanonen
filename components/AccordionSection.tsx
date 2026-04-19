@@ -109,7 +109,7 @@ export default function AccordionSection() {
               <div style={{ padding: '0 20px 18px', fontSize: 14, color: '#e8e4dd', lineHeight: 1.65 }}>
                 {item.content}
                 {item.link && (
-                  <a href={item.link.href} style={{ display: 'inline-block', marginTop: 10, color: '#e8e4dd', textDecoration: 'none', fontWeight: 600 }}>
+                  <a href={item.link.href} style={{ display: 'block', marginTop: 12, color: '#e8e4dd', textDecoration: 'none', fontWeight: 600 }}>
                     {item.link.text}
                   </a>
                 )}
