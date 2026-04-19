@@ -20,11 +20,9 @@ type QuizRow = {
   attempts: { count: number }[]
 }
 
-type Top3Entry = {
-  player_name: string
-  correct_answers: number
-  total_questions: number
-  total_time_ms: number
+type MonthEntry = {
+  displayName: string
+  totalPoints: number
 }
 
 function formatNextQuiz(iso: string) {
@@ -36,14 +34,6 @@ function formatNextQuiz(iso: string) {
   return `${weekday} ${day}. ${month} kl. ${time}`
 }
 
-function formatTimeSec(ms: number): string {
-  const totalSec = Math.round(ms / 1000)
-  const m = Math.floor(totalSec / 60)
-  const s = totalSec % 60
-  if (m === 0) return `${s}s`
-  return `${m}m ${s}s`
-}
-
 function truncateName(name: string, max = 20): string {
   if (name.length <= max) return name
   return name.slice(0, max) + '…'
@@ -52,48 +42,51 @@ function truncateName(name: string, max = 20): string {
 export default async function Home() {
   const now = new Date()
 
-  const [{ data: quizzes }, { data: lastQuizData }, { data: nextQuizSetting }] = await Promise.all([
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
+  const [{ data: quizzes }, { data: nextQuizSetting }, { data: seasonRows }] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
       .eq('is_active', true)
       .order('created_at', { ascending: false }),
     supabaseAdmin
-      .from('quizzes')
-      .select('id, title, closes_at')
-      .lt('closes_at', now.toISOString())
-      .order('closes_at', { ascending: false })
-      .limit(3),
-    supabaseAdmin
       .from('site_settings')
       .select('value')
       .eq('key', 'next_quiz_at')
       .maybeSingle(),
+    supabaseAdmin
+      .from('season_scores')
+      .select('user_id, points, profiles(display_name)')
+      .eq('scope_type', 'global')
+      .is('scope_id', null)
+      .gte('closes_at', monthStart)
+      .lt('closes_at', monthEnd),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
 
-  // Log closed quizzes to diagnose which quiz is picked for topp 3
-  const closedQuizzes = (lastQuizData as { id: string; title: string; closes_at: string }[] | null) ?? []
-  console.log('[page] closed quizzes (newest first):', closedQuizzes.map(q => `${q.id} | ${q.title} | ${q.closes_at}`))
-  const lastQuizId: string | null = closedQuizzes[0]?.id ?? null
-  console.log('[page] using quiz_id for topp 3:', lastQuizId)
-
-  let top3: Top3Entry[] = []
-  if (lastQuizId) {
-    const { data: top3Data } = await supabaseAdmin
-      .from('attempts')
-      .select('player_name, correct_answers, total_questions, total_time_ms')
-      .eq('quiz_id', lastQuizId)
-      .order('correct_answers', { ascending: false })
-      .order('total_time_ms', { ascending: true })
-      .limit(3)
-    console.log('[page] top3 attempts:', top3Data)
-    top3 = (top3Data as Top3Entry[] | null) ?? []
+  // Aggregate season_scores per user and take top 3
+  type RawRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
+  const rows = (seasonRows as RawRow[] | null) ?? []
+  const byUser = new Map<string, { displayName: string; totalPoints: number }>()
+  for (const row of rows) {
+    const name = row.profiles?.display_name
+    if (!name) continue
+    const existing = byUser.get(row.user_id)
+    if (existing) {
+      existing.totalPoints += row.points
+    } else {
+      byUser.set(row.user_id, { displayName: name, totalPoints: row.points })
+    }
   }
+  const monthTop3: MonthEntry[] = Array.from(byUser.values())
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+    .slice(0, 3)
 
-  const showTop3 = top3.length >= 1
+  const showTop3 = monthTop3.length >= 1
   const medals = ['🥇', '🥈', '🥉']
 
   return (
@@ -696,17 +689,16 @@ export default async function Home() {
 
               {showTop3 && (
                 <>
-                  <p className="qk-prev-label">Forrige quiz</p>
+                  <p className="qk-prev-label">Denne måneden</p>
                   <div className="qk-top3-rows">
-                    {top3.map((entry, i) => (
+                    {monthTop3.map((entry, i) => (
                       <div key={i} className="qk-top3-row">
                         <div className="qk-top3-left">
                           <span style={{ fontSize: 15 }}>{medals[i]}</span>
-                          <span className="qk-top3-name">{truncateName(entry.player_name)}</span>
+                          <span className="qk-top3-name">{truncateName(entry.displayName)}</span>
                         </div>
                         <div className="qk-top3-right">
-                          {entry.correct_answers}/{entry.total_questions}
-                          <span className="qk-top3-time"> · {formatTimeSec(entry.total_time_ms)}</span>
+                          {entry.totalPoints} poeng
                         </div>
                       </div>
                     ))}
