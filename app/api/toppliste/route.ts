@@ -23,10 +23,52 @@ function getPeriodStart(period: string): string {
   return d.toISOString()
 }
 
+type RawAttempt = {
+  user_id: string
+  player_name: string
+  correct_answers: number
+  total_time_ms: number
+  correct_streak: number | null
+}
+
+function pickBestAttempt(existing: RawAttempt, challenger: RawAttempt): RawAttempt {
+  if (challenger.correct_answers > existing.correct_answers) return challenger
+  if (challenger.correct_answers === existing.correct_answers && challenger.total_time_ms < existing.total_time_ms) return challenger
+  if (
+    challenger.correct_answers === existing.correct_answers &&
+    challenger.total_time_ms === existing.total_time_ms &&
+    (challenger.correct_streak ?? 0) > (existing.correct_streak ?? 0)
+  ) return challenger
+  return existing
+}
+
+function rankAttempts(attempts: RawAttempt[]): Array<RawAttempt & { rank: number }> {
+  const sorted = [...attempts].sort((a, b) => {
+    if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
+    if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
+    return (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
+  })
+  const withRanks: Array<RawAttempt & { rank: number }> = []
+  for (let i = 0; i < sorted.length; i++) {
+    let rank = i + 1
+    if (i > 0) {
+      const prev = sorted[i - 1]
+      if (
+        sorted[i].correct_answers === prev.correct_answers &&
+        sorted[i].total_time_ms === prev.total_time_ms
+      ) {
+        rank = withRanks[i - 1].rank
+      }
+    }
+    withRanks.push({ ...sorted[i], rank })
+  }
+  return withRanks
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const period = searchParams.get('period') ?? 'month'
-  if (!['month', 'quarter', 'year', 'alltime'].includes(period)) {
+  if (!['month', 'quarter', 'year', 'alltime', 'last_quiz'].includes(period)) {
     return NextResponse.json({ error: 'Ugyldig periode' }, { status: 400 })
   }
 
@@ -47,9 +89,95 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
+  if (period === 'last_quiz') {
+    const now = new Date().toISOString()
+
+    const { data: latestQuiz } = await supabaseAdmin
+      .from('quizzes')
+      .select('id, title, closes_at')
+      .lt('closes_at', now)
+      .order('closes_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!latestQuiz) {
+      return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
+    }
+
+    const { data: rawAttempts } = await supabaseAdmin
+      .from('attempts')
+      .select('user_id, player_name, correct_answers, total_time_ms, correct_streak')
+      .eq('quiz_id', latestQuiz.id)
+      .not('user_id', 'is', null)
+      .eq('is_team', false)
+
+    if (!rawAttempts || rawAttempts.length === 0) {
+      return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
+    }
+
+    // Best attempt per user
+    const bestByUser = new Map<string, RawAttempt>()
+    for (const a of rawAttempts as RawAttempt[]) {
+      const existing = bestByUser.get(a.user_id)
+      bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) : a)
+    }
+
+    const withRanks = rankAttempts([...bestByUser.values()])
+
+    // Fetch profiles for top 10 (+ current user if outside top 10)
+    const top10Ids = withRanks.slice(0, 10).map(a => a.user_id)
+    const allRankedIds = withRanks.map(a => a.user_id)
+    const profileIds =
+      userId && !top10Ids.includes(userId) && allRankedIds.includes(userId)
+        ? [...top10Ids, userId]
+        : top10Ids
+
+    const { data: profiles } = profileIds.length > 0
+      ? await supabaseAdmin.from('profiles').select('id, display_name, avatar_url').in('id', profileIds)
+      : { data: [] }
+
+    const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>()
+    for (const p of (profiles ?? []) as { id: string; display_name: string | null; avatar_url: string | null }[]) {
+      profileMap.set(p.id, p)
+    }
+
+    // For last_quiz: points = correctAnswers, fastestMs = totalTimeMs (for display)
+    const entries = withRanks.slice(0, 10).map(a => {
+      const profile = profileMap.get(a.user_id)
+      return {
+        rank: a.rank,
+        userId: a.user_id,
+        displayName: profile?.display_name ?? a.player_name,
+        avatarUrl: profile?.avatar_url ?? null,
+        points: a.correct_answers,
+        quizCount: 1,
+        topStreak: a.correct_streak ?? 0,
+        fastestMs: a.total_time_ms,
+      }
+    })
+
+    let userEntry = null
+    if (userId) {
+      const userInRanked = withRanks.find(a => a.user_id === userId)
+      if (userInRanked) {
+        const profile = profileMap.get(userId)
+        userEntry = {
+          rank: userInRanked.rank,
+          displayName: profile?.display_name ?? userInRanked.player_name,
+          avatarUrl: profile?.avatar_url ?? null,
+          points: userInRanked.correct_answers,
+          quizCount: 1,
+        }
+      }
+    }
+
+    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title })
+  }
+
+  // ── PERIOD MODE ─────────────────────────────────────────────────────────────
   const periodStart = getPeriodStart(period)
 
-  // Fetch all quizzes in period
   const { data: quizzes } = await supabaseAdmin
     .from('quizzes')
     .select('id, closes_at')
@@ -57,12 +185,11 @@ export async function GET(request: NextRequest) {
     .order('closes_at', { ascending: true })
 
   if (!quizzes || quizzes.length === 0) {
-    return NextResponse.json({ entries: [], userEntry: null, userIsPremium })
+    return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
   }
 
   const quizIds = quizzes.map((q: { id: string }) => q.id)
 
-  // Fetch all solo logged-in attempts for these quizzes
   const { data: attempts } = await supabaseAdmin
     .from('attempts')
     .select('quiz_id, user_id, player_name, correct_answers, total_time_ms, correct_streak')
@@ -71,21 +198,13 @@ export async function GET(request: NextRequest) {
     .eq('is_team', false)
 
   if (!attempts || attempts.length === 0) {
-    return NextResponse.json({ entries: [], userEntry: null, userIsPremium })
+    return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
   }
 
-  type RawAttempt = {
-    quiz_id: string
-    user_id: string
-    player_name: string
-    correct_answers: number
-    total_time_ms: number
-    correct_streak: number | null
-  }
+  type RawAttemptWithQuiz = RawAttempt & { quiz_id: string }
 
-  // Group by quiz_id
-  const byQuiz = new Map<string, RawAttempt[]>()
-  for (const a of attempts as RawAttempt[]) {
+  const byQuiz = new Map<string, RawAttemptWithQuiz[]>()
+  for (const a of attempts as RawAttemptWithQuiz[]) {
     if (!byQuiz.has(a.quiz_id)) byQuiz.set(a.quiz_id, [])
     byQuiz.get(a.quiz_id)!.push(a)
   }
@@ -107,24 +226,12 @@ export async function GET(request: NextRequest) {
     const quizAttempts = byQuiz.get(quiz.id) ?? []
     if (quizAttempts.length === 0) continue
 
-    // Best attempt per user
-    const bestByUser = new Map<string, RawAttempt>()
+    const bestByUser = new Map<string, RawAttemptWithQuiz>()
     for (const a of quizAttempts) {
       const existing = bestByUser.get(a.user_id)
-      if (!existing) {
-        bestByUser.set(a.user_id, a)
-      } else {
-        const better =
-          a.correct_answers > existing.correct_answers ||
-          (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms) ||
-          (a.correct_answers === existing.correct_answers &&
-            a.total_time_ms === existing.total_time_ms &&
-            (a.correct_streak ?? 0) > (existing.correct_streak ?? 0))
-        if (better) bestByUser.set(a.user_id, a)
-      }
+      bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) as RawAttemptWithQuiz : a)
     }
 
-    // Rank within quiz
     const ranked = [...bestByUser.values()].sort((a, b) => {
       if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
       if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
@@ -153,7 +260,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Compute current streak per user
   const totalQuizzes = quizzes.length
   for (const stats of userStats.values()) {
     let streak = 0
@@ -164,27 +270,22 @@ export async function GET(request: NextRequest) {
     stats.topStreak = streak
   }
 
-  // Sort: points DESC, quizCount ASC, fastestMs ASC
   const sorted = [...userStats.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points
     if (a.quizCount !== b.quizCount) return a.quizCount - b.quizCount
     return a.fastestMs - b.fastestMs
   })
 
-  // Collect profile IDs to fetch
   const topIds = sorted.slice(0, 10).map(s => s.userId)
   const profileIds = userId && !topIds.includes(userId) ? [...topIds, userId] : topIds
 
   const { data: profiles } = profileIds.length > 0
-    ? await supabaseAdmin
-        .from('profiles')
-        .select('id, display_name, avatar_url')
-        .in('id', profileIds)
+    ? await supabaseAdmin.from('profiles').select('id, display_name, avatar_url').in('id', profileIds)
     : { data: [] }
 
   const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>()
   for (const p of (profiles ?? []) as { id: string; display_name: string | null; avatar_url: string | null }[]) {
-    profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url })
+    profileMap.set(p.id, p)
   }
 
   const entries = sorted.slice(0, 10).map((stats, i) => {
@@ -217,5 +318,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ entries, userEntry, userIsPremium })
+  return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: null })
 }
