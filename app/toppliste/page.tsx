@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
@@ -11,6 +11,27 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre
 const EXTRA_STYLES = `
   .tp-tab-row::-webkit-scrollbar { display: none; }
   .tp-tab-row { scrollbar-width: none; -ms-overflow-style: none; }
+  .tp-accordion-wrap {
+    border: 1px solid #3a3d4a;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: border-color 150ms ease;
+  }
+  .tp-accordion-wrap:hover { border-color: #c9a84c; }
+  .tp-accordion-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    cursor: pointer;
+    background: #21242e;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-family: 'Instrument Sans', sans-serif;
+    transition: background 150ms ease;
+  }
+  .tp-accordion-btn:hover { background: #262930; }
 `
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -213,11 +234,11 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
   back:    { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
-  header:  { padding: '48px 0 32px', textAlign: 'center' as const },
-  eyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
-  title:   { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(28px, 6vw, 38px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
+  header:  { padding: '24px 0 12px', textAlign: 'center' as const },
+  eyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
+  title:   { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 },
   titleEm: { fontStyle: 'italic', color: '#c9a84c' },
-  rule:    { width: '100%', height: 1, background: '#2a2d38', marginTop: 28 },
+  rule:    { width: '100%', height: 1, background: '#2a2d38', marginTop: 12 },
 
   tabRow:      { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 28, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
   tabActive:   { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
@@ -245,7 +266,7 @@ const s = {
   points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
   pointsSub:   { fontSize: 10, color: '#7a7873', letterSpacing: '0.04em' },
 
-  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '28px 0 14px' },
+  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
@@ -267,10 +288,10 @@ const s = {
   quizLabel: { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
 
   // Historikk-accordion
-  histAccordion:  { marginTop: 28, border: '1px solid #2a2d38', borderRadius: 16, overflow: 'hidden' as const },
-  histHeader:     { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', cursor: 'pointer', background: '#21242e', border: 'none', width: '100%', textAlign: 'left' as const, fontFamily: "'Instrument Sans', sans-serif" },
+  histAccordion:  { marginTop: 20, overflow: 'hidden' as const },
+  histHeader:     {} as React.CSSProperties,
   histHeaderTitle:{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' },
-  histHeaderChev: { fontSize: 11, color: '#7a7873' },
+  histHeaderChev: { fontSize: 11, color: '#c9a84c' },
   histBody:       { background: '#21242e', borderTop: '1px solid #2a2d38' },
   histEmpty:      { padding: '24px 18px', fontSize: 13, color: '#7a7873', textAlign: 'center' as const },
 
@@ -302,6 +323,7 @@ export default function TopplisterPage() {
   const [loading, setLoading]         = useState(true)
   const [session, setSession]         = useState<Session | null | undefined>(undefined)
   const [pointsOpen, setPointsOpen]   = useState(false)
+  const [badgesOpen, setBadgesOpen]   = useState(false)
 
   // Historikk
   const [histOpen, setHistOpen]           = useState(false)
@@ -612,8 +634,8 @@ export default function TopplisterPage() {
     const title = HISTORY_TITLE[period as Exclude<Period, 'alltime'>]
 
     return (
-      <div style={s.histAccordion}>
-        <button style={s.histHeader} onClick={toggleHistory}>
+      <div className="tp-accordion-wrap" style={s.histAccordion}>
+        <button className="tp-accordion-btn" onClick={toggleHistory}>
           <span style={s.histHeaderTitle}>{title}</span>
           <span style={s.histHeaderChev}>{histOpen ? '↑' : '↓'}</span>
         </button>
@@ -683,15 +705,13 @@ export default function TopplisterPage() {
 
           {/* Poengforklaring — skjult for last_quiz */}
           {!isLastQuiz && (
-            <div style={{ marginBottom: 16, textAlign: 'center' }}>
-              <button
-                onClick={() => setPointsOpen(o => !o)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
-              >
-                Hvordan beregnes poeng? {pointsOpen ? '↑' : '↓'}
+            <div className="tp-accordion-wrap" style={{ marginBottom: 16 }}>
+              <button className="tp-accordion-btn" onClick={() => setPointsOpen(o => !o)}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Hvordan beregnes poeng?</span>
+                <span style={{ fontSize: 11, color: '#c9a84c' }}>{pointsOpen ? '↑' : '↓'}</span>
               </button>
               {pointsOpen && (
-                <div style={{ marginTop: 8, background: '#21242e', border: '0.5px solid #2a2d38', borderRadius: 10, padding: 12, textAlign: 'left' }}>
+                <div style={{ background: '#21242e', borderTop: '1px solid #2a2d38', padding: '14px 18px' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>Poengfordeling per quiz</div>
                   {[['1. plass','12 poeng'],['2. plass','10 poeng'],['3. plass','8 poeng'],['4. plass','7 poeng'],['5. plass','6 poeng'],['6. plass','5 poeng'],['7. plass','4 poeng'],['8. plass','3 poeng'],['9. plass','2 poeng'],['10. plass','1 poeng'],['11+ plass','1 poeng']].map(([place, pts]) => (
                     <div key={place} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#e8e4dd', padding: '3px 0', borderBottom: '0.5px solid #2a2d38' }}>
@@ -724,12 +744,19 @@ export default function TopplisterPage() {
           {renderUserSection()}
 
           {/* Badge-forklaring */}
-          <div style={{ ...s.legendCard, marginTop: 28 }}>
-            <div style={s.legendTitle}>Hva betyr badgene?</div>
-            <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
-            <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
-            <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
-            <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
+          <div className="tp-accordion-wrap" style={{ marginTop: 20 }}>
+            <button className="tp-accordion-btn" onClick={() => setBadgesOpen(o => !o)}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Hva betyr badgene?</span>
+              <span style={{ fontSize: 11, color: '#c9a84c' }}>{badgesOpen ? '↑' : '↓'}</span>
+            </button>
+            {badgesOpen && (
+              <div style={{ background: '#21242e', borderTop: '1px solid #2a2d38', padding: '14px 20px' }}>
+                <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
+                <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
+                <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
+                <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
+              </div>
+            )}
           </div>
 
         </div>
