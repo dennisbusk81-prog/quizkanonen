@@ -60,9 +60,9 @@ export default async function Home() {
       .order('created_at', { ascending: false }),
     supabaseAdmin
       .from('quizzes')
-      .select('id, attempts(count)')
-      .eq('is_active', false)
-      .order('created_at', { ascending: false })
+      .select('id')
+      .lt('closes_at', now.toISOString())
+      .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabaseAdmin
@@ -73,12 +73,11 @@ export default async function Home() {
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
-  const lastParticipants: number | null = (lastQuizData as { id: string; attempts: { count: number }[] } | null)?.attempts?.[0]?.count ?? null
   const lastQuizId: string | null = (lastQuizData as { id: string } | null)?.id ?? null
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
 
   let top3: Top3Entry[] = []
-  if (lastQuizId && lastParticipants !== null && lastParticipants >= 3) {
+  if (lastQuizId) {
     const { data: top3Data } = await supabaseAdmin
       .from('attempts')
       .select('player_name, correct_answers, total_questions, total_time_ms')
@@ -89,7 +88,7 @@ export default async function Home() {
     top3 = (top3Data as Top3Entry[] | null) ?? []
   }
 
-  const showTop3 = top3.length >= 3
+  const showTop3 = top3.length >= 1
   const medals = ['🥇', '🥈', '🥉']
 
   return (
@@ -721,6 +720,12 @@ export default async function Home() {
             </div>
           )
         })()}
+
+        <p style={{ textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
+          <Link href="/quizer" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+            Se alle quizer →
+          </Link>
+        </p>
 
         {/* ── Accordion ── */}
         <div className="qk-acc-wrap">
