@@ -4,10 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { randomBytes } from 'crypto'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
-
 const PLAN_PRICES: Record<string, string | undefined> = {
   starter:  process.env.STRIPE_ORG_STARTER_PRICE_ID,
   standard: process.env.STRIPE_ORG_STANDARD_PRICE_ID,
@@ -15,6 +11,7 @@ const PLAN_PRICES: Record<string, string | undefined> = {
 }
 
 export async function POST(request: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`org-checkout:${ip}`, 5, 60_000).success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })

@@ -34,10 +34,6 @@ export async function GET(
   return NextResponse.json({ valid: true, orgName: org?.name, orgSlug: org?.slug })
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -99,6 +95,7 @@ export async function POST(
 
   if (profile?.premium_status === true && profile?.premium_source === 'personal' && profile?.stripe_customer_id) {
     try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
       const subs = await stripe.subscriptions.list({
         customer: profile.stripe_customer_id,
         status: 'active',

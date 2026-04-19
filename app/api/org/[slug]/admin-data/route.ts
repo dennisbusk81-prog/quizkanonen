@@ -3,9 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: NextRequest,
@@ -68,6 +66,7 @@ export async function GET(
   let stripePeriodEnd = org.stripe_period_end
   if (!stripePeriodEnd && org.stripe_subscription_id) {
     try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
       const sub = await stripe.subscriptions.retrieve(org.stripe_subscription_id)
       stripePeriodEnd = new Date((sub as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
       // Persist so next load is instant

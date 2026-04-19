@@ -5,11 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 
 const FOUNDERS_PRICE_ID = 'price_1THoezCgGogWnHxZwrCGAtbb'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
-
 export async function POST(request: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = rateLimit(`founders-activate:${ip}`, 5, 60_000)
   if (!rl.success) {
