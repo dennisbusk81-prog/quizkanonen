@@ -413,23 +413,25 @@ export default async function Home() {
         .qk-card-toplist:hover { color: var(--white); }
 
         .qk-btn-outline-gold {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--gold);
-          color: var(--gold);
+          display: inline-block !important;
+          background: transparent !important;
+          background-color: transparent !important;
+          border: 1px solid #c9a84c !important;
+          color: #c9a84c !important;
           font-family: 'Instrument Sans', sans-serif;
           font-size: 15px;
           font-weight: 600;
           padding: 10px 28px;
-          border-radius: var(--radius-btn);
+          border-radius: 10px;
           text-decoration: none;
           white-space: nowrap;
-          transition: background 0.15s;
+          cursor: pointer;
         }
 
-        .qk-btn-outline-gold:hover { background: rgba(201,168,76,0.06); }
+        .qk-btn-outline-gold:hover {
+          background: rgba(201,168,76,0.06) !important;
+          background-color: rgba(201,168,76,0.06) !important;
+        }
 
         /* ── Empty state ── */
         .qk-empty {
@@ -707,23 +709,9 @@ export default async function Home() {
               )}
 
               <div className="qk-card-actions">
-                <Link
-                  href={`/quiz/${quiz.id}`}
-                  style={{
-                    display: 'inline-block',
-                    background: 'transparent',
-                    border: '1px solid #c9a84c',
-                    color: '#c9a84c',
-                    padding: '10px 28px',
-                    borderRadius: '10px',
-                    fontSize: '15px',
-                    cursor: 'pointer',
-                    textDecoration: 'none',
-                    marginBottom: '10px',
-                  }}
-                >
+                <a href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold">
                   Spill nå
-                </Link>
+                </a>
                 <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
                   Toppliste ↗
                 </Link>
