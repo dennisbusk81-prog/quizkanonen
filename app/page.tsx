@@ -721,6 +721,26 @@ export default async function Home() {
           )
         })()}
 
+        {/* ── Månedens topp 3 — alltid synlig ── */}
+        {showTop3 && (
+          <div style={{ marginTop: 20, marginBottom: 8 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.12em', textAlign: 'center', marginBottom: 10 }}>
+              Denne måneden
+            </p>
+            <div className="qk-top3-rows">
+              {monthTop3.map((entry, i) => (
+                <div key={i} className="qk-top3-row">
+                  <div className="qk-top3-left">
+                    <span style={{ fontSize: 15 }}>{medals[i]}</span>
+                    <span className="qk-top3-name">{truncateName(entry.displayName)}</span>
+                  </div>
+                  <div className="qk-top3-right">{entry.totalPoints} poeng</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, marginBottom: 32 }}>
           <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
             Se sesong-topplisten →
