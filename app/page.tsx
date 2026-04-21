@@ -50,6 +50,7 @@ export default async function Home() {
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
       .eq('is_active', true)
+      .or(`closes_at.is.null,closes_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false }),
     supabaseAdmin
       .from('site_settings')
