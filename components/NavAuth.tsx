@@ -169,6 +169,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   return (
     <>
       <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
+      {/* Min bedrift — for all org members */}
+      {myOrgs.length > 0 && (
+        <a
+          href={`/org/${myOrgs[0].orgSlug}`}
+          style={navLink}
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+        >
+          Min bedrift
+        </a>
+      )}
       {/* Bedriftspanel — only for org admins */}
       {myOrgs.some(o => o.isAdmin) && (
         <a

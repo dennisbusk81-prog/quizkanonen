@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
 import AccordionSection from '@/components/AccordionSection'
+import OrgCard from '@/components/OrgCard'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -660,6 +661,9 @@ export default async function Home() {
 
         {/* ── Divider ── */}
         <div className="qk-divider" />
+
+        {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
+        <OrgCard />
 
         {/* ── Quiz-kort ── */}
         {quizList.length === 0 ? (

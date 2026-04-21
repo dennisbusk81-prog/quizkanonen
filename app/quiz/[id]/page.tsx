@@ -572,6 +572,7 @@ export default function QuizPage() {
   const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
   const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
+  const [orgBox, setOrgBox] = useState<{ orgName: string; orgSlug: string; userRank: number | null } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [shareResultCopied, setShareResultCopied] = useState(false)
@@ -701,6 +702,28 @@ export default function QuizPage() {
         } else {
           setLigaBox({ type: 'multi' })
         }
+      } catch { /* ikke kritisk */ }
+    })
+  }, [phase, isLoggedIn])
+
+  useEffect(() => {
+    if (phase !== 'finished' || !isLoggedIn) return
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.access_token) return
+      try {
+        const orgsRes = await fetch('/api/org/my-orgs', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!orgsRes.ok) return
+        const { orgs } = await orgsRes.json()
+        if (!orgs || orgs.length === 0) return
+        const first = orgs[0]
+        const summaryRes = await fetch(`/api/org/${first.orgSlug}/season-summary`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!summaryRes.ok) return
+        const summary = await summaryRes.json()
+        setOrgBox({ orgName: first.orgName, orgSlug: first.orgSlug, userRank: summary.userRank ?? null })
       } catch { /* ikke kritisk */ }
     })
   }, [phase, isLoggedIn])
@@ -1635,6 +1658,25 @@ export default function QuizPage() {
               Spill mot vennene dine → Opprett en liga
             </a>
           </p>
+        )}
+
+        {orgBox && (
+          <div style={{
+            background: 'rgba(201,168,76,0.06)',
+            border: '0.5px solid rgba(201,168,76,0.15)',
+            borderRadius: 10,
+            padding: '12px 16px',
+            textAlign: 'left',
+          }}>
+            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
+              {orgBox.userRank
+                ? `Du er nr. ${orgBox.userRank} blant kollegene dine hos ${orgBox.orgName} denne måneden`
+                : `Se hvordan du rangerer blant kollegene dine hos ${orgBox.orgName}`}
+            </p>
+            <a href={`/org/${orgBox.orgSlug}`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none' }}>
+              Se bedriftens toppliste →
+            </a>
+          </div>
         )}
 
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
