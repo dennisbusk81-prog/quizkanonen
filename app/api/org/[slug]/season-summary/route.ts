@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return NextResponse.json({ top3: [], userRank: null })
-
+async function getSummary(token: string, slug: string) {
   const { data: { user } } = await supabaseAdmin.auth.getUser(token)
-  if (!user) return NextResponse.json({ top3: [], userRank: null })
-
-  const { slug } = await params
+  if (!user) return null
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
     .select('id, name')
     .eq('slug', slug)
     .maybeSingle()
-  if (!org) return NextResponse.json({ top3: [], userRank: null })
+  if (!org) return null
 
   const { data: mem } = await supabaseAdmin
     .from('organization_members')
@@ -26,7 +18,7 @@ export async function GET(
     .eq('organization_id', org.id)
     .eq('user_id', user.id)
     .maybeSingle()
-  if (!mem) return NextResponse.json({ top3: [], userRank: null })
+  if (!mem) return null
 
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
@@ -54,9 +46,32 @@ export async function GET(
   const top3 = sorted.slice(0, 3).map(([, v]) => v)
   const userIdx = sorted.findIndex(([uid]) => uid === user.id)
 
-  return NextResponse.json({
+  return {
     top3,
     userRank: userIdx >= 0 ? userIdx + 1 : null,
     orgName: org.name,
-  })
+  }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) return NextResponse.json({ top3: [], userRank: null })
+  const { slug } = await params
+  const result = await getSummary(token, slug)
+  return NextResponse.json(result ?? { top3: [], userRank: null })
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const body = await request.json().catch(() => ({}))
+  const token: string | undefined = body?.access_token
+  if (!token) return NextResponse.json({ top3: [], userRank: null })
+  const { slug } = await params
+  const result = await getSummary(token, slug)
+  return NextResponse.json(result ?? { top3: [], userRank: null })
 }

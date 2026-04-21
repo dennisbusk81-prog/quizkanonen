@@ -26,7 +26,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
+  async function loadProfile(userId: string, fallbackEmail: string | undefined) {
     try {
       const { data } = await supabase
         .from('profiles')
@@ -38,42 +38,44 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     } catch { /* keep fallback */ }
     setProfileLoaded(true)
 
-    // Fetch all org memberships
-    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
-    if (!token) return
+  }
+
+  async function fetchMyOrgs(accessToken: string) {
     try {
       const res = await fetch('/api/org/my-orgs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: token }),
+        body: JSON.stringify({ access_token: accessToken }),
       })
       const json = res.ok ? await res.json() : { orgs: [] }
       setMyOrgs(json.orgs ?? [])
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   useEffect(() => {
     const timeout = setTimeout(() => setSessionResolved(true), 3000)
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION') {
         clearTimeout(timeout)
         if (session?.user) {
           setDisplayName(session.user.email?.split('@')[0] ?? null)
-          loadProfile(session.user.id, session.user.email, session.access_token)
+          loadProfile(session.user.id, session.user.email)
+          if (session.access_token) fetchMyOrgs(session.access_token)
         } else {
           setProfileLoaded(true)
         }
         setSessionResolved(true)
+      } else if (event === 'SIGNED_IN') {
+        if (session?.user) {
+          loadProfile(session.user.id, session.user.email)
+          if (session.access_token) fetchMyOrgs(session.access_token)
+        }
       } else if (event === 'SIGNED_OUT') {
         setDisplayName(null)
         setIsPremium(false)
         setMyOrgs([])
         setProfileLoaded(true)
-      } else if (session?.user) {
-        loadProfile(session.user.id, session.user.email, session.access_token)
       }
     })
 

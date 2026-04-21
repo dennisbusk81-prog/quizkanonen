@@ -721,7 +721,9 @@ export default function QuizPage() {
         if (!orgs || orgs.length === 0) return
         const first = orgs[0]
         const summaryRes = await fetch(`/api/org/${first.orgSlug}/season-summary`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: session.access_token }),
         })
         if (!summaryRes.ok) return
         const summary = await summaryRes.json()

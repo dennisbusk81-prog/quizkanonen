@@ -19,14 +19,12 @@ export default function OrgCard() {
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) return
 
+    async function load(accessToken: string) {
       const orgsRes = await fetch('/api/org/my-orgs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: session.access_token }),
+        body: JSON.stringify({ access_token: accessToken }),
       }).then(r => r.json()).catch(() => ({ orgs: [] }))
 
       const orgs: OrgEntry[] = orgsRes.orgs ?? []
@@ -34,7 +32,9 @@ export default function OrgCard() {
 
       const first = orgs[0]
       const summaryRes = await fetch(`/api/org/${first.orgSlug}/season-summary`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: accessToken }),
       }).then(r => r.json()).catch(() => ({ top3: [] }))
 
       if (cancelled) return
@@ -42,8 +42,14 @@ export default function OrgCard() {
       setTop3(summaryRes.top3 ?? [])
       setLoaded(true)
     }
-    load()
-    return () => { cancelled = true }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
+      if (!session?.access_token) return
+      load(session.access_token)
+    })
+
+    return () => { cancelled = true; subscription.unsubscribe() }
   }, [])
 
   if (!loaded || !org || top3.length === 0) return null
