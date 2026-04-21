@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
   const access_token: string | undefined = body?.access_token
 
   if (!access_token) {
-    console.log('[my-orgs] ingen access_token i body')
     return NextResponse.json({ orgs: [] })
   }
 
@@ -19,14 +18,6 @@ export async function POST(request: NextRequest) {
     console.error('[my-orgs] getUser feil:', authErr?.message)
     return NextResponse.json({ orgs: [] })
   }
-
-  console.log('[my-orgs] user:', user.id, user.email)
-
-  const { data: allMembers, error: memberError } = await supabaseAdmin
-    .from('organization_members')
-    .select('*')
-    .eq('user_id', user.id)
-  console.log('[my-orgs] members:', JSON.stringify(allMembers), memberError?.message)
 
   const { data: memberships, error: memErr } = await supabaseAdmin
     .from('organization_members')
@@ -45,7 +36,6 @@ export async function POST(request: NextRequest) {
     .in('id', orgIds)
 
   if (orgErr) {
-    console.error('[my-orgs] orgs feil:', orgErr)
     return NextResponse.json({ orgs: [] })
   }
 
@@ -58,6 +48,5 @@ export async function POST(request: NextRequest) {
     isAdmin: roleByOrg.get(o.id) === 'admin',
   }))
 
-  console.log('[my-orgs] returnerer:', result)
   return NextResponse.json({ orgs: result })
 }
