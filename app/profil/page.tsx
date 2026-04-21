@@ -96,13 +96,24 @@ export default function ProfilPage() {
       const uid = session.user.id
       setUserId(uid)
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at, avatar_url')
-        .eq('id', uid)
-        .maybeSingle()
+      const profileRes = await Promise.race([
+        supabase
+          .from('profiles')
+          .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at, avatar_url')
+          .eq('id', uid)
+          .maybeSingle(),
+        new Promise<{ data: null; error: Error }>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000)
+        ),
+      ]).catch(() => ({ data: null, error: null }))
 
       if (cancelled) return
+
+      const profile = (profileRes as { data: unknown }).data as {
+        display_name: string | null; premium_status: boolean | null;
+        member_number: number | null; show_member_number: boolean | null;
+        email_reminders: boolean | null; created_at: string | null; avatar_url: string | null;
+      } | null
 
       const name = profile?.display_name ?? session.user.email?.split('@')[0] ?? ''
       setDisplayName(name)
