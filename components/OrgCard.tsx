@@ -17,10 +17,13 @@ export default function OrgCard() {
   const [top3, setTop3] = useState<Top3Entry[]>([])
   const [loaded, setLoaded] = useState(false)
 
+  console.log('[OrgCard] mounted, loaded:', loaded, 'org:', org?.orgName, 'top3:', top3.length)
+
   useEffect(() => {
     let cancelled = false
 
     async function load(accessToken: string) {
+      console.log('[OrgCard] load() called with token prefix:', accessToken.slice(0, 10))
       const orgsRes = await fetch('/api/org/my-orgs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,12 +41,14 @@ export default function OrgCard() {
       }).then(r => r.json()).catch(() => ({ top3: [] }))
 
       if (cancelled) return
+      console.log('[OrgCard] setting org:', first.orgName, 'top3:', summaryRes.top3)
       setOrg(first)
       setTop3(summaryRes.top3 ?? [])
       setLoaded(true)
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[OrgCard] auth event:', event, 'has token:', !!session?.access_token)
       if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
       if (!session?.access_token) return
       load(session.access_token)
@@ -52,7 +57,7 @@ export default function OrgCard() {
     return () => { cancelled = true; subscription.unsubscribe() }
   }, [])
 
-  if (!loaded || !org || top3.length === 0) return null
+  if (!loaded || !org) return null
 
   return (
     <div style={{
