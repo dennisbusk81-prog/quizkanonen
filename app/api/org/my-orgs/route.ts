@@ -1,38 +1,27 @@
-import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// GET /api/org/my-orgs
+// POST /api/org/my-orgs
+// Body: { access_token: string }
 // Returnerer alle organisasjoner brukeren er medlem av (uavhengig av rolle).
-export async function GET() {
-  const cookieStore = await cookies()
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}))
+  const access_token: string | undefined = body?.access_token
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {
-          // Route handlers kan ikke sette cookies
-        },
-      },
-    }
-  )
-
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
-
-  if (authErr || !user) {
-    console.log('[my-orgs] ingen bruker i cookie-session:', authErr?.message)
+  if (!access_token) {
+    console.log('[my-orgs] ingen access_token i body')
     return NextResponse.json({ orgs: [] })
   }
 
-  console.log('[my-orgs] user:', user?.id, user?.email)
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(access_token)
 
-  // Hent ALLE rader fra organization_members for denne brukeren
+  if (authErr || !user) {
+    console.error('[my-orgs] getUser feil:', authErr?.message)
+    return NextResponse.json({ orgs: [] })
+  }
+
+  console.log('[my-orgs] user:', user.id, user.email)
+
   const { data: allMembers, error: memberError } = await supabaseAdmin
     .from('organization_members')
     .select('*')
@@ -44,14 +33,7 @@ export async function GET() {
     .select('organization_id, role')
     .eq('user_id', user.id)
 
-  if (memErr) {
-    console.error('[my-orgs] memberships feil:', memErr)
-    return NextResponse.json({ orgs: [] })
-  }
-
-  console.log('[my-orgs] memberships:', memberships)
-
-  if (!memberships || memberships.length === 0) {
+  if (memErr || !memberships || memberships.length === 0) {
     return NextResponse.json({ orgs: [] })
   }
 
@@ -66,8 +48,6 @@ export async function GET() {
     console.error('[my-orgs] orgs feil:', orgErr)
     return NextResponse.json({ orgs: [] })
   }
-
-  console.log('[my-orgs] orgs funnet:', orgs)
 
   const roleByOrg = new Map(memberships.map(m => [m.organization_id, m.role]))
 

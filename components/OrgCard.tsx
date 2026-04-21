@@ -24,7 +24,9 @@ export default function OrgCard() {
       if (!session?.access_token) return
 
       const orgsRes = await fetch('/api/org/my-orgs', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: session.access_token }),
       }).then(r => r.json()).catch(() => ({ orgs: [] }))
 
       const orgs: OrgEntry[] = orgsRes.orgs ?? []

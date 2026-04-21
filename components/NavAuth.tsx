@@ -43,7 +43,9 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     if (!token) return
     try {
       const res = await fetch('/api/org/my-orgs', {
-        headers: { Authorization: `Bearer ${token}` },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: token }),
       })
       const json = res.ok ? await res.json() : { orgs: [] }
       setMyOrgs(json.orgs ?? [])
