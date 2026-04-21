@@ -633,7 +633,22 @@ export default function QuizPage() {
         .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
       if (playedError) console.error('played_log fetch feilet:', playedError)
 
-      if (played) {
+      // For innloggede: sjekk mot attempts-tabellen (omgår localStorage/deviceId)
+      let playedAsUser = false
+      if (!played) {
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (currentSession?.user?.id) {
+          const { data: existingAttempt } = await supabaseData
+            .from('attempts')
+            .select('id')
+            .eq('quiz_id', quizId)
+            .eq('user_id', currentSession.user.id)
+            .maybeSingle()
+          playedAsUser = !!existingAttempt
+        }
+      }
+
+      if (played || playedAsUser) {
         setPhase('already_played')
         setQuiz(quizData)
         const { data: setting, error: settingError } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
@@ -1580,6 +1595,12 @@ export default function QuizPage() {
               <span style={{fontSize:13,color:'#e8e4dd',fontFamily:"'Instrument Sans', sans-serif"}}>Logg inn med Google</span>
             </a>
           </div>
+        )}
+
+        {!isLoggedIn && (
+          <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
+            Logg inn for å sikre at resultatet ditt er lagret.
+          </p>
         )}
 
         {isLoggedIn && !isPremium && (
