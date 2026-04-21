@@ -30,7 +30,14 @@ export async function GET() {
     return NextResponse.json({ orgs: [] })
   }
 
-  console.log('[my-orgs] bruker id:', user.id)
+  console.log('[my-orgs] user:', user?.id, user?.email)
+
+  // Hent ALLE rader fra organization_members for denne brukeren
+  const { data: allMembers, error: memberError } = await supabaseAdmin
+    .from('organization_members')
+    .select('*')
+    .eq('user_id', user.id)
+  console.log('[my-orgs] members:', JSON.stringify(allMembers), memberError?.message)
 
   const { data: memberships, error: memErr } = await supabaseAdmin
     .from('organization_members')
