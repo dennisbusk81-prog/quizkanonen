@@ -40,10 +40,10 @@ export async function GET(
     .gte('closes_at', monthStart)
     .lt('closes_at', monthEnd)
 
-  type Row = { user_id: string; points: number; profiles: { display_name: string | null } | null }
+  type Row = { user_id: string; points: number; profiles: { display_name: string | null }[] | null }
   const byUser = new Map<string, { displayName: string; totalPoints: number }>()
-  for (const row of (rows as Row[] ?? [])) {
-    const name = row.profiles?.display_name
+  for (const row of ((rows as unknown) as Row[] ?? [])) {
+    const name = row.profiles?.[0]?.display_name
     if (!name) continue
     const ex = byUser.get(row.user_id)
     if (ex) ex.totalPoints += row.points
