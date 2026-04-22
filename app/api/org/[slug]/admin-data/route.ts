@@ -83,6 +83,19 @@ export async function GET(
     .eq('organization_id', org.id)
     .order('created_at', { ascending: false })
 
+  // Stats: active members this month
+  const now = new Date()
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+  const { data: activeRows } = await supabaseAdmin
+    .from('season_scores')
+    .select('user_id')
+    .eq('scope_type', 'organization')
+    .eq('scope_id', org.id)
+    .gte('closes_at', monthStart)
+    .lt('closes_at', monthEnd)
+  const activeThisMonth = new Set((activeRows ?? []).map(r => r.user_id)).size
+
   return NextResponse.json({
     org: {
       id: org.id,
@@ -95,5 +108,9 @@ export async function GET(
     members,
     invites: invites ?? [],
     currentUserId: user.id,
+    stats: {
+      memberCount: members.length,
+      activeThisMonth,
+    },
   })
 }

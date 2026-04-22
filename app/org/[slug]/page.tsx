@@ -13,10 +13,11 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Basker
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type OrgInfo = {
-  orgId:   string
-  orgName: string
-  orgSlug: string
-  isAdmin: boolean
+  orgId:             string
+  orgName:           string
+  orgSlug:           string
+  isAdmin:           boolean
+  allowGlobalLeague: boolean
 }
 
 type LoadState = 'loading' | 'ready' | 'notfound' | 'error'
@@ -42,7 +43,9 @@ export default function OrgLeaderboardPage() {
     if (!session) { router.push(`/login?next=/org/${slug}`); return }
 
     fetch('/api/org/my-orgs', {
-      headers: { Authorization: `Bearer ${session.access_token}` },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: session.access_token }),
     })
       .then(r => r.ok ? r.json() : { orgs: [] })
       .then(json => {
@@ -133,7 +136,7 @@ export default function OrgLeaderboardPage() {
           )}
 
           {/* Sesong-toppliste scopet til bedriften */}
-          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} loginHref={`/login?next=/org/${slug}`} />}
+          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
 
         </div>
       </div>

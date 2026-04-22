@@ -39,6 +39,7 @@ type AdminData = {
   members: Member[]
   invites: Invite[]
   currentUserId: string
+  stats?: { memberCount: number; activeThisMonth: number }
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -345,6 +346,23 @@ export default function OrgAdminPage() {
             <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em' }}>
               Admin<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>panel</em>
             </h1>
+          </div>
+
+          {/* ── STATS ───────────────────────────────────── */}
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
+            {[
+              { val: data?.stats?.memberCount ?? data?.members.length ?? '—', lbl: 'Medlemmer totalt' },
+              { val: data?.stats?.activeThisMonth ?? '—', lbl: 'Aktive denne måneden' },
+            ].map(({ val, lbl }) => (
+              <div key={lbl}>
+                <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 6 }}>
+                  {val}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#7a7873' }}>
+                  {lbl}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* ── OVERVIEW ────────────────────────────────── */}

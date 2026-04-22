@@ -290,11 +290,12 @@ interface Props {
   scope: 'global' | 'league' | 'organization'
   scopeId?: string | null
   loginHref?: string
+  globalLeagueDisabled?: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste' }: Props) {
+export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste', globalLeagueDisabled }: Props) {
   const scopeInfix = scope === 'league' ? ' i ligaen' : scope === 'organization' ? ' i bedriften' : ''
   const notPlayedSuffix = scope !== 'global' ? ' Bli med de andre!' : ''
 
@@ -661,6 +662,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           </button>
         ))}
       </div>
+
+      {scope === 'organization' && globalLeagueDisabled && (
+        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', margin: '8px 0 4px' }}>
+          Global konkurranse er deaktivert for din bedrift.
+        </p>
+      )}
 
       {isLastQuiz && data?.quizTitle && (
         <p style={s.quizLabel}>Siste quiz: <em>{data.quizTitle}</em></p>

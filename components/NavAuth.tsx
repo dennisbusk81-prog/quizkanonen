@@ -23,7 +23,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
-  const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }[]>([])
+  const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined) {
@@ -169,10 +169,12 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   const initial = displayName[0]?.toUpperCase() ?? '?'
 
+  const globalHidden = myOrgs.length > 0 && myOrgs.some(o => !o.allowGlobalLeague)
+
   // ── Logged in ──
   return (
     <>
-      <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
+      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>}
       {/* Min bedrift — for all org members */}
       {myOrgs.length > 0 && (
         <a
@@ -274,15 +276,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Min bedrift
               </a>
             )}
-            <a
-              href="/toppliste"
-              onClick={() => setDropdownOpen(false)}
-              style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Sesong-topplisten →
-            </a>
+            {!globalHidden && (
+              <a
+                href="/toppliste"
+                onClick={() => setDropdownOpen(false)}
+                style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Sesong-topplisten →
+              </a>
+            )}
             {isPremium && (
               <a
                 href="/historikk"

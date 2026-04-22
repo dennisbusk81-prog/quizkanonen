@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const { data: orgs, error: orgErr } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, allow_global_league')
     .in('id', orgIds)
 
   if (orgErr) {
@@ -42,10 +42,11 @@ export async function POST(request: NextRequest) {
   const roleByOrg = new Map(memberships.map(m => [m.organization_id, m.role]))
 
   const result = (orgs ?? []).map(o => ({
-    orgId:   o.id,
-    orgName: o.name,
-    orgSlug: o.slug,
-    isAdmin: roleByOrg.get(o.id) === 'admin',
+    orgId:             o.id,
+    orgName:           o.name,
+    orgSlug:           o.slug,
+    isAdmin:           roleByOrg.get(o.id) === 'admin',
+    allowGlobalLeague: o.allow_global_league !== false,
   }))
 
   return NextResponse.json({ orgs: result })
