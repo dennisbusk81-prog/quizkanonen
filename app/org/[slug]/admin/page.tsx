@@ -85,6 +85,12 @@ export default function OrgAdminPage() {
   const [seasonResetting, setSeasonResetting]   = useState(false)
   const [seasonResetDone, setSeasonResetDone]   = useState(false)
 
+  // Admin-håndtering
+  const [adminEmail, setAdminEmail]           = useState('')
+  const [adminActionLoading, setAdminActionLoading] = useState(false)
+  const [adminActionError, setAdminActionError]     = useState<string | null>(null)
+  const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null)
+
   // Medlemsoversikt
   type MemberActivity = { userId: string; displayName: string; role: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
   const [activityPeriod, setActivityPeriod]   = useState<'month' | 'quarter' | 'year'>('month')
@@ -234,6 +240,33 @@ export default function OrgAdminPage() {
     }
   }
 
+  const handleSetAdmin = async (action: 'add' | 'remove', email: string) => {
+    if (!session || !email.trim()) return
+    setAdminActionLoading(true)
+    setAdminActionError(null)
+    setAdminActionSuccess(null)
+    try {
+      const res = await fetch(`/api/org/${slug}/set-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ email: email.trim(), action }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setAdminActionError(json.error ?? 'Noe gikk galt')
+      } else {
+        setAdminActionSuccess(action === 'add' ? 'Admin lagt til' : 'Admin-rolle fjernet')
+        setAdminEmail('')
+        loadData(session)
+        setTimeout(() => setAdminActionSuccess(null), 3000)
+      }
+    } catch {
+      setAdminActionError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setAdminActionLoading(false)
+    }
+  }
+
   const copyLink = async (token: string) => {
     const url = `${window.location.origin}/bli-med/${token}`
     await navigator.clipboard.writeText(url)
@@ -363,6 +396,92 @@ export default function OrgAdminPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* ── ADMINISTRATORER ─────────────────────────── */}
+          <SectionHeader title="Administratorer" />
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px' }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 14 }}>
+              Administratorer
+            </p>
+
+            {/* Existing admins list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {(data?.members ?? []).filter(m => m.role === 'admin').map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: '#2a2d38', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 13, fontWeight: 700,
+                    color: '#e8e4dd', flexShrink: 0,
+                  }}>
+                    {m.display_name[0]?.toUpperCase() ?? '?'}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 14, color: '#e8e4dd' }}>{m.display_name}</span>
+                  {m.user_id !== data?.currentUserId && (
+                    <button
+                      disabled={adminActionLoading}
+                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#7a7873', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textDecorationColor: '#4a4d5a' }}
+                      onClick={async () => {
+                        setAdminActionLoading(true)
+                        setAdminActionError(null)
+                        setAdminActionSuccess(null)
+                        try {
+                          const res = await fetch(`/api/org/${slug}/set-admin`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+                            body: JSON.stringify({ userId: m.user_id, action: 'remove' }),
+                          })
+                          const json = await res.json()
+                          if (!res.ok) { setAdminActionError(json.error ?? 'Noe gikk galt') }
+                          else { setAdminActionSuccess('Admin-rolle fjernet'); loadData(session!); setTimeout(() => setAdminActionSuccess(null), 3000) }
+                        } catch { setAdminActionError('Noe gikk galt') }
+                        finally { setAdminActionLoading(false) }
+                      }}
+                    >
+                      Fjern admin
+                    </button>
+                  )}
+                  {m.user_id === data?.currentUserId && (
+                    <span style={{ fontSize: 12, color: '#4a4d5a' }}>deg</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add admin by email */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="email"
+                value={adminEmail}
+                onChange={e => { setAdminEmail(e.target.value); setAdminActionError(null) }}
+                onKeyDown={e => { if (e.key === 'Enter' && adminEmail.trim()) handleSetAdmin('add', adminEmail) }}
+                placeholder="e-post til nytt admin-medlem…"
+                style={{
+                  flex: 1, background: '#1a1c23', border: '1px solid #2a2d38',
+                  borderRadius: 8, padding: '9px 12px', fontSize: 14,
+                  color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+              />
+              <button
+                onClick={() => handleSetAdmin('add', adminEmail)}
+                disabled={adminActionLoading || !adminEmail.trim()}
+                style={{
+                  padding: '9px 16px', background: 'transparent',
+                  border: `1px solid ${adminActionLoading || !adminEmail.trim() ? '#2a2d38' : '#c9a84c'}`,
+                  borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  color: adminActionLoading || !adminEmail.trim() ? '#4a4d5a' : '#c9a84c',
+                  cursor: adminActionLoading || !adminEmail.trim() ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' as const,
+                }}
+              >
+                {adminActionLoading ? 'Lagrer…' : 'Gjør til admin →'}
+              </button>
+            </div>
+            {adminActionError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{adminActionError}</p>}
+            {adminActionSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{adminActionSuccess}</p>}
           </div>
 
           {/* ── OVERVIEW ────────────────────────────────── */}
