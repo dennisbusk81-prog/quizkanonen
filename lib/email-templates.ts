@@ -146,8 +146,14 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Hver fredag kl. 12 legges det ut 15 spørsmål. Du konkurrerer mot kollegene dine og samler poeng gjennom sesongen — se hvem som topper listen når måneden er omme.
               </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Her teller det å kunne svaret — ikke bare å klikke først.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Logg inn med Google, så er du med hver fredag.
+              </p>
+              <p style="margin:0 0 28px;font-size:14px;color:#e0e0e0;line-height:1.7;">
+                Tips: Gå til <a href="https://quizkanonen.no/profil" style="color:#c9a84c;text-decoration:none;">profilen din</a> og slå på e-postpåminnelse, så får du beskjed når quizen åpner hver fredag.
               </p>
 
               <!-- CTA button -->
