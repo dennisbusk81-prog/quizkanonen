@@ -15,11 +15,11 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  avatarSection: { paddingTop: 24, paddingBottom: 12, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
-  avatar:        { width: 80, height: 80, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 30, fontWeight: 700, color: '#c9a84c', marginBottom: 12 },
-  displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 4 },
-  badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 4 },
-  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 4 },
+  avatarSection: { paddingTop: 16, paddingBottom: 12, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
+  avatar:        { width: 72, height: 72, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#c9a84c', marginBottom: 8 },
+  displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
+  badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
+  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 12 },
 
   card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px' },
@@ -387,7 +387,7 @@ export default function ProfilPage() {
           {/* Avatar + identity */}
           <div style={s.avatarSection}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" width={80} height={80} style={{ borderRadius: '50%', objectFit: 'cover', width: 80, height: 80, border: '2px solid #2a2d38', marginBottom: 12, display: 'block' }} />
+              <img src={avatarUrl} alt="" width={72} height={72} style={{ borderRadius: '50%', objectFit: 'cover', width: 72, height: 72, border: '2px solid #2a2d38', marginBottom: 8, display: 'block' }} />
             ) : (
               <div style={s.avatar}>{initial}</div>
             )}
@@ -397,13 +397,11 @@ export default function ProfilPage() {
               : <span style={s.badgeStandard}>Gratis</span>
             }
             {memberNumber !== null && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 4, marginBottom: 0 }}>
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2, marginBottom: 0 }}>
                 {formatMemberNumber(memberNumber)}{memberSince ? ` · Medlem siden ${memberSince}` : ''}
               </p>
             )}
           </div>
-
-          <div style={s.rule} />
 
           {/* 2-kolonne grid: Visningsnavn (venstre) + Din bedrift (høyre) */}
           <div style={isMobile ? {
