@@ -166,7 +166,19 @@ export default function ProfilPage() {
       if (!loaded && !cancelled) router.replace('/')
     }, 8000)
 
-    return () => { cancelled = true; subscription.unsubscribe(); clearTimeout(giveUp) }
+    // Lytt på automatisk navn-fix fra AuthListener
+    function onProfileUpdated(e: Event) {
+      const name = (e as CustomEvent<{ display_name: string }>).detail?.display_name
+      if (name) { setDisplayName(name); setEditName(name) }
+    }
+    window.addEventListener('qk:profile-updated', onProfileUpdated)
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+      clearTimeout(giveUp)
+      window.removeEventListener('qk:profile-updated', onProfileUpdated)
+    }
   }, [router])
 
   async function handleSave() {

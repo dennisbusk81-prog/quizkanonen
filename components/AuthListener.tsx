@@ -9,23 +9,33 @@ function isValidName(name: string | null | undefined): boolean {
   return !!name && NAME_RE.test(name.trim())
 }
 
+// Henter session med timeout slik at auth-lock-konflikt ikke henger evig
+async function getSessionWithTimeout(ms = 3000) {
+  return Promise.race([
+    supabase.auth.getSession(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 async function checkAndFixDisplayName(user: User) {
+  // Hent eksisterende profil
   const { data: existing } = await supabase
     .from('profiles')
     .select('id, display_name')
     .eq('id', user.id)
     .maybeSingle()
 
-  let currentName: string | null = existing?.display_name ?? null
+  const currentName: string | null = existing?.display_name ?? null
 
-  // If profile exists and name is valid, nothing to do
-  if (existing && isValidName(currentName)) return
+  // Gyldig navn — ingenting å gjøre
+  if (isValidName(currentName)) return
 
-  // Try Google name fields in priority order — never fall back to email prefix
+  // Forsøk å sette Google-navn automatisk
   const googleName = (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined
   const candidateName = isValidName(googleName ?? null) ? (googleName as string) : null
 
   if (candidateName) {
+    // Sett Google-navn automatisk — én-gangs migrering for brukere med ugyldig navn
     await fetch('/api/profile/upsert', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -35,25 +45,26 @@ async function checkAndFixDisplayName(user: User) {
         avatar_color: null,
       }),
     })
-    currentName = candidateName
+    // Gi beskjed til eventuelle åpne profilsider om å laste på nytt
+    window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: candidateName } }))
+    return
   }
 
-  // If name is still invalid or missing, show the name-required modal
-  if (!isValidName(currentName)) {
-    window.dispatchEvent(new CustomEvent('qk:name-required'))
-  }
+  // Ingen gyldig Google-navn finnes — vis modal så bruker skriver inn selv
+  window.dispatchEvent(new CustomEvent('qk:name-required'))
 }
 
 export default function AuthListener() {
   useEffect(() => {
-    // Primary: getSession() direkte ved mount — fanger opp allerede innloggede
-    // brukere uten å vente på onAuthStateChange (som kan henge pga. lock)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Primary: getSession() med timeout — omgår heng fra auth-lock-konflikt
+    getSessionWithTimeout(3000).then((result) => {
+      if (!result) return  // timeout
+      const session = result.data?.session
       if (session?.user) checkAndFixDisplayName(session.user)
     })
 
     // Backup: onAuthStateChange for innlogging og tilfeller der
-    // getSession() henger men INITIAL_SESSION fyrer
+    // getSession() henger men INITIAL_SESSION fyrer via event-cache
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if ((event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') || !session?.user) return
