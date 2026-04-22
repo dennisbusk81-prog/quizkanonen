@@ -15,8 +15,8 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  avatarSection: { paddingTop: 16, paddingBottom: 12, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
-  avatar:        { width: 72, height: 72, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#c9a84c', marginBottom: 8 },
+  avatarSection: { paddingTop: 12, paddingBottom: 10, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
+  avatar:        { width: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
   displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
@@ -43,7 +43,7 @@ const s = {
   statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 },
 
   btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
-  btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid rgba(201,168,76,0.4)' },
+  btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #c9a84c' },
   redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   redeemBtn:      { padding: '10px 12px', background: 'transparent', color: '#e8e4dd', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
   redeemBtnDis:   { padding: '10px 12px', background: 'transparent', color: '#4a4d5a', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
@@ -369,7 +369,7 @@ export default function ProfilPage() {
     )
   }
 
-  const initial = displayName?.[0]?.toUpperCase() ?? '?'
+  const initial = displayName?.[0]?.toUpperCase() || '–'
   const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
   const nameValid = NAME_RE.test(editName.trim())
   const nameChanged = editName.trim() !== displayName
@@ -380,7 +380,7 @@ export default function ProfilPage() {
       <style>{FONT_IMPORT}</style>
       <div style={s.wrap}>
         <div style={s.page}>
-          <div style={{ paddingTop: 20 }}>
+          <div style={{ paddingTop: 12 }}>
             <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
           </div>
 
@@ -389,7 +389,7 @@ export default function ProfilPage() {
             {avatarUrl ? (
               <img src={avatarUrl} alt="" width={72} height={72} style={{ borderRadius: '50%', objectFit: 'cover', width: 72, height: 72, border: '2px solid #2a2d38', marginBottom: 8, display: 'block' }} />
             ) : (
-              <div style={s.avatar}>{initial}</div>
+              <div style={{ ...s.avatar, background: '#4a5568', border: '2px solid #4a5568' }}>{initial}</div>
             )}
             <div style={s.displayName}>{displayName}</div>
             {isPremium
@@ -397,7 +397,7 @@ export default function ProfilPage() {
               : <span style={s.badgeStandard}>Gratis</span>
             }
             {memberNumber !== null && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2, marginBottom: 0 }}>
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2, marginBottom: 10 }}>
                 {formatMemberNumber(memberNumber)}{memberSince ? ` · Medlem siden ${memberSince}` : ''}
               </p>
             )}
@@ -531,7 +531,7 @@ export default function ProfilPage() {
                 { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
               ].map(({ val, lbl }) => (
                 <div key={lbl} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 6 }}>
+                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 6 }}>
                     {val}
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
