@@ -28,11 +28,9 @@ export default function AuthListener() {
         // If profile exists and name is valid, nothing to do
         if (existing && isValidName(currentName)) return
 
-        // Try to auto-set from Google full_name
-        const fullName = user.user_metadata?.full_name as string | undefined
-        const candidateName = isValidName(fullName ?? null)
-          ? (fullName ?? null)
-          : (!existing ? (user.email?.split('@')[0] ?? null) : null)
+        // Try Google name fields in priority order — never fall back to email prefix
+        const googleName = (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined
+        const candidateName = isValidName(googleName ?? null) ? (googleName as string) : null
 
         if (candidateName) {
           await fetch('/api/profile/upsert', {
@@ -45,12 +43,9 @@ export default function AuthListener() {
             }),
           })
           currentName = candidateName
-        } else if (!existing) {
-          // New profile, no usable name — upsert with null handled by backend
-          console.log('[AuthListener] No full_name available for new user, will prompt for name')
         }
 
-        // If name is still invalid, show the name-required modal
+        // If name is still invalid or missing, show the name-required modal
         if (!isValidName(currentName)) {
           window.dispatchEvent(new CustomEvent('qk:name-required'))
         }

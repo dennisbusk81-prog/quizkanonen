@@ -10,24 +10,26 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
+  page:     { maxWidth: 600, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  avatarSection: { paddingTop: 32, paddingBottom: 24, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
-  avatar:        { width: 72, height: 72, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', marginBottom: 16 },
+  avatarSection: { paddingTop: 36, paddingBottom: 28, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
+  avatar:        { width: 80, height: 80, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 30, fontWeight: 700, color: '#c9a84c', marginBottom: 16 },
   displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px' },
-  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 6, padding: '3px 10px' },
-  rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 24 },
+  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px' },
+  rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 28 },
 
-  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '24px 24px' },
-  sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 },
+  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px' },
+  cardDivider:   { height: 1, background: '#2a2d38', margin: '24px 0' },
+  sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
+  fieldHint:     { fontSize: 12, color: '#7a7873', marginBottom: 14, lineHeight: 1.5 },
   inputRow:      { display: 'flex', gap: 8 },
   input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
-  saveBtn:       { padding: '10px 20px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  saveBtnDis:    { padding: '10px 20px', background: '#3a3d4a', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
+  saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#4a4d5a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
@@ -40,14 +42,14 @@ const s = {
   statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 6 },
   statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 },
 
-  btnGold:          { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
-  btnOutlineGold:   { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid #c9a84c' },
-  redeemBtn:        { padding: '10px 16px', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #4a4d5a', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:     { padding: '10px 16px', background: 'transparent', color: '#7a7873', border: '0.5px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid rgba(201,168,76,0.4)' },
+  redeemBtn:      { padding: '9px 14px', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #4a4d5a', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '9px 14px', background: 'transparent', color: '#4a4d5a', border: '0.5px solid #2a2d38', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
-  ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '32px 24px', textAlign: 'center' as const },
-  ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
-  ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 20, lineHeight: 1.6 },
+  ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '24px 28px' },
+  ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
+  ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 16, lineHeight: 1.6 },
 } as const
 
 function formatMemberNumber(n: number): string {
@@ -315,7 +317,7 @@ export default function ProfilPage() {
             <div style={s.displayName}>{displayName}</div>
             {isPremium
               ? <span style={s.badgePremium}>Premium</span>
-              : <span style={s.badgeStandard}>Standardkonto</span>
+              : <span style={s.badgeStandard}>Gratis</span>
             }
             {memberNumber !== null && (
               <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
@@ -326,102 +328,122 @@ export default function ProfilPage() {
 
           <div style={s.rule} />
 
-          {/* Edit display name */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={s.card}>
-              <p style={s.sectionLabel}>Brukernavn</p>
-              <div style={s.inputRow}>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={e => { setEditName(e.target.value); setSaveError(null); setSaveSuccess(false) }}
-                  onKeyDown={e => { if (e.key === 'Enter' && !saveBtnDisabled) handleSave() }}
-                  placeholder="Fornavn Etternavn"
-                  maxLength={40}
-                  style={s.input}
-                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-                />
-                <button
-                  onClick={handleSave}
-                  disabled={saveBtnDisabled}
-                  style={saveBtnDisabled ? s.saveBtnDis : s.saveBtn}
-                >
-                  {saving ? 'Lagrer…' : 'Lagre'}
-                </button>
-              </div>
-              {editName.trim().length > 0 && !nameValid && (
-                <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>
-                  Kun bokstaver, mellomrom, bindestrek og apostrof (2–40 tegn)
-                </p>
-              )}
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 6, fontStyle: 'italic' }}>
-                Tips: bruk ditt vanlige navn så andre kjenner deg igjen på leaderboard
+          {/* Innstillinger-kort */}
+          <div style={{ ...s.card, marginBottom: 16 }}>
+
+            {/* Visningsnavn */}
+            <p style={s.sectionLabel}>Visningsnavn</p>
+            <p style={s.fieldHint}>Dette er navnet andre ser på leaderboard og toppliste</p>
+            <div style={s.inputRow}>
+              <input
+                type="text"
+                value={editName}
+                onChange={e => { setEditName(e.target.value); setSaveError(null); setSaveSuccess(false) }}
+                onKeyDown={e => { if (e.key === 'Enter' && !saveBtnDisabled) handleSave() }}
+                placeholder="Fornavn Etternavn"
+                maxLength={40}
+                style={s.input}
+                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+              />
+              <button
+                onClick={handleSave}
+                disabled={saveBtnDisabled}
+                style={saveBtnDisabled ? s.saveBtnDis : s.saveBtn}
+              >
+                {saving ? 'Lagrer…' : 'Lagre'}
+              </button>
+            </div>
+            {editName.trim().length > 0 && !nameValid && (
+              <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>
+                Kun bokstaver, mellomrom, bindestrek og apostrof (2–40 tegn)
               </p>
-              {memberNumber !== null && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={showMemberNumber}
-                    onChange={handleToggleShowMember}
-                    style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
-                  />
-                  <span style={{ fontSize: 13, color: '#e8e4dd' }}>
-                    Vis medlemsnummer på leaderboard og profil
-                  </span>
-                </label>
-              )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer' }}>
+            )}
+            {saveError && <p style={s.saveError}>{saveError}</p>}
+            {saveSuccess && <p style={s.saveSuccess}>Visningsnavn oppdatert!</p>}
+
+            {memberNumber !== null && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
-                  checked={emailReminders}
-                  onChange={handleToggleEmailReminders}
+                  checked={showMemberNumber}
+                  onChange={handleToggleShowMember}
                   style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: 13, color: '#e8e4dd' }}>
-                  Send meg påminnelse når quizen åpner
+                  Vis medlemsnummer på leaderboard og profil
                 </span>
               </label>
-              {saveError && <p style={s.saveError}>{saveError}</p>}
-              {saveSuccess && <p style={s.saveSuccess}>Brukernavn oppdatert!</p>}
-            </div>
-          </div>
+            )}
 
-          {/* Redeem code */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={s.card}>
-              <p style={s.sectionLabel}>Verdikode</p>
-              <div style={s.inputRow}>
-                <input
-                  type="text"
-                  value={codeInput}
-                  onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
-                  onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
-                  placeholder="Skriv inn kode..."
-                  maxLength={60}
-                  style={{ ...s.input, textTransform: 'uppercase', letterSpacing: '0.06em' }}
-                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-                />
-                <button
-                  onClick={handleRedeemCode}
-                  disabled={codeLoading || !codeInput.trim()}
-                  style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
-                >
-                  {codeLoading ? 'Løser inn…' : 'Løs inn →'}
-                </button>
+            {/* Divider */}
+            <div style={s.cardDivider} />
+
+            {/* Påminnelser */}
+            <p style={s.sectionLabel}>Påminnelser</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <span style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.4 }}>
+                Send meg e-post når quizen åpner
+              </span>
+              {/* Toggle switch */}
+              <div
+                role="switch"
+                aria-checked={emailReminders}
+                onClick={handleToggleEmailReminders}
+                style={{
+                  width: 42, height: 24, borderRadius: 12,
+                  background: emailReminders ? '#c9a84c' : '#2a2d38',
+                  position: 'relative', cursor: 'pointer', flexShrink: 0,
+                  transition: 'background 0.2s',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 4,
+                  left: emailReminders ? 22 : 4,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: emailReminders ? '#1a1c23' : '#7a7873',
+                  transition: 'left 0.15s',
+                }} />
               </div>
-              {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{codeSuccess}</p>}
-              {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{codeError}</p>}
             </div>
+            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+              Du får e-post fredag morgen når ukens quiz er klar
+            </p>
           </div>
 
-          {/* Stats or CTA */}
+          {/* Verdikode */}
+          <div style={{ ...s.card, marginBottom: 16 }}>
+            <p style={s.sectionLabel}>Verdikode</p>
+            <div style={s.inputRow}>
+              <input
+                type="text"
+                value={codeInput}
+                onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
+                onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
+                placeholder="Skriv inn kode…"
+                maxLength={60}
+                style={{ ...s.input, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+              />
+              <button
+                onClick={handleRedeemCode}
+                disabled={codeLoading || !codeInput.trim()}
+                style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
+              >
+                {codeLoading ? 'Løser inn…' : 'Løs inn →'}
+              </button>
+            </div>
+            {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{codeSuccess}</p>}
+            {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{codeError}</p>}
+          </div>
+
+          {/* Stats eller abonnement-CTA */}
           {isPremium ? (
             <>
               {stats && stats.total_attempts > 0 && (
                 <>
-                  <div style={s.sectionHeader}>
+                  <div style={{ ...s.sectionHeader, marginTop: 8 }}>
                     <span style={s.sectionText}>Statistikk</span>
                     <div style={s.sectionLine} />
                   </div>
@@ -451,10 +473,9 @@ export default function ProfilPage() {
             </>
           ) : (
             <div style={s.ctaCard}>
-              <div style={s.ctaTitle}>Se din historikk og statistikk</div>
+              <div style={s.ctaTitle}>Historikk og statistikk</div>
               <p style={s.ctaSub}>
-                Oppgrader til Premium for å se alle quizene du har spilt,
-                din score-utvikling og statistikk.
+                Oppgrader til Premium for å se alle quizene du har spilt og score-utvikling uke for uke.
               </p>
               <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium</Link>
             </div>
@@ -469,15 +490,11 @@ export default function ProfilPage() {
               onClick={handleDeleteAccount}
               disabled={deleting}
               style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                fontSize: 12,
-                color: '#7a7873',
+                background: 'none', border: 'none', padding: 0,
+                fontSize: 12, color: '#7a7873',
                 cursor: deleting ? 'not-allowed' : 'pointer',
                 fontFamily: "'Instrument Sans', sans-serif",
-                textDecoration: 'underline',
-                textDecorationColor: '#4a4d5a',
+                textDecoration: 'underline', textDecorationColor: '#4a4d5a',
               }}
             >
               {deleting ? 'Sletter…' : 'Slett konto'}
