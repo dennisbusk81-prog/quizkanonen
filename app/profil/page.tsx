@@ -396,116 +396,150 @@ export default function ProfilPage() {
 
           <div style={s.rule} />
 
-          {/* Innstillinger-kort */}
-          <div style={{ ...s.card, marginBottom: 16 }}>
-
-            {/* Visningsnavn */}
-            <p style={s.sectionLabel}>Visningsnavn</p>
-            <p style={s.fieldHint}>Dette er navnet andre ser på leaderboard og toppliste</p>
-            <div style={s.inputRow}>
-              <input
-                type="text"
-                value={editName}
-                onChange={e => { setEditName(e.target.value); setSaveError(null); setSaveSuccess(false) }}
-                onKeyDown={e => { if (e.key === 'Enter' && !saveBtnDisabled) handleSave() }}
-                placeholder="Fornavn Etternavn"
-                maxLength={40}
-                style={s.input}
-                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-              />
-              <button
-                onClick={handleSave}
-                disabled={saveBtnDisabled}
-                style={saveBtnDisabled ? s.saveBtnDis : s.saveBtn}
-              >
-                {saving ? 'Lagrer…' : 'Lagre'}
-              </button>
-            </div>
-            {editName.trim().length > 0 && !nameValid && (
-              <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>
-                Kun bokstaver, mellomrom, bindestrek og apostrof (2–40 tegn)
-              </p>
-            )}
-            {saveError && <p style={s.saveError}>{saveError}</p>}
-            {saveSuccess && <p style={s.saveSuccess}>Visningsnavn oppdatert!</p>}
-
-            {memberNumber !== null && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, cursor: 'pointer' }}>
+          {/* 2-kolonne grid: Visningsnavn (venstre) + Din bedrift (høyre) */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+            marginBottom: 16,
+          }}>
+            {/* Visningsnavn + Påminnelser */}
+            <div style={s.card}>
+              <p style={s.sectionLabel}>Visningsnavn</p>
+              <p style={s.fieldHint}>Dette er navnet andre ser på leaderboard og toppliste</p>
+              <div style={s.inputRow}>
                 <input
-                  type="checkbox"
-                  checked={showMemberNumber}
-                  onChange={handleToggleShowMember}
-                  style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
+                  type="text"
+                  value={editName}
+                  onChange={e => { setEditName(e.target.value); setSaveError(null); setSaveSuccess(false) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !saveBtnDisabled) handleSave() }}
+                  placeholder="Fornavn Etternavn"
+                  maxLength={40}
+                  style={s.input}
+                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
                 />
-                <span style={{ fontSize: 13, color: '#e8e4dd' }}>
-                  Vis medlemsnummer på leaderboard og profil
-                </span>
-              </label>
-            )}
-
-            {/* Divider */}
-            <div style={s.cardDivider} />
-
-            {/* Påminnelser */}
-            <p style={s.sectionLabel}>Påminnelser</p>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-              <span style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.4 }}>
-                Send meg e-post når quizen åpner
-              </span>
-              {/* Toggle switch */}
-              <div
-                role="switch"
-                aria-checked={emailReminders}
-                onClick={handleToggleEmailReminders}
-                style={{
-                  width: 42, height: 24, borderRadius: 12,
-                  background: emailReminders ? '#c9a84c' : '#2a2d38',
-                  position: 'relative', cursor: 'pointer', flexShrink: 0,
-                  transition: 'background 0.2s',
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: 4,
-                  left: emailReminders ? 22 : 4,
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: emailReminders ? '#1a1c23' : '#7a7873',
-                  transition: 'left 0.15s',
-                }} />
+                <button
+                  onClick={handleSave}
+                  disabled={saveBtnDisabled}
+                  style={saveBtnDisabled ? s.saveBtnDis : s.saveBtn}
+                >
+                  {saving ? 'Lagrer…' : 'Lagre'}
+                </button>
               </div>
+              {editName.trim().length > 0 && !nameValid && (
+                <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>
+                  Kun bokstaver, mellomrom, bindestrek og apostrof (2–40 tegn)
+                </p>
+              )}
+              {saveError && <p style={s.saveError}>{saveError}</p>}
+              {saveSuccess && <p style={s.saveSuccess}>Visningsnavn oppdatert!</p>}
+
+              {memberNumber !== null && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={showMemberNumber}
+                    onChange={handleToggleShowMember}
+                    style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 13, color: '#e8e4dd' }}>
+                    Vis medlemsnummer på leaderboard og profil
+                  </span>
+                </label>
+              )}
+
+              <div style={s.cardDivider} />
+
+              <p style={s.sectionLabel}>Påminnelser</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <span style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.4 }}>
+                  Send meg e-post når quizen åpner
+                </span>
+                <div
+                  role="switch"
+                  aria-checked={emailReminders}
+                  onClick={handleToggleEmailReminders}
+                  style={{
+                    width: 42, height: 24, borderRadius: 12,
+                    background: emailReminders ? '#c9a84c' : '#2a2d38',
+                    position: 'relative', cursor: 'pointer', flexShrink: 0,
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 4,
+                    left: emailReminders ? 22 : 4,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: emailReminders ? '#1a1c23' : '#7a7873',
+                    transition: 'left 0.15s',
+                  }} />
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+                Du får e-post fredag morgen når ukens quiz er klar
+              </p>
             </div>
-            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
-              Du får e-post fredag morgen når ukens quiz er klar
-            </p>
+
+            {/* Din bedrift — kun hvis org-medlem */}
+            {orgs.length > 0 && (
+              <div style={s.card}>
+                <p style={s.sectionLabel}>Din bedrift</p>
+                {orgs.map((org, i) => (
+                  <div key={org.orgId} style={{ marginTop: i > 0 ? 20 : 0 }}>
+                    <p style={{
+                      fontFamily: "'Libre Baskerville', serif",
+                      fontSize: 16, fontWeight: 700, color: '#ffffff',
+                      marginBottom: 10,
+                    }}>
+                      {org.orgName}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <a href={`/org/${org.orgSlug}`} style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none' }}>
+                        Se bedriftens toppliste →
+                      </a>
+                      {org.isAdmin && (
+                        <a href={`/org/${org.orgSlug}/admin`} style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
+                          Administrer →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Din bedrift */}
-          {orgs.length > 0 && (
-            <div style={{ ...s.card, marginBottom: 16 }}>
-              <p style={s.sectionLabel}>Din bedrift</p>
-              {orgs.map(org => (
-                <div key={org.orgId} style={{ marginBottom: orgs.length > 1 ? 20 : 0 }}>
-                  <p style={{
-                    fontFamily: "'Libre Baskerville', serif",
-                    fontSize: 16, fontWeight: 700, color: '#ffffff',
-                    marginBottom: 10,
-                  }}>
-                    {org.orgName}
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <a href={`/org/${org.orgSlug}`} style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none' }}>
-                      Se bedriftens toppliste →
-                    </a>
-                    {org.isAdmin && (
-                      <a href={`/org/${org.orgSlug}/admin`} style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
-                        Administrer →
-                      </a>
-                    )}
+          {/* Statistikk — alltid synlig */}
+          <div style={{ ...s.card, marginBottom: 16 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 8,
+              marginBottom: 16,
+            }}>
+              {[
+                { val: isPremium && stats ? String(stats.total_attempts) : '—', lbl: 'Quizer spilt' },
+                { val: isPremium && stats ? `${stats.avg_score_pct}%` : '—', lbl: 'Snitt score' },
+                { val: isPremium && stats ? (stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—') : '—', lbl: 'Beste plassering' },
+                { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
+              ].map(({ val, lbl }) => (
+                <div key={lbl} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 6 }}>
+                    {val}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
+                    {lbl}
                   </div>
                 </div>
               ))}
             </div>
-          )}
+            {isPremium ? (
+              <Link href="/historikk" style={s.btnOutlineGold}>Se full historikk →</Link>
+            ) : (
+              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
+            )}
+          </div>
 
           {/* Verdikode */}
           <div style={{ ...s.card, marginBottom: 16 }}>
@@ -533,49 +567,6 @@ export default function ProfilPage() {
             {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{codeSuccess}</p>}
             {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{codeError}</p>}
           </div>
-
-          {/* Stats eller abonnement-CTA */}
-          {isPremium ? (
-            <>
-              {stats && stats.total_attempts > 0 && (
-                <>
-                  <div style={{ ...s.sectionHeader, marginTop: 8 }}>
-                    <span style={s.sectionText}>Statistikk</span>
-                    <div style={s.sectionLine} />
-                  </div>
-                  <div style={s.statsGrid}>
-                    <div style={s.statsCard}>
-                      <div style={s.statsNum}>{stats.total_attempts}</div>
-                      <div style={s.statsLbl}>Quizer spilt</div>
-                    </div>
-                    <div style={s.statsCard}>
-                      <div style={s.statsNum}>{stats.avg_score_pct}%</div>
-                      <div style={s.statsLbl}>Snitt score</div>
-                    </div>
-                    <div style={s.statsCard}>
-                      <div style={s.statsNum}>
-                        {stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—'}
-                      </div>
-                      <div style={s.statsLbl}>Beste plassering</div>
-                    </div>
-                    <div style={s.statsCard}>
-                      <div style={s.statsNum}>{stats.best_streak}</div>
-                      <div style={s.statsLbl}>Beste streak</div>
-                    </div>
-                  </div>
-                </>
-              )}
-              <Link href="/historikk" style={s.btnGold}>Se full historikk →</Link>
-            </>
-          ) : (
-            <div style={s.ctaCard}>
-              <div style={s.ctaTitle}>Historikk og statistikk</div>
-              <p style={s.ctaSub}>
-                Oppgrader til Premium for å se alle quizene du har spilt og score-utvikling uke for uke.
-              </p>
-              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium</Link>
-            </div>
-          )}
 
           {/* Slett konto */}
           <div style={{ marginTop: 48, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
