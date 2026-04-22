@@ -42,7 +42,6 @@ async function checkAndFixDisplayName(user: User) {
       body: JSON.stringify({
         id: user.id,
         display_name: candidateName,
-        avatar_color: null,
       }),
     })
     // Gi beskjed til eventuelle åpne profilsider om å laste på nytt

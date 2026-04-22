@@ -42,8 +42,10 @@ export async function POST(request: NextRequest) {
   const upsertData: Record<string, unknown> = {
     id,
     display_name,
-    avatar_color: avatar_color ?? null,
     last_seen_at: new Date().toISOString(),
+  }
+  if (avatar_color !== undefined) {
+    upsertData.avatar_color = avatar_color
   }
   if (show_member_number !== undefined) {
     upsertData.show_member_number = show_member_number
