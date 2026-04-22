@@ -53,7 +53,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   if (!orgMembers || orgMembers.length === 0) {
     return format === 'csv'
-      ? new NextResponse('Navn,Spilt denne perioden,Poeng,Antall quizer,Sist aktiv\n', {
+      ? new NextResponse('\uFEFF' + 'Navn,Aktiv denne måneden,Poeng,Antall quizer,Sist aktiv\n', {
           headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="aktivitet-${period}.csv"` },
         })
       : NextResponse.json({ members: [], period })
@@ -124,8 +124,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   })
 
   if (format === 'csv') {
-    const periodLabel = period === 'month' ? 'Måned' : period === 'quarter' ? 'Kvartal' : 'År'
-    const header = `Navn,Rolle,Spilt (${periodLabel}),Poeng,Antall quizer,Sist aktiv`
+    const header = `Navn,Rolle,Aktiv denne måneden,Poeng,Antall quizer,Sist aktiv`
     const rows = members.map(m => [
       `"${m.displayName.replace(/"/g, '""')}"`,
       m.role === 'admin' ? 'Admin' : 'Medlem',
@@ -134,7 +133,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       m.quizCount,
       m.lastActiveAt ? new Date(m.lastActiveAt).toLocaleDateString('nb-NO') : '—',
     ].join(','))
-    const csv = [header, ...rows].join('\n')
+    const csv = '\uFEFF' + [header, ...rows].join('\n')
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
