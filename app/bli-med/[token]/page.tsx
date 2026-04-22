@@ -52,7 +52,15 @@ export default function BliMedPage() {
       const data = await res.json()
       if (res.status === 409) { setAlreadyMember(true); return }
       if (!res.ok) { setJoinError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
-      if (data.slug) router.push(`/org/${data.slug}`)
+      if (data.slug) {
+        // Fire-and-forget velkomst-e-post
+        fetch('/api/org/welcome-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: session.access_token, orgSlug: data.slug }),
+        }).catch(() => {})
+        router.push(`/org/${data.slug}`)
+      }
     } catch {
       setJoinError('Noe gikk galt. Prøv igjen.')
     } finally {

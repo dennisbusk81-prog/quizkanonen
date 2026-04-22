@@ -103,6 +103,94 @@ export function trialEndingEmail(daysLeft: number): string {
 </html>`
 }
 
+export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: string): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Du er med i ${orgName} på Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo / header -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <!-- Title -->
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Hei ${firstName}!
+              </p>
+
+              <!-- Divider -->
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <!-- Body text -->
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                <strong style="color:#ffffff;">${orgName}</strong> har invitert deg til fredagsquizen på Quizkanonen.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Hver fredag kl. 12 legges det ut 15 spørsmål. Du konkurrerer mot kollegene dine og samler poeng gjennom sesongen — se hvem som topper listen når måneden er omme.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Her teller det å kunne svaret — ikke bare å klikke først.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Spill ukens quiz →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Secondary link -->
+              <p style="margin:0;font-size:14px;color:#e0e0e0;line-height:1.7;">
+                Se hvordan du ligger an mot kollegene:<br />
+                <a href="https://quizkanonen.no/org/${orgSlug}"
+                   style="color:#c9a84c;text-decoration:none;">
+                  Bedriftens toppliste →
+                </a>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Lykke til!<br />Quizkanonen
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function quizReminderEmail(nextQuizDate: string): string {
   const formattedDate = formatNorwegianDate(nextQuizDate)
 
