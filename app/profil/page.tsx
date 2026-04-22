@@ -83,19 +83,11 @@ export default function ProfilPage() {
 
   useEffect(() => {
     let cancelled = false
+    let loaded = false
 
-    async function load() {
-      let { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        await new Promise<void>(r => setTimeout(r, 500))
-        if (cancelled) return
-        const { data } = await supabase.auth.getSession()
-        session = data.session
-      }
-      if (cancelled) return
-      if (!session) { router.replace('/'); return }
-
-      const uid = session.user.id
+    async function loadProfile(uid: string, accessToken: string) {
+      if (loaded || cancelled) return
+      loaded = true
       setUserId(uid)
 
       const profileRes = await Promise.race([
@@ -117,7 +109,7 @@ export default function ProfilPage() {
         email_reminders: boolean | null; created_at: string | null; avatar_url: string | null;
       } | null
 
-      const name = profile?.display_name ?? session.user.email?.split('@')[0] ?? ''
+      const name = profile?.display_name ?? ''
       setDisplayName(name)
       setEditName(name)
       const premium = profile?.premium_status === true
@@ -137,7 +129,7 @@ export default function ProfilPage() {
       if (premium) {
         try {
           const res = await fetch('/api/historikk', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
+            headers: { Authorization: `Bearer ${accessToken}` },
           })
           if (!cancelled && res.ok) {
             const json = await res.json()
@@ -149,8 +141,32 @@ export default function ProfilPage() {
       if (!cancelled) setLoadState('ready')
     }
 
-    load().catch(() => { if (!cancelled) setLoadState('error') })
-    return () => { cancelled = true }
+    // Primary: getSession() direkte — omgår lock hvis session er cachet
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session?.user) return
+      loadProfile(session.user.id, session.access_token).catch(
+        () => { if (!cancelled) setLoadState('error') }
+      )
+    })
+
+    // Backup: onAuthStateChange fangar opp innlogging og tilfeller
+    // der INITIAL_SESSION fyrer men getSession() henger
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return
+      if (event === 'SIGNED_OUT') { router.replace('/'); return }
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        loadProfile(session.user.id, session.access_token).catch(
+          () => { if (!cancelled) setLoadState('error') }
+        )
+      }
+    })
+
+    // Siste utvei: redirect etter 8s hvis ingenting har lastet
+    const giveUp = setTimeout(() => {
+      if (!loaded && !cancelled) router.replace('/')
+    }, 8000)
+
+    return () => { cancelled = true; subscription.unsubscribe(); clearTimeout(giveUp) }
   }, [router])
 
   async function handleSave() {
