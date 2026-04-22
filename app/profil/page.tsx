@@ -81,11 +81,29 @@ export default function ProfilPage() {
   const [codeSuccess, setCodeSuccess] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
 
+  // Rask mount-henting — fyrer umiddelbart uavhengig av auth events
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) return
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, email_reminders, premium_status')
+        .eq('id', session.user.id)
+        .single()
+      if (profile) {
+        setDisplayName(profile.display_name ?? '')
+        setEditName(profile.display_name ?? '')
+        setEmailReminders(profile.email_reminders ?? false)
+        setIsPremium(profile.premium_status === true)
+      }
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     let loaded = false
 
-    async function loadProfile(uid: string, accessToken: string) {
+    async function loadProfile(uid: string, accessToken: string, avatarUrlFromMeta: string | null) {
       if (loaded || cancelled) return
       loaded = true
       setUserId(uid)
@@ -93,7 +111,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at, avatar_url')
+          .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -106,7 +124,7 @@ export default function ProfilPage() {
       const profile = (profileRes as { data: unknown }).data as {
         display_name: string | null; premium_status: boolean | null;
         member_number: number | null; show_member_number: boolean | null;
-        email_reminders: boolean | null; created_at: string | null; avatar_url: string | null;
+        email_reminders: boolean | null; created_at: string | null;
       } | null
 
       const name = profile?.display_name ?? ''
@@ -114,7 +132,7 @@ export default function ProfilPage() {
       setEditName(name)
       const premium = profile?.premium_status === true
       setIsPremium(premium)
-      setAvatarUrl(profile?.avatar_url ?? null)
+      setAvatarUrl(avatarUrlFromMeta)
       setMemberNumber(profile?.member_number ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
       setEmailReminders(profile?.email_reminders ?? false)
@@ -144,7 +162,8 @@ export default function ProfilPage() {
     // Primary: getSession() direkte — omgår lock hvis session er cachet
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled || !session?.user) return
-      loadProfile(session.user.id, session.access_token).catch(
+      const avatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
+      loadProfile(session.user.id, session.access_token, avatarUrl).catch(
         () => { if (!cancelled) setLoadState('error') }
       )
     })
@@ -155,7 +174,8 @@ export default function ProfilPage() {
       if (cancelled) return
       if (event === 'SIGNED_OUT') { router.replace('/'); return }
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        loadProfile(session.user.id, session.access_token).catch(
+        const avatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
+        loadProfile(session.user.id, session.access_token, avatarUrl).catch(
           () => { if (!cancelled) setLoadState('error') }
         )
       }
