@@ -57,6 +57,7 @@ function formatMemberNumber(n: number): string {
 }
 
 type LoadState = 'loading' | 'ready' | 'error'
+type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }
 
 export default function ProfilPage() {
   const router = useRouter()
@@ -71,6 +72,7 @@ export default function ProfilPage() {
   const [showMemberNumber, setShowMemberNumber] = useState(false)
   const [emailReminders, setEmailReminders] = useState(false)
   const [stats, setStats] = useState<PlayerStats | null>(null)
+  const [orgs, setOrgs] = useState<OrgEntry[]>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -97,6 +99,24 @@ export default function ProfilPage() {
         setIsPremium(profile.premium_status === true)
       }
     })
+  }, [])
+
+  // Hent org-tilknytning via onAuthStateChange (samme mønster som OrgCard)
+  useEffect(() => {
+    let cancelled = false
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
+      if (!session?.access_token || cancelled) return
+      fetch('/api/org/my-orgs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: session.access_token }),
+      })
+        .then(r => r.json())
+        .then(d => { if (!cancelled) setOrgs(d.orgs ?? []) })
+        .catch(() => {})
+    })
+    return () => { cancelled = true; subscription.unsubscribe() }
   }, [])
 
   useEffect(() => {
@@ -458,6 +478,34 @@ export default function ProfilPage() {
               Du får e-post fredag morgen når ukens quiz er klar
             </p>
           </div>
+
+          {/* Din bedrift */}
+          {orgs.length > 0 && (
+            <div style={{ ...s.card, marginBottom: 16 }}>
+              <p style={s.sectionLabel}>Din bedrift</p>
+              {orgs.map(org => (
+                <div key={org.orgId} style={{ marginBottom: orgs.length > 1 ? 20 : 0 }}>
+                  <p style={{
+                    fontFamily: "'Libre Baskerville', serif",
+                    fontSize: 16, fontWeight: 700, color: '#ffffff',
+                    marginBottom: 10,
+                  }}>
+                    {org.orgName}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <a href={`/org/${org.orgSlug}`} style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none' }}>
+                      Se bedriftens toppliste →
+                    </a>
+                    {org.isAdmin && (
+                      <a href={`/org/${org.orgSlug}/admin`} style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
+                        Administrer →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Verdikode */}
           <div style={{ ...s.card, marginBottom: 16 }}>
