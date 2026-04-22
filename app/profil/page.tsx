@@ -10,24 +10,24 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:     { maxWidth: 600, margin: '0 auto', padding: '0 20px 80px' },
+  page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  avatarSection: { paddingTop: 36, paddingBottom: 28, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
+  avatarSection: { paddingTop: 28, paddingBottom: 16, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
   avatar:        { width: 80, height: 80, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '2px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 30, fontWeight: 700, color: '#c9a84c', marginBottom: 16 },
   displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px' },
   badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px' },
-  rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 28 },
+  rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 16 },
 
-  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px' },
-  cardDivider:   { height: 1, background: '#2a2d38', margin: '24px 0' },
+  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px' },
+  cardDivider:   { height: 1, background: '#2a2d38', margin: '16px 0' },
   sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
-  fieldHint:     { fontSize: 12, color: '#7a7873', marginBottom: 14, lineHeight: 1.5 },
+  fieldHint:     { fontSize: 12, color: '#7a7873', marginBottom: 12, lineHeight: 1.5 },
   inputRow:      { display: 'flex', gap: 8 },
-  input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
+  input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 15, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
   saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#4a4d5a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
@@ -44,8 +44,9 @@ const s = {
 
   btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '0.5px solid rgba(201,168,76,0.4)' },
-  redeemBtn:      { padding: '9px 14px', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #4a4d5a', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:   { padding: '9px 14px', background: 'transparent', color: '#4a4d5a', border: '0.5px solid #2a2d38', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
+  redeemBtn:      { padding: '10px 12px', background: 'transparent', color: '#e8e4dd', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '10px 12px', background: 'transparent', color: '#4a4d5a', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '24px 28px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
@@ -82,6 +83,14 @@ export default function ProfilPage() {
   const [codeLoading, setCodeLoading] = useState(false)
   const [codeSuccess, setCodeSuccess] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // Rask mount-henting — fyrer umiddelbart uavhengig av auth events
   useEffect(() => {
@@ -397,11 +406,10 @@ export default function ProfilPage() {
           <div style={s.rule} />
 
           {/* 2-kolonne grid: Visningsnavn (venstre) + Din bedrift (høyre) */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 16,
-            marginBottom: 16,
+          <div style={isMobile ? {
+            display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12,
+          } : {
+            display: 'grid', gridTemplateColumns: orgs.length > 0 ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 12,
           }}>
             {/* Visningsnavn + Påminnelser */}
             <div style={s.card}>
@@ -511,7 +519,7 @@ export default function ProfilPage() {
           </div>
 
           {/* Statistikk — alltid synlig */}
-          <div style={{ ...s.card, marginBottom: 16 }}>
+          <div style={{ ...s.card, marginBottom: 12 }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
@@ -542,9 +550,9 @@ export default function ProfilPage() {
           </div>
 
           {/* Verdikode */}
-          <div style={{ ...s.card, marginBottom: 16 }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 20px', marginBottom: 12 }}>
             <p style={s.sectionLabel}>Verdikode</p>
-            <div style={s.inputRow}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="text"
                 value={codeInput}
@@ -552,7 +560,7 @@ export default function ProfilPage() {
                 onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
                 placeholder="Skriv inn kode…"
                 maxLength={60}
-                style={{ ...s.input, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                style={s.redeemInput}
                 onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
                 onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
               />
@@ -569,7 +577,7 @@ export default function ProfilPage() {
           </div>
 
           {/* Slett konto */}
-          <div style={{ marginTop: 48, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+          <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
             {deleteError && (
               <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{deleteError}</p>
             )}
