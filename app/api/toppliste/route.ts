@@ -149,11 +149,11 @@ export async function GET(request: NextRequest) {
         : top10Ids
 
     const { data: profiles } = profileIds.length > 0
-      ? await supabaseAdmin.from('profiles').select('id, display_name, avatar_url').in('id', profileIds)
+      ? await supabaseAdmin.from('profiles').select('id, display_name').in('id', profileIds)
       : { data: [] }
 
-    const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>()
-    for (const p of (profiles ?? []) as { id: string; display_name: string | null; avatar_url: string | null }[]) {
+    const profileMap = new Map<string, { display_name: string | null }>()
+    for (const p of (profiles ?? []) as { id: string; display_name: string | null }[]) {
       profileMap.set(p.id, p)
     }
 
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
         rank: a.rank,
         userId: a.user_id,
         displayName: profile?.display_name ?? a.player_name,
-        avatarUrl: profile?.avatar_url ?? null,
+        avatarUrl: null,
         points: a.correct_answers,
         quizCount: 1,
         topStreak: a.correct_streak ?? 0,
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
         userEntry = {
           rank: userInRanked.rank,
           displayName: profile?.display_name ?? userInRanked.player_name,
-          avatarUrl: profile?.avatar_url ?? null,
+          avatarUrl: null,
           points: userInRanked.correct_answers,
           quizCount: 1,
         }
@@ -266,11 +266,11 @@ export async function GET(request: NextRequest) {
       : top10Ids
 
   const { data: profiles } = profileIds.length > 0
-    ? await supabaseAdmin.from('profiles').select('id, display_name, avatar_url').in('id', profileIds)
+    ? await supabaseAdmin.from('profiles').select('id, display_name').in('id', profileIds)
     : { data: [] }
 
-  const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>()
-  for (const p of (profiles ?? []) as { id: string; display_name: string | null; avatar_url: string | null }[]) {
+  const profileMap = new Map<string, { display_name: string | null }>()
+  for (const p of (profiles ?? []) as { id: string; display_name: string | null }[]) {
     profileMap.set(p.id, p)
   }
 
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
       rank: i + 1,
       userId: stats.userId,
       displayName: profile?.display_name ?? 'Spiller',
-      avatarUrl: profile?.avatar_url ?? null,
+      avatarUrl: null,
       points: stats.points,
       quizCount: stats.quizCount,
       topStreak: stats.topStreak,
@@ -321,7 +321,7 @@ export async function GET(request: NextRequest) {
       userEntry = {
         rank: userIdx + 1,
         displayName: profile?.display_name ?? 'Spiller',
-        avatarUrl: profile?.avatar_url ?? null,
+        avatarUrl: null,
         points: stats.points,
         quizCount: stats.quizCount,
       }
