@@ -260,8 +260,8 @@ export default function AdminQuizzes() {
       'Bland svaralternativer (TRUE/FALSE, valgfritt)',
       'Kategori (valgfritt, en av de 10 kategoriene)',
     ]
-    const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 20, 'FALSE', 'Geografi']
-    const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 15, 'TRUE', 'Historie']
+    const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 10, 'FALSE', 'Geografi']
+    const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 10, 'TRUE', 'Historie']
     const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2])
     ws['!cols'] = [{ wch: 40 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 30 }, { wch: 35 }, { wch: 40 }]
     const wb = XLSX.utils.book_new()
@@ -288,8 +288,10 @@ export default function AdminQuizzes() {
       const optC = row[3] ? String(row[3]).trim() : null
       const optD = row[4] ? String(row[4]).trim() : null
       const rawTime = row[5]
-      const timeSec = rawTime !== undefined && rawTime !== '' && rawTime !== null
-        ? parseInt(String(rawTime), 10) || 20 : null
+      const parsedTime = rawTime !== undefined && rawTime !== '' && rawTime !== null
+        ? parseInt(String(rawTime), 10) : null
+      const timeSec = parsedTime !== null && !isNaN(parsedTime)
+        ? Math.min(60, Math.max(5, parsedTime)) : null
       const rawShuffle = String(row[6] ?? '').trim().toUpperCase()
       const shuffle = rawShuffle === 'TRUE' || rawShuffle === '1'
       const rawCategory = String(row[7] ?? '').trim()

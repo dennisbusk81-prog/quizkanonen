@@ -54,19 +54,25 @@ export async function POST(request: NextRequest) {
 
   if (quizError) return NextResponse.json({ error: quizError.message }, { status: 500 })
 
-  const rows = questions.map((q, i) => ({
-    quiz_id: quiz.id,
-    question_text: q.question_text,
-    option_a: q.option_a,   // riktig svar er alltid option_a (kolonne B i Excel)
-    option_b: q.option_b,
-    option_c: q.option_c,
-    option_d: q.option_d,
-    correct_answer: 'A',    // kolonne B i Excel er alltid riktig
-    time_limit_seconds: q.time_limit_seconds,
-    shuffle_options: q.shuffle_options,
-    category: q.category || null,
-    order_index: i + 1,
-  }))
+  const rows = questions.map((q, i) => {
+    let timeSec: number | null = null
+    if (q.time_limit_seconds !== null) {
+      timeSec = Math.min(60, Math.max(5, q.time_limit_seconds))
+    }
+    return {
+      quiz_id: quiz.id,
+      question_text: q.question_text,
+      option_a: q.option_a,   // riktig svar er alltid option_a (kolonne B i Excel)
+      option_b: q.option_b,
+      option_c: q.option_c,
+      option_d: q.option_d,
+      correct_answer: 'A',    // kolonne B i Excel er alltid riktig
+      time_limit_seconds: timeSec,
+      shuffle_options: q.shuffle_options,
+      category: q.category || null,
+      order_index: i + 1,
+    }
+  })
 
   const { error: qError } = await supabaseAdmin.from('questions').insert(rows)
   if (qError) {

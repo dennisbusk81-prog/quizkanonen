@@ -633,9 +633,9 @@ export default function QuizQuestions() {
               placeholder="Kort forklaring..." className="qq-input" />
           </div>
           <div>
-            <label className="qq-label">Egendefinert tid (sek)</label>
-            <input type="number" value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
-              placeholder={`Standard: ${quiz?.time_limit_seconds}s`} className="qq-input" />
+            <label className="qq-label">Egendefinert tid (sek, 5–60)</label>
+            <input type="number" min={5} max={60} value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
+              placeholder="Default: 10" className="qq-input" />
           </div>
         </div>
 
