@@ -589,6 +589,7 @@ export default function QuizPage() {
   const [interWrongInARow, setInterWrongInARow] = useState(0)
   const [interNextQNum, setInterNextQNum] = useState(1)
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
+  const [shuffledDisplayOrder, setShuffledDisplayOrder] = useState<string[]>(['A', 'B', 'C', 'D'])
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
@@ -835,6 +836,10 @@ export default function QuizPage() {
         leader_display_name: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
       }).select().single()
       setAttemptId(data?.id || null)
+      const firstIdx = resumeData ? resumeData.index : 0
+      const firstQ = questions[firstIdx]
+      const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz!.num_options)
+      setShuffledDisplayOrder(firstQ?.shuffle_options ? [...baseOpts].sort(() => Math.random() - 0.5) : baseOpts)
       if (resumeData) {
         setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
         setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(questions[resumeData.index]))
@@ -1090,8 +1095,9 @@ export default function QuizPage() {
   const handleInterludeNext = useCallback(() => {
     if (pendingNextIndex === null) return
     const ni = pendingNextIndex
-    // Oppdater spørsmålsstatus umiddelbart så nytt spørsmål rendres
-    // under den uthviskende interluden (unngår visuell flash)
+    const nextQ = questions[ni]
+    const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz?.num_options ?? 4)
+    setShuffledDisplayOrder(nextQ?.shuffle_options ? [...baseOpts].sort(() => Math.random() - 0.5) : baseOpts)
     setCurrentIndex(ni)
     setAnswered(false)
     setSelectedAnswer(null)
@@ -1099,10 +1105,9 @@ export default function QuizPage() {
     setQuestionStartTime(Date.now())
     setQuestionKey(k => k + 1)
     setPendingNextIndex(null)
-    // Start utvisningstransisjon (250ms) etter at nytt spørsmål er klart
     setInterPhase('out')
     setTimeout(() => setInterPhase('hidden'), 250)
-  }, [pendingNextIndex, questions, getTimeLimit])
+  }, [pendingNextIndex, questions, getTimeLimit, quiz])
 
   const finishQuiz = async () => {
     const correct = answers.filter(a => a.isCorrect).length
@@ -1355,7 +1360,9 @@ export default function QuizPage() {
     const timerPercent = (timeLeft / limit) * 100
     const timerColor = timerPercent > 50 ? 'var(--green)' : timerPercent > 25 ? 'var(--gold)' : 'var(--red)'
     const correctSoFar = answers.filter(a => a.isCorrect).length
-    const availableOptions = ['A','B','C','D'].slice(0, quiz.num_options)
+    const availableOptions = question?.shuffle_options
+      ? shuffledDisplayOrder.filter(o => ['A','B','C','D'].slice(0, quiz.num_options).includes(o))
+      : ['A','B','C','D'].slice(0, quiz.num_options)
 
     const getOptionClass = (opt: string) => {
       if (!answered) return ''

@@ -1,10 +1,25 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'
+
+const CATEGORIES = [
+  '', 'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
+  'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
+]
+
+type ParsedQuestion = {
+  question_text: string
+  option_a: string
+  option_b: string
+  option_c: string | null
+  option_d: string | null
+  time_limit_seconds: number | null
+  shuffle_options: boolean
+}
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -224,6 +239,87 @@ export default function AdminQuizzes() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  // Import modal
+  const [importModal, setImportModal] = useState(false)
+  const [importTitle, setImportTitle] = useState('')
+  const [importCategory, setImportCategory] = useState('')
+  const [importRows, setImportRows] = useState<ParsedQuestion[]>([])
+  const [importFileName, setImportFileName] = useState('')
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function downloadTemplate() {
+    const XLSX = await import('xlsx')
+    const headers = [
+      'Spørsmålstekst',
+      'Alternativ 1 (riktig svar)',
+      'Alternativ 2',
+      'Alternativ 3',
+      'Alternativ 4',
+      'Tid i sekunder (valgfritt, default 20)',
+      'Bland svaralternativer (TRUE/FALSE, valgfritt)',
+    ]
+    const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 20, 'FALSE']
+    const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 15, 'TRUE']
+    const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2])
+    ws['!cols'] = [{ wch: 40 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 30 }, { wch: 35 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Quizkanonen mal')
+    XLSX.writeFile(wb, 'quizkanonen-mal.xlsx')
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const XLSX = await import('xlsx')
+    const buf = await file.arrayBuffer()
+    const wb = XLSX.read(buf, { type: 'array' })
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
+
+    const parsed: ParsedQuestion[] = []
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] as unknown[]
+      const questionText = String(row[0] ?? '').trim()
+      const optA = String(row[1] ?? '').trim()
+      const optB = String(row[2] ?? '').trim()
+      if (!questionText || !optA || !optB) continue
+      const optC = row[3] ? String(row[3]).trim() : null
+      const optD = row[4] ? String(row[4]).trim() : null
+      const rawTime = row[5]
+      const timeSec = rawTime !== undefined && rawTime !== '' && rawTime !== null
+        ? parseInt(String(rawTime), 10) || 20 : null
+      const rawShuffle = String(row[6] ?? '').trim().toUpperCase()
+      const shuffle = rawShuffle === 'TRUE' || rawShuffle === '1'
+      parsed.push({ question_text: questionText, option_a: optA, option_b: optB, option_c: optC, option_d: optD, time_limit_seconds: timeSec, shuffle_options: shuffle })
+    }
+
+    setImportRows(parsed)
+    setImportFileName(file.name)
+    setImportTitle(file.name.replace(/\.[^.]+$/, ''))
+    setImportModal(true)
+    e.target.value = ''
+  }
+
+  async function runImport() {
+    if (!importTitle.trim() || importRows.length === 0) return
+    setImporting(true)
+    try {
+      const res = await adminFetch('/api/admin/quizzes/import', {
+        method: 'POST',
+        body: JSON.stringify({ title: importTitle.trim(), category: importCategory, questions: importRows }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showFeedback('error', 'Import feilet: ' + (data.error ?? 'ukjent feil')); return }
+      setImportModal(false)
+      router.push(`/admin/quizzes/${data.quizId}`)
+    } catch {
+      showFeedback('error', 'Uventet feil under import.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -316,7 +412,36 @@ export default function AdminQuizzes() {
             <Link href="/admin" className="aqz-back">← Admin</Link>
             <h1 className="aqz-title">Alle <em>quizer</em></h1>
           </div>
-          <Link href="/admin/quizzes/new" className="aqz-btn-primary">+ Ny quiz</Link>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={downloadTemplate}
+              style={{
+                background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}
+            >
+              Last ned Excel-mal
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}
+            >
+              Importer fra Excel
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            <Link href="/admin/quizzes/new" className="aqz-btn-primary">+ Ny quiz</Link>
+          </div>
         </header>
 
         <div className="aqz-rule" />
@@ -380,6 +505,82 @@ export default function AdminQuizzes() {
           </div>
         )}
       </div>
+
+      {/* Import modal */}
+      {importModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px',
+        }}>
+          <div style={{
+            background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
+            padding: '28px', width: '100%', maxWidth: 520, fontFamily: "'Instrument Sans', sans-serif",
+          }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+              Importer quiz fra Excel
+            </h2>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 20 }}>
+              {importFileName} · {importRows.length} spørsmål funnet
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 6 }}>
+                Quiz-navn *
+              </label>
+              <input
+                type="text"
+                value={importTitle}
+                onChange={e => setImportTitle(e.target.value)}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', color: '#ffffff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 6 }}>
+                Kategori
+              </label>
+              <select
+                value={importCategory}
+                onChange={e => setImportCategory(e.target.value)}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', color: '#ffffff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
+              >
+                <option value="">— Ikke valgt —</option>
+                {CATEGORIES.filter(c => c !== '').map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 20, lineHeight: 1.5 }}>
+              Quizen opprettes som skjult. Åpne quiz-cockpiten etter import for å justere datoer og publisere.
+            </p>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={runImport}
+                disabled={importing || !importTitle.trim() || importRows.length === 0}
+                style={{
+                  flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10,
+                  padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  opacity: importing || !importTitle.trim() ? 0.5 : 1,
+                }}
+              >
+                {importing ? 'Importerer...' : `Importer ${importRows.length} spørsmål`}
+              </button>
+              <button
+                onClick={() => { setImportModal(false); setImportRows([]); setImportTitle(''); setImportCategory('') }}
+                style={{
+                  background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                  padding: '12px 20px', fontSize: 14, fontWeight: 500, color: '#e8e4dd',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

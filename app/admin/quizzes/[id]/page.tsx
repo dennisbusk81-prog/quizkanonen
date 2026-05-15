@@ -65,9 +65,15 @@ export default function QuizCockpit() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [stats, setStats] = useState({ plays: 0, questions: 0 })
 
+  const CATEGORIES = [
+    '', 'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
+    'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
+  ]
+
   const [form, setForm] = useState({
     title: '',
     description: '',
+    category: '',
     opens_at: '',
     closes_at: '',
     scheduled_at: '',
@@ -98,6 +104,7 @@ export default function QuizCockpit() {
         setForm({
           title: quizData.title,
           description: quizData.description || '',
+          category: quizData.category || '',
           opens_at: toLocalInput(quizData.opens_at),
           closes_at: toLocalInput(quizData.closes_at),
           scheduled_at: quizData.scheduled_at ? toLocalInput(quizData.scheduled_at) : '',
@@ -134,6 +141,7 @@ export default function QuizCockpit() {
         body: JSON.stringify({
           title: form.title,
           description: form.description,
+          category: form.category || null,
           opens_at: toISO(form.opens_at),
           closes_at: toISO(form.closes_at),
           scheduled_at: form.scheduled_at ? toISO(form.scheduled_at) : null,
@@ -242,6 +250,17 @@ export default function QuizCockpit() {
             <label style={s.label}>Beskrivelse</label>
             <textarea value={form.description} onChange={e => upd('description', e.target.value)}
               rows={2} style={{ ...s.input, resize: 'none' }} />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={s.label}>Kategori</label>
+            <select value={form.category} onChange={e => upd('category', e.target.value)}
+              style={{ ...s.input, cursor: 'pointer' }}>
+              <option value="">— Ikke valgt —</option>
+              {CATEGORIES.filter(c => c !== '').map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div style={{ ...s.row2, marginBottom: 12 }}>
