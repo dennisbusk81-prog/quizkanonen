@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { sendEmail } from '@/lib/email'
+import { orgRemovedEmail } from '@/lib/email-templates'
 
 export async function POST(
   request: NextRequest,
@@ -56,6 +58,13 @@ export async function POST(
     console.log(`[remove-member] user ${membership.user_id} had personal_stripe_subscription_id: ${profile.personal_stripe_subscription_id}`)
   }
 
+  // Fetch org name for email
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('name')
+    .eq('id', membership.organization_id)
+    .maybeSingle()
+
   // Remove from org
   await supabaseAdmin
     .from('organization_members')
@@ -67,6 +76,18 @@ export async function POST(
     premium_status: false,
     premium_source: null,
   }).eq('id', membership.user_id)
+
+  // Send removal email (fire-and-forget)
+  if (org?.name) {
+    const { data: { user: removedUser } } = await supabaseAdmin.auth.admin.getUserById(membership.user_id)
+    if (removedUser?.email) {
+      sendEmail({
+        to: removedUser.email,
+        subject: `Du er fjernet fra ${org.name} på Quizkanonen`,
+        html: orgRemovedEmail(org.name),
+      }).catch((err) => console.error('[remove-member] sendEmail feil:', err))
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }
