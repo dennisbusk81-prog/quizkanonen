@@ -21,15 +21,20 @@ export async function POST(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, questions }: { title: string; questions: ImportQuestion[] } = body
+  const { title, questions, opens_at, closes_at }: {
+    title: string
+    questions: ImportQuestion[]
+    opens_at?: string
+    closes_at?: string
+  } = body
 
   if (!title || !questions?.length) {
     return NextResponse.json({ error: 'Mangler tittel eller spørsmål.' }, { status: 400 })
   }
 
   const now = new Date()
-  const opens = new Date(now.getTime() + 60 * 60 * 1000)   // +1 time
-  const closes = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // +7 dager
+  const opens = opens_at ? new Date(opens_at) : new Date(now.getTime() + 60 * 60 * 1000)
+  const closes = closes_at ? new Date(closes_at) : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
   const { data: quiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
