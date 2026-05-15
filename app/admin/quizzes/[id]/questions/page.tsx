@@ -15,11 +15,12 @@ type QuestionForm = {
   correct_answer: string
   explanation: string
   time_limit_seconds: string
+  shuffle_options: boolean
 }
 
 const emptyForm = (): QuestionForm => ({
   question_text: '', option_a: '', option_b: '', option_c: '', option_d: '',
-  correct_answer: 'A', explanation: '', time_limit_seconds: ''
+  correct_answer: 'A', explanation: '', time_limit_seconds: '', shuffle_options: false,
 })
 
 const STYLES = `
@@ -478,6 +479,7 @@ export default function QuizQuestions() {
           correct_answer: newQ.correct_answer,
           explanation: newQ.explanation || null,
           time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
+          shuffle_options: newQ.shuffle_options,
           order_index: questions.length + 1,
         }),
       })
@@ -505,6 +507,7 @@ export default function QuizQuestions() {
           correct_answer: editForm.correct_answer,
           explanation: editForm.explanation || null,
           time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
+          shuffle_options: editForm.shuffle_options,
         }),
       })
       if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved oppdatering: ' + d.error) }
@@ -538,6 +541,7 @@ export default function QuizQuestions() {
       correct_answer: q.correct_answer,
       explanation: q.explanation || '',
       time_limit_seconds: q.time_limit_seconds?.toString() || '',
+      shuffle_options: q.shuffle_options ?? false,
     })
   }
 
@@ -626,6 +630,26 @@ export default function QuizQuestions() {
           </div>
         </div>
 
+        <div className="qq-field">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+            <span style={{ fontSize: 13, color: 'var(--body)' }}>Bland svaralternativer</span>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, shuffle_options: !form.shuffle_options })}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: form.shuffle_options ? 'var(--gold)' : 'var(--border)',
+                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
+                left: form.shuffle_options ? 23 : 3, transition: 'left 0.2s',
+              }} />
+            </button>
+          </div>
+        </div>
+
         <div className="qq-form-actions">
           <button onClick={onSave} disabled={saving} className="qq-btn-save">
             {saving ? 'Lagrer...' : 'Lagre'}
@@ -708,6 +732,11 @@ export default function QuizQuestions() {
                         })}
                       </div>
                       {q.explanation && <p className="qq-q-explanation">💡 {q.explanation}</p>}
+                      {q.shuffle_options && (
+                        <p style={{ fontSize: 10, color: 'var(--gold)', marginTop: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                          Blander alternativer
+                        </p>
+                      )}
                     </div>
 
                     <div className="qq-q-actions">

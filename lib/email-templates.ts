@@ -67,7 +67,8 @@ export function trialEndingEmail(daysLeft: number): string {
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Ingen automatisk trekk — du velger selv om du vil fortsette.
+                Trialen utløper uten automatisk trekk.<br />
+                Velger du Premium etterpå, fornyes det månedlig til kr 49.
               </p>
 
               <!-- CTA button -->
