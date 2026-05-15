@@ -62,6 +62,7 @@ export type Question = {
   order_index: number
   time_limit_seconds: number | null
   shuffle_options: boolean
+  category: string | null
 }
 
 export type Attempt = {

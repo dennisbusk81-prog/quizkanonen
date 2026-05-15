@@ -14,13 +14,14 @@ type ImportQuestion = {
   option_d: string | null
   time_limit_seconds: number | null
   shuffle_options: boolean
+  category: string | null
 }
 
 export async function POST(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, category, questions }: { title: string; category: string; questions: ImportQuestion[] } = body
+  const { title, questions }: { title: string; questions: ImportQuestion[] } = body
 
   if (!title || !questions?.length) {
     return NextResponse.json({ error: 'Mangler tittel eller spørsmål.' }, { status: 400 })
@@ -34,7 +35,6 @@ export async function POST(request: NextRequest) {
     .from('quizzes')
     .insert({
       title,
-      category: category || null,
       description: '',
       opens_at: opens.toISOString(),
       closes_at: closes.toISOString(),
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     correct_answer: 'A',    // kolonne B i Excel er alltid riktig
     time_limit_seconds: q.time_limit_seconds,
     shuffle_options: q.shuffle_options,
+    category: q.category || null,
     order_index: i + 1,
   }))
 

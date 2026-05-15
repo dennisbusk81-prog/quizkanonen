@@ -1508,6 +1508,43 @@ export default function QuizPage() {
 
       <div className="qk-divider"/>
 
+      {(() => {
+        const categoryStats: Record<string, { correct: number; total: number }> = {}
+        answers.forEach((ans, i) => {
+          const q = questions[i]
+          if (!q?.category) return
+          if (!categoryStats[q.category]) categoryStats[q.category] = { correct: 0, total: 0 }
+          categoryStats[q.category].total++
+          if (ans.isCorrect) categoryStats[q.category].correct++
+        })
+        const cats = Object.entries(categoryStats)
+        if (cats.length === 0) return null
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10, textAlign: 'left' }}>
+              Kategorier
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cats.map(([cat, { correct, total }]) => {
+                const pct = Math.round((correct / total) * 100)
+                const isGood = pct >= 60
+                return (
+                  <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: '#e8e4dd', flex: 1, textAlign: 'left' }}>{cat}</span>
+                    <div style={{ width: 100, height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: isGood ? '#4caf7d' : '#c94c4c', borderRadius: 4, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: isGood ? '#4caf7d' : '#c94c4c', fontWeight: 600, width: 36, textAlign: 'right', flexShrink: 0 }}>
+                      {correct}/{total}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
         const toppX = 100 - prosent

@@ -6,8 +6,8 @@ import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'
 
-const CATEGORIES = [
-  '', 'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
+const VALID_CATEGORIES = [
+  'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
   'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
 ]
 
@@ -19,6 +19,7 @@ type ParsedQuestion = {
   option_d: string | null
   time_limit_seconds: number | null
   shuffle_options: boolean
+  category: string | null
 }
 
 const STYLES = `
@@ -242,7 +243,6 @@ export default function AdminQuizzes() {
   // Import modal
   const [importModal, setImportModal] = useState(false)
   const [importTitle, setImportTitle] = useState('')
-  const [importCategory, setImportCategory] = useState('')
   const [importRows, setImportRows] = useState<ParsedQuestion[]>([])
   const [importFileName, setImportFileName] = useState('')
   const [importing, setImporting] = useState(false)
@@ -258,11 +258,12 @@ export default function AdminQuizzes() {
       'Alternativ 4',
       'Tid i sekunder (valgfritt, default 20)',
       'Bland svaralternativer (TRUE/FALSE, valgfritt)',
+      'Kategori (valgfritt, en av de 10 kategoriene)',
     ]
-    const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 20, 'FALSE']
-    const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 15, 'TRUE']
+    const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 20, 'FALSE', 'Geografi']
+    const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 15, 'TRUE', 'Historie']
     const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2])
-    ws['!cols'] = [{ wch: 40 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 30 }, { wch: 35 }]
+    ws['!cols'] = [{ wch: 40 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 25 }, { wch: 30 }, { wch: 35 }, { wch: 40 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Quizkanonen mal')
     XLSX.writeFile(wb, 'quizkanonen-mal.xlsx')
@@ -291,7 +292,9 @@ export default function AdminQuizzes() {
         ? parseInt(String(rawTime), 10) || 20 : null
       const rawShuffle = String(row[6] ?? '').trim().toUpperCase()
       const shuffle = rawShuffle === 'TRUE' || rawShuffle === '1'
-      parsed.push({ question_text: questionText, option_a: optA, option_b: optB, option_c: optC, option_d: optD, time_limit_seconds: timeSec, shuffle_options: shuffle })
+      const rawCategory = String(row[7] ?? '').trim()
+      const category = VALID_CATEGORIES.includes(rawCategory) ? rawCategory : null
+      parsed.push({ question_text: questionText, option_a: optA, option_b: optB, option_c: optC, option_d: optD, time_limit_seconds: timeSec, shuffle_options: shuffle, category })
     }
 
     setImportRows(parsed)
@@ -307,7 +310,7 @@ export default function AdminQuizzes() {
     try {
       const res = await adminFetch('/api/admin/quizzes/import', {
         method: 'POST',
-        body: JSON.stringify({ title: importTitle.trim(), category: importCategory, questions: importRows }),
+        body: JSON.stringify({ title: importTitle.trim(), questions: importRows }),
       })
       const data = await res.json()
       if (!res.ok) { showFeedback('error', 'Import feilet: ' + (data.error ?? 'ukjent feil')); return }
@@ -535,22 +538,6 @@ export default function AdminQuizzes() {
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 6 }}>
-                Kategori
-              </label>
-              <select
-                value={importCategory}
-                onChange={e => setImportCategory(e.target.value)}
-                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', color: '#ffffff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
-              >
-                <option value="">— Ikke valgt —</option>
-                {CATEGORIES.filter(c => c !== '').map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
             <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 20, lineHeight: 1.5 }}>
               Quizen opprettes som skjult. Åpne quiz-cockpiten etter import for å justere datoer og publisere.
             </p>
@@ -568,7 +555,7 @@ export default function AdminQuizzes() {
                 {importing ? 'Importerer...' : `Importer ${importRows.length} spørsmål`}
               </button>
               <button
-                onClick={() => { setImportModal(false); setImportRows([]); setImportTitle(''); setImportCategory('') }}
+                onClick={() => { setImportModal(false); setImportRows([]); setImportTitle('') }}
                 style={{
                   background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
                   padding: '12px 20px', fontSize: 14, fontWeight: 500, color: '#e8e4dd',

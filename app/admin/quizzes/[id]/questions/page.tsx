@@ -6,6 +6,11 @@ import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz, Question } from '@/lib/supabase'
 import Link from 'next/link'
 
+const CATEGORIES = [
+  'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
+  'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
+]
+
 type QuestionForm = {
   question_text: string
   option_a: string
@@ -16,11 +21,12 @@ type QuestionForm = {
   explanation: string
   time_limit_seconds: string
   shuffle_options: boolean
+  category: string
 }
 
 const emptyForm = (): QuestionForm => ({
   question_text: '', option_a: '', option_b: '', option_c: '', option_d: '',
-  correct_answer: 'A', explanation: '', time_limit_seconds: '', shuffle_options: false,
+  correct_answer: 'A', explanation: '', time_limit_seconds: '', shuffle_options: false, category: '',
 })
 
 const STYLES = `
@@ -480,6 +486,7 @@ export default function QuizQuestions() {
           explanation: newQ.explanation || null,
           time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
           shuffle_options: newQ.shuffle_options,
+          category: newQ.category || null,
           order_index: questions.length + 1,
         }),
       })
@@ -508,6 +515,7 @@ export default function QuizQuestions() {
           explanation: editForm.explanation || null,
           time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
           shuffle_options: editForm.shuffle_options,
+          category: editForm.category || null,
         }),
       })
       if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved oppdatering: ' + d.error) }
@@ -542,6 +550,7 @@ export default function QuizQuestions() {
       explanation: q.explanation || '',
       time_limit_seconds: q.time_limit_seconds?.toString() || '',
       shuffle_options: q.shuffle_options ?? false,
+      category: q.category || '',
     })
   }
 
@@ -628,6 +637,21 @@ export default function QuizQuestions() {
             <input type="number" value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
               placeholder={`Standard: ${quiz?.time_limit_seconds}s`} className="qq-input" />
           </div>
+        </div>
+
+        <div className="qq-field">
+          <label className="qq-label">Kategori (valgfritt)</label>
+          <select
+            value={form.category}
+            onChange={e => setForm({ ...form, category: e.target.value })}
+            className="qq-input"
+            style={{ cursor: 'pointer' }}
+          >
+            <option value="">— Ikke valgt —</option>
+            {CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
         </div>
 
         <div className="qq-field">
@@ -732,11 +756,18 @@ export default function QuizQuestions() {
                         })}
                       </div>
                       {q.explanation && <p className="qq-q-explanation">💡 {q.explanation}</p>}
-                      {q.shuffle_options && (
-                        <p style={{ fontSize: 10, color: 'var(--gold)', marginTop: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                          Blander alternativer
-                        </p>
-                      )}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        {q.category && (
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--gold)', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '2px 8px' }}>
+                            {q.category}
+                          </span>
+                        )}
+                        {q.shuffle_options && (
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 8px' }}>
+                            Blander
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="qq-q-actions">
