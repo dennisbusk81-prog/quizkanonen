@@ -1,0 +1,24 @@
+QUIZKANONEN — HVA ER BYGGET
+============================
+
+
+BUGS OG STATUS
+--------------
+
+NY QUIZ-OPPRETTELSESSIDE (mai 2026)
+-------------------------------------
+OK  app/admin/quizzes/new/page.tsx — komplett ny mobil-optimalisert side:
+      Grunninfo-kort: quiznavn, åpner/stenger (default neste fredag 12:00, stenger +24t)
+      Hvert spørsmål i eget kort: tekst, 4 alternativer (A alltid riktig), tid, kategori, shuffle
+      Tab-rekkefølge naturlig — optimalisert for mobil-input
+      Lagrer quiz + alle spørsmål i én operasjon
+      Redirect til /admin/quizzes/[id]/questions etter lagring
+
+OK  questions.shuffle_options (boolean, default false) — bland svaralternativer per spørsmål
+OK  questions.category (text, nullable) — kategori per spørsmål (10 faste valg)
+OK  Kategorioversikt på resultatskjermen etter quiz
+OK  Excel-import med nedlastbar mal (kolonne H: kategori)
+OK  Tidsbegrensning per spørsmål: 5–60 sekunder, default 10
+OK  E-post ved fjerning av ansatt fra bedrift (henter faktisk bedriftsnavn)
+OK  Trial-påminnelse e-post: to separate setninger om automatisk trekk
+OK  Direkte push til main — ikke PR-workflow
