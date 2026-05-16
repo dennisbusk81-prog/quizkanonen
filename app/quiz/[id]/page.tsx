@@ -568,6 +568,53 @@ const styles = `
     0%, 100% { opacity: 0.2; transform: scale(0.8); }
     50%       { opacity: 1;   transform: scale(1.2); }
   }
+
+  /* ANSWER ANIMATIONS */
+  @keyframes qkFlash {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .qk-flash-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 9997;
+    background: rgba(201,168,76,0.08);
+    animation: qkFlash 0.6s ease-out forwards;
+  }
+
+  @keyframes qkRingPulse {
+    0%   { transform: translate(-50%,-50%) scale(0.5); opacity: 0.9; }
+    100% { transform: translate(-50%,-50%) scale(2.5); opacity: 0; }
+  }
+  .qk-ring-el {
+    position: fixed;
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    border: 2px solid rgba(201,168,76,0.6);
+    pointer-events: none; z-index: 10001;
+    animation: qkRingPulse 0.7s cubic-bezier(0.2,0,0.4,1) forwards;
+  }
+
+  .qk-score-pop-el {
+    position: fixed;
+    pointer-events: none; z-index: 10002;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 32px; font-weight: 700;
+    color: #c9a84c;
+    text-shadow: 0 0 20px rgba(201,168,76,0.5);
+    animation: qkScorePop 0.9s ease-out forwards;
+  }
+
+  .qk-streak-msg-el {
+    position: fixed;
+    left: 50%; top: 40%;
+    pointer-events: none; z-index: 10003;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 24px; font-weight: 700;
+    color: #c9a84c;
+    text-shadow: 0 0 30px rgba(201,168,76,0.6);
+    white-space: nowrap;
+    animation: qkStreakMsg 1.1s ease-out forwards;
+  }
 `
 
 export default function QuizPage() {
@@ -625,6 +672,13 @@ export default function QuizPage() {
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
   const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const canvasRef            = useRef<HTMLCanvasElement | null>(null)
+  const confettiRafRef       = useRef<number | null>(null)
+  const [ringTrigger, setRingTrigger] = useState(0)
+  const [ringPos, setRingPos] = useState<{ x: number; y: number } | null>(null)
+  const [scorePop, setScorePop] = useState<{ x: number; y: number; key: number } | null>(null)
+  const [streakMsgText, setStreakMsgText] = useState<string | null>(null)
+  const [flashActive, setFlashActive] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -893,166 +947,110 @@ export default function QuizPage() {
     }
   }
 
+  function startConfettiCanvas(cx: number, cy: number) {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    if (confettiRafRef.current) cancelAnimationFrame(confettiRafRef.current)
+
+    type P = { x: number; y: number; vx: number; vy: number; size: number; color: string; round: boolean; rot: number; rotV: number; opacity: number }
+    const COLORS = ['#c9a84c', '#e8c96a', '#f0d878', '#ffffff', '#d4b45a']
+    const particles: P[] = []
+    for (let i = 0; i < 150; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const speed = 3 + Math.random() * 9
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 5,
+        size: 3 + Math.random() * 10,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        round: Math.random() > 0.5,
+        rot: Math.random() * Math.PI * 2,
+        rotV: (Math.random() - 0.5) * 0.25,
+        opacity: 0.9,
+      })
+    }
+
+    const GRAVITY = 0.18
+    const DECAY = 0.013
+
+    function loop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      let alive = false
+      for (const p of particles) {
+        p.vy += GRAVITY
+        p.x += p.vx
+        p.y += p.vy
+        p.rot += p.rotV
+        p.opacity -= DECAY
+        if (p.opacity <= 0) continue
+        alive = true
+        ctx.save()
+        ctx.globalAlpha = Math.max(0, p.opacity)
+        ctx.fillStyle = p.color
+        ctx.translate(p.x, p.y)
+        ctx.rotate(p.rot)
+        if (p.round) {
+          ctx.beginPath()
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2)
+          ctx.fill()
+        } else {
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+        }
+        ctx.restore()
+      }
+      if (alive) {
+        confettiRafRef.current = requestAnimationFrame(loop)
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        confettiRafRef.current = null
+      }
+    }
+    confettiRafRef.current = requestAnimationFrame(loop)
+  }
+
   function fireCorrectAnswer(buttonEl: HTMLButtonElement | undefined, streak = 0) {
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
-    if (typeof document !== 'undefined') {
-      document.getElementById('qk-glow-overlay')?.remove()
-      document.querySelectorAll('.qk-spark').forEach(s => s.remove())
-      document.querySelectorAll('.qk-confetti').forEach(s => s.remove())
-      document.querySelectorAll('.qk-ring').forEach(s => s.remove())
-      document.querySelectorAll('.qk-score-pop').forEach(s => s.remove())
-      document.getElementById('qk-flash-overlay')?.remove()
-      document.getElementById('qk-streak-msg')?.remove()
-    }
 
-    const t = (ms: number, fn: () => void) => {
-      const id = setTimeout(fn, ms)
-      animationTimeoutsRef.current.push(id)
-    }
+    if (confettiRafRef.current) { cancelAnimationFrame(confettiRafRef.current); confettiRafRef.current = null }
+    const canvas = canvasRef.current
+    if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(50)
-    if (typeof document === 'undefined') return
 
     const rect = buttonEl?.getBoundingClientRect()
     const cx = rect ? rect.left + rect.width / 2 : (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
     const cy = rect ? rect.top + rect.height / 2 : (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
 
-    // 1. BAKGRUNNS-FLASH
-    const flash = document.createElement('div')
-    flash.id = 'qk-flash-overlay'
-    flash.style.cssText = [
-      'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
-      'pointer-events:none', 'z-index:9997',
-      'background:rgba(201,168,76,0.08)',
-      'opacity:1',
-      'transition:opacity 0.6s ease-out',
-    ].join(';')
-    document.body.appendChild(flash)
-    requestAnimationFrame(() => requestAnimationFrame(() => { flash.style.opacity = '0' }))
-    t(700, () => flash.remove())
-
-    // 2. TRE PULSERENDE GULLRINGER
-    for (let i = 0; i < 3; i++) {
-      t(i * 150, () => {
-        const ring = document.createElement('div')
-        ring.className = 'qk-ring'
-        ring.style.cssText = [
-          'position:fixed',
-          `left:${cx.toFixed(1)}px`,
-          `top:${cy.toFixed(1)}px`,
-          'width:80px', 'height:80px',
-          'border-radius:50%',
-          'border:2px solid rgba(201,168,76,0.6)',
-          'pointer-events:none',
-          'z-index:10001',
-          'transform:translate(-50%,-50%) scale(0.5)',
-          'opacity:0.9',
-          'transition:transform 0.7s cubic-bezier(0.2,0,0.4,1),opacity 0.7s ease-out',
-        ].join(';')
-        document.body.appendChild(ring)
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          ring.style.transform = 'translate(-50%,-50%) scale(2.5)'
-          ring.style.opacity = '0'
-        }))
-        t(i * 150 + 750, () => ring.remove())
-      })
-    }
-
-    // 3. "+1" SCORE POP
-    const pop = document.createElement('div')
-    pop.className = 'qk-score-pop'
-    pop.textContent = '+1'
-    pop.style.cssText = [
-      'position:fixed',
-      `left:${cx.toFixed(1)}px`,
-      `top:${cy.toFixed(1)}px`,
-      'pointer-events:none',
-      'z-index:10002',
-      "font-family:'Libre Baskerville',serif",
-      'font-size:32px',
-      'font-weight:700',
-      'color:#c9a84c',
-      'text-shadow:0 0 20px rgba(201,168,76,0.5)',
-      'animation:qkScorePop 0.9s ease-out forwards',
-    ].join(';')
-    document.body.appendChild(pop)
-    t(950, () => pop.remove())
-
-    // 4. MASSIV GULLKONFETTI (200 partikler, 2 bølger)
-    const COLORS = ['#c9a84c', '#e8c96a', '#f0d878', '#ffffff', '#d4b45a', '#ffed9f']
-    const spawnWave = () => {
-      const particles: HTMLElement[] = []
-      for (let i = 0; i < 100; i++) {
-        const angle = Math.random() * Math.PI * 2
-        const dist = 60 + Math.random() * 180
-        const dx = Math.cos(angle) * dist
-        const dy = Math.sin(angle) * dist - 40
-        const size = 3 + Math.random() * 10
-        const isRound = Math.random() > 0.5
-        const color = COLORS[Math.floor(Math.random() * COLORS.length)]
-        const dur = Math.round(700 + Math.random() * 600)
-        const rotation = Math.random() * 540
-        const p = document.createElement('div')
-        p.className = 'qk-confetti'
-        p.style.cssText = [
-          'position:fixed',
-          `left:${cx.toFixed(1)}px`,
-          `top:${cy.toFixed(1)}px`,
-          `width:${size.toFixed(1)}px`,
-          `height:${size.toFixed(1)}px`,
-          `border-radius:${isRound ? '50%' : '2px'}`,
-          `background:${color}`,
-          'pointer-events:none',
-          'z-index:10000',
-          'transform:translate(-50%,-50%)',
-          'opacity:0',
-          `transition:transform ${dur}ms cubic-bezier(0.2,0,0.4,1),opacity 200ms ease-out`,
-        ].join(';')
-        document.body.appendChild(p)
-        particles.push(p)
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          p.style.opacity = '0.9'
-          p.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px),calc(-50% + ${dy.toFixed(1)}px)) rotate(${rotation.toFixed(0)}deg)`
-        }))
-      }
-      t(700, () => particles.forEach(p => { p.style.transition = 'opacity 400ms ease-out'; p.style.opacity = '0' }))
-      t(1150, () => particles.forEach(p => p.remove()))
-    }
-    spawnWave()
-    t(100, () => spawnWave())
-
-    // 5. STREAK-MELDING (kun ved streak ≥ 2)
+    // React state — all batched into one synchronous render
+    setFlashActive(true)
+    setRingPos({ x: cx, y: cy })
+    setRingTrigger(k => k + 1)
+    setScorePop({ x: cx, y: cy, key: Date.now() })
     if (streak >= 2) {
       const msgs: Record<number, string> = { 2: '🔥 2 på rad!', 3: '🔥 3 på rad!', 4: '⚡ Ustoppelig!' }
-      const msg = streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`)
-      const ww = typeof window !== 'undefined' ? window.innerWidth : 400
-      const wh = typeof window !== 'undefined' ? window.innerHeight : 600
-      const streakEl = document.createElement('div')
-      streakEl.id = 'qk-streak-msg'
-      streakEl.textContent = msg
-      streakEl.style.cssText = [
-        'position:fixed',
-        `left:${(ww / 2).toFixed(0)}px`,
-        `top:${(wh * 0.4).toFixed(0)}px`,
-        'pointer-events:none',
-        'z-index:10003',
-        "font-family:'Libre Baskerville',serif",
-        'font-size:24px',
-        'font-weight:700',
-        'color:#c9a84c',
-        'text-shadow:0 0 30px rgba(201,168,76,0.6)',
-        'white-space:nowrap',
-        'animation:qkStreakMsg 1.1s ease-out forwards',
-      ].join(';')
-      document.body.appendChild(streakEl)
-      t(1150, () => streakEl.remove())
+      setStreakMsgText(streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`))
     }
 
-    // 6. Streak-badge (inline React ref) fader mykt inn
+    // Canvas konfetti — starter i samme frame
+    startConfettiCanvas(cx, cy)
+
+    // Cleanup (ingen spawn-delays)
+    const t = (ms: number, fn: () => void) => { const id = setTimeout(fn, ms); animationTimeoutsRef.current.push(id) }
+    t(650,  () => setFlashActive(false))
+    t(950,  () => setScorePop(null))
+    t(1050, () => setRingPos(null))
+    t(1200, () => setStreakMsgText(null))
+
+    // Streak-badge i React-treet fader inn
     const streakBadge = streakBadgeRef.current
     if (streakBadge) {
-      streakBadge.style.animation = 'none'
       streakBadge.style.transition = 'none'
       streakBadge.style.opacity = '0'
       requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1074,17 +1072,13 @@ export default function QuizPage() {
     // Rydd opp alle løpende animasjonstimere og inline-stiler
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
-    if (typeof document !== 'undefined') {
-      document.body.style.transition = ''
-      document.body.style.backgroundColor = ''
-      document.getElementById('qk-glow-overlay')?.remove()
-      document.querySelectorAll('.qk-spark').forEach(s => s.remove())
-      document.querySelectorAll('.qk-confetti').forEach(s => s.remove())
-      document.querySelectorAll('.qk-ring').forEach(s => s.remove())
-      document.querySelectorAll('.qk-score-pop').forEach(s => s.remove())
-      document.getElementById('qk-flash-overlay')?.remove()
-      document.getElementById('qk-streak-msg')?.remove()
-    }
+    if (confettiRafRef.current) { cancelAnimationFrame(confettiRafRef.current); confettiRafRef.current = null }
+    const canvas = canvasRef.current
+    if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    setFlashActive(false)
+    setRingPos(null)
+    setScorePop(null)
+    setStreakMsgText(null)
     if (streakBadgeRef.current) {
       streakBadgeRef.current.style.animation = ''
       streakBadgeRef.current.style.transition = ''
@@ -1413,6 +1407,28 @@ export default function QuizPage() {
 
     return (
       <><style>{styles}</style>
+
+      {/* Canvas konfetti-overlay */}
+      <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10000 }} />
+
+      {/* Bakgrunns-flash */}
+      {flashActive && <div className="qk-flash-overlay" />}
+
+      {/* Pulserende ringer — CSS-animasjon, ingen DOM-spawning */}
+      {ringPos && [0, 150, 300].map((delay, i) => (
+        <div key={`${ringTrigger}-${i}`} className="qk-ring-el" style={{ left: ringPos.x, top: ringPos.y, animationDelay: `${delay}ms` }} />
+      ))}
+
+      {/* +1 score pop */}
+      {scorePop && (
+        <div key={scorePop.key} className="qk-score-pop-el" style={{ left: scorePop.x, top: scorePop.y }}>+1</div>
+      )}
+
+      {/* Streak-melding */}
+      {streakMsgText && (
+        <div key={streakMsgText} className="qk-streak-msg-el">{streakMsgText}</div>
+      )}
+
       {/* Intermediate screen */}
       {interPhase !== 'hidden' && (
         <QuizInterlude
