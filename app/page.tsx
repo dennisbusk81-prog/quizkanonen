@@ -603,7 +603,7 @@ export default async function Home() {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-    const [quizResult, allSeasonResult, profileResult, leagueResult] = await Promise.all([
+    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult] = await Promise.all([
       supabaseAdmin
         .from('quizzes')
         .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
@@ -628,6 +628,13 @@ export default async function Home() {
         .select('league_id, leagues(id, name)')
         .eq('user_id', user.id)
         .limit(5),
+      // Fetch user's recently played quiz IDs in parallel — cross-reference with active quiz below
+      supabaseAdmin
+        .from('played_log')
+        .select('quiz_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
     ])
 
     // Profile
@@ -640,6 +647,13 @@ export default async function Home() {
     const quizList = (quizResult.data as QuizRow[] | null) ?? []
     const quiz = quizList[0] ?? null
     const participantCount = quiz?.attempts[0]?.count ?? 0
+
+    // Has the user already played the active quiz?
+    type PlayedRow = { quiz_id: string }
+    const playedQuizIds = new Set(
+      ((playedLogResult.data as PlayedRow[] | null) ?? []).map(r => r.quiz_id)
+    )
+    const alreadyPlayed = quiz ? playedQuizIds.has(quiz.id) : false
 
     // Season — aggregate and compute user rank
     const rawRows = (allSeasonResult.data as RawSeasonRow[] | null) ?? []
@@ -747,9 +761,18 @@ export default async function Home() {
                 {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
               </p>
               <div className="qk-card-actions">
-                <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
-                  Spill ukens quiz
-                </Link>
+                {alreadyPlayed ? (
+                  <>
+                    <p style={{ fontSize: 14, color: '#7a7873' }}>Du har allerede spilt denne uken</p>
+                    <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-outline-gold">
+                      Se topplisten →
+                    </Link>
+                  </>
+                ) : (
+                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
+                    Spill ukens quiz
+                  </Link>
+                )}
               </div>
             </div>
           ) : (
