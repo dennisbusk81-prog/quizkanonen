@@ -628,12 +628,12 @@ export default async function Home() {
         .select('league_id, leagues(id, name)')
         .eq('user_id', user.id)
         .limit(5),
-      // Fetch user's recently played quiz IDs in parallel — cross-reference with active quiz below
+      // For logged-in users, attempts table is the authoritative source (mirrors quiz/[id]/page.tsx logic)
       supabaseAdmin
-        .from('played_log')
+        .from('attempts')
         .select('quiz_id')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .order('completed_at', { ascending: false })
         .limit(10),
     ])
 
