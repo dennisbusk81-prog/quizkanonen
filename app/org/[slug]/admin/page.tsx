@@ -78,6 +78,13 @@ export default function OrgAdminPage() {
   const [allowGlobal, setAllowGlobal] = useState(false)
   const [adminAnswers, setAdminAnswers] = useState(false)
 
+  // E-post invitasjon
+  const [emailInviteOpen, setEmailInviteOpen]   = useState(false)
+  const [emailInviteText, setEmailInviteText]   = useState('')
+  const [emailInviteSending, setEmailInviteSending] = useState(false)
+  const [emailInviteResult, setEmailInviteResult]   = useState<{ sent: number; failed: string[] } | null>(null)
+  const [emailInviteError, setEmailInviteError]     = useState<string | null>(null)
+
   // Sesong-administrasjon
   const [seasonOpen, setSeasonOpen]         = useState(false)
   const [seasonResetModal, setSeasonResetModal] = useState(false)
@@ -272,6 +279,42 @@ export default function OrgAdminPage() {
     await navigator.clipboard.writeText(url)
     setCopiedToken(token)
     setTimeout(() => setCopiedToken(null), 2000)
+  }
+
+  const handleSendInvites = async () => {
+    if (!session || !data) return
+    const activeInvite = data.invites.find(i => i.is_active)
+    if (!activeInvite) { setEmailInviteError('Ingen aktiv invitasjonslenke. Opprett én først.'); return }
+
+    const rawEmails = emailInviteText
+      .split(/[\n,]+/)
+      .map(e => e.trim())
+      .filter(Boolean)
+
+    if (rawEmails.length === 0) { setEmailInviteError('Ingen e-postadresser oppgitt.'); return }
+
+    const inviteUrl = `${window.location.origin}/bli-med/${activeInvite.token}`
+    const senderName = data.members.find(m => m.user_id === data.currentUserId)?.display_name ?? 'En kollega'
+
+    setEmailInviteSending(true)
+    setEmailInviteResult(null)
+    setEmailInviteError(null)
+
+    try {
+      const res = await fetch(`/api/org/${data.org.id}/send-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ emails: rawEmails, inviteUrl, senderName }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setEmailInviteError(json.error ?? 'Noe gikk galt'); return }
+      setEmailInviteResult(json)
+      setEmailInviteText('')
+    } catch {
+      setEmailInviteError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setEmailInviteSending(false)
+    }
   }
 
   const handleSeasonReset = async () => {
@@ -682,6 +725,53 @@ export default function OrgAdminPage() {
               + {inactiveInvites.length} deaktivert{inactiveInvites.length !== 1 ? 'e' : ''} lenke{inactiveInvites.length !== 1 ? 'r' : ''}
             </p>
           )}
+
+          {/* ── SEND INVITASJON PÅ E-POST ───────────────── */}
+          <div style={{ marginTop: 14 }}>
+            <button
+              onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: emailInviteOpen ? '12px 12px 0 0' : 12, padding: '12px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Send invitasjon på e-post</span>
+              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: emailInviteOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
+                <path d="M1 1L5 5L9 1" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+            {emailInviteOpen && (
+              <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '16px 16px 18px' }}>
+                <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, lineHeight: 1.5 }}>
+                  E-postadresser (én per linje eller separert med komma)
+                </p>
+                <textarea
+                  value={emailInviteText}
+                  onChange={e => { setEmailInviteText(e.target.value); setEmailInviteResult(null); setEmailInviteError(null) }}
+                  placeholder={'kollega@bedrift.no, kollega2@bedrift.no'}
+                  rows={4}
+                  style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 10 }}
+                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                />
+                <button
+                  onClick={handleSendInvites}
+                  disabled={emailInviteSending || !emailInviteText.trim()}
+                  style={{ background: 'transparent', color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#e8e4dd', border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#e8e4dd'}`, fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 8, cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer' }}
+                >
+                  {emailInviteSending ? 'Sender…' : 'Send invitasjon'}
+                </button>
+                {emailInviteResult && (
+                  <p style={{ fontSize: 13, color: '#4ade80', marginTop: 10 }}>
+                    Sendt til {emailInviteResult.sent} mottaker{emailInviteResult.sent !== 1 ? 'e' : ''}.
+                    {emailInviteResult.failed.length > 0 && (
+                      <span style={{ color: '#f87171' }}> Feilet: {emailInviteResult.failed.join(', ')}</span>
+                    )}
+                  </p>
+                )}
+                {emailInviteError && (
+                  <p style={{ fontSize: 13, color: '#f87171', marginTop: 10 }}>{emailInviteError}</p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* ── MEMBERS ─────────────────────────────────── */}
           <SectionHeader title="Medlemmer" />
