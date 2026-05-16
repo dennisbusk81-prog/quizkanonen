@@ -467,6 +467,7 @@ export default function AdminHome() {
         {/* Quick actions */}
         <div className="adm-actions">
           <Link href="/admin/quizzes/new" className="adm-btn-primary">+ Lag ny quiz</Link>
+          <Link href="/admin/users" className="adm-btn-outline">Brukere →</Link>
           <Link href="/admin/codes" className="adm-btn-outline">Verdikoder →</Link>
         </div>
 
