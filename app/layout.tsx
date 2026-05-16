@@ -44,6 +44,7 @@ export default function RootLayout({
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
             <span>© 2026 Quizkanonen</span>
+            <Link href="/om" className="hover:text-gray-300 transition-all">Om Quizkanonen</Link>
             <Link href="/personvern" className="hover:text-gray-300 transition-all">Personvernerklæring</Link>
             <Link href="/vilkar" className="hover:text-gray-300 transition-all">Brukervilkår</Link>
             <a href="mailto:quizkanonen@gmail.com" className="hover:text-gray-300 transition-all">Kontakt</a>
