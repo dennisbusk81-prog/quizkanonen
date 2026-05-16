@@ -600,24 +600,26 @@ export default function QuizPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setIsLoggedIn(!!session)
-      if (session?.user) {
-        setLoggedInUserId(session.user.id)
-        const { data: prof } = await supabaseData
-          .from('profiles')
-          .select('display_name, age_confirmed_at, premium_status')
-          .eq('id', session.user.id)
-          .maybeSingle()
-        const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
-        if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-        setIsPremium(prof?.premium_status === true)
-        if (prof?.age_confirmed_at) {
-          setAgeAlreadyConfirmed(true)
-          setAgeConfirmed(true)
-        }
+      if (!session) {
+        window.location.href = `/login?next=/quiz/${quizId}`
+        return
+      }
+      setIsLoggedIn(true)
+      setLoggedInUserId(session.user.id)
+      const { data: prof } = await supabaseData
+        .from('profiles')
+        .select('display_name, age_confirmed_at, premium_status')
+        .eq('id', session.user.id)
+        .maybeSingle()
+      const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
+      if (name) { setNameInput(name); setLoggedInDisplayName(name) }
+      setIsPremium(prof?.premium_status === true)
+      if (prof?.age_confirmed_at) {
+        setAgeAlreadyConfirmed(true)
+        setAgeConfirmed(true)
       }
     })
-  }, [])
+  }, [quizId])
 
   useEffect(() => {
     async function fetchData() {
@@ -794,38 +796,11 @@ export default function QuizPage() {
   }, [quizId])
 
   const startQuiz = async () => {
-    if (!nameInput.trim() || !ageConfirmed) return
+    const effectiveName = isTeamInput ? nameInput.trim() : (loggedInDisplayName ?? nameInput.trim())
+    if (!effectiveName) return
 
-    // Sjekk navnekonflikt kun for ikke-innloggede brukere
-    if (!isLoggedIn) {
-      const { data: conflict } = await supabaseData
-        .from('attempts')
-        .select('id')
-        .eq('quiz_id', quizId)
-        .ilike('player_name', nameInput.trim())
-        .is('user_id', null)
-        .limit(1)
-      if (conflict && conflict.length > 0) {
-        setNameConflict(true)
-        return
-      }
-    }
-    setNameConflict(false)
-
-    const info: PlayerInfo = { name: nameInput.trim(), isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
+    const info: PlayerInfo = { name: effectiveName, isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
-
-    // Lagre aldersbekreftelse i bakgrunnen hvis dette er første gang
-    if (loggedInUserId && loggedInDisplayName && !ageAlreadyConfirmed) {
-      const { data: { session: sess } } = await supabase.auth.getSession()
-      if (sess?.access_token) {
-        fetch('/api/profile/upsert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess.access_token}` },
-          body: JSON.stringify({ id: loggedInUserId, display_name: loggedInDisplayName, age_confirmed_at: new Date().toISOString() }),
-        }).catch(() => { /* ikke kritisk */ })
-      }
-    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -1234,20 +1209,10 @@ export default function QuizPage() {
       {quiz.category && (
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873', marginBottom: 16 }}>{quiz.category}</p>
       )}
-      <p className="qk-sub">Fyll inn navn og trykk start. Lykke til!</p>
+      <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName ?? '...'}</strong>. Lykke til!</p>
 
       {resumeData && (
         <div className="qk-banner">🔄 Vi fant en påbegynt quiz — du fortsetter der du slapp.</div>
-      )}
-
-      <label className="qk-label">Navn / Lagnavn</label>
-      <input type="text" value={nameInput} onChange={e => { setNameInput(e.target.value); setNameConflict(false) }}
-        placeholder="Skriv inn navn..." className="qk-input" maxLength={30}
-        onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
-      {nameConflict && (
-        <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: -14, marginBottom: 16 }}>
-          Dette navnet er allerede i bruk på denne quizen, velg et annet.
-        </p>
       )}
 
       {socialProof && socialProof.totalPlayers >= 1 && (
@@ -1293,6 +1258,10 @@ export default function QuizPage() {
           </div>
           {isTeamInput && (
             <>
+              <label className="qk-label">Lagnavn</label>
+              <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
+                placeholder="Skriv inn lagnavn..." className="qk-input" maxLength={30}
+                onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
               <label className="qk-label">Antall på laget</label>
               <div className="qk-sizes">
                 {[2,3,4,5,6].map(n => (
@@ -1300,34 +1269,16 @@ export default function QuizPage() {
                     className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
                 ))}
               </div>
-              {isLoggedIn && (
-                <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, textAlign: 'center' }}>
-                  Sesong-poeng registreres på deg som er innlogget.
-                </p>
-              )}
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, textAlign: 'center' }}>
+                Sesong-poeng registreres på deg som er innlogget.
+              </p>
             </>
           )}
         </>
       )}
 
-      {!ageAlreadyConfirmed && (
-        <div className="qk-check-row" onClick={() => setAgeConfirmed(!ageConfirmed)}>
-          <div className={`qk-check-box${ageConfirmed ? ' checked' : ''}`}>
-            {ageConfirmed && (
-              <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                <path d="M1 4L4 7L10 1" stroke="#0f0f10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </div>
-          <span className="qk-check-text">
-            Jeg er 13 år eller eldre og godtar{' '}
-            <a href="/personvern" onClick={e => e.stopPropagation()}>personvernerklæringen</a>
-          </span>
-        </div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <button onClick={startQuiz} disabled={!nameInput.trim() || !ageConfirmed} className="qk-btn-primary"
+        <button onClick={startQuiz} disabled={isTeamInput && !nameInput.trim()} className="qk-btn-primary"
           style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
           {resumeData ? 'Fortsett quiz' : 'Start quiz'}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
@@ -1488,7 +1439,6 @@ export default function QuizPage() {
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
-        {!isLoggedIn && <span style={{ fontSize: 15, color: '#7a7873', fontWeight: 400, marginLeft: 8 }}>(guest)</span>}
       </h1>
       <p style={{fontSize:13,color:'#7a7873',marginBottom:24}}>{quiz.title}</p>
 
@@ -1554,24 +1504,50 @@ export default function QuizPage() {
         const rangeY = estimatedPlacement.total <= 10
           ? estimatedPlacement.total
           : Math.min(estimatedPlacement.total, tierStart + 9)
+        if (isPremium) {
+          return (
+            <div style={{
+              background: '#1e1a0e',
+              border: '0.5px solid rgba(201,168,76,0.3)',
+              borderRadius: 16,
+              padding: 16,
+              textAlign: 'center',
+              marginBottom: 14,
+            }}>
+              <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c' }}>
+                Topp {toppX}%
+              </div>
+              <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4 }}>
+                Du er bedre enn {prosent}% av deltakerne
+              </div>
+              <div style={{ fontSize: 11, color: '#7a7873', marginTop: 6 }}>
+                Plass {estimatedPlacement.low} · av {estimatedPlacement.total} deltakere
+              </div>
+            </div>
+          )
+        }
         return (
           <div style={{
-            background: '#1e1a0e',
-            border: '0.5px solid rgba(201,168,76,0.3)',
+            background: '#21242e',
+            border: '0.5px solid #2a2d38',
             borderRadius: 16,
             padding: 16,
             textAlign: 'center',
             marginBottom: 14,
           }}>
-            <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c' }}>
-              Topp {toppX}%
+            <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 8 }}>
+              Du er et sted mellom plass {tierStart} og {rangeY}
             </div>
-            <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4 }}>
-              Du er bedre enn {prosent}% av deltakerne
+            <div style={{ fontSize: 11, color: '#7a7873', marginBottom: 12 }}>
+              av {estimatedPlacement.total} deltakere
             </div>
-            <div style={{ fontSize: 11, color: '#7a7873', marginTop: 6 }}>
-              Estimert mellom plass {tierStart} og {rangeY} · av {estimatedPlacement.total} deltakere
-            </div>
+            <a href="/founders" style={{
+              display: 'inline-block',
+              fontSize: 13, fontWeight: 600, color: '#c9a84c',
+              textDecoration: 'none',
+            }}>
+              Oppgrader til Premium for å se nøyaktig plassering →
+            </a>
           </div>
         )
       })()}
@@ -1629,50 +1605,6 @@ export default function QuizPage() {
           )
         })()}
 
-        {!isLoggedIn && (
-          <a href="/login" style={{
-            display:'block',textAlign:'center',fontSize:13,color:'#e8e4dd',
-            textDecoration:'none',
-          }}>
-            Få påminnelse på e-post →
-          </a>
-        )}
-
-        {!isLoggedIn && (
-          <div style={{
-            background:'#21242e',
-            border:'0.5px solid #2a2d38',
-            borderRadius:16,
-            padding:16,
-            textAlign:'left',
-          }}>
-            <p style={{fontSize:13,color:'#e8e4dd',lineHeight:1.5,marginBottom:12}}>
-              Logg inn for å se nøyaktig plassering og lagre historikken din.
-            </p>
-            <a href="/login" style={{
-              display:'flex',alignItems:'center',gap:10,
-              background:'#2a2d38',borderRadius:8,padding:'10px 14px',
-              textDecoration:'none',transition:'background 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#32353f' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = '#2a2d38' }}
-            >
-              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908C16.658 14.131 17.64 11.862 17.64 9.2z" fill="#4285F4"/>
-                <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-                <path d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05"/>
-                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 6.294C4.672 4.169 6.656 3.58 9 3.58z" fill="#EA4335"/>
-              </svg>
-              <span style={{fontSize:13,color:'#e8e4dd',fontFamily:"'Instrument Sans', sans-serif"}}>Logg inn med Google</span>
-            </a>
-          </div>
-        )}
-
-        {!isLoggedIn && (
-          <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
-            Logg inn for å sikre at resultatet ditt er lagret.
-          </p>
-        )}
 
         {isLoggedIn && !isPremium && (
           <div style={{

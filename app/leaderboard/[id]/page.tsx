@@ -466,8 +466,8 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{ranked.length}</span>
         </div>
-        {visible.map(attempt => renderRow(attempt, currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName, podiumClass(attempt.rank)))}
-        {userOutsideVisible && (
+        {visible.map(attempt => renderRow(attempt, isPremium && (currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName), podiumClass(attempt.rank)))}
+        {userOutsideVisible && isPremium && (
           <>
             <p style={s.separator}>— Din plassering —</p>
             {renderRow(userInSection, true)}

@@ -1007,15 +1007,13 @@ export default async function Home() {
           </p>
           <div className="qk-hero-actions">
             {quizList.length > 0 && (
-              <Link href={`/quiz/${quizList[0].id}`} className="qk-btn-primary">
+              <Link href={`/login?next=/quiz/${quizList[0].id}`} className="qk-btn-primary">
                 Spill ukens quiz
               </Link>
             )}
           </div>
           <div className="qk-hero-status">
-            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Gratis</span></span>
-            <span style={{ color: '#7a7873' }}>·</span>
-            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Innlogget</span></span>
+            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google</span></span>
             <span style={{ color: '#7a7873' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
