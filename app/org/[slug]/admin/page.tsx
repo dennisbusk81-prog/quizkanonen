@@ -34,7 +34,6 @@ type AdminData = {
     plan: string
     stripe_period_end: string | null
     allow_global_league: boolean
-    admin_can_see_answers: boolean
   }
   members: Member[]
   invites: Invite[]
@@ -44,7 +43,7 @@ type AdminData = {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 10px' }}>
       <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
         {title}
       </span>
@@ -76,7 +75,6 @@ export default function OrgAdminPage() {
 
   // Local settings state
   const [allowGlobal, setAllowGlobal] = useState(false)
-  const [adminAnswers, setAdminAnswers] = useState(false)
 
   // E-post invitasjon
   const [emailInviteOpen, setEmailInviteOpen]   = useState(false)
@@ -165,7 +163,6 @@ export default function OrgAdminPage() {
         if (d) {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
-          setAdminAnswers(d.org.admin_can_see_answers)
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
         }
@@ -238,7 +235,7 @@ export default function OrgAdminPage() {
       await fetch(`/api/org/${slug}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ allow_global_league: allowGlobal, admin_can_see_answers: adminAnswers }),
+        body: JSON.stringify({ allow_global_league: allowGlobal }),
       })
       setSettingsSaved(true)
       setTimeout(() => setSettingsSaved(false), 2000)
@@ -425,18 +422,14 @@ export default function OrgAdminPage() {
           </div>
 
           {/* ── STATS ───────────────────────────────────── */}
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 0, marginBottom: 8 }}>
             {[
-              { val: data?.stats?.memberCount ?? data?.members.length ?? '—', lbl: 'Medlemmer totalt' },
+              { val: data?.stats?.memberCount ?? data?.members.length ?? '—', lbl: 'Medlemmer' },
               { val: data?.stats?.activeThisMonth ?? '—', lbl: 'Aktive denne måneden' },
-            ].map(({ val, lbl }) => (
-              <div key={lbl}>
-                <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 6 }}>
-                  {val}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: '#7a7873' }}>
-                  {lbl}
-                </div>
+            ].map(({ val, lbl }, i) => (
+              <div key={lbl} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, ...(i > 0 ? { borderLeft: '1px solid #2a2d38', paddingLeft: 20, marginLeft: 20 } : {}) }}>
+                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>{val}</span>
+                <span style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.3 }}>{lbl}</span>
               </div>
             ))}
           </div>
@@ -587,7 +580,7 @@ export default function OrgAdminPage() {
           </div>
 
           {/* ── SESONG-ADMINISTRASJON (accordion) ───────── */}
-          <div style={{ margin: '32px 0 0' }}>
+          <div style={{ margin: '20px 0 0' }}>
             <button
               onClick={() => setSeasonOpen(o => !o)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #3a3d4a', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
@@ -810,30 +803,16 @@ export default function OrgAdminPage() {
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 24px' }}>
 
             {/* Toggle: allow global league */}
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer', marginBottom: 20 }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', marginBottom: 16 }}>
               <div
                 onClick={() => setAllowGlobal(v => !v)}
-                style={{ marginTop: 2, width: 36, height: 20, borderRadius: 10, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
+                style={{ marginTop: 3, width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
               >
-                <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
+                <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 3 }}>Delta i global sesong-toppliste</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', marginBottom: 2 }}>Delta i global sesong-toppliste</div>
                 <div style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>Tillat at bedriftens ansatte vises på den globale sesong-topplisten.</div>
-              </div>
-            </label>
-
-            {/* Toggle: admin can see answers */}
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 14, cursor: 'pointer', marginBottom: 24 }}>
-              <div
-                onClick={() => setAdminAnswers(v => !v)}
-                style={{ marginTop: 2, width: 36, height: 20, borderRadius: 10, background: adminAnswers ? '#c9a84c' : '#2a2d38', border: `1px solid ${adminAnswers ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
-              >
-                <div style={{ position: 'absolute', top: 2, left: adminAnswers ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 3 }}>Admin kan se svar</div>
-                <div style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>Gi admin-brukere tilgang til å se hva hvert medlem svarte på hvert spørsmål.</div>
               </div>
             </label>
 
