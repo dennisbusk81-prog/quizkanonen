@@ -391,13 +391,41 @@ const styles = `
 
   .qk-option:hover:not(:disabled) { border-color: #4a4d5a; background: #262930; }
   .qk-option:disabled { cursor: default; }
-  @keyframes qkcorrectpulse {
+  @keyframes qkButtonPop {
     0%   { transform: scale(1); }
-    50%  { transform: scale(1.02); }
+    40%  { transform: scale(1.05); }
+    70%  { transform: scale(0.98); }
     100% { transform: scale(1); }
   }
 
-  .qk-option.correct { background: rgba(76,175,125,0.1); border-color: var(--green); animation: qkcorrectpulse 300ms ease-out; }
+  @keyframes qkShake {
+    0%, 100% { transform: translateX(0); }
+    20%      { transform: translateX(-5px); }
+    40%      { transform: translateX(5px); }
+    60%      { transform: translateX(-5px); }
+    80%      { transform: translateX(5px); }
+  }
+
+  @keyframes qkScorePop {
+    0%   { transform: translate(-50%, -50%) scale(0.7); opacity: 1; }
+    40%  { transform: translate(-50%, calc(-50% - 40px)) scale(1.3); opacity: 1; }
+    100% { transform: translate(-50%, calc(-50% - 80px)) scale(0.9); opacity: 0; }
+  }
+
+  @keyframes qkStreakMsg {
+    0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    25%  { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+    70%  { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+  }
+
+  .qk-option.correct { background: rgba(59,109,17,0.12); border-color: #3B6D11; }
+  .qk-option.correct .qk-opt-letter { background: #3B6D11; border-color: #3B6D11; color: #fff; }
+
+  .qk-option.correct-self { background: rgba(201,168,76,0.1); border-color: #c9a84c; animation: qkButtonPop 0.4s ease-out; }
+  .qk-option.correct-self .qk-opt-letter { background: #c9a84c; border-color: #c9a84c; color: #1a1c23; transform: scale(1.2); transition: transform 0.15s; }
+  .qk-option.correct-self .qk-opt-text { color: #c9a84c; font-weight: 600; }
+
   .qk-option.wrong { background: rgba(201,76,76,0.1); border-color: var(--red); opacity: 0.7; }
   .qk-option.idle { opacity: 0.4; }
 
@@ -855,16 +883,27 @@ export default function QuizPage() {
       await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
     }
     if (isCorrect) {
-      fireCorrectAnswer(buttonEl)
+      let currentStreak = 0
+      for (let i = newAnswers.length - 1; i >= 0; i--) {
+        if (newAnswers[i].isCorrect) currentStreak++; else break
+      }
+      fireCorrectAnswer(buttonEl, currentStreak)
+    } else {
+      fireWrongAnswer(buttonEl)
     }
   }
 
-  function fireCorrectAnswer(buttonEl?: HTMLButtonElement) {
+  function fireCorrectAnswer(buttonEl: HTMLButtonElement | undefined, streak = 0) {
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
     if (typeof document !== 'undefined') {
       document.getElementById('qk-glow-overlay')?.remove()
       document.querySelectorAll('.qk-spark').forEach(s => s.remove())
+      document.querySelectorAll('.qk-confetti').forEach(s => s.remove())
+      document.querySelectorAll('.qk-ring').forEach(s => s.remove())
+      document.querySelectorAll('.qk-score-pop').forEach(s => s.remove())
+      document.getElementById('qk-flash-overlay')?.remove()
+      document.getElementById('qk-streak-msg')?.remove()
     }
 
     const t = (ms: number, fn: () => void) => {
@@ -873,123 +912,162 @@ export default function QuizPage() {
     }
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(50)
+    if (typeof document === 'undefined') return
 
-    // Senterpunkt for partikler og gradient — bruk knappens posisjon
     const rect = buttonEl?.getBoundingClientRect()
     const cx = rect ? rect.left + rect.width / 2 : (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
     const cy = rect ? rect.top + rect.height / 2 : (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
-    const bxPct = typeof window !== 'undefined' ? ((cx / window.innerWidth) * 100).toFixed(1) + '%' : '50%'
-    const byPct = typeof window !== 'undefined' ? ((cy / window.innerHeight) * 100).toFixed(1) + '%' : '50%'
 
-    // 0ms: Knapp tennes — sterk glow, 800ms inn
-    if (buttonEl) {
-      buttonEl.style.transition = 'box-shadow 800ms cubic-bezier(0.4, 0, 0.2, 1), border-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
-      requestAnimationFrame(() => {
-        buttonEl.style.boxShadow = '0 0 220px 120px rgba(201,168,76,0.30)'
-        buttonEl.style.borderColor = '#c9a84c'
-      })
-      // 1700ms: Knapp slukner — 700ms ut
-      t(1700, () => {
-        buttonEl.style.transition = 'box-shadow 700ms cubic-bezier(0.4, 0, 0.2, 1), border-color 700ms cubic-bezier(0.4, 0, 0.2, 1)'
-        buttonEl.style.boxShadow = ''
-        buttonEl.style.borderColor = ''
+    // 1. BAKGRUNNS-FLASH
+    const flash = document.createElement('div')
+    flash.id = 'qk-flash-overlay'
+    flash.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+      'pointer-events:none', 'z-index:9997',
+      'background:rgba(201,168,76,0.08)',
+      'opacity:1',
+      'transition:opacity 0.6s ease-out',
+    ].join(';')
+    document.body.appendChild(flash)
+    requestAnimationFrame(() => requestAnimationFrame(() => { flash.style.opacity = '0' }))
+    t(700, () => flash.remove())
+
+    // 2. TRE PULSERENDE GULLRINGER
+    for (let i = 0; i < 3; i++) {
+      t(i * 150, () => {
+        const ring = document.createElement('div')
+        ring.className = 'qk-ring'
+        ring.style.cssText = [
+          'position:fixed',
+          `left:${cx.toFixed(1)}px`,
+          `top:${cy.toFixed(1)}px`,
+          'width:80px', 'height:80px',
+          'border-radius:50%',
+          'border:2px solid rgba(201,168,76,0.6)',
+          'pointer-events:none',
+          'z-index:10001',
+          'transform:translate(-50%,-50%) scale(0.5)',
+          'opacity:0.9',
+          'transition:transform 0.7s cubic-bezier(0.2,0,0.4,1),opacity 0.7s ease-out',
+        ].join(';')
+        document.body.appendChild(ring)
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          ring.style.transform = 'translate(-50%,-50%) scale(2.5)'
+          ring.style.opacity = '0'
+        }))
+        t(i * 150 + 750, () => ring.remove())
       })
     }
 
-    // 0ms: 100 gullpartikler spres organisk utover fra knapp-senteret
-    if (typeof document !== 'undefined') {
-      const sparks: HTMLElement[] = []
+    // 3. "+1" SCORE POP
+    const pop = document.createElement('div')
+    pop.className = 'qk-score-pop'
+    pop.textContent = '+1'
+    pop.style.cssText = [
+      'position:fixed',
+      `left:${cx.toFixed(1)}px`,
+      `top:${cy.toFixed(1)}px`,
+      'pointer-events:none',
+      'z-index:10002',
+      "font-family:'Libre Baskerville',serif",
+      'font-size:32px',
+      'font-weight:700',
+      'color:#c9a84c',
+      'text-shadow:0 0 20px rgba(201,168,76,0.5)',
+      'animation:qkScorePop 0.9s ease-out forwards',
+    ].join(';')
+    document.body.appendChild(pop)
+    t(950, () => pop.remove())
+
+    // 4. MASSIV GULLKONFETTI (200 partikler, 2 bølger)
+    const COLORS = ['#c9a84c', '#e8c96a', '#f0d878', '#ffffff', '#d4b45a', '#ffed9f']
+    const spawnWave = () => {
+      const particles: HTMLElement[] = []
       for (let i = 0; i < 100; i++) {
-        const angle = (i / 100) * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI / 12) // ±15 grader avvik
-        const dist = 60 + Math.random() * 220                                            // 60–280px
-        const size = 3 + Math.random() * 5                                               // 3–8px
-        const dur = Math.round(700 + Math.random() * 400)                                // 700–1100ms
-        const spark = document.createElement('div')
-        spark.className = 'qk-spark'
-        spark.style.cssText = [
+        const angle = Math.random() * Math.PI * 2
+        const dist = 60 + Math.random() * 180
+        const dx = Math.cos(angle) * dist
+        const dy = Math.sin(angle) * dist - 40
+        const size = 3 + Math.random() * 10
+        const isRound = Math.random() > 0.5
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)]
+        const dur = Math.round(700 + Math.random() * 600)
+        const rotation = Math.random() * 540
+        const p = document.createElement('div')
+        p.className = 'qk-confetti'
+        p.style.cssText = [
           'position:fixed',
           `left:${cx.toFixed(1)}px`,
           `top:${cy.toFixed(1)}px`,
           `width:${size.toFixed(1)}px`,
           `height:${size.toFixed(1)}px`,
-          'border-radius:50%',
-          'background:#c9a84c',
+          `border-radius:${isRound ? '50%' : '2px'}`,
+          `background:${color}`,
           'pointer-events:none',
           'z-index:10000',
           'transform:translate(-50%,-50%)',
           'opacity:0',
-          `transition:transform ${dur}ms cubic-bezier(0.2,0,0.4,1),opacity 300ms ease-out`,
+          `transition:transform ${dur}ms cubic-bezier(0.2,0,0.4,1),opacity 200ms ease-out`,
         ].join(';')
-        document.body.appendChild(spark)
-        sparks.push(spark)
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            spark.style.opacity = '0.85'
-            spark.style.transform = `translate(calc(-50% + ${(Math.cos(angle) * dist).toFixed(1)}px), calc(-50% + ${(Math.sin(angle) * dist).toFixed(1)}px))`
-          })
-        })
+        document.body.appendChild(p)
+        particles.push(p)
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          p.style.opacity = '0.9'
+          p.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px),calc(-50% + ${dy.toFixed(1)}px)) rotate(${rotation.toFixed(0)}deg)`
+        }))
       }
-      // 900ms: partikler fader ut
-      t(900, () => {
-        sparks.forEach(s => {
-          s.style.transition = 'opacity 400ms ease-out'
-          s.style.opacity = '0'
-        })
-      })
-      // 1350ms: fjern fra DOM
-      t(1350, () => sparks.forEach(s => s.remove()))
+      t(700, () => particles.forEach(p => { p.style.transition = 'opacity 400ms ease-out'; p.style.opacity = '0' }))
+      t(1150, () => particles.forEach(p => p.remove()))
+    }
+    spawnWave()
+    t(100, () => spawnWave())
+
+    // 5. STREAK-MELDING (kun ved streak ≥ 2)
+    if (streak >= 2) {
+      const msgs: Record<number, string> = { 2: '🔥 2 på rad!', 3: '🔥 3 på rad!', 4: '⚡ Ustoppelig!' }
+      const msg = streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`)
+      const ww = typeof window !== 'undefined' ? window.innerWidth : 400
+      const wh = typeof window !== 'undefined' ? window.innerHeight : 600
+      const streakEl = document.createElement('div')
+      streakEl.id = 'qk-streak-msg'
+      streakEl.textContent = msg
+      streakEl.style.cssText = [
+        'position:fixed',
+        `left:${(ww / 2).toFixed(0)}px`,
+        `top:${(wh * 0.4).toFixed(0)}px`,
+        'pointer-events:none',
+        'z-index:10003',
+        "font-family:'Libre Baskerville',serif",
+        'font-size:24px',
+        'font-weight:700',
+        'color:#c9a84c',
+        'text-shadow:0 0 30px rgba(201,168,76,0.6)',
+        'white-space:nowrap',
+        'animation:qkStreakMsg 1.1s ease-out forwards',
+      ].join(';')
+      document.body.appendChild(streakEl)
+      t(1150, () => streakEl.remove())
     }
 
-    if (typeof document !== 'undefined') {
-      // 150ms: Full-screen bakgrunnsglow sentrert på knappen, 800ms inn
-      t(150, () => {
-        document.body.style.transition = 'background-color 800ms cubic-bezier(0.4, 0, 0.2, 1)'
-        const overlay = document.createElement('div')
-        overlay.id = 'qk-glow-overlay'
-        overlay.style.cssText = [
-          'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
-          'pointer-events:none', 'z-index:9999',
-          `background:radial-gradient(ellipse at ${bxPct} ${byPct},rgba(201,168,76,0.22) 0%,rgba(201,168,76,0.08) 40%,transparent 72%)`,
-          'opacity:0',
-          'transition:opacity 800ms cubic-bezier(0.4,0,0.2,1)',
-        ].join(';')
-        document.body.appendChild(overlay)
-        requestAnimationFrame(() => {
-          document.body.style.backgroundColor = '#2a1f00'
-          overlay.style.opacity = '1'
-        })
-      })
-      // 1500ms: Bakgrunn + overlay fader ut over 900ms
-      t(1500, () => {
-        document.body.style.transition = 'background-color 900ms cubic-bezier(0.4, 0, 0.2, 1)'
-        document.body.style.backgroundColor = '#1a1c23'
-        const overlay = document.getElementById('qk-glow-overlay')
-        if (overlay) {
-          overlay.style.transition = 'opacity 900ms cubic-bezier(0.4, 0, 0.2, 1)'
-          overlay.style.opacity = '0'
-        }
-      })
-      // 2500ms: Rydd opp body inline styles og fjern overlay fra DOM
-      t(2500, () => {
-        document.body.style.transition = ''
-        document.body.style.backgroundColor = ''
-        document.getElementById('qk-glow-overlay')?.remove()
-      })
+    // 6. Streak-badge (inline React ref) fader mykt inn
+    const streakBadge = streakBadgeRef.current
+    if (streakBadge) {
+      streakBadge.style.animation = 'none'
+      streakBadge.style.transition = 'none'
+      streakBadge.style.opacity = '0'
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        streakBadge.style.transition = 'opacity 400ms cubic-bezier(0.4,0,0.2,1)'
+        streakBadge.style.opacity = '1'
+      }))
     }
+  }
 
-    // Streak-badge fader mykt inn — opacity 0→1 over 400ms (uendret)
-    const streak = streakBadgeRef.current
-    if (streak) {
-      streak.style.animation = 'none'
-      streak.style.transition = 'none'
-      streak.style.opacity = '0'
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          streak.style.transition = 'opacity 400ms cubic-bezier(0.4, 0, 0.2, 1)'
-          streak.style.opacity = '1'
-        })
-      })
-    }
+  function fireWrongAnswer(buttonEl?: HTMLButtonElement) {
+    if (!buttonEl) return
+    buttonEl.style.animation = 'none'
+    requestAnimationFrame(() => { buttonEl.style.animation = 'qkShake 0.4s ease-in-out' })
+    const id = setTimeout(() => { buttonEl.style.animation = '' }, 450)
+    animationTimeoutsRef.current.push(id)
   }
 
   const goToNext = async () => {
@@ -1001,12 +1079,11 @@ export default function QuizPage() {
       document.body.style.backgroundColor = ''
       document.getElementById('qk-glow-overlay')?.remove()
       document.querySelectorAll('.qk-spark').forEach(s => s.remove())
-      const correctBtn = document.querySelector('.qk-option.correct') as HTMLButtonElement | null
-      if (correctBtn) {
-        correctBtn.style.transition = ''
-        correctBtn.style.boxShadow = ''
-        correctBtn.style.borderColor = ''
-      }
+      document.querySelectorAll('.qk-confetti').forEach(s => s.remove())
+      document.querySelectorAll('.qk-ring').forEach(s => s.remove())
+      document.querySelectorAll('.qk-score-pop').forEach(s => s.remove())
+      document.getElementById('qk-flash-overlay')?.remove()
+      document.getElementById('qk-streak-msg')?.remove()
     }
     if (streakBadgeRef.current) {
       streakBadgeRef.current.style.animation = ''
@@ -1317,8 +1394,11 @@ export default function QuizPage() {
 
     const getOptionClass = (opt: string) => {
       if (!answered) return ''
-      if (opt === question?.correct_answer) return ' correct'
-      if (opt === selectedAnswer) return ' wrong'
+      const isCorrectOpt = opt === question?.correct_answer
+      const isSelected = opt === selectedAnswer
+      if (isCorrectOpt && isSelected) return ' correct-self'
+      if (isCorrectOpt) return ' correct'
+      if (isSelected) return ' wrong'
       return ' idle'
     }
 
