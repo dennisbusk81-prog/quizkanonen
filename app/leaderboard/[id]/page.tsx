@@ -203,7 +203,7 @@ export default function LeaderboardPage() {
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {
-      const { data: prof } = await supabaseData
+      const { data: prof } = await supabase
         .from('profiles')
         .select('display_name, avatar_url, premium_status')
         .eq('id', sess.user.id)
