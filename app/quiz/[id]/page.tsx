@@ -578,7 +578,6 @@ const styles = `
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: 9997;
     background: rgba(201,168,76,0.08);
-    animation: qkFlash 0.6s ease-out forwards;
   }
 
   @keyframes qkRingPulse {
@@ -591,7 +590,6 @@ const styles = `
     border-radius: 50%;
     border: 2px solid rgba(201,168,76,0.6);
     pointer-events: none; z-index: 10001;
-    animation: qkRingPulse 0.7s cubic-bezier(0.2,0,0.4,1) forwards;
   }
 
   .qk-score-pop-el {
@@ -601,7 +599,6 @@ const styles = `
     font-size: 32px; font-weight: 700;
     color: #c9a84c;
     text-shadow: 0 0 20px rgba(201,168,76,0.5);
-    animation: qkScorePop 0.9s ease-out forwards;
   }
 
   .qk-streak-msg-el {
@@ -613,7 +610,6 @@ const styles = `
     color: #c9a84c;
     text-shadow: 0 0 30px rgba(201,168,76,0.6);
     white-space: nowrap;
-    animation: qkStreakMsg 1.1s ease-out forwards;
   }
 `
 
@@ -674,11 +670,10 @@ export default function QuizPage() {
   const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const canvasRef            = useRef<HTMLCanvasElement | null>(null)
   const confettiRafRef       = useRef<number | null>(null)
-  const [ringTrigger, setRingTrigger] = useState(0)
-  const [ringPos, setRingPos] = useState<{ x: number; y: number } | null>(null)
-  const [scorePop, setScorePop] = useState<{ x: number; y: number; key: number } | null>(null)
-  const [streakMsgText, setStreakMsgText] = useState<string | null>(null)
-  const [flashActive, setFlashActive] = useState(false)
+  const flashRef             = useRef<HTMLDivElement | null>(null)
+  const ringRefs             = useRef<(HTMLDivElement | null)[]>([null, null, null])
+  const scorePopRef          = useRef<HTMLDivElement | null>(null)
+  const streakMsgRef         = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -927,6 +922,19 @@ export default function QuizPage() {
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
     const isCorrect = answer === question.correct_answer
+
+    // ANIMASJON FØRST — direkte via refs, ingen React, ingen delay
+    if (isCorrect) {
+      let currentStreak = 1
+      for (let i = answers.length - 1; i >= 0; i--) {
+        if (answers[i].isCorrect) currentStreak++; else break
+      }
+      fireCorrectAnswer(buttonEl, currentStreak)
+    } else {
+      fireWrongAnswer(buttonEl)
+    }
+
+    // REACT STATE ETTERPÅ — re-render skjer etter animasjon er startet
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: answer, isCorrect, timeMs }
     const newAnswers = [...answers, record]
     const newTime = totalTimeMs + timeMs
@@ -935,15 +943,6 @@ export default function QuizPage() {
     saveProgress(currentIndex, newAnswers, newTime)
     if (quiz?.show_live_placement) {
       await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
-    }
-    if (isCorrect) {
-      let currentStreak = 0
-      for (let i = newAnswers.length - 1; i >= 0; i--) {
-        if (newAnswers[i].isCorrect) currentStreak++; else break
-      }
-      fireCorrectAnswer(buttonEl, currentStreak)
-    } else {
-      fireWrongAnswer(buttonEl)
     }
   }
 
@@ -1014,6 +1013,15 @@ export default function QuizPage() {
     confettiRafRef.current = requestAnimationFrame(loop)
   }
 
+  function triggerEl(el: HTMLDivElement | null, animation: string, hideAfterMs: number, t: (ms: number, fn: () => void) => void) {
+    if (!el) return
+    el.style.display = 'block'
+    el.style.animation = 'none'
+    void el.offsetWidth // force reflow — restarter CSS-animasjon
+    el.style.animation = animation
+    t(hideAfterMs, () => { el.style.display = 'none'; el.style.animation = 'none' })
+  }
+
   function fireCorrectAnswer(buttonEl: HTMLButtonElement | undefined, streak = 0) {
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
@@ -1028,27 +1036,42 @@ export default function QuizPage() {
     const cx = rect ? rect.left + rect.width / 2 : (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
     const cy = rect ? rect.top + rect.height / 2 : (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
 
-    // React state — all batched into one synchronous render
-    setFlashActive(true)
-    setRingPos({ x: cx, y: cy })
-    setRingTrigger(k => k + 1)
-    setScorePop({ x: cx, y: cy, key: Date.now() })
-    if (streak >= 2) {
-      const msgs: Record<number, string> = { 2: '🔥 2 på rad!', 3: '🔥 3 på rad!', 4: '⚡ Ustoppelig!' }
-      setStreakMsgText(streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`))
+    const t = (ms: number, fn: () => void) => { const id = setTimeout(fn, ms); animationTimeoutsRef.current.push(id) }
+
+    // 1. Bakgrunns-flash — direkte DOM
+    triggerEl(flashRef.current, 'qkFlash 0.6s ease-out forwards', 680, t)
+
+    // 2. Tre ringer — direkte DOM, ingen React-render
+    ringRefs.current.forEach((ring, i) => {
+      if (!ring) return
+      ring.style.left = cx + 'px'
+      ring.style.top = cy + 'px'
+      triggerEl(ring, `qkRingPulse 0.7s cubic-bezier(0.2,0,0.4,1) ${i * 150}ms forwards`, i * 150 + 750, t)
+    })
+
+    // 3. Score pop — direkte DOM
+    const pop = scorePopRef.current
+    if (pop) {
+      pop.style.left = cx + 'px'
+      pop.style.top = cy + 'px'
+      triggerEl(pop, 'qkScorePop 0.9s ease-out forwards', 950, t)
     }
 
-    // Canvas konfetti — starter i samme frame
+    // 4. Canvas konfetti — starter i samme frame som klikket
     startConfettiCanvas(cx, cy)
 
-    // Cleanup (ingen spawn-delays)
-    const t = (ms: number, fn: () => void) => { const id = setTimeout(fn, ms); animationTimeoutsRef.current.push(id) }
-    t(650,  () => setFlashActive(false))
-    t(950,  () => setScorePop(null))
-    t(1050, () => setRingPos(null))
-    t(1200, () => setStreakMsgText(null))
+    // 5. Streak-melding — direkte DOM
+    if (streak >= 2) {
+      const msgs: Record<number, string> = { 2: '🔥 2 på rad!', 3: '🔥 3 på rad!', 4: '⚡ Ustoppelig!' }
+      const msg = streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`)
+      const smEl = streakMsgRef.current
+      if (smEl) {
+        smEl.textContent = msg
+        triggerEl(smEl, 'qkStreakMsg 1.1s ease-out forwards', 1200, t)
+      }
+    }
 
-    // Streak-badge i React-treet fader inn
+    // 6. Streak-badge i React-treet fader inn
     const streakBadge = streakBadgeRef.current
     if (streakBadge) {
       streakBadge.style.transition = 'none'
@@ -1075,10 +1098,11 @@ export default function QuizPage() {
     if (confettiRafRef.current) { cancelAnimationFrame(confettiRafRef.current); confettiRafRef.current = null }
     const canvas = canvasRef.current
     if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
-    setFlashActive(false)
-    setRingPos(null)
-    setScorePop(null)
-    setStreakMsgText(null)
+    // Skjul alle overlay-elementer direkte via refs — ingen React re-render nødvendig
+    if (flashRef.current) { flashRef.current.style.display = 'none'; flashRef.current.style.animation = 'none' }
+    ringRefs.current.forEach(r => { if (r) { r.style.display = 'none'; r.style.animation = 'none' } })
+    if (scorePopRef.current) { scorePopRef.current.style.display = 'none'; scorePopRef.current.style.animation = 'none' }
+    if (streakMsgRef.current) { streakMsgRef.current.style.display = 'none'; streakMsgRef.current.style.animation = 'none' }
     if (streakBadgeRef.current) {
       streakBadgeRef.current.style.animation = ''
       streakBadgeRef.current.style.transition = ''
@@ -1411,23 +1435,13 @@ export default function QuizPage() {
       {/* Canvas konfetti-overlay */}
       <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10000 }} />
 
-      {/* Bakgrunns-flash */}
-      {flashActive && <div className="qk-flash-overlay" />}
-
-      {/* Pulserende ringer — CSS-animasjon, ingen DOM-spawning */}
-      {ringPos && [0, 150, 300].map((delay, i) => (
-        <div key={`${ringTrigger}-${i}`} className="qk-ring-el" style={{ left: ringPos.x, top: ringPos.y, animationDelay: `${delay}ms` }} />
-      ))}
-
-      {/* +1 score pop */}
-      {scorePop && (
-        <div key={scorePop.key} className="qk-score-pop-el" style={{ left: scorePop.x, top: scorePop.y }}>+1</div>
-      )}
-
-      {/* Streak-melding */}
-      {streakMsgText && (
-        <div key={streakMsgText} className="qk-streak-msg-el">{streakMsgText}</div>
-      )}
+      {/* Overlay-elementer — alltid i DOM, vises/skjules via ref.style.display (ingen React re-render) */}
+      <div ref={flashRef} className="qk-flash-overlay" style={{ display: 'none' }} />
+      <div ref={el => { ringRefs.current[0] = el }} className="qk-ring-el" style={{ display: 'none' }} />
+      <div ref={el => { ringRefs.current[1] = el }} className="qk-ring-el" style={{ display: 'none' }} />
+      <div ref={el => { ringRefs.current[2] = el }} className="qk-ring-el" style={{ display: 'none' }} />
+      <div ref={scorePopRef} className="qk-score-pop-el" style={{ display: 'none' }}>+1</div>
+      <div ref={streakMsgRef} className="qk-streak-msg-el" style={{ display: 'none' }} />
 
       {/* Intermediate screen */}
       {interPhase !== 'hidden' && (
