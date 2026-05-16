@@ -43,7 +43,7 @@ export default function Personvern() {
               <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
               Slåtteveien 12<br />
               1084 Oslo<br />
-              E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>quizkanonen@gmail.com</a>
+              E-post: <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>support@quizkanonen.no</a>
             </Box>
             <P>Ved spørsmål om behandling av personopplysninger kan du kontakte oss på e-postadressen over.</P>
           </Section>
@@ -113,7 +113,7 @@ export default function Personvern() {
                 </div>
               ))}
             </div>
-            <P>Send forespørsel til <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[quizkanonen@gmail.com]</a>. Vi svarer innen 30 dager.</P>
+            <P>Innloggede brukere kan slette sin egen konto direkte fra <a href="/profil" style={{ color: '#c9a84c' }}>profilsiden</a>. For øvrige forespørsler, send e-post til <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>support@quizkanonen.no</a>. Vi svarer innen 30 dager.</P>
             <P>Du har også rett til å klage til <a href="https://www.datatilsynet.no" target="_blank" rel="noopener noreferrer" style={{ color: '#c9a84c' }}>Datatilsynet</a> (datatilsynet.no) dersom du mener vi behandler opplysningene dine i strid med personvernregelverket.</P>
           </Section>
 
@@ -139,7 +139,7 @@ export default function Personvern() {
           </Section>
 
           <Section title="9. Barn og ungdom">
-            <P>Quizkanonen er tilgjengelig for alle, men krever aldersbekreftelse (13+) ved registrering. Vi samler ikke bevisst inn opplysninger om barn under 13 år. Dersom du er forelder og mener barnet ditt har oppgitt opplysninger til oss, kontakt oss på <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>[quizkanonen@gmail.com]</a> så sletter vi dataene umiddelbart.</P>
+            <P>Quizkanonen er tilgjengelig for alle, men krever aldersbekreftelse (13+) ved registrering. Vi samler ikke bevisst inn opplysninger om barn under 13 år. Dersom du er forelder og mener barnet ditt har oppgitt opplysninger til oss, kontakt oss på <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>[support@quizkanonen.no]</a> så sletter vi dataene umiddelbart.</P>
           </Section>
 
           <Section title="10. Endringer i erklæringen">
