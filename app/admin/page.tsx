@@ -325,6 +325,17 @@ const STYLES = `
   }
 `
 
+function nextFridayNoon(): string {
+  const now = new Date()
+  const day = now.getDay()
+  const daysUntil = day === 5 ? 7 : (5 - day + 7) % 7 || 7
+  const d = new Date(now)
+  d.setDate(d.getDate() + daysUntil)
+  d.setHours(12, 0, 0, 0)
+  const p = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 type Stats = { quizzes: number; players: number; active30d: number; premium: number }
 type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string; opens_at: string | null; closes_at: string | null }
 type ResetModal = null | 'all' | 'test'
@@ -380,8 +391,15 @@ export default function AdminHome() {
     if (error && error.code !== 'PGRST116') console.error('fetchNextQuiz feilet:', error)
     if (data?.value) {
       const d = new Date(data.value)
-      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-      setNextQuizValue(local)
+      // If the stored date is in the past, show next Friday noon as default instead
+      if (d <= new Date()) {
+        setNextQuizValue(nextFridayNoon())
+      } else {
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+        setNextQuizValue(local)
+      }
+    } else {
+      setNextQuizValue(nextFridayNoon())
     }
   }
 

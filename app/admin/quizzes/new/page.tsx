@@ -18,6 +18,7 @@ type Question = {
   optionB: string
   optionC: string
   optionD: string
+  correctAnswer: string
   timeLimit: number
   category: string
   shuffle: boolean
@@ -47,7 +48,7 @@ function addHours(localDT: string, hours: number): string {
 
 let _counter = 0
 function emptyQuestion(): Question {
-  return { id: ++_counter, text: '', optionA: '', optionB: '', optionC: '', optionD: '', timeLimit: 10, category: '', shuffle: false }
+  return { id: ++_counter, text: '', optionA: '', optionB: '', optionC: '', optionD: '', correctAnswer: 'A', timeLimit: 10, category: '', shuffle: false }
 }
 
 const STYLES = `
@@ -420,6 +421,7 @@ export default function NewQuiz() {
             option_b: q.optionB.trim(),
             option_c: q.optionC.trim() || null,
             option_d: q.optionD.trim() || null,
+            correct_answer: q.correctAnswer,
             time_limit_seconds: q.timeLimit,
             shuffle_options: q.shuffle,
             category: q.category || null,
@@ -495,55 +497,45 @@ export default function NewQuiz() {
             />
 
             <div className="nq-options-grid">
-              <div>
-                <div className="nq-option-header">
-                  <span className="nq-option-letter">A</span>
-                  <span className="nq-correct-tag">Riktig</span>
-                </div>
-                <input
-                  type="text"
-                  value={q.optionA}
-                  onChange={e => updateQ(q.id, { optionA: e.target.value })}
-                  placeholder="Riktig svar"
-                  className="nq-input"
-                />
-              </div>
-              <div>
-                <div className="nq-option-header">
-                  <span className="nq-option-letter">B</span>
-                </div>
-                <input
-                  type="text"
-                  value={q.optionB}
-                  onChange={e => updateQ(q.id, { optionB: e.target.value })}
-                  placeholder="Galt svar"
-                  className="nq-input"
-                />
-              </div>
-              <div>
-                <div className="nq-option-header">
-                  <span className="nq-option-letter">C</span>
-                </div>
-                <input
-                  type="text"
-                  value={q.optionC}
-                  onChange={e => updateQ(q.id, { optionC: e.target.value })}
-                  placeholder="Galt svar (valgfritt)"
-                  className="nq-input"
-                />
-              </div>
-              <div>
-                <div className="nq-option-header">
-                  <span className="nq-option-letter">D</span>
-                </div>
-                <input
-                  type="text"
-                  value={q.optionD}
-                  onChange={e => updateQ(q.id, { optionD: e.target.value })}
-                  placeholder="Galt svar (valgfritt)"
-                  className="nq-input"
-                />
-              </div>
+              {([
+                { letter: 'A', field: 'optionA' as const, placeholder: 'Svaralternativ A' },
+                { letter: 'B', field: 'optionB' as const, placeholder: 'Svaralternativ B' },
+                { letter: 'C', field: 'optionC' as const, placeholder: 'Svaralternativ C (valgfritt)' },
+                { letter: 'D', field: 'optionD' as const, placeholder: 'Svaralternativ D (valgfritt)' },
+              ]).map(({ letter, field, placeholder }) => {
+                const isCorrect = q.correctAnswer === letter
+                return (
+                  <div key={letter}>
+                    <div
+                      className="nq-option-header"
+                      onClick={() => updateQ(q.id, { correctAnswer: letter })}
+                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                        border: `1.5px solid ${isCorrect ? '#4ade80' : '#2a2d38'}`,
+                        background: isCorrect ? '#4ade80' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s',
+                      }}>
+                        {isCorrect && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#1a1c23' }} />}
+                      </div>
+                      <span className="nq-option-letter" style={{ color: isCorrect ? '#4ade80' : undefined }}>
+                        {letter}
+                      </span>
+                      {isCorrect && <span className="nq-correct-tag">Riktig</span>}
+                    </div>
+                    <input
+                      type="text"
+                      value={q[field]}
+                      onChange={e => updateQ(q.id, { [field]: e.target.value })}
+                      placeholder={placeholder}
+                      className="nq-input"
+                      style={isCorrect ? { borderColor: 'rgba(74,222,128,0.3)' } : undefined}
+                    />
+                  </div>
+                )
+              })}
             </div>
 
             <div className="nq-q-meta">
