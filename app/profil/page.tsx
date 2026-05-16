@@ -380,10 +380,6 @@ export default function ProfilPage() {
       <style>{FONT_IMPORT}</style>
       <div style={s.wrap}>
         <div style={s.page}>
-          <div style={{ paddingTop: 12 }}>
-            <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
-          </div>
-
           {/* Avatar + identity */}
           <div style={s.avatarSection}>
             {avatarUrl ? (

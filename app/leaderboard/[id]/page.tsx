@@ -492,7 +492,6 @@ export default function LeaderboardPage() {
         <div style={s.page}>
 
           <header style={s.header}>
-            <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
             <p style={s.eyebrow}>Quizkanonen</p>
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>

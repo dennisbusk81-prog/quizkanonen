@@ -7,6 +7,7 @@ import NameRequiredModal from "@/components/NameRequiredModal";
 import UserMenu from "@/components/UserMenu";
 import UserMenuErrorBoundary from "@/components/UserMenuErrorBoundary";
 import Link from "next/link";
+import BackNav from "@/components/BackNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
         <UserMenuErrorBoundary>
           <UserMenu />
         </UserMenuErrorBoundary>
+        <BackNav />
         {children}
         <AuthListener />
         <NameRequiredModal />
