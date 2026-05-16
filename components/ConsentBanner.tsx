@@ -50,17 +50,13 @@ export default function ConsentBanner() {
         {/* Tekst */}
         <div>
           <p style={{ color: '#e8e0d0', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-            Vi bruker kun nødvendige data
+            Vi bruker informasjonskapsler
           </p>
           <p style={{ color: '#8a8d9a', fontSize: '0.85rem', lineHeight: 1.65 }}>
-            Quizkanonen lagrer en enhets-ID lokalt i nettleseren for å hindre dobbeltspilling. 
-            Vi bruker ingen sporings-cookies eller reklame. Les mer i vår{' '}
+            Vi bruker informasjonskapsler (cookies) for å holde deg innlogget og forbedre opplevelsen.
+            Nødvendige cookies for innlogging settes automatisk. Les mer i vår{' '}
             <Link href="/personvern" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
               personvernerklæring
-            </Link>
-            {' '}og{' '}
-            <Link href="/vilkar" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
-              brukervilkår
             </Link>
             .
           </p>

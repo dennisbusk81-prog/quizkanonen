@@ -118,13 +118,24 @@ export default function Personvern() {
           </Section>
 
           <Section title="8. Informasjonskapsler (cookies)">
-            <P>Quizkanonen bruker kun teknisk nødvendige data lagret lokalt i nettleseren din (localStorage). Dette er ikke cookies i tradisjonell forstand og krever ikke samtykke etter ekomloven, men vi informerer om det her av hensyn til åpenhet:</P>
+            <P>Quizkanonen bruker teknisk nødvendige cookies til autentisering, samt lokal lagring i nettleseren for quiz-funksjonalitet. Teknisk nødvendige cookies krever ikke samtykke, men vi informerer om dem her av hensyn til åpenhet.</P>
+            <P><strong style={{ color: '#e8e0d0' }}>Autentiserings-cookies (browser cookies)</strong></P>
             <Table rows={[
-              ['quizkanonen_device_id', 'localStorage', 'Unik enhets-ID for å hindre dobbeltspilling'],
-              ['quizkanonen_admin_session', 'localStorage', 'Admin-innlogging (kun for admin-brukere)'],
-              ['quiz_progress_[id]', 'localStorage', 'Lagrer fremgang ved internett-brudd'],
-            ]} headers={['Nøkkel', 'Type', 'Formål']} />
-            <P>Vi bruker ingen sporings-cookies, analysecookies (Google Analytics, Hotjar e.l.) eller reklamecookies.</P>
+              ['sb-*-auth-token', 'Cookie (httpOnly)', 'Supabase sesjonstoken — holder deg innlogget', 'Settes kun ved innlogging. Slettes ved utlogging eller når sesjonen utløper.'],
+            ]} headers={['Nøkkel', 'Type', 'Formål', 'Levetid']} />
+            <P><strong style={{ color: '#e8e0d0' }}>Lokal lagring (localStorage)</strong></P>
+            <Table rows={[
+              ['quizkanonen_device_id', 'localStorage', 'Unik enhets-ID for å hindre dobbeltspilling', 'Permanent (til nettleserdata slettes)'],
+              ['quizkanonen_admin_session', 'localStorage', 'Admin-innlogging (kun for admin-brukere)', '8 timer'],
+              ['quiz_progress_[id]', 'localStorage', 'Lagrer fremgang ved internett-brudd', 'Slettes etter fullført quiz'],
+            ]} headers={['Nøkkel', 'Type', 'Formål', 'Levetid']} />
+            <P>Oppsummert:</P>
+            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+              <li style={{ marginBottom: '0.4rem' }}>Vi bruker teknisk nødvendige cookies til autentisering (Supabase-sesjon)</li>
+              <li style={{ marginBottom: '0.4rem' }}>Disse settes kun når du logger inn</li>
+              <li style={{ marginBottom: '0.4rem' }}>De slettes når du logger ut eller når sesjonen utløper</li>
+              <li>Vi bruker ikke sporings-cookies, analysecookies (Google Analytics, Hotjar e.l.) eller reklamecookies</li>
+            </ul>
           </Section>
 
           <Section title="9. Barn og ungdom">
