@@ -23,66 +23,50 @@ export default function ConsentBanner() {
     <div
       role="dialog"
       aria-modal="false"
-      aria-label="Personvernsamtykke"
+      aria-label="Informasjon om cookies"
       style={{
         position: 'fixed',
-        bottom: '1.25rem',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 'calc(100% - 2.5rem)',
-        maxWidth: '560px',
+        bottom: 16,
+        left: 16,
+        width: 'calc(100% - 32px)',
+        maxWidth: 280,
         background: '#21242e',
         border: '1px solid #2a2d38',
-        borderRadius: '16px',
-        padding: '1.25rem 1.5rem',
-        zIndex: 9999,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+        borderRadius: 12,
+        padding: '14px 16px',
+        zIndex: 1000,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+        fontFamily: "'Instrument Sans', sans-serif",
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
-        fontFamily: "'Instrument Sans', sans-serif",
+        gap: 10,
       }}
     >
-      <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start' }}>
-        {/* Ikon */}
-        <span style={{ fontSize: '1.4rem', flexShrink: 0, marginTop: '1px' }}>🍪</span>
-
-        {/* Tekst */}
-        <div>
-          <p style={{ color: '#e8e0d0', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-            Vi bruker informasjonskapsler
-          </p>
-          <p style={{ color: '#8a8d9a', fontSize: '0.85rem', lineHeight: 1.65 }}>
-            Vi bruker informasjonskapsler (cookies) for å holde deg innlogget og forbedre opplevelsen.
-            Nødvendige cookies for innlogging settes automatisk. Les mer i vår{' '}
-            <Link href="/personvern" style={{ color: '#c9a84c', textDecoration: 'underline' }}>
-              personvernerklæring
-            </Link>
-            .
-          </p>
-        </div>
-      </div>
-
-      {/* Knapper */}
-      <div style={{ display: 'flex', gap: '0.625rem', justifyContent: 'flex-end' }}>
-        <button
-          onClick={accept}
-          style={{
-            background: '#c9a84c',
-            color: '#1a1c23',
-            border: 'none',
-            borderRadius: '10px',
-            padding: '0.6rem 1.4rem',
-            fontSize: '0.875rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Forstått
-        </button>
-      </div>
+      <p style={{ fontSize: 12, color: '#e8e4dd', lineHeight: 1.4, margin: 0 }}>
+        Vi bruker cookies for innlogging og for å forbedre opplevelsen.{' '}
+        <Link href="/personvern" style={{ color: '#c9a84c', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+          Les mer
+        </Link>
+      </p>
+      <button
+        onClick={accept}
+        style={{
+          alignSelf: 'flex-start',
+          background: '#c9a84c',
+          color: '#1a1c23',
+          border: 'none',
+          borderRadius: 8,
+          padding: '5px 14px',
+          minHeight: 44,
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Forstått
+      </button>
     </div>
   )
 }
