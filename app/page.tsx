@@ -363,11 +363,11 @@ const SHARED_CSS = `
   .qk-card-toplist:hover { color: var(--white); }
 
   .qk-btn-outline-gold {
-    display: inline-block !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    border: 1px solid #c9a84c !important;
-    color: #c9a84c !important;
+    display: inline-block;
+    background: transparent;
+    background-color: transparent;
+    border: 1px solid #c9a84c;
+    color: #c9a84c;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
@@ -379,8 +379,8 @@ const SHARED_CSS = `
   }
 
   .qk-btn-outline-gold:hover {
-    background: rgba(201,168,76,0.06) !important;
-    background-color: rgba(201,168,76,0.06) !important;
+    background: rgba(201,168,76,0.06);
+    background-color: rgba(201,168,76,0.06);
   }
 
   /* ── Empty state ── */
@@ -603,7 +603,7 @@ export default async function Home() {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult] = await Promise.all([
+    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult] = await Promise.all([
       supabaseAdmin
         .from('quizzes')
         .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
@@ -635,6 +635,13 @@ export default async function Home() {
         .eq('user_id', user.id)
         .order('completed_at', { ascending: false })
         .limit(10),
+      // Has the user played any quiz this calendar month?
+      supabaseAdmin
+        .from('attempts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('completed_at', monthStart)
+        .lt('completed_at', monthEnd),
     ])
 
     // Profile
@@ -671,6 +678,8 @@ export default async function Home() {
     const userPoints   = byUser.get(user.id)?.totalPoints ?? 0
     // Round up to nearest 5 for the free-user estimate
     const estimatedBest = userRank > 0 ? Math.max(5, Math.ceil(userRank / 5) * 5) : 0
+
+    const playedThisMonth = (monthlyAttemptsResult.count ?? 0) > 0
 
     const monthName = now.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
 
@@ -795,7 +804,11 @@ export default async function Home() {
               </p>
             )}
             {isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: '#7a7873' }}>Du har ikke spilt denne måneden ennå</p>
+              <p style={{ fontSize: 15, color: playedThisMonth ? '#e8e4dd' : '#7a7873' }}>
+                {playedThisMonth
+                  ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
+                  : 'Du har ikke spilt denne måneden ennå'}
+              </p>
             )}
             {!isPremium && userPoints > 0 && (
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
@@ -805,7 +818,11 @@ export default async function Home() {
               </p>
             )}
             {!isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: '#7a7873' }}>Du har ikke spilt denne måneden ennå</p>
+              <p style={{ fontSize: 15, color: playedThisMonth ? '#e8e4dd' : '#7a7873' }}>
+                {playedThisMonth
+                  ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
+                  : 'Du har ikke spilt denne måneden ennå'}
+              </p>
             )}
 
             <div style={{
@@ -1105,7 +1122,7 @@ export default async function Home() {
               )}
 
               <div className="qk-card-actions">
-                <a href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold">
+                <a href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
                   Spill nå
                 </a>
                 <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
