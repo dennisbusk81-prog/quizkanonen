@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail } from '@/lib/email-templates'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail } from '@/lib/email-templates'
 
 async function getUserEmail(stripe: Stripe, customerId: string): Promise<string | null> {
   try {
@@ -12,6 +12,26 @@ async function getUserEmail(stripe: Stripe, customerId: string): Promise<string 
     }
   } catch {}
   return null
+}
+
+async function getOrgAdminEmail(organizationId: string): Promise<{ email: string | null; orgName: string | null; orgSlug: string | null }> {
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('name, slug')
+    .eq('id', organizationId)
+    .maybeSingle()
+
+  const { data: adminMember } = await supabaseAdmin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', organizationId)
+    .eq('role', 'admin')
+    .maybeSingle()
+
+  if (!adminMember) return { email: null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
+
+  const { data } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
+  return { email: data.user?.email ?? null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
 }
 
 export async function POST(request: NextRequest) {
@@ -80,6 +100,19 @@ export async function POST(request: NextRequest) {
           premium_source: 'org',
         }).eq('id', m.user_id)
       }
+
+      // Send kjøpsbekreftelse til org-admin — fire-and-forget
+      getOrgAdminEmail(organizationId)
+        .then(({ email, orgName, orgSlug }) => {
+          if (email && orgName && orgSlug) {
+            return sendEmail({
+              to: email,
+              subject: `Velkommen til Quizkanonen for bedrifter — ${orgName}`,
+              html: orgPurchaseEmail(orgName, orgSlug),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] orgPurchaseEmail failed:', err))
     } else {
       // B2C personal checkout
       const userId = session.metadata?.userId
@@ -115,15 +148,27 @@ export async function POST(request: NextRequest) {
     if ((invoice as unknown as { billing_reason: string }).billing_reason === 'subscription_cycle') {
       const customerId = invoice.customer as string
 
-      // Only send for B2C (not org subscriptions)
-      const { data: org } = await supabaseAdmin
+      const { data: orgForInvoice } = await supabaseAdmin
         .from('organizations')
-        .select('id')
+        .select('id, name, slug')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
 
-      if (!org) {
-        // Fire-and-forget renewal email
+      if (orgForInvoice) {
+        // B2B — send fornyelsesbekreftelse til org-admin
+        getOrgAdminEmail(orgForInvoice.id)
+          .then(({ email, orgName, orgSlug }) => {
+            if (email && orgName && orgSlug) {
+              return sendEmail({
+                to: email,
+                subject: `Bedriftsabonnementet er fornyet — Quizkanonen`,
+                html: orgRenewalEmail(orgName, orgSlug),
+              })
+            }
+          })
+          .catch(err => console.error('[webhook] orgRenewalEmail failed:', err))
+      } else {
+        // B2C — send fornyelsesbekreftelse til bruker
         getUserEmail(stripe, customerId)
           .then(email => {
             if (email) {
@@ -146,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id')
+      .select('id, name, slug')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
@@ -163,6 +208,19 @@ export async function POST(request: NextRequest) {
           premium_source: null,
         }).eq('id', m.user_id)
       }
+
+      // Send kanselleringsvarsel til org-admin — fire-and-forget
+      getOrgAdminEmail(org.id)
+        .then(({ email, orgName }) => {
+          if (email && orgName) {
+            return sendEmail({
+              to: email,
+              subject: `Bedriftsabonnementet er avsluttet — Quizkanonen`,
+              html: orgCancelledEmail(orgName),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] orgCancelledEmail failed:', err))
     } else {
       // B2C
       await supabaseAdmin.from('profiles')
