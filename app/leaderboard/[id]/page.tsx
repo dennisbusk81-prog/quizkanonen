@@ -488,21 +488,27 @@ export default function LeaderboardPage() {
           </header>
 
           {/* Profile bar */}
-          {!authLoading && session && (
-            <div style={s.profileBar}>
-              <div style={s.avatar}>
-                {avatarUrl
-                  ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : (displayName?.[0]?.toUpperCase() ?? '?')
-                }
+          {!authLoading && session && (() => {
+            const barName =
+              (session.user.id ? memberInfoMap.get(session.user.id)?.display_name : null)
+              ?? profile?.display_name
+              ?? displayName
+            return (
+              <div style={s.profileBar}>
+                <div style={s.avatar}>
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : (barName?.[0]?.toUpperCase() ?? '?')
+                  }
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{barName}</p>
+                  <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>Innlogget</p>
+                </div>
+                <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{displayName}</p>
-                <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>Innlogget</p>
-              </div>
-              <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
           {!authLoading && !session && totalCount > 0 && (() => {
