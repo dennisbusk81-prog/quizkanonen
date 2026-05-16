@@ -280,6 +280,227 @@ export function orgRemovedEmail(orgName: string): string {
 </html>`
 }
 
+export function paymentFailedEmail(): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Betalingen feilet — Quizkanonen Premium</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Betalingen feilet
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Vi klarte ikke å trekke betaling for Premium-abonnementet ditt.
+                Abonnementet kan bli avsluttet hvis betalingen ikke ordnes.
+              </p>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Oppdater betalingsinformasjonen din for å beholde tilgangen.
+              </p>
+
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/profil"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Oppdater betalingsinformasjon &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export function orgPaymentFailedEmail(orgName: string, orgSlug: string): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Betalingen feilet — Quizkanonen for bedrifter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Betalingen feilet
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Vi klarte ikke å trekke betaling for <strong style="color:#ffffff;">${orgName}</strong>s abonnement.
+                Abonnementet kan bli avsluttet hvis betalingen ikke ordnes.
+              </p>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Oppdater betalingsinformasjonen i bedriftspanelet for å beholde tilgangen for alle ansatte.
+              </p>
+
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Gå til bedriftspanelet &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export function foundersWelcomeEmail(): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Founders Access aktivert — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Founders Access aktivert
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Du er nå blant de første på Quizkanonen.
+                Du har 30 dager gratis tilgang til alle Premium-funksjoner.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering på topplisten</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Quizhistorikk og statistikk</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Private ligaer</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Sesong-leaderboard</td></tr>
+              </table>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Trialen utløper uten automatisk trekk — du velger selv om du vil fortsette.
+                Hvis du vil fortsette etter trialen: <a href="https://www.quizkanonen.no/premium" style="color:#c9a84c;text-decoration:none;">quizkanonen.no/premium</a>
+              </p>
+
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/toppliste"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Utforsk Premium &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function orgPurchaseEmail(orgName: string, orgSlug: string): string {
   return `<!DOCTYPE html>
 <html lang="no">

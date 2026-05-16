@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { rateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sendEmail } from '@/lib/email'
+import { foundersWelcomeEmail } from '@/lib/email-templates'
 
 const FOUNDERS_PRICE_ID = 'price_1THoezCgGogWnHxZwrCGAtbb'
 
@@ -59,6 +61,15 @@ export async function POST(request: NextRequest) {
       .from('profiles')
       .update({ premium_status: true, premium_since: new Date().toISOString() })
       .eq('id', user.id)
+
+    // Send founders-aktiveringsbekreftelse — fire-and-forget
+    if (user.email) {
+      sendEmail({
+        to: user.email,
+        subject: 'Founders Access aktivert — Quizkanonen',
+        html: foundersWelcomeEmail(),
+      }).catch(err => console.error('[founders-activate] foundersWelcomeEmail failed:', err))
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

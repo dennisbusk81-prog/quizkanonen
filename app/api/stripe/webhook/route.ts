@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail } from '@/lib/email-templates'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail } from '@/lib/email-templates'
 
 async function getUserEmail(stripe: Stripe, customerId: string): Promise<string | null> {
   try {
@@ -239,6 +239,46 @@ export async function POST(request: NextRequest) {
           }
         })
         .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
+    }
+  }
+
+  // ── invoice.payment_failed ────────────────────────────────────────────
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice
+    const customerId = invoice.customer as string
+
+    const { data: orgForFailed } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+
+    if (orgForFailed) {
+      // B2B — varsle org-admin
+      getOrgAdminEmail(orgForFailed.id)
+        .then(({ email, orgName, orgSlug }) => {
+          if (email && orgName && orgSlug) {
+            return sendEmail({
+              to: email,
+              subject: 'Betalingen feilet — Quizkanonen for bedrifter',
+              html: orgPaymentFailedEmail(orgName, orgSlug),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] orgPaymentFailedEmail failed:', err))
+    } else {
+      // B2C — varsle bruker
+      getUserEmail(stripe, customerId)
+        .then(email => {
+          if (email) {
+            return sendEmail({
+              to: email,
+              subject: 'Betalingen feilet — Quizkanonen Premium',
+              html: paymentFailedEmail(),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
     }
   }
 
