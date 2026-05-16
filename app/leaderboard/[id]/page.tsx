@@ -121,7 +121,7 @@ export default function LeaderboardPage() {
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'alle' | 'venner' | 'lag'>('alle')
   const [visibleVennerCount, setVisibleVennerCount] = useState(10)
-  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null }>>(new Map())
+  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null }>>(new Map())
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
   const [podiumActive, setPodiumActive] = useState(false)
@@ -144,12 +144,12 @@ export default function LeaderboardPage() {
         if (userIds.length > 0) {
           const { data: memberProfiles } = await supabaseData
             .from('profiles')
-            .select('id, member_number, show_member_number, avatar_url')
+            .select('id, member_number, show_member_number, avatar_url, display_name')
             .in('id', userIds)
           if (memberProfiles) {
-            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null }>()
-            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null }[]) {
-              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null })
+            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null }>()
+            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null, display_name: string | null }[]) {
+              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null, display_name: p.display_name ?? null })
             }
             setMemberInfoMap(map)
           }
@@ -337,8 +337,13 @@ export default function LeaderboardPage() {
   const showVennerTab = !!session && friendAttempts.length > 0
   const totalCount = soloAttempts.length + teamAttempts.length
 
-  const userSoloAttempt = displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null
-  const userTeamAttempt = displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null
+  const currentUserId = session?.user?.id ?? null
+  const userSoloAttempt = currentUserId
+    ? soloAttempts.find(a => a.user_id === currentUserId) ?? null
+    : displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null
+  const userTeamAttempt = currentUserId
+    ? teamAttempts.find(a => a.user_id === currentUserId) ?? null
+    : displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null
   const userAttempt = userSoloAttempt ?? userTeamAttempt
 
   function handleGoToMyPlacement() {
@@ -357,7 +362,10 @@ export default function LeaderboardPage() {
     const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
 
     const avatarUrl = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.avatar_url ?? null) : null
-    const initial = attempt.player_name[0]?.toUpperCase() ?? '?'
+    const shownName = attempt.user_id
+      ? (memberInfoMap.get(attempt.user_id)?.display_name ?? attempt.player_name)
+      : attempt.player_name
+    const initial = shownName[0]?.toUpperCase() ?? '?'
 
     let badge: BadgeKind | null = null
     if (attempt.rank === 1) badge = 'krone'
@@ -398,7 +406,7 @@ export default function LeaderboardPage() {
             </p>
           )}
           <p style={s.name}>
-            {attempt.player_name}
+            {shownName}
             {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
           </p>
           <p style={s.nameSub}>
@@ -425,7 +433,9 @@ export default function LeaderboardPage() {
   const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void, isPodium = false) => {
     if (ranked.length === 0) return null
     const visible = ranked.slice(0, visibleCount)
-    const userInSection = displayName ? ranked.find(a => a.player_name === displayName) ?? null : null
+    const userInSection = currentUserId
+      ? ranked.find(a => a.user_id === currentUserId) ?? null
+      : displayName ? ranked.find(a => a.player_name === displayName) ?? null : null
     const userOutsideVisible = userInSection && userInSection.rank > visibleCount
     const remaining = ranked.length - visibleCount
 
@@ -444,7 +454,7 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{ranked.length}</span>
         </div>
-        {visible.map(attempt => renderRow(attempt, attempt.player_name === displayName, podiumClass(attempt.rank)))}
+        {visible.map(attempt => renderRow(attempt, currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName, podiumClass(attempt.rank)))}
         {userOutsideVisible && (
           <>
             <p style={s.separator}>— Din plassering —</p>
