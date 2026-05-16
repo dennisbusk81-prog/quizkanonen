@@ -15,15 +15,15 @@ const s = {
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
-  avatarSection: { paddingTop: 12, paddingBottom: 10, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
-  avatar:        { width: 72, height: 72, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#ffffff', marginBottom: 8 },
-  displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
+  avatarSection: { paddingTop: 8, paddingBottom: 6, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
+  avatar:        { width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
+  displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 12 },
 
-  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px' },
-  cardDivider:   { height: 1, background: '#2a2d38', margin: '16px 0' },
+  card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 18px' },
+  cardDivider:   { height: 1, background: '#2a2d38', margin: '12px 0' },
   sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
   fieldHint:     { fontSize: 12, color: '#7a7873', marginBottom: 12, lineHeight: 1.5 },
   inputRow:      { display: 'flex', gap: 8 },
@@ -33,13 +33,13 @@ const s = {
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
-  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' },
+  sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 8px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
-  statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statsCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px', textAlign: 'center' as const },
-  statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 26, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 6 },
+  statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 12 },
+  statsCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '12px', textAlign: 'center' as const },
+  statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
   statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 },
 
   btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
@@ -48,7 +48,7 @@ const s = {
   redeemBtn:      { padding: '10px 12px', background: 'transparent', color: '#e8e4dd', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
   redeemBtnDis:   { padding: '10px 12px', background: 'transparent', color: '#4a4d5a', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
-  ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '24px 28px' },
+  ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
   ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 16, lineHeight: 1.6 },
 } as const
@@ -383,7 +383,7 @@ export default function ProfilPage() {
           {/* Avatar + identity */}
           <div style={s.avatarSection}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" width={72} height={72} style={{ borderRadius: '50%', objectFit: 'cover', width: 72, height: 72, border: '2px solid #2a2d38', marginBottom: 8, display: 'block' }} />
+              <img src={avatarUrl} alt="" width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', width: 64, height: 64, border: '2px solid #2a2d38', marginBottom: 6, display: 'block' }} />
             ) : (
               <div style={{ ...s.avatar, background: '#4a5568', border: '2px solid #4a5568' }}>{initial}</div>
             )}
@@ -401,9 +401,9 @@ export default function ProfilPage() {
 
           {/* 2-kolonne grid: Visningsnavn (venstre) + Din bedrift (høyre) */}
           <div style={isMobile ? {
-            display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12,
+            display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 10,
           } : {
-            display: 'grid', gridTemplateColumns: orgs.length > 0 ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 12,
+            display: 'grid', gridTemplateColumns: orgs.length > 0 ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 10,
           }}>
             {/* Visningsnavn + Påminnelser */}
             <div style={s.card}>
@@ -513,12 +513,12 @@ export default function ProfilPage() {
           </div>
 
           {/* Statistikk — alltid synlig */}
-          <div style={{ ...s.card, marginBottom: 12 }}>
+          <div style={{ ...s.card, marginBottom: 10 }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 8,
-              marginBottom: 16,
+              gap: 6,
+              marginBottom: 12,
             }}>
               {[
                 { val: isPremium && stats ? String(stats.total_attempts) : '—', lbl: 'Quizer spilt' },
@@ -527,7 +527,7 @@ export default function ProfilPage() {
                 { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
               ].map(({ val, lbl }) => (
                 <div key={lbl} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 6 }}>
+                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
                     {val}
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
@@ -544,7 +544,7 @@ export default function ProfilPage() {
           </div>
 
           {/* Verdikode */}
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 20px', marginBottom: 12 }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
             <p style={s.sectionLabel}>Verdikode</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
@@ -571,7 +571,7 @@ export default function ProfilPage() {
           </div>
 
           {/* Slett konto */}
-          <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
             {deleteError && (
               <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{deleteError}</p>
             )}
