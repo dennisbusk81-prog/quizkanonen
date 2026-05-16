@@ -203,6 +203,18 @@ export default function LeaderboardPage() {
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', sess.user.id)
+        .single()
+
+      if (profileData?.display_name) {
+        setDisplayName(profileData.display_name)
+        setAuthLoading(false)
+        return
+      }
+
       const { data: prof } = await supabase
         .from('profiles')
         .select('display_name, avatar_url, premium_status')
