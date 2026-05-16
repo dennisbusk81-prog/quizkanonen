@@ -1,9 +1,11 @@
+import { createBrowserClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+// Cookie-based auth client — enables server-side session detection via @supabase/ssr middleware.
+export const supabase = createBrowserClient(supabaseUrl, supabaseKey)
 
 // Data-only client: no auth session detection, safe to use in parallel with auth init.
 // Uses a separate storageKey so its lock never conflicts with the main auth client.
