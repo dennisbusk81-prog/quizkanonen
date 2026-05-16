@@ -1,5 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
@@ -42,899 +40,11 @@ function truncateName(name: string, max = 20): string {
   return name.slice(0, max) + '…'
 }
 
-const SHARED_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg:       #1a1c23;
-    --card:     #21242e;
-    --border:   #2a2d38;
-    --gold:     #c9a84c;
-    --white:    #ffffff;
-    --body:     #e8e4dd;
-    --hint:     #7a7873;
-    --muted:    #6a6860;
-    --radius-card: 16px;
-    --radius-btn:  10px;
-  }
-
-  body {
-    background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
-    color: var(--body);
-    min-height: 100vh;
-  }
-
-  .qk-page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 20px 80px;
-  }
-
-  /* ── Nav ── */
-  .qk-nav {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(26,28,35,0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .qk-nav-inner {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 20px;
-    height: 54px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .qk-nav-logo {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--white);
-    text-decoration: none;
-    flex-shrink: 0;
-  }
-
-  .qk-nav-logo em { font-style: italic; color: var(--gold); }
-
-  .qk-nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .qk-nav-play {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--body);
-    background: transparent;
-    text-decoration: none;
-    padding: 6px 14px;
-    border-radius: var(--radius-btn);
-    border: 0.5px solid #3a3d4a;
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
-  }
-
-  .qk-nav-play:hover {
-    border-color: var(--gold);
-    color: var(--gold);
-  }
-
-  /* ── Hero ── */
-  .qk-hero {
-    padding: 48px 24px 24px;
-    text-align: center;
-  }
-
-  .qk-hero-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: clamp(28px, 6vw, 44px);
-    font-weight: 700;
-    color: var(--white);
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-    margin: 0 auto 16px;
-    max-width: 540px;
-  }
-
-  .qk-hero-title em { font-style: italic; color: var(--gold); }
-
-  .qk-hero-subtitle {
-    font-size: 16px;
-    color: var(--body);
-    opacity: 0.85;
-    line-height: 1.6;
-    text-align: center;
-    margin: 0 auto 24px;
-    max-width: 440px;
-    padding: 0 16px;
-  }
-
-  .qk-hero-actions {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-
-  .qk-btn-primary {
-    display: inline-flex;
-    align-items: center;
-    width: auto;
-    background: var(--gold);
-    color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    padding: 10px 28px;
-    border-radius: var(--radius-btn);
-    text-decoration: none;
-    white-space: nowrap;
-    transition: background 0.15s;
-  }
-
-  .qk-btn-primary:hover { background: #d9b85c; }
-
-  .qk-hero-status {
-    font-size: 13px;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  /* ── Quote ── */
-  .qk-quote {
-    font-style: italic;
-    font-size: 14px;
-    color: var(--hint);
-    text-align: center;
-    max-width: 460px;
-    margin: 0 auto 20px;
-    line-height: 1.7;
-    padding: 0 24px;
-  }
-
-  /* ── Facts ── */
-  .qk-facts {
-    display: flex;
-    gap: 16px;
-    max-width: 680px;
-    margin: 0 auto 28px;
-    padding: 0 24px;
-  }
-
-  .qk-fact {
-    flex: 1;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .qk-fact-icon {
-    margin-bottom: 12px;
-    flex-shrink: 0;
-  }
-
-  .qk-fact-title {
-    font-size: 14px;
-    color: var(--white);
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-
-  .qk-fact-desc {
-    font-size: 12px;
-    color: var(--hint);
-    line-height: 1.5;
-  }
-
-  /* ── Divider ── */
-  .qk-divider {
-    height: 1px;
-    background: var(--border);
-    max-width: 680px;
-    margin: 0 auto 24px;
-  }
-
-  /* ── Quiz card ── */
-  .qk-card {
-    background: var(--card);
-    border: 1px solid rgba(201,168,76,0.2);
-    border-radius: var(--radius-card);
-    padding: 28px 28px 20px;
-    margin-bottom: 8px;
-    transition: border-color 0.18s;
-  }
-
-  .qk-card:hover { border-color: rgba(201,168,76,0.3); }
-
-  .qk-card-eyebrow {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 10px;
-  }
-
-  .qk-card-tagline {
-    font-size: 13px;
-    color: var(--gold);
-    margin-top: 8px;
-    margin-bottom: 20px;
-  }
-
-  .qk-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 26px;
-    font-weight: 700;
-    color: #ffffff;
-    line-height: 1.2;
-    margin-bottom: 0;
-    letter-spacing: -0.02em;
-  }
-
-  .qk-card-date {
-    font-size: 12px;
-    color: var(--hint);
-    margin-top: 6px;
-    margin-bottom: 20px;
-  }
-
-  /* ── Topp 3 ── */
-  .qk-prev-label {
-    font-size: 11px;
-    color: var(--hint);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    text-align: center;
-    margin-bottom: 4px;
-  }
-
-  .qk-top3-rows {
-    max-width: 360px;
-    margin: 0 auto 20px;
-  }
-
-  .qk-top3-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: rgba(255,255,255,0.02);
-    border-radius: 8px;
-    margin-bottom: 6px;
-  }
-
-  .qk-top3-row:last-child { margin-bottom: 0; }
-
-  .qk-top3-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--body);
-    min-width: 0;
-  }
-
-  .qk-top3-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .qk-top3-right {
-    font-size: 12px;
-    color: var(--hint);
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin-left: 8px;
-  }
-
-  .qk-top3-time { margin-left: 4px; }
-
-  /* ── Card actions ── */
-  .qk-card-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .qk-card-toplist {
-    font-size: 12px;
-    color: var(--body);
-    text-decoration: none;
-    transition: color 0.15s;
-  }
-  .qk-card-toplist:hover { color: var(--white); }
-
-  .qk-btn-outline-gold {
-    display: inline-block !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    border: 1px solid #c9a84c !important;
-    color: #c9a84c !important;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    padding: 10px 28px;
-    border-radius: 10px;
-    text-decoration: none;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .qk-btn-outline-gold:hover {
-    background: rgba(201,168,76,0.06) !important;
-    background-color: rgba(201,168,76,0.06) !important;
-  }
-
-  /* ── Empty state ── */
-  .qk-empty {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 48px 32px;
-    text-align: center;
-    margin-bottom: 12px;
-  }
-
-  .qk-empty-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 18px;
-    color: var(--white);
-    margin-bottom: 8px;
-  }
-
-  .qk-empty-sub { font-size: 13px; color: var(--hint); line-height: 1.6; }
-
-  /* ── Accordion wrapper ── */
-  .qk-acc-wrap {
-    margin-top: 36px;
-    margin-bottom: 36px;
-  }
-
-  /* ── Bedrift ── */
-  .qk-biz {
-    max-width: 680px;
-    margin: 0 auto 48px;
-    padding: 0 24px;
-  }
-
-  .qk-biz-inner {
-    background: #1e1a0e;
-    border: 1px solid rgba(201,168,76,0.35);
-    border-radius: var(--radius-card);
-    padding: 28px;
-    text-align: center;
-  }
-
-  .qk-biz-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--white);
-    margin-bottom: 8px;
-  }
-
-  .qk-biz-desc {
-    font-size: 14px;
-    color: var(--body);
-    opacity: 0.85;
-    margin-bottom: 16px;
-    line-height: 1.6;
-  }
-
-  .qk-biz-link {
-    font-size: 14px;
-    color: var(--gold);
-    text-decoration: none;
-    transition: opacity 0.15s;
-  }
-
-  .qk-biz-link:hover { opacity: 0.8; }
-
-  /* ── Founders ── */
-  .qk-founders {
-    background: #1e1a0e;
-    border: 1px solid rgba(201,168,76,0.28);
-    border-radius: var(--radius-card);
-    padding: 32px 28px;
-    margin-bottom: 10px;
-  }
-
-  .qk-founders-eyebrow {
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 10px;
-  }
-
-  .qk-founders-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: clamp(18px, 4vw, 22px);
-    font-weight: 700;
-    color: var(--white);
-    line-height: 1.25;
-    letter-spacing: -0.01em;
-    margin-bottom: 10px;
-  }
-
-  .qk-founders-sub {
-    font-size: 14px;
-    color: var(--body);
-    line-height: 1.6;
-    margin-bottom: 20px;
-  }
-
-  .qk-founders-btn {
-    display: inline-block;
-    padding: 10px 28px;
-    border: 1px solid #e8e4dd;
-    border-radius: 10px;
-    color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    text-decoration: none;
-    transition: background 0.15s;
-  }
-
-  .qk-founders-btn:hover { background: rgba(232,228,221,0.06); }
-
-  /* ── Personalized sections ── */
-  .qkp-plain-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 28px;
-    margin-top: 10px;
-  }
-
-  .qkp-section-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--hint);
-    margin-bottom: 14px;
-  }
-
-  .qkp-shortcuts {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .qkp-shortcut {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    padding: 20px;
-    text-align: center;
-    text-decoration: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    transition: border-color 0.15s;
-  }
-
-  .qkp-shortcut:hover { border-color: rgba(201,168,76,0.3); }
-
-  .qkp-shortcut-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--body);
-  }
-
-  .qkp-shortcut-arrow {
-    font-size: 12px;
-    color: var(--hint);
-  }
-
-  .qkp-lock-badge {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gold);
-    background: rgba(201,168,76,0.1);
-    border: 1px solid rgba(201,168,76,0.2);
-    border-radius: 999px;
-    padding: 2px 8px;
-  }
-
-  .qkp-league-top3 {
-    max-width: none;
-    margin: 0 0 16px;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 600px) {
-    .qk-hero { padding: 36px 0 28px; }
-    .qk-hero-title { font-size: 32px; }
-    .qk-nav-play { display: none; }
-
-    .qk-facts {
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .qk-fact {
-      flex-direction: row;
-      align-items: flex-start;
-      text-align: left;
-      gap: 14px;
-    }
-
-    .qk-fact-icon { margin-bottom: 0; }
-
-    .qk-top3-time { display: none; }
-  }
-
-  @media (max-width: 540px) {
-    .qkp-shortcuts {
-      grid-template-columns: 1fr 1fr;
-    }
-    .qkp-shortcut:last-child {
-      grid-column: 1 / -1;
-    }
-  }
-`
-
 export default async function Home() {
   const now = new Date()
+
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
-
-  // ── Session check via @supabase/ssr ──
-  const cookieStore = await cookies()
-  const supabaseSSR = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() {}, // Server Component — middleware handles cookie writes
-      },
-    }
-  )
-  const { data: { user } } = await supabaseSSR.auth.getUser()
-
-  // ════════════════════════════════════════════════════════
-  // PERSONALIZED VIEW — logged-in users
-  // ════════════════════════════════════════════════════════
-  if (user) {
-    type RawSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
-    type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
-
-    const [quizResult, allSeasonResult, profileResult, leagueResult] = await Promise.all([
-      supabaseAdmin
-        .from('quizzes')
-        .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-        .eq('is_active', true)
-        .or(`closes_at.is.null,closes_at.gt.${now.toISOString()}`)
-        .order('created_at', { ascending: false })
-        .limit(1),
-      supabaseAdmin
-        .from('season_scores')
-        .select('user_id, points, profiles(display_name)')
-        .eq('scope_type', 'global')
-        .is('scope_id', null)
-        .gte('closes_at', monthStart)
-        .lt('closes_at', monthEnd),
-      supabaseAdmin
-        .from('profiles')
-        .select('display_name, premium_status')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from('league_members')
-        .select('league_id, leagues(id, name)')
-        .eq('user_id', user.id)
-        .limit(5),
-    ])
-
-    // Profile
-    const profile = profileResult.data
-    const isPremium = profile?.premium_status === true
-    const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
-    const firstName = displayName.split(' ')[0]
-
-    // Quiz
-    const quizList = (quizResult.data as QuizRow[] | null) ?? []
-    const quiz = quizList[0] ?? null
-    const participantCount = quiz?.attempts[0]?.count ?? 0
-
-    // Season scores — aggregate and compute rank
-    const rawRows = (allSeasonResult.data as RawSeasonRow[] | null) ?? []
-    const byUser = new Map<string, { displayName: string; totalPoints: number }>()
-    for (const row of rawRows) {
-      const name = row.profiles?.display_name
-      if (!name) continue
-      const existing = byUser.get(row.user_id)
-      if (existing) existing.totalPoints += row.points
-      else byUser.set(row.user_id, { displayName: name, totalPoints: row.points })
-    }
-    const sortedUsers = Array.from(byUser.entries()).sort((a, b) => b[1].totalPoints - a[1].totalPoints)
-    const userRankIdx = sortedUsers.findIndex(([uid]) => uid === user.id)
-    const userRank = userRankIdx === -1 ? 0 : userRankIdx + 1
-    const userPoints = byUser.get(user.id)?.totalPoints ?? 0
-    // Estimated best for free users: round up to nearest 5
-    const estimatedBest = userRank > 0 ? Math.max(5, Math.ceil(userRank / 5) * 5) : 0
-
-    // Month name
-    const monthName = now.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
-
-    // League
-    const leagueRows = (leagueResult.data as LeagueMemberRow[] | null) ?? []
-    const firstLeague = leagueRows[0]?.leagues ?? null
-
-    type LeagueScoreRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
-    let leagueTop3: { displayName: string; points: number }[] = []
-    if (firstLeague?.id) {
-      const { data: leagueScores } = await supabaseAdmin
-        .from('season_scores')
-        .select('user_id, points, profiles(display_name)')
-        .eq('scope_type', 'league')
-        .eq('scope_id', firstLeague.id)
-        .gte('closes_at', monthStart)
-        .lt('closes_at', monthEnd)
-
-      const lByUser = new Map<string, { displayName: string; points: number }>()
-      for (const row of (leagueScores as LeagueScoreRow[] | null) ?? []) {
-        const name = row.profiles?.display_name
-        if (!name) continue
-        const existing = lByUser.get(row.user_id)
-        if (existing) existing.points += row.points
-        else lByUser.set(row.user_id, { displayName: name, points: row.points })
-      }
-      leagueTop3 = Array.from(lByUser.values())
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 3)
-    }
-
-    const shortcutCardStyle: React.CSSProperties = {
-      background: '#21242e',
-      border: '1px solid #2a2d38',
-      borderRadius: 16,
-      padding: 20,
-      textAlign: 'center',
-      textDecoration: 'none',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 8,
-    }
-
-    return (
-      <>
-        <style>{SHARED_CSS}</style>
-        <PendingActionRedirect />
-
-        <nav className="qk-nav">
-          <div className="qk-nav-inner">
-            <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
-            <div className="qk-nav-actions">
-              <NavAuth quizId={quiz?.id} />
-            </div>
-          </div>
-        </nav>
-
-        <div className="qk-page">
-
-          {/* Welcome */}
-          <section style={{ paddingTop: 40, paddingBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
-              <h1 style={{
-                fontFamily: "'Libre Baskerville', serif",
-                fontSize: 28,
-                fontWeight: 700,
-                color: '#ffffff',
-                lineHeight: 1.2,
-              }}>
-                Hei, {firstName}!
-              </h1>
-              {isPremium && (
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  color: '#c9a84c',
-                  background: 'rgba(201,168,76,0.12)',
-                  border: '1px solid rgba(201,168,76,0.28)',
-                  borderRadius: 999,
-                  padding: '3px 10px',
-                }}>
-                  Premium
-                </span>
-              )}
-            </div>
-            <p style={{ fontSize: 13, color: '#7a7873' }}>
-              {now.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })}
-            </p>
-          </section>
-
-          {/* Quiz card */}
-          {quiz ? (
-            <div className="qk-card">
-              <p className="qk-card-eyebrow">Denne uken</p>
-              <h2 className="qk-title">{quiz.title}</h2>
-              <p className="qk-card-tagline">
-                {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
-              </p>
-              <div className="qk-card-actions">
-                <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
-                  Spill ukens quiz
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="qk-empty">
-              <p className="qk-empty-title">Ingen aktiv quiz akkurat nå</p>
-              <p className="qk-empty-sub">Kom tilbake på fredag.</p>
-            </div>
-          )}
-
-          {/* Season placement card */}
-          <div className="qkp-plain-card">
-            <p className="qkp-section-label">Sesong — {monthName}</p>
-
-            {isPremium && userPoints > 0 && (
-              <p style={{ fontSize: 16, color: '#ffffff', lineHeight: 1.5, marginBottom: 0 }}>
-                Du er på{' '}
-                <strong style={{ color: '#c9a84c' }}>{userRank}. plass</strong>
-                {' '}denne måneden
-                <span style={{ color: '#7a7873' }}> · {userPoints} poeng</span>
-              </p>
-            )}
-
-            {isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: '#7a7873' }}>Du har ikke spilt denne måneden ennå</p>
-            )}
-
-            {!isPremium && userPoints > 0 && (
-              <p style={{ fontSize: 15, color: '#e8e4dd' }}>
-                Du er blant de{' '}
-                <strong style={{ color: '#ffffff' }}>{estimatedBest}</strong>
-                {' '}beste denne måneden
-              </p>
-            )}
-
-            {!isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: '#7a7873' }}>Du har ikke spilt denne måneden ennå</p>
-            )}
-
-            <div style={{
-              marginTop: 18,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 10,
-            }}>
-              <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                Se nøyaktig plassering →
-              </Link>
-              {!isPremium && (
-                <Link href="/premium" className="qk-btn-outline-gold" style={{ fontSize: 13, padding: '7px 18px' }}>
-                  Oppgrader til Premium
-                </Link>
-              )}
-            </div>
-          </div>
-
-          {/* Shortcut grid */}
-          <div className="qkp-shortcuts">
-            {/* Toppliste */}
-            <Link href="/toppliste" className="qkp-shortcut">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="13" width="4" height="7" rx="1"/>
-                <rect x="9" y="8" width="4" height="12" rx="1"/>
-                <rect x="16" y="3" width="4" height="17" rx="1"/>
-              </svg>
-              <span className="qkp-shortcut-label">Toppliste</span>
-              <span className="qkp-shortcut-arrow">→</span>
-            </Link>
-
-            {/* Mine ligaer */}
-            <Link href="/liga" className="qkp-shortcut">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="6" r="3"/>
-                <circle cx="4" cy="14" r="2.5"/>
-                <circle cx="18" cy="14" r="2.5"/>
-                <path d="M7.5 8.5C5.5 9.5 4 11.5 4 14"/>
-                <path d="M14.5 8.5C16.5 9.5 18 11.5 18 14"/>
-              </svg>
-              <span className="qkp-shortcut-label">Mine ligaer</span>
-              <span className="qkp-shortcut-arrow">→</span>
-            </Link>
-
-            {/* Historikk */}
-            <Link href={isPremium ? '/historikk' : '/premium'} className="qkp-shortcut" style={{ opacity: isPremium ? 1 : 0.7 }}>
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={isPremium ? '#c9a84c' : '#7a7873'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M11 7v4l3 2"/>
-              </svg>
-              <span className="qkp-shortcut-label" style={{ color: isPremium ? '#e8e4dd' : '#7a7873' }}>
-                Historikk
-              </span>
-              {isPremium ? (
-                <span className="qkp-shortcut-arrow">→</span>
-              ) : (
-                <span className="qkp-lock-badge">Premium</span>
-              )}
-            </Link>
-          </div>
-
-          {/* League card */}
-          {firstLeague && (
-            <div className="qkp-plain-card">
-              <p className="qkp-section-label">Din liga</p>
-              <p style={{
-                fontFamily: "'Libre Baskerville', serif",
-                fontSize: 18,
-                fontWeight: 700,
-                color: '#ffffff',
-                marginBottom: 16,
-              }}>
-                {firstLeague.name}
-              </p>
-
-              {leagueTop3.length > 0 ? (
-                <div className="qk-top3-rows qkp-league-top3">
-                  {leagueTop3.map((m, i) => (
-                    <div key={i} className="qk-top3-row">
-                      <div className="qk-top3-left">
-                        <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
-                          {i + 1}.
-                        </span>
-                        <span className="qk-top3-name">{truncateName(m.displayName)}</span>
-                      </div>
-                      <div className="qk-top3-right">{m.points} poeng</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
-                  Ingen har spilt denne måneden ennå
-                </p>
-              )}
-
-              <Link href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                Se alle ligaer →
-              </Link>
-            </div>
-          )}
-
-        </div>
-      </>
-    )
-  }
-
-  // ════════════════════════════════════════════════════════
-  // DEFAULT VIEW — not logged in (existing homepage, unchanged)
-  // ════════════════════════════════════════════════════════
 
   const [{ data: quizzes }, { data: nextQuizSetting }, { data: seasonRows }] = await Promise.all([
     supabaseAdmin
@@ -960,6 +70,7 @@ export default async function Home() {
   const quizList = (quizzes as QuizRow[] | null) ?? []
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
 
+  // Aggregate season_scores per user and take top 3
   type RawRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
   const rows = (seasonRows as RawRow[] | null) ?? []
   const byUser = new Map<string, { displayName: string; totalPoints: number }>()
@@ -982,7 +93,486 @@ export default async function Home() {
 
   return (
     <>
-      <style>{SHARED_CSS}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+          --bg:       #1a1c23;
+          --card:     #21242e;
+          --border:   #2a2d38;
+          --gold:     #c9a84c;
+          --white:    #ffffff;
+          --body:     #e8e4dd;
+          --hint:     #7a7873;
+          --muted:    #6a6860;
+          --radius-card: 16px;
+          --radius-btn:  10px;
+        }
+
+        body {
+          background: var(--bg);
+          font-family: 'Instrument Sans', sans-serif;
+          color: var(--body);
+          min-height: 100vh;
+        }
+
+        .qk-page {
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 0 20px 80px;
+        }
+
+        /* ── Nav ── */
+        .qk-nav {
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          background: rgba(26,28,35,0.92);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--border);
+        }
+
+        .qk-nav-inner {
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 0 20px;
+          height: 54px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .qk-nav-logo {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 17px;
+          font-weight: 700;
+          color: var(--white);
+          text-decoration: none;
+          flex-shrink: 0;
+        }
+
+        .qk-nav-logo em { font-style: italic; color: var(--gold); }
+
+        .qk-nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .qk-nav-play {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--body);
+          background: transparent;
+          text-decoration: none;
+          padding: 6px 14px;
+          border-radius: var(--radius-btn);
+          border: 0.5px solid #3a3d4a;
+          white-space: nowrap;
+          transition: border-color 0.15s, color 0.15s;
+        }
+
+        .qk-nav-play:hover {
+          border-color: var(--gold);
+          color: var(--gold);
+        }
+
+        /* ── Hero ── */
+        .qk-hero {
+          padding: 48px 24px 24px;
+          text-align: center;
+        }
+
+        .qk-hero-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: clamp(28px, 6vw, 44px);
+          font-weight: 700;
+          color: var(--white);
+          line-height: 1.15;
+          letter-spacing: -0.02em;
+          margin: 0 auto 16px;
+          max-width: 540px;
+        }
+
+        .qk-hero-title em { font-style: italic; color: var(--gold); }
+
+        .qk-hero-subtitle {
+          font-size: 16px;
+          color: var(--body);
+          opacity: 0.85;
+          line-height: 1.6;
+          text-align: center;
+          margin: 0 auto 24px;
+          max-width: 440px;
+          padding: 0 16px;
+        }
+
+        .qk-hero-actions {
+          display: flex;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .qk-btn-primary {
+          display: inline-flex;
+          align-items: center;
+          width: auto;
+          background: var(--gold);
+          color: #1a1c23;
+          font-family: 'Instrument Sans', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          padding: 10px 28px;
+          border-radius: var(--radius-btn);
+          text-decoration: none;
+          white-space: nowrap;
+          transition: background 0.15s;
+        }
+
+        .qk-btn-primary:hover { background: #d9b85c; }
+
+        .qk-hero-status {
+          font-size: 13px;
+          text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        /* ── Quote ── */
+        .qk-quote {
+          font-style: italic;
+          font-size: 14px;
+          color: var(--hint);
+          text-align: center;
+          max-width: 460px;
+          margin: 0 auto 20px;
+          line-height: 1.7;
+          padding: 0 24px;
+        }
+
+        /* ── Facts ── */
+        .qk-facts {
+          display: flex;
+          gap: 16px;
+          max-width: 680px;
+          margin: 0 auto 28px;
+          padding: 0 24px;
+        }
+
+        .qk-fact {
+          flex: 1;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .qk-fact-icon {
+          margin-bottom: 12px;
+          flex-shrink: 0;
+        }
+
+        .qk-fact-title {
+          font-size: 14px;
+          color: var(--white);
+          font-weight: 500;
+          margin-bottom: 4px;
+        }
+
+        .qk-fact-desc {
+          font-size: 12px;
+          color: var(--hint);
+          line-height: 1.5;
+        }
+
+        /* ── Divider ── */
+        .qk-divider {
+          height: 1px;
+          background: var(--border);
+          max-width: 680px;
+          margin: 0 auto 24px;
+        }
+
+        /* ── Quiz card ── */
+        .qk-card {
+          background: var(--card);
+          border: 1px solid rgba(201,168,76,0.2);
+          border-radius: var(--radius-card);
+          padding: 28px 28px 20px;
+          margin-bottom: 8px;
+          transition: border-color 0.18s;
+        }
+
+        .qk-card:hover { border-color: rgba(201,168,76,0.3); }
+
+        .qk-card-eyebrow {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--gold);
+          margin-bottom: 10px;
+        }
+
+        .qk-card-tagline {
+          font-size: 13px;
+          color: var(--gold);
+          margin-top: 8px;
+          margin-bottom: 20px;
+        }
+
+        .qk-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 26px;
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.2;
+          margin-bottom: 0;
+          letter-spacing: -0.02em;
+        }
+
+        .qk-card-date {
+          font-size: 12px;
+          color: var(--hint);
+          margin-top: 6px;
+          margin-bottom: 20px;
+        }
+
+        /* ── Topp 3 ── */
+        .qk-prev-label {
+          font-size: 11px;
+          color: var(--hint);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          text-align: center;
+          margin-bottom: 4px;
+        }
+
+        .qk-top3-rows {
+          max-width: 360px;
+          margin: 0 auto 20px;
+        }
+
+        .qk-top3-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 12px;
+          background: rgba(255,255,255,0.02);
+          border-radius: 8px;
+          margin-bottom: 6px;
+        }
+
+        .qk-top3-row:last-child { margin-bottom: 0; }
+
+        .qk-top3-left {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: var(--body);
+          min-width: 0;
+        }
+
+        .qk-top3-name {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .qk-top3-right {
+          font-size: 12px;
+          color: var(--hint);
+          white-space: nowrap;
+          flex-shrink: 0;
+          margin-left: 8px;
+        }
+
+        .qk-top3-time { margin-left: 4px; }
+
+        /* ── Card actions ── */
+        .qk-card-actions {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .qk-card-toplist {
+          font-size: 12px;
+          color: var(--body);
+          text-decoration: none;
+          transition: color 0.15s;
+        }
+        .qk-card-toplist:hover { color: var(--white); }
+
+        .qk-btn-outline-gold {
+          display: inline-block !important;
+          background: transparent !important;
+          background-color: transparent !important;
+          border: 1px solid #c9a84c !important;
+          color: #c9a84c !important;
+          font-family: 'Instrument Sans', sans-serif;
+          font-size: 15px;
+          font-weight: 600;
+          padding: 10px 28px;
+          border-radius: 10px;
+          text-decoration: none;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+
+        .qk-btn-outline-gold:hover {
+          background: rgba(201,168,76,0.06) !important;
+          background-color: rgba(201,168,76,0.06) !important;
+        }
+
+        /* ── Empty state ── */
+        .qk-empty {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-card);
+          padding: 48px 32px;
+          text-align: center;
+          margin-bottom: 12px;
+        }
+
+        .qk-empty-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 18px;
+          color: var(--white);
+          margin-bottom: 8px;
+        }
+
+        .qk-empty-sub { font-size: 13px; color: var(--hint); line-height: 1.6; }
+
+        /* ── Accordion wrapper ── */
+        .qk-acc-wrap {
+          margin-top: 36px;
+          margin-bottom: 36px;
+        }
+
+        /* ── Bedrift ── */
+        .qk-biz {
+          max-width: 680px;
+          margin: 0 auto 48px;
+          padding: 0 24px;
+        }
+
+        .qk-biz-inner {
+          background: #1e1a0e;
+          border: 1px solid rgba(201,168,76,0.35);
+          border-radius: var(--radius-card);
+          padding: 28px;
+          text-align: center;
+        }
+
+        .qk-biz-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--white);
+          margin-bottom: 8px;
+        }
+
+        .qk-biz-desc {
+          font-size: 14px;
+          color: var(--body);
+          opacity: 0.85;
+          margin-bottom: 16px;
+          line-height: 1.6;
+        }
+
+        .qk-biz-link {
+          font-size: 14px;
+          color: var(--gold);
+          text-decoration: none;
+          transition: opacity 0.15s;
+        }
+
+        .qk-biz-link:hover { opacity: 0.8; }
+
+        /* ── Founders ── */
+        .qk-founders {
+          background: #1e1a0e;
+          border: 1px solid rgba(201,168,76,0.28);
+          border-radius: var(--radius-card);
+          padding: 32px 28px;
+          margin-bottom: 10px;
+        }
+
+        .qk-founders-eyebrow {
+          font-size: 11px;
+          font-weight: 400;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--gold);
+          margin-bottom: 10px;
+        }
+
+        .qk-founders-title {
+          font-family: 'Libre Baskerville', serif;
+          font-size: clamp(18px, 4vw, 22px);
+          font-weight: 700;
+          color: var(--white);
+          line-height: 1.25;
+          letter-spacing: -0.01em;
+          margin-bottom: 10px;
+        }
+
+        .qk-founders-sub {
+          font-size: 14px;
+          color: var(--body);
+          line-height: 1.6;
+          margin-bottom: 20px;
+        }
+
+        .qk-founders-btn {
+          display: inline-block;
+          padding: 10px 28px;
+          border: 1px solid #e8e4dd;
+          border-radius: 10px;
+          color: #e8e4dd;
+          font-family: 'Instrument Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 700;
+          text-decoration: none;
+          transition: background 0.15s;
+        }
+
+        .qk-founders-btn:hover { background: rgba(232,228,221,0.06); }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+          .qk-hero { padding: 36px 0 28px; }
+          .qk-hero-title { font-size: 32px; }
+          .qk-nav-play { display: none; }
+
+          .qk-facts {
+            flex-direction: column;
+            gap: 24px;
+          }
+
+          .qk-fact {
+            flex-direction: row;
+            align-items: flex-start;
+            text-align: left;
+            gap: 14px;
+          }
+
+          .qk-fact-icon { margin-bottom: 0; }
+
+          .qk-top3-time { display: none; }
+        }
+      `}</style>
 
       <PendingActionRedirect />
 
