@@ -255,11 +255,28 @@ const STYLES = `
 
   .adm-quiz-link {
     font-size: 12px;
-    color: var(--hint);
+    color: var(--body);
     text-decoration: none;
     transition: color 0.15s;
+    white-space: nowrap;
   }
   .adm-quiz-link:hover { color: var(--gold); }
+
+  .adm-quiz-title-link {
+    font-size: 13px;
+    color: var(--body);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s;
+    line-height: 1.35;
+  }
+  .adm-quiz-title-link:hover { color: var(--white); }
+
+  .adm-quiz-date {
+    font-size: 11px;
+    color: var(--hint);
+    margin-top: 2px;
+  }
 
   /* Nav grid */
   .adm-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -309,7 +326,7 @@ const STYLES = `
 `
 
 type Stats = { quizzes: number; players: number; active30d: number; premium: number }
-type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string }
+type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string; opens_at: string | null; closes_at: string | null }
 type ResetModal = null | 'all' | 'test'
 
 export default function AdminHome() {
@@ -432,7 +449,6 @@ export default function AdminHome() {
         {/* Quick actions */}
         <div className="adm-actions">
           <Link href="/admin/quizzes/new" className="adm-btn-primary">+ Lag ny quiz</Link>
-          <Link href="/admin/quizzes" className="adm-btn-outline">Administrer quizer →</Link>
           <Link href="/admin/codes" className="adm-btn-outline">Verdikoder →</Link>
         </div>
 
@@ -488,22 +504,30 @@ export default function AdminHome() {
         {recentQuizzes.length > 0 && (
           <div className="adm-section">
             <p className="adm-section-label">Siste quizer</p>
-            {recentQuizzes.map(quiz => (
-              <div key={quiz.id} className="adm-quiz-row">
-                <span className="adm-quiz-name">{quiz.title}</span>
-                <div className="adm-quiz-right">
-                  <span className={`adm-badge ${quiz.is_active ? 'adm-badge--open' : 'adm-badge--hidden'}`}>
-                    {quiz.is_active ? '● Åpen' : 'Skjult'}
-                  </span>
-                  <Link
-                    href={quiz.is_active ? `/leaderboard/${quiz.id}` : `/admin/quizzes/${quiz.id}`}
-                    className="adm-quiz-link"
-                  >
-                    {quiz.is_active ? 'Toppliste →' : 'Rediger →'}
-                  </Link>
+            {recentQuizzes.map(quiz => {
+              const opensDate = quiz.opens_at ? new Date(quiz.opens_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
+              const closesDate = quiz.closes_at ? new Date(quiz.closes_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
+              const dateHint = opensDate && closesDate
+                ? `${opensDate} – ${closesDate}`
+                : opensDate ?? closesDate ?? new Date(quiz.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+              return (
+                <div key={quiz.id} className="adm-quiz-row">
+                  <div style={{ minWidth: 0 }}>
+                    <Link href={`/admin/quizzes/${quiz.id}/questions`} className="adm-quiz-title-link">
+                      {quiz.title}
+                    </Link>
+                    <p className="adm-quiz-date">{dateHint}</p>
+                  </div>
+                  <div className="adm-quiz-right">
+                    <span className={`adm-badge ${quiz.is_active ? 'adm-badge--open' : 'adm-badge--hidden'}`}>
+                      {quiz.is_active ? '● Åpen' : 'Stengt'}
+                    </span>
+                    <Link href={`/admin/quizzes/${quiz.id}/questions`} className="adm-quiz-link">Rediger →</Link>
+                    <Link href={`/leaderboard/${quiz.id}`} className="adm-quiz-link">Toppliste →</Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -537,36 +561,6 @@ export default function AdminHome() {
           </div>
         </div>
 
-        {/* Nav grid */}
-        <div className="adm-nav">
-          <Link href="/admin/quizzes" className="adm-nav-card">
-            <div>
-              <p className="adm-nav-title">Administrer quizer</p>
-              <p className="adm-nav-desc">Se, rediger og publiser</p>
-            </div>
-            <span className="adm-nav-arrow">→</span>
-          </Link>
-          <Link href="/admin/quizzes/new" className="adm-nav-card">
-            <div>
-              <p className="adm-nav-title">Lag ny quiz</p>
-              <p className="adm-nav-desc">Opprett ny fredagsquiz</p>
-            </div>
-            <span className="adm-nav-arrow">→</span>
-          </Link>
-          <Link href="/admin/codes" className="adm-nav-card">
-            <div>
-              <p className="adm-nav-title">Verdikoder</p>
-              <p className="adm-nav-desc">Lag og administrer koder</p>
-            </div>
-            <span className="adm-nav-arrow">→</span>
-          </Link>
-          <div className="adm-nav-card adm-nav-card--disabled">
-            <div>
-              <p className="adm-nav-title adm-nav-title--muted">Kommer snart</p>
-              <p className="adm-nav-desc">Abonnenter og B2B</p>
-            </div>
-          </div>
-        </div>
 
       </div>
 
