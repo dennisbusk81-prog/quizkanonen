@@ -436,6 +436,12 @@ export default function QuizQuestions() {
   const [showForm, setShowForm] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
+  // Rett svar
+  const [correctingId, setCorrectingId] = useState<string | null>(null)
+  const [correctPick, setCorrectPick] = useState('A')
+  const [correctLoading, setCorrectLoading] = useState(false)
+  const [correctResults, setCorrectResults] = useState<Record<string, number>>({})
+
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchData()
@@ -573,6 +579,23 @@ export default function QuizQuestions() {
       fetchData()
     } catch {
       showFeedback('error', 'Kunne ikke flytte spørsmålet.')
+    }
+  }
+
+  async function applyCorrectAnswer(questionId: string) {
+    setCorrectLoading(true)
+    try {
+      const res = await adminFetch('/api/admin/correct-answer', {
+        method: 'POST',
+        body: JSON.stringify({ questionId, newCorrectAnswer: correctPick }),
+      })
+      const json = await res.json()
+      if (!res.ok) { showFeedback('error', json.error ?? 'Noe gikk galt') }
+      else { setCorrectResults(r => ({ ...r, [questionId]: json.updated })); setCorrectingId(null); fetchData() }
+    } catch {
+      showFeedback('error', 'Noe gikk galt.')
+    } finally {
+      setCorrectLoading(false)
     }
   }
 
@@ -768,11 +791,77 @@ export default function QuizQuestions() {
                           </span>
                         )}
                       </div>
+
+                      {/* Rett svar — inline panel */}
+                      {correctingId === q.id && (
+                        <div style={{ marginTop: 12, padding: '14px 16px', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10 }}>
+                          <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Endre riktig svar til:</p>
+                          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                            {options.map(opt => (
+                              <button
+                                key={opt}
+                                onClick={() => setCorrectPick(opt)}
+                                style={{
+                                  flex: 1, padding: '7px 4px', borderRadius: 8,
+                                  border: `1px solid ${correctPick === opt ? 'rgba(74,222,128,0.3)' : '#2a2d38'}`,
+                                  background: correctPick === opt ? 'rgba(74,222,128,0.1)' : '#1a1c23',
+                                  color: correctPick === opt ? '#4ade80' : '#7a7873',
+                                  fontFamily: "'Instrument Sans', sans-serif",
+                                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                }}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                          <p style={{ fontSize: 11, color: '#7a7873', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                            Dette vil oppdatere alle eksisterende besvarelser og endre leaderboard. Er du sikker?
+                          </p>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={() => applyCorrectAnswer(q.id)}
+                              disabled={correctLoading || correctPick === q.correct_answer}
+                              style={{
+                                fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
+                                border: `1px solid ${correctLoading || correctPick === q.correct_answer ? '#2a2d38' : '#e8e4dd'}`,
+                                background: 'transparent',
+                                color: correctLoading || correctPick === q.correct_answer ? '#4a4d5a' : '#e8e4dd',
+                                cursor: correctLoading || correctPick === q.correct_answer ? 'not-allowed' : 'pointer',
+                                fontFamily: "'Instrument Sans', sans-serif",
+                              }}
+                            >
+                              {correctLoading ? 'Oppdaterer…' : 'Bekreft endring'}
+                            </button>
+                            <button
+                              onClick={() => setCorrectingId(null)}
+                              style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38', background: 'transparent', color: '#7a7873', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                            >
+                              Avbryt
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rett svar — resultat */}
+                      {correctResults[q.id] !== undefined && (
+                        <p style={{ fontSize: 11, color: '#4ade80', marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
+                          Rettet — {correctResults[q.id]} besvarelser oppdatert
+                        </p>
+                      )}
                     </div>
 
                     <div className="qq-q-actions">
                       <button onClick={() => startEdit(q)} className="qq-q-btn edit">Rediger</button>
                       <button onClick={() => deleteQuestion(q.id)} className="qq-q-btn del">Slett</button>
+                      <button
+                        onClick={() => {
+                          if (correctingId === q.id) { setCorrectingId(null) }
+                          else { setCorrectingId(q.id); setCorrectPick(q.correct_answer); setCorrectResults(r => { const n = { ...r }; delete n[q.id]; return n }) }
+                        }}
+                        style={{ fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent', color: '#e8e4dd', textDecoration: 'underline', textDecorationColor: 'rgba(232,228,221,0.3)', whiteSpace: 'nowrap' }}
+                      >
+                        Rett svar
+                      </button>
                     </div>
                   </div>
                 )}
