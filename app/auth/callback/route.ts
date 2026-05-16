@@ -1,12 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`auth-callback:${ip}`, 20, 60_000)
-  if (!rl.success) {
+  if (!rateLimit(`auth-callback:${ip}`, 20, 60_000).success) {
     return NextResponse.redirect(new URL('/?error=rate_limit', request.url))
   }
 
@@ -19,20 +18,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}${next}`)
   }
 
-  // Exchange PKCE code using anon client
-  const supabase = createClient(
+  // Pre-create the success redirect response so we can attach session cookies to it.
+  // The setAll closure captures this variable — by the time Supabase calls setAll
+  // (during exchangeCodeForSession), response is already assigned.
+  let response = NextResponse.redirect(`${origin}${next}`)
+
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          // The PKCE code verifier was stored in cookies by createBrowserClient
+          // when the OAuth flow was initiated on the client side.
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          // Write session tokens into the redirect response as cookies.
+          // The browser will send them on every subsequent request.
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
   )
 
   const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
   if (exchangeError || !data.session) {
-    console.error('[auth/callback] exchangeCodeForSession failed:', exchangeError?.message ?? 'no session')
+    console.error(
+      '[auth/callback] exchangeCodeForSession failed:',
+      exchangeError?.message ?? 'no session'
+    )
     return NextResponse.redirect(`${origin}/login?error=auth_failed`)
   }
 
-  const { session, user } = data
+  const { user } = data
   console.log('[auth/callback] session ok, user id:', user.id, 'email:', user.email)
 
   // Upsert profile — columns must match the actual profiles table:
@@ -52,20 +74,16 @@ export async function GET(request: NextRequest) {
     .upsert(profilePayload, { onConflict: 'id' })
 
   if (upsertError) {
-    console.error('[auth/callback] profile upsert failed — code:', upsertError.code, 'message:', upsertError.message, 'details:', upsertError.details)
+    console.error(
+      '[auth/callback] profile upsert failed — code:', upsertError.code,
+      'message:', upsertError.message,
+      'details:', upsertError.details
+    )
   } else {
     console.log('[auth/callback] profile upserted ok for user', user.id)
   }
 
-  // Pass session to the browser via URL hash.
-  // Supabase JS v2 detects access_token in the hash on init
-  // (_isImplicitGrantCallback) regardless of configured flowType.
-  const params = new URLSearchParams({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-    token_type: 'bearer',
-    expires_in: String(session.expires_in),
-  })
-
-  return NextResponse.redirect(`${origin}${next}#${params.toString()}`)
+  // Session is now stored in cookies on `response` — no URL hash needed.
+  // createBrowserClient on the client will read the cookies and fire onAuthStateChange.
+  return response
 }
