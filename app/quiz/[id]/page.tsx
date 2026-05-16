@@ -310,13 +310,11 @@ const styles = `
     font-size: 20px;
     font-weight: 700;
     color: var(--white);
-    transition: color 0.3s;
     text-align: center;
     display: block;
     margin-bottom: 6px;
+    transform-origin: center;
   }
-
-  .qk-timer.urgent { color: var(--red); }
 
   .qk-timer-bar-wrap {
     background: var(--border);
@@ -508,13 +506,36 @@ const styles = `
     animation: questionIn 200ms ease-out both;
   }
 
-  /* ANIMATION: timer pulse when urgent */
-  @keyframes timerPulse {
-    0%   { transform: scale(1); }
-    50%  { transform: scale(1.05); }
-    100% { transform: scale(1); }
+  /* ANIMATION: timer — 3 eskaleringsnivåer */
+  /* Rolig (10-7s): grønn, ingen puls */
+  .qk-timer--calm { color: #4caf50; }
+
+  /* Advarsel (6-4s): gul, svak puls */
+  @keyframes timerPulseWarning {
+    0%, 100% { transform: scale(1.0); }
+    50%       { transform: scale(1.1); }
   }
-  .qk-timer.pulse { animation: timerPulse 600ms ease-in-out infinite; }
+  .qk-timer--warning {
+    color: #EF9F27;
+    animation: timerPulseWarning 600ms ease-in-out infinite;
+  }
+
+  /* Kritisk (3-1s): rød, aggressiv puls */
+  @keyframes timerPulseCritical {
+    0%, 100% { transform: scale(1.0); }
+    50%       { transform: scale(1.2); }
+  }
+  .qk-timer--critical {
+    color: #E24B4A;
+    animation: timerPulseCritical 400ms ease-in-out infinite;
+  }
+
+  /* Kritisk bakgrunnsglød — pulserer inn og ut på spillskjermen */
+  @keyframes qkRedGlow {
+    0%, 100% { background-color: rgba(226,75,74,0); }
+    50%       { background-color: rgba(226,75,74,0.06); }
+  }
+  .qk-play-shell--critical { animation: qkRedGlow 400ms ease-in-out infinite; }
 
   /* ANIMATION: intermediate screen fade */
   @keyframes qkFadeIn  { from { opacity: 0; } to { opacity: 1; } }
@@ -667,6 +688,8 @@ export default function QuizPage() {
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
+  const timerRef             = useRef<HTMLSpanElement | null>(null)
+  const playShellRef         = useRef<HTMLDivElement | null>(null)
   const animationTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const canvasRef            = useRef<HTMLCanvasElement | null>(null)
   const confettiRafRef       = useRef<number | null>(null)
@@ -835,6 +858,27 @@ export default function QuizPage() {
     const timer = setTimeout(() => setTimeLeft(t => t - 1), 1000)
     return () => clearTimeout(timer)
   }, [phase, answered, timeLeft, currentIndex, questions])
+
+  // Timer-eskalering via CSS-klasser — ingen JS-animasjonslogikk
+  useEffect(() => {
+    const el = timerRef.current
+    const shell = playShellRef.current
+    if (!el) return
+
+    el.classList.remove('qk-timer--calm', 'qk-timer--warning', 'qk-timer--critical')
+    shell?.classList.remove('qk-play-shell--critical')
+
+    if (answered) return  // stopp eskalering når svart
+
+    if (timeLeft <= 3) {
+      el.classList.add('qk-timer--critical')
+      shell?.classList.add('qk-play-shell--critical')
+    } else if (timeLeft <= 6) {
+      el.classList.add('qk-timer--warning')
+    } else {
+      el.classList.add('qk-timer--calm')
+    }
+  }, [timeLeft, answered])
 
   const handleTimeout = useCallback(() => {
     const question = questions[currentIndex]
@@ -1405,7 +1449,7 @@ export default function QuizPage() {
     const question = questions[currentIndex]
     const limit = getTimeLimit(question)
     const timerPercent = (timeLeft / limit) * 100
-    const timerColor = timerPercent > 50 ? 'var(--green)' : timerPercent > 25 ? 'var(--gold)' : 'var(--red)'
+    const timerBarColor = timerPercent > 60 ? '#4caf50' : timerPercent > 40 ? 'var(--gold)' : '#E24B4A'
     const correctSoFar = answers.filter(a => a.isCorrect).length
     const availableOptions = question?.shuffle_options
       ? shuffledDisplayOrder.filter(o => ['A','B','C','D'].slice(0, quiz.num_options).includes(o))
@@ -1462,7 +1506,7 @@ export default function QuizPage() {
           onNext={handleInterludeNext}
         />
       )}
-      <div className="qk-play-shell">
+      <div ref={playShellRef} className="qk-play-shell">
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
           {quiz.category && (
@@ -1470,9 +1514,9 @@ export default function QuizPage() {
           )}
         </div>
 
-        <span className={`qk-timer${timeLeft <= 5 ? ' urgent' : ''}${timeLeft <= 3 && !answered ? ' pulse' : ''}`}>{timeLeft}s</span>
+        <span ref={timerRef} className="qk-timer">{timeLeft}s</span>
         <div className="qk-timer-bar-wrap">
-          <div className="qk-timer-bar" style={{width:`${timerPercent}%`,background:timerColor}}/>
+          <div className="qk-timer-bar" style={{width:`${timerPercent}%`,background:timerBarColor}}/>
         </div>
 
         <div className="qk-score-row">
