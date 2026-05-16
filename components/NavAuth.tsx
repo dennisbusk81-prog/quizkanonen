@@ -1,10 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import type React from 'react'
+
+const BACK_EXCLUDED = new Set([
+  '/', '/login', '/personvern', '/vilkar', '/om',
+  '/founders', '/founders/success', '/premium/success', '/bedrift/success',
+])
 
 const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
@@ -16,6 +22,7 @@ const menuItem: React.CSSProperties = {
 }
 
 export default function NavAuth({ quizId }: { quizId?: string }) {
+  const pathname = usePathname()
   const [sessionResolved, setSessionResolved] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
@@ -128,6 +135,19 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   if (!sessionResolved) return null
 
+  const showBack = !BACK_EXCLUDED.has(pathname) && !pathname.startsWith('/admin')
+  const backLink = showBack ? (
+    <Link href="/" style={{
+      fontSize: 13,
+      color: '#7a7873',
+      textDecoration: 'none',
+      fontFamily: "'Instrument Sans', sans-serif",
+      whiteSpace: 'nowrap',
+    }}>
+      ← Tilbake
+    </Link>
+  ) : null
+
   const navLink: React.CSSProperties = {
     fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
     fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
@@ -142,6 +162,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   if (!displayName) {
     return (
       <>
+        {backLink}
         <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
         <a href="/bedrift" style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -174,6 +195,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // ── Logged in ──
   return (
     <>
+      {backLink}
       {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>}
       {/* Min bedrift — for all org members */}
       {myOrgs.length > 0 && (
