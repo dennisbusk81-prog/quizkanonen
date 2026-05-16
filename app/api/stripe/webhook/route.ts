@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sendEmail } from '@/lib/email'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail } from '@/lib/email-templates'
+
+async function getUserEmail(stripe: Stripe, customerId: string): Promise<string | null> {
+  try {
+    const customer = await stripe.customers.retrieve(customerId)
+    if (!customer.deleted && (customer as Stripe.Customer).email) {
+      return (customer as Stripe.Customer).email
+    }
+  } catch {}
+  return null
+}
 
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
@@ -79,6 +91,51 @@ export async function POST(request: NextRequest) {
         stripe_customer_id: session.customer as string ?? null,
         premium_source: 'personal',
       }).eq('id', userId)
+
+      // Send kjøpsbekreftelse — fire-and-forget
+      supabaseAdmin.auth.admin.getUserById(userId)
+        .then(({ data }) => {
+          const email = data.user?.email
+          if (email) {
+            return sendEmail({
+              to: email,
+              subject: 'Velkommen til Premium — Quizkanonen',
+              html: premiumWelcomeEmail(),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] premiumWelcomeEmail failed:', err))
+    }
+  }
+
+  // ── invoice.payment_succeeded ──────────────────────────────────────────
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice
+    // Skip the first payment — that is handled by checkout.session.completed
+    if ((invoice as unknown as { billing_reason: string }).billing_reason === 'subscription_cycle') {
+      const customerId = invoice.customer as string
+
+      // Only send for B2C (not org subscriptions)
+      const { data: org } = await supabaseAdmin
+        .from('organizations')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (!org) {
+        // Fire-and-forget renewal email
+        getUserEmail(stripe, customerId)
+          .then(email => {
+            if (email) {
+              return sendEmail({
+                to: email,
+                subject: 'Abonnementet ditt er fornyet — Quizkanonen',
+                html: premiumRenewalEmail(),
+              })
+            }
+          })
+          .catch(err => console.error('[webhook] premiumRenewalEmail failed:', err))
+      }
     }
   }
 
@@ -111,6 +168,19 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from('profiles')
         .update({ premium_status: false })
         .eq('stripe_customer_id', customerId)
+
+      // Send kanselleringsbekreftelse — fire-and-forget
+      getUserEmail(stripe, customerId)
+        .then(email => {
+          if (email) {
+            return sendEmail({
+              to: email,
+              subject: 'Premium-abonnementet ditt er avsluttet — Quizkanonen',
+              html: premiumCancelledEmail(),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
     }
   }
 
