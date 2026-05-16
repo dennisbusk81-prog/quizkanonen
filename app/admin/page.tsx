@@ -523,8 +523,16 @@ export default function AdminHome() {
           <div className="adm-section">
             <p className="adm-section-label">Siste quizer</p>
             {recentQuizzes.map(quiz => {
-              const opensDate = quiz.opens_at ? new Date(quiz.opens_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
-              const closesDate = quiz.closes_at ? new Date(quiz.closes_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
+              const now = new Date()
+              const opensAt = quiz.opens_at ? new Date(quiz.opens_at) : null
+              const closesAt = quiz.closes_at ? new Date(quiz.closes_at) : null
+              const isOpen = opensAt && opensAt <= now && (!closesAt || closesAt > now)
+              const isClosed = closesAt && closesAt <= now
+              const isPlanned = opensAt && opensAt > now
+              const statusLabel = isOpen ? '● Åpen' : isClosed ? 'Stengt' : isPlanned ? 'Planlagt' : 'Stengt'
+              const statusClass = isOpen ? 'adm-badge--open' : isClosed ? 'adm-badge--closed' : isPlanned ? 'adm-badge--hidden' : 'adm-badge--closed'
+              const opensDate = opensAt ? opensAt.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
+              const closesDate = closesAt ? closesAt.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
               const dateHint = opensDate && closesDate
                 ? `${opensDate} – ${closesDate}`
                 : opensDate ?? closesDate ?? new Date(quiz.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -537,8 +545,8 @@ export default function AdminHome() {
                     <p className="adm-quiz-date">{dateHint}</p>
                   </div>
                   <div className="adm-quiz-right">
-                    <span className={`adm-badge ${quiz.is_active ? 'adm-badge--open' : 'adm-badge--hidden'}`}>
-                      {quiz.is_active ? '● Åpen' : 'Stengt'}
+                    <span className={`adm-badge ${statusClass}`}>
+                      {statusLabel}
                     </span>
                     <Link href={`/admin/quizzes/${quiz.id}/questions`} className="adm-quiz-link">Rediger →</Link>
                     <Link href={`/leaderboard/${quiz.id}`} className="adm-quiz-link">Toppliste →</Link>
