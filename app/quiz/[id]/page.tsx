@@ -979,6 +979,7 @@ export default function QuizPage() {
     const DECAY = 0.013
 
     function loop() {
+      if (!ctx || !canvas) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       let alive = false
       for (const p of particles) {
