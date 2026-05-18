@@ -13,8 +13,7 @@ const FEATURES = [
   'Nøyaktig plassering på leaderboard',
   'Historikk og statistikk',
   'Avansert statistikk',
-  'Private ligaer (kommer)',
-  'XP og titler (kommer)',
+  'Private ligaer med venner',
 ]
 
 export default function PremiumPage() {

@@ -14,6 +14,7 @@ export async function signInWithGoogle(next?: string): Promise<void> {
 
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut()
+  window.location.href = '/'
 }
 
 export async function getSession(): Promise<Session | null> {
