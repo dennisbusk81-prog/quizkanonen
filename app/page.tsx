@@ -1112,66 +1112,15 @@ export default async function Home() {
           </Link>
         </div>
 
-        {/* ── Sitat ── */}
-        <p className="qk-quote">Ekte mennesker. Ekte navn. Hver fredag.</p>
-
-        {/* ── Fakta-ikoner ── */}
-        <div className="qk-facts">
-          <div className="qk-fact">
-            <div className="qk-fact-icon">
-              <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="24" height="22" rx="3"/>
-                <line x1="3" y1="11" x2="27" y2="11"/>
-                <line x1="9" y1="3" x2="9" y2="8"/>
-                <line x1="21" y1="3" x2="21" y2="8"/>
-                <circle cx="10" cy="18" r="1.5" fill="#c9a84c" stroke="none"/>
-                <circle cx="20" cy="18" r="1.5" fill="#c9a84c" stroke="none"/>
-              </svg>
-            </div>
-            <div className="qk-fact-body">
-              <div className="qk-fact-title">Hver fredag</div>
-              <div className="qk-fact-desc">Ny quiz kl. 12. Fast tid, faste folk.</div>
-            </div>
-          </div>
-
-          <div className="qk-fact">
-            <div className="qk-fact-icon">
-              <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="15" cy="10" r="5"/>
-                <path d="M5 27c0-5.523 4.477-10 10-10s10 4.477 10 10"/>
-              </svg>
-            </div>
-            <div className="qk-fact-body">
-              <div className="qk-fact-title">Logg inn én gang</div>
-              <div className="qk-fact-desc">Vi husker deg. Du vet hvem du spiller mot.</div>
-            </div>
-          </div>
-
-          <div className="qk-fact">
-            <div className="qk-fact-icon">
-              <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 4l2.76 8.5H26l-7.1 5.16 2.72 8.34L15 21l-6.62 5 2.72-8.34L4 12.5h8.24L15 4z"/>
-              </svg>
-            </div>
-            <div className="qk-fact-body">
-              <div className="qk-fact-title">Følg sesongen</div>
-              <div className="qk-fact-desc">Poeng akkumuleres uke for uke. Se hvem som leder.</div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Divider ── */}
-        <div className="qk-divider" />
-
-        {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
-        <OrgCard />
-
         {/* ── Slik fungerer det ── */}
-        <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 32 }}>
           <Link href="/slik-fungerer-det" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
             Hvordan fungerer Quizkanonen? →
           </Link>
         </div>
+
+        {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
+        <OrgCard />
 
         {/* ── Bedrift ── */}
         <div className="qk-biz">
