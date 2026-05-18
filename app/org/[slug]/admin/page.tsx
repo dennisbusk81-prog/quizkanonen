@@ -405,12 +405,6 @@ export default function OrgAdminPage() {
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' }}>
 
-          <div style={{ paddingTop: 20 }}>
-            <Link href={`/org/${slug}`} style={{ fontSize: 12, color: '#7a7873', textDecoration: 'none', letterSpacing: '0.04em' }}>
-              ← Leaderboard
-            </Link>
-          </div>
-
           {/* Header */}
           <div style={{ padding: '36px 0 8px' }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>

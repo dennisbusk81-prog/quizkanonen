@@ -106,12 +106,6 @@ export default function OrgLeaderboardPage() {
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' }}>
 
-          <div style={{ paddingTop: 20 }}>
-            <Link href="/" style={{ display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' }}>
-              ← Forsiden
-            </Link>
-          </div>
-
           {/* Hero */}
           <div style={{ padding: '24px 0 12px', textAlign: 'center' as const }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 }}>

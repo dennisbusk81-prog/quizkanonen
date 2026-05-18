@@ -6,6 +6,12 @@ import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import type React from 'react'
 
+const NAV_MOBILE_CSS = `
+  @media (max-width: 639px) {
+    .nav-hide-mobile { display: none !important; }
+  }
+`
+
 const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
@@ -142,8 +148,9 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   if (!displayName) {
     return (
       <>
-        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>
-        <a href="/bedrift" style={navLink}
+        <style>{NAV_MOBILE_CSS}</style>
+        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>
+        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
@@ -174,12 +181,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // ── Logged in ──
   return (
     <>
-      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Toppliste</a>}
+      <style>{NAV_MOBILE_CSS}</style>
+      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>}
       {/* Min bedrift — for all org members */}
       {myOrgs.length > 0 && (
         <a
           href={`/org/${myOrgs[0].orgSlug}`}
           style={navLink}
+          className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >
@@ -191,13 +200,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         <a
           href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`}
           style={navLink}
+          className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >
           Bedriftspanel
         </a>
       )}
-      <a href="/bedrift" style={navLink}
+      <a href="/bedrift" style={navLink} className="nav-hide-mobile"
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >For bedrifter</a>

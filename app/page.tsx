@@ -791,6 +791,13 @@ export default async function Home() {
             </div>
           )}
 
+          {/* Se alle quizer */}
+          <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
+            <Link href="/quizer" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+              Se alle quizer →
+            </Link>
+          </div>
+
           {/* Season placement card */}
           <div className="qkp-plain-card">
             <p className="qkp-section-label">Sesong — {monthName}</p>
