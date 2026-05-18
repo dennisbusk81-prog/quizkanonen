@@ -996,6 +996,11 @@ export default async function Home() {
             <span style={{ color: '#7a7873' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            <Link href="/slik-fungerer-det" style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
+              Hvordan fungerer Quizkanonen? →
+            </Link>
+          </div>
         </section>
 
         {/* ── Quiz-kort ── */}
@@ -1038,22 +1043,6 @@ export default async function Home() {
             </div>
           )
         })()}
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, marginBottom: 32 }}>
-          <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            Se sesong-topplisten →
-          </Link>
-          <Link href="/quizer" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            Se alle quizer →
-          </Link>
-        </div>
-
-        {/* ── Slik fungerer det ── */}
-        <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 32 }}>
-          <Link href="/slik-fungerer-det" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            Hvordan fungerer Quizkanonen? →
-          </Link>
-        </div>
 
         {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
         <OrgCard />
