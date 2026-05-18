@@ -12,6 +12,7 @@ const EXCLUDED_EXACT = new Set([
   '/founders/success',
   '/premium/success',
   '/bedrift/success',
+  '/slik-fungerer-det',
 ])
 
 export default function BackNav() {

@@ -47,6 +47,7 @@ export default function RootLayout({
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
             <span>© 2026 Quizkanonen</span>
             <Link href="/om" className="hover:text-gray-300 transition-all">Om Quizkanonen</Link>
+            <Link href="/slik-fungerer-det" className="hover:text-gray-300 transition-all">Slik fungerer det</Link>
             <Link href="/personvern" className="hover:text-gray-300 transition-all">Personvernerklæring</Link>
             <Link href="/vilkar" className="hover:text-gray-300 transition-all">Brukervilkår</Link>
             <a href="mailto:quizkanonen@gmail.com" className="hover:text-gray-300 transition-all">Kontakt</a>
