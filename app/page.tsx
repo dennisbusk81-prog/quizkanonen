@@ -942,7 +942,7 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }, { data: seasonRows }] = await Promise.all([
+  const [{ data: quizzes }, { data: nextQuizSetting }] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
@@ -954,37 +954,10 @@ export default async function Home() {
       .select('value')
       .eq('key', 'next_quiz_at')
       .maybeSingle(),
-    supabaseAdmin
-      .from('season_scores')
-      .select('user_id, points, profiles(display_name)')
-      .eq('scope_type', 'global')
-      .is('scope_id', null)
-      .gte('closes_at', monthStart)
-      .lt('closes_at', monthEnd),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
-
-  type RawRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
-  const rows = (seasonRows as RawRow[] | null) ?? []
-  const byUser = new Map<string, { displayName: string; totalPoints: number }>()
-  for (const row of rows) {
-    const name = row.profiles?.display_name
-    if (!name) continue
-    const existing = byUser.get(row.user_id)
-    if (existing) {
-      existing.totalPoints += row.points
-    } else {
-      byUser.set(row.user_id, { displayName: name, totalPoints: row.points })
-    }
-  }
-  const monthTop3: MonthEntry[] = Array.from(byUser.values())
-    .sort((a, b) => b.totalPoints - a.totalPoints)
-    .slice(0, 3)
-
-  const showTop3 = monthTop3.length >= 1
-  const medals = ['🥇', '🥈', '🥉']
 
   return (
     <>
@@ -1054,23 +1027,6 @@ export default async function Home() {
                 <p className="qk-card-date">Neste quiz: {formatNextQuiz(nextQuizAt)}</p>
               )}
 
-              {showTop3 && (
-                <>
-                  <p className="qk-prev-label">Denne måneden</p>
-                  <div className="qk-top3-rows">
-                    {monthTop3.map((entry, i) => (
-                      <div key={i} className="qk-top3-row">
-                        <div className="qk-top3-left">
-                          <span style={{ fontSize: 15 }}>{medals[i]}</span>
-                          <span className="qk-top3-name">{truncateName(entry.displayName)}</span>
-                        </div>
-                        <div className="qk-top3-right">{entry.totalPoints} poeng</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
               <div className="qk-card-actions">
                 <a href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
                   Spill nå
@@ -1082,26 +1038,6 @@ export default async function Home() {
             </div>
           )
         })()}
-
-        {/* ── Månedens topp 3 — alltid synlig ── */}
-        {showTop3 && (
-          <div style={{ marginTop: 20, marginBottom: 8 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '0.12em', textAlign: 'center', marginBottom: 10 }}>
-              Denne måneden
-            </p>
-            <div className="qk-top3-rows">
-              {monthTop3.map((entry, i) => (
-                <div key={i} className="qk-top3-row">
-                  <div className="qk-top3-left">
-                    <span style={{ fontSize: 15 }}>{medals[i]}</span>
-                    <span className="qk-top3-name">{truncateName(entry.displayName)}</span>
-                  </div>
-                  <div className="qk-top3-right">{entry.totalPoints} poeng</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 12, marginBottom: 32 }}>
           <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
