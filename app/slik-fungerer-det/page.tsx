@@ -174,12 +174,72 @@ export default function SlikFungererDetPage() {
           <hr style={s.rule} />
 
           <h2 style={s.sectionTitle}>Gratis vs Premium</h2>
-          <p style={{ ...s.body, marginBottom: 8 }}>
-            <strong style={{ color: '#ffffff' }}>Gratis:</strong> spill quizen, se estimert plassering, delta i sesong.
-          </p>
-          <p style={s.body}>
-            <strong style={{ color: '#c9a84c' }}>Premium</strong> <span style={{ color: '#7a7873' }}>(kr 49/mnd):</span> nøyaktig plassering, full historikk og statistikk, opprett private ligaer, følg din utvikling uke for uke.
-          </p>
+          <style>{`
+            @media (max-width: 520px) { .sgd-cols { grid-template-columns: 1fr !important; } }
+          `}</style>
+          <div className="sgd-cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+
+            {/* Gratis */}
+            <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 18px' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 }}>
+                Gratis
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
+                {[
+                  'Spill ukens quiz',
+                  'Se antall riktige og svartid',
+                  'Estimert plassering',
+                  'Delta i sesong-topplisten',
+                  'Bli med i private ligaer',
+                ].map(item => (
+                  <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <span style={{ color: '#7a7873', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Premium */}
+            <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 12, padding: '16px 18px' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 12 }}>
+                Premium · kr 49/mnd
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
+                <li style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.4, fontStyle: 'italic' }}>Alt i gratis, pluss:</li>
+                {[
+                  'Nøyaktig plassering på leaderboard',
+                  'Full quizhistorikk uke for uke',
+                  'Detaljert statistikk og utvikling over tid',
+                  'Opprett egne private ligaer',
+                  'Se hvem du slo og hvem som slo deg',
+                ].map(item => (
+                  <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <span style={{ color: '#c9a84c', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+          </div>
+
+          <div style={{ textAlign: 'center' }}>
+            <Link href="/premium" style={{
+              display: 'inline-block',
+              background: '#c9a84c',
+              color: '#1a1c23',
+              fontFamily: "'Instrument Sans', sans-serif",
+              fontSize: 15,
+              fontWeight: 700,
+              padding: '10px 28px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap' as const,
+            }}>
+              Bli Premium →
+            </Link>
+          </div>
 
           <hr style={s.rule} />
 
