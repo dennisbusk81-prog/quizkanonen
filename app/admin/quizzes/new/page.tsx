@@ -327,18 +327,18 @@ const STYLES = `
     width: 100%;
     margin-top: 12px;
     padding: 14px 28px;
-    background: transparent;
-    border: 1px solid var(--border);
+    background: var(--gold);
+    border: none;
     border-radius: var(--rbtn);
-    color: var(--body);
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 700;
     cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
+    transition: background 0.15s;
     text-align: center;
   }
-  .nq-add-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .nq-add-btn:hover { background: #d9b85c; }
 
   /* Save button */
   .nq-save-btn {
@@ -346,18 +346,18 @@ const STYLES = `
     width: 100%;
     margin-top: 12px;
     padding: 14px 28px;
-    background: var(--gold);
-    border: none;
+    background: transparent;
+    border: 1px solid var(--border);
     border-radius: var(--rbtn);
-    color: #1a1c23;
+    color: var(--body);
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s, opacity 0.15s;
+    transition: border-color 0.15s;
     text-align: center;
   }
-  .nq-save-btn:hover { background: #d9b85c; }
+  .nq-save-btn:hover { border-color: var(--gold); }
   .nq-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   @media (max-width: 540px) {

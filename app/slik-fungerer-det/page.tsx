@@ -103,7 +103,7 @@ export default function SlikFungererDetPage() {
 
           <h2 style={s.firstSectionTitle}>Fredagsquizen</h2>
           <p style={s.body}>
-            Hver fredag kl. 12:00 åpner ukens quiz. Du har frem til deadline på å svare — spill når det passer deg på fredag. Vanligvis 15 spørsmål, men temaquizer kan ha flere. Det kommer også quizer på andre tidspunkter.
+            Hver fredag kl. 12:00 åpner ukens quiz. Du har frem til deadline på å svare — spill når det passer deg på fredag. Vanligvis 15 spørsmål. Temaquizer og spesialquizer kan komme på andre tidspunkter — disse varsles på e-post.
           </p>
 
           <hr style={s.rule} />
@@ -154,7 +154,7 @@ export default function SlikFungererDetPage() {
 
           <h2 style={s.sectionTitle}>Private ligaer</h2>
           <p style={s.body}>
-            Vil du konkurrere mot venner, familie eller kolleger? Opprett en privat liga, del invitasjonslenken, og se hvem som er best i din krets — uke etter uke. Krever Premium å opprette, gratis å bli med.
+            Vil du konkurrere mot venner, familie eller kolleger? Opprett en privat liga, del invitasjonslenken, og se hvem som er best i din krets — uke etter uke. Krever Premium å opprette.
           </p>
 
           <hr style={s.rule} />
