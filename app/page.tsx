@@ -583,6 +583,74 @@ const SHARED_CSS = `
     .qkp-shortcuts { grid-template-columns: 1fr 1fr; }
     .qkp-shortcut:last-child { grid-column: 1 / -1; }
   }
+
+  /* ── How it works steps ── */
+  .qk-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-width: 480px;
+    margin: 28px auto 0;
+    position: relative;
+  }
+
+  .qk-steps::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: calc(16.7% + 18px);
+    right: calc(16.7% + 18px);
+    height: 1px;
+    background: var(--border);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .qk-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 8px;
+  }
+
+  .qk-step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+  }
+
+  .qk-step-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--white);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+
+  .qk-step-desc {
+    font-size: 12px;
+    color: var(--hint);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 600px) {
+    .qk-steps { grid-template-columns: 1fr; max-width: 240px; }
+    .qk-steps::before { display: none; }
+  }
 `
 
 export default async function Home() {
@@ -959,6 +1027,20 @@ export default async function Home() {
   const quizList = (quizzes as QuizRow[] | null) ?? []
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
 
+  // Next Friday at 12:00 (Oslo time) — for fallback card
+  const nextFridayLabel = (() => {
+    const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
+    const day = oslo.getDay()
+    const hour = oslo.getHours()
+    let daysUntil = (5 - day + 7) % 7
+    if (daysUntil === 0 && hour >= 12) daysUntil = 7
+    const friday = new Date(now)
+    friday.setDate(now.getDate() + daysUntil)
+    return friday.toLocaleDateString('nb-NO', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Oslo',
+    }) + ' kl. 12:00'
+  })()
+
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -996,26 +1078,35 @@ export default async function Home() {
             <span style={{ color: '#7a7873' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
-          <div style={{ textAlign: 'center', marginTop: 14 }}>
-            <Link href="/slik-fungerer-det" style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
-              Hvordan fungerer Quizkanonen? →
-            </Link>
+          <div className="qk-steps">
+            {([
+              { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12. Svar raskt — tid teller.' },
+              { n: '2', title: 'Se plasseringen', desc: 'Sammenlign deg mot de samme folkene uke etter uke.' },
+              { n: '3', title: 'Følg sesongen', desc: 'Poeng akkumuleres. Hvem dominerer over tid?' },
+            ] as const).map(({ n, title, desc }) => (
+              <div key={n} className="qk-step">
+                <div className="qk-step-num">{n}</div>
+                <p className="qk-step-title">{title}</p>
+                <p className="qk-step-desc">{desc}</p>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* ── Quiz-kort ── */}
         {quizList.length === 0 ? (
-          <div className="qk-empty">
-            <p className="qk-empty-title">Ingen aktive quizer akkurat nå</p>
-            <p className="qk-empty-sub">
-              Ny quiz legges ut hver fredag.<br />
-              Følg med i Facebook-gruppen for varsling.
+          <div className="qk-card">
+            <p className="qk-card-eyebrow">Neste quiz</p>
+            <h2 className="qk-title">Fredagsquizen</h2>
+            <p className="qk-card-date">{nextFridayLabel}</p>
+            <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
+              Ingen aktiv quiz akkurat nå — kom tilbake på fredag.
             </p>
-            {nextQuizAt && (
-              <p className="qk-card-date" style={{ marginBottom: 0 }}>
-                Neste quiz: {formatNextQuiz(nextQuizAt)}
-              </p>
-            )}
+            <div className="qk-card-actions">
+              <Link href="/login" className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
+                Få påminnelse på e-post →
+              </Link>
+            </div>
           </div>
         ) : (() => {
           const quiz = quizList[0]
