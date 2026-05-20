@@ -161,7 +161,7 @@ const SHARED_CSS = `
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
     margin-bottom: 10px;
   }
 
@@ -382,6 +382,26 @@ const SHARED_CSS = `
     background-color: rgba(201,168,76,0.06);
   }
 
+  .qk-btn-outline-dark {
+    display: inline-block;
+    background: transparent;
+    border: 1px solid #2a2d38;
+    color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 28px;
+    border-radius: 10px;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .qk-btn-outline-dark:hover {
+    border-color: #c9a84c;
+  }
+
   /* ── Empty state ── */
   .qk-empty {
     background: var(--card);
@@ -565,6 +585,20 @@ const SHARED_CSS = `
     .qk-hero { padding: 36px 0 28px; }
     .qk-hero-title { font-size: 32px; }
     .qk-nav-play { display: none; }
+
+    .qk-hero-actions {
+      flex-direction: column;
+      align-items: stretch;
+      max-width: 280px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .qk-btn-primary,
+    .qk-btn-outline-dark {
+      text-align: center;
+      width: 100%;
+    }
 
     .qk-facts { flex-direction: column; gap: 24px; }
 
@@ -1010,7 +1044,7 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }] = await Promise.all([
+  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
@@ -1022,10 +1056,54 @@ export default async function Home() {
       .select('value')
       .eq('key', 'next_quiz_at')
       .maybeSingle(),
+    supabaseAdmin
+      .from('quizzes')
+      .select('id, title, questions(count)')
+      .lt('closes_at', now.toISOString())
+      .not('closes_at', 'is', null)
+      .order('closes_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
+
+  // Last closed quiz top 3
+  type LastQuizRow = { id: string; title: string; questions: { count: number }[] }
+  type Top3AttemptRow = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null }
+  const lastQuiz = lastQuizRaw as LastQuizRow | null
+  let lastQuizTop3: Top3AttemptRow[] = []
+
+  if (lastQuiz) {
+    const { data: top3Raw } = await supabaseAdmin
+      .from('attempts')
+      .select('player_name, correct_answers, total_time_ms, user_id')
+      .eq('quiz_id', lastQuiz.id)
+      .eq('is_team', false)
+      .order('correct_answers', { ascending: false })
+      .order('total_time_ms', { ascending: true })
+      .limit(3)
+
+    lastQuizTop3 = (top3Raw as Top3AttemptRow[] | null) ?? []
+
+    // Replace player_name with profile display_name where available
+    const userIds = lastQuizTop3.map(r => r.user_id).filter(Boolean) as string[]
+    if (userIds.length > 0) {
+      const { data: profilesRaw } = await supabaseAdmin
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds)
+      const profileMap = new Map(
+        ((profilesRaw ?? []) as { id: string; display_name: string | null }[])
+          .map(p => [p.id, p.display_name])
+      )
+      lastQuizTop3 = lastQuizTop3.map(r => ({
+        ...r,
+        player_name: (r.user_id && profileMap.get(r.user_id)) ? profileMap.get(r.user_id)! : r.player_name,
+      }))
+    }
+  }
 
   // Next Friday at 12:00 (Oslo time) — for fallback card
   const nextFridayLabel = (() => {
@@ -1072,6 +1150,9 @@ export default async function Home() {
                 Spill ukens quiz
               </Link>
             )}
+            <Link href="/slik-fungerer-det" className="qk-btn-outline-dark">
+              Slik fungerer det →
+            </Link>
           </div>
           <div className="qk-hero-status">
             <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google</span></span>
@@ -1134,6 +1215,53 @@ export default async function Home() {
             </div>
           )
         })()}
+
+        {/* ── Forrige uke — topp 3 ── */}
+        {lastQuizTop3.length > 0 && lastQuiz && (
+          <div style={{
+            background: '#21242e',
+            border: '1px solid #2a2d38',
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginBottom: 8,
+          }}>
+            <p style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: '#7a7873',
+              marginBottom: 14,
+            }}>Forrige uke — hvem vant?</p>
+            <div className="qk-top3-rows qkp-league-top3">
+              {lastQuizTop3.map((row, i) => {
+                const totalSec = Math.round(row.total_time_ms / 1000)
+                const totalQ = lastQuiz.questions[0]?.count ?? '?'
+                return (
+                  <div key={i} className="qk-top3-row">
+                    <div className="qk-top3-left">
+                      <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
+                        {i + 1}.
+                      </span>
+                      <span className="qk-top3-name">{truncateName(row.player_name)}</span>
+                    </div>
+                    <div className="qk-top3-right">
+                      {row.correct_answers}/{totalQ}
+                      <span className="qk-top3-time"> · {totalSec}s</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <Link href={`/leaderboard/${lastQuiz.id}`} style={{
+              fontSize: 13,
+              color: '#e8e4dd',
+              textDecoration: 'none',
+            }}>
+              Se full toppliste →
+            </Link>
+          </div>
+        )}
 
         {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
         <OrgCard />
