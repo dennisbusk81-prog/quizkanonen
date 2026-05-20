@@ -1155,7 +1155,7 @@ export default async function Home() {
             </Link>
           </div>
           <div className="qk-hero-status">
-            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google</span></span>
+            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Gratis innlogging med Google</span></span>
             <span style={{ color: '#7a7873' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
