@@ -107,12 +107,9 @@ export async function GET(request: NextRequest) {
 
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
-    const now = new Date().toISOString()
-
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at')
-      .lt('closes_at', now)
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle()
