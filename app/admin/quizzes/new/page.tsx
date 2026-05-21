@@ -374,6 +374,7 @@ export default function NewQuiz() {
   const [title, setTitle] = useState('')
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
+  const [quizType, setQuizType] = useState<'weekly' | 'bonus'>('weekly')
   const [questions, setQuestions] = useState<Question[]>(() => [emptyQuestion()])
   const [saving, setSaving] = useState(false)
 
@@ -415,6 +416,7 @@ export default function NewQuiz() {
           title: title.trim(),
           opens_at: new Date(opensAt).toISOString(),
           closes_at: new Date(closesAt).toISOString(),
+          quiz_type: quizType,
           questions: questions.map(q => ({
             question_text: q.text.trim(),
             option_a: q.optionA.trim(),
@@ -480,6 +482,17 @@ export default function NewQuiz() {
                 className="nq-input"
               />
             </div>
+          </div>
+          <div className="nq-field" style={{ marginTop: 16 }}>
+            <label className="nq-label">Quiz-type</label>
+            <select
+              value={quizType}
+              onChange={e => setQuizType(e.target.value as 'weekly' | 'bonus')}
+              className="nq-input nq-select"
+            >
+              <option value="weekly">Ukentlig (fredagsquiz)</option>
+              <option value="bonus">Bonusquiz</option>
+            </select>
           </div>
         </div>
 

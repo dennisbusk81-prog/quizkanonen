@@ -21,11 +21,12 @@ export async function POST(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, questions, opens_at, closes_at }: {
+  const { title, questions, opens_at, closes_at, quiz_type }: {
     title: string
     questions: ImportQuestion[]
     opens_at?: string
     closes_at?: string
+    quiz_type?: string
   } = body
 
   if (!title || !questions?.length) {
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
       randomize_questions: false,
       allow_teams: true,
       requires_access_code: false,
+      quiz_type: quiz_type ?? 'weekly',
     })
     .select()
     .single()

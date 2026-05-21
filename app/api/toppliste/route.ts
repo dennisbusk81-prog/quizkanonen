@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at')
+      .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle()

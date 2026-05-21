@@ -81,6 +81,7 @@ export default function QuizCockpit() {
     randomize_questions: false,
     allow_teams: true,
     requires_access_code: false,
+    quiz_type: 'weekly',
   })
 
   useEffect(() => {
@@ -111,6 +112,7 @@ export default function QuizCockpit() {
           randomize_questions: quizData.randomize_questions,
           allow_teams: quizData.allow_teams,
           requires_access_code: quizData.requires_access_code,
+          quiz_type: quizData.quiz_type ?? 'weekly',
         })
       }
       setStats({ plays, questions: questions_count })
@@ -147,6 +149,7 @@ export default function QuizCockpit() {
           randomize_questions: form.randomize_questions,
           allow_teams: form.allow_teams,
           requires_access_code: form.requires_access_code,
+          quiz_type: form.quiz_type,
         }),
       })
       if (!res.ok) { const d = await res.json(); showFeedback('error', 'Feil ved lagring: ' + d.error) }
@@ -242,6 +245,18 @@ export default function QuizCockpit() {
             <label style={s.label}>Beskrivelse</label>
             <textarea value={form.description} onChange={e => upd('description', e.target.value)}
               rows={2} style={{ ...s.input, resize: 'none' }} />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={s.label}>Quiz-type</label>
+            <select
+              value={form.quiz_type}
+              onChange={e => upd('quiz_type', e.target.value)}
+              style={{ ...s.input, cursor: 'pointer' }}
+            >
+              <option value="weekly">Ukentlig (fredagsquiz)</option>
+              <option value="bonus">Bonusquiz</option>
+            </select>
           </div>
 
           <div style={{ ...s.row2, marginBottom: 12 }}>
