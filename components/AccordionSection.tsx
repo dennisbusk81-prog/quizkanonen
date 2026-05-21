@@ -82,20 +82,20 @@ export default function AccordionSection() {
                 textAlign: 'left',
               }}
             >
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', marginBottom: 4 }}>
                   {item.title}
                 </div>
+                {/* Single static transition — no switching. Avoids browser misfires when
+                    transition + value change simultaneously on re-render. */}
                 <div style={{
                   fontSize: 13,
                   fontWeight: 400,
                   color: '#7a7873',
-                  maxHeight: isOpen ? '0' : '22px',
                   overflow: 'hidden',
-                  transition: isOpen
-                    ? 'opacity 200ms ease, max-height 0ms linear 200ms'
-                    : 'max-height 0ms linear, opacity 200ms ease',
+                  maxHeight: isOpen ? '0' : '22px',
                   opacity: isOpen ? 0 : 1,
+                  transition: 'opacity 200ms ease, max-height 200ms ease',
                 }}>
                   {item.teaser}
                 </div>
