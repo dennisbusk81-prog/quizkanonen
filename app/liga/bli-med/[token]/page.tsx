@@ -140,7 +140,7 @@ export default function BliMedPage() {
   }, [token])
 
   function handleLoginClick() {
-    localStorage.setItem(PENDING_KEY, 'liga_join')
+    localStorage.setItem(PENDING_KEY, `liga_join:${token}`)
     setModalOpen(true)
   }
 

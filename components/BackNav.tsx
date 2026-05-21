@@ -20,7 +20,8 @@ export default function BackNav() {
 
   const hidden =
     EXCLUDED_EXACT.has(pathname) ||
-    pathname.startsWith('/admin')
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/liga')
 
   if (hidden) return null
 
