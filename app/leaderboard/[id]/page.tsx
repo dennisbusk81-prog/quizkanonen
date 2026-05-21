@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
@@ -343,7 +343,8 @@ export default function LeaderboardPage() {
   )
 
   const hasPlayed = !!savedResult
-  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !hasPlayed
+  // Only lift the hide for Premium users who have played — free users still get placement card treatment
+  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !(isPremium && hasPlayed)
   const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
   const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
@@ -370,7 +371,7 @@ export default function LeaderboardPage() {
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
     : null
 
-  const renderRow = (attempt: RankedAttempt, isUser: boolean, extraClass?: string) => {
+  const renderRow = (attempt: RankedAttempt, isUser: boolean, extraClass?: string, showLiveNote?: boolean) => {
     const isFirst = attempt.rank === 1 && !attempt.isTied
     const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
 
@@ -388,58 +389,65 @@ export default function LeaderboardPage() {
     else if (attempt.rank <= 3) badge = 'medalje'
 
     return (
-      <div key={attempt.id} id={isUser ? 'user-row' : undefined} style={rowStyle} className={extraClass}>
-        {isFirst && <div style={s.goldStripe} />}
-        <div style={s.rankCell}>
-          {attempt.isTied
-            ? <span style={s.rankTied}>{attempt.rank}=</span>
-            : attempt.rank <= 3
-              ? <span style={s.medal}>{getMedal(attempt.rank)}</span>
-              : <span style={s.rankNum}>{attempt.rank}</span>
-          }
-        </div>
-        <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
-          ) : (
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>
-              {initial}
-            </div>
-          )}
-          {badge && (
-            <div style={{ position: 'absolute', bottom: -1, right: -1, border: '2px solid #1a1c23', borderRadius: '50%' }}>
-              <BadgeCircle badge={badge} />
-            </div>
-          )}
-        </div>
-        <div style={s.nameBlock}>
-          {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && memberInfoMap.get(attempt.user_id)?.member_number != null && (
-            <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 2 }}>
-              {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
+      <Fragment key={attempt.id}>
+        <div id={isUser ? 'user-row' : undefined} style={rowStyle} className={extraClass}>
+          {isFirst && <div style={s.goldStripe} />}
+          <div style={s.rankCell}>
+            {attempt.isTied
+              ? <span style={s.rankTied}>{attempt.rank}=</span>
+              : attempt.rank <= 3
+                ? <span style={s.medal}>{getMedal(attempt.rank)}</span>
+                : <span style={s.rankNum}>{attempt.rank}</span>
+            }
+          </div>
+          <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
+            ) : (
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>
+                {initial}
+              </div>
+            )}
+            {badge && (
+              <div style={{ position: 'absolute', bottom: -1, right: -1, border: '2px solid #1a1c23', borderRadius: '50%' }}>
+                <BadgeCircle badge={badge} />
+              </div>
+            )}
+          </div>
+          <div style={s.nameBlock}>
+            {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && memberInfoMap.get(attempt.user_id)?.member_number != null && (
+              <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 2 }}>
+                {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
+              </p>
+            )}
+            <p style={s.name}>
+              {shownName}
+              {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
             </p>
-          )}
-          <p style={s.name}>
-            {shownName}
-            {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
-          </p>
-          <p style={s.nameSub}>
-            {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
-            ⏱ {formatTime(attempt.total_time_ms)}
-          </p>
-          {attempt.is_team && attempt.leader_display_name && (
-            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
-              Lagleder: {attempt.leader_display_name}
+            <p style={s.nameSub}>
+              {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
+              ⏱ {formatTime(attempt.total_time_ms)}
             </p>
-          )}
+            {attempt.is_team && attempt.leader_display_name && (
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
+                Lagleder: {attempt.leader_display_name}
+              </p>
+            )}
+          </div>
+          <div style={s.scoreBlock}>
+            <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
+            <p style={s.scoreSub}>
+              {formatTime(attempt.total_time_ms)}
+              {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
+            </p>
+          </div>
         </div>
-        <div style={s.scoreBlock}>
-          <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
-          <p style={s.scoreSub}>
-            {formatTime(attempt.total_time_ms)}
-            {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
+        {showLiveNote && (
+          <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-4px 0 8px' }}>
+            av {soloAttempts.length} spillere så langt — oppdateres når quizen stenger
           </p>
-        </div>
-      </div>
+        )}
+      </Fragment>
     )
   }
 
@@ -467,11 +475,14 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{ranked.length}</span>
         </div>
-        {visible.map(attempt => renderRow(attempt, isPremium && (currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName), podiumClass(attempt.rank)))}
+        {visible.map(attempt => {
+          const isUserRow = isPremium && (currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName)
+          return renderRow(attempt, isUserRow, podiumClass(attempt.rank), isUserRow && !isClosed)
+        })}
         {userOutsideVisible && isPremium && (
           <>
             <p style={s.separator}>— Din plassering —</p>
-            {renderRow(userInSection, true)}
+            {renderRow(userInSection, true, undefined, !isClosed)}
           </>
         )}
         {remaining > 0 && (
@@ -559,21 +570,52 @@ export default function LeaderboardPage() {
             )
           })()}
 
-          {isHidden ? (
-            <div style={s.empty}>
-              <div style={{ ...s.emptyIcon, fontSize: undefined }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
+          {/* Placement card for free logged-in user who has played while quiz is open */}
+          {!authLoading && session && !isPremium && !isClosed && hasPlayed && totalCount > 0 && (() => {
+            let rangeX = 1
+            let rangeY = Math.min(10, totalCount)
+            if (savedResult) {
+              const { correct_answers, total_time_ms } = savedResult
+              const allRanked = [...soloAttempts, ...teamAttempts]
+              const better = allRanked.filter(a =>
+                a.correct_answers > correct_answers ||
+                (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
+              ).length
+              const est = better + 1
+              const tierStart = Math.floor((est - 1) / 10) * 10 + 1
+              rangeX = Math.max(1, tierStart)
+              rangeY = Math.min(totalCount, tierStart + 9)
+            }
+            return (
+              <div style={s.card}>
+                <div style={s.cardRow}>
+                  <div>
+                    <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
+                    <p style={s.cardSub}>Nøyaktig plassering krever Premium</p>
+                  </div>
+                  <a href="/premium" style={s.btnGold}>Bli Premium</a>
+                </div>
               </div>
-              <p style={s.emptyTitle}>Spill quizen for å se topplisten</p>
-              <p style={s.emptySub}>
-                Topplisten er kun synlig for de som har spilt.<br />
-                Publiseres for alle når quizen stenger.
-              </p>
-              <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
-            </div>
+            )
+          })()}
+
+          {isHidden ? (
+            hasPlayed ? null : (
+              <div style={s.empty}>
+                <div style={{ ...s.emptyIcon, fontSize: undefined }}>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </div>
+                <p style={s.emptyTitle}>Spill quizen for å se topplisten</p>
+                <p style={s.emptySub}>
+                  Topplisten er kun synlig for de som har spilt.<br />
+                  Publiseres for alle når quizen stenger.
+                </p>
+                <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
+              </div>
+            )
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>🏔️</div>
@@ -605,12 +647,6 @@ export default function LeaderboardPage() {
                   Lag
                 </button>
               </div>
-
-              {!isClosed && hasPlayed && isPremium && (
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginBottom: 12, marginTop: -4 }}>
-                  {soloAttempts.length} deltakere så langt — oppdateres når quizen stenger
-                </p>
-              )}
 
               {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
 
