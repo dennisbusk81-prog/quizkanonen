@@ -683,6 +683,7 @@ export default function QuizPage() {
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
   const [shuffledDisplayOrder, setShuffledDisplayOrder] = useState<string[]>(['A', 'B', 'C', 'D'])
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
+  const [rankingSnapshot, setRankingSnapshot] = useState<{ top10MinCorrect: number; leaderName: string; leaderCorrect: number; totalPlayers: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
@@ -948,8 +949,11 @@ export default function QuizPage() {
       const uid = session?.user?.id
       if (uid) {
         fetch(`/api/quiz/rival?quizId=${quizId}&userId=${uid}`)
-          .then(r => r.ok ? r.json() : { rival: null })
-          .then(j => { if (j.rival) setRivalData(j.rival) })
+          .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null })
+          .then(j => {
+            if (j.rival) setRivalData(j.rival)
+            if (j.rankingSnapshot) setRankingSnapshot(j.rankingSnapshot)
+          })
           .catch(() => {})
       }
       fetch(`/api/quiz/percentile?quizId=${quizId}`)
@@ -1423,6 +1427,11 @@ export default function QuizPage() {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
         </button>
       </div>
+      {!resumeData && (
+        <p style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#7a7873' }}>
+          Rangering: flest riktige vinner — ved likt, raskest tid.
+        </p>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
         <button onClick={() => {
@@ -1502,6 +1511,7 @@ export default function QuizPage() {
           high={interHigh}
           rival={rivalData}
           percentileData={percentileData}
+          rankingSnapshot={rankingSnapshot ?? undefined}
           onNext={handleInterludeNext}
         />
       )}

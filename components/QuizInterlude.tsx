@@ -14,6 +14,13 @@ interface PercentileEntry {
   percentile: number
 }
 
+interface RankingSnapshot {
+  top10MinCorrect: number
+  leaderName: string
+  leaderCorrect: number
+  totalPlayers: number
+}
+
 interface QuizInterludeProps {
   phase: 'in' | 'out'
   lastCorrect: boolean | null
@@ -27,6 +34,7 @@ interface QuizInterludeProps {
   high: number | null
   rival: RivalData | null
   percentileData: PercentileEntry[]
+  rankingSnapshot?: RankingSnapshot
   onNext: () => void
 }
 
@@ -70,6 +78,7 @@ export default function QuizInterlude({
   high,
   rival,
   percentileData,
+  rankingSnapshot,
   onNext,
 }: QuizInterludeProps) {
   // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
@@ -160,6 +169,36 @@ export default function QuizInterlude({
 
         {/* Rival */}
         {rival && <RivalAvatar rival={rival} />}
+
+        {/* Ranking context — computed from snapshot, no DB calls */}
+        {rankingSnapshot && rankingSnapshot.totalPlayers >= 3 && (() => {
+          const questionsLeft = totalQuestions - (questionIndex + 1)
+          const isInTop10 = score >= rankingSnapshot.top10MinCorrect && rankingSnapshot.top10MinCorrect > 0
+          const neededForTop10 = rankingSnapshot.top10MinCorrect - score
+
+          if (isInTop10) {
+            return (
+              <p style={{ fontSize: 13, color: '#c9a84c', marginBottom: 16 }}>
+                Du er i topp 10 akkurat nå — hold det gående
+              </p>
+            )
+          }
+          if (neededForTop10 > 0 && questionsLeft < 3) {
+            return (
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 16 }}>
+                Du trenger {neededForTop10} riktige til for å komme inn i topp 10
+              </p>
+            )
+          }
+          if (rival && rival.score === score + 1) {
+            return (
+              <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
+                {rival.name} ligger ett hakk foran deg
+              </p>
+            )
+          }
+          return null
+        })()}
 
         {/* Percentile hint — only when above median */}
         {scoreIsAboveMedian && percentileEntry && (

@@ -8,13 +8,56 @@ function avatarColor(seed: string): string {
   return palette[h % palette.length]
 }
 
+async function buildRankingSnapshot(quizId: string) {
+  const [{ data: top11 }, { count: totalCount }] = await Promise.all([
+    supabaseAdmin
+      .from('attempts')
+      .select('user_id, correct_answers, total_time_ms')
+      .eq('quiz_id', quizId)
+      .eq('is_team', false)
+      .order('correct_answers', { ascending: false })
+      .order('total_time_ms', { ascending: true })
+      .limit(11),
+    supabaseAdmin
+      .from('attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('quiz_id', quizId)
+      .eq('is_team', false),
+  ])
+
+  const top11List = top11 ?? []
+  const top10MinCorrect = top11List.length >= 10 ? (top11List[9]?.correct_answers ?? 0) : 0
+  let leaderName = 'Ukjent'
+  let leaderCorrect = 0
+
+  if (top11List.length > 0) {
+    leaderCorrect = top11List[0].correct_answers ?? 0
+    const leaderUserId = top11List[0].user_id
+    if (leaderUserId) {
+      const { data: lp } = await supabaseAdmin
+        .from('profiles')
+        .select('display_name')
+        .eq('id', leaderUserId)
+        .maybeSingle()
+      leaderName = lp?.display_name ?? 'Ukjent'
+    }
+  }
+
+  return {
+    top10MinCorrect,
+    leaderName,
+    leaderCorrect,
+    totalPlayers: totalCount ?? 0,
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const quizId = searchParams.get('quizId')
   const userId = searchParams.get('userId')
 
   if (!quizId || !userId) {
-    return NextResponse.json({ rival: null }, {
+    return NextResponse.json({ rival: null, rankingSnapshot: null }, {
       headers: { 'Cache-Control': 'public, max-age=60' },
     })
   }
@@ -74,22 +117,31 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Build ranking snapshot in parallel with rival profile lookup
   if (!rivalUserId || rivalScore === null) {
-    return NextResponse.json({ rival: null }, {
-      headers: { 'Cache-Control': 'public, max-age=60' },
-    })
+    const rankingSnapshot = await buildRankingSnapshot(quizId)
+    return NextResponse.json(
+      { rival: null, rankingSnapshot },
+      { headers: { 'Cache-Control': 'public, max-age=60' } }
+    )
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('display_name')
-    .eq('id', rivalUserId)
-    .maybeSingle()
+  const [profileResult, rankingSnapshot] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('display_name')
+      .eq('id', rivalUserId)
+      .maybeSingle(),
+    buildRankingSnapshot(quizId),
+  ])
 
-  const rivalName = profile?.display_name ?? 'Ukjent'
+  const rivalName = profileResult.data?.display_name ?? 'Ukjent'
 
   return NextResponse.json(
-    { rival: { name: rivalName, avatarColor: avatarColor(rivalUserId), score: rivalScore } },
+    {
+      rival: { name: rivalName, avatarColor: avatarColor(rivalUserId), score: rivalScore },
+      rankingSnapshot,
+    },
     { headers: { 'Cache-Control': 'public, max-age=60' } }
   )
 }

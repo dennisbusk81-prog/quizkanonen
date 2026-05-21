@@ -342,7 +342,8 @@ export default function LeaderboardPage() {
     </div>
   )
 
-  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz)
+  const hasPlayed = !!savedResult
+  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !hasPlayed
   const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
   const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
@@ -566,12 +567,12 @@ export default function LeaderboardPage() {
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
               </div>
-              <p style={s.emptyTitle}>Topplisten publiseres når quizen stenger</p>
+              <p style={s.emptyTitle}>Spill quizen for å se topplisten</p>
               <p style={s.emptySub}>
-                Vises når quizen stenger:<br />
-                {new Date(quiz.closes_at).toLocaleString('no-NO')}
+                Topplisten er kun synlig for de som har spilt.<br />
+                Publiseres for alle når quizen stenger.
               </p>
-              <Link href="/" style={s.btnLink}>Tilbake til forsiden →</Link>
+              <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
             </div>
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
@@ -604,6 +605,12 @@ export default function LeaderboardPage() {
                   Lag
                 </button>
               </div>
+
+              {!isClosed && hasPlayed && isPremium && (
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginBottom: 12, marginTop: -4 }}>
+                  {soloAttempts.length} deltakere så langt — oppdateres når quizen stenger
+                </p>
+              )}
 
               {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
 
