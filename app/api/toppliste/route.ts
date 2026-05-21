@@ -132,9 +132,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
+    // For league/org scopes: filter attempts to members only
+    let memberSet: Set<string> | null = null
+    if (scope === 'league' && scopeId) {
+      const { data: leagueMembers } = await supabaseAdmin
+        .from('league_members')
+        .select('user_id')
+        .eq('league_id', scopeId)
+      memberSet = new Set((leagueMembers ?? []).map((m: { user_id: string }) => m.user_id))
+    } else if (scope === 'organization' && scopeId) {
+      const { data: orgMembers } = await supabaseAdmin
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', scopeId)
+      memberSet = new Set((orgMembers ?? []).map((m: { user_id: string }) => m.user_id))
+    }
+
     const bestByUser = new Map<string, RawAttempt>()
     for (const a of rawAttempts as RawAttempt[]) {
       if (excludedSet.has(a.user_id)) continue
+      if (memberSet && !memberSet.has(a.user_id)) continue
       const existing = bestByUser.get(a.user_id)
       bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) : a)
     }
