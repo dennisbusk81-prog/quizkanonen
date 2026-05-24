@@ -54,13 +54,35 @@ async function buildRankingSnapshot(quizId: string) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const quizId = searchParams.get('quizId')
-  const userId = searchParams.get('userId')
 
-  if (!quizId || !userId) {
+  if (!quizId) {
     return NextResponse.json({ rival: null, rankingSnapshot: null }, {
-      headers: { 'Cache-Control': 'public, max-age=60' },
+      headers: { 'Cache-Control': 'private, max-age=60' },
     })
   }
+
+  // FIX 5 — require auth; use user.id from token instead of query param.
+  // If no token (guest user), return ranking snapshot only — rival requires a user identity.
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) {
+    const rankingSnapshot = await buildRankingSnapshot(quizId)
+    return NextResponse.json(
+      { rival: null, rankingSnapshot },
+      { headers: { 'Cache-Control': 'private, max-age=60' } },
+    )
+  }
+
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !user) {
+    const rankingSnapshot = await buildRankingSnapshot(quizId)
+    return NextResponse.json(
+      { rival: null, rankingSnapshot },
+      { headers: { 'Cache-Control': 'private, max-age=60' } },
+    )
+  }
+
+  // FIX 5 — userId comes from the verified token, not from query params
+  const userId = user.id
 
   // Find user's leagues
   const { data: memberships } = await supabaseAdmin
@@ -122,7 +144,7 @@ export async function GET(request: NextRequest) {
     const rankingSnapshot = await buildRankingSnapshot(quizId)
     return NextResponse.json(
       { rival: null, rankingSnapshot },
-      { headers: { 'Cache-Control': 'public, max-age=60' } }
+      { headers: { 'Cache-Control': 'private, max-age=60' } }
     )
   }
 
@@ -142,6 +164,6 @@ export async function GET(request: NextRequest) {
       rival: { name: rivalName, avatarColor: avatarColor(rivalUserId), score: rivalScore },
       rankingSnapshot,
     },
-    { headers: { 'Cache-Control': 'public, max-age=60' } }
+    { headers: { 'Cache-Control': 'private, max-age=60' } }
   )
 }

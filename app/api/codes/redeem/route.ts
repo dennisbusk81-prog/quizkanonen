@@ -53,25 +53,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Koden er utløpt' }, { status: 400 })
   }
 
-  if (accessCode.used_count >= accessCode.max_uses) {
-    return NextResponse.json({ error: 'Koden er allerede brukt opp' }, { status: 400 })
-  }
+  // FIX 2 + FIX 3 — single atomic RPC: increments used_count only if capacity
+  // remains, then grants premium — all in one DB transaction, no partial failure.
+  // Requires supabase/migrations/redeem_access_code_rpc.sql to be run first.
+  const { error: rpcError } = await supabaseAdmin.rpc('redeem_access_code', {
+    p_code_id:    accessCode.id,
+    p_user_id:    user.id,
+    p_expires_at: null, // access codes grant indefinite premium
+  })
 
-  const { error: updateCodeError } = await supabaseAdmin
-    .from('access_codes')
-    .update({ used_count: accessCode.used_count + 1 })
-    .eq('id', accessCode.id)
-
-  if (updateCodeError) {
-    return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
-  }
-
-  const { error: updateProfileError } = await supabaseAdmin
-    .from('profiles')
-    .update({ premium_status: true, premium_since: new Date().toISOString() })
-    .eq('id', user.id)
-
-  if (updateProfileError) {
+  if (rpcError) {
+    if (rpcError.message.includes('code_exhausted')) {
+      return NextResponse.json({ error: 'Koden er allerede brukt opp' }, { status: 409 })
+    }
+    console.error('[codes/redeem] rpc error:', rpcError.message)
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
   }
 

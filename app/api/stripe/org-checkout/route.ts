@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
   try {
     const slug = randomBytes(4).toString('hex')
 
+    // FIX 10 — the org is created before Stripe payment completes. If the user
+    // abandons checkout, this leaves an orphan org (no stripe_subscription_id).
+    // A future cleanup cron should delete orgs older than 24h where
+    // stripe_subscription_id IS NULL.
     const { data: org, error: orgErr } = await supabaseAdmin
       .from('organizations')
       .insert({ name: organizationName.trim(), slug, plan, created_by: user.id })

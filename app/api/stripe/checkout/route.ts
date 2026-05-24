@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -10,11 +11,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 
+  // FIX 4 — require auth; verify caller owns the userId being checked out
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) {
+    return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+  }
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
+  }
+
   try {
     const { priceId, userId, email } = await request.json()
 
     if (!priceId || !userId) {
       return NextResponse.json({ error: 'Mangler priceId eller userId' }, { status: 400 })
+    }
+
+    // FIX 4 — ensure authenticated user matches the userId in the request
+    if (user.id !== userId) {
+      return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
     }
 
     const resolvedPriceId = priceId === 'STRIPE_PRICE_UKESPASS'

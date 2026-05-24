@@ -24,6 +24,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 
+  // FIX 1 — require auth and verify ownership
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (!token) {
+    return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+  }
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
+  }
+
   let raw: unknown
   try {
     raw = await request.json()
@@ -35,6 +45,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     const message = parsed.error.issues.map((e: { message: string }) => e.message).join(', ')
     return NextResponse.json({ error: message }, { status: 422 })
+  }
+
+  // FIX 1 — ensure caller can only update their own profile
+  if (user.id !== parsed.data.id) {
+    return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
   }
 
   const { id, display_name, avatar_color, show_member_number, age_confirmed_at, email_reminders } = parsed.data

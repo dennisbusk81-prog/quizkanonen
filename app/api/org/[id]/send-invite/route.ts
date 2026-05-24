@@ -46,6 +46,15 @@ export async function POST(
     return NextResponse.json({ error: 'Mangler påkrevde felt' }, { status: 400 })
   }
 
+  // FIX 9 — validate inviteUrl against our own domain to prevent phishing links in emails
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? ''
+  if (!siteUrl || !inviteUrl.startsWith(siteUrl)) {
+    return NextResponse.json({ error: 'Ugyldig invitasjonslenke' }, { status: 400 })
+  }
+
+  // FIX 9 — strip newlines from senderName to prevent email header injection
+  const sanitizedSenderName = senderName.replace(/[\r\n]/g, '')
+
   if (emails.length === 0) {
     return NextResponse.json({ error: 'Ingen e-postadresser oppgitt' }, { status: 400 })
   }
@@ -70,8 +79,8 @@ export async function POST(
     validEmails.map(email =>
       sendEmail({
         to: email.trim(),
-        subject: `${senderName} inviterer deg til Quizkanonen`,
-        html: orgInviteEmail(senderName, org.name, inviteUrl),
+        subject: `${sanitizedSenderName} inviterer deg til Quizkanonen`,
+        html: orgInviteEmail(sanitizedSenderName, org.name, inviteUrl),
       })
     )
   )

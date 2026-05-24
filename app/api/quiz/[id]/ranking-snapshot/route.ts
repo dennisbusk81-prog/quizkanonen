@@ -88,8 +88,8 @@ export async function GET(
     // 5. Beregn brukerens rangering mot snapshot
     const total = snapshot.length
     if (total < 1) {
-      // Ingen fullførte ennå — brukeren er nr. 1
-      return NextResponse.json({ rank: 1, total: 1, low: 1, high: 1 })
+      // FIX 8 — ingen fullførte ennå: total: 0, ikke 1 (unngår "nr. 1 av 1" når ingen har spilt)
+      return NextResponse.json({ rank: 1, total: 0, low: 1, high: 1 })
     }
 
     const better = snapshot.filter(e =>

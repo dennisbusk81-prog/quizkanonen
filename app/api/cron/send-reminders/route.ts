@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ skipped: true, reason: 'No quiz opening soon' })
   }
 
-  // Fetch profiles that have opted in to reminders
+  // Fetch profile IDs that have opted in to reminders
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
     .select('id')
@@ -48,35 +48,52 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sent: 0, reason: 'no subscribers' })
   }
 
+  const subscriberIds = new Set(profiles.map(p => p.id))
+
+  // FIX 6 — paginate auth.admin.listUsers instead of calling getUserById per profile.
+  // This avoids N sequential API calls (one per subscriber) and scales to large user bases.
+  const emailsByUserId = new Map<string, string>()
+  let page = 1
+  while (true) {
+    const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    })
+    if (listError) {
+      console.error('[cron/send-reminders] listUsers error (page', page, '):', listError.message)
+      break
+    }
+    const users = authData?.users ?? []
+    for (const u of users) {
+      if (u.email && subscriberIds.has(u.id)) {
+        emailsByUserId.set(u.id, u.email)
+      }
+    }
+    if (users.length < 1000) break // last page
+    page++
+  }
+
+  const emailsToSend = [...emailsByUserId.values()]
+  if (emailsToSend.length === 0) {
+    return NextResponse.json({ sent: 0, reason: 'no subscriber emails found' })
+  }
+
   const html = quizReminderEmail(nextQuiz.opens_at)
+  const subject = `Quizen åpner snart — ${new Date(nextQuiz.opens_at).toLocaleDateString('no-NO')}`
   let sent = 0
   let failed = 0
 
-  for (const profile of profiles) {
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
-
-    if (userError) {
-      console.error('[cron/send-reminders] getUserById failed for:', profile.id, userError.message)
-      failed++
-      continue
-    }
-    if (!user?.email) {
-      failed++
-      continue
-    }
-
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: `Quizen åpner snart — ${new Date(nextQuiz.opens_at).toLocaleDateString('no-NO')}`,
-        html,
-      })
-      sent++
-    } catch (err) {
-      console.error('[cron/send-reminders] failed to send to:', user.email, err)
-      failed++
-    }
+  // FIX 6 — send in batches of 20 concurrent emails (avoids overwhelming the email provider)
+  const BATCH_SIZE = 20
+  for (let i = 0; i < emailsToSend.length; i += BATCH_SIZE) {
+    const batch = emailsToSend.slice(i, i + BATCH_SIZE)
+    const results = await Promise.allSettled(
+      batch.map(email => sendEmail({ to: email, subject, html }))
+    )
+    sent   += results.filter(r => r.status === 'fulfilled').length
+    failed += results.filter(r => r.status === 'rejected').length
   }
 
+  console.log(`[cron/send-reminders] quiz="${nextQuiz.title}" sent=${sent} failed=${failed}`)
   return NextResponse.json({ sent, failed, quiz: nextQuiz.title })
 }
