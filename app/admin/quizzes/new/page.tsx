@@ -232,29 +232,18 @@ const STYLES = `
   }
   .nq-header-bottom-row > :first-child { flex: 1; }
 
-  /* ── Navigation bar ── */
+  /* ── Dots row (compact, no label) ── */
   .nq-nav-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 0 14px;
-    gap: 12px;
-  }
-
-  .nq-q-label {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--white);
-    white-space: nowrap;
-    flex-shrink: 0;
+    justify-content: center;
+    padding: 14px 0 10px;
   }
 
   .nq-dots-row {
     display: flex;
     gap: 5px;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .nq-dot {
@@ -493,6 +482,16 @@ const STYLES = `
     padding: 14px 0;
     gap: 10px;
   }
+  .nq-q-nav-row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nq-q-nav-row2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   .nq-nav-btn {
     background: transparent;
@@ -553,9 +552,11 @@ const STYLES = `
     .nq-q-meta { flex-direction: column; align-items: stretch; }
     .nq-time-wrap { width: 100%; }
     .nq-time-input { width: 100%; }
-    .nq-nav-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .nq-dots-row { justify-content: flex-start; }
     .nq-meta-panel.open { max-height: 820px; }
+    .nq-q-nav { flex-wrap: wrap; gap: 8px; padding: 12px 0; }
+    .nq-q-nav-row1 { flex: 0 0 100%; justify-content: space-between; }
+    .nq-q-nav-row2 { flex: 0 0 100%; justify-content: space-between; }
+    .nq-q-nav-row2 > button { flex: 1; }
   }
 `
 
@@ -1176,9 +1177,8 @@ function QuizEditorInner() {
 
         </div>
 
-        {/* ── Navigation bar ── */}
+        {/* ── Dots row (compact) ── */}
         <div className="nq-nav-bar">
-          <span className="nq-q-label">Spørsmål {activeIdx + 1} av {total}</span>
           <div className="nq-dots-row">
             {questions.map((qItem, i) => (
               <button
@@ -1327,33 +1327,43 @@ function QuizEditorInner() {
           {aiError && <p className="nq-ai-error">{aiError}</p>}
         </div>
 
-        {/* ── Navigation buttons — sticky at bottom ── */}
+        {/* ── Navigation — sticky at bottom ── */}
         <div className="nq-q-nav">
-          {activeIdx > 0 ? (
-            <button type="button" onClick={() => goTo(activeIdx - 1)} className="nq-nav-btn">
+
+          {/* Row 1: ← Forrige | Spørsmål X av Y | Neste → */}
+          <div className="nq-q-nav-row1">
+            <button
+              type="button"
+              onClick={() => goTo(activeIdx - 1)}
+              className="nq-nav-btn"
+              style={activeIdx === 0 ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
+            >
               ← Forrige
             </button>
-          ) : (
-            <div />
-          )}
+            <span style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', flex: 1, whiteSpace: 'nowrap', padding: '0 4px' }}>
+              Spørsmål {activeIdx + 1} av {total}
+            </span>
+            <button
+              type="button"
+              onClick={() => goTo(activeIdx + 1)}
+              className="nq-nav-btn"
+              style={isLast ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
+            >
+              Neste →
+            </button>
+          </div>
 
-          <span className="nq-nav-counter">{activeIdx + 1} / {total}</span>
-
-          {isLast ? (
+          {/* Row 2: + Legg til | Lagre og avslutt → */}
+          <div className="nq-q-nav-row2">
+            <button type="button" onClick={addQuestion} className="nq-nav-btn">
+              + Legg til
+            </button>
             <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
               {isEditMode ? 'Lagre og avslutt →' : 'Lagre og publiser →'}
             </button>
-          ) : (
-            <button type="button" onClick={() => goTo(activeIdx + 1)} className="nq-nav-btn">
-              Neste →
-            </button>
-          )}
-        </div>
+          </div>
 
-        {/* ── Add question link ── */}
-        <button type="button" onClick={addQuestion} className="nq-add-q-link">
-          + Legg til spørsmål
-        </button>
+        </div>
 
       </div>
     </>
