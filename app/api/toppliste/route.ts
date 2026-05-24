@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title })
+    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at })
   }
 
   // ── PERIOD MODE — leser fra season_scores ─────────────────────────────────

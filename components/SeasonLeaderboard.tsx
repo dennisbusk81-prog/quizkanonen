@@ -62,6 +62,7 @@ type ApiResponse = {
   userEntry: UserEntry | null
   userIsPremium: boolean
   quizTitle?: string | null
+  quizClosesAt?: string | null
 }
 
 type HistoryWinner = {
@@ -671,6 +672,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
       {isLastQuiz && data?.quizTitle && (
         <p style={s.quizLabel}>Siste quiz: <em>{data.quizTitle}</em></p>
+      )}
+
+      {isLastQuiz && data?.quizClosesAt && new Date(data.quizClosesAt) > new Date() && (
+        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', marginBottom: 16 }}>
+          Quizen er åpen — resultater oppdateres fortløpende
+        </p>
       )}
 
       {countdown && <p style={s.countdown}>{countdown}</p>}

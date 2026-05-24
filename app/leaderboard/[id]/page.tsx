@@ -444,7 +444,7 @@ export default function LeaderboardPage() {
         </div>
         {showLiveNote && (
           <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-4px 0 8px' }}>
-            av {soloAttempts.length} spillere så langt — oppdateres når quizen stenger
+            {soloAttempts.length} spillere har spilt så langt — oppdateres gjennom dagen
           </p>
         )}
       </Fragment>
@@ -591,7 +591,7 @@ export default function LeaderboardPage() {
                 <div style={s.cardRow}>
                   <div>
                     <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
-                    <p style={s.cardSub}>Nøyaktig plassering krever Premium</p>
+                    <p style={s.cardSub}>Bli Premium — se nøyaktig hvor du ligger an gjennom hele dagen</p>
                   </div>
                   <a href="/premium" style={s.btnGold}>Bli Premium</a>
                 </div>
