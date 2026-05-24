@@ -317,7 +317,7 @@ export default function AdminQuizzes() {
       const data = await res.json()
       if (!res.ok) { showFeedback('error', 'Import feilet: ' + (data.error ?? 'ukjent feil')); return }
       setImportModal(false)
-      router.push(`/admin/quizzes/${data.quizId}`)
+      router.push(`/admin/quizzes/new?id=${data.quizId}`)
     } catch {
       showFeedback('error', 'Uventet feil under import.')
     } finally {
@@ -488,7 +488,7 @@ export default function AdminQuizzes() {
                   <Link href={`/admin/quizzes/${quiz.id}/questions`} className="aqz-action blue">
                     Spørsmål
                   </Link>
-                  <Link href={`/admin/quizzes/${quiz.id}`} className="aqz-action gray">
+                  <Link href={`/admin/quizzes/new?id=${quiz.id}`} className="aqz-action gray">
                     Rediger
                   </Link>
                   <Link href={`/admin/quizzes/${quiz.id}/analytics`} className="aqz-action gray">
