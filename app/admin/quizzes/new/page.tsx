@@ -749,17 +749,13 @@ export default function NewQuiz() {
     if (!q || q.text.trim().length < 10) return
     setAiLoading(true)
     setAiError(null)
-    console.log('[AI suggest] starting, question:', q.text.trim().slice(0, 60))
     try {
       const res = await fetch('/api/admin/quiz-ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q.text.trim(), category: q.category || undefined }),
       })
-      console.log('[AI suggest] response status:', res.status)
       if (!res.ok) {
-        const errBody = await res.text().catch(() => '')
-        console.error('[AI suggest] non-ok response:', errBody)
         setAiError('Kunne ikke generere forslag — prøv igjen')
         return
       }
@@ -780,8 +776,7 @@ export default function NewQuiz() {
             }
           : item
       ))
-    } catch (err) {
-      console.error('[AI suggest] fetch error:', err)
+    } catch {
       setAiError('Kunne ikke generere forslag — prøv igjen')
     } finally {
       setAiLoading(false)
