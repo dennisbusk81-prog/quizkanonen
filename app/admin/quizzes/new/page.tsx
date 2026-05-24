@@ -381,6 +381,29 @@ const STYLES = `
 
   .nq-cat-wrap { flex: 1; }
 
+  /* ── AI suggest ── */
+  .nq-ai-suggest-btn {
+    background: transparent;
+    border: 1px solid #2a2d38;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    margin-top: 10px;
+  }
+  .nq-ai-suggest-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .nq-ai-suggest-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .nq-ai-error {
+    font-size: 12px;
+    color: #c94c4c;
+    margin-top: 6px;
+  }
+
   /* ── Explanation textarea ── */
   .nq-explanation-wrap { margin-top: 18px; }
 
@@ -543,6 +566,10 @@ export default function NewQuiz() {
   // Save status
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // AI suggest
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError]     = useState<string | null>(null)
 
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
@@ -715,6 +742,43 @@ export default function NewQuiz() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [goTo])
 
+  // ── AI suggest ───────────────────────────────────────────────────────────────
+
+  const handleAiSuggest = async () => {
+    const q = questionsRef.current[activeIdxRef.current]
+    if (!q || q.text.trim().length < 10) return
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const res = await adminFetch('/api/admin/quiz-ai-suggest', {
+        method: 'POST',
+        body: JSON.stringify({ question: q.text.trim(), category: q.category || undefined }),
+      })
+      if (!res.ok) { setAiError('Kunne ikke generere forslag — prøv igjen'); return }
+      const data = await res.json()
+      const correctLetter = q.correctAnswer as 'A' | 'B' | 'C' | 'D'
+      const fieldMap = { A: 'optionA', B: 'optionB', C: 'optionC', D: 'optionD' } as const
+      const correctField = fieldMap[correctLetter]
+      const wrongFields = (['optionA', 'optionB', 'optionC', 'optionD'] as const).filter(f => f !== correctField)
+      setQuestions(qs => qs.map((item, i) =>
+        i === activeIdxRef.current
+          ? {
+              ...item,
+              [correctField]:   data.correctAnswer ?? item[correctField],
+              [wrongFields[0]]: data.wrongAnswers?.[0] ?? item[wrongFields[0]],
+              [wrongFields[1]]: data.wrongAnswers?.[1] ?? item[wrongFields[1]],
+              [wrongFields[2]]: data.wrongAnswers?.[2] ?? item[wrongFields[2]],
+              explanation:      data.explanation ?? item.explanation,
+            }
+          : item
+      ))
+    } catch {
+      setAiError('Kunne ikke generere forslag — prøv igjen')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   // ── State updaters ────────────────────────────────────────────────────────────
 
   const updateQ = (patch: Partial<QState>) =>
@@ -883,7 +947,7 @@ export default function NewQuiz() {
 
           <textarea
             value={q.text}
-            onChange={e => updateQ({ text: e.target.value })}
+            onChange={e => { updateQ({ text: e.target.value }); setAiError(null) }}
             onFocus={() => {
               if (!hasCollapsedRef.current) {
                 hasCollapsedRef.current = true
@@ -894,6 +958,21 @@ export default function NewQuiz() {
             className="nq-q-textarea"
             rows={3}
           />
+
+          {/* AI suggest */}
+          {q.text.trim().length >= 10 && (
+            <div style={{ marginBottom: 18 }}>
+              <button
+                type="button"
+                onClick={handleAiSuggest}
+                disabled={aiLoading}
+                className="nq-ai-suggest-btn"
+              >
+                {aiLoading ? 'Genererer...' : 'Foreslå svar'}
+              </button>
+              {aiError && <p className="nq-ai-error">{aiError}</p>}
+            </div>
+          )}
 
           {/* Answer options — 2x2 grid */}
           <div className="nq-options-grid">
