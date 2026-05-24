@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -25,6 +25,21 @@ type QState = {
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+type DbQuestion = {
+  id: string
+  question_text: string | null
+  option_a: string | null
+  option_b: string | null
+  option_c: string | null
+  option_d: string | null
+  correct_answer: string | null
+  time_limit_seconds: number | null
+  shuffle_options: boolean | null
+  category: string | null
+  explanation: string | null
+  order_index: number
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -542,7 +557,12 @@ const STYLES = `
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function NewQuiz() {
-  const router = useRouter()
+  const router      = useRouter()
+  const searchParams = useSearchParams()
+  const editIdFromUrl = searchParams.get('id') // null → new quiz; string → edit existing
+
+  // Loading state — true only when loading an existing quiz
+  const [loading, setLoading] = useState(!!editIdFromUrl)
 
   // Quiz header state
   const [title, setTitle]           = useState('')
@@ -551,9 +571,9 @@ export default function NewQuiz() {
   const [quizType, setQuizType]     = useState<'weekly' | 'bonus'>('weekly')
   const [shuffleAll, setShuffleAll] = useState(false)
 
-  // Collapsible meta panel — open by default for new quiz (no quizId yet)
-  const [metaOpen, setMetaOpen] = useState(true)
-  const hasCollapsedRef = useRef(false) // collapse once on first question-textarea focus
+  // Collapsible meta panel: open for new quiz, collapsed when editing (data already loaded)
+  const [metaOpen, setMetaOpen] = useState(!editIdFromUrl)
+  const hasCollapsedRef = useRef(!!editIdFromUrl) // already collapsed when editing
 
   // Questions — start with a single empty question
   const [questions, setQuestions] = useState<QState[]>(() => [emptyQ()])
@@ -592,13 +612,87 @@ export default function NewQuiz() {
   useEffect(() => { quizIdRef.current = quizId },               [quizId])
   useEffect(() => { questionDbIdsRef.current = questionDbIds }, [questionDbIds])
 
-  // Auth + date init
+  // Auth + init: branch on new vs edit
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
-    const opens = nextFridayNoon()
-    setOpensAt(opens)
-    setClosesAt(addHours(opens, 24))
-  }, [router])
+    if (editIdFromUrl) {
+      loadExistingQuiz(editIdFromUrl)
+    } else {
+      const opens = nextFridayNoon()
+      setOpensAt(opens)
+      setClosesAt(addHours(opens, 24))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, editIdFromUrl])
+
+  // Load quiz + questions from DB and populate all state
+  async function loadExistingQuiz(id: string) {
+    try {
+      const [quizRes, questionsRes] = await Promise.all([
+        adminFetch(`/api/admin/quizzes/${id}`),
+        adminFetch(`/api/admin/quizzes/${id}/questions`),
+      ])
+      if (!quizRes.ok) { router.push('/admin/quizzes'); return }
+
+      const quizBody       = await quizRes.json()
+      const questionsBody  = questionsRes.ok ? await questionsRes.json() : { questions: [] }
+      const quizData       = quizBody.quiz ?? quizBody
+      const qRows          = ((questionsBody.questions ?? []) as DbQuestion[])
+        .slice().sort((a, b) => a.order_index - b.order_index)
+
+      // Metadata
+      const loadedTitle = quizData.title ?? ''
+      setTitle(loadedTitle); titleRef.current = loadedTitle
+
+      if (quizData.opens_at) {
+        const v = toLocalDT(new Date(quizData.opens_at))
+        setOpensAt(v); opensAtRef.current = v
+      }
+      if (quizData.closes_at) {
+        const v = toLocalDT(new Date(quizData.closes_at))
+        setClosesAt(v); closesAtRef.current = v
+      }
+      const loadedType = (quizData.quiz_type as 'weekly' | 'bonus') ?? 'weekly'
+      setQuizType(loadedType); quizTypeRef.current = loadedType
+
+      // Quiz ID — set immediately so all saves use PATCH
+      setQuizId(id); quizIdRef.current = id
+
+      // Shuffle from first question
+      if (qRows.length > 0 && qRows[0].shuffle_options != null) {
+        setShuffleAll(qRows[0].shuffle_options)
+        shuffleAllRef.current = qRows[0].shuffle_options
+      }
+
+      // Questions
+      const qs: QState[] = qRows.length > 0
+        ? qRows.map(q => ({
+            text:          q.question_text ?? '',
+            optionA:       q.option_a ?? '',
+            optionB:       q.option_b ?? '',
+            optionC:       q.option_c ?? '',
+            optionD:       q.option_d ?? '',
+            correctAnswer: q.correct_answer ?? 'A',
+            timeLimit:     q.time_limit_seconds ?? 10,
+            category:      q.category ?? '',
+            explanation:   q.explanation ?? '',
+          }))
+        : [emptyQ()]
+      const dbIds = qRows.map(q => q.id)
+      questionsRef.current = qs
+      setQuestions(qs)
+      setQuestionDbIds(dbIds)
+      questionDbIdsRef.current = dbIds
+
+      // Prevent auto-collapse on first focus (already in edit mode)
+      hasCollapsedRef.current = true
+
+    } catch {
+      router.push('/admin/quizzes')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // ── Save helpers ─────────────────────────────────────────────────────────────
 
@@ -709,6 +803,30 @@ export default function NewQuiz() {
     }
   }, [refreshQuestionIds])
 
+  // Save quiz metadata (title, dates, type) — used when editing an existing quiz
+  const updateQuizMeta = useCallback(async () => {
+    const qId = quizIdRef.current
+    if (!qId) return
+    const t = titleRef.current.trim()
+    if (!t) return
+    setSaveStatus('saving')
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${qId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title:     t,
+          opens_at:  opensAtRef.current  ? new Date(opensAtRef.current).toISOString()  : undefined,
+          closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
+          quiz_type: quizTypeRef.current,
+        }),
+      })
+      if (!res.ok) { setSaveStatus('error'); return }
+      showSaved()
+    } catch {
+      setSaveStatus('error')
+    }
+  }, [])
+
   // ── Navigation ────────────────────────────────────────────────────────────────
 
   const goTo = useCallback((newIdx: number) => {
@@ -795,13 +913,15 @@ export default function NewQuiz() {
     if (val) setClosesAt(addHours(val, 24))
   }
 
-  // Final: save current question, create quiz if needed, navigate to review
+  // Final: save everything and navigate to questions overview
   const handleFinish = async () => {
     let qId = quizIdRef.current
     if (!qId) {
       if (!titleRef.current.trim()) { alert('Fyll inn quiztittel.'); return }
       qId = await createQuiz()
       if (!qId) return
+    } else {
+      await updateQuizMeta()
     }
     await saveQuestion(activeIdx)
     router.push(`/admin/quizzes/${qId}/questions`)
@@ -809,9 +929,16 @@ export default function NewQuiz() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+    </div>
+  )
+
   const q      = questions[activeIdx]
   const total  = questions.length
   const isLast = activeIdx === total - 1
+  const isEditMode = !!editIdFromUrl
 
   return (
     <>
@@ -819,7 +946,7 @@ export default function NewQuiz() {
       <div className="nq-page">
 
         {/* Back link — scrolls away */}
-        <Link href="/admin/quizzes" className="nq-back">← Tilbake</Link>
+        <Link href="/admin/quizzes" className="nq-back">← Alle quizer</Link>
 
         {/* ── Sticky header ── */}
         <div className="nq-sticky-header">
@@ -830,7 +957,7 @@ export default function NewQuiz() {
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              onBlur={createQuiz}
+              onBlur={() => { if (quizIdRef.current) updateQuizMeta(); else createQuiz() }}
               placeholder="Fredagsquizen 23. mai"
               className="nq-quiz-title-input"
             />
@@ -857,7 +984,7 @@ export default function NewQuiz() {
               </div>
               <button
                 type="button"
-                onClick={() => saveQuestion(activeIdx)}
+                onClick={async () => { if (quizIdRef.current) updateQuizMeta(); await saveQuestion(activeIdx) }}
                 className="nq-manual-save-btn"
               >
                 Lagre
@@ -877,6 +1004,7 @@ export default function NewQuiz() {
                     type="datetime-local"
                     value={opensAt}
                     onChange={e => handleOpensChange(e.target.value)}
+                    onBlur={updateQuizMeta}
                     className="nq-input"
                   />
                 </div>
@@ -886,6 +1014,7 @@ export default function NewQuiz() {
                     type="datetime-local"
                     value={closesAt}
                     onChange={e => setClosesAt(e.target.value)}
+                    onBlur={updateQuizMeta}
                     className="nq-input"
                   />
                 </div>
@@ -898,6 +1027,7 @@ export default function NewQuiz() {
                   <select
                     value={quizType}
                     onChange={e => setQuizType(e.target.value as 'weekly' | 'bonus')}
+                    onBlur={updateQuizMeta}
                     className="nq-input nq-select"
                   >
                     <option value="weekly">Ukentlig (fredagsquiz)</option>
@@ -1078,7 +1208,7 @@ export default function NewQuiz() {
 
           {isLast ? (
             <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
-              Lagre og publiser →
+              {isEditMode ? 'Lagre og avslutt →' : 'Lagre og publiser →'}
             </button>
           ) : (
             <button type="button" onClick={() => goTo(activeIdx + 1)} className="nq-nav-btn">
