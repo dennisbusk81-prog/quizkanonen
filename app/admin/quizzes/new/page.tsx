@@ -103,7 +103,7 @@ const STYLES = `
   .nq-page {
     max-width: 680px;
     margin: 0 auto;
-    padding: 0 20px 100px;
+    padding: 0 20px 32px;
   }
 
   /* ── Back link ── */
@@ -482,11 +482,16 @@ const STYLES = `
 
   /* ── Bottom navigation ── */
   .nq-q-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 0 0;
-    gap: 12px;
+    padding: 14px 0;
+    gap: 10px;
   }
 
   .nq-nav-btn {
@@ -1322,7 +1327,7 @@ function QuizEditorInner() {
           {aiError && <p className="nq-ai-error">{aiError}</p>}
         </div>
 
-        {/* ── Navigation buttons ── */}
+        {/* ── Navigation buttons — sticky at bottom ── */}
         <div className="nq-q-nav">
           {activeIdx > 0 ? (
             <button type="button" onClick={() => goTo(activeIdx - 1)} className="nq-nav-btn">
