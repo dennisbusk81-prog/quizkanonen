@@ -676,6 +676,7 @@ export default function QuizPage() {
   const [interQLeft, setInterQLeft] = useState(0)
   const [interLastCorrect, setInterLastCorrect] = useState<boolean | null>(null)
   const [interCorrectAnswerText, setInterCorrectAnswerText] = useState<string | null>(null)
+  const [interExplanation, setInterExplanation] = useState<string | null>(null)
   const [interScore, setInterScore] = useState(0)
   const [interStreak, setInterStreak] = useState(0)
   const [interWrongInARow, setInterWrongInARow] = useState(0)
@@ -1200,6 +1201,7 @@ export default function QuizPage() {
 
     setInterLastCorrect(lastAns?.isCorrect ?? null)
     setInterCorrectAnswerText(correctText)
+    setInterExplanation(q?.explanation ?? null)
     setInterScore(correctSoFar)
     setInterStreak(streak)
     setInterWrongInARow(wrongInARow)
@@ -1502,6 +1504,7 @@ export default function QuizPage() {
           phase={interPhase}
           lastCorrect={interLastCorrect}
           correctAnswerText={interCorrectAnswerText}
+          explanation={interExplanation}
           score={interScore}
           totalQuestions={questions.length}
           streak={interStreak}
