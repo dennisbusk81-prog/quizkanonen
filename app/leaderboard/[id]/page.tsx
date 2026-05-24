@@ -132,7 +132,10 @@ export default function LeaderboardPage() {
       try {
         const [{ data: quizData, error: e1 }, { data: attemptData, error: e2 }] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-          supabaseData.from('attempts').select('*').eq('quiz_id', quizId).limit(200),
+          supabaseData.from('attempts').select('*').eq('quiz_id', quizId)
+            .order('correct_answers', { ascending: false })
+            .order('total_time_ms', { ascending: true })
+            .limit(500),
         ])
         const err = e1 ?? e2
         if (err) throw err
@@ -203,18 +206,7 @@ export default function LeaderboardPage() {
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', sess.user.id)
-        .single()
-
-      if (profileData?.display_name) {
-        setDisplayName(profileData.display_name)
-        setAuthLoading(false)
-        return
-      }
-
+      // FIX 1 — single query; always call setProfile so isPremium is always correct
       const { data: prof } = await supabase
         .from('profiles')
         .select('display_name, avatar_url, premium_status')

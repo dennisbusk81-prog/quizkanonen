@@ -591,7 +591,8 @@ function QuizEditorInner() {
 
   // Save status
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const metaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // AI suggest (per-question)
   const [aiLoading, setAiLoading] = useState(false)
@@ -625,6 +626,11 @@ function QuizEditorInner() {
   useEffect(() => { activeIdxRef.current = activeIdx },         [activeIdx])
   useEffect(() => { quizIdRef.current = quizId },               [quizId])
   useEffect(() => { questionDbIdsRef.current = questionDbIds }, [questionDbIds])
+
+  // FIX 15 — cleanup save timer on unmount
+  useEffect(() => {
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [])
 
   // Auth + init: branch on new vs edit
   useEffect(() => {
@@ -720,6 +726,7 @@ function QuizEditorInner() {
   const createQuiz = useCallback(async (): Promise<string | null> => {
     const t = titleRef.current.trim()
     if (!t || quizIdRef.current) return quizIdRef.current
+    quizIdRef.current = 'creating' // sentinel — blocks concurrent calls
     setSaveStatus('saving')
     try {
       const count = questionsRef.current.length
@@ -755,6 +762,7 @@ function QuizEditorInner() {
       showSaved()
       return data.quizId
     } catch {
+      quizIdRef.current = null // reset sentinel on error
       setSaveStatus('error')
       return null
     }
@@ -841,6 +849,12 @@ function QuizEditorInner() {
     }
   }, [])
 
+  // FIX 16 — debounced wrapper for onBlur calls (300ms); keeps immediate version for handleFinish/manual save
+  const debouncedUpdateQuizMeta = useCallback(() => {
+    if (metaDebounceRef.current) clearTimeout(metaDebounceRef.current)
+    metaDebounceRef.current = setTimeout(() => updateQuizMeta(), 300)
+  }, [updateQuizMeta])
+
   // ── Navigation ────────────────────────────────────────────────────────────────
 
   const goTo = useCallback((newIdx: number) => {
@@ -877,14 +891,16 @@ function QuizEditorInner() {
   // ── AI suggest ───────────────────────────────────────────────────────────────
 
   const handleAiSuggest = async () => {
-    const q = questionsRef.current[activeIdxRef.current]
+    // FIX 2 — capture index synchronously before any await
+    const targetIdx = activeIdxRef.current
+    const q = questionsRef.current[targetIdx]
     if (!q || q.text.trim().length < 10) return
     setAiLoading(true)
     setAiError(null)
     try {
-      const res = await fetch('/api/admin/quiz-ai-suggest', {
+      // FIX 5 — use adminFetch so x-admin-password header is sent
+      const res = await adminFetch('/api/admin/quiz-ai-suggest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q.text.trim(), category: q.category || undefined }),
       })
       if (!res.ok) {
@@ -896,18 +912,22 @@ function QuizEditorInner() {
       const fieldMap = { A: 'optionA', B: 'optionB', C: 'optionC', D: 'optionD' } as const
       const correctField = fieldMap[correctLetter]
       const wrongFields = (['optionA', 'optionB', 'optionC', 'optionD'] as const).filter(f => f !== correctField)
-      setQuestions(qs => qs.map((item, i) =>
-        i === activeIdxRef.current
-          ? {
-              ...item,
-              [correctField]:   data.correctAnswer ?? item[correctField],
-              [wrongFields[0]]: data.wrongAnswers?.[0] ?? item[wrongFields[0]],
-              [wrongFields[1]]: data.wrongAnswers?.[1] ?? item[wrongFields[1]],
-              [wrongFields[2]]: data.wrongAnswers?.[2] ?? item[wrongFields[2]],
-              explanation:      data.explanation ?? item.explanation,
-            }
-          : item
-      ))
+      setQuestions(qs => {
+        const updated = qs.map((item, i) =>
+          i === targetIdx // FIX 2 — use captured index, not live ref
+            ? {
+                ...item,
+                [correctField]:   data.correctAnswer ?? item[correctField],
+                [wrongFields[0]]: data.wrongAnswers?.[0] ?? item[wrongFields[0]],
+                [wrongFields[1]]: data.wrongAnswers?.[1] ?? item[wrongFields[1]],
+                [wrongFields[2]]: data.wrongAnswers?.[2] ?? item[wrongFields[2]],
+                explanation:      data.explanation ?? item.explanation,
+              }
+            : item
+        )
+        questionsRef.current = updated
+        return updated
+      })
     } catch {
       setAiError('Kunne ikke generere forslag — prøv igjen')
     } finally {
@@ -926,9 +946,9 @@ function QuizEditorInner() {
     setAiGenQLoading(true)
     setAiError(null)
     try {
-      const res = await fetch('/api/admin/quiz-ai-suggest', {
+      // FIX 5 — use adminFetch so x-admin-password header is sent
+      const res = await adminFetch('/api/admin/quiz-ai-suggest', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ generate: true, category }),
       })
       if (!res.ok) { setAiError('Kunne ikke generere spørsmål — prøv igjen'); return }
@@ -966,9 +986,9 @@ function QuizEditorInner() {
     setAiGenAllLoading(true)
     setAiGenAllError(null)
     try {
-      const res = await fetch('/api/admin/quiz-ai-generate-all', {
+      // FIX 5 — use adminFetch so x-admin-password header is sent
+      const res = await adminFetch('/api/admin/quiz-ai-generate-all', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: aiGenTopic.trim(), count }),
       })
       if (!res.ok) { setAiGenAllError('Kunne ikke generere quiz — prøv igjen'); return }
@@ -994,6 +1014,9 @@ function QuizEditorInner() {
       setQuestions(generated)
       setActiveIdx(0)
       activeIdxRef.current = 0
+      // FIX 3 — clear stale DB IDs so saves don't PATCH wrong rows
+      setQuestionDbIds([])
+      questionDbIdsRef.current = []
       setMetaOpen(false)
     } catch {
       setAiGenAllError('Kunne ikke generere quiz — prøv igjen')
@@ -1004,8 +1027,13 @@ function QuizEditorInner() {
 
   // ── State updaters ────────────────────────────────────────────────────────────
 
+  // FIX 7 — also update questionsRef so async callbacks always see latest state
   const updateQ = (patch: Partial<QState>) =>
-    setQuestions(qs => qs.map((q, i) => i === activeIdx ? { ...q, ...patch } : q))
+    setQuestions(qs => {
+      const updated = qs.map((q, i) => i === activeIdx ? { ...q, ...patch } : q)
+      questionsRef.current = updated
+      return updated
+    })
 
   const clampTime = (val: string) => Math.min(60, Math.max(5, parseInt(val) || 10))
 
@@ -1058,7 +1086,7 @@ function QuizEditorInner() {
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              onBlur={() => { if (quizIdRef.current) updateQuizMeta(); else createQuiz() }}
+              onBlur={() => { if (quizIdRef.current) debouncedUpdateQuizMeta(); else createQuiz() }}
               placeholder="Fredagsquizen 23. mai"
               className="nq-quiz-title-input"
             />
@@ -1105,7 +1133,7 @@ function QuizEditorInner() {
                     type="datetime-local"
                     value={opensAt}
                     onChange={e => handleOpensChange(e.target.value)}
-                    onBlur={updateQuizMeta}
+                    onBlur={debouncedUpdateQuizMeta}
                     className="nq-input"
                   />
                 </div>
@@ -1115,7 +1143,7 @@ function QuizEditorInner() {
                     type="datetime-local"
                     value={closesAt}
                     onChange={e => setClosesAt(e.target.value)}
-                    onBlur={updateQuizMeta}
+                    onBlur={debouncedUpdateQuizMeta}
                     className="nq-input"
                   />
                 </div>
@@ -1128,7 +1156,7 @@ function QuizEditorInner() {
                   <select
                     value={quizType}
                     onChange={e => setQuizType(e.target.value as 'weekly' | 'bonus')}
-                    onBlur={updateQuizMeta}
+                    onBlur={debouncedUpdateQuizMeta}
                     className="nq-input nq-select"
                   >
                     <option value="weekly">Ukentlig (fredagsquiz)</option>

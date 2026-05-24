@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
+import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
-const PENDING_KEY = 'qk_pending_action'
 
 const s = {
   page: {
@@ -88,7 +87,6 @@ export default function BliMedPage() {
   const [modalOpen, setModalOpen] = useState(false)
 
   async function runJoin(accessToken: string) {
-    console.log('[bli-med] runJoin called, token:', token, 'accessToken length:', accessToken?.length)
     setJoinState('joining')
     setJoinError(null)
     try {
@@ -98,46 +96,48 @@ export default function BliMedPage() {
         body: JSON.stringify({ invite_token: token }),
       })
       const data = await res.json()
-      console.log('[bli-med] join API response:', res.status, data)
       if (res.ok || res.status === 409) {
         // Suksess eller allerede medlem — begge deler sender til ligasiden
-        router.replace(`/liga/${data.slug}`)
+        const slug = data.slug
+        if (slug) {
+          router.replace(`/liga/${slug}`)
+        } else {
+          setJoinError('Kunne ikke finne ligasiden. Prøv igjen.')
+          setJoinState('error')
+          localStorage.removeItem(PENDING_ACTION_KEY)
+        }
       } else {
+        // FIX 8 — remove pending action on error
+        localStorage.removeItem(PENDING_ACTION_KEY)
         setJoinError(data.error ?? 'Noe gikk galt. Prøv igjen.')
         setJoinState('error')
       }
-    } catch (err) {
-      console.error('[bli-med] runJoin fetch error:', err)
+    } catch {
+      // FIX 8 — remove pending action on error
+      localStorage.removeItem(PENDING_ACTION_KEY)
       setJoinError('Noe gikk galt. Prøv igjen.')
       setJoinState('error')
     }
   }
 
   useEffect(() => {
-    console.log('[bli-med] useEffect mount, token:', token)
-    if (!token) {
-      console.warn('[bli-med] no token — aborting')
-      return
-    }
+    if (!token) return
     let cancelled = false
     let handled = false
 
     async function joinWithSession(accessToken: string) {
-      console.log('[bli-med] joinWithSession called, handled:', handled, 'cancelled:', cancelled)
       if (handled || cancelled) return
       handled = true
-      localStorage.removeItem(PENDING_KEY)
+      localStorage.removeItem(PENDING_ACTION_KEY)
       await runJoin(accessToken)
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[bli-med] onAuthStateChange event:', event, 'has session:', !!session, 'has access_token:', !!session?.access_token)
       if (cancelled) return
       if (event === 'INITIAL_SESSION') {
         if (session?.access_token) {
           joinWithSession(session.access_token)
         } else {
-          console.log('[bli-med] INITIAL_SESSION — no session, showing login')
           if (!handled) setJoinState('not-logged-in')
         }
       } else if (event === 'SIGNED_IN' && session?.access_token) {
@@ -146,7 +146,6 @@ export default function BliMedPage() {
     })
 
     return () => {
-      console.log('[bli-med] useEffect cleanup')
       cancelled = true
       subscription.unsubscribe()
     }
@@ -154,9 +153,7 @@ export default function BliMedPage() {
   }, [token])
 
   function handleLoginClick() {
-    console.log('[bli-med] handleLoginClick, setting pending action: liga_join:' + token)
-    localStorage.setItem(PENDING_KEY, `liga_join:${token}`)
-    console.log('[bli-med] localStorage after set:', localStorage.getItem(PENDING_KEY))
+    localStorage.setItem(PENDING_ACTION_KEY, `liga_join:${token}`)
     setModalOpen(true)
   }
 
