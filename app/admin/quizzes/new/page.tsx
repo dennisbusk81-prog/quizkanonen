@@ -212,7 +212,7 @@ const STYLES = `
     opacity: 0;
   }
   .nq-meta-panel.open {
-    max-height: 400px;
+    max-height: 620px;
     opacity: 1;
   }
 
@@ -550,7 +550,7 @@ const STYLES = `
     .nq-time-input { width: 100%; }
     .nq-nav-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
     .nq-dots-row { justify-content: flex-start; }
-    .nq-meta-panel.open { max-height: 560px; }
+    .nq-meta-panel.open { max-height: 820px; }
   }
 `
 
@@ -587,9 +587,17 @@ function QuizEditorInner() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // AI suggest
+  // AI suggest (per-question)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError]     = useState<string | null>(null)
+
+  // AI generate single question
+  const [aiGenQLoading, setAiGenQLoading] = useState(false)
+
+  // AI generate full quiz
+  const [aiGenTopic, setAiGenTopic]         = useState('')
+  const [aiGenAllLoading, setAiGenAllLoading] = useState(false)
+  const [aiGenAllError, setAiGenAllError]     = useState<string | null>(null)
 
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
@@ -901,6 +909,97 @@ function QuizEditorInner() {
     }
   }
 
+  // ── AI generate single question ───────────────────────────────────────────────
+
+  const handleGenerateQuestion = async () => {
+    // Record target index, then add empty question and navigate (mirrors addQuestion)
+    const newIdx = questionsRef.current.length
+    const updated = [...questionsRef.current, emptyQ()]
+    questionsRef.current = updated
+    setQuestions(updated)
+    saveQuestion(activeIdxRef.current)
+    setActiveIdx(newIdx)
+    activeIdxRef.current = newIdx
+
+    setAiGenQLoading(true)
+    setAiError(null)
+    try {
+      const res = await fetch('/api/admin/quiz-ai-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generate: true, category: titleRef.current.trim() || undefined }),
+      })
+      if (!res.ok) { setAiError('Kunne ikke generere spørsmål — prøv igjen'); return }
+      const data = await res.json()
+      setQuestions(qs => {
+        const upd = qs.map((item, i) =>
+          i === newIdx
+            ? {
+                ...item,
+                text:          data.question      ?? item.text,
+                optionA:       data.correctAnswer  ?? item.optionA,
+                optionB:       data.wrongAnswers?.[0] ?? item.optionB,
+                optionC:       data.wrongAnswers?.[1] ?? item.optionC,
+                optionD:       data.wrongAnswers?.[2] ?? item.optionD,
+                correctAnswer: 'A',
+                explanation:   data.explanation   ?? item.explanation,
+              }
+            : item
+        )
+        questionsRef.current = upd
+        return upd
+      })
+    } catch {
+      setAiError('Kunne ikke generere spørsmål — prøv igjen')
+    } finally {
+      setAiGenQLoading(false)
+    }
+  }
+
+  // ── AI generate full quiz ─────────────────────────────────────────────────────
+
+  const handleGenerateAll = async () => {
+    if (!aiGenTopic.trim()) return
+    const count = questions.length || 10
+    setAiGenAllLoading(true)
+    setAiGenAllError(null)
+    try {
+      const res = await fetch('/api/admin/quiz-ai-generate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: aiGenTopic.trim(), count }),
+      })
+      if (!res.ok) { setAiGenAllError('Kunne ikke generere quiz — prøv igjen'); return }
+      const data = await res.json()
+      const generated: QState[] = ((data.questions ?? []) as Array<{
+        question: string; correctAnswer: string; wrongAnswers: string[]; explanation: string
+      }>).map(item => ({
+        text:          item.question            ?? '',
+        optionA:       item.correctAnswer        ?? '',
+        optionB:       item.wrongAnswers?.[0]    ?? '',
+        optionC:       item.wrongAnswers?.[1]    ?? '',
+        optionD:       item.wrongAnswers?.[2]    ?? '',
+        correctAnswer: 'A',
+        timeLimit:     10,
+        category:      '',
+        explanation:   item.explanation          ?? '',
+      }))
+      if (generated.length === 0) {
+        setAiGenAllError('AI returnerte ingen spørsmål — prøv igjen')
+        return
+      }
+      questionsRef.current = generated
+      setQuestions(generated)
+      setActiveIdx(0)
+      activeIdxRef.current = 0
+      setMetaOpen(false)
+    } catch {
+      setAiGenAllError('Kunne ikke generere quiz — prøv igjen')
+    } finally {
+      setAiGenAllLoading(false)
+    }
+  }
+
   // ── State updaters ────────────────────────────────────────────────────────────
 
   const updateQ = (patch: Partial<QState>) =>
@@ -1044,6 +1143,31 @@ function QuizEditorInner() {
                   </button>
                   <span className="nq-shuffle-text">Bland svaralternativer</span>
                 </label>
+              </div>
+
+              {/* AI-GENERERING */}
+              <div style={{ borderTop: '1px solid #2a2d38', marginTop: 16, paddingTop: 14 }}>
+                <label className="nq-label">AI-GENERERING</label>
+                <textarea
+                  value={aiGenTopic}
+                  onChange={e => setAiGenTopic(e.target.value)}
+                  placeholder="F.eks. norsk geografi, VM i fotball 2022, norsk filmhistorie"
+                  className="nq-explanation-textarea"
+                  rows={2}
+                  style={{ marginBottom: 10 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateAll}
+                  disabled={aiGenAllLoading || !aiGenTopic.trim()}
+                  className="nq-ai-suggest-btn"
+                  style={{ marginTop: 0 }}
+                >
+                  {aiGenAllLoading
+                    ? `Genererer ${questions.length || 10} spørsmål...`
+                    : 'Generer hele quizen'}
+                </button>
+                {aiGenAllError && <p className="nq-ai-error">{aiGenAllError}</p>}
               </div>
 
             </div>
@@ -1218,8 +1342,17 @@ function QuizEditorInner() {
         </div>
 
         {/* ── Add question link ── */}
-        <button type="button" onClick={addQuestion} className="nq-add-q-link">
+        <button type="button" onClick={addQuestion} className="nq-add-q-link" style={{ marginBottom: 0 }}>
           + Legg til spørsmål
+        </button>
+        <button
+          type="button"
+          onClick={handleGenerateQuestion}
+          disabled={aiGenQLoading}
+          className="nq-add-q-link"
+          style={{ paddingTop: 6 }}
+        >
+          {aiGenQLoading ? 'Genererer...' : '✨ Generer spørsmål med AI'}
         </button>
 
       </div>
