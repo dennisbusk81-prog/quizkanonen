@@ -32,6 +32,7 @@ interface QuizInterludeProps {
   phase: 'in' | 'out'
   lastCorrect: boolean | null
   correctAnswerText: string | null
+  explanation?: string | null
   score: number               // correct answers so far
   totalQuestions: number
   streak: number
@@ -78,6 +79,7 @@ export default function QuizInterlude({
   phase,
   lastCorrect,
   correctAnswerText,
+  explanation,
   score,
   totalQuestions,
   streak,
@@ -140,7 +142,7 @@ export default function QuizInterlude({
           <div style={{
             display: 'inline-block',
             background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
-            borderRadius: 10, padding: '10px 22px', marginBottom: 28,
+            borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
             color: '#4caf7d', fontSize: 15, fontWeight: 600,
           }}>
             ✓ Riktig svar
@@ -149,12 +151,26 @@ export default function QuizInterlude({
           <div style={{
             display: 'inline-block',
             background: 'rgba(201,76,76,0.10)', border: '1px solid rgba(201,76,76,0.25)',
-            borderRadius: 10, padding: '10px 22px', marginBottom: 28,
+            borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
             color: '#e8e4dd', fontSize: 14,
           }}>
             Riktig svar var: <strong>{correctAnswerText}</strong>
           </div>
         ) : null}
+
+        {/* Explanation */}
+        {explanation && (
+          <div style={{
+            borderLeft: '3px solid #c9a84c',
+            paddingLeft: 12,
+            marginBottom: 28,
+            textAlign: 'left',
+          }}>
+            <p style={{ fontSize: 14, color: '#e8e4dd', fontStyle: 'italic', lineHeight: 1.5 }}>
+              {explanation}
+            </p>
+          </div>
+        )}
 
         {/* Dynamic headline */}
         <h2 style={{

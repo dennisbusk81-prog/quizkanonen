@@ -381,6 +381,27 @@ const STYLES = `
 
   .nq-cat-wrap { flex: 1; }
 
+  /* ── Explanation textarea ── */
+  .nq-explanation-wrap { margin-top: 18px; }
+
+  .nq-explanation-textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--rbtn);
+    padding: 11px 14px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 14px;
+    color: var(--white);
+    outline: none;
+    resize: none;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+    min-height: 42px;
+  }
+  .nq-explanation-textarea::placeholder { color: var(--muted); }
+  .nq-explanation-textarea:focus { border-color: var(--gold); }
+
   /* ── Toggle ── */
   .nq-toggle {
     width: 38px;
@@ -633,6 +654,7 @@ export default function NewQuiz() {
       time_limit_seconds: q.timeLimit,
       shuffle_options:    shuffleAllRef.current,
       category:           q.category || null,
+      explanation:        q.explanation.trim() || null,
     }
 
     setSaveStatus('saving')
@@ -944,6 +966,18 @@ export default function NewQuiz() {
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Explanation */}
+          <div className="nq-explanation-wrap">
+            <label className="nq-label">Forklaring</label>
+            <textarea
+              value={q.explanation}
+              onChange={e => updateQ({ explanation: e.target.value })}
+              placeholder="Valgfritt — vises etter at spilleren har svart"
+              className="nq-explanation-textarea"
+              rows={1}
+            />
           </div>
         </div>
 
