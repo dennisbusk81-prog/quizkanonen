@@ -912,14 +912,10 @@ function QuizEditorInner() {
   // ── AI generate single question ───────────────────────────────────────────────
 
   const handleGenerateQuestion = async () => {
-    // Record target index, then add empty question and navigate (mirrors addQuestion)
-    const newIdx = questionsRef.current.length
-    const updated = [...questionsRef.current, emptyQ()]
-    questionsRef.current = updated
-    setQuestions(updated)
-    saveQuestion(activeIdxRef.current)
-    setActiveIdx(newIdx)
-    activeIdxRef.current = newIdx
+    // Fill the current active question in-place — no navigation
+    const targetIdx = activeIdxRef.current
+    const currentQ  = questionsRef.current[targetIdx]
+    const category  = currentQ?.category || titleRef.current.trim() || undefined
 
     setAiGenQLoading(true)
     setAiError(null)
@@ -927,22 +923,22 @@ function QuizEditorInner() {
       const res = await fetch('/api/admin/quiz-ai-suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generate: true, category: titleRef.current.trim() || undefined }),
+        body: JSON.stringify({ generate: true, category }),
       })
       if (!res.ok) { setAiError('Kunne ikke generere spørsmål — prøv igjen'); return }
       const data = await res.json()
       setQuestions(qs => {
         const upd = qs.map((item, i) =>
-          i === newIdx
+          i === targetIdx
             ? {
                 ...item,
-                text:          data.question      ?? item.text,
-                optionA:       data.correctAnswer  ?? item.optionA,
+                text:          data.question         ?? item.text,
+                optionA:       data.correctAnswer     ?? item.optionA,
                 optionB:       data.wrongAnswers?.[0] ?? item.optionB,
                 optionC:       data.wrongAnswers?.[1] ?? item.optionC,
                 optionD:       data.wrongAnswers?.[2] ?? item.optionD,
                 correctAnswer: 'A',
-                explanation:   data.explanation   ?? item.explanation,
+                explanation:   data.explanation      ?? item.explanation,
               }
             : item
         )
@@ -1217,21 +1213,6 @@ function QuizEditorInner() {
             rows={3}
           />
 
-          {/* AI suggest */}
-          {q.text.trim().length >= 10 && (
-            <div style={{ marginBottom: 18 }}>
-              <button
-                type="button"
-                onClick={handleAiSuggest}
-                disabled={aiLoading}
-                className="nq-ai-suggest-btn"
-              >
-                {aiLoading ? 'Genererer...' : 'Foreslå svar'}
-              </button>
-              {aiError && <p className="nq-ai-error">{aiError}</p>}
-            </div>
-          )}
-
           {/* Answer options — 2x2 grid */}
           <div className="nq-options-grid">
             {([
@@ -1316,6 +1297,29 @@ function QuizEditorInner() {
               rows={1}
             />
           </div>
+
+          {/* AI actions row */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button
+              type="button"
+              onClick={handleAiSuggest}
+              disabled={aiLoading || q.text.trim().length < 10}
+              className="nq-ai-suggest-btn"
+              style={{ marginTop: 0, padding: '6px 14px' }}
+            >
+              {aiLoading ? 'Genererer...' : 'Foreslå svar'}
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateQuestion}
+              disabled={aiGenQLoading}
+              className="nq-ai-suggest-btn"
+              style={{ marginTop: 0, padding: '6px 14px' }}
+            >
+              {aiGenQLoading ? 'Genererer...' : 'Generer nytt spørsmål'}
+            </button>
+          </div>
+          {aiError && <p className="nq-ai-error">{aiError}</p>}
         </div>
 
         {/* ── Navigation buttons ── */}
@@ -1342,17 +1346,8 @@ function QuizEditorInner() {
         </div>
 
         {/* ── Add question link ── */}
-        <button type="button" onClick={addQuestion} className="nq-add-q-link" style={{ marginBottom: 0 }}>
+        <button type="button" onClick={addQuestion} className="nq-add-q-link">
           + Legg til spørsmål
-        </button>
-        <button
-          type="button"
-          onClick={handleGenerateQuestion}
-          disabled={aiGenQLoading}
-          className="nq-add-q-link"
-          style={{ paddingTop: 6 }}
-        >
-          {aiGenQLoading ? 'Genererer...' : '✨ Generer spørsmål med AI'}
         </button>
 
       </div>

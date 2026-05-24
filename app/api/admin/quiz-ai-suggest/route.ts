@@ -39,16 +39,15 @@ export async function POST(req: NextRequest) {
     if (!generate && !question?.trim()) {
       return NextResponse.json({ error: 'Missing question' }, { status: 400 })
     }
-    if (generate && !category?.trim()) {
-      return NextResponse.json({ error: 'Missing category for generate mode' }, { status: 400 })
-    }
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
   const systemPrompt = generate ? SYSTEM_PROMPT_GENERATE : SYSTEM_PROMPT_SUGGEST
   const userContent  = generate
-    ? `Kategori/tema: ${category}`
+    ? category?.trim()
+      ? `Kategori/tema: ${category}`
+      : 'Generer et tilfeldig interessant quiz-spørsmål på norsk'
     : category
       ? `Kategori: ${category}\nSpørsmål: ${question}`
       : `Spørsmål: ${question}`
