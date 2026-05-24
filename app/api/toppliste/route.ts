@@ -107,9 +107,12 @@ export async function GET(request: NextRequest) {
 
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
+    // Hent nyeste quiz som faktisk har minst én attempt (INNER JOIN).
+    // Uten dette vil testquizer med closes_at i fremtiden og 0 attempts
+    // skygge for quizer der folk faktisk har spilt.
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
-      .select('id, title, closes_at')
+      .select('id, title, closes_at, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1)
