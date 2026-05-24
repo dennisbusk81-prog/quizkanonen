@@ -1512,6 +1512,8 @@ export default function QuizPage() {
           rival={rivalData}
           percentileData={percentileData}
           rankingSnapshot={rankingSnapshot ?? undefined}
+          isPremium={isPremium}
+          quizId={quizId}
           onNext={handleInterludeNext}
         />
       )}

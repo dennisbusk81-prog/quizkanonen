@@ -155,7 +155,18 @@ export default function UserMenu() {
   }, [dropdownOpen])
 
   if (!mounted || !sessionResolved) return null
-  if (pathname === '/') return null
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/liga') ||
+    pathname.startsWith('/leaderboard') ||
+    pathname.startsWith('/toppliste') ||
+    pathname.startsWith('/profil') ||
+    pathname.startsWith('/historikk') ||
+    pathname.startsWith('/founders') ||
+    pathname.startsWith('/quiz') ||
+    pathname.startsWith('/org') ||
+    pathname.startsWith('/bedrift')
+  ) return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
 

@@ -788,7 +788,10 @@ export default async function Home() {
     const leagueRows  = (leagueResult.data as LeagueMemberRow[] | null) ?? []
     const firstLeague = leagueRows[0]?.leagues ?? null
 
-    let leagueTop3: { displayName: string; points: number }[] = []
+    type LeagueEntry = { displayName: string; value: number }
+    let leagueTop3: LeagueEntry[] = []
+    let leagueFromFallback = false
+
     if (firstLeague?.id) {
       const { data: leagueScores } = await supabaseAdmin
         .from('season_scores')
@@ -806,9 +809,71 @@ export default async function Home() {
         if (existing) existing.points += row.points
         else lByUser.set(row.user_id, { displayName: name, points: row.points })
       }
-      leagueTop3 = Array.from(lByUser.values())
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 3)
+
+      if (lByUser.size > 0) {
+        leagueTop3 = Array.from(lByUser.values())
+          .sort((a, b) => b.points - a.points)
+          .slice(0, 3)
+          .map(e => ({ displayName: e.displayName, value: e.points }))
+      } else if (quiz?.id) {
+        // Fallback: season_scores er tom (quizen er åpen) — les direkte fra attempts
+        const { data: memberRows } = await supabaseAdmin
+          .from('league_members')
+          .select('user_id')
+          .eq('league_id', firstLeague.id)
+
+        const memberIds = ((memberRows ?? []) as { user_id: string }[]).map(m => m.user_id)
+
+        if (memberIds.length > 0) {
+          const { data: attemptRows } = await supabaseAdmin
+            .from('attempts')
+            .select('user_id, correct_answers, total_time_ms')
+            .eq('quiz_id', quiz.id)
+            .in('user_id', memberIds)
+            .eq('is_team', false)
+            .not('user_id', 'is', null)
+
+          type AttemptFallback = { user_id: string; correct_answers: number; total_time_ms: number }
+          const bestByUser = new Map<string, AttemptFallback>()
+          for (const a of (attemptRows ?? []) as AttemptFallback[]) {
+            const existing = bestByUser.get(a.user_id)
+            if (
+              !existing ||
+              a.correct_answers > existing.correct_answers ||
+              (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms)
+            ) {
+              bestByUser.set(a.user_id, a)
+            }
+          }
+
+          if (bestByUser.size > 0) {
+            const sortedFallback = [...bestByUser.values()]
+              .sort((a, b) =>
+                b.correct_answers !== a.correct_answers
+                  ? b.correct_answers - a.correct_answers
+                  : a.total_time_ms - b.total_time_ms
+              )
+              .slice(0, 3)
+
+            const topIds = sortedFallback.map(a => a.user_id)
+            const { data: profileRows } = await supabaseAdmin
+              .from('profiles')
+              .select('id, display_name')
+              .in('id', topIds)
+
+            const profileMap = new Map(
+              ((profileRows ?? []) as { id: string; display_name: string | null }[])
+                .map(p => [p.id, p.display_name])
+            )
+
+            leagueTop3 = sortedFallback.map(a => ({
+              displayName: profileMap.get(a.user_id) ?? 'Spiller',
+              value: a.correct_answers,
+            }))
+            leagueFromFallback = true
+          }
+        }
+      }
     }
 
     const todayLabel = now.toLocaleDateString('nb-NO', {
@@ -1010,22 +1075,31 @@ export default async function Home() {
               </p>
 
               {leagueTop3.length > 0 ? (
-                <div className="qk-top3-rows qkp-league-top3">
-                  {leagueTop3.map((m, i) => (
-                    <div key={i} className="qk-top3-row">
-                      <div className="qk-top3-left">
-                        <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
-                          {i + 1}.
-                        </span>
-                        <span className="qk-top3-name">{truncateName(m.displayName)}</span>
+                <>
+                  <div className="qk-top3-rows qkp-league-top3">
+                    {leagueTop3.map((m, i) => (
+                      <div key={i} className="qk-top3-row">
+                        <div className="qk-top3-left">
+                          <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
+                            {i + 1}.
+                          </span>
+                          <span className="qk-top3-name">{truncateName(m.displayName)}</span>
+                        </div>
+                        <div className="qk-top3-right">
+                          {m.value} {leagueFromFallback ? 'riktige' : 'poeng'}
+                        </div>
                       </div>
-                      <div className="qk-top3-right">{m.points} poeng</div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  {leagueFromFallback && (
+                    <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8, marginBottom: 0 }}>
+                      Sesongpoeng beregnes når quizen stenger
+                    </p>
+                  )}
+                </>
               ) : (
                 <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
-                  Ingen har spilt denne måneden ennå
+                  Ingen har spilt ennå
                 </p>
               )}
 
