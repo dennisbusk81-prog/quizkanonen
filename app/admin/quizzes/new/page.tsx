@@ -1,9 +1,13 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const NUM_QS = 15
 
 const CATEGORIES = [
   'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
@@ -11,18 +15,28 @@ const CATEGORIES = [
   'Politikk & Samfunn', 'Diverse',
 ]
 
-type Question = {
-  id: number
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type QState = {
   text: string
-  optionA: string
-  optionB: string
-  optionC: string
-  optionD: string
+  optionA: string; optionB: string; optionC: string; optionD: string
   correctAnswer: string
   timeLimit: number
   category: string
-  shuffle: boolean
+  explanation: string
 }
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const emptyQ = (): QState => ({
+  text: '', optionA: '', optionB: '', optionC: '', optionD: '',
+  correctAnswer: 'A', timeLimit: 10, category: '', explanation: '',
+})
+
+const isComplete = (q: QState) =>
+  q.text.trim().length > 0 && q.optionA.trim().length > 0 && q.optionB.trim().length > 0
 
 function nextFridayNoon(): string {
   const now = new Date()
@@ -46,10 +60,7 @@ function addHours(localDT: string, hours: number): string {
   return toLocalDT(d)
 }
 
-let _counter = 0
-function emptyQuestion(): Question {
-  return { id: ++_counter, text: '', optionA: '', optionB: '', optionC: '', optionD: '', correctAnswer: 'A', timeLimit: 10, category: '', shuffle: false }
-}
+// ── CSS ────────────────────────────────────────────────────────────────────────
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -64,6 +75,7 @@ const STYLES = `
     --white:  #ffffff;
     --body:   #e8e4dd;
     --muted:  #7a7873;
+    --green:  #4a8c5c;
     --rcard:  16px;
     --rbtn:   10px;
   }
@@ -81,35 +93,119 @@ const STYLES = `
     padding: 0 20px 100px;
   }
 
-  .nq-header { padding: 40px 0 28px; }
-
+  /* ── Back link ── */
   .nq-back {
     font-size: 13px;
     color: var(--body);
     text-decoration: none;
     display: inline-block;
-    margin-bottom: 14px;
+    padding: 24px 0 16px;
     transition: color 0.15s;
   }
   .nq-back:hover { color: var(--gold); }
 
-  .nq-title {
-    font-family: 'Libre Baskerville', serif;
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--white);
-  }
-
-  /* Card */
-  .nq-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--rcard);
-    padding: 28px;
+  /* ── Sticky header ── */
+  .nq-sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0 14px;
     margin-bottom: 0;
   }
 
-  /* Labels */
+  .nq-header-top-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .nq-header-fields { flex: 1; min-width: 0; }
+
+  /* Quiz title input */
+  .nq-quiz-title-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--border);
+    border-radius: 0;
+    padding: 4px 0 10px;
+    font-family: 'Libre Baskerville', serif;
+    font-size: 20px;
+    color: var(--white);
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 14px;
+  }
+  .nq-quiz-title-input::placeholder { color: var(--muted); font-style: italic; }
+  .nq-quiz-title-input:focus { border-bottom-color: var(--gold); }
+
+  /* Date row */
+  .nq-datetime-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  /* Type + shuffle row */
+  .nq-header-bottom-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+  }
+  .nq-header-bottom-row > :first-child { flex: 1; }
+
+  /* Save status */
+  .nq-save-status {
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding-top: 4px;
+    min-width: 80px;
+    text-align: right;
+    align-self: flex-start;
+  }
+
+  /* ── Navigation bar ── */
+  .nq-nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 0 14px;
+    gap: 12px;
+  }
+
+  .nq-q-label {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--white);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .nq-dots-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .nq-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: transform 0.1s, background 0.15s;
+  }
+  .nq-dot:hover { transform: scale(1.4); }
+
+  /* ── Labels ── */
   .nq-label {
     display: block;
     font-size: 11px;
@@ -117,21 +213,18 @@ const STYLES = `
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 7px;
+    margin-bottom: 6px;
   }
 
-  .nq-field { margin-bottom: 18px; }
-  .nq-field:last-child { margin-bottom: 0; }
-
-  /* Inputs */
+  /* ── Inputs / selects ── */
   .nq-input, .nq-select {
     width: 100%;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
-    padding: 14px 16px;
+    padding: 11px 14px;
     font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     color: var(--white);
     outline: none;
     transition: border-color 0.15s;
@@ -141,73 +234,55 @@ const STYLES = `
   .nq-input:focus, .nq-select:focus { border-color: var(--gold); }
   .nq-select { cursor: pointer; }
 
-  /* Quiz title input — larger */
-  .nq-quiz-title-input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid var(--border);
-    border-radius: 0;
-    padding: 8px 0 12px;
-    font-family: 'Libre Baskerville', serif;
-    font-size: 22px;
-    color: var(--white);
-    outline: none;
-    transition: border-color 0.15s;
-    margin-bottom: 24px;
-  }
-  .nq-quiz-title-input::placeholder { color: var(--muted); font-style: italic; }
-  .nq-quiz-title-input:focus { border-bottom-color: var(--gold); }
-
-  /* Datetime row */
-  .nq-datetime-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+  /* ── Question card ── */
+  .nq-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--rcard);
+    padding: 24px;
+    margin-bottom: 0;
   }
 
-  /* Question number label */
   .nq-q-num {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--muted);
     margin-bottom: 14px;
   }
 
-  /* Question textarea */
   .nq-q-textarea {
     width: 100%;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
-    padding: 14px 16px;
+    padding: 12px 14px;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 16px;
     color: var(--white);
     outline: none;
     resize: none;
     transition: border-color 0.15s;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
     line-height: 1.5;
   }
   .nq-q-textarea::placeholder { color: var(--muted); }
   .nq-q-textarea:focus { border-color: var(--gold); }
 
-  /* Answer options grid */
+  /* ── Answer options ── */
   .nq-options-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
 
   .nq-option-header {
     display: flex;
     align-items: center;
     gap: 7px;
-    margin-bottom: 7px;
+    margin-bottom: 6px;
   }
 
   .nq-option-letter {
@@ -225,12 +300,11 @@ const STYLES = `
     letter-spacing: 0.04em;
   }
 
-  /* Meta row: time + category */
+  /* ── Meta row: time + category ── */
   .nq-q-meta {
     display: flex;
     gap: 12px;
     align-items: flex-end;
-    margin-bottom: 20px;
   }
 
   .nq-time-wrap {
@@ -258,33 +332,10 @@ const STYLES = `
 
   .nq-cat-wrap { flex: 1; }
 
-  /* Footer: toggle + delete */
-  .nq-q-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 18px;
-    border-top: 1px solid var(--border);
-  }
-
-  .nq-shuffle-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-  }
-
-  .nq-shuffle-text {
-    font-size: 13px;
-    color: var(--body);
-    user-select: none;
-  }
-
-  /* Toggle */
+  /* ── Toggle ── */
   .nq-toggle {
-    width: 40px;
-    height: 22px;
+    width: 38px;
+    height: 21px;
     border-radius: 11px;
     background: var(--border);
     border: none;
@@ -295,89 +346,136 @@ const STYLES = `
   }
   .nq-toggle.on { background: var(--gold); }
   .nq-toggle-knob {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     background: var(--white);
     border-radius: 50%;
     position: absolute;
     top: 3px;
     left: 3px;
     transition: transform 0.18s;
+    pointer-events: none;
   }
-  .nq-toggle.on .nq-toggle-knob { transform: translateX(18px); }
+  .nq-toggle.on .nq-toggle-knob { transform: translateX(17px); }
 
-  /* Delete */
-  .nq-delete-btn {
+  .nq-shuffle-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+    padding-bottom: 2px;
+  }
+  .nq-shuffle-text {
     font-size: 13px;
     color: var(--body);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px 0;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    transition: color 0.15s;
+    user-select: none;
     white-space: nowrap;
   }
-  .nq-delete-btn:hover { color: #c94c4c; }
 
-  /* Add question button */
-  .nq-add-btn {
-    display: block;
-    width: 100%;
-    margin-top: 12px;
-    padding: 14px 28px;
-    background: var(--gold);
-    border: none;
-    border-radius: var(--rbtn);
-    color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s;
-    text-align: center;
+  /* ── Bottom navigation ── */
+  .nq-q-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0 0;
+    gap: 12px;
   }
-  .nq-add-btn:hover { background: #d9b85c; }
 
-  /* Save button */
-  .nq-save-btn {
-    display: block;
-    width: 100%;
-    margin-top: 12px;
-    padding: 14px 28px;
+  .nq-nav-btn {
     background: transparent;
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--body);
     font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
     cursor: pointer;
-    transition: border-color 0.15s;
-    text-align: center;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
   }
-  .nq-save-btn:hover { border-color: var(--gold); }
-  .nq-save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .nq-nav-btn:hover { border-color: var(--gold); color: var(--gold); }
 
+  .nq-nav-btn--gold {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #0f0f10;
+    font-weight: 700;
+  }
+  .nq-nav-btn--gold:hover {
+    background: #d9b85c;
+    border-color: #d9b85c;
+    color: #0f0f10;
+  }
+
+  .nq-nav-counter {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    flex: 1;
+  }
+
+  /* ── Responsive ── */
   @media (max-width: 540px) {
     .nq-datetime-row { grid-template-columns: 1fr; }
     .nq-options-grid { grid-template-columns: 1fr; }
+    .nq-header-bottom-row { flex-direction: column; align-items: stretch; gap: 12px; }
     .nq-q-meta { flex-direction: column; align-items: stretch; }
     .nq-time-wrap { width: 100%; }
     .nq-time-input { width: 100%; }
+    .nq-nav-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .nq-dots-row { justify-content: flex-start; }
   }
 `
 
+// ── Component ──────────────────────────────────────────────────────────────────
+
 export default function NewQuiz() {
   const router = useRouter()
-  const [title, setTitle] = useState('')
-  const [opensAt, setOpensAt] = useState('')
+
+  // Quiz header state
+  const [title, setTitle]       = useState('')
+  const [opensAt, setOpensAt]   = useState('')
   const [closesAt, setClosesAt] = useState('')
   const [quizType, setQuizType] = useState<'weekly' | 'bonus'>('weekly')
-  const [questions, setQuestions] = useState<Question[]>(() => [emptyQuestion()])
-  const [saving, setSaving] = useState(false)
+  const [shuffleAll, setShuffleAll] = useState(false)
 
+  // Questions state
+  const [questions, setQuestions] = useState<QState[]>(() =>
+    Array.from({ length: NUM_QS }, emptyQ)
+  )
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  // DB state
+  const [quizId, setQuizId]               = useState<string | null>(null)
+  const [questionDbIds, setQuestionDbIds] = useState<string[]>([])
+
+  // Save status
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Refs to avoid stale closures in stable callbacks
+  const questionsRef     = useRef(questions)
+  const shuffleAllRef    = useRef(shuffleAll)
+  const quizIdRef        = useRef<string | null>(null)
+  const questionDbIdsRef = useRef<string[]>([])
+  const opensAtRef       = useRef(opensAt)
+  const closesAtRef      = useRef(closesAt)
+  const quizTypeRef      = useRef(quizType)
+  const titleRef         = useRef(title)
+  const activeIdxRef     = useRef(activeIdx)
+
+  useEffect(() => { questionsRef.current = questions },         [questions])
+  useEffect(() => { shuffleAllRef.current = shuffleAll },       [shuffleAll])
+  useEffect(() => { opensAtRef.current = opensAt },             [opensAt])
+  useEffect(() => { closesAtRef.current = closesAt },           [closesAt])
+  useEffect(() => { quizTypeRef.current = quizType },           [quizType])
+  useEffect(() => { titleRef.current = title },                 [title])
+  useEffect(() => { activeIdxRef.current = activeIdx },         [activeIdx])
+  useEffect(() => { quizIdRef.current = quizId },               [quizId])
+  useEffect(() => { questionDbIdsRef.current = questionDbIds }, [questionDbIds])
+
+  // Auth + date init
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
     const opens = nextFridayNoon()
@@ -385,227 +483,351 @@ export default function NewQuiz() {
     setClosesAt(addHours(opens, 24))
   }, [router])
 
+  // ── Save helpers ─────────────────────────────────────────────────────────────
+
+  function showSaved() {
+    setSaveStatus('saved')
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+  }
+
+  // Create quiz + 15 placeholder questions in DB (called on title blur)
+  const createQuiz = useCallback(async (): Promise<string | null> => {
+    const t = titleRef.current.trim()
+    if (!t || quizIdRef.current) return quizIdRef.current
+    setSaveStatus('saving')
+    try {
+      const res = await adminFetch('/api/admin/quizzes/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: t,
+          opens_at:  opensAtRef.current  ? new Date(opensAtRef.current).toISOString()  : undefined,
+          closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
+          quiz_type: quizTypeRef.current,
+          questions: Array.from({ length: NUM_QS }, () => ({
+            question_text: '', option_a: '', option_b: '',
+            option_c: null, option_d: null,
+            time_limit_seconds: 10,
+            shuffle_options: shuffleAllRef.current,
+            category: null,
+          })),
+        }),
+      })
+      if (!res.ok) { setSaveStatus('error'); return null }
+      const data = await res.json()
+      setQuizId(data.quizId)
+      quizIdRef.current = data.quizId
+
+      // Fetch question IDs for subsequent individual patches
+      const qRes = await adminFetch(`/api/admin/quizzes/${data.quizId}/questions`)
+      if (qRes.ok) {
+        const qData = await qRes.json()
+        const ids: string[] = (qData.questions ?? []).map((q: { id: string }) => q.id)
+        setQuestionDbIds(ids)
+        questionDbIdsRef.current = ids
+      }
+      showSaved()
+      return data.quizId
+    } catch {
+      setSaveStatus('error')
+      return null
+    }
+  }, []) // stable — reads from refs only
+
+  // PATCH a single question to DB
+  const saveQuestion = useCallback(async (idx: number): Promise<void> => {
+    const qId  = quizIdRef.current
+    const dbId = questionDbIdsRef.current[idx]
+    if (!qId || !dbId) return
+
+    const q = questionsRef.current[idx]
+    setSaveStatus('saving')
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          question_text: q.text.trim(),
+          option_a:      q.optionA.trim(),
+          option_b:      q.optionB.trim(),
+          option_c:      q.optionC.trim() || null,
+          option_d:      q.optionD.trim() || null,
+          correct_answer:     q.correctAnswer,
+          time_limit_seconds: q.timeLimit,
+          shuffle_options:    shuffleAllRef.current,
+          category:           q.category || null,
+        }),
+      })
+      if (!res.ok) { setSaveStatus('error'); return }
+      showSaved()
+    } catch {
+      setSaveStatus('error')
+    }
+  }, []) // stable — reads from refs only
+
+  // ── Navigation ────────────────────────────────────────────────────────────────
+
+  const goTo = useCallback((newIdx: number) => {
+    if (newIdx < 0 || newIdx >= NUM_QS) return
+    saveQuestion(activeIdxRef.current) // fire-and-forget
+    setActiveIdx(newIdx)
+    activeIdxRef.current = newIdx
+  }, [saveQuestion])
+
+  // Keyboard shortcuts: arrow keys when no input is focused
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      const isField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+      if (isField) return
+      if (e.key === 'ArrowRight') { e.preventDefault(); goTo(activeIdxRef.current + 1) }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(activeIdxRef.current - 1) }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [goTo])
+
+  // ── State updaters ────────────────────────────────────────────────────────────
+
+  const updateQ = (patch: Partial<QState>) =>
+    setQuestions(qs => qs.map((q, i) => i === activeIdx ? { ...q, ...patch } : q))
+
+  const clampTime = (val: string) => Math.min(60, Math.max(5, parseInt(val) || 10))
+
   const handleOpensChange = (val: string) => {
     setOpensAt(val)
     if (val) setClosesAt(addHours(val, 24))
   }
 
-  const updateQ = (id: number, patch: Partial<Question>) =>
-    setQuestions(qs => qs.map(q => q.id === id ? { ...q, ...patch } : q))
-
-  const addQuestion = () => setQuestions(qs => [...qs, emptyQuestion()])
-
-  const removeQuestion = (id: number) =>
-    setQuestions(qs => qs.length > 1 ? qs.filter(q => q.id !== id) : qs)
-
-  const clampTime = (val: string) => Math.min(60, Math.max(5, parseInt(val) || 10))
-
-  const handleSave = async () => {
-    if (!title.trim()) { alert('Legg inn et quiznavn.'); return }
-    if (!opensAt || !closesAt) { alert('Fyll inn åpnings- og stengetid.'); return }
-    const bad = questions.findIndex(q => !q.text.trim() || !q.optionA.trim() || !q.optionB.trim())
-    if (bad !== -1) {
-      alert(`Spørsmål ${bad + 1} mangler spørsmålstekst eller svaralternativ A/B.`)
-      return
+  // Final: save current question, create quiz if needed, navigate to review
+  const handleFinish = async () => {
+    let qId = quizIdRef.current
+    if (!qId) {
+      if (!titleRef.current.trim()) { alert('Fyll inn quiztittel.'); return }
+      qId = await createQuiz()
+      if (!qId) return
     }
-    setSaving(true)
-    try {
-      const res = await adminFetch('/api/admin/quizzes/import', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          opens_at: new Date(opensAt).toISOString(),
-          closes_at: new Date(closesAt).toISOString(),
-          quiz_type: quizType,
-          questions: questions.map(q => ({
-            question_text: q.text.trim(),
-            option_a: q.optionA.trim(),
-            option_b: q.optionB.trim(),
-            option_c: q.optionC.trim() || null,
-            option_d: q.optionD.trim() || null,
-            correct_answer: q.correctAnswer,
-            time_limit_seconds: q.timeLimit,
-            shuffle_options: q.shuffle,
-            category: q.category || null,
-          })),
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        alert('Feil ved lagring: ' + d.error)
-        return
-      }
-      const data = await res.json()
-      router.push(`/admin/quizzes/${data.quizId}/questions`)
-    } catch {
-      alert('Uventet feil ved lagring.')
-    } finally {
-      setSaving(false)
-    }
+    await saveQuestion(activeIdx)
+    router.push(`/admin/quizzes/${qId}/questions`)
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  const q      = questions[activeIdx]
+  const isLast = activeIdx === NUM_QS - 1
 
   return (
     <>
       <style>{STYLES}</style>
       <div className="nq-page">
 
-        <header className="nq-header">
-          <Link href="/admin/quizzes" className="nq-back">← Tilbake</Link>
-          <h1 className="nq-title">Ny quiz</h1>
-        </header>
+        {/* Back link — outside sticky header so it scrolls away */}
+        <Link href="/admin/quizzes" className="nq-back">← Tilbake</Link>
 
-        {/* Grunninfo */}
-        <div className="nq-card">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Fredagsquizen 16. mai"
-            className="nq-quiz-title-input"
-          />
-          <div className="nq-datetime-row">
-            <div className="nq-field" style={{ marginBottom: 0 }}>
-              <label className="nq-label">Åpner</label>
+        {/* ── Sticky header ── */}
+        <div className="nq-sticky-header">
+          <div className="nq-header-top-row">
+            <div className="nq-header-fields">
+
+              {/* Quiz title */}
               <input
-                type="datetime-local"
-                value={opensAt}
-                onChange={e => handleOpensChange(e.target.value)}
-                className="nq-input"
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                onBlur={createQuiz}
+                placeholder="Fredagsquizen 23. mai"
+                className="nq-quiz-title-input"
               />
+
+              {/* Åpner / Stenger */}
+              <div className="nq-datetime-row">
+                <div>
+                  <label className="nq-label">Åpner</label>
+                  <input
+                    type="datetime-local"
+                    value={opensAt}
+                    onChange={e => handleOpensChange(e.target.value)}
+                    className="nq-input"
+                  />
+                </div>
+                <div>
+                  <label className="nq-label">Stenger</label>
+                  <input
+                    type="datetime-local"
+                    value={closesAt}
+                    onChange={e => setClosesAt(e.target.value)}
+                    className="nq-input"
+                  />
+                </div>
+              </div>
+
+              {/* Quiz-type + Bland svaralternativer */}
+              <div className="nq-header-bottom-row">
+                <div>
+                  <label className="nq-label">Quiz-type</label>
+                  <select
+                    value={quizType}
+                    onChange={e => setQuizType(e.target.value as 'weekly' | 'bonus')}
+                    className="nq-input nq-select"
+                  >
+                    <option value="weekly">Ukentlig (fredagsquiz)</option>
+                    <option value="bonus">Bonusquiz</option>
+                  </select>
+                </div>
+                <label className="nq-shuffle-row">
+                  <button
+                    type="button"
+                    onClick={() => setShuffleAll(v => !v)}
+                    className={`nq-toggle${shuffleAll ? ' on' : ''}`}
+                  >
+                    <div className="nq-toggle-knob" />
+                  </button>
+                  <span className="nq-shuffle-text">Bland svaralternativer</span>
+                </label>
+              </div>
+
             </div>
-            <div className="nq-field" style={{ marginBottom: 0 }}>
-              <label className="nq-label">Stenger</label>
-              <input
-                type="datetime-local"
-                value={closesAt}
-                onChange={e => setClosesAt(e.target.value)}
-                className="nq-input"
-              />
+
+            {/* Save status indicator */}
+            <div className="nq-save-status">
+              {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
+              {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
+              {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Kunne ikke lagre — prøv igjen</span>}
             </div>
-          </div>
-          <div className="nq-field" style={{ marginTop: 16 }}>
-            <label className="nq-label">Quiz-type</label>
-            <select
-              value={quizType}
-              onChange={e => setQuizType(e.target.value as 'weekly' | 'bonus')}
-              className="nq-input nq-select"
-            >
-              <option value="weekly">Ukentlig (fredagsquiz)</option>
-              <option value="bonus">Bonusquiz</option>
-            </select>
           </div>
         </div>
 
-        {/* Questions */}
-        {questions.map((q, i) => (
-          <div key={q.id} className="nq-card" style={{ marginTop: 12 }}>
-            <p className="nq-q-num">Spørsmål {i + 1}</p>
+        {/* ── Navigation bar ── */}
+        <div className="nq-nav-bar">
+          <span className="nq-q-label">Spørsmål {activeIdx + 1} av {NUM_QS}</span>
+          <div className="nq-dots-row">
+            {questions.map((qItem, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => goTo(i)}
+                className="nq-dot"
+                title={`Spørsmål ${i + 1}`}
+                style={{
+                  background:
+                    i === activeIdx
+                      ? '#c9a84c'
+                      : isComplete(qItem)
+                        ? '#4a8c5c'
+                        : '#2a2d38',
+                }}
+              />
+            ))}
+          </div>
+        </div>
 
-            <textarea
-              value={q.text}
-              onChange={e => updateQ(q.id, { text: e.target.value })}
-              placeholder="Hva er hovedstaden i Frankrike?"
-              className="nq-q-textarea"
-              rows={2}
-            />
+        {/* ── Question card ── */}
+        <div className="nq-card">
+          <p className="nq-q-num">Spørsmål {activeIdx + 1}</p>
 
-            <div className="nq-options-grid">
-              {([
-                { letter: 'A', field: 'optionA' as const, placeholder: 'Svaralternativ A' },
-                { letter: 'B', field: 'optionB' as const, placeholder: 'Svaralternativ B' },
-                { letter: 'C', field: 'optionC' as const, placeholder: 'Svaralternativ C (valgfritt)' },
-                { letter: 'D', field: 'optionD' as const, placeholder: 'Svaralternativ D (valgfritt)' },
-              ]).map(({ letter, field, placeholder }) => {
-                const isCorrect = q.correctAnswer === letter
-                return (
-                  <div key={letter}>
-                    <div
-                      className="nq-option-header"
-                      onClick={() => updateQ(q.id, { correctAnswer: letter })}
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                    >
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                        border: `1.5px solid ${isCorrect ? '#4ade80' : '#2a2d38'}`,
-                        background: isCorrect ? '#4ade80' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.15s',
-                      }}>
-                        {isCorrect && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#1a1c23' }} />}
-                      </div>
-                      <span className="nq-option-letter" style={{ color: isCorrect ? '#4ade80' : undefined }}>
-                        {letter}
-                      </span>
-                      {isCorrect && <span className="nq-correct-tag">Riktig</span>}
+          <textarea
+            value={q.text}
+            onChange={e => updateQ({ text: e.target.value })}
+            placeholder="Hva er hovedstaden i Frankrike?"
+            className="nq-q-textarea"
+            rows={3}
+          />
+
+          {/* Answer options — 2x2 grid */}
+          <div className="nq-options-grid">
+            {([
+              { letter: 'A', field: 'optionA' as const, placeholder: 'Svaralternativ A' },
+              { letter: 'B', field: 'optionB' as const, placeholder: 'Svaralternativ B' },
+              { letter: 'C', field: 'optionC' as const, placeholder: 'Svaralternativ C (valgfritt)' },
+              { letter: 'D', field: 'optionD' as const, placeholder: 'Svaralternativ D (valgfritt)' },
+            ]).map(({ letter, field, placeholder }) => {
+              const isCorrect = q.correctAnswer === letter
+              return (
+                <div key={letter}>
+                  <div
+                    className="nq-option-header"
+                    onClick={() => updateQ({ correctAnswer: letter })}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    <div style={{
+                      width: 15, height: 15, borderRadius: '50%', flexShrink: 0,
+                      border: `1.5px solid ${isCorrect ? '#4ade80' : '#2a2d38'}`,
+                      background: isCorrect ? '#4ade80' : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s',
+                    }}>
+                      {isCorrect && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#1a1c23' }} />}
                     </div>
-                    <input
-                      type="text"
-                      value={q[field]}
-                      onChange={e => updateQ(q.id, { [field]: e.target.value })}
-                      placeholder={placeholder}
-                      className="nq-input"
-                      style={isCorrect ? { borderColor: 'rgba(74,222,128,0.3)' } : undefined}
-                    />
+                    <span className="nq-option-letter" style={isCorrect ? { color: '#4ade80' } : undefined}>
+                      {letter}
+                    </span>
+                    {isCorrect && <span className="nq-correct-tag">Riktig</span>}
                   </div>
-                )
-              })}
-            </div>
-
-            <div className="nq-q-meta">
-              <div>
-                <label className="nq-label">Tid</label>
-                <div className="nq-time-wrap">
                   <input
-                    type="number"
-                    value={q.timeLimit}
-                    min={5}
-                    max={60}
-                    onChange={e => updateQ(q.id, { timeLimit: clampTime(e.target.value) })}
-                    className="nq-input nq-time-input"
+                    type="text"
+                    value={q[field]}
+                    onChange={e => updateQ({ [field]: e.target.value })}
+                    placeholder={placeholder}
+                    className="nq-input"
+                    style={isCorrect ? { borderColor: 'rgba(74,222,128,0.3)' } : undefined}
                   />
-                  <span className="nq-time-unit">sek</span>
                 </div>
-              </div>
-              <div className="nq-cat-wrap">
-                <label className="nq-label">Kategori</label>
-                <select
-                  value={q.category}
-                  onChange={e => updateQ(q.id, { category: e.target.value })}
-                  className="nq-input nq-select"
-                >
-                  <option value="">Ikke valgt</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              )
+            })}
+          </div>
+
+          {/* Time + Category */}
+          <div className="nq-q-meta">
+            <div>
+              <label className="nq-label">Tid</label>
+              <div className="nq-time-wrap">
+                <input
+                  type="number"
+                  value={q.timeLimit}
+                  min={5}
+                  max={60}
+                  onChange={e => updateQ({ timeLimit: clampTime(e.target.value) })}
+                  className="nq-input nq-time-input"
+                />
+                <span className="nq-time-unit">sek</span>
               </div>
             </div>
-
-            <div className="nq-q-footer">
-              <label className="nq-shuffle-row">
-                <button
-                  type="button"
-                  onClick={() => updateQ(q.id, { shuffle: !q.shuffle })}
-                  className={`nq-toggle${q.shuffle ? ' on' : ''}`}
-                >
-                  <div className="nq-toggle-knob" />
-                </button>
-                <span className="nq-shuffle-text">Bland svaralternativer</span>
-              </label>
-              {questions.length > 1 && (
-                <button type="button" onClick={() => removeQuestion(q.id)} className="nq-delete-btn">
-                  Slett spørsmål
-                </button>
-              )}
+            <div className="nq-cat-wrap">
+              <label className="nq-label">Kategori</label>
+              <select
+                value={q.category}
+                onChange={e => updateQ({ category: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); goTo(activeIdx + 1) } }}
+                className="nq-input nq-select"
+              >
+                <option value="">Ikke valgt</option>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
           </div>
-        ))}
+        </div>
 
-        <button type="button" onClick={addQuestion} className="nq-add-btn">
-          + Legg til spørsmål
-        </button>
+        {/* ── Navigation buttons ── */}
+        <div className="nq-q-nav">
+          {activeIdx > 0 ? (
+            <button type="button" onClick={() => goTo(activeIdx - 1)} className="nq-nav-btn">
+              ← Forrige
+            </button>
+          ) : (
+            <div />
+          )}
 
-        <button type="button" onClick={handleSave} disabled={saving} className="nq-save-btn">
-          {saving ? 'Lagrer...' : 'Lagre quiz'}
-        </button>
+          <span className="nq-nav-counter">{activeIdx + 1} / {NUM_QS}</span>
+
+          {isLast ? (
+            <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
+              Lagre og publiser →
+            </button>
+          ) : (
+            <button type="button" onClick={() => goTo(activeIdx + 1)} className="nq-nav-btn">
+              Neste →
+            </button>
+          )}
+        </div>
 
       </div>
     </>
