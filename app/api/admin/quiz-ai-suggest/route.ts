@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// No ADMIN_PASSWORD check — this endpoint is only reachable from the admin panel
-// which is already protected by password-based session (isAdminLoggedIn).
-
 // Mode: suggest answers for an existing question
 const SYSTEM_PROMPT_SUGGEST = `Du er en quiz-assistent for Quizkanonen, en norsk ukentlig quiz.
 Brukeren gir deg et spørsmål. Du skal returnere JSON med:
@@ -23,6 +20,14 @@ Returner KUN JSON uten annen tekst:
 }`
 
 export async function POST(req: NextRequest) {
+  // FIX 5 — require admin password
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (adminPassword) {
+    const provided = req.headers.get('x-admin-password') ?? ''
+    if (provided !== adminPassword) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
@@ -69,6 +74,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!aiRes.ok) {
+      // FIX 13 — log Anthropic error details before returning 502
+      const errBody = await aiRes.text().catch(() => '(unreadable)')
+      console.error('[quiz-ai-suggest] Anthropic error', aiRes.status, errBody)
       return NextResponse.json({ error: 'AI request failed' }, { status: 502 })
     }
 
@@ -90,11 +98,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI returned invalid JSON' }, { status: 502 })
     }
 
+    // FIX 14 — validate response shape
+    const correctAnswer = String(parsed.correctAnswer ?? '').trim()
+    const wrongAnswers  = Array.isArray(parsed.wrongAnswers) ? parsed.wrongAnswers.map(String) : []
+    if (!correctAnswer || wrongAnswers.length < 3) {
+      return NextResponse.json({ error: 'AI returned incomplete answer data' }, { status: 422 })
+    }
+
     return NextResponse.json({
       ...(generate ? { question: String(parsed.question ?? '') } : {}),
-      correctAnswer: String(parsed.correctAnswer ?? ''),
-      wrongAnswers:  Array.isArray(parsed.wrongAnswers) ? parsed.wrongAnswers.map(String) : [],
-      explanation:   String(parsed.explanation ?? ''),
+      correctAnswer,
+      wrongAnswers,
+      explanation: String(parsed.explanation ?? ''),
     })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// No ADMIN_PASSWORD check — only reachable from the admin panel
-// which is already protected by password-based session (isAdminLoggedIn).
-
 const SYSTEM_PROMPT_TEMPLATE = `Du er en quiz-assistent for Quizkanonen, en norsk ukentlig quiz.
 Brukeren gir deg et tema. Generer {count} quiz-spørsmål på norsk.
 Returner KUN et JSON-array uten annen tekst:
@@ -21,6 +18,15 @@ type AiQuestion = {
 }
 
 export async function POST(req: NextRequest) {
+  // FIX 5 — require admin password
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (adminPassword) {
+    const provided = req.headers.get('x-admin-password') ?? ''
+    if (provided !== adminPassword) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
@@ -54,6 +60,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!aiRes.ok) {
+      // FIX 13 — log Anthropic error details before returning 502
+      const errBody = await aiRes.text().catch(() => '(unreadable)')
+      console.error('[quiz-ai-generate-all] Anthropic error', aiRes.status, errBody)
       return NextResponse.json({ error: 'AI request failed' }, { status: 502 })
     }
 

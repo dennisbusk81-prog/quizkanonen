@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// Cache i 30 sekunder — akseptabelt for et live preview
-export const revalidate = 30
+// FIX 12 — removed `export const revalidate = 30`; caching is set via response headers instead
 
 type AttemptRow = {
   user_id: string
@@ -20,14 +19,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
   }
 
-  const HEADERS = { 'Cache-Control': 'public, s-maxage=30, max-age=30' }
+  // FIX 12 — max-age=0 so browsers revalidate every time; s-maxage=30 lets CDN/edge cache for 30s
+  const HEADERS = { 'Cache-Control': 'public, s-maxage=30, max-age=0' }
 
+  // FIX 6 — add ORDER BY and increase limit to 500
   const { data: rawAttempts } = await supabaseAdmin
     .from('attempts')
     .select('user_id, player_name, correct_answers, total_time_ms')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('user_id', 'is', null)
+    .order('correct_answers', { ascending: false })
+    .order('total_time_ms', { ascending: true })
+    .limit(500)
 
   if (!rawAttempts || rawAttempts.length === 0) {
     return NextResponse.json(
