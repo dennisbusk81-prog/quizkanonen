@@ -7,8 +7,6 @@ import { adminFetch } from '@/lib/admin-fetch'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const NUM_QS = 15
-
 const CATEGORIES = [
   'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
   'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur',
@@ -157,16 +155,38 @@ const STYLES = `
   }
   .nq-header-bottom-row > :first-child { flex: 1; }
 
-  /* Save status */
+  /* Save status + manual save button */
+  .nq-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    padding-top: 4px;
+  }
+
   .nq-save-status {
     font-size: 12px;
     white-space: nowrap;
-    flex-shrink: 0;
-    padding-top: 4px;
-    min-width: 80px;
+    min-height: 16px;
     text-align: right;
-    align-self: flex-start;
   }
+
+  .nq-manual-save-btn {
+    background: transparent;
+    border: 1px solid #2a2d38;
+    border-radius: 10px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .nq-manual-save-btn:hover { border-color: var(--gold); color: var(--gold); }
 
   /* ── Navigation bar ── */
   .nq-nav-bar {
@@ -415,6 +435,22 @@ const STYLES = `
     flex: 1;
   }
 
+  /* ── Add question link ── */
+  .nq-add-q-link {
+    display: block;
+    font-size: 13px;
+    color: #e8e4dd;
+    text-decoration: none;
+    text-align: center;
+    padding: 14px 0 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Instrument Sans', sans-serif;
+    transition: color 0.15s;
+  }
+  .nq-add-q-link:hover { color: var(--gold); }
+
   /* ── Responsive ── */
   @media (max-width: 540px) {
     .nq-datetime-row { grid-template-columns: 1fr; }
@@ -434,16 +470,14 @@ export default function NewQuiz() {
   const router = useRouter()
 
   // Quiz header state
-  const [title, setTitle]       = useState('')
-  const [opensAt, setOpensAt]   = useState('')
-  const [closesAt, setClosesAt] = useState('')
-  const [quizType, setQuizType] = useState<'weekly' | 'bonus'>('weekly')
+  const [title, setTitle]           = useState('')
+  const [opensAt, setOpensAt]       = useState('')
+  const [closesAt, setClosesAt]     = useState('')
+  const [quizType, setQuizType]     = useState<'weekly' | 'bonus'>('weekly')
   const [shuffleAll, setShuffleAll] = useState(false)
 
-  // Questions state
-  const [questions, setQuestions] = useState<QState[]>(() =>
-    Array.from({ length: NUM_QS }, emptyQ)
-  )
+  // Questions — start with a single empty question
+  const [questions, setQuestions] = useState<QState[]>(() => [emptyQ()])
   const [activeIdx, setActiveIdx] = useState(0)
 
   // DB state
@@ -454,7 +488,7 @@ export default function NewQuiz() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Refs to avoid stale closures in stable callbacks
+  // Refs for stable callbacks
   const questionsRef     = useRef(questions)
   const shuffleAllRef    = useRef(shuffleAll)
   const quizIdRef        = useRef<string | null>(null)
@@ -491,12 +525,13 @@ export default function NewQuiz() {
     saveTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
   }
 
-  // Create quiz + 15 placeholder questions in DB (called on title blur)
+  // Create quiz + placeholder questions in DB (called on title blur)
   const createQuiz = useCallback(async (): Promise<string | null> => {
     const t = titleRef.current.trim()
     if (!t || quizIdRef.current) return quizIdRef.current
     setSaveStatus('saving')
     try {
+      const count = questionsRef.current.length
       const res = await adminFetch('/api/admin/quizzes/import', {
         method: 'POST',
         body: JSON.stringify({
@@ -504,7 +539,7 @@ export default function NewQuiz() {
           opens_at:  opensAtRef.current  ? new Date(opensAtRef.current).toISOString()  : undefined,
           closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
           quiz_type: quizTypeRef.current,
-          questions: Array.from({ length: NUM_QS }, () => ({
+          questions: Array.from({ length: count }, () => ({
             question_text: '', option_a: '', option_b: '',
             option_c: null, option_d: null,
             time_limit_seconds: 10,
@@ -532,43 +567,80 @@ export default function NewQuiz() {
       setSaveStatus('error')
       return null
     }
-  }, []) // stable — reads from refs only
+  }, [])
 
-  // PATCH a single question to DB
+  // Refresh question IDs from DB
+  const refreshQuestionIds = useCallback(async (qId: string) => {
+    const qRes = await adminFetch(`/api/admin/quizzes/${qId}/questions`)
+    if (qRes.ok) {
+      const qData = await qRes.json()
+      const ids: string[] = (qData.questions ?? []).map((q: { id: string }) => q.id)
+      setQuestionDbIds(ids)
+      questionDbIdsRef.current = ids
+    }
+  }, [])
+
+  // Save a single question — PATCH if exists in DB, POST if new
   const saveQuestion = useCallback(async (idx: number): Promise<void> => {
-    const qId  = quizIdRef.current
-    const dbId = questionDbIdsRef.current[idx]
-    if (!qId || !dbId) return
+    const qId = quizIdRef.current
+    if (!qId) return // quiz not created yet — will be batched on createQuiz
 
     const q = questionsRef.current[idx]
+    if (!q) return
+
+    const body = {
+      question_text:      q.text.trim(),
+      option_a:           q.optionA.trim(),
+      option_b:           q.optionB.trim(),
+      option_c:           q.optionC.trim() || null,
+      option_d:           q.optionD.trim() || null,
+      correct_answer:     q.correctAnswer,
+      time_limit_seconds: q.timeLimit,
+      shuffle_options:    shuffleAllRef.current,
+      category:           q.category || null,
+    }
+
     setSaveStatus('saving')
     try {
-      const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          question_text: q.text.trim(),
-          option_a:      q.optionA.trim(),
-          option_b:      q.optionB.trim(),
-          option_c:      q.optionC.trim() || null,
-          option_d:      q.optionD.trim() || null,
-          correct_answer:     q.correctAnswer,
-          time_limit_seconds: q.timeLimit,
-          shuffle_options:    shuffleAllRef.current,
-          category:           q.category || null,
-        }),
-      })
-      if (!res.ok) { setSaveStatus('error'); return }
+      const dbId = questionDbIdsRef.current[idx]
+      if (dbId) {
+        // Existing question — PATCH
+        const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) { setSaveStatus('error'); return }
+      } else {
+        // New question — POST, then refresh IDs
+        const res = await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
+          method: 'POST',
+          body: JSON.stringify({ ...body, order_index: idx + 1 }),
+        })
+        if (!res.ok) { setSaveStatus('error'); return }
+        await refreshQuestionIds(qId)
+      }
       showSaved()
     } catch {
       setSaveStatus('error')
     }
-  }, []) // stable — reads from refs only
+  }, [refreshQuestionIds])
 
   // ── Navigation ────────────────────────────────────────────────────────────────
 
   const goTo = useCallback((newIdx: number) => {
-    if (newIdx < 0 || newIdx >= NUM_QS) return
+    if (newIdx < 0 || newIdx >= questionsRef.current.length) return
     saveQuestion(activeIdxRef.current) // fire-and-forget
+    setActiveIdx(newIdx)
+    activeIdxRef.current = newIdx
+  }, [saveQuestion])
+
+  // Add a new empty question and navigate to it
+  const addQuestion = useCallback(() => {
+    const newIdx = questionsRef.current.length
+    const updated = [...questionsRef.current, emptyQ()]
+    questionsRef.current = updated         // update ref immediately for stable callbacks
+    setQuestions(updated)
+    saveQuestion(activeIdxRef.current)     // save current before moving
     setActiveIdx(newIdx)
     activeIdxRef.current = newIdx
   }, [saveQuestion])
@@ -613,14 +685,15 @@ export default function NewQuiz() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const q      = questions[activeIdx]
-  const isLast = activeIdx === NUM_QS - 1
+  const total  = questions.length
+  const isLast = activeIdx === total - 1
 
   return (
     <>
       <style>{STYLES}</style>
       <div className="nq-page">
 
-        {/* Back link — outside sticky header so it scrolls away */}
+        {/* Back link — scrolls away */}
         <Link href="/admin/quizzes" className="nq-back">← Tilbake</Link>
 
         {/* ── Sticky header ── */}
@@ -687,18 +760,27 @@ export default function NewQuiz() {
 
             </div>
 
-            {/* Save status indicator */}
-            <div className="nq-save-status">
-              {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
-              {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
-              {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Kunne ikke lagre — prøv igjen</span>}
+            {/* Save status + manual save button */}
+            <div className="nq-header-right">
+              <div className="nq-save-status">
+                {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
+                {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
+                {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Kunne ikke lagre — prøv igjen</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => saveQuestion(activeIdx)}
+                className="nq-manual-save-btn"
+              >
+                Lagre
+              </button>
             </div>
           </div>
         </div>
 
         {/* ── Navigation bar ── */}
         <div className="nq-nav-bar">
-          <span className="nq-q-label">Spørsmål {activeIdx + 1} av {NUM_QS}</span>
+          <span className="nq-q-label">Spørsmål {activeIdx + 1} av {total}</span>
           <div className="nq-dots-row">
             {questions.map((qItem, i) => (
               <button
@@ -816,7 +898,7 @@ export default function NewQuiz() {
             <div />
           )}
 
-          <span className="nq-nav-counter">{activeIdx + 1} / {NUM_QS}</span>
+          <span className="nq-nav-counter">{activeIdx + 1} / {total}</span>
 
           {isLast ? (
             <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
@@ -828,6 +910,11 @@ export default function NewQuiz() {
             </button>
           )}
         </div>
+
+        {/* ── Add question link ── */}
+        <button type="button" onClick={addQuestion} className="nq-add-q-link">
+          + Legg til spørsmål
+        </button>
 
       </div>
     </>
