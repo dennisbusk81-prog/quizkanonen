@@ -138,7 +138,7 @@ const STYLES = `
   .nq-quiz-title-input::placeholder { color: var(--muted); font-style: italic; }
   .nq-quiz-title-input:focus { border-bottom-color: var(--gold); }
 
-  /* Gear button */
+  /* Gear + label toggle */
   .nq-gear-btn {
     background: transparent;
     border: none;
@@ -146,12 +146,17 @@ const STYLES = `
     padding: 4px 6px;
     color: var(--muted);
     flex-shrink: 0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    gap: 6px;
     border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Instrument Sans', sans-serif;
+    white-space: nowrap;
     transition: color 0.15s;
   }
-  .nq-gear-btn:hover { color: var(--gold); }
+  .nq-gear-btn:hover { color: #e8e4dd; }
+  .nq-gear-btn.active { color: var(--gold); }
 
   /* Save status + manual save button */
   .nq-header-right {
@@ -467,6 +472,7 @@ const STYLES = `
     text-decoration: none;
     text-align: center;
     padding: 14px 0 4px;
+    margin-bottom: 32px;
     background: none;
     border: none;
     cursor: pointer;
@@ -739,17 +745,17 @@ export default function NewQuiz() {
               className="nq-quiz-title-input"
             />
 
-            {/* Gear — toggle metadata panel */}
+            {/* Gear + label — toggle metadata panel */}
             <button
               type="button"
-              className="nq-gear-btn"
+              className={`nq-gear-btn${metaOpen ? ' active' : ''}`}
               onClick={() => setMetaOpen(v => !v)}
-              title="Quiz-innstillinger"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
+              Innstillinger
             </button>
 
             {/* Save status + manual save button */}
