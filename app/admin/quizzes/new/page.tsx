@@ -982,7 +982,9 @@ function QuizEditorInner() {
 
   const handleGenerateAll = async () => {
     if (!aiGenTopic.trim()) return
-    const count = questions.length || 10
+    // Minimum 10 — questions.length på ny quiz er 1, ikke 0,
+    // så `questions.length || 10` ga alltid 1. Bruk Math.max.
+    const count = Math.max(10, questions.length)
     setAiGenAllLoading(true)
     setAiGenAllError(null)
     try {
@@ -1194,7 +1196,7 @@ function QuizEditorInner() {
                   style={{ marginTop: 0 }}
                 >
                   {aiGenAllLoading
-                    ? `Genererer ${questions.length || 10} spørsmål...`
+                    ? `Genererer ${Math.max(10, questions.length)} spørsmål...`
                     : 'Generer hele quizen'}
                 </button>
                 {aiGenAllError && <p className="nq-ai-error">{aiGenAllError}</p>}

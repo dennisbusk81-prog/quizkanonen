@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const SYSTEM_PROMPT_TEMPLATE = `Du er en quiz-assistent for Quizkanonen, en norsk ukentlig quiz.
-Brukeren gir deg et tema. Generer {count} quiz-spørsmål på norsk.
+const SYSTEM_PROMPT_TEMPLATE = `Du er en quiz-assistent for Quizkanonen, en ukentlig nordisk quiz.
+Generer {count} varierte quiz-spørsmål på norsk basert på temaet: {topic}.
+Spørsmålene skal passe for et nordisk publikum fra Norge, Sverige og Danmark — unngå spørsmål som krever svært spesifikk norsk lokalkunnskap med mindre temaet eksplisitt er Norge. Varier kategoriene.
 Returner KUN et JSON-array uten annen tekst:
 [{
   "question": string,
@@ -41,7 +42,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace('{count}', String(count))
+  const systemPrompt = SYSTEM_PROMPT_TEMPLATE
+    .replace('{count}', String(count))
+    .replace('{topic}', topic.trim())
+
+  // Scale token budget: 10 spørsmål trenger ~6000, 15 spørsmål ~8000
+  const maxTokens = count <= 10 ? 6000 : 8000
 
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -53,9 +59,9 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 4000,
+        max_tokens: maxTokens,
         system: systemPrompt,
-        messages: [{ role: 'user', content: `Tema: ${topic.trim()}\nAntall spørsmål: ${count}` }],
+        messages: [{ role: 'user', content: `Generer ${count} spørsmål om: ${topic.trim()}` }],
       }),
     })
 
