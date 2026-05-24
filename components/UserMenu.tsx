@@ -155,7 +155,6 @@ export default function UserMenu() {
   }, [dropdownOpen])
 
   if (!mounted || !sessionResolved) return null
-  console.log('[UserMenu] pathname at render:', JSON.stringify(pathname))
   if (
     pathname === '/' ||
     pathname.startsWith('/liga') ||
