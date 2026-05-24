@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -556,7 +556,7 @@ const STYLES = `
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function NewQuiz() {
+function QuizEditorInner() {
   const router      = useRouter()
   const searchParams = useSearchParams()
   const editIdFromUrl = searchParams.get('id') // null → new quiz; string → edit existing
@@ -1224,5 +1224,17 @@ export default function NewQuiz() {
 
       </div>
     </>
+  )
+}
+
+export default function QuizEditorPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+      </div>
+    }>
+      <QuizEditorInner />
+    </Suspense>
   )
 }
