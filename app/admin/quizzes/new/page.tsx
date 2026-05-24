@@ -109,35 +109,92 @@ const STYLES = `
     z-index: 50;
     background: var(--bg);
     border-bottom: 1px solid var(--border);
-    padding: 16px 0 14px;
+    padding: 14px 0 12px;
     margin-bottom: 0;
   }
 
-  .nq-header-top-row {
+  /* Always-visible title row */
+  .nq-header-title-row {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 10px;
   }
-
-  .nq-header-fields { flex: 1; min-width: 0; }
 
   /* Quiz title input */
   .nq-quiz-title-input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     border-bottom: 2px solid var(--border);
     border-radius: 0;
-    padding: 4px 0 10px;
+    padding: 4px 0 8px;
     font-family: 'Libre Baskerville', serif;
     font-size: 20px;
     color: var(--white);
     outline: none;
     transition: border-color 0.15s;
-    margin-bottom: 14px;
   }
   .nq-quiz-title-input::placeholder { color: var(--muted); font-style: italic; }
   .nq-quiz-title-input:focus { border-bottom-color: var(--gold); }
+
+  /* Gear button */
+  .nq-gear-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    color: var(--muted);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+    transition: color 0.15s;
+  }
+  .nq-gear-btn:hover { color: var(--gold); }
+
+  /* Save status + manual save button */
+  .nq-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .nq-save-status {
+    font-size: 12px;
+    white-space: nowrap;
+    min-height: 16px;
+    text-align: right;
+  }
+
+  .nq-manual-save-btn {
+    background: transparent;
+    border: 1px solid #2a2d38;
+    border-radius: 10px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .nq-manual-save-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Collapsible metadata panel */
+  .nq-meta-panel {
+    overflow: hidden;
+    transition: max-height 0.2s ease, opacity 0.2s ease;
+    max-height: 0;
+    opacity: 0;
+  }
+  .nq-meta-panel.open {
+    max-height: 400px;
+    opacity: 1;
+  }
 
   /* Date row */
   .nq-datetime-row {
@@ -154,39 +211,6 @@ const STYLES = `
     gap: 20px;
   }
   .nq-header-bottom-row > :first-child { flex: 1; }
-
-  /* Save status + manual save button */
-  .nq-header-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    flex-shrink: 0;
-    align-self: flex-start;
-    padding-top: 4px;
-  }
-
-  .nq-save-status {
-    font-size: 12px;
-    white-space: nowrap;
-    min-height: 16px;
-    text-align: right;
-  }
-
-  .nq-manual-save-btn {
-    background: transparent;
-    border: 1px solid #2a2d38;
-    border-radius: 10px;
-    padding: 8px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .nq-manual-save-btn:hover { border-color: var(--gold); color: var(--gold); }
 
   /* ── Navigation bar ── */
   .nq-nav-bar {
@@ -461,6 +485,7 @@ const STYLES = `
     .nq-time-input { width: 100%; }
     .nq-nav-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
     .nq-dots-row { justify-content: flex-start; }
+    .nq-meta-panel.open { max-height: 560px; }
   }
 `
 
@@ -475,6 +500,10 @@ export default function NewQuiz() {
   const [closesAt, setClosesAt]     = useState('')
   const [quizType, setQuizType]     = useState<'weekly' | 'bonus'>('weekly')
   const [shuffleAll, setShuffleAll] = useState(false)
+
+  // Collapsible meta panel — open by default for new quiz (no quizId yet)
+  const [metaOpen, setMetaOpen] = useState(true)
+  const hasCollapsedRef = useRef(false) // collapse once on first question-textarea focus
 
   // Questions — start with a single empty question
   const [questions, setQuestions] = useState<QState[]>(() => [emptyQ()])
@@ -698,18 +727,51 @@ export default function NewQuiz() {
 
         {/* ── Sticky header ── */}
         <div className="nq-sticky-header">
-          <div className="nq-header-top-row">
-            <div className="nq-header-fields">
 
-              {/* Quiz title */}
-              <input
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                onBlur={createQuiz}
-                placeholder="Fredagsquizen 23. mai"
-                className="nq-quiz-title-input"
-              />
+          {/* Always-visible title row */}
+          <div className="nq-header-title-row">
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onBlur={createQuiz}
+              placeholder="Fredagsquizen 23. mai"
+              className="nq-quiz-title-input"
+            />
+
+            {/* Gear — toggle metadata panel */}
+            <button
+              type="button"
+              className="nq-gear-btn"
+              onClick={() => setMetaOpen(v => !v)}
+              title="Quiz-innstillinger"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+
+            {/* Save status + manual save button */}
+            <div className="nq-header-right">
+              <div className="nq-save-status">
+                {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
+                {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
+                {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Lagring feilet</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => saveQuestion(activeIdx)}
+                className="nq-manual-save-btn"
+              >
+                Lagre
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible metadata panel */}
+          <div className={`nq-meta-panel${metaOpen ? ' open' : ''}`}>
+            <div style={{ paddingTop: 14, paddingBottom: 4 }}>
 
               {/* Åpner / Stenger */}
               <div className="nq-datetime-row">
@@ -759,23 +821,8 @@ export default function NewQuiz() {
               </div>
 
             </div>
-
-            {/* Save status + manual save button */}
-            <div className="nq-header-right">
-              <div className="nq-save-status">
-                {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
-                {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
-                {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Kunne ikke lagre — prøv igjen</span>}
-              </div>
-              <button
-                type="button"
-                onClick={() => saveQuestion(activeIdx)}
-                className="nq-manual-save-btn"
-              >
-                Lagre
-              </button>
-            </div>
           </div>
+
         </div>
 
         {/* ── Navigation bar ── */}
@@ -809,6 +856,12 @@ export default function NewQuiz() {
           <textarea
             value={q.text}
             onChange={e => updateQ({ text: e.target.value })}
+            onFocus={() => {
+              if (!hasCollapsedRef.current) {
+                hasCollapsedRef.current = true
+                setMetaOpen(false)
+              }
+            }}
             placeholder="Hva er hovedstaden i Frankrike?"
             className="nq-q-textarea"
             rows={3}
