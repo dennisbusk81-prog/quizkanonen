@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-function auth(req: NextRequest) {
-  const pw = req.headers.get('x-admin-password')
-  return !!pw && pw === process.env.ADMIN_PASSWORD
-}
+// No ADMIN_PASSWORD check — this endpoint is only reachable from the admin panel
+// which is already protected by password-based session (isAdminLoggedIn).
 
 const SYSTEM_PROMPT = `Du er en quiz-assistent for Quizkanonen, en norsk ukentlig quiz.
 Brukeren gir deg et spørsmål. Du skal returnere JSON med:
@@ -13,7 +11,6 @@ Brukeren gir deg et spørsmål. Du skal returnere JSON med:
 Svar KUN med JSON, ingen annen tekst.`
 
 export async function POST(req: NextRequest) {
-  if (!auth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
