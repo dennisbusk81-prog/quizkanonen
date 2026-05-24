@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 
 interface RivalData {
@@ -21,6 +21,13 @@ interface RankingSnapshot {
   totalPlayers: number
 }
 
+interface LiveRanking {
+  totalPlayers: number
+  userRank: number
+  above: { name: string; correct: number } | null
+  below: { name: string; correct: number } | null
+}
+
 interface QuizInterludeProps {
   phase: 'in' | 'out'
   lastCorrect: boolean | null
@@ -35,6 +42,8 @@ interface QuizInterludeProps {
   rival: RivalData | null
   percentileData: PercentileEntry[]
   rankingSnapshot?: RankingSnapshot
+  isPremium?: boolean
+  quizId?: string
   onNext: () => void
 }
 
@@ -79,8 +88,21 @@ export default function QuizInterlude({
   rival,
   percentileData,
   rankingSnapshot,
+  isPremium,
+  quizId,
   onNext,
 }: QuizInterludeProps) {
+  const [liveRanking, setLiveRanking] = useState<LiveRanking | null>(null)
+
+  useEffect(() => {
+    if (!isPremium || !quizId) return
+    let cancelled = false
+    fetch(`/api/quiz/live-ranking?quiz_id=${encodeURIComponent(quizId)}&current_correct=${score}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: LiveRanking | null) => { if (!cancelled && data) setLiveRanking(data) })
+      .catch(() => {/* silent — never block next button */})
+    return () => { cancelled = true }
+  }, [isPremium, quizId, score])
   // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
   const percentileEntry = percentileData.find(p => p.score === score)
   const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
@@ -207,6 +229,25 @@ export default function QuizInterlude({
           }}>
             Du er bedre enn {percentileEntry.percentile}% av deltakerne
           </p>
+        )}
+
+        {/* Live mini-leaderboard — Premium only */}
+        {isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
+          <div style={{ marginBottom: 20, lineHeight: 1.8 }}>
+            {liveRanking.above && (
+              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                #{liveRanking.userRank - 1} {liveRanking.above.name} · {liveRanking.above.correct} riktige
+              </p>
+            )}
+            <p style={{ fontSize: 14, color: '#c9a84c', fontWeight: 600, margin: 0 }}>
+              #{liveRanking.userRank} Du · {score} riktige
+            </p>
+            {liveRanking.below && (
+              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                #{liveRanking.userRank + 1} {liveRanking.below.name} · {liveRanking.below.correct} riktige
+              </p>
+            )}
+          </div>
         )}
 
         {/* Score line */}
