@@ -30,9 +30,6 @@ export async function POST(req: NextRequest) {
     ? `Kategori: ${category}\nSpørsmål: ${question}`
     : `Spørsmål: ${question}`
 
-  console.error('[quiz-ai-suggest] ANTHROPIC_API_KEY present:', !!process.env.ANTHROPIC_API_KEY)
-  console.error('[quiz-ai-suggest] ANTHROPIC_API_KEY length:', process.env.ANTHROPIC_API_KEY?.length)
-
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -50,9 +47,6 @@ export async function POST(req: NextRequest) {
     })
 
     if (!aiRes.ok) {
-      const errText = await aiRes.text()
-      console.error('[quiz-ai-suggest] Anthropic error status:', aiRes.status)
-      console.error('[quiz-ai-suggest] Anthropic error body:', errText)
       return NextResponse.json({ error: 'AI request failed' }, { status: 502 })
     }
 
@@ -66,7 +60,6 @@ export async function POST(req: NextRequest) {
     try {
       parsed = JSON.parse(jsonText)
     } catch {
-      console.error('[quiz-ai-suggest] Failed to parse JSON:', rawText)
       return NextResponse.json({ error: 'AI returned invalid JSON' }, { status: 502 })
     }
 
@@ -75,9 +68,7 @@ export async function POST(req: NextRequest) {
       wrongAnswers:  Array.isArray(parsed.wrongAnswers) ? parsed.wrongAnswers.map(String) : [],
       explanation:   String(parsed.explanation ?? ''),
     })
-  } catch (err) {
-    console.error('[quiz-ai-suggest] full error:', JSON.stringify(err))
-    console.error('[quiz-ai-suggest] Unexpected error:', err)
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
