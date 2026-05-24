@@ -102,10 +102,10 @@ export default function NameRequiredModal() {
           marginBottom: 10,
           lineHeight: 1.25,
         }}>
-          Hva skal vi kalle deg?
+          Hva heter du?
         </h2>
         <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
-          Dette navnet vises på leaderboard og topplister. Bruk ditt vanlige navn så andre kjenner deg igjen.
+          Skriv ditt fulle navn — det vises på topplisten og i ligaer. Andre spillere ser hvem de konkurrerer mot.
         </p>
 
         <input

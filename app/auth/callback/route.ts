@@ -57,21 +57,35 @@ export async function GET(request: NextRequest) {
   const { user } = data
   console.log('[auth/callback] session ok, user id:', user.id, 'email:', user.email)
 
-  // Upsert profile — columns must match the actual profiles table:
-  // id, display_name, avatar_color, created_at, last_seen_at
+  // Insert profile for new users only — never overwrite display_name on re-login.
+  // Google users: seed display_name from full_name in metadata.
+  // Magic link users: display_name stays null → AuthListener dispatches
+  //   qk:name-required so the user is prompted to enter their real name.
+  const now = new Date().toISOString()
+  const initialDisplayName =
+    (user.user_metadata?.full_name as string | undefined) ?? null
+
   const profilePayload = {
     id: user.id,
-    display_name: (user.user_metadata?.full_name as string | undefined)
-      ?? user.email?.split('@')[0]
-      ?? null,
+    display_name: initialDisplayName,
     avatar_color: null as string | null,
-    last_seen_at: new Date().toISOString(),
+    last_seen_at: now,
   }
   console.log('[auth/callback] upserting profile:', profilePayload)
 
+  // ignoreDuplicates: true → INSERT for new users, no-op for existing users
+  // (preserves display_name set by the user after first login)
   const { error: upsertError } = await supabaseAdmin
     .from('profiles')
-    .upsert(profilePayload, { onConflict: 'id' })
+    .upsert(profilePayload, { onConflict: 'id', ignoreDuplicates: true })
+
+  // Always refresh last_seen_at, even for returning users
+  if (!upsertError) {
+    await supabaseAdmin
+      .from('profiles')
+      .update({ last_seen_at: now })
+      .eq('id', user.id)
+  }
 
   if (upsertError) {
     console.error(
