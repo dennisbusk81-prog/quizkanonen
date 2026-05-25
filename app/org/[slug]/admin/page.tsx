@@ -179,6 +179,9 @@ export default function OrgAdminPage() {
   const [seasonResetting, setSeasonResetting]     = useState(false)
   const [seasonResetDone, setSeasonResetDone]     = useState(false)
 
+  const [portalLoading, setPortalLoading]         = useState(false)
+  const [portalError, setPortalError]             = useState<string | null>(null)
+
   const [hoveredMemberId, setHoveredMemberId]     = useState<string | null>(null)
   const [adminActionLoading, setAdminActionLoading] = useState(false)
   const [adminActionError, setAdminActionError]   = useState<string | null>(null)
@@ -351,6 +354,47 @@ export default function OrgAdminPage() {
       setTimeout(() => setSettingsSaved(false), 2000)
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  // Toggle global-league and auto-save (button is now repurposed for portal)
+  const toggleGlobal = async () => {
+    const next = !allowGlobal
+    setAllowGlobal(next)
+    if (!session) return
+    setSavingSettings(true)
+    try {
+      await fetch(`/api/org/${slug}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ allow_global_league: next }),
+      })
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  // Open Stripe billing portal for the org
+  const openPortal = async () => {
+    if (!session || !data) return
+    setPortalLoading(true)
+    setPortalError(null)
+    try {
+      const res = await fetch('/api/stripe/org-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ org_id: data.org.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setPortalError('Ikke tilgjengelig i testmodus')
+        return
+      }
+      window.location.href = json.url
+    } catch {
+      setPortalError('Ikke tilgjengelig i testmodus')
+    } finally {
+      setPortalLoading(false)
     }
   }
 
@@ -646,21 +690,22 @@ export default function OrgAdminPage() {
                   </p>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
-                  onClick={saveSettings}
-                  disabled={savingSettings}
+                  onClick={openPortal}
+                  disabled={portalLoading}
                   style={{
                     padding: '8px 18px', background: 'transparent',
                     border: '1px solid #2a2d38', borderRadius: 10,
                     fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif", cursor: savingSettings ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Instrument Sans', sans-serif", cursor: portalLoading ? 'not-allowed' : 'pointer',
                     transition: 'border-color 0.15s', whiteSpace: 'nowrap',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                  onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.borderColor = '#c9a84c' }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
                 >
-                  {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer…' : 'Innstillinger'}
+                  {portalLoading ? 'Laster...' : 'Innstillinger'}
                 </button>
                 {currentPlan !== 'pro' && (
                   <Link
@@ -676,18 +721,22 @@ export default function OrgAdminPage() {
                     Oppgrader →
                   </Link>
                 )}
+                </div>
+                {portalError && (
+                  <p style={{ fontSize: 12, color: '#7a7873', margin: 0 }}>{portalError}</p>
+                )}
               </div>
             </div>
 
             {/* Toggle row — inside banner, separated by a subtle divider */}
             <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
-                onClick={() => setAllowGlobal(v => !v)}
+                onClick={toggleGlobal}
                 style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
               >
                 <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
               </div>
-              <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={() => setAllowGlobal(v => !v)}>
+              <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={toggleGlobal}>
                 Delta i global sesong-toppliste
               </span>
               <span style={{ fontSize: 12, color: '#7a7873', marginLeft: 4 }}>
