@@ -220,6 +220,8 @@ export default function OrgAdminPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [copiedWinner, setCopiedWinner]           = useState(false)
+  const [shareHovered, setShareHovered]           = useState(false)
 
   const [allowGlobal, setAllowGlobal] = useState(false)
 
@@ -638,6 +640,26 @@ export default function OrgAdminPage() {
     await navigator.clipboard.writeText(url)
     setCopiedToken(token)
     setTimeout(() => setCopiedToken(null), 2000)
+  }
+
+  const shareWinner = () => {
+    if (!winners?.month || !data) return
+    const now = new Date()
+    const monthName = now.toLocaleDateString('nb-NO', { month: 'long' })
+    const monthCap = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+    const text = [
+      `🏆 Månedens Quizkanon — ${monthCap} ${now.getFullYear()}`,
+      '',
+      `${data.org.name} gratulerer:`,
+      `👑 ${winners.month.displayName} — ${winners.month.points} poeng`,
+      '',
+      'Spill fredagsquizen på quizkanonen.no',
+      'og utfordre kollegene dine! 🎯',
+    ].join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedWinner(true)
+      setTimeout(() => setCopiedWinner(false), 2000)
+    })
   }
 
   const handleSendInvites = async () => {
@@ -1455,6 +1477,23 @@ export default function OrgAdminPage() {
                         {winner.displayName}
                       </p>
                       <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</p>
+                      {label === 'Månedens kanon' && (
+                        <button
+                          onClick={shareWinner}
+                          onMouseEnter={() => setShareHovered(true)}
+                          onMouseLeave={() => setShareHovered(false)}
+                          style={{
+                            marginTop: 8, fontSize: 11, padding: '4px 10px',
+                            border: `1px solid ${shareHovered || copiedWinner ? '#c9a84c' : '#2a2d38'}`,
+                            borderRadius: 6, background: 'transparent',
+                            color: copiedWinner ? '#4ade80' : shareHovered ? '#c9a84c' : '#7a7873',
+                            cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                            transition: 'color 0.15s, border-color 0.15s',
+                          }}
+                        >
+                          {copiedWinner ? 'Kopiert! ✓' : 'Del på Slack'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
