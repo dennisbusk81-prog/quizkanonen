@@ -7,7 +7,65 @@ import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1c23; font-family: 'Instrument Sans', sans-serif; color: #e8e4dd; min-height: 100vh; }
+
+  .oa-page { max-width: 720px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* ── Section label ── */
+  .oa-sec { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
+  .oa-sec-text { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #7a7873; white-space: nowrap; }
+  .oa-sec-line { flex: 1; height: 1px; background: #2a2d38; }
+
+  /* ── Stat card ── */
+  .oa-stat {
+    background: #21242e; border: 1px solid #2a2d38; border-radius: 14px;
+    padding: 20px; flex: 1; min-width: 0; cursor: default;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .oa-stat::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #c9a84c, rgba(201,168,76,0));
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .oa-stat:hover { border-color: rgba(201,168,76,0.25); }
+  .oa-stat:hover::before { opacity: 1; }
+
+  /* ── Tabs ── */
+  .oa-tab-row { display: flex; border-bottom: 1px solid #2a2d38; margin-bottom: 0; }
+  .oa-tab-a { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid #c9a84c; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #c9a84c; font-family: 'Instrument Sans', sans-serif; cursor: pointer; }
+  .oa-tab-i { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #e8e4dd; font-family: 'Instrument Sans', sans-serif; cursor: pointer; }
+
+  /* ── Input ── */
+  .oa-input {
+    background: #1a1c23; border: 1px solid #2a2d38; border-radius: 8px;
+    padding: 9px 12px; font-size: 13px; color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif; outline: none;
+    transition: border-color 0.15s;
+  }
+  .oa-input::placeholder { color: #7a7873; }
+  .oa-input:focus { border-color: #c9a84c; }
+
+  /* ── Rank badge colours ── */
+  .oa-rank-gold   { color: #c9a84c; }
+  .oa-rank-silver { color: #a0a8b8; }
+  .oa-rank-bronze { color: #c4825a; }
+
+  /* ── Responsive ── */
+  @media (max-width: 580px) {
+    .oa-stats-strip { flex-wrap: wrap !important; }
+    .oa-stat { min-width: calc(50% - 6px) !important; }
+    .oa-winners-grid { grid-template-columns: 1fr !important; }
+  }
+`
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Member = {
   id: string
@@ -41,16 +99,53 @@ type AdminData = {
   stats?: { memberCount: number; activeThisMonth: number }
 }
 
-function SectionHeader({ title }: { title: string }) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function SectionLabel({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 10px' }}>
-      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
-        {title}
-      </span>
-      <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+    <div className="oa-sec">
+      <span className="oa-sec-text">{title}</span>
+      <div className="oa-sec-line" />
+      {right}
     </div>
   )
 }
+
+function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: Math.round(size * 0.38), fontWeight: 700, color: '#c9a84c', flexShrink: 0,
+    }}>
+      {(name[0] ?? '?').toUpperCase()}
+    </div>
+  )
+}
+
+function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue' | 'muted' }) {
+  const map = {
+    gold:  { bg: 'rgba(201,168,76,0.12)',  border: 'rgba(201,168,76,0.28)',  text: '#c9a84c' },
+    green: { bg: 'rgba(74,222,128,0.10)',  border: 'rgba(74,222,128,0.25)',  text: '#4ade80' },
+    blue:  { bg: 'rgba(99,179,237,0.10)',  border: 'rgba(99,179,237,0.25)',  text: '#63b3ed' },
+    muted: { bg: 'rgba(122,120,115,0.12)', border: 'rgba(122,120,115,0.25)', text: '#7a7873' },
+  }
+  const c = map[color]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+      padding: '2px 7px', borderRadius: 999,
+      background: c.bg, border: `1px solid ${c.border}`, color: c.text,
+      textTransform: 'uppercase', flexShrink: 0,
+    }}>
+      {label}
+    </span>
+  )
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OrgAdminPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -61,11 +156,9 @@ export default function OrgAdminPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // Winner cards state
   type WinnerEntry = { displayName: string; avatarUrl: string | null; points: number } | null
   const [winners, setWinners] = useState<{ month: WinnerEntry; quarter: WinnerEntry; year: WinnerEntry } | null>(null)
 
-  // Action states
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
@@ -73,37 +166,33 @@ export default function OrgAdminPage() {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
 
-  // Local settings state
   const [allowGlobal, setAllowGlobal] = useState(false)
 
-  // E-post invitasjon
-  const [emailInviteOpen, setEmailInviteOpen]   = useState(false)
-  const [emailInviteText, setEmailInviteText]   = useState('')
+  const [emailInviteOpen, setEmailInviteOpen]     = useState(false)
+  const [emailInviteText, setEmailInviteText]     = useState('')
   const [emailInviteSending, setEmailInviteSending] = useState(false)
   const [emailInviteResult, setEmailInviteResult]   = useState<{ sent: number; failed: string[] } | null>(null)
   const [emailInviteError, setEmailInviteError]     = useState<string | null>(null)
 
-  // Sesong-administrasjon
-  const [seasonOpen, setSeasonOpen]         = useState(false)
-  const [seasonResetModal, setSeasonResetModal] = useState(false)
-  const [seasonResetInput, setSeasonResetInput] = useState('')
-  const [seasonResetting, setSeasonResetting]   = useState(false)
-  const [seasonResetDone, setSeasonResetDone]   = useState(false)
+  const [seasonResetModal, setSeasonResetModal]   = useState(false)
+  const [seasonResetInput, setSeasonResetInput]   = useState('')
+  const [seasonResetting, setSeasonResetting]     = useState(false)
+  const [seasonResetDone, setSeasonResetDone]     = useState(false)
 
-  // Admin-håndtering
-  const [adminEmail, setAdminEmail]           = useState('')
+  const [adminEmail, setAdminEmail]               = useState('')
   const [adminActionLoading, setAdminActionLoading] = useState(false)
-  const [adminActionError, setAdminActionError]     = useState<string | null>(null)
+  const [adminActionError, setAdminActionError]   = useState<string | null>(null)
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null)
 
-  // Medlemsoversikt
   type MemberActivity = { userId: string; displayName: string; role: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
-  const [activityPeriod, setActivityPeriod]   = useState<'month' | 'quarter' | 'year'>('month')
-  const [activityData, setActivityData]       = useState<MemberActivity[] | null>(null)
+  const [activityPeriod, setActivityPeriod] = useState<'month' | 'quarter' | 'year'>('month')
+  const [activityData, setActivityData]     = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
-  const [excludingId, setExcludingId]         = useState<string | null>(null)
+  const [excludingId, setExcludingId]       = useState<string | null>(null)
 
-  // Hard timeout — show error state after 8s if session never resolves
+  // Search
+  const [memberSearch, setMemberSearch] = useState('')
+
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 8000)
     return () => clearTimeout(t)
@@ -177,7 +266,6 @@ export default function OrgAdminPage() {
     loadData(session)
   }, [session, slug, router, loadData])
 
-  // Reload aktivitet ved periodebytte
   useEffect(() => {
     if (!data || !session) return
     loadActivity(data.org.id, session.access_token, activityPeriod)
@@ -244,8 +332,8 @@ export default function OrgAdminPage() {
     }
   }
 
-  const handleSetAdmin = async (action: 'add' | 'remove', email: string) => {
-    if (!session || !email.trim()) return
+  const handleSetAdmin = async (action: 'add' | 'remove', email?: string, userId?: string) => {
+    if (!session) return
     setAdminActionLoading(true)
     setAdminActionError(null)
     setAdminActionSuccess(null)
@@ -253,7 +341,7 @@ export default function OrgAdminPage() {
       const res = await fetch(`/api/org/${slug}/set-admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ email: email.trim(), action }),
+        body: JSON.stringify(email ? { email: email.trim(), action } : { userId, action }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -282,21 +370,13 @@ export default function OrgAdminPage() {
     if (!session || !data) return
     const activeInvite = data.invites.find(i => i.is_active)
     if (!activeInvite) { setEmailInviteError('Ingen aktiv invitasjonslenke. Opprett én først.'); return }
-
-    const rawEmails = emailInviteText
-      .split(/[\n,]+/)
-      .map(e => e.trim())
-      .filter(Boolean)
-
+    const rawEmails = emailInviteText.split(/[\n,]+/).map(e => e.trim()).filter(Boolean)
     if (rawEmails.length === 0) { setEmailInviteError('Ingen e-postadresser oppgitt.'); return }
-
     const inviteUrl = `${window.location.origin}/bli-med/${activeInvite.token}`
     const senderName = data.members.find(m => m.user_id === data.currentUserId)?.display_name ?? 'En kollega'
-
     setEmailInviteSending(true)
     setEmailInviteResult(null)
     setEmailInviteError(null)
-
     try {
       const res = await fetch(`/api/org/${data.org.id}/send-invite`, {
         method: 'POST',
@@ -335,7 +415,6 @@ export default function OrgAdminPage() {
     }
   }
 
-
   const handleExclude = async (userId: string, currentlyExcluded: boolean) => {
     if (!data || !session) return
     setExcludingId(userId)
@@ -368,10 +447,12 @@ export default function OrgAdminPage() {
       })
   }
 
+  // ── Loading / Error states ─────────────────────────────────────────────────
+
   if (loading) {
     return (
       <>
-        <style>{FONT}</style>
+        <style>{CSS}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
         </div>
@@ -382,7 +463,7 @@ export default function OrgAdminPage() {
   if (error) {
     return (
       <>
-        <style>{FONT}</style>
+        <style>{CSS}</style>
         <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
@@ -395,442 +476,597 @@ export default function OrgAdminPage() {
     )
   }
 
-  const activeInvites = data?.invites.filter(i => i.is_active) ?? []
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const activeInvites   = data?.invites.filter(i => i.is_active) ?? []
   const inactiveInvites = data?.invites.filter(i => !i.is_active) ?? []
+  const primaryInvite   = activeInvites[0] ?? null
+
+  const memberCount    = data?.stats?.memberCount ?? data?.members.length ?? 0
+  const activeCount    = data?.stats?.activeThisMonth ?? 0
+  const activePercent  = memberCount > 0 ? Math.round((activeCount / memberCount) * 100) : 0
+  const totalQuizzes   = activityData ? activityData.reduce((s, m) => s + m.quizCount, 0) : null
+  const planName       = (data?.org.plan ?? '').charAt(0).toUpperCase() + (data?.org.plan ?? '').slice(1)
+  const renewalDate    = data?.org.stripe_period_end
+    ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
+
+  // Org name split: all but last word plain, last word in gold italic
+  const nameWords      = (data?.org.name ?? '').split(' ')
+  const nameFront      = nameWords.slice(0, -1).join(' ')
+  const nameLast       = nameWords[nameWords.length - 1] ?? ''
+
+  // Activity map keyed by userId for quick lookup
+  const activityMap    = new Map((activityData ?? []).map(m => [m.userId, m]))
+
+  // Filtered members for search
+  const q = memberSearch.toLowerCase()
+  const filteredMembers = (data?.members ?? []).filter(m =>
+    !q || m.display_name.toLowerCase().includes(q)
+  )
+
+  // Toppliste: activityData sorted by totalPoints desc
+  const sortedByPoints = [...(activityData ?? [])].sort((a, b) => b.totalPoints - a.totalPoints)
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      <style>{FONT + ' * { box-sizing: border-box; }'}</style>
+      <style>{CSS}</style>
       <UserMenuWrapper />
+
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
-        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' }}>
+        <div className="oa-page">
 
-          {/* Header */}
-          <div style={{ padding: '36px 0 8px' }}>
-            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
-              {data?.org.name}
-            </p>
-            <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em' }}>
-              Admin<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>panel</em>
+          {/* ══════════════════════════════════════════════════════════════════
+              1. HERO
+          ══════════════════════════════════════════════════════════════════ */}
+          <section style={{ paddingTop: 52, paddingBottom: 36 }}>
+            <span style={{
+              display: 'inline-block',
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+              color: '#c9a84c', background: 'rgba(201,168,76,0.10)',
+              border: '1px solid rgba(201,168,76,0.25)',
+              borderRadius: 999, padding: '4px 12px',
+              marginBottom: 18,
+            }}>
+              Bedriftspanel
+            </span>
+            <h1 style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: 'clamp(28px, 5vw, 40px)',
+              fontWeight: 700, color: '#ffffff',
+              letterSpacing: '-0.02em', lineHeight: 1.15,
+              marginBottom: 12,
+            }}>
+              {nameFront && <>{nameFront} </>}
+              <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>{nameLast}</em>
             </h1>
-          </div>
-
-          {/* ── STATS ───────────────────────────────────── */}
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 0, marginBottom: 8 }}>
-            {[
-              { val: data?.stats?.memberCount ?? data?.members.length ?? '—', lbl: 'Medlemmer' },
-              { val: data?.stats?.activeThisMonth ?? '—', lbl: 'Aktive denne måneden' },
-            ].map(({ val, lbl }, i) => (
-              <div key={lbl} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, ...(i > 0 ? { borderLeft: '1px solid #2a2d38', paddingLeft: 20, marginLeft: 20 } : {}) }}>
-                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>{val}</span>
-                <span style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.3 }}>{lbl}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* ── ADMINISTRATORER ─────────────────────────── */}
-          <SectionHeader title="Administratorer" />
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px' }}>
-            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 14 }}>
-              Administratorer
+            <p style={{ fontSize: 15, color: '#e8e4dd', opacity: 0.75, maxWidth: 480, lineHeight: 1.6 }}>
+              Administrer medlemmer, følg med på sesongresultater og inviter nye deltakere.
             </p>
+          </section>
 
-            {/* Existing admins list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {(data?.members ?? []).filter(m => m.role === 'admin').map(m => (
-                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: '#2a2d38', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontSize: 13, fontWeight: 700,
-                    color: '#e8e4dd', flexShrink: 0,
-                  }}>
-                    {m.display_name[0]?.toUpperCase() ?? '?'}
-                  </div>
-                  <span style={{ flex: 1, fontSize: 14, color: '#e8e4dd' }}>{m.display_name}</span>
-                  {m.user_id !== data?.currentUserId && (
-                    <button
-                      disabled={adminActionLoading}
-                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#7a7873', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textDecorationColor: '#4a4d5a' }}
-                      onClick={async () => {
-                        setAdminActionLoading(true)
-                        setAdminActionError(null)
-                        setAdminActionSuccess(null)
-                        try {
-                          const res = await fetch(`/api/org/${slug}/set-admin`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-                            body: JSON.stringify({ userId: m.user_id, action: 'remove' }),
-                          })
-                          const json = await res.json()
-                          if (!res.ok) { setAdminActionError(json.error ?? 'Noe gikk galt') }
-                          else { setAdminActionSuccess('Admin-rolle fjernet'); loadData(session!); setTimeout(() => setAdminActionSuccess(null), 3000) }
-                        } catch { setAdminActionError('Noe gikk galt') }
-                        finally { setAdminActionLoading(false) }
-                      }}
-                    >
-                      Fjern admin
-                    </button>
-                  )}
-                  {m.user_id === data?.currentUserId && (
-                    <span style={{ fontSize: 12, color: '#4a4d5a' }}>deg</span>
-                  )}
-                </div>
-              ))}
+          {/* ══════════════════════════════════════════════════════════════════
+              2. STATISTIKK-STRIP
+          ══════════════════════════════════════════════════════════════════ */}
+          <div className="oa-stats-strip" style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+
+            <div className="oa-stat">
+              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Medlemmer</p>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+                {memberCount}
+              </p>
             </div>
 
-            {/* Add admin by email */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="email"
-                value={adminEmail}
-                onChange={e => { setAdminEmail(e.target.value); setAdminActionError(null) }}
-                onKeyDown={e => { if (e.key === 'Enter' && adminEmail.trim()) handleSetAdmin('add', adminEmail) }}
-                placeholder="e-post til nytt admin-medlem…"
-                style={{
-                  flex: 1, background: '#1a1c23', border: '1px solid #2a2d38',
-                  borderRadius: 8, padding: '9px 12px', fontSize: 14,
-                  color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-              />
-              <button
-                onClick={() => handleSetAdmin('add', adminEmail)}
-                disabled={adminActionLoading || !adminEmail.trim()}
-                style={{
-                  padding: '9px 16px', background: 'transparent',
-                  border: `1px solid ${adminActionLoading || !adminEmail.trim() ? '#2a2d38' : '#c9a84c'}`,
-                  borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  color: adminActionLoading || !adminEmail.trim() ? '#4a4d5a' : '#c9a84c',
-                  cursor: adminActionLoading || !adminEmail.trim() ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' as const,
-                }}
-              >
-                {adminActionLoading ? 'Lagrer…' : 'Gjør til admin →'}
-              </button>
-            </div>
-            {adminActionError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{adminActionError}</p>}
-            {adminActionSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{adminActionSuccess}</p>}
-          </div>
-
-          {/* ── OVERVIEW ────────────────────────────────── */}
-          <SectionHeader title="Oversikt" />
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 16 }}>
-            {[
-              { label: 'Plan', value: data?.org.plan ?? '—' },
-              { label: 'Medlemmer', value: String(data?.members.length ?? 0) },
-              { label: 'Aktive invitasjoner', value: String(activeInvites.length) },
-              { label: 'Premium utløper', value: data?.org.stripe_period_end ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' }) : '—' },
-            ].map(item => (
-              <div key={item.label}>
-                <div style={{ fontSize: 11, color: '#7a7873', marginBottom: 4, letterSpacing: '0.04em' }}>{item.label}</div>
-                <div style={{ fontSize: 18, fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff' }}>{item.value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── SESONG-VINNERE ──────────────────────────── */}
-          <SectionHeader title="Sesong-vinnere" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 8 }}>
-            {([
-              { label: 'MÅNEDENS VINNER',  winner: winners?.month },
-              { label: 'KVARTALETS VINNER', winner: winners?.quarter },
-              { label: 'ÅRETS KANON',       winner: winners?.year },
-            ] as { label: string; winner: { displayName: string; avatarUrl: string | null; points: number } | null | undefined }[]).map(({ label, winner }) => (
-              <div key={label} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '18px 20px' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 }}>
-                  {label}
-                </div>
-                {winner === undefined ? (
-                  <div style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</div>
-                ) : winner === null ? (
-                  <div style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ingen data ennå</div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' }}>
-                        {winner.avatarUrl
-                          ? <img src={winner.avatarUrl} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
-                          : (winner.displayName[0]?.toUpperCase() ?? '?')
-                        }
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                          {winner.displayName}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</div>
-                      </div>
-                    </div>
-                  </>
+            <div className="oa-stat">
+              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Aktive denne måneden</p>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#4ade80', lineHeight: 1 }}>
+                  {activeCount}
+                </p>
+                {activePercent > 0 && (
+                  <span style={{ fontSize: 13, color: '#4ade80', opacity: 0.7 }}>{activePercent}%</span>
                 )}
               </div>
+            </div>
+
+            <div className="oa-stat">
+              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Quizer spilt denne måneden</p>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+                {totalQuizzes ?? '—'}
+              </p>
+            </div>
+
+            <div className="oa-stat">
+              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Abonnement</p>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+                {planName || '—'}
+              </p>
+            </div>
+
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              3. PLAN-BANNER
+          ══════════════════════════════════════════════════════════════════ */}
+          <div style={{
+            background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.2)',
+            borderRadius: 14, padding: '18px 22px',
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+            marginBottom: 8,
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#c9a84c',
+                  background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.3)',
+                  borderRadius: 999, padding: '2px 9px',
+                }}>
+                  {planName || 'Plan'}
+                </span>
+                {renewalDate && (
+                  <span style={{ fontSize: 12, color: '#7a7873' }}>Fornyes {renewalDate}</span>
+                )}
+              </div>
+              <p style={{ fontSize: 13, color: '#e8e4dd' }}>
+                Bedriftsabonnement for {data?.org.name}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <button
+                onClick={saveSettings}
+                disabled={savingSettings}
+                style={{
+                  padding: '8px 18px', background: 'transparent',
+                  border: '1px solid #2a2d38', borderRadius: 10,
+                  fontSize: 13, fontWeight: 600, color: '#e8e4dd',
+                  fontFamily: "'Instrument Sans', sans-serif", cursor: savingSettings ? 'not-allowed' : 'pointer',
+                  transition: 'border-color 0.15s', whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+              >
+                {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer…' : 'Innstillinger'}
+              </button>
+              <Link
+                href={`/kontakt`}
+                style={{
+                  display: 'inline-block', padding: '8px 18px',
+                  background: '#c9a84c', borderRadius: 10,
+                  fontSize: 13, fontWeight: 700, color: '#1a1c23',
+                  fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Oppgrader →
+              </Link>
+            </div>
+          </div>
+
+          {/* Global league toggle (inline, small) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 22px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, marginBottom: 4 }}>
+            <div
+              onClick={() => setAllowGlobal(v => !v)}
+              style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
+            >
+              <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
+            </div>
+            <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={() => setAllowGlobal(v => !v)}>
+              Delta i global sesong-toppliste
+            </span>
+            <span style={{ fontSize: 12, color: '#7a7873', marginLeft: 4 }}>
+              — Tillat at ansatte vises på felles sesong-toppliste
+            </span>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              4. MEDLEMSSEKSJON
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel
+            title="Medlemmer"
+            right={
+              <button
+                onClick={downloadCsv}
+                style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+              >
+                Last ned CSV
+              </button>
+            }
+          />
+
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, overflow: 'hidden' }}>
+
+            {/* Search + count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid #2a2d38' }}>
+              <input
+                type="text"
+                value={memberSearch}
+                onChange={e => setMemberSearch(e.target.value)}
+                placeholder="Søk etter navn…"
+                className="oa-input"
+                style={{ flex: 1, fontSize: 13 }}
+              />
+              <span style={{ fontSize: 12, color: '#7a7873', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {memberCount} deltaker{memberCount !== 1 ? 'e' : ''}
+              </span>
+            </div>
+
+            {/* Member rows */}
+            {filteredMembers.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>
+                {memberSearch ? 'Ingen treff.' : 'Ingen medlemmer ennå.'}
+              </p>
+            ) : (
+              filteredMembers.map((member, idx) => {
+                const isMe     = member.user_id === data?.currentUserId
+                const isAdmin  = member.role === 'admin'
+                const activity = activityMap.get(member.user_id)
+                const isLast   = idx === filteredMembers.length - 1
+
+                return (
+                  <div
+                    key={member.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 18px',
+                      borderBottom: isLast ? 'none' : '1px solid rgba(42,45,56,0.6)',
+                    }}
+                  >
+                    <Avatar name={member.display_name} size={36} />
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          {member.display_name}
+                        </span>
+                        {isAdmin && <Tag label="Admin" color="gold" />}
+                        {isMe && <Tag label="deg" color="muted" />}
+                        {activity?.hasPlayed && <Tag label="Aktiv" color="green" />}
+                      </div>
+                      <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
+                        Ble med {new Date(member.joined_at).toLocaleDateString('nb-NO')}
+                        {activity && ` · ${activity.totalPoints} poeng`}
+                      </p>
+                    </div>
+
+                    {/* Action buttons */}
+                    {!isMe && (
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleSetAdmin(isAdmin ? 'remove' : 'add', undefined, member.user_id)}
+                          disabled={adminActionLoading}
+                          style={{ fontSize: 11, fontWeight: 600, color: isAdmin ? '#c9a84c' : '#7a7873', background: 'transparent', border: `0.5px solid ${isAdmin ? 'rgba(201,168,76,0.3)' : '#2a2d38'}`, borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                        >
+                          {isAdmin ? 'Admin' : 'Gjør admin'}
+                        </button>
+                        <button
+                          onClick={() => removeMember(member.id)}
+                          disabled={removingId === member.id}
+                          style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                        >
+                          {removingId === member.id ? '…' : 'Fjern'}
+                        </button>
+                        {activity && (
+                          <button
+                            onClick={() => handleExclude(member.user_id, activity.isExcluded)}
+                            disabled={excludingId === member.user_id}
+                            style={{ fontSize: 11, fontWeight: 600, color: activity.isExcluded ? '#c9a84c' : '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === member.user_id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          >
+                            {excludingId === member.user_id ? '…' : activity.isExcluded ? 'Vis igjen' : 'Ekskluder'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+
+            {adminActionError && (
+              <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{adminActionError}</p>
+            )}
+            {adminActionSuccess && (
+              <p style={{ fontSize: 12, color: '#4ade80', padding: '0 18px 12px' }}>{adminActionSuccess}</p>
+            )}
+
+            {/* Invite row */}
+            <div style={{ borderTop: '1px solid #2a2d38', padding: '14px 18px' }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: primaryInvite ? 10 : 0 }}>
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={e => { setAdminEmail(e.target.value); setAdminActionError(null) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && adminEmail.trim()) handleSetAdmin('add', adminEmail) }}
+                  placeholder="Legg til admin via e-post…"
+                  className="oa-input"
+                  style={{ flex: 1, fontSize: 13 }}
+                />
+                <button
+                  onClick={() => handleSetAdmin('add', adminEmail)}
+                  disabled={adminActionLoading || !adminEmail.trim()}
+                  style={{
+                    padding: '9px 16px', background: adminActionLoading || !adminEmail.trim() ? 'transparent' : '#c9a84c',
+                    border: `1px solid ${adminActionLoading || !adminEmail.trim() ? '#2a2d38' : '#c9a84c'}`,
+                    borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    color: adminActionLoading || !adminEmail.trim() ? '#4a4d5a' : '#1a1c23',
+                    cursor: adminActionLoading || !adminEmail.trim() ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                >
+                  {adminActionLoading ? 'Lagrer…' : 'Legg til →'}
+                </button>
+              </div>
+
+              {/* Primary invite link */}
+              {primaryInvite ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    readOnly
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/bli-med/${primaryInvite.token}`}
+                    className="oa-input"
+                    style={{ flex: 1, fontSize: 12, color: '#7a7873', cursor: 'text' }}
+                    onFocus={e => e.currentTarget.select()}
+                  />
+                  <button
+                    onClick={() => copyLink(primaryInvite.token)}
+                    style={{ padding: '8px 14px', background: copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.08)' : 'rgba(201,168,76,0.10)', border: `1px solid ${copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.25)' : 'rgba(201,168,76,0.25)'}`, borderRadius: 8, fontSize: 12, fontWeight: 600, color: copiedToken === primaryInvite.token ? '#4ade80' : '#c9a84c', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {copiedToken === primaryInvite.token ? 'Kopiert!' : 'Kopier'}
+                  </button>
+                  <button
+                    onClick={() => deactivateInvite(primaryInvite.id)}
+                    disabled={deactivatingId === primaryInvite.id}
+                    style={{ padding: '8px 14px', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, fontSize: 12, color: '#7a7873', cursor: deactivatingId === primaryInvite.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {deactivatingId === primaryInvite.id ? '…' : 'Deaktiver'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={createInvite}
+                  disabled={creatingInvite}
+                  style={{ fontSize: 12, color: '#c9a84c', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: 7, padding: '5px 12px', cursor: creatingInvite ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", fontWeight: 600 }}
+                >
+                  {creatingInvite ? 'Oppretter…' : '+ Opprett invitasjonslenke'}
+                </button>
+              )}
+
+              {inactiveInvites.length > 0 && (
+                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8 }}>
+                  {inactiveInvites.length} deaktivert{inactiveInvites.length !== 1 ? 'e' : ''} lenke{inactiveInvites.length !== 1 ? 'r' : ''}
+                </p>
+              )}
+
+              {/* E-post invitasjon */}
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
+                  style={{ fontSize: 12, color: '#7a7873', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0, display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ transform: emailInviteOpen ? 'rotate(90deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
+                    <path d="M2 1L6 4L2 7" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  Send invitasjon på e-post
+                </button>
+                {emailInviteOpen && (
+                  <div style={{ marginTop: 10 }}>
+                    <textarea
+                      value={emailInviteText}
+                      onChange={e => { setEmailInviteText(e.target.value); setEmailInviteResult(null); setEmailInviteError(null) }}
+                      placeholder={'kollega@bedrift.no, kollega2@bedrift.no'}
+                      rows={3}
+                      style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'vertical', marginBottom: 8 }}
+                      onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                      onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                    />
+                    <button
+                      onClick={handleSendInvites}
+                      disabled={emailInviteSending || !emailInviteText.trim()}
+                      style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#e8e4dd'}`, borderRadius: 8, fontSize: 12, fontWeight: 600, color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#e8e4dd', cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                    >
+                      {emailInviteSending ? 'Sender…' : 'Send invitasjon'}
+                    </button>
+                    {emailInviteResult && (
+                      <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>
+                        Sendt til {emailInviteResult.sent} mottaker{emailInviteResult.sent !== 1 ? 'e' : ''}.
+                        {emailInviteResult.failed.length > 0 && (
+                          <span style={{ color: '#f87171' }}> Feilet: {emailInviteResult.failed.join(', ')}</span>
+                        )}
+                      </p>
+                    )}
+                    {emailInviteError && (
+                      <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{emailInviteError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              5. TOPPLISTE-SEKSJON
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Toppliste denne måneden" />
+
+          {/* Period tabs */}
+          <div className="oa-tab-row" style={{ marginBottom: 0 }}>
+            {(['month', 'quarter', 'year'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setActivityPeriod(p)}
+                className={activityPeriod === p ? 'oa-tab-a' : 'oa-tab-i'}
+              >
+                {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
+              </button>
             ))}
           </div>
-          <div style={{ textAlign: 'right' as const, marginBottom: 8 }}>
-            <a href={`/org/${slug}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.04em' }}>
+
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderTop: 'none', borderRadius: '0 0 14px 14px', overflow: 'hidden' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #2a2d38' }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+                Intern rangering — kun {data?.org.name}
+              </p>
+              <span style={{ fontSize: 12, color: '#7a7873' }}>
+                {sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere
+              </span>
+            </div>
+
+            {activityLoading ? (
+              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+            ) : sortedByPoints.filter(m => m.totalPoints > 0).length === 0 ? (
+              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
+            ) : (
+              sortedByPoints.filter(m => m.totalPoints > 0).map((m, idx) => {
+                const rank = idx + 1
+                const rankColor = rank === 1 ? 'oa-rank-gold' : rank === 2 ? 'oa-rank-silver' : rank === 3 ? 'oa-rank-bronze' : undefined
+                const isMe = data?.members.find(mem => mem.user_id === m.userId)?.user_id === data?.currentUserId
+
+                return (
+                  <div
+                    key={m.userId}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '11px 18px',
+                      borderBottom: idx < sortedByPoints.filter(x => x.totalPoints > 0).length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
+                      background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
+                    }}
+                  >
+                    <span
+                      className={rankColor}
+                      style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
+                    >
+                      {rank}
+                    </span>
+                    <Avatar name={m.displayName} size={30} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          {m.displayName}
+                        </span>
+                        {isMe && <Tag label="deg" color="muted" />}
+                        {m.role === 'admin' && <Tag label="Admin" color="gold" />}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
+                        {m.totalPoints}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>poeng</span>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div style={{ textAlign: 'right', marginTop: 10 }}>
+            <a href={`/org/${slug}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none' }}>
               Se full toppliste →
             </a>
           </div>
 
-          {/* ── SESONG-ADMINISTRASJON (accordion) ───────── */}
-          <div style={{ margin: '20px 0 0' }}>
-            <button
-              onClick={() => setSeasonOpen(o => !o)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #3a3d4a', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#c9a84c'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = '#3a3d4a'}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Sesong-administrasjon</span>
-              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: seasonOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
-                <path d="M1 1L5 5L9 1" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
-            {seasonOpen && (
-              <div style={{ background: '#21242e', border: '1px solid #3a3d4a', borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '18px 20px 20px' }}>
-                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 }}>
-                  Nullstiller alle sesong-poeng for bedriftens toppliste. Handlingen kan ikke angres.
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => { setSeasonResetModal(true); setSeasonResetInput('') }}
-                    style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    Nullstill all data
-                  </button>
-                  {seasonResetDone && (
-                    <span style={{ fontSize: 12, color: '#4ade80', background: 'rgba(74,222,128,0.08)', padding: '4px 10px', borderRadius: 6 }}>
-                      Sesong-data nullstilt.
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* ══════════════════════════════════════════════════════════════════
+              6. SESONGVINNERE
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Sesongvinnere" />
 
-          {/* ── MEDLEMSOVERSIKT ──────────────────────────── */}
-          <SectionHeader title="Medlemsoversikt" />
-
-          {/* Period tabs + CSV */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 4, background: '#1a1c23', borderRadius: 10, padding: 3 }}>
-              {(['month', 'quarter', 'year'] as const).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setActivityPeriod(p)}
-                  style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: activityPeriod === p ? '#21242e' : 'transparent', color: activityPeriod === p ? '#c9a84c' : '#e8e4dd', transition: 'background 0.15s, color 0.15s' }}
-                >
-                  {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={downloadCsv}
-              style={{ fontSize: 12, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
-            >
-              Last ned CSV
-            </button>
-          </div>
-
-          {activityLoading ? (
-            <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', marginBottom: 16 }}>Laster…</p>
-          ) : activityData && activityData.length > 0 ? (
-            <div style={{ marginBottom: 16 }}>
-              {activityData.map(m => (
-                <div key={m.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, marginBottom: 6 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.hasPlayed ? '#4ade80' : '#2a2d38', border: m.hasPlayed ? 'none' : '1px solid #3a3d4a', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.displayName}
-                      {m.role === 'admin' && <span style={{ fontSize: 10, color: '#c9a84c', fontWeight: 500, marginLeft: 6, letterSpacing: '0.06em' }}>ADMIN</span>}
-                      {m.isExcluded && <span style={{ fontSize: 10, color: '#7a7873', marginLeft: 6 }}>(ekskludert)</span>}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>
-                      {m.hasPlayed ? `${m.totalPoints} poeng · ${m.quizCount} quiz${m.quizCount !== 1 ? 'er' : ''}` : 'Ikke spilt ennå'}
-                      {m.lastActiveAt && ` · sist aktiv ${new Date(m.lastActiveAt).toLocaleDateString('nb-NO')}`}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleExclude(m.userId, m.isExcluded)}
-                    disabled={excludingId === m.userId}
-                    style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
-                  >
-                    {excludingId === m.userId ? '…' : m.isExcluded ? 'Vis igjen' : 'Ekskluder'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : activityData !== null ? (
-            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>Ingen aktivitetsdata for denne perioden.</p>
-          ) : null}
-
-          {/* ── INVITE LINKS ────────────────────────────── */}
-          <SectionHeader title="Invitasjonslenker" />
-
-          <button
-            onClick={createInvite}
-            disabled={creatingInvite}
-            style={{ background: 'transparent', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.4)', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 10, cursor: creatingInvite ? 'not-allowed' : 'pointer', opacity: creatingInvite ? 0.6 : 1, marginBottom: 14 }}
-          >
-            {creatingInvite ? 'Oppretter...' : '+ Opprett ny lenke'}
-          </button>
-
-          {activeInvites.length === 0 ? (
-            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 8 }}>Ingen aktive invitasjonslenker.</p>
-          ) : (
-            activeInvites.map(invite => (
-              <div key={invite.id} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontFamily: 'monospace', color: '#e8e4dd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    /bli-med/{invite.token.slice(0, 16)}…
-                  </div>
-                  <div style={{ fontSize: 11, color: '#7a7873', marginTop: 3 }}>
-                    Brukt {invite.use_count} gang{invite.use_count !== 1 ? 'er' : ''}{invite.max_uses !== null ? ` av ${invite.max_uses}` : ''}
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyLink(invite.token)}
-                  style={{ background: 'rgba(201,168,76,0.1)', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.25)', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  {copiedToken === invite.token ? 'Kopiert!' : 'Kopier'}
-                </button>
-                <button
-                  onClick={() => deactivateInvite(invite.id)}
-                  disabled={deactivatingId === invite.id}
-                  style={{ background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: deactivatingId === invite.id ? 'not-allowed' : 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                >
-                  {deactivatingId === invite.id ? '...' : 'Deaktiver'}
-                </button>
-              </div>
-            ))
-          )}
-
-          {inactiveInvites.length > 0 && (
-            <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8 }}>
-              + {inactiveInvites.length} deaktivert{inactiveInvites.length !== 1 ? 'e' : ''} lenke{inactiveInvites.length !== 1 ? 'r' : ''}
-            </p>
-          )}
-
-          {/* ── SEND INVITASJON PÅ E-POST ───────────────── */}
-          <div style={{ marginTop: 14 }}>
-            <button
-              onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: emailInviteOpen ? '12px 12px 0 0' : 12, padding: '12px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Send invitasjon på e-post</span>
-              <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: emailInviteOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
-                <path d="M1 1L5 5L9 1" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </button>
-            {emailInviteOpen && (
-              <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '16px 16px 18px' }}>
-                <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, lineHeight: 1.5 }}>
-                  E-postadresser (én per linje eller separert med komma)
-                </p>
-                <textarea
-                  value={emailInviteText}
-                  onChange={e => { setEmailInviteText(e.target.value); setEmailInviteResult(null); setEmailInviteError(null) }}
-                  placeholder={'kollega@bedrift.no, kollega2@bedrift.no'}
-                  rows={4}
-                  style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box', marginBottom: 10 }}
-                  onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-                />
-                <button
-                  onClick={handleSendInvites}
-                  disabled={emailInviteSending || !emailInviteText.trim()}
-                  style={{ background: 'transparent', color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#e8e4dd', border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#e8e4dd'}`, fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 8, cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer' }}
-                >
-                  {emailInviteSending ? 'Sender…' : 'Send invitasjon'}
-                </button>
-                {emailInviteResult && (
-                  <p style={{ fontSize: 13, color: '#4ade80', marginTop: 10 }}>
-                    Sendt til {emailInviteResult.sent} mottaker{emailInviteResult.sent !== 1 ? 'e' : ''}.
-                    {emailInviteResult.failed.length > 0 && (
-                      <span style={{ color: '#f87171' }}> Feilet: {emailInviteResult.failed.join(', ')}</span>
-                    )}
-                  </p>
-                )}
-                {emailInviteError && (
-                  <p style={{ fontSize: 13, color: '#f87171', marginTop: 10 }}>{emailInviteError}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ── MEMBERS ─────────────────────────────────── */}
-          <SectionHeader title="Medlemmer" />
-
-          {(data?.members ?? []).map(member => {
-            const isMe = member.user_id === data?.currentUserId
-            return (
-              <div key={member.id} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
-                  {(member.display_name[0] ?? '?').toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {member.display_name}{isMe ? ' (deg)' : ''}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
-                    {member.role === 'admin' ? 'Admin' : 'Medlem'} · ble med {new Date(member.joined_at).toLocaleDateString('nb-NO')}
-                  </div>
-                </div>
-                {!isMe && (
-                  <button
-                    onClick={() => removeMember(member.id)}
-                    disabled={removingId === member.id}
-                    style={{ background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, padding: '7px 14px', borderRadius: 8, cursor: removingId === member.id ? 'not-allowed' : 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                  >
-                    {removingId === member.id ? '...' : 'Fjern'}
-                  </button>
-                )}
-              </div>
-            )
-          })}
-
-          {/* ── SETTINGS ────────────────────────────────── */}
-          <SectionHeader title="Innstillinger" />
-
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 24px' }}>
-
-            {/* Toggle: allow global league */}
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer', marginBottom: 16 }}>
+          <div className="oa-winners-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 8 }}>
+            {([
+              { label: 'Månedens kanon',   icon: '★', winner: winners?.month   },
+              { label: 'Kvartalets kanon', icon: '◆', winner: winners?.quarter },
+              { label: 'Årets kanon',      icon: '♛', winner: winners?.year    },
+            ] as { label: string; icon: string; winner: WinnerEntry | undefined }[]).map(({ label, icon, winner }) => (
               <div
-                onClick={() => setAllowGlobal(v => !v)}
-                style={{ marginTop: 3, width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
+                key={label}
+                style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}
               >
-                <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+                  <span style={{ fontSize: 14, color: '#c9a84c' }}>{icon}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873' }}>
+                    {label}
+                  </span>
+                </div>
+                {winner === undefined ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+                ) : winner === null ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ikke kåret ennå</p>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {winner.avatarUrl ? (
+                      <img src={winner.avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <Avatar name={winner.displayName} size={36} />
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {winner.displayName}
+                      </p>
+                      <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', marginBottom: 2 }}>Delta i global sesong-toppliste</div>
-                <div style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>Tillat at bedriftens ansatte vises på den globale sesong-topplisten.</div>
-              </div>
-            </label>
+            ))}
+          </div>
 
+          {/* ══════════════════════════════════════════════════════════════════
+              7. DANGER ZONE
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Danger zone" />
+
+          <div style={{
+            background: 'rgba(201,76,76,0.04)', border: '1px solid rgba(201,76,76,0.15)',
+            borderRadius: 14, padding: '20px 22px',
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
+                Nullstill sesong-data
+              </p>
+              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+                Sletter alle sesong-poeng for {data?.org.name}. Handlingen kan ikke angres.
+              </p>
+              {seasonResetDone && (
+                <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>Sesong-data nullstilt.</p>
+              )}
+            </div>
             <button
-              onClick={saveSettings}
-              disabled={savingSettings}
-              style={{ background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, border: 'none', cursor: savingSettings ? 'not-allowed' : 'pointer', opacity: savingSettings ? 0.6 : 1 }}
+              onClick={() => { setSeasonResetModal(true); setSeasonResetInput('') }}
+              style={{
+                padding: '9px 18px', background: 'transparent',
+                border: '1px solid rgba(248,113,113,0.4)',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
+                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
-              {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer...' : 'Lagre innstillinger'}
+              Nullstill sesong
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* Sesong-reset modal */}
+      {/* ── Season-reset modal ─────────────────────────────────────────────── */}
       {seasonResetModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
-            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>Nullstill sesong-data</p>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
+              Nullstill sesong-data
+            </p>
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               Dette sletter alle sesong-poeng for {data?.org.name}. Handlingen kan ikke angres.
             </p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>
+              Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:
+            </p>
             <input
               type="text"
               value={seasonResetInput}
