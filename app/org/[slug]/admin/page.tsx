@@ -593,72 +593,74 @@ export default function OrgAdminPage() {
           <div style={{
             background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.2)',
             borderRadius: 14, padding: '18px 22px',
-            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-            marginBottom: 8,
+            marginBottom: 20,
           }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#c9a84c',
-                  background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.3)',
-                  borderRadius: 999, padding: '2px 9px',
-                }}>
-                  {planName || 'Plan'}
-                </span>
-                {renewalDate && (
-                  <span style={{ fontSize: 12, color: '#7a7873' }}>Fornyes {renewalDate}</span>
-                )}
+            {/* Top row: plan info + buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: '#c9a84c',
+                    background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.3)',
+                    borderRadius: 999, padding: '2px 9px',
+                  }}>
+                    {planName || 'Plan'}
+                  </span>
+                  {renewalDate && (
+                    <span style={{ fontSize: 12, color: '#7a7873' }}>Fornyes {renewalDate}</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 13, color: '#e8e4dd' }}>
+                  Bedriftsabonnement for {data?.org.name}
+                </p>
               </div>
-              <p style={{ fontSize: 13, color: '#e8e4dd' }}>
-                Bedriftsabonnement for {data?.org.name}
-              </p>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                <button
+                  onClick={saveSettings}
+                  disabled={savingSettings}
+                  style={{
+                    padding: '8px 18px', background: 'transparent',
+                    border: '1px solid #2a2d38', borderRadius: 10,
+                    fontSize: 13, fontWeight: 600, color: '#e8e4dd',
+                    fontFamily: "'Instrument Sans', sans-serif", cursor: savingSettings ? 'not-allowed' : 'pointer',
+                    transition: 'border-color 0.15s', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                >
+                  {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer…' : 'Innstillinger'}
+                </button>
+                <Link
+                  href={`/kontakt`}
+                  style={{
+                    display: 'inline-block', padding: '8px 18px',
+                    background: '#c9a84c', borderRadius: 10,
+                    fontSize: 13, fontWeight: 700, color: '#1a1c23',
+                    fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Oppgrader →
+                </Link>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-              <button
-                onClick={saveSettings}
-                disabled={savingSettings}
-                style={{
-                  padding: '8px 18px', background: 'transparent',
-                  border: '1px solid #2a2d38', borderRadius: 10,
-                  fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                  fontFamily: "'Instrument Sans', sans-serif", cursor: savingSettings ? 'not-allowed' : 'pointer',
-                  transition: 'border-color 0.15s', whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-              >
-                {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer…' : 'Innstillinger'}
-              </button>
-              <Link
-                href={`/kontakt`}
-                style={{
-                  display: 'inline-block', padding: '8px 18px',
-                  background: '#c9a84c', borderRadius: 10,
-                  fontSize: 13, fontWeight: 700, color: '#1a1c23',
-                  fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Oppgrader →
-              </Link>
-            </div>
-          </div>
 
-          {/* Global league toggle (inline, small) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 22px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, marginBottom: 4 }}>
-            <div
-              onClick={() => setAllowGlobal(v => !v)}
-              style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
-            >
-              <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
+            {/* Toggle row — inside banner, separated by a subtle divider */}
+            <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                onClick={() => setAllowGlobal(v => !v)}
+                style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
+              >
+                <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
+              </div>
+              <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={() => setAllowGlobal(v => !v)}>
+                Delta i global sesong-toppliste
+              </span>
+              <span style={{ fontSize: 12, color: '#7a7873', marginLeft: 4 }}>
+                — Tillat at ansatte vises på felles sesong-toppliste
+              </span>
             </div>
-            <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={() => setAllowGlobal(v => !v)}>
-              Delta i global sesong-toppliste
-            </span>
-            <span style={{ fontSize: 12, color: '#7a7873', marginLeft: 4 }}>
-              — Tillat at ansatte vises på felles sesong-toppliste
-            </span>
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════
