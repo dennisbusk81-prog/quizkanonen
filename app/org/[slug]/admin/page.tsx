@@ -222,8 +222,10 @@ export default function OrgAdminPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  const [copiedWinner, setCopiedWinner]           = useState(false)
-  const [shareHovered, setShareHovered]           = useState(false)
+  type Top3Entry = { displayName: string; points: number }
+  const [top3Winners, setTop3Winners] = useState<{ month: Top3Entry[]; quarter: Top3Entry[]; year: Top3Entry[] }>({ month: [], quarter: [], year: [] })
+  const [copiedWinner, setCopiedWinner] = useState<false | 'month' | 'quarter' | 'year'>(false)
+  const [shareHovered, setShareHovered] = useState<false | 'month' | 'quarter' | 'year'>(false)
 
   const [allowGlobal, setAllowGlobal] = useState(false)
 
@@ -295,13 +297,19 @@ export default function OrgAdminPage() {
           cache: 'no-store',
         })
           .then(r => r.ok ? r.json() : { entries: [] })
-          .then(json => json.entries?.[0] ?? null)
-          .catch(() => null)
+          .catch(() => ({ entries: [] }))
       )
-    ).then(([month, quarter, year]) => {
-      const toWinner = (e: { displayName: string; avatarUrl: string | null; points: number } | null) =>
-        e ? { displayName: e.displayName, avatarUrl: e.avatarUrl, points: e.points } : null
-      setWinners({ month: toWinner(month), quarter: toWinner(quarter), year: toWinner(year) })
+    ).then(([monthJson, quarterJson, yearJson]) => {
+      type ApiEntry = { displayName: string; avatarUrl: string | null; points: number }
+      const toWinner = (entries: ApiEntry[]) =>
+        entries[0] ? { displayName: entries[0].displayName, avatarUrl: entries[0].avatarUrl ?? null, points: entries[0].points } : null
+      const toTop3 = (entries: ApiEntry[]) =>
+        entries.slice(0, 3).map(e => ({ displayName: e.displayName, points: e.points }))
+      const mE = (monthJson.entries ?? []) as ApiEntry[]
+      const qE = (quarterJson.entries ?? []) as ApiEntry[]
+      const yE = (yearJson.entries ?? []) as ApiEntry[]
+      setWinners({ month: toWinner(mE), quarter: toWinner(qE), year: toWinner(yE) })
+      setTop3Winners({ month: toTop3(mE), quarter: toTop3(qE), year: toTop3(yE) })
     })
   }, [])
 
@@ -664,22 +672,36 @@ export default function OrgAdminPage() {
     setTimeout(() => setCopiedToken(null), 2000)
   }
 
-  const shareWinner = () => {
-    if (!winners?.month || !data) return
+  const shareWinner = (period: 'month' | 'quarter' | 'year') => {
+    if (!data) return
     const now = new Date()
-    const monthName = now.toLocaleDateString('nb-NO', { month: 'long' })
-    const monthCap = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+    const year = now.getFullYear()
+    let periodLabel: string
+    if (period === 'month') {
+      const mn = now.toLocaleDateString('nb-NO', { month: 'long' })
+      periodLabel = `${mn.charAt(0).toUpperCase() + mn.slice(1)} ${year}`
+    } else if (period === 'quarter') {
+      periodLabel = `Q${Math.floor(now.getMonth() / 3) + 1} ${year}`
+    } else {
+      periodLabel = `${year}`
+    }
+    const titleWord = period === 'month' ? 'Månedens' : period === 'quarter' ? 'Kvartalets' : 'Årets'
+    const medals = ['🥇', '🥈', '🥉']
+    const top3Lines = top3Winners[period].map((e, i) => `${medals[i]} ${e.displayName} — ${e.points} poeng`)
+    const mc = data.stats?.memberCount ?? data.members.length
+    const ac = data.stats?.activeThisMonth ?? 0
+    const pct = mc > 0 ? Math.round((ac / mc) * 100) : 0
     const text = [
-      `🏆 Månedens Quizkanon — ${monthCap} ${now.getFullYear()}`,
+      `🏆 ${titleWord} Quizkanon — ${periodLabel} | ${data.org.name}`,
       '',
-      `${data.org.name} gratulerer:`,
-      `👑 ${winners.month.displayName} — ${winners.month.points} poeng`,
+      ...top3Lines,
       '',
-      'Spill fredagsquizen på quizkanonen.no',
-      'og utfordre kollegene dine! 🎯',
+      `📊 Deltakelse: ${ac} av ${mc} medlemmer (${pct}%)`,
+      '',
+      'Spill fredagsquizen på quizkanonen.no 🎯',
     ].join('\n')
     navigator.clipboard.writeText(text).then(() => {
-      setCopiedWinner(true)
+      setCopiedWinner(period)
       setTimeout(() => setCopiedWinner(false), 2000)
     })
   }
@@ -1560,10 +1582,10 @@ export default function OrgAdminPage() {
 
           <div className="oa-winners-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 8 }}>
             {([
-              { label: 'Månedens kanon',   icon: '★', winner: winners?.month   },
-              { label: 'Kvartalets kanon', icon: '◆', winner: winners?.quarter },
-              { label: 'Årets kanon',      icon: '♛', winner: winners?.year    },
-            ] as { label: string; icon: string; winner: WinnerEntry | undefined }[]).map(({ label, icon, winner }) => (
+              { label: 'Månedens kanon',   icon: '★', winner: winners?.month,   period: 'month'   as const },
+              { label: 'Kvartalets kanon', icon: '◆', winner: winners?.quarter, period: 'quarter' as const },
+              { label: 'Årets kanon',      icon: '♛', winner: winners?.year,    period: 'year'    as const },
+            ] as { label: string; icon: string; winner: WinnerEntry | undefined; period: 'month' | 'quarter' | 'year' }[]).map(({ label, icon, winner, period }) => (
               <div
                 key={label}
                 style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}
@@ -1586,23 +1608,21 @@ export default function OrgAdminPage() {
                         {winner.displayName}
                       </p>
                       <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</p>
-                      {label === 'Månedens kanon' && (
-                        <button
-                          onClick={shareWinner}
-                          onMouseEnter={() => setShareHovered(true)}
-                          onMouseLeave={() => setShareHovered(false)}
-                          style={{
-                            display: 'inline-block', marginTop: 8, fontSize: 11, padding: '4px 12px',
-                            border: `1px solid ${shareHovered || copiedWinner ? '#c9a84c' : '#2a2d38'}`,
-                            borderRadius: 6, background: 'transparent',
-                            color: copiedWinner ? '#6dba88' : shareHovered ? '#c9a84c' : '#7a7873',
-                            cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
-                            transition: 'color 0.15s, border-color 0.15s',
-                          }}
-                        >
-                          {copiedWinner ? 'Kopiert! ✓' : 'Del på Slack'}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => shareWinner(period)}
+                        onMouseEnter={() => setShareHovered(period)}
+                        onMouseLeave={() => setShareHovered(false)}
+                        style={{
+                          display: 'inline-block', marginTop: 8, fontSize: 11, padding: '4px 12px',
+                          border: `1px solid ${shareHovered === period || copiedWinner === period ? '#c9a84c' : '#2a2d38'}`,
+                          borderRadius: 6, background: 'transparent',
+                          color: copiedWinner === period ? '#6dba88' : shareHovered === period ? '#c9a84c' : '#7a7873',
+                          cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                          transition: 'color 0.15s, border-color 0.15s',
+                        }}
+                      >
+                        {copiedWinner === period ? 'Kopiert! ✓' : 'Del med teamet'}
+                      </button>
                     </div>
                   </div>
                 )}
