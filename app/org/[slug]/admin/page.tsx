@@ -486,7 +486,12 @@ export default function OrgAdminPage() {
   const activeCount    = data?.stats?.activeThisMonth ?? 0
   const activePercent  = memberCount > 0 ? Math.round((activeCount / memberCount) * 100) : 0
   const totalQuizzes   = activityData ? activityData.reduce((s, m) => s + m.quizCount, 0) : null
-  const planName       = (data?.org.plan ?? '').charAt(0).toUpperCase() + (data?.org.plan ?? '').slice(1)
+  const currentPlan    = data?.org.plan ?? ''
+  const planName       = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)
+  const upgradeHint    =
+    currentPlan === 'starter'  ? 'Oppgrader til Standard: opptil 25 deltakere + CSV-eksport' :
+    currentPlan === 'standard' ? 'Oppgrader til Pro: opptil 50 deltakere + avdelingsligaer'  :
+    null
   const renewalDate    = data?.org.stripe_period_end
     ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
@@ -614,6 +619,11 @@ export default function OrgAdminPage() {
                 <p style={{ fontSize: 13, color: '#e8e4dd' }}>
                   Bedriftsabonnement for {data?.org.name}
                 </p>
+                {upgradeHint && (
+                  <p style={{ fontSize: 12, color: '#7a7873', marginTop: 4 }}>
+                    {upgradeHint}
+                  </p>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <button
@@ -631,18 +641,20 @@ export default function OrgAdminPage() {
                 >
                   {settingsSaved ? 'Lagret!' : savingSettings ? 'Lagrer…' : 'Innstillinger'}
                 </button>
-                <Link
-                  href={`/kontakt`}
-                  style={{
-                    display: 'inline-block', padding: '8px 18px',
-                    background: '#c9a84c', borderRadius: 10,
-                    fontSize: 13, fontWeight: 700, color: '#1a1c23',
-                    fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Oppgrader →
-                </Link>
+                {currentPlan !== 'pro' && (
+                  <Link
+                    href={`/kontakt`}
+                    style={{
+                      display: 'inline-block', padding: '8px 18px',
+                      background: '#c9a84c', borderRadius: 10,
+                      fontSize: 13, fontWeight: 700, color: '#1a1c23',
+                      fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Oppgrader →
+                  </Link>
+                )}
               </div>
             </div>
 
