@@ -161,11 +161,72 @@ export async function POST(request: NextRequest) {
     day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Oslo',
   })
 
+  // 6. AI-generated intro and outro
+  const FALLBACK_INTRO = 'Takk til alle som deltok i dag!'
+  const FALLBACK_OUTRO = 'Gratulerer til vinnerne! Ha en fantastisk helg! 🎉'
+  let aiIntro = FALLBACK_INTRO
+  let aiOutro  = FALLBACK_OUTRO
+
+  try {
+    const winner = top10Attempts[0]
+    const winnerDesc = winner
+      ? `${nameOf(winner)} med ${winner.correct_answers} riktige på ${formatTime(winner.total_time_ms)}`
+      : 'ukjent'
+    const easiestPart = easiestText && easiestPct !== null
+      ? `Letteste spørsmål: '${easiestText}' (${easiestPct}% riktige).`
+      : ''
+    const hardestPart = hardestText && hardestPct !== null
+      ? `Vanskeligste spørsmål: '${hardestText}' (${hardestPct}% riktige).`
+      : ''
+    const userPrompt = [
+      `Quiz: ${quiz.title}. Deltakere: ${total}.`,
+      easiestPart,
+      hardestPart,
+      `Vinner: ${winnerDesc}.`,
+    ].filter(Boolean).join(' ')
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 200,
+        system: 'Du er quizmaster for Quizkanonen, en norsk fredagsquiz med hundrevis av deltakere. Skriv en kort, vennlig og engasjerende intro (2-3 setninger) og en avslutning (1 setning) til et Facebook-innlegg med quizresultater. Varier tonen — noen ganger entusiastisk, noen ganger humoristisk, noen ganger imponert over deltakertallet eller resultater. Skriv alltid på norsk. Returner KUN JSON: { "intro": string, "outro": string }',
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (aiRes.ok) {
+      const aiJson = await aiRes.json()
+      const raw = (aiJson?.content?.[0]?.text ?? '') as string
+      const jsonStr = raw.replace(/```json\n?|\n?```/g, '').trim()
+      const parsed = JSON.parse(jsonStr) as { intro?: string; outro?: string }
+      if (parsed.intro) aiIntro = parsed.intro
+      if (parsed.outro) aiOutro  = parsed.outro
+    } else {
+      console.error('Anthropic API feil:', aiRes.status)
+    }
+  } catch (err) {
+    console.error('AI-generert intro/outro feilet:', err)
+  }
+
   // Build text
   const medals = ['🥇', '🥈', '🥉']
   const lines: string[] = []
 
   lines.push(`Resultat ${quiz.title} ${dateStr}`)
+  lines.push('')
+  lines.push(aiIntro)
   lines.push('')
   lines.push(`${total} deltakere var med i dag!`)
   lines.push('')
@@ -193,7 +254,7 @@ export async function POST(request: NextRequest) {
   }
 
   lines.push('')
-  lines.push('Gratulerer! Ha en fantastisk helg! 🎉')
+  lines.push(aiOutro)
 
   return NextResponse.json({ text: lines.join('\n') })
 }
