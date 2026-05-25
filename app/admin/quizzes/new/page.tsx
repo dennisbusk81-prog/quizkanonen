@@ -1012,13 +1012,55 @@ function QuizEditorInner() {
         setAiGenAllError('AI returnerte ingen spørsmål — prøv igjen')
         return
       }
+      // Persist all generated questions to DB immediately if quiz already exists.
+      // Refresh IDs first so we can PATCH any existing rows (e.g. the single
+      // orphan placeholder created when the title was entered), then POST the
+      // rest. This avoids duplicate rows and index misalignment.
+      const qId = quizIdRef.current
+      if (qId && qId !== 'creating') {
+        setSaveStatus('saving')
+        await refreshQuestionIds(qId)
+        for (let i = 0; i < generated.length; i++) {
+          const q = generated[i]
+          const body = {
+            question_text:      q.text.trim(),
+            option_a:           q.optionA.trim(),
+            option_b:           q.optionB.trim(),
+            option_c:           q.optionC.trim() || null,
+            option_d:           q.optionD.trim() || null,
+            correct_answer:     q.correctAnswer,
+            time_limit_seconds: q.timeLimit,
+            shuffle_options:    shuffleAllRef.current,
+            category:           q.category || null,
+            explanation:        q.explanation.trim() || null,
+          }
+          const dbId = questionDbIdsRef.current[i]
+          if (dbId) {
+            await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+              method: 'PATCH',
+              body: JSON.stringify(body),
+            })
+          } else {
+            await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
+              method: 'POST',
+              body: JSON.stringify({ ...body, order_index: i + 1 }),
+            })
+          }
+        }
+        await refreshQuestionIds(qId)  // sync IDs after all saves
+        showSaved()
+      }
+
       questionsRef.current = generated
       setQuestions(generated)
       setActiveIdx(0)
       activeIdxRef.current = 0
-      // FIX 3 — clear stale DB IDs so saves don't PATCH wrong rows
-      setQuestionDbIds([])
-      questionDbIdsRef.current = []
+      // Clear IDs only when no quiz exists yet; when quiz exists the IDs were
+      // just correctly synced by the save loop above.
+      if (!qId || qId === 'creating') {
+        setQuestionDbIds([])
+        questionDbIdsRef.current = []
+      }
       setMetaOpen(false)
     } catch {
       setAiGenAllError('Kunne ikke generere quiz — prøv igjen')
@@ -1054,7 +1096,12 @@ function QuizEditorInner() {
     } else {
       await updateQuizMeta()
     }
-    await saveQuestion(activeIdx)
+    // Save ALL questions — not just the active one.
+    // Before this fix, AI-generated quizzes lost all questions except the last
+    // active one because saveQuestion was only called for activeIdx.
+    for (let i = 0; i < questionsRef.current.length; i++) {
+      await saveQuestion(i)
+    }
     router.push(`/admin/quizzes/${qId}/questions`)
   }
 
