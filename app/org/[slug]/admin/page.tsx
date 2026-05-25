@@ -511,7 +511,7 @@ export default function OrgAdminPage() {
   const planName       = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)
   const upgradeHint    =
     currentPlan === 'starter'  ? 'Oppgrader til Standard: opptil 25 deltakere + CSV-eksport' :
-    currentPlan === 'standard' ? 'Oppgrader til Pro: opptil 50 deltakere + avdelingsligaer'  :
+    currentPlan === 'standard' ? 'Oppgrader til Pro: opptil 50 deltakere + prioritert support'  :
     null
   const renewalDate    = data?.org.stripe_period_end
     ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
