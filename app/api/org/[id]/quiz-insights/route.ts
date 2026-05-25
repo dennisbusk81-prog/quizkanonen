@@ -35,10 +35,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Ingen medlemmer' }, { status: 404 })
   }
 
-  // Most recent closed quiz
+  // Most recent closed quiz that actually has attempt_answers
   const { data: closedQuiz } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title')
+    .select('id, title, attempts!inner(id, attempt_answers!inner(id))')
     .lt('closes_at', new Date().toISOString())
     .not('closes_at', 'is', null)
     .order('closes_at', { ascending: false })

@@ -907,7 +907,7 @@ export default async function Home() {
     try {
       const { data: closedQuizRow } = await supabaseAdmin
         .from('quizzes')
-        .select('id')
+        .select('id, attempts!inner(id, attempt_answers!inner(id))')
         .lt('closes_at', now.toISOString())
         .not('closes_at', 'is', null)
         .order('closes_at', { ascending: false })
