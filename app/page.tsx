@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
 import OrgCard from '@/components/OrgCard'
+import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -798,97 +799,104 @@ export default async function Home() {
 
     const monthName = now.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
 
-    // League
-    const leagueRows  = (leagueResult.data as LeagueMemberRow[] | null) ?? []
-    const firstLeague = leagueRows[0]?.leagues ?? null
+    // Leagues — hent data for alle ligaer brukeren er med i, parallelt
+    const leagueRows = (leagueResult.data as LeagueMemberRow[] | null) ?? []
+    const allLeagues = leagueRows
+      .map(r => r.leagues)
+      .filter((l): l is { id: string; name: string } => l !== null)
 
-    type LeagueEntry = { displayName: string; value: number }
-    let leagueTop3: LeagueEntry[] = []
-    let leagueFromFallback = false
+    type AttemptFallback = { user_id: string; correct_answers: number; total_time_ms: number }
 
-    if (firstLeague?.id) {
-      const { data: leagueScores } = await supabaseAdmin
-        .from('season_scores')
-        .select('user_id, points, profiles(display_name)')
-        .eq('scope_type', 'league')
-        .eq('scope_id', firstLeague.id)
-        .gte('closes_at', monthStart)
-        .lt('closes_at', monthEnd)
+    const leagueDataArr: LeagueCardData[] = await Promise.all(
+      allLeagues.map(async (league) => {
+        // Sesongpoeng for denne ligaen denne måneden
+        const { data: leagueScores } = await supabaseAdmin
+          .from('season_scores')
+          .select('user_id, points, profiles(display_name)')
+          .eq('scope_type', 'league')
+          .eq('scope_id', league.id)
+          .gte('closes_at', monthStart)
+          .lt('closes_at', monthEnd)
 
-      const lByUser = new Map<string, { displayName: string; points: number }>()
-      for (const row of (leagueScores as LeagueScoreRow[] | null) ?? []) {
-        const name = row.profiles?.display_name
-        if (!name) continue
-        const existing = lByUser.get(row.user_id)
-        if (existing) existing.points += row.points
-        else lByUser.set(row.user_id, { displayName: name, points: row.points })
-      }
+        const lByUser = new Map<string, { displayName: string; points: number }>()
+        for (const row of (leagueScores as LeagueScoreRow[] | null) ?? []) {
+          const name = row.profiles?.display_name
+          if (!name) continue
+          const existing = lByUser.get(row.user_id)
+          if (existing) existing.points += row.points
+          else lByUser.set(row.user_id, { displayName: name, points: row.points })
+        }
 
-      if (lByUser.size > 0) {
-        leagueTop3 = Array.from(lByUser.values())
-          .sort((a, b) => b.points - a.points)
-          .slice(0, 3)
-          .map(e => ({ displayName: e.displayName, value: e.points }))
-      } else if (quiz?.id) {
-        // Fallback: season_scores er tom (quizen er åpen) — les direkte fra attempts
-        const { data: memberRows } = await supabaseAdmin
-          .from('league_members')
-          .select('user_id')
-          .eq('league_id', firstLeague.id)
+        if (lByUser.size > 0) {
+          const top3 = Array.from(lByUser.values())
+            .sort((a, b) => b.points - a.points)
+            .slice(0, 3)
+            .map(e => ({ displayName: e.displayName, value: e.points }))
+          return { id: league.id, name: league.name, top3, fromFallback: false }
+        }
 
-        const memberIds = ((memberRows ?? []) as { user_id: string }[]).map(m => m.user_id)
+        // Fallback: quizen er åpen — les direkte fra attempts
+        if (quiz?.id) {
+          const { data: memberRows } = await supabaseAdmin
+            .from('league_members')
+            .select('user_id')
+            .eq('league_id', league.id)
 
-        if (memberIds.length > 0) {
-          const { data: attemptRows } = await supabaseAdmin
-            .from('attempts')
-            .select('user_id, correct_answers, total_time_ms')
-            .eq('quiz_id', quiz.id)
-            .in('user_id', memberIds)
-            .eq('is_team', false)
-            .not('user_id', 'is', null)
+          const memberIds = ((memberRows ?? []) as { user_id: string }[]).map(m => m.user_id)
 
-          type AttemptFallback = { user_id: string; correct_answers: number; total_time_ms: number }
-          const bestByUser = new Map<string, AttemptFallback>()
-          for (const a of (attemptRows ?? []) as AttemptFallback[]) {
-            const existing = bestByUser.get(a.user_id)
-            if (
-              !existing ||
-              a.correct_answers > existing.correct_answers ||
-              (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms)
-            ) {
-              bestByUser.set(a.user_id, a)
+          if (memberIds.length > 0) {
+            const { data: attemptRows } = await supabaseAdmin
+              .from('attempts')
+              .select('user_id, correct_answers, total_time_ms')
+              .eq('quiz_id', quiz.id)
+              .in('user_id', memberIds)
+              .eq('is_team', false)
+              .not('user_id', 'is', null)
+
+            const bestByUser = new Map<string, AttemptFallback>()
+            for (const a of (attemptRows ?? []) as AttemptFallback[]) {
+              const existing = bestByUser.get(a.user_id)
+              if (
+                !existing ||
+                a.correct_answers > existing.correct_answers ||
+                (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms)
+              ) {
+                bestByUser.set(a.user_id, a)
+              }
+            }
+
+            if (bestByUser.size > 0) {
+              const sortedFallback = [...bestByUser.values()]
+                .sort((a, b) =>
+                  b.correct_answers !== a.correct_answers
+                    ? b.correct_answers - a.correct_answers
+                    : a.total_time_ms - b.total_time_ms
+                )
+                .slice(0, 3)
+
+              const topIds = sortedFallback.map(a => a.user_id)
+              const { data: profileRows } = await supabaseAdmin
+                .from('profiles')
+                .select('id, display_name')
+                .in('id', topIds)
+
+              const profileMap = new Map(
+                ((profileRows ?? []) as { id: string; display_name: string | null }[])
+                  .map(p => [p.id, p.display_name])
+              )
+
+              const top3 = sortedFallback.map(a => ({
+                displayName: profileMap.get(a.user_id) ?? 'Spiller',
+                value: a.correct_answers,
+              }))
+              return { id: league.id, name: league.name, top3, fromFallback: true }
             }
           }
-
-          if (bestByUser.size > 0) {
-            const sortedFallback = [...bestByUser.values()]
-              .sort((a, b) =>
-                b.correct_answers !== a.correct_answers
-                  ? b.correct_answers - a.correct_answers
-                  : a.total_time_ms - b.total_time_ms
-              )
-              .slice(0, 3)
-
-            const topIds = sortedFallback.map(a => a.user_id)
-            const { data: profileRows } = await supabaseAdmin
-              .from('profiles')
-              .select('id, display_name')
-              .in('id', topIds)
-
-            const profileMap = new Map(
-              ((profileRows ?? []) as { id: string; display_name: string | null }[])
-                .map(p => [p.id, p.display_name])
-            )
-
-            leagueTop3 = sortedFallback.map(a => ({
-              displayName: profileMap.get(a.user_id) ?? 'Spiller',
-              value: a.correct_answers,
-            }))
-            leagueFromFallback = true
-          }
         }
-      }
-    }
+
+        return { id: league.id, name: league.name, top3: [], fromFallback: false }
+      })
+    )
 
     const todayLabel = now.toLocaleDateString('nb-NO', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo',
@@ -1082,53 +1090,9 @@ export default async function Home() {
             </Link>
           </div>
 
-          {/* League card */}
-          {firstLeague && (
-            <div className="qkp-plain-card">
-              <p className="qkp-section-label">Din liga</p>
-              <p style={{
-                fontFamily: "'Libre Baskerville', serif",
-                fontSize: 18,
-                fontWeight: 700,
-                color: '#ffffff',
-                marginBottom: 16,
-              }}>
-                {firstLeague.name}
-              </p>
-
-              {leagueTop3.length > 0 ? (
-                <>
-                  <div className="qk-top3-rows qkp-league-top3">
-                    {leagueTop3.map((m, i) => (
-                      <div key={i} className="qk-top3-row">
-                        <div className="qk-top3-left">
-                          <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
-                            {i + 1}.
-                          </span>
-                          <span className="qk-top3-name">{truncateName(m.displayName)}</span>
-                        </div>
-                        <div className="qk-top3-right">
-                          {m.value} {leagueFromFallback ? 'riktige' : 'poeng'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {leagueFromFallback && (
-                    <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8, marginBottom: 0 }}>
-                      Sesongpoeng beregnes når quizen stenger
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
-                  Ingen har spilt ennå
-                </p>
-              )}
-
-              <Link href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                Se alle ligaer →
-              </Link>
-            </div>
+          {/* League card — klient-komponent for at velger + localStorage skal fungere */}
+          {leagueDataArr.length > 0 && (
+            <LeagueCard leagues={leagueDataArr} />
           )}
 
         </div>
