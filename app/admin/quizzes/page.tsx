@@ -241,12 +241,31 @@ export default function AdminQuizzes() {
   const [mounted, setMounted] = useState(false)
 
   // Import modal
+  const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
+
+  // Import modal
   const [importModal, setImportModal] = useState(false)
   const [importTitle, setImportTitle] = useState('')
   const [importRows, setImportRows] = useState<ParsedQuestion[]>([])
   const [importFileName, setImportFileName] = useState('')
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function shareQuizResults(quizId: string) {
+    try {
+      const res = await adminFetch('/api/admin/quiz-results-text', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      })
+      if (!res.ok) return
+      const { text } = await res.json()
+      await navigator.clipboard.writeText(text)
+      setCopiedQuizId(quizId)
+      setTimeout(() => setCopiedQuizId(null), 3000)
+    } catch {
+      // silent — non-critical
+    }
+  }
 
   async function downloadTemplate() {
     const XLSX = await import('xlsx')
@@ -504,6 +523,20 @@ export default function AdminQuizzes() {
                   <button onClick={() => deleteQuiz(quiz.id)} className="aqz-action red">
                     Slett
                   </button>
+                  {mounted && quiz.closes_at && new Date(quiz.closes_at) < new Date() && (
+                    <button
+                      onClick={() => shareQuizResults(quiz.id)}
+                      className="aqz-action"
+                      style={{
+                        color: copiedQuizId === quiz.id ? '#6dba88' : '#e8e4dd',
+                        border: `1px solid ${copiedQuizId === quiz.id ? '#6dba88' : '#2a2d38'}`,
+                        background: 'transparent',
+                        transition: 'color 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      {copiedQuizId === quiz.id ? 'Kopiert! ✓' : 'Del resultater'}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
