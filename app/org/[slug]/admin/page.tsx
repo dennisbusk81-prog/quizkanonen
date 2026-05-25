@@ -179,7 +179,7 @@ export default function OrgAdminPage() {
   const [seasonResetting, setSeasonResetting]     = useState(false)
   const [seasonResetDone, setSeasonResetDone]     = useState(false)
 
-  const [adminEmail, setAdminEmail]               = useState('')
+  const [hoveredMemberId, setHoveredMemberId]     = useState<string | null>(null)
   const [adminActionLoading, setAdminActionLoading] = useState(false)
   const [adminActionError, setAdminActionError]   = useState<string | null>(null)
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null)
@@ -301,6 +301,28 @@ export default function OrgAdminPage() {
     }
   }
 
+  // Deactivate old invite and immediately create a new one
+  const renewInvite = async (id: string) => {
+    if (!session || !data) return
+    setDeactivatingId(id)
+    setCreatingInvite(true)
+    try {
+      await fetch(`/api/org/invites/${id}/deactivate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      await fetch('/api/org/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ organization_id: data.org.id }),
+      })
+      loadData(session)
+    } finally {
+      setDeactivatingId(null)
+      setCreatingInvite(false)
+    }
+  }
+
   const removeMember = async (membershipId: string) => {
     if (!session) return
     setRemovingId(membershipId)
@@ -348,7 +370,6 @@ export default function OrgAdminPage() {
         setAdminActionError(json.error ?? 'Noe gikk galt')
       } else {
         setAdminActionSuccess(action === 'add' ? 'Admin lagt til' : 'Admin-rolle fjernet')
-        setAdminEmail('')
         loadData(session)
         setTimeout(() => setAdminActionSuccess(null), 3000)
       }
@@ -722,6 +743,8 @@ export default function OrgAdminPage() {
                 return (
                   <div
                     key={member.id}
+                    onMouseEnter={() => setHoveredMemberId(member.id)}
+                    onMouseLeave={() => setHoveredMemberId(null)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '12px 18px',
@@ -748,13 +771,24 @@ export default function OrgAdminPage() {
                     {/* Action buttons */}
                     {!isMe && (
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button
-                          onClick={() => handleSetAdmin(isAdmin ? 'remove' : 'add', undefined, member.user_id)}
-                          disabled={adminActionLoading}
-                          style={{ fontSize: 11, fontWeight: 600, color: isAdmin ? '#c9a84c' : '#7a7873', background: 'transparent', border: `0.5px solid ${isAdmin ? 'rgba(201,168,76,0.3)' : '#2a2d38'}`, borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
-                        >
-                          {isAdmin ? 'Admin' : 'Gjør admin'}
-                        </button>
+                        {/* Admin toggle: always visible for existing admins; hover-only for promotion */}
+                        {isAdmin ? (
+                          <button
+                            onClick={() => handleSetAdmin('remove', undefined, member.user_id)}
+                            disabled={adminActionLoading}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          >
+                            Admin
+                          </button>
+                        ) : hoveredMemberId === member.id ? (
+                          <button
+                            onClick={() => handleSetAdmin('add', undefined, member.user_id)}
+                            disabled={adminActionLoading}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          >
+                            Gjør admin
+                          </button>
+                        ) : null}
                         <button
                           onClick={() => removeMember(member.id)}
                           disabled={removingId === member.id}
@@ -785,117 +819,119 @@ export default function OrgAdminPage() {
               <p style={{ fontSize: 12, color: '#4ade80', padding: '0 18px 12px' }}>{adminActionSuccess}</p>
             )}
 
-            {/* Invite row */}
-            <div style={{ borderTop: '1px solid #2a2d38', padding: '14px 18px' }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: primaryInvite ? 10 : 0 }}>
-                <input
-                  type="email"
-                  value={adminEmail}
-                  onChange={e => { setAdminEmail(e.target.value); setAdminActionError(null) }}
-                  onKeyDown={e => { if (e.key === 'Enter' && adminEmail.trim()) handleSetAdmin('add', adminEmail) }}
-                  placeholder="Legg til admin via e-post…"
-                  className="oa-input"
-                  style={{ flex: 1, fontSize: 13 }}
-                />
-                <button
-                  onClick={() => handleSetAdmin('add', adminEmail)}
-                  disabled={adminActionLoading || !adminEmail.trim()}
-                  style={{
-                    padding: '9px 16px', background: adminActionLoading || !adminEmail.trim() ? 'transparent' : '#c9a84c',
-                    border: `1px solid ${adminActionLoading || !adminEmail.trim() ? '#2a2d38' : '#c9a84c'}`,
-                    borderRadius: 8, fontSize: 13, fontWeight: 700,
-                    color: adminActionLoading || !adminEmail.trim() ? '#4a4d5a' : '#1a1c23',
-                    cursor: adminActionLoading || !adminEmail.trim() ? 'not-allowed' : 'pointer',
-                    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
-                  }}
-                >
-                  {adminActionLoading ? 'Lagrer…' : 'Legg til →'}
-                </button>
+            {/* ── Invite section ─────────────────────────────────────────── */}
+            <div style={{ borderTop: '1px solid #2a2d38', padding: '16px 18px' }}>
+
+              {/* RAD 1 — Delbar invitasjonslenke */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: '#7a7873', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  Invitasjonslenke — del med ansatte
+                </span>
+                {primaryInvite ? (
+                  <>
+                    <input
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/bli-med/${primaryInvite.token}`}
+                      className="oa-input"
+                      style={{ flex: 1, minWidth: 120, fontSize: 13, color: '#e8e4dd', cursor: 'text' }}
+                      onFocus={e => e.currentTarget.select()}
+                    />
+                    <button
+                      onClick={() => copyLink(primaryInvite.token)}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        border: `1px solid ${copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.4)' : '#2a2d38'}`,
+                        borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        color: copiedToken === primaryInvite.token ? '#4ade80' : '#e8e4dd',
+                        cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      {copiedToken === primaryInvite.token ? 'Kopiert ✓' : 'Kopier'}
+                    </button>
+                    <button
+                      onClick={() => renewInvite(primaryInvite.id)}
+                      disabled={deactivatingId === primaryInvite.id || creatingInvite}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        border: '0.5px solid #2a2d38', borderRadius: 8,
+                        fontSize: 12, color: '#7a7873',
+                        cursor: (deactivatingId === primaryInvite.id || creatingInvite) ? 'not-allowed' : 'pointer',
+                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      {(deactivatingId === primaryInvite.id || creatingInvite) ? '…' : 'Ny lenke'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={createInvite}
+                      disabled={creatingInvite}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        border: '1px solid rgba(201,168,76,0.3)', borderRadius: 8,
+                        fontSize: 12, fontWeight: 600, color: '#c9a84c',
+                        cursor: creatingInvite ? 'not-allowed' : 'pointer',
+                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      {creatingInvite ? 'Oppretter…' : '+ Opprett lenke'}
+                    </button>
+                  </>
+                )}
               </div>
 
-              {/* Primary invite link */}
-              {primaryInvite ? (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    readOnly
-                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/bli-med/${primaryInvite.token}`}
-                    className="oa-input"
-                    style={{ flex: 1, fontSize: 12, color: '#7a7873', cursor: 'text' }}
-                    onFocus={e => e.currentTarget.select()}
-                  />
-                  <button
-                    onClick={() => copyLink(primaryInvite.token)}
-                    style={{ padding: '8px 14px', background: copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.08)' : 'rgba(201,168,76,0.10)', border: `1px solid ${copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.25)' : 'rgba(201,168,76,0.25)'}`, borderRadius: 8, fontSize: 12, fontWeight: 600, color: copiedToken === primaryInvite.token ? '#4ade80' : '#c9a84c', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
-                  >
-                    {copiedToken === primaryInvite.token ? 'Kopiert!' : 'Kopier'}
-                  </button>
-                  <button
-                    onClick={() => deactivateInvite(primaryInvite.id)}
-                    disabled={deactivatingId === primaryInvite.id}
-                    style={{ padding: '8px 14px', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, fontSize: 12, color: '#7a7873', cursor: deactivatingId === primaryInvite.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
-                  >
-                    {deactivatingId === primaryInvite.id ? '…' : 'Deaktiver'}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={createInvite}
-                  disabled={creatingInvite}
-                  style={{ fontSize: 12, color: '#c9a84c', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: 7, padding: '5px 12px', cursor: creatingInvite ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", fontWeight: 600 }}
-                >
-                  {creatingInvite ? 'Oppretter…' : '+ Opprett invitasjonslenke'}
-                </button>
-              )}
-
-              {inactiveInvites.length > 0 && (
-                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8 }}>
-                  {inactiveInvites.length} deaktivert{inactiveInvites.length !== 1 ? 'e' : ''} lenke{inactiveInvites.length !== 1 ? 'r' : ''}
-                </p>
-              )}
-
-              {/* E-post invitasjon */}
-              <div style={{ marginTop: 10 }}>
+              {/* RAD 2 — Inviter via e-post (kollapset som standard) */}
+              <div style={{ marginTop: 12 }}>
                 <button
                   onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
-                  style={{ fontSize: 12, color: '#7a7873', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0, display: 'flex', alignItems: 'center', gap: 5 }}
+                  style={{ fontSize: 12, color: '#7a7873', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
                 >
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ transform: emailInviteOpen ? 'rotate(90deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
-                    <path d="M2 1L6 4L2 7" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                  Send invitasjon på e-post
+                  + Inviter via e-post
                 </button>
                 {emailInviteOpen && (
-                  <div style={{ marginTop: 10 }}>
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <textarea
                       value={emailInviteText}
                       onChange={e => { setEmailInviteText(e.target.value); setEmailInviteResult(null); setEmailInviteError(null) }}
-                      placeholder={'kollega@bedrift.no, kollega2@bedrift.no'}
-                      rows={3}
-                      style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '9px 12px', fontSize: 12, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'vertical', marginBottom: 8 }}
+                      placeholder="e-post til ansatt..."
+                      rows={2}
+                      style={{ flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'none' }}
                       onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
                       onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
                     />
                     <button
                       onClick={handleSendInvites}
                       disabled={emailInviteSending || !emailInviteText.trim()}
-                      style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#e8e4dd'}`, borderRadius: 8, fontSize: 12, fontWeight: 600, color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#e8e4dd', cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                      style={{
+                        padding: '9px 18px',
+                        background: emailInviteSending || !emailInviteText.trim() ? 'transparent' : '#c9a84c',
+                        border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#c9a84c'}`,
+                        borderRadius: 8, fontSize: 13, fontWeight: 700,
+                        color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#1a1c23',
+                        cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer',
+                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
                     >
-                      {emailInviteSending ? 'Sender…' : 'Send invitasjon'}
+                      {emailInviteSending ? 'Sender…' : 'Send invitasjon →'}
                     </button>
-                    {emailInviteResult && (
-                      <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>
-                        Sendt til {emailInviteResult.sent} mottaker{emailInviteResult.sent !== 1 ? 'e' : ''}.
-                        {emailInviteResult.failed.length > 0 && (
-                          <span style={{ color: '#f87171' }}> Feilet: {emailInviteResult.failed.join(', ')}</span>
-                        )}
-                      </p>
-                    )}
-                    {emailInviteError && (
-                      <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{emailInviteError}</p>
-                    )}
                   </div>
                 )}
+                {emailInviteResult && (
+                  <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>
+                    Sendt til {emailInviteResult.sent} mottaker{emailInviteResult.sent !== 1 ? 'e' : ''}.
+                    {emailInviteResult.failed.length > 0 && (
+                      <span style={{ color: '#f87171' }}> Feilet: {emailInviteResult.failed.join(', ')}</span>
+                    )}
+                  </p>
+                )}
+                {emailInviteError && (
+                  <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{emailInviteError}</p>
+                )}
               </div>
+
             </div>
 
           </div>
