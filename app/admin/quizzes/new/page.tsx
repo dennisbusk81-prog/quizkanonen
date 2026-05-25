@@ -1102,7 +1102,7 @@ function QuizEditorInner() {
     for (let i = 0; i < questionsRef.current.length; i++) {
       await saveQuestion(i)
     }
-    router.push(`/admin/quizzes/${qId}/questions`)
+    router.push('/admin')
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
