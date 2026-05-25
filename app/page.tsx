@@ -782,8 +782,7 @@ export default async function Home() {
     const rawRows = (allSeasonResult.data as RawSeasonRow[] | null) ?? []
     const byUser = new Map<string, { displayName: string; totalPoints: number }>()
     for (const row of rawRows) {
-      const name = row.profiles?.display_name
-      if (!name) continue
+      const name = row.profiles?.display_name ?? '—'
       const existing = byUser.get(row.user_id)
       if (existing) existing.totalPoints += row.points
       else byUser.set(row.user_id, { displayName: name, totalPoints: row.points })

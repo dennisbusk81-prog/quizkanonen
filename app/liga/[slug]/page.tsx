@@ -44,12 +44,6 @@ const s = {
   copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', flexShrink: 0 },
   copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "'Instrument Sans', sans-serif", cursor: 'default', flexShrink: 0 },
 
-  // Owner actions
-  ownerActions:     { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 },
-  resetBtn:         { padding: '8px 16px', background: 'none', border: '1px solid #2a2d38', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  resetConfirmRow:  { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10, marginBottom: 12 },
-  resetConfirmText: { fontSize: 13, color: '#f87171', flex: 1 },
-  resetConfirmBtn:  { padding: '6px 14px', background: '#f87171', color: '#0f0f10', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   resetCancelBtn:   { padding: '6px 14px', background: 'none', border: '1px solid #2a2d38', borderRadius: 7, fontSize: 13, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
 
   errorMsg: { fontSize: 13, color: '#f87171', marginTop: 8 },
@@ -69,9 +63,6 @@ export default function LigaPage() {
   const [accessToken, setAccessToken] = useState('')
   const [inviteUrl, setInviteUrl]   = useState('')
   const [copied, setCopied]         = useState(false)
-  const [resetConfirm, setResetConfirm] = useState(false)
-  const [resetting, setResetting]   = useState(false)
-  const [resetError, setResetError] = useState<string | null>(null)
 
   // Sesong-administrasjon
   const [seasonOpen, setSeasonOpen]     = useState(false)
@@ -150,32 +141,6 @@ export default function LigaPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch { /* ignore */ }
-  }
-
-  async function handleReset() {
-    if (!league || resetting) return
-    setResetting(true)
-    setResetError(null)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      // Nullstiller begge systemene: sesong-scores + legacy all-time
-      const res = await fetch(`/api/leagues/${league.id}/reset-season`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setResetError(data.error ?? 'Noe gikk galt. Prøv igjen.')
-      } else {
-        setResetConfirm(false)
-        setActivityData(null)
-      }
-    } catch {
-      setResetError('Noe gikk galt. Prøv igjen.')
-    } finally {
-      setResetting(false)
-    }
   }
 
   async function handleSeasonReset() {
@@ -359,9 +324,6 @@ export default function LigaPage() {
               )}
             </div>
           )}
-
-          {/* Owner: reset all-time (beholdt for bakoverkompatibilitet, skjult — brukes av bekreftelsesdialog) */}
-          {resetError && <p style={s.errorMsg}>{resetError}</p>}
 
           {/* Sesong-toppliste — scopet til ligaen */}
           {league && (

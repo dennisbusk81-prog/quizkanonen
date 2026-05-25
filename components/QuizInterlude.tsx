@@ -211,7 +211,8 @@ export default function QuizInterlude({
         {/* Ranking context — computed from snapshot, no DB calls */}
         {rankingSnapshot && rankingSnapshot.totalPlayers >= 3 && (() => {
           const questionsLeft = totalQuestions - (questionIndex + 1)
-          const isInTop10 = score >= rankingSnapshot.top10MinCorrect && rankingSnapshot.top10MinCorrect > 0
+          const isInTop10 = score >= rankingSnapshot.top10MinCorrect &&
+            (rankingSnapshot.top10MinCorrect > 0 || rankingSnapshot.totalPlayers >= 2)
           const neededForTop10 = rankingSnapshot.top10MinCorrect - score
 
           if (isInTop10) {

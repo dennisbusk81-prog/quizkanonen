@@ -12,8 +12,9 @@ type AttemptRow = {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const quizId       = searchParams.get('quiz_id')
+  const quizId         = searchParams.get('quiz_id')
   const currentCorrect = parseInt(searchParams.get('current_correct') ?? '0', 10)
+  const currentTime    = parseInt(searchParams.get('current_time_ms') ?? '0', 10)
 
   if (!quizId) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
@@ -61,9 +62,15 @@ export async function GET(request: NextRequest) {
 
   const totalPlayers = sorted.length
 
-  // Spillere strengt over/under brukerens current_correct
-  const strictlyAbove = sorted.filter(p => p.correct_answers > currentCorrect)
-  const strictlyBelow = sorted.filter(p => p.correct_answers < currentCorrect)
+  // Spillere strengt over/under brukerens current_correct, med tidsbreaker
+  const strictlyAbove = sorted.filter(p =>
+    p.correct_answers > currentCorrect ||
+    (p.correct_answers === currentCorrect && currentTime > 0 && p.total_time_ms < currentTime)
+  )
+  const strictlyBelow = sorted.filter(p =>
+    p.correct_answers < currentCorrect ||
+    (p.correct_answers === currentCorrect && currentTime > 0 && p.total_time_ms > currentTime)
+  )
 
   // "Above" = siste (nærmeste) i rekken av spillere med flere riktige
   const aboveEntry = strictlyAbove.length > 0 ? strictlyAbove[strictlyAbove.length - 1] : null

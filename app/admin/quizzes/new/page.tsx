@@ -1096,12 +1096,8 @@ function QuizEditorInner() {
     } else {
       await updateQuizMeta()
     }
-    // Save ALL questions — not just the active one.
-    // Before this fix, AI-generated quizzes lost all questions except the last
-    // active one because saveQuestion was only called for activeIdx.
-    for (let i = 0; i < questionsRef.current.length; i++) {
-      await saveQuestion(i)
-    }
+    // Save ALL questions in parallel — not just the active one.
+    await Promise.all(questionsRef.current.map((_, i) => saveQuestion(i)))
     router.push('/admin')
   }
 

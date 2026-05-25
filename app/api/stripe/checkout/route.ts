@@ -3,6 +3,8 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
+const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
+
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
@@ -33,10 +35,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
     }
 
-    const resolvedPriceId = priceId === 'STRIPE_PRICE_UKESPASS'
-      ? process.env.STRIPE_PRICE_UKESPASS!
-      : process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
-    const mode = priceId === 'STRIPE_PRICE_UKESPASS' ? 'payment' : 'subscription'
+    if (!ALLOWED_PRICE_IDS.includes(priceId)) {
+      return NextResponse.json({ error: 'Ugyldig priceId' }, { status: 400 })
+    }
+    const resolvedPriceId = process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
+    const mode = 'subscription'
 
     const session = await stripe.checkout.sessions.create({
       mode,

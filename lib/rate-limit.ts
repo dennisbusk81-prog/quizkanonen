@@ -16,6 +16,7 @@ export function rateLimit(
   }
 
   if (entry.count >= limit) {
+    rateLimitMap.delete(key)
     return { success: false, remaining: 0 }
   }
 

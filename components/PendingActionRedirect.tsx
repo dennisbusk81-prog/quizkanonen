@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 
 export default function PendingActionRedirect() {
@@ -12,7 +12,7 @@ export default function PendingActionRedirect() {
     const pending = localStorage.getItem(PENDING_ACTION_KEY)
     if (!pending) return
 
-    const supabase = createClient(
+    const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )

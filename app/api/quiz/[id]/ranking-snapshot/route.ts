@@ -102,7 +102,7 @@ export async function GET(
     const low  = Math.max(1, rank - 2)
     const high = Math.min(total + 1, rank + 2)
 
-    return NextResponse.json({ rank, total: total + 1, low, high })
+    return NextResponse.json({ rank, total, low, high })
   } catch (err) {
     console.error('[ranking-snapshot] feil:', err)
     return NextResponse.json({ error: 'Intern feil' }, { status: 500 })

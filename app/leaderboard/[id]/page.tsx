@@ -179,7 +179,8 @@ export default function LeaderboardPage() {
                 const prevRanked = rankAttempts(prevAttemptData as Attempt[])
                 const map = new Map<string, number>()
                 for (const a of prevRanked) {
-                  if (!map.has(a.player_name)) map.set(a.player_name, a.rank)
+                  const key = a.user_id ?? a.player_name
+                  if (!map.has(key)) map.set(key, a.rank)
                 }
                 setPrevRankMap(map)
               }
@@ -268,7 +269,7 @@ export default function LeaderboardPage() {
     const currentRanked = rankAttempts(attempts.filter(a => !a.is_team))
     let best: { name: string; improvement: number } | null = null
     for (const a of currentRanked) {
-      const prevRank = prevRankMap.get(a.player_name)
+      const prevRank = prevRankMap.get(a.user_id ?? a.player_name)
       if (prevRank !== undefined) {
         const improvement = prevRank - a.rank
         if (improvement > 0 && (!best || improvement > best.improvement)) {
