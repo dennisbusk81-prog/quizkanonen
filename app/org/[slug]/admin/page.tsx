@@ -175,6 +175,31 @@ function getPrevPeriodRange(period: 'month' | 'quarter' | 'year'): { start: stri
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
+function computeWeekStreak(timestamps: string[]): number {
+  if (timestamps.length === 0) return 0
+  // Map each timestamp to its Monday (Monday-based week start, UTC)
+  const weeks = new Set<string>()
+  for (const ts of timestamps) {
+    const d = new Date(ts)
+    const monday = new Date(d)
+    monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+    monday.setUTCHours(0, 0, 0, 0)
+    weeks.add(monday.toISOString().slice(0, 10))
+  }
+  // Sort descending (most recent first), then count consecutive weeks
+  const sorted = [...weeks].sort().reverse()
+  let streak = 1
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (new Date(sorted[i]).getTime() - new Date(sorted[i + 1]).getTime() === WEEK_MS) {
+      streak++
+    } else {
+      break
+    }
+  }
+  return streak
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OrgAdminPage() {
@@ -235,6 +260,9 @@ export default function OrgAdminPage() {
 
   // Previous-period ranks for trend indicators (null = not yet loaded)
   const [prevRanks, setPrevRanks] = useState<Map<string, number> | null>(null)
+
+  // Weekly play streak per member (userId → consecutive weeks)
+  const [streaks, setStreaks] = useState<Map<string, number>>(new Map())
 
   // Search
   const [memberSearch, setMemberSearch] = useState('')
@@ -383,6 +411,42 @@ export default function OrgAdminPage() {
     }
   }, [])
 
+  const loadStreaks = useCallback(async (members: Member[]) => {
+    setStreaks(new Map())
+    try {
+      const memberIds = members.map(m => m.user_id).filter(Boolean)
+      if (memberIds.length === 0) return
+      const oneYearAgo = new Date()
+      oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1)
+      const { data: attemptRows } = await supabase
+        .from('attempts')
+        .select('user_id, created_at')
+        .in('user_id', memberIds)
+        .gte('created_at', oneYearAgo.toISOString())
+        .eq('is_team', false)
+        .not('user_id', 'is', null)
+
+      if (!attemptRows || attemptRows.length === 0) return
+
+      // Group timestamps by user
+      const byUser = new Map<string, string[]>()
+      for (const a of attemptRows as { user_id: string; created_at: string }[]) {
+        if (!a.user_id) continue
+        const existing = byUser.get(a.user_id) ?? []
+        existing.push(a.created_at)
+        byUser.set(a.user_id, existing)
+      }
+
+      const result = new Map<string, number>()
+      for (const [userId, timestamps] of byUser) {
+        result.set(userId, computeWeekStreak(timestamps))
+      }
+      setStreaks(result)
+    } catch {
+      // silent — streak is non-critical
+    }
+  }, [])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -399,12 +463,13 @@ export default function OrgAdminPage() {
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
           loadPrevRanks(d.org.id, d.members, 'month')
+          loadStreaks(d.members)
           loadQuizLeaderboard(d.members)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadQuizLeaderboard])
+  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadQuizLeaderboard])
 
   useEffect(() => {
     if (session === undefined) return
@@ -1006,6 +1071,11 @@ export default function OrgAdminPage() {
                       <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
                         Ble med {new Date(member.joined_at).toLocaleDateString('nb-NO')}
                         {activity && ` · ${activity.totalPoints} poeng`}
+                        {(() => {
+                          const s = streaks.get(member.user_id) ?? 0
+                          if (s < 2) return null
+                          return <span style={{ color: '#c9a84c' }}>{` · 🔥 ${s} uker`}</span>
+                        })()}
                       </p>
                     </div>
 
