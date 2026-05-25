@@ -47,29 +47,41 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
 
       {/* Velger — kun synlig når brukeren er i flere ligaer */}
       {leagues.length > 1 && (
-        <select
-          value={selectedId}
-          onChange={e => handleChange(e.target.value)}
-          style={{
-            width: '100%',
-            background: '#1a1c23',
-            border: '1px solid #2a2d38',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            fontFamily: "'Instrument Sans', sans-serif",
-            fontSize: '14px',
-            color: '#ffffff',
-            outline: 'none',
-            cursor: 'pointer',
-            marginBottom: '14px',
-            WebkitAppearance: 'none',
-            appearance: 'none',
-          }}
-        >
-          {leagues.map(l => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
+        <div style={{ marginBottom: 16 }}>
+          <p style={{
+            fontSize: 11,
+            color: '#7a7873',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            marginBottom: 6,
+          }}>
+            Velg liga
+          </p>
+          <select
+            value={selectedId}
+            onChange={e => handleChange(e.target.value)}
+            onMouseEnter={e => { (e.currentTarget as HTMLSelectElement).style.borderColor = '#c9a84c' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLSelectElement).style.borderColor = '#2a2d38' }}
+            style={{
+              width: '100%',
+              background: '#21242e',
+              border: '1px solid #2a2d38',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              fontFamily: "'Instrument Sans', sans-serif",
+              fontSize: '13px',
+              color: '#e8e4dd',
+              outline: 'none',
+              cursor: 'pointer',
+              appearance: 'auto',
+              transition: 'border-color 0.2s',
+            }}
+          >
+            {leagues.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </div>
       )}
 
       <p style={{
