@@ -1592,7 +1592,7 @@ export default function OrgAdminPage() {
                           onMouseEnter={() => setShareHovered(true)}
                           onMouseLeave={() => setShareHovered(false)}
                           style={{
-                            marginTop: 8, fontSize: 11, padding: '4px 12px',
+                            display: 'inline-block', marginTop: 8, fontSize: 11, padding: '4px 12px',
                             border: `1px solid ${shareHovered || copiedWinner ? '#c9a84c' : '#2a2d38'}`,
                             borderRadius: 6, background: 'transparent',
                             color: copiedWinner ? '#6dba88' : shareHovered ? '#c9a84c' : '#7a7873',
