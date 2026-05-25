@@ -102,7 +102,22 @@ export default function OrgLeaderboardPage() {
 
   return (
     <>
-      <UserMenuWrapper />
+      <style>{FONT}</style>
+
+      {/* Sticky nav */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(26,28,35,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid #2a2d38' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
+            ← Hjem
+          </Link>
+          {org?.isAdmin && (
+            <Link href={`/org/${slug}/admin`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none', flexShrink: 0 }}>
+              Admin-panel →
+            </Link>
+          )}
+        </div>
+      </nav>
+
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' }}>
 
@@ -119,15 +134,6 @@ export default function OrgLeaderboardPage() {
             </p>
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
-
-          {/* Admin-lenke */}
-          {org?.isAdmin && (
-            <div style={{ textAlign: 'right' as const, marginBottom: 4 }}>
-              <Link href={`/org/${slug}/admin`} style={{ fontSize: 12, color: '#c9a84c', textDecoration: 'none', letterSpacing: '0.04em' }}>
-                Admin-panel →
-              </Link>
-            </div>
-          )}
 
           {/* Sesong-toppliste scopet til bedriften */}
           {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
