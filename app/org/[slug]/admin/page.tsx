@@ -67,6 +67,13 @@ const CSS = `
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type QuizEntry = {
+  userId: string
+  displayName: string
+  correctAnswers: number
+  totalTimeMs: number
+}
+
 type Member = {
   id: string
   user_id: string
@@ -145,6 +152,12 @@ function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue'
   )
 }
 
+function formatTime(ms: number): string {
+  const s = Math.round(ms / 1000)
+  const m = Math.floor(s / 60)
+  return m > 0 ? `${m}:${(s % 60).toString().padStart(2, '0')}` : `${s}s`
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OrgAdminPage() {
@@ -192,6 +205,12 @@ export default function OrgAdminPage() {
   const [activityData, setActivityData]     = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
   const [excludingId, setExcludingId]       = useState<string | null>(null)
+
+  // Toppliste top-level tab
+  const [topTab, setTopTab]       = useState<'quiz' | 'season'>('quiz')
+  const [quizData, setQuizData]   = useState<QuizEntry[] | null>(null)
+  const [quizTitle, setQuizTitle] = useState<string | null>(null)
+  const [quizLoading, setQuizLoading] = useState(false)
 
   // Search
   const [memberSearch, setMemberSearch] = useState('')
@@ -242,6 +261,64 @@ export default function OrgAdminPage() {
     }
   }, [])
 
+  const loadQuizLeaderboard = useCallback(async (members: Member[]) => {
+    setQuizLoading(true)
+    setQuizData(null)
+    try {
+      // Latest published quiz
+      const { data: latestQuiz } = await supabase
+        .from('quizzes')
+        .select('id, title')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (!latestQuiz) { setQuizData([]); return }
+      setQuizTitle(latestQuiz.title as string)
+
+      const memberIds = members.map(m => m.user_id).filter(Boolean)
+      if (memberIds.length === 0) { setQuizData([]); return }
+
+      const { data: attempts } = await supabase
+        .from('attempts')
+        .select('user_id, player_name, correct_answers, total_time_ms')
+        .eq('quiz_id', latestQuiz.id)
+        .eq('is_team', false)
+        .in('user_id', memberIds)
+        .not('user_id', 'is', null)
+
+      if (!attempts || attempts.length === 0) { setQuizData([]); return }
+
+      // Best attempt per user
+      const bestMap = new Map<string, QuizEntry>()
+      for (const a of attempts as { user_id: string; player_name: string; correct_answers: number; total_time_ms: number }[]) {
+        if (!a.user_id) continue
+        const member = members.find(m => m.user_id === a.user_id)
+        const displayName = member?.display_name ?? a.player_name ?? '?'
+        const existing = bestMap.get(a.user_id)
+        if (
+          !existing ||
+          a.correct_answers > existing.correctAnswers ||
+          (a.correct_answers === existing.correctAnswers && a.total_time_ms < existing.totalTimeMs)
+        ) {
+          bestMap.set(a.user_id, { userId: a.user_id, displayName, correctAnswers: a.correct_answers, totalTimeMs: a.total_time_ms })
+        }
+      }
+
+      setQuizData(
+        [...bestMap.values()].sort((a, b) =>
+          b.correctAnswers !== a.correctAnswers
+            ? b.correctAnswers - a.correctAnswers
+            : a.totalTimeMs - b.totalTimeMs
+        )
+      )
+    } catch {
+      setQuizData([])
+    } finally {
+      setQuizLoading(false)
+    }
+  }, [])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -257,11 +334,12 @@ export default function OrgAdminPage() {
           setAllowGlobal(d.org.allow_global_league)
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
+          loadQuizLeaderboard(d.members)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners, loadActivity])
+  }, [slug, loadWinners, loadActivity, loadQuizLeaderboard])
 
   useEffect(() => {
     if (session === undefined) return
@@ -988,78 +1066,155 @@ export default function OrgAdminPage() {
           {/* ══════════════════════════════════════════════════════════════════
               5. TOPPLISTE-SEKSJON
           ══════════════════════════════════════════════════════════════════ */}
-          <SectionLabel title="Toppliste denne måneden" />
+          <SectionLabel title="Toppliste" />
 
-          {/* Period tabs */}
+          {/* Top-level tabs: Siste quiz / Sesong */}
           <div className="oa-tab-row" style={{ marginBottom: 0 }}>
-            {(['month', 'quarter', 'year'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => setActivityPeriod(p)}
-                className={activityPeriod === p ? 'oa-tab-a' : 'oa-tab-i'}
-              >
-                {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
-              </button>
-            ))}
+            <button
+              className={topTab === 'quiz' ? 'oa-tab-a' : 'oa-tab-i'}
+              onClick={() => {
+                setTopTab('quiz')
+                if (data) loadQuizLeaderboard(data.members)
+              }}
+            >
+              Siste quiz
+            </button>
+            <button
+              className={topTab === 'season' ? 'oa-tab-a' : 'oa-tab-i'}
+              onClick={() => setTopTab('season')}
+            >
+              Sesong
+            </button>
           </div>
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderTop: 'none', borderRadius: '0 0 14px 14px', overflow: 'hidden' }}>
 
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #2a2d38' }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
-                Intern rangering — kun {data?.org.name}
-              </p>
-              <span style={{ fontSize: 12, color: '#7a7873' }}>
-                {sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere
-              </span>
-            </div>
+            {topTab === 'quiz' ? (
+              <>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #2a2d38' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 360 }}>
+                    {quizTitle ? `Siste quiz — ${quizTitle}` : 'Siste quiz'}
+                  </p>
+                  <span style={{ fontSize: 12, color: '#7a7873', flexShrink: 0, marginLeft: 8 }}>
+                    {(quizData ?? []).length} deltakere
+                  </span>
+                </div>
 
-            {activityLoading ? (
-              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
-            ) : sortedByPoints.filter(m => m.totalPoints > 0).length === 0 ? (
-              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
-            ) : (
-              sortedByPoints.filter(m => m.totalPoints > 0).map((m, idx) => {
-                const rank = idx + 1
-                const rankColor = rank === 1 ? 'oa-rank-gold' : rank === 2 ? 'oa-rank-silver' : rank === 3 ? 'oa-rank-bronze' : undefined
-                const isMe = data?.members.find(mem => mem.user_id === m.userId)?.user_id === data?.currentUserId
-
-                return (
-                  <div
-                    key={m.userId}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '11px 18px',
-                      borderBottom: idx < sortedByPoints.filter(x => x.totalPoints > 0).length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
-                      background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
-                    }}
-                  >
-                    <span
-                      className={rankColor}
-                      style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
-                    >
-                      {rank}
-                    </span>
-                    <Avatar name={m.displayName} size={30} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                          {m.displayName}
+                {quizLoading ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                ) : !quizData || quizData.length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen har spilt siste quiz ennå.</p>
+                ) : (
+                  quizData.map((entry, idx) => {
+                    const rank = idx + 1
+                    const rankColor = rank === 1 ? 'oa-rank-gold' : rank === 2 ? 'oa-rank-silver' : rank === 3 ? 'oa-rank-bronze' : undefined
+                    const isMe = entry.userId === data?.currentUserId
+                    return (
+                      <div
+                        key={entry.userId}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '11px 18px',
+                          borderBottom: idx < quizData.length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
+                          background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
+                        }}
+                      >
+                        <span
+                          className={rankColor}
+                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
+                        >
+                          {rank}
                         </span>
-                        {isMe && <Tag label="deg" color="muted" />}
-                        {m.role === 'admin' && <Tag label="Admin" color="gold" />}
+                        <Avatar name={entry.displayName} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: 200 }}>
+                            {entry.displayName}
+                          </span>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
+                            {entry.correctAnswers}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>riktige</span>
+                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 8 }}>{formatTime(entry.totalTimeMs)}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
-                        {m.totalPoints}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>poeng</span>
-                    </div>
-                  </div>
-                )
-              })
+                    )
+                  })
+                )}
+              </>
+            ) : (
+              <>
+                {/* Season period tabs — inside card */}
+                <div className="oa-tab-row" style={{ borderRadius: 0 }}>
+                  {(['month', 'quarter', 'year'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setActivityPeriod(p)}
+                      className={activityPeriod === p ? 'oa-tab-a' : 'oa-tab-i'}
+                    >
+                      {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #2a2d38' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+                    Intern rangering — kun {data?.org.name}
+                  </p>
+                  <span style={{ fontSize: 12, color: '#7a7873' }}>
+                    {sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere
+                  </span>
+                </div>
+
+                {activityLoading ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                ) : sortedByPoints.filter(m => m.totalPoints > 0).length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
+                ) : (
+                  sortedByPoints.filter(m => m.totalPoints > 0).map((m, idx) => {
+                    const rank = idx + 1
+                    const rankColor = rank === 1 ? 'oa-rank-gold' : rank === 2 ? 'oa-rank-silver' : rank === 3 ? 'oa-rank-bronze' : undefined
+                    const isMe = data?.members.find(mem => mem.user_id === m.userId)?.user_id === data?.currentUserId
+                    return (
+                      <div
+                        key={m.userId}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '11px 18px',
+                          borderBottom: idx < sortedByPoints.filter(x => x.totalPoints > 0).length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
+                          background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
+                        }}
+                      >
+                        <span
+                          className={rankColor}
+                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
+                        >
+                          {rank}
+                        </span>
+                        <Avatar name={m.displayName} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                              {m.displayName}
+                            </span>
+                            {isMe && <Tag label="deg" color="muted" />}
+                            {m.role === 'admin' && <Tag label="Admin" color="gold" />}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
+                            {m.totalPoints}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>poeng</span>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </>
             )}
           </div>
 
