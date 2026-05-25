@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       closes_at: closes.toISOString(),
       time_limit_seconds: 20,
       num_options: 4,
-      is_active: false,
+      is_active: true,
       show_leaderboard: true,
       hide_leaderboard_until_closed: true,
       show_live_placement: true,

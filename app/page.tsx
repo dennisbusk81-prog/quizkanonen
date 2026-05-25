@@ -705,12 +705,13 @@ export default async function Home() {
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
     const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult] = await Promise.all([
+      // Aktiv quiz: opens_at <= now og ikke stengt ennå
       supabaseAdmin
         .from('quizzes')
         .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-        .eq('is_active', true)
-        .or(`closes_at.is.null,closes_at.gt.${now.toISOString()}`)
-        .order('created_at', { ascending: false })
+        .lte('opens_at', now.toISOString())
+        .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
+        .order('opens_at', { ascending: false })
         .limit(1),
       supabaseAdmin
         .from('season_scores')
@@ -751,9 +752,22 @@ export default async function Home() {
     const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
     const firstName = displayName.split(' ')[0]
 
-    // Quiz
+    // Quiz — aktiv (opens_at <= now, ikke stengt)
     const quizList = (quizResult.data as QuizRow[] | null) ?? []
     const quiz = quizList[0] ?? null
+
+    // Kommende quiz — hentes kun om ingen aktiv finnes
+    let upcomingQuiz: QuizRow | null = null
+    if (!quiz) {
+      const { data: upcomingData } = await supabaseAdmin
+        .from('quizzes')
+        .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
+        .gt('opens_at', now.toISOString())
+        .order('opens_at', { ascending: true })
+        .limit(1)
+      upcomingQuiz = ((upcomingData as QuizRow[] | null) ?? [])[0] ?? null
+    }
+
     const participantCount = quiz?.attempts[0]?.count ?? 0
 
     // Has the user already played the active quiz?
@@ -950,10 +964,18 @@ export default async function Home() {
                 )}
               </div>
             </div>
+          ) : upcomingQuiz ? (
+            <div className="qk-card">
+              <p className="qk-card-eyebrow">Kommende quiz</p>
+              <h2 className="qk-title">{upcomingQuiz.title}</h2>
+              <p className="qk-card-date">
+                Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
+              </p>
+            </div>
           ) : (
             <div className="qk-empty">
-              <p className="qk-empty-title">Ingen aktiv quiz akkurat nå</p>
-              <p className="qk-empty-sub">Kom tilbake på fredag.</p>
+              <p className="qk-empty-title">Ingen quiz planlagt akkurat nå</p>
+              <p className="qk-empty-sub">Kom tilbake snart.</p>
             </div>
           )}
 
@@ -1118,13 +1140,15 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }] = await Promise.all([
+  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }] = await Promise.all([
+    // Aktiv quiz: opens_at <= now og ikke stengt ennå
     supabaseAdmin
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-      .eq('is_active', true)
-      .or(`closes_at.is.null,closes_at.gt.${new Date().toISOString()}`)
-      .order('created_at', { ascending: false }),
+      .lte('opens_at', now.toISOString())
+      .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
+      .order('opens_at', { ascending: false })
+      .limit(1),
     supabaseAdmin
       .from('site_settings')
       .select('value')
@@ -1138,9 +1162,18 @@ export default async function Home() {
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Kommende quiz: opens_at > now, hentes parallelt
+    supabaseAdmin
+      .from('quizzes')
+      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
+      .gt('opens_at', now.toISOString())
+      .order('opens_at', { ascending: true })
+      .limit(1),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
+  const activeQuiz = quizList[0] ?? null
+  const upcomingQuiz = ((upcomingQuizData as QuizRow[] | null) ?? [])[0] ?? null
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
 
   // Last closed quiz top 3
@@ -1203,7 +1236,7 @@ export default async function Home() {
         <div className="qk-nav-inner">
           <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
           <div className="qk-nav-actions">
-            <NavAuth quizId={quizList[0]?.id} />
+            <NavAuth quizId={activeQuiz?.id} />
           </div>
         </div>
       </nav>
@@ -1219,8 +1252,8 @@ export default async function Home() {
             Slå de samme menneskene hver fredag. Kan du klatre på topplisten?
           </p>
           <div className="qk-hero-actions">
-            {quizList.length > 0 && (
-              <Link href={`/login?next=/quiz/${quizList[0].id}`} className="qk-btn-primary">
+            {activeQuiz && (
+              <Link href={`/login?next=/quiz/${activeQuiz.id}`} className="qk-btn-primary">
                 Spill ukens quiz
               </Link>
             )}
@@ -1249,13 +1282,30 @@ export default async function Home() {
         </section>
 
         {/* ── Quiz-kort ── */}
-        {quizList.length === 0 ? (
+        {activeQuiz ? (
           <div className="qk-card">
-            <p className="qk-card-eyebrow">Neste quiz</p>
-            <h2 className="qk-title">Fredagsquizen</h2>
-            <p className="qk-card-date">{nextFridayLabel}</p>
-            <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
-              Ingen aktiv quiz akkurat nå — kom tilbake på fredag.
+            <p className="qk-card-eyebrow">Denne uken</p>
+            <h2 className="qk-title">{activeQuiz.title}</h2>
+            <p className="qk-card-tagline">
+              {(activeQuiz.attempts[0]?.count ?? 0) > 0
+                ? `${activeQuiz.attempts[0]?.count} deltakere · Kan du slå dem?`
+                : 'Kan du slå dem?'}
+            </p>
+            <div className="qk-card-actions">
+              <a href={`/quiz/${activeQuiz.id}`} className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
+                Spill nå
+              </a>
+              <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">
+                Toppliste ↗
+              </Link>
+            </div>
+          </div>
+        ) : upcomingQuiz ? (
+          <div className="qk-card">
+            <p className="qk-card-eyebrow">Kommende quiz</p>
+            <h2 className="qk-title">{upcomingQuiz.title}</h2>
+            <p className="qk-card-date">
+              Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
             </p>
             <div className="qk-card-actions">
               <Link href="/login" className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
@@ -1263,32 +1313,15 @@ export default async function Home() {
               </Link>
             </div>
           </div>
-        ) : (() => {
-          const quiz = quizList[0]
-          const participantCount = quiz.attempts[0]?.count ?? 0
-          const quizNotYetOpen = quiz.opens_at != null && new Date(quiz.opens_at) > now
-          return (
-            <div className="qk-card">
-              <p className="qk-card-eyebrow">Denne uken</p>
-              <h2 className="qk-title">{quiz.title}</h2>
-              <p className="qk-card-tagline">
-                {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
-              </p>
-              {quizNotYetOpen && nextQuizAt && (
-                <p className="qk-card-date">Neste quiz: {formatNextQuiz(nextQuizAt)}</p>
-              )}
-
-              <div className="qk-card-actions">
-                <a href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
-                  Spill nå
-                </a>
-                <Link href={`/leaderboard/${quiz.id}`} className="qk-card-toplist">
-                  Toppliste ↗
-                </Link>
-              </div>
-            </div>
-          )
-        })()}
+        ) : (
+          <div className="qk-card">
+            <p className="qk-card-eyebrow">Ingen quiz planlagt</p>
+            <h2 className="qk-title">Fredagsquizen</h2>
+            <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
+              Ingen quiz planlagt akkurat nå — kom tilbake snart.
+            </p>
+          </div>
+        )}
 
         {/* ── Forrige uke — topp 3 ── */}
         {lastQuizTop3.length > 0 && lastQuiz && (
