@@ -212,6 +212,10 @@ export default function OrgAdminPage() {
   const [quizTitle, setQuizTitle] = useState<string | null>(null)
   const [quizLoading, setQuizLoading] = useState(false)
 
+  // Reminder
+  const [reminderSending, setReminderSending] = useState(false)
+  const [reminderMsg, setReminderMsg]         = useState<{ ok: boolean; text: string } | null>(null)
+
   // Search
   const [memberSearch, setMemberSearch] = useState('')
 
@@ -573,6 +577,38 @@ export default function OrgAdminPage() {
     }
   }
 
+  const sendReminder = async () => {
+    if (!session || !data || reminderSending) return
+    // Inactive = org members whose userId is NOT in the latest quiz results
+    const playedIds = new Set((quizData ?? []).map(e => e.userId))
+    const inactiveIds = data.members.map(m => m.user_id).filter(id => !playedIds.has(id))
+    if (inactiveIds.length === 0) {
+      setReminderMsg({ ok: false, text: 'Alle medlemmer har allerede spilt.' })
+      setTimeout(() => setReminderMsg(null), 4000)
+      return
+    }
+    setReminderSending(true)
+    setReminderMsg(null)
+    try {
+      const res = await fetch(`/api/org/${data.org.id}/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ userIds: inactiveIds }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setReminderMsg({ ok: false, text: 'Kunne ikke sende — prøv igjen' })
+      } else {
+        setReminderMsg({ ok: true, text: `Påminnelse sendt til ${json.sent} ${json.sent === 1 ? 'medlem' : 'medlemmer'}` })
+      }
+    } catch {
+      setReminderMsg({ ok: false, text: 'Kunne ikke sende — prøv igjen' })
+    } finally {
+      setReminderSending(false)
+      setTimeout(() => setReminderMsg(null), 4000)
+    }
+  }
+
   const downloadCsv = () => {
     if (!data || !session) return
     const url = `/api/org/${data.org.id}/members-activity?period=${activityPeriod}&format=csv`
@@ -829,12 +865,28 @@ export default function OrgAdminPage() {
           <SectionLabel
             title="Medlemmer"
             right={
-              <button
-                onClick={downloadCsv}
-                style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
-              >
-                Last ned CSV
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={downloadCsv}
+                    style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    Last ned CSV
+                  </button>
+                  <button
+                    onClick={sendReminder}
+                    disabled={reminderSending}
+                    style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '6px 14px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    {reminderSending ? 'Sender...' : 'Send påminnelse til inaktive'}
+                  </button>
+                </div>
+                {reminderMsg && (
+                  <p style={{ fontSize: 12, color: reminderMsg.ok ? '#6dba88' : '#c94c4c', margin: 0 }}>
+                    {reminderMsg.text}
+                  </p>
+                )}
+              </div>
             }
           />
 
