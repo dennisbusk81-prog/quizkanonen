@@ -901,6 +901,73 @@ export default async function Home() {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo',
     })
 
+    // ── Quiz insights: most recent closed quiz, all players ──
+    type PageInsights = { easiest: { questionText: string; correctPct: number }; hardest: { questionText: string; correctPct: number } }
+    let pageInsights: PageInsights | null = null
+    try {
+      const { data: closedQuizRow } = await supabaseAdmin
+        .from('quizzes')
+        .select('id')
+        .lt('closes_at', now.toISOString())
+        .not('closes_at', 'is', null)
+        .order('closes_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (closedQuizRow) {
+        const cqId = (closedQuizRow as { id: string }).id
+        const { data: attemptRows } = await supabaseAdmin
+          .from('attempts')
+          .select('id')
+          .eq('quiz_id', cqId)
+          .eq('is_team', false)
+          .not('user_id', 'is', null)
+          .limit(500)
+
+        const attemptIds = ((attemptRows ?? []) as { id: string }[]).map(a => a.id)
+        if (attemptIds.length >= 3) {
+          const { data: answerRows } = await supabaseAdmin
+            .from('attempt_answers')
+            .select('question_id, is_correct')
+            .in('attempt_id', attemptIds)
+
+          if (answerRows && answerRows.length > 0) {
+            const statsMap = new Map<string, { total: number; correct: number }>()
+            for (const a of answerRows as { question_id: string; is_correct: boolean }[]) {
+              const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
+              s.total++
+              if (a.is_correct) s.correct++
+              statsMap.set(a.question_id, s)
+            }
+            const qualified = [...statsMap.entries()]
+              .filter(([, s]) => s.total >= 3)
+              .map(([qId, s]) => ({ questionId: qId, correctPct: Math.round((s.correct / s.total) * 100) }))
+              .sort((a, b) => b.correctPct - a.correctPct)
+
+            if (qualified.length >= 2) {
+              const { data: questionRows } = await supabaseAdmin
+                .from('questions')
+                .select('id, question_text')
+                .in('id', qualified.map(q => q.questionId))
+
+              const textMap = new Map(
+                ((questionRows ?? []) as { id: string; question_text: string }[]).map(q => [q.id, q.question_text])
+              )
+              const withText = qualified
+                .map(q => ({ questionText: textMap.get(q.questionId) ?? '', correctPct: q.correctPct }))
+                .filter(q => q.questionText)
+
+              if (withText.length >= 2) {
+                pageInsights = { easiest: withText[0], hardest: withText[withText.length - 1] }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // silent — insights are non-critical
+    }
+
     return (
       <>
         <style>{SHARED_CSS}</style>
@@ -992,6 +1059,23 @@ export default async function Home() {
               Se alle quizer →
             </Link>
           </div>
+
+          {/* Ukens fakta — quiz insights (only when last quiz is closed) */}
+          {pageInsights && (
+            <div style={{ marginTop: 16, marginBottom: 4, textAlign: 'center' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                Ukens fakta
+              </p>
+              <p style={{ fontSize: 14, color: '#6dba88', lineHeight: 1.6, marginBottom: 6 }}>
+                {pageInsights.easiest.correctPct}% svarte riktig på ukens letteste:{' '}
+                <span style={{ fontStyle: 'italic' }}>{pageInsights.easiest.questionText}</span>
+              </p>
+              <p style={{ fontSize: 14, color: '#c94c4c', lineHeight: 1.6 }}>
+                Kun {pageInsights.hardest.correctPct}% klarte:{' '}
+                <span style={{ fontStyle: 'italic' }}>{pageInsights.hardest.questionText}</span>
+              </p>
+            </div>
+          )}
 
           {/* Season placement card */}
           <div className="qkp-plain-card">

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -105,6 +104,9 @@ type AdminData = {
   currentUserId: string
   stats?: { memberCount: number; activeThisMonth: number }
 }
+
+type InsightQuestion = { questionText: string; correctPct: number }
+type InsightsData    = { quizTitle: string; easiest: InsightQuestion; hardest: InsightQuestion[] }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -265,6 +267,10 @@ export default function OrgAdminPage() {
 
   // Weekly play streak per member (userId → consecutive weeks)
   const [streaks, setStreaks] = useState<Map<string, number>>(new Map())
+
+  // Quiz insights (easiest / hardest questions)
+  const [insightsData, setInsightsData]       = useState<InsightsData | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
 
   // Search
   const [memberSearch, setMemberSearch] = useState('')
@@ -449,6 +455,21 @@ export default function OrgAdminPage() {
     }
   }, [])
 
+  const loadInsights = useCallback(async (orgId: string, token: string) => {
+    setInsightsLoading(true)
+    setInsightsData(null)
+    try {
+      const res = await fetch(`/api/org/${orgId}/quiz-insights`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setInsightsData(await res.json())
+    } catch {
+      // silent — insights are non-critical
+    } finally {
+      setInsightsLoading(false)
+    }
+  }, [])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -466,12 +487,13 @@ export default function OrgAdminPage() {
           loadActivity(d.org.id, sess.access_token, 'month')
           loadPrevRanks(d.org.id, d.members, 'month')
           loadStreaks(d.members)
+          loadInsights(d.org.id, sess.access_token)
           loadQuizLeaderboard(d.members)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadQuizLeaderboard])
+  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadInsights, loadQuizLeaderboard])
 
   useEffect(() => {
     if (session === undefined) return
@@ -792,7 +814,6 @@ export default function OrgAdminPage() {
     return (
       <>
         <style>{CSS}</style>
-        <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>
@@ -841,12 +862,35 @@ export default function OrgAdminPage() {
   // Toppliste: activityData sorted by totalPoints desc
   const sortedByPoints = [...(activityData ?? [])].sort((a, b) => b.totalPoints - a.totalPoints)
 
+  // Nav: current user display name
+  const currentMember = data?.members.find(m => m.user_id === data?.currentUserId)
+  const navName = currentMember?.display_name ?? session?.user?.email?.split('@')[0] ?? ''
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
       <style>{CSS}</style>
-      <UserMenuWrapper />
+
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 100,
+        background: 'rgba(26,28,35,0.95)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid #2a2d38',
+      }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href={`/org/${slug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+            ← Tilbake
+          </Link>
+          <a href="/" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>
+            Quiz<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>kanonen</em>
+          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {navName && <span style={{ fontSize: 13, color: '#e8e4dd' }}>{navName.split(' ')[0]}</span>}
+            {navName && <Avatar name={navName} size={28} />}
+          </div>
+        </div>
+      </nav>
 
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div className="oa-page">
@@ -1310,7 +1354,26 @@ export default function OrgAdminPage() {
                 {quizLoading ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
                 ) : !quizData || quizData.length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen har spilt siste quiz ennå.</p>
+                  <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#2a2d38" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 14, display: 'block', margin: '0 auto 14px' }}>
+                      <rect x="3" y="10" width="6" height="14" rx="1"/>
+                      <rect x="13" y="5" width="6" height="19" rx="1"/>
+                      <rect x="23" y="14" width="6" height="10" rx="1"/>
+                    </svg>
+                    <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 }}>
+                      Ingen har spilt ennå
+                    </p>
+                    <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 18, lineHeight: 1.5 }}>
+                      Send en påminnelse til teamet så snart quizen åpner.
+                    </p>
+                    <button
+                      onClick={sendReminder}
+                      disabled={reminderSending}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 8, padding: '8px 18px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                    >
+                      {reminderSending ? 'Sender…' : 'Send påminnelse →'}
+                    </button>
+                  </div>
                 ) : (
                   quizData.map((entry, idx) => {
                     const rank = idx + 1
@@ -1441,7 +1504,57 @@ export default function OrgAdminPage() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════
-              6. SESONGVINNERE
+              6. UKENS INNSIKT
+          ══════════════════════════════════════════════════════════════════ */}
+          {!insightsLoading && insightsData && (
+            <>
+              <SectionLabel title="Ukens innsikt" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+
+                {/* Easiest */}
+                <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                    Flest fikk dette rett
+                  </p>
+                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.4, marginBottom: 10 }}>
+                    {insightsData.easiest.questionText}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#6dba88', fontWeight: 600 }}>
+                    {insightsData.easiest.correctPct}% svarte riktig
+                  </p>
+                </div>
+
+                {/* Hardest */}
+                <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                    Vanskeligste spørsmål
+                  </p>
+                  {insightsData.hardest.map((q, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8,
+                        marginBottom: i < insightsData.hardest.length - 1 ? 10 : 0,
+                        paddingBottom: i < insightsData.hardest.length - 1 ? 10 : 0,
+                        borderBottom: i < insightsData.hardest.length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
+                      }}
+                    >
+                      <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, flex: 1, margin: 0 }}>
+                        {q.questionText.length > 60 ? q.questionText.slice(0, 60) + '…' : q.questionText}
+                      </p>
+                      <span style={{ fontSize: 12, color: '#c94c4c', fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>
+                        {q.correctPct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            </>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════
+              7. SESONGVINNERE
           ══════════════════════════════════════════════════════════════════ */}
           <SectionLabel title="Sesongvinnere" />
 
@@ -1467,11 +1580,7 @@ export default function OrgAdminPage() {
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ikke kåret ennå</p>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {winner.avatarUrl ? (
-                      <img src={winner.avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                    ) : (
-                      <Avatar name={winner.displayName} size={36} />
-                    )}
+                    <Avatar name={winner.displayName} size={36} />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {winner.displayName}
@@ -1483,10 +1592,10 @@ export default function OrgAdminPage() {
                           onMouseEnter={() => setShareHovered(true)}
                           onMouseLeave={() => setShareHovered(false)}
                           style={{
-                            marginTop: 8, fontSize: 11, padding: '4px 10px',
+                            marginTop: 8, fontSize: 11, padding: '4px 12px',
                             border: `1px solid ${shareHovered || copiedWinner ? '#c9a84c' : '#2a2d38'}`,
                             borderRadius: 6, background: 'transparent',
-                            color: copiedWinner ? '#4ade80' : shareHovered ? '#c9a84c' : '#7a7873',
+                            color: copiedWinner ? '#6dba88' : shareHovered ? '#c9a84c' : '#7a7873',
                             cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
                             transition: 'color 0.15s, border-color 0.15s',
                           }}
