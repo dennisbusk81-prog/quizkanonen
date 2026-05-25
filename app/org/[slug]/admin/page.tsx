@@ -158,6 +158,23 @@ function formatTime(ms: number): string {
   return m > 0 ? `${m}:${(s % 60).toString().padStart(2, '0')}` : `${s}s`
 }
 
+function getPrevPeriodRange(period: 'month' | 'quarter' | 'year'): { start: string; end: string } {
+  const now = new Date()
+  let start: Date, end: Date
+  if (period === 'month') {
+    end   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  } else if (period === 'quarter') {
+    const currentQ = Math.floor(now.getUTCMonth() / 3)
+    end   = new Date(Date.UTC(now.getUTCFullYear(), currentQ * 3, 1))
+    start = new Date(Date.UTC(now.getUTCFullYear(), (currentQ - 1) * 3, 1))
+  } else {
+    end   = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+    start = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1))
+  }
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OrgAdminPage() {
@@ -215,6 +232,9 @@ export default function OrgAdminPage() {
   // Reminder
   const [reminderSending, setReminderSending] = useState(false)
   const [reminderMsg, setReminderMsg]         = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Previous-period ranks for trend indicators (null = not yet loaded)
+  const [prevRanks, setPrevRanks] = useState<Map<string, number> | null>(null)
 
   // Search
   const [memberSearch, setMemberSearch] = useState('')
@@ -323,6 +343,46 @@ export default function OrgAdminPage() {
     }
   }, [])
 
+  const loadPrevRanks = useCallback(async (orgId: string, members: Member[], period: 'month' | 'quarter' | 'year') => {
+    setPrevRanks(null)
+    try {
+      const { start, end } = getPrevPeriodRange(period)
+      const memberIds = members.map(m => m.user_id)
+      const { data: prevScores } = await supabase
+        .from('season_scores')
+        .select('user_id, points, quiz_id')
+        .eq('scope_type', 'organization')
+        .eq('scope_id', orgId)
+        .gte('closes_at', start)
+        .lt('closes_at', end)
+        .in('user_id', memberIds)
+
+      if (!prevScores || prevScores.length === 0) { setPrevRanks(new Map()); return }
+
+      // Aggregate points per user (dedup by quiz_id, same logic as the API)
+      const pointsMap = new Map<string, { points: number; quizIds: Set<string> }>()
+      for (const s of prevScores as { user_id: string; points: number; quiz_id: string }[]) {
+        const existing = pointsMap.get(s.user_id) ?? { points: 0, quizIds: new Set<string>() }
+        if (!existing.quizIds.has(s.quiz_id)) {
+          existing.points += s.points
+          existing.quizIds.add(s.quiz_id)
+        }
+        pointsMap.set(s.user_id, existing)
+      }
+
+      // Sort by points desc → assign ranks
+      const sorted = [...pointsMap.entries()]
+        .filter(([, v]) => v.points > 0)
+        .sort(([, a], [, b]) => b.points - a.points)
+
+      const ranks = new Map<string, number>()
+      sorted.forEach(([userId], idx) => ranks.set(userId, idx + 1))
+      setPrevRanks(ranks)
+    } catch {
+      setPrevRanks(new Map()) // silent — trend indicators are non-critical
+    }
+  }, [])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -338,12 +398,13 @@ export default function OrgAdminPage() {
           setAllowGlobal(d.org.allow_global_league)
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
+          loadPrevRanks(d.org.id, d.members, 'month')
           loadQuizLeaderboard(d.members)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners, loadActivity, loadQuizLeaderboard])
+  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadQuizLeaderboard])
 
   useEffect(() => {
     if (session === undefined) return
@@ -354,6 +415,7 @@ export default function OrgAdminPage() {
   useEffect(() => {
     if (!data || !session) return
     loadActivity(data.org.id, session.access_token, activityPeriod)
+    loadPrevRanks(data.org.id, data.members, activityPeriod)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activityPeriod])
 
@@ -1246,6 +1308,16 @@ export default function OrgAdminPage() {
                         >
                           {rank}
                         </span>
+                        {prevRanks !== null && prevRanks.size > 0 && (() => {
+                          const prevRank = prevRanks.get(m.userId)
+                          if (prevRank === undefined) {
+                            return <span style={{ fontSize: 10, fontWeight: 700, color: '#c9a84c', letterSpacing: '0.04em', width: 26, textAlign: 'center', flexShrink: 0 }}>NY</span>
+                          }
+                          const diff = prevRank - rank
+                          if (diff > 0) return <span style={{ fontSize: 11, fontWeight: 700, color: '#6dba88', width: 26, textAlign: 'center', flexShrink: 0 }}>↑{diff}</span>
+                          if (diff < 0) return <span style={{ fontSize: 11, fontWeight: 700, color: '#c94c4c', width: 26, textAlign: 'center', flexShrink: 0 }}>↓{Math.abs(diff)}</span>
+                          return <span style={{ width: 26, flexShrink: 0, display: 'inline-block' }} />
+                        })()}
                         <Avatar name={m.displayName} size={30} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
