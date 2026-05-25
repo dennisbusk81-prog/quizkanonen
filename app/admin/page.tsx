@@ -348,6 +348,7 @@ export default function AdminHome() {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
   const [resetModal, setResetModal] = useState<ResetModal>(null)
   const [resetInput, setResetInput] = useState('')
   const [resetting, setResetting] = useState(false)
@@ -434,6 +435,22 @@ export default function AdminHome() {
       setTimeout(() => setResetDone(null), 4000)
     } finally {
       setResetting(false)
+    }
+  }
+
+  async function shareQuizResults(quizId: string) {
+    try {
+      const res = await adminFetch('/api/admin/quiz-results-text', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      })
+      if (!res.ok) return
+      const { text } = await res.json()
+      await navigator.clipboard.writeText(text)
+      setCopiedQuizId(quizId)
+      setTimeout(() => setCopiedQuizId(null), 3000)
+    } catch {
+      // silent — non-critical
     }
   }
 
@@ -551,6 +568,26 @@ export default function AdminHome() {
                     </span>
                     <Link href={`/admin/quizzes/${quiz.id}/questions`} className="adm-quiz-link">Rediger →</Link>
                     <Link href={`/leaderboard/${quiz.id}`} className="adm-quiz-link">Toppliste →</Link>
+                    {isClosed && (
+                      <button
+                        onClick={() => shareQuizResults(quiz.id)}
+                        style={{
+                          fontSize: 13,
+                          color: copiedQuizId === quiz.id ? '#6dba88' : '#e8e4dd',
+                          background: 'transparent',
+                          border: `0.5px solid ${copiedQuizId === quiz.id ? '#6dba88' : '#2a2d38'}`,
+                          borderRadius: 8,
+                          padding: '4px 10px',
+                          cursor: 'pointer',
+                          fontFamily: "'Instrument Sans', sans-serif",
+                          whiteSpace: 'nowrap',
+                          transition: 'color 0.15s, border-color 0.15s',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {copiedQuizId === quiz.id ? 'Kopiert! ✓' : 'Del resultater'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )
