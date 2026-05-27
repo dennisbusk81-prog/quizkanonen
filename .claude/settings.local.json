@@ -12,7 +12,8 @@
       "Bash(npm run *)",
       "Bash(Select-String \"env\")",
       "Bash(Copy-Item \"C:\\\\Users\\\\denni\\\\quizkanonen\\\\.env.local\" \"C:\\\\Users\\\\denni\\\\quizkanonen\\\\.claude\\\\worktrees\\\\adoring-wozniak-dbfd03\\\\.env.local\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(find \"C:\\\\\\\\Users\\\\\\\\denni\\\\\\\\quizkanonen\\\\\\\\app\\\\\\\\api\\\\\\\\org\" -type f -name \"*.ts\")"
     ]
   }
 }
