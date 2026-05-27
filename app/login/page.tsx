@@ -271,7 +271,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                onKeyDown={e => e.key === 'Enter' && !loading && handleSend()}
                 placeholder="din@epost.no"
                 className="login-input"
                 autoComplete="email"
