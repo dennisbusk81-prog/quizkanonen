@@ -68,7 +68,14 @@ const STYLES = `
   .an-page { max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
 
   /* Header */
-  .an-header { padding: 24px 0 20px; }
+  .an-header {
+    padding: 24px 0 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
 
   .an-back {
     font-size: 12px;
@@ -413,6 +420,7 @@ export default function QuizAnalytics() {
   const [pendingCorrect, setPendingCorrect] = useState<string | null>(null)
   const [savingCorrect, setSavingCorrect] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [shareState, setShareState] = useState<'idle' | 'loading' | 'copied'>('idle')
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -490,6 +498,24 @@ export default function QuizAnalytics() {
     }
   }
 
+  async function shareQuizResults() {
+    if (shareState === 'loading') return
+    setShareState('loading')
+    try {
+      const res = await adminFetch('/api/admin/quiz-results-text', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      })
+      if (!res.ok) { setShareState('idle'); return }
+      const { text } = await res.json()
+      await navigator.clipboard.writeText(text)
+      setShareState('copied')
+      setTimeout(() => setShareState('idle'), 3000)
+    } catch {
+      setShareState('idle')
+    }
+  }
+
   function toggleExpandOpt(key: string) {
     setExpandedOpts(prev => {
       const next = new Set(prev)
@@ -516,9 +542,34 @@ export default function QuizAnalytics() {
       <div className="an-page">
 
         <header className="an-header">
-          <Link href={`/admin/quizzes/${quizId}/questions`} className="an-back">← Tilbake til spørsmål</Link>
-          <h1 className="an-title">Ana<em>lytics</em></h1>
-          <p className="an-subtitle">{quiz?.title}</p>
+          <div>
+            <Link href={`/admin/quizzes/${quizId}/questions`} className="an-back">← Tilbake til spørsmål</Link>
+            <h1 className="an-title">Ana<em>lytics</em></h1>
+            <p className="an-subtitle">{quiz?.title}</p>
+          </div>
+          {quiz?.closes_at && new Date(quiz.closes_at) < new Date() && (
+            <button
+              onClick={shareQuizResults}
+              disabled={shareState === 'loading'}
+              style={{
+                background: 'transparent',
+                border: `1px solid ${shareState === 'copied' ? '#6dba88' : '#2a2d38'}`,
+                borderRadius: 10,
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 500,
+                color: shareState === 'copied' ? '#6dba88' : '#e8e4dd',
+                cursor: shareState === 'loading' ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s, border-color 0.15s',
+                opacity: shareState === 'loading' ? 0.6 : 1,
+                alignSelf: 'flex-end',
+              }}
+            >
+              {shareState === 'copied' ? 'Kopiert! ✓' : shareState === 'loading' ? 'Genererer…' : 'Del resultater'}
+            </button>
+          )}
         </header>
 
         <div className="an-rule" />
