@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit } from '@/lib/rate-limit'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -18,6 +19,11 @@ function getPeriodStart(period: string): string {
 // GET /api/leagues/[id]/members-activity?period=month|quarter|year&format=csv
 // Returnerer aktivitetsdata for alle liga-medlemmer. Krever liga-eierskap.
 export async function GET(request: NextRequest, { params }: Params) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`league-members-activity:${ip}`, 20, 60_000).success) {
+    return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
+  }
+
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
 

@@ -378,7 +378,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     try {
       let url = `/api/toppliste/history?period=${period}&scope=${scope}`
       if (scopeId) url += `&scope_id=${encodeURIComponent(scopeId)}`
-      const res = await fetch(url)
+      const histHeaders: Record<string, string> = {}
+      if (session?.access_token) histHeaders['Authorization'] = `Bearer ${session.access_token}`
+      const res = await fetch(url, { headers: histHeaders })
       if (res.ok) {
         const json = await res.json()
         setHistData(json.entries ?? [])
@@ -390,7 +392,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     } finally {
       setHistLoading(false)
     }
-  }, [histData, period, scope, scopeId])
+  }, [histData, period, scope, scopeId, session])
 
   const toggleHistory = () => {
     const willOpen = !histOpen
@@ -408,7 +410,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       const range = getPeriodRange(key, period as 'month' | 'quarter' | 'year')
       let url = `/api/toppliste?scope=${scope}&period_start=${encodeURIComponent(range.start)}&period_end=${encodeURIComponent(range.end)}&period=${period}`
       if (scopeId) url += `&scope_id=${encodeURIComponent(scopeId)}`
-      const res = await fetch(url)
+      const expandHeaders: Record<string, string> = {}
+      if (session?.access_token) expandHeaders['Authorization'] = `Bearer ${session.access_token}`
+      const res = await fetch(url, { headers: expandHeaders })
       if (!res.ok) throw new Error()
       const json = await res.json()
       const entries: ExpandedEntry[] = (json.entries ?? []).map((e: Entry) => ({
