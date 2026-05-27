@@ -7,7 +7,7 @@ import UserMenuWrapper from '@/components/UserMenuWrapper'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
-const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_MONTHLY' }
+const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' }
 
 const FEATURES = [
   'Nøyaktig plassering på leaderboard',
@@ -34,14 +34,22 @@ export default function PremiumPage() {
         setShowLoginAlert(true)
         return
       }
+      const { data: { session: freshSession } } = await supabase.auth.getSession()
+      if (!freshSession?.access_token) {
+        setShowLoginAlert(true)
+        return
+      }
       const plan = PLAN
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${freshSession.access_token}`,
+        },
         body: JSON.stringify({
           priceId: plan.priceId,
-          userId: session.user.id,
-          email: session.user.email,
+          userId: freshSession.user.id,
+          email: freshSession.user.email,
         }),
       })
       const data = await res.json()

@@ -306,10 +306,10 @@ export async function POST(request: NextRequest) {
         .update({ stripe_period_end: periodEnd })
         .eq('id', org.id)
     } else {
-      // B2C
-      const inactive = ['canceled', 'unpaid', 'past_due'].includes(subscription.status)
+      // B2C — 'trialing' counts as active (Founders trial period)
+      const isActive = ['active', 'trialing'].includes(subscription.status)
       await supabaseAdmin.from('profiles')
-        .update({ premium_status: !inactive && subscription.status === 'active' })
+        .update({ premium_status: isActive })
         .eq('stripe_customer_id', customerId)
     }
   }

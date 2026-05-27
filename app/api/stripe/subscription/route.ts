@@ -25,13 +25,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ current_period_end: null, cancel_at_period_end: false })
     }
 
-    const subscriptions = await stripe.subscriptions.list({
-      customer: profile.stripe_customer_id,
-      limit: 1,
-      status: 'active',
-    })
-
-    const sub = subscriptions.data[0] ?? null
+    // Fetch active and trialing separately — Stripe list() does not accept an array for status
+    const [activeSubs, trialingSubs] = await Promise.all([
+      stripe.subscriptions.list({ customer: profile.stripe_customer_id, limit: 1, status: 'active' }),
+      stripe.subscriptions.list({ customer: profile.stripe_customer_id, limit: 1, status: 'trialing' }),
+    ])
+    const sub = activeSubs.data[0] ?? trialingSubs.data[0] ?? null
     if (!sub) {
       return NextResponse.json({ current_period_end: null, cancel_at_period_end: false })
     }
