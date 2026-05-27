@@ -122,7 +122,7 @@ const s = {
   rowScore: { fontSize: 11, color: '#7a7873', marginBottom: 1 },
   rowSub:   { fontSize: 10, color: '#7a7873' },
 
-  btnMore: { width: '100%', padding: '10px 0', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#7a7873', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4 },
+  btnMore: { width: '100%', padding: '10px 0', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 6 },
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 24 },
   emptyIcon:  { fontSize: 36, marginBottom: 12, opacity: 0.5 },
@@ -133,7 +133,7 @@ const s = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 20
+const API_PAGE_SIZE = 50
 
 // SVG graph dimensions
 const GW = 600
@@ -255,7 +255,10 @@ export default function HistorikkPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [history, setHistory] = useState<HistoryAttempt[]>([])
   const [stats, setStats] = useState<PlayerStats | null>(null)
-  const [visible, setVisible] = useState(PAGE_SIZE)
+  const [page, setPage] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
 
   // Read any qk_historikk_* cache before first paint — prevents loading flash on back-navigation.
@@ -271,11 +274,15 @@ export default function HistorikkPage() {
         if (!raw) continue
         const cached = JSON.parse(raw) as {
           fetchedAt: number
-          data: { history: HistoryAttempt[]; stats: PlayerStats }
+          data: { history: HistoryAttempt[]; stats: PlayerStats; total?: number; pageSize?: number }
         }
         if (Date.now() - cached.fetchedAt < TTL && cached.data) {
+          const t  = cached.data.total    ?? cached.data.history.length
+          const ps = cached.data.pageSize ?? API_PAGE_SIZE
           setHistory(cached.data.history)
           setStats(cached.data.stats)
+          setTotal(t)
+          setHasMore(cached.data.history.length >= ps && t > cached.data.history.length)
           setLoadState('ready')
           return
         }
@@ -358,12 +365,16 @@ export default function HistorikkPage() {
         if (raw) {
           const cached = JSON.parse(raw) as {
             fetchedAt: number
-            data: { history: HistoryAttempt[]; stats: PlayerStats }
+            data: { history: HistoryAttempt[]; stats: PlayerStats; total?: number; pageSize?: number }
           }
           if (Date.now() - cached.fetchedAt < CACHE_TTL) {
             if (!cancelled) {
+              const t  = cached.data.total    ?? cached.data.history.length
+              const ps = cached.data.pageSize ?? API_PAGE_SIZE
               setHistory(cached.data.history)
               setStats(cached.data.stats)
+              setTotal(t)
+              setHasMore(cached.data.history.length >= ps && t > cached.data.history.length)
               setLoadState('ready')
             }
             return
@@ -373,7 +384,7 @@ export default function HistorikkPage() {
         // sessionStorage unavailable — continue to fetch
       }
 
-      const res = await fetch('/api/historikk', {
+      const res = await fetch('/api/historikk?page=0', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
 
@@ -382,7 +393,7 @@ export default function HistorikkPage() {
       if (res.status === 403) { router.replace('/premium'); return }
       if (!res.ok) { if (!cancelled) setLoadState('error'); return }
 
-      const json = await res.json() as { history: HistoryAttempt[]; stats: PlayerStats }
+      const json = await res.json() as { history: HistoryAttempt[]; stats: PlayerStats; total: number; pageSize: number }
 
       try {
         sessionStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), data: json }))
@@ -391,12 +402,36 @@ export default function HistorikkPage() {
       if (cancelled) return
       setHistory(json.history)
       setStats(json.stats)
+      setTotal(json.total)
+      setHasMore(json.history.length >= json.pageSize && json.total > json.history.length)
       setLoadState('ready')
     }
 
     load()
     return () => { cancelled = true }
   }, [router])
+
+  // Append the next page to history without touching stats or the graph.
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const nextPage = page + 1
+      const res = await fetch(`/api/historikk?page=${nextPage}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) return
+      const json = await res.json() as { history: HistoryAttempt[]; total: number; pageSize: number }
+      setHistory(prev => [...prev, ...json.history])
+      setPage(nextPage)
+      setTotal(json.total)
+      setHasMore(json.total > history.length + json.history.length)
+    } catch { /* ignore */ } finally {
+      setLoadingMore(false)
+    }
+  }
 
   if (loadState === 'loading') {
     return (
@@ -416,8 +451,6 @@ export default function HistorikkPage() {
     )
   }
 
-  const shown = history.slice(0, visible)
-  const hasMore = visible < history.length
   const progMsg = stats?.progresjon ? toProgMsg(stats.progresjon) : null
 
   return (
@@ -517,10 +550,13 @@ export default function HistorikkPage() {
               <div style={s.sectionHeader}>
                 <span style={s.sectionText}>Siste quizer</span>
                 <div style={s.sectionLine} />
-                <span style={s.sectionCount}>{history.length}</span>
+                <span style={s.sectionCount}>{total > 0 ? total : history.length}</span>
               </div>
+              <p style={{ fontSize: 13, color: '#7a7873', margin: '0 0 10px' }}>
+                {total > 0 ? total : history.length} quizer totalt
+              </p>
 
-              {shown.map((attempt) => {
+              {history.map((attempt) => {
                 const pct = scorePct(attempt.correct_answers, attempt.total_questions)
                 const isHovered = hoveredRowId === attempt.id
                 return (
@@ -556,8 +592,12 @@ export default function HistorikkPage() {
               })}
 
               {hasMore && (
-                <button style={s.btnMore} onClick={() => setVisible((v) => v + PAGE_SIZE)}>
-                  Vis {Math.min(PAGE_SIZE, history.length - visible)} eldre
+                <button
+                  style={{ ...s.btnMore, opacity: loadingMore ? 0.6 : 1 }}
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Laster...' : 'Last inn flere'}
                 </button>
               )}
             </>
