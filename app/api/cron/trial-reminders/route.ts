@@ -37,31 +37,47 @@ export async function GET(request: NextRequest) {
   }
 
   const html = trialEndingEmail(DAYS_LEFT)
-  let sent = 0
+  const subject = `${DAYS_LEFT} dager igjen av din gratis prøveperiode`
+
+  // Wrap a promise with a per-call timeout so one hanging email can't block the
+  // entire cron job.
+  function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+      p,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)
+      ),
+    ])
+  }
+
+  // Resolve all auth users in parallel instead of one-by-one
+  const userResults = await Promise.allSettled(
+    profiles.map(profile => supabaseAdmin.auth.admin.getUserById(profile.id))
+  )
+
+  const emailsToSend: string[] = []
   let failed = 0
 
-  for (const profile of profiles) {
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+  for (const result of userResults) {
+    if (result.status === 'rejected') { failed++; continue }
+    const { data: { user }, error: userError } = result.value
+    if (userError || !user?.email) { failed++; continue }
+    emailsToSend.push(user.email)
+  }
 
-    if (userError) {
-      console.error('[cron/trial-reminders] getUserById failed for:', profile.id, userError.message)
-      failed++
-      continue
-    }
-    if (!user?.email) {
-      failed++
-      continue
-    }
+  // Send all emails in parallel, each with a 5-second timeout
+  const sendResults = await Promise.allSettled(
+    emailsToSend.map(email =>
+      withTimeout(sendEmail({ to: email, subject, html }), 5_000)
+    )
+  )
 
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: `${DAYS_LEFT} dager igjen av din gratis prøveperiode`,
-        html,
-      })
+  let sent = 0
+  for (const r of sendResults) {
+    if (r.status === 'fulfilled') {
       sent++
-    } catch (err) {
-      console.error('[cron/trial-reminders] failed to send to:', user.email, err)
+    } else {
+      console.error('[cron/trial-reminders] failed to send:', r.reason)
       failed++
     }
   }

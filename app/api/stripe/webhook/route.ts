@@ -88,17 +88,18 @@ export async function POST(request: NextRequest) {
         stripe_period_end: periodEnd,
       }).eq('id', organizationId)
 
-      // Activate premium for all current members
+      // Activate premium for all current members — single batch update
       const { data: members } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
         .eq('organization_id', organizationId)
 
-      for (const m of (members ?? [])) {
+      const memberIds = (members ?? []).map(m => m.user_id)
+      if (memberIds.length > 0) {
         await supabaseAdmin.from('profiles').update({
           premium_status: true,
           premium_source: 'org',
-        }).eq('id', m.user_id)
+        }).in('id', memberIds)
       }
 
       // Send kjøpsbekreftelse til org-admin — fire-and-forget
@@ -196,17 +197,18 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (org) {
-      // B2B: revoke premium from all members
+      // B2B: revoke premium from all members — single batch update
       const { data: members } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
         .eq('organization_id', org.id)
 
-      for (const m of (members ?? [])) {
+      const memberIds = (members ?? []).map(m => m.user_id)
+      if (memberIds.length > 0) {
         await supabaseAdmin.from('profiles').update({
           premium_status: false,
           premium_source: null,
-        }).eq('id', m.user_id)
+        }).in('id', memberIds)
       }
 
       // Send kanselleringsvarsel til org-admin — fire-and-forget

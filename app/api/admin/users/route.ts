@@ -20,13 +20,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 })
   }
 
-  // 2. Auth users (service role — gets email + metadata)
-  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  })
-  if (authError) console.error('auth.admin.listUsers failed:', authError)
-  const authUsers = authData?.users ?? []
+  // 2. Auth users (service role — gets email + metadata).
+  // Paginate through all users in case there are more than 1000.
+  type AuthUser = Awaited<ReturnType<typeof supabaseAdmin.auth.admin.listUsers>>['data']['users'][number]
+  const authUsers: AuthUser[] = []
+  let listPage = 1
+  while (true) {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+      page: listPage,
+      perPage: 1000,
+    })
+    if (authError) { console.error('auth.admin.listUsers failed:', authError); break }
+    const batch = authData?.users ?? []
+    authUsers.push(...batch)
+    if (batch.length < 1000) break
+    listPage++
+  }
 
   // 3. Attempt counts per user (single query, aggregate in JS)
   const { data: attempts } = await supabaseAdmin

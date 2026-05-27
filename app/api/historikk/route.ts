@@ -24,10 +24,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<PlayerHist
     return NextResponse.json({ error: 'Krever premium' }, { status: 403 })
   }
 
-  const [history, stats] = await Promise.all([
-    getPlayerHistory(user.id),
+  const { searchParams } = new URL(request.url)
+  const page     = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10) || 0)
+  const pageSize = 50
+
+  const [{ items: history, total }, stats] = await Promise.all([
+    getPlayerHistory(user.id, { page, pageSize }),
     getPlayerStats(user.id),
   ])
 
-  return NextResponse.json({ history, stats })
+  return NextResponse.json({ history, stats, total, page, pageSize })
 }

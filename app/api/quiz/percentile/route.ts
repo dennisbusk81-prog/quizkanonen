@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
 
   if (!quizId) {
     return NextResponse.json([], {
-      headers: { 'Cache-Control': 'public, max-age=300' },
+      headers: { 'Cache-Control': 'public, s-maxage=60, max-age=300' },
     })
   }
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   if (!attempts || attempts.length === 0) {
     return NextResponse.json([], {
-      headers: { 'Cache-Control': 'public, max-age=300' },
+      headers: { 'Cache-Control': 'public, s-maxage=60, max-age=300' },
     })
   }
 
@@ -38,6 +38,6 @@ export async function GET(request: NextRequest) {
   })
 
   return NextResponse.json(result, {
-    headers: { 'Cache-Control': 'public, max-age=300' },
+    headers: { 'Cache-Control': 'public, s-maxage=60, max-age=300' },
   })
 }

@@ -89,12 +89,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI returned unexpected format' }, { status: 502 })
     }
 
-    const questions = parsed.map(q => ({
+    const allQuestions = parsed.map(q => ({
       question:      String(q.question      ?? ''),
       correctAnswer: String(q.correctAnswer ?? ''),
       wrongAnswers:  Array.isArray(q.wrongAnswers) ? q.wrongAnswers.map(String) : [],
       explanation:   String(q.explanation   ?? ''),
     }))
+
+    // Validate each question: non-empty texts, exactly 3 wrong answers,
+    // no wrong answer duplicating the correct answer.
+    const questions = allQuestions.filter(q =>
+      q.question.trim() !== '' &&
+      q.correctAnswer.trim() !== '' &&
+      q.wrongAnswers.length >= 3 &&
+      q.wrongAnswers.every(a => a.trim() !== '') &&
+      !q.wrongAnswers.includes(q.correctAnswer)
+    )
+
+    if (questions.length < 3) {
+      console.error('[quiz-ai-generate-all] too few valid questions after validation:', questions.length, 'of', allQuestions.length)
+      return NextResponse.json({ error: 'AI returnerte for få gyldige spørsmål' }, { status: 422 })
+    }
 
     return NextResponse.json({ questions })
   } catch {

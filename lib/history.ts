@@ -64,6 +64,10 @@ export type AttemptDetail = {
 export type PlayerHistoryResult = {
   history: HistoryAttempt[]
   stats: PlayerStats
+  // Pagination — present when the caller passes page/pageSize
+  total?: number
+  page?: number
+  pageSize?: number
 }
 
 // ─── Internal types ───────────────────────────────────────────────────────────
@@ -218,18 +222,33 @@ function getOptionText(q: QuestionRow, letter: string | null): string | null {
 
 // ─── Public functions ─────────────────────────────────────────────────────────
 
-export async function getPlayerHistory(userId: string): Promise<HistoryAttempt[]> {
-  const { data, error } = await supabaseAdmin
-    .from('attempts')
-    .select(
-      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes(title)'
-    )
-    .eq('user_id', userId)
-    .not('correct_streak', 'is', null)
-    .order('completed_at', { ascending: false })
-    .limit(200)
+export async function getPlayerHistory(
+  userId: string,
+  opts: { page?: number; pageSize?: number } = {}
+): Promise<{ items: HistoryAttempt[]; total: number }> {
+  const pageSize = opts.pageSize ?? 50
+  const page     = opts.page     ?? 0
+  const from     = page * pageSize
+  const to       = from + pageSize - 1
 
-  if (error || !data) return []
+  const [{ data, error }, { count }] = await Promise.all([
+    supabaseAdmin
+      .from('attempts')
+      .select(
+        'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes(title)'
+      )
+      .eq('user_id', userId)
+      .not('correct_streak', 'is', null)
+      .order('completed_at', { ascending: false })
+      .range(from, to),
+    supabaseAdmin
+      .from('attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .not('correct_streak', 'is', null),
+  ])
+
+  if (error || !data) return { items: [], total: 0 }
 
   const ranks = await computeRanks(
     data.map((r) => ({
@@ -240,7 +259,7 @@ export async function getPlayerHistory(userId: string): Promise<HistoryAttempt[]
     }))
   )
 
-  return data.map((row) => {
+  const items = data.map((row) => {
     const r = ranks.get(row.id)
     return {
       id: row.id,
@@ -255,6 +274,8 @@ export async function getPlayerHistory(userId: string): Promise<HistoryAttempt[]
       total_players: r?.total_players ?? null,
     }
   })
+
+  return { items, total: count ?? 0 }
 }
 
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {

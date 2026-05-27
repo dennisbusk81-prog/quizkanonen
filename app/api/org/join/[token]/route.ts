@@ -113,19 +113,30 @@ export async function POST(
     }
   }
 
-  // Add to org
+  // Atomically increment use_count only if it has not changed since we read it
+  // (and is still under max_uses). If another concurrent request already used
+  // the last slot, this update matches zero rows and we return 409.
+  let countQuery = supabaseAdmin
+    .from('organization_invites')
+    .update({ use_count: invite.use_count + 1 })
+    .eq('id', invite.id)
+    .eq('use_count', invite.use_count) // CAS — reject if count changed
+  if (invite.max_uses !== null) {
+    countQuery = countQuery.lt('use_count', invite.max_uses)
+  }
+  const { data: updatedInvite } = await countQuery.select('id').maybeSingle()
+
+  if (!updatedInvite) {
+    return NextResponse.json({ error: 'Invitasjonslenken er full' }, { status: 409 })
+  }
+
+  // Add to org only after the atomic increment succeeded
   await supabaseAdmin.from('organization_members').insert({
     organization_id: invite.organization_id,
     user_id: user.id,
     role: 'member',
     invite_token_id: invite.id,
   })
-
-  // Increment use_count
-  await supabaseAdmin
-    .from('organization_invites')
-    .update({ use_count: invite.use_count + 1 })
-    .eq('id', invite.id)
 
   // Activate premium via org
   await supabaseAdmin.from('profiles').update({

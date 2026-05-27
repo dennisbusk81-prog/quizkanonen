@@ -71,6 +71,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     query = query.gte('completed_at', league.reset_at)
   }
 
+  // Limit to prevent unbounded scans. 5000 is generous for a 10-member league
+  // (~1 attempt/week × 10 members × 52 weeks × ~10 years).
+  query = query
+    .order('completed_at', { ascending: false })
+    .limit(5000)
+
   const { data: attempts, error: attemptsError } = await query
 
   if (attemptsError) {

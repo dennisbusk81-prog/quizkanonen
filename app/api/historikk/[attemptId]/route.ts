@@ -57,9 +57,12 @@ export async function GET(
     .from('profiles')
     .select('premium_status')
     .eq('id', userId)
-    .single()
+    .maybeSingle()
 
-  if (!profile?.premium_status) {
+  if (profile === null) {
+    return NextResponse.json({ error: 'Profil ikke funnet' }, { status: 404 })
+  }
+  if (!profile.premium_status) {
     return NextResponse.json({ error: 'Krever premium' }, { status: 403 })
   }
 

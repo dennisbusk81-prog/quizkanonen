@@ -3,6 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
+// Defined as a constant so the limit can be changed in one place without
+// hunting through the file.
+const MAX_LEAGUE_MEMBERS = 10
+
 const bodySchema = z.object({
   invite_token: z.string().trim().min(1, 'invite_token er påkrevd'),
 })
@@ -61,8 +65,8 @@ export async function POST(request: NextRequest) {
     .select('user_id', { count: 'exact', head: true })
     .eq('league_id', league.id)
 
-  if ((memberCount ?? 0) >= 10) {
-    return NextResponse.json({ error: 'Denne ligaen er full (maks 10 medlemmer).' }, { status: 403 })
+  if ((memberCount ?? 0) >= MAX_LEAGUE_MEMBERS) {
+    return NextResponse.json({ error: `Denne ligaen er full (maks ${MAX_LEAGUE_MEMBERS} medlemmer).` }, { status: 403 })
   }
 
   const { error: insertError } = await supabaseAdmin

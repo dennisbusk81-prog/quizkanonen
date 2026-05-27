@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 function emptyResponse() {
   return NextResponse.json(
     { totalPlayers: 0, sampleNames: [] },
-    { headers: { 'Cache-Control': 'public, s-maxage=60' } }
+    { headers: { 'Cache-Control': 'public, s-maxage=60, max-age=0' } }
   )
 }
 
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { totalPlayers, sampleNames },
-      { headers: { 'Cache-Control': 'public, s-maxage=60' } }
+      { headers: { 'Cache-Control': 'public, s-maxage=60, max-age=0' } }
     )
   } catch (err) {
     console.error('[social-proof] unexpected error:', err)

@@ -102,6 +102,10 @@ export async function GET(request: NextRequest) {
       userRank,
       above: aboveEntry ? { name: resolveName(aboveEntry), correct: aboveEntry.correct_answers } : null,
       below: belowEntry ? { name: resolveName(belowEntry), correct: belowEntry.correct_answers } : null,
+      // isTruncated: true means we hit the 500-attempt fetch limit, so ranking
+      // may be inaccurate for this player. The client should show "500+" instead
+      // of showing a possibly wrong rank.
+      isTruncated: (rawAttempts?.length ?? 0) >= 500,
     },
     { headers: HEADERS }
   )

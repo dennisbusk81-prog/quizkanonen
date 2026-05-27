@@ -16,7 +16,8 @@ export function rateLimit(
   }
 
   if (entry.count >= limit) {
-    rateLimitMap.delete(key)
+    // Do NOT delete the entry here — deleting on limit hit lets the next
+    // request start a fresh window, effectively bypassing rate limiting.
     return { success: false, remaining: 0 }
   }
 
