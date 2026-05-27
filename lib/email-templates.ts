@@ -880,7 +880,7 @@ export function premiumWelcomeEmail(): string {
 </html>`
 }
 
-export function premiumRenewalEmail(): string {
+export function premiumRenewalEmail(nextBillingDate?: string): string {
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -915,12 +915,24 @@ export function premiumRenewalEmail(): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Abonnementet ditt er fornyet for en ny måned. Du har fortsatt tilgang til alle Premium-funksjoner.
+                Premium-abonnementet ditt er fornyet for en ny måned. Du har fortsatt tilgang til alle Premium-funksjoner.
               </p>
 
-              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Du administrerer abonnementet fra profilsiden din.
-              </p>
+              ${nextBillingDate ? `
+              <!-- Next billing date -->
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr>
+                  <td style="background:#1a1c23;border:1px solid #2a2d38;border-radius:12px;padding:14px 18px;">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#6a6860;">
+                      Neste betaling
+                    </span><br />
+                    <span style="font-size:16px;font-weight:600;color:#ffffff;margin-top:4px;display:inline-block;">
+                      ${nextBillingDate}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              ` : '<p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">Abonnementet fornyes automatisk neste måned.</p>'}
 
               <!-- Diskret lenke -->
               <p style="margin:0;font-size:14px;color:#e0e0e0;">
