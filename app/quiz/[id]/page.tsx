@@ -919,7 +919,7 @@ export default function QuizPage() {
   }, [quizId])
 
   const startQuiz = async () => {
-    const effectiveName = isTeamInput ? nameInput.trim() : (loggedInDisplayName ?? nameInput.trim())
+    const effectiveName = nameInput.trim()
     if (!effectiveName) return
 
     const info: PlayerInfo = { name: effectiveName, isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
@@ -1354,7 +1354,25 @@ export default function QuizPage() {
       {quiz.category && (
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873', marginBottom: 16 }}>{quiz.category}</p>
       )}
-      <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName ?? '...'}</strong>. Lykke til!</p>
+      {!isTeamInput && (
+        <>
+          <label className="qk-label">Navn</label>
+          <input
+            type="text"
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            placeholder="Skriv inn navnet ditt..."
+            className="qk-input"
+            maxLength={30}
+            onKeyDown={e => e.key === 'Enter' && startQuiz()}
+          />
+          {!loggedInDisplayName && (
+            <p style={{ fontSize: 13, color: '#7a7873', marginTop: -12, marginBottom: 20 }}>
+              Bruk ditt ekte navn — det er det som gjør det morsomt å vinne.
+            </p>
+          )}
+        </>
+      )}
 
       {resumeData && (
         <div className="qk-banner">🔄 Vi fant en påbegynt quiz — du fortsetter der du slapp.</div>
@@ -1423,7 +1441,7 @@ export default function QuizPage() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <button onClick={startQuiz} disabled={isTeamInput && !nameInput.trim()} className="qk-btn-primary"
+        <button onClick={startQuiz} disabled={!nameInput.trim()} className="qk-btn-primary"
           style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
           {resumeData ? 'Fortsett quiz' : 'Start quiz'}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
