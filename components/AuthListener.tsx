@@ -36,16 +36,25 @@ async function checkAndFixDisplayName(user: User) {
 
   if (candidateName) {
     // Sett Google-navn automatisk — én-gangs migrering for brukere med ugyldig navn
-    await fetch('/api/profile/upsert', {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) return
+
+    const res = await fetch('/api/profile/upsert', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
       body: JSON.stringify({
         id: user.id,
         display_name: candidateName,
       }),
     })
-    // Gi beskjed til eventuelle åpne profilsider om å laste på nytt
-    window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: candidateName } }))
+    // Gi beskjed til eventuelle åpne profilsider om å laste på nytt — kun ved suksess
+    if (res.ok) {
+      window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: candidateName } }))
+    }
     return
   }
 
