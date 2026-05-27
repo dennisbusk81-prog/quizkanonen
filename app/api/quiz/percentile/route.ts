@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     .from('attempts')
     .select('correct_answers, total_questions')
     .eq('quiz_id', quizId)
+    .eq('is_team', false)
 
   if (!attempts || attempts.length === 0) {
     return NextResponse.json([], {

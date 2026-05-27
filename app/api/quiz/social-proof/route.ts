@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       .from('attempts')
       .select('user_id, player_name')
       .eq('quiz_id', quizId)
+      .eq('is_team', false)
 
     if (attemptsError) {
       console.error('[social-proof] attempts query error:', attemptsError)
