@@ -19,13 +19,16 @@ export async function GET(request: NextRequest) {
   const windowStart = new Date(now - WINDOW_START_MS).toISOString()
   const windowEnd   = new Date(now - WINDOW_END_MS).toISOString()
 
-  // Profiles on trial: premium_status = true, premium_since 23–24 days ago
+  // Profiles on trial: premium_status = true, premium_since 23–24 days ago,
+  // and premium_source is NULL (Founders trial) or 'founders'.
+  // Paying customers (premium_source = 'personal' or 'org') are excluded.
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
     .select('id')
     .eq('premium_status', true)
     .gte('premium_since', windowStart)
     .lte('premium_since', windowEnd)
+    .or('premium_source.is.null,premium_source.eq.founders')
 
   if (profilesError) {
     console.error('[cron/trial-reminders] profiles error:', profilesError.message)
@@ -34,6 +37,34 @@ export async function GET(request: NextRequest) {
 
   if (!profiles || profiles.length === 0) {
     return NextResponse.json({ sent: 0, reason: 'no trials ending soon' })
+  }
+
+  const trialUserIds = new Set(profiles.map(p => p.id))
+
+  // Resolve emails via listUsers pagination — avoids N parallel getUserById calls.
+  const emailsToSend: string[] = []
+  let page = 1
+  while (true) {
+    const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    })
+    if (listError) {
+      console.error('[cron/trial-reminders] listUsers error (page', page, '):', listError.message)
+      break
+    }
+    const users = authData?.users ?? []
+    for (const u of users) {
+      if (u.email && trialUserIds.has(u.id)) {
+        emailsToSend.push(u.email)
+      }
+    }
+    if (users.length < 1000) break // last page
+    page++
+  }
+
+  if (emailsToSend.length === 0) {
+    return NextResponse.json({ sent: 0, reason: 'no emails resolved for trial users' })
   }
 
   const html = trialEndingEmail(DAYS_LEFT)
@@ -50,21 +81,6 @@ export async function GET(request: NextRequest) {
     ])
   }
 
-  // Resolve all auth users in parallel instead of one-by-one
-  const userResults = await Promise.allSettled(
-    profiles.map(profile => supabaseAdmin.auth.admin.getUserById(profile.id))
-  )
-
-  const emailsToSend: string[] = []
-  let failed = 0
-
-  for (const result of userResults) {
-    if (result.status === 'rejected') { failed++; continue }
-    const { data: { user }, error: userError } = result.value
-    if (userError || !user?.email) { failed++; continue }
-    emailsToSend.push(user.email)
-  }
-
   // Send all emails in parallel, each with a 5-second timeout
   const sendResults = await Promise.allSettled(
     emailsToSend.map(email =>
@@ -73,6 +89,7 @@ export async function GET(request: NextRequest) {
   )
 
   let sent = 0
+  let failed = 0
   for (const r of sendResults) {
     if (r.status === 'fulfilled') {
       sent++

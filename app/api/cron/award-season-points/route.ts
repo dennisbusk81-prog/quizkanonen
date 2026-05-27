@@ -93,6 +93,19 @@ async function processQuiz(
     return { rows: 0, error: null }
   }
 
+  // Sett flagget FØR upsertene starter. Hvis jobben timer ut og kjøres på nytt
+  // vil den hoppe over denne quizen og unngå at re-rangering fra nye forsøk
+  // gir inkonsistente poengscorer.
+  const { error: flagError } = await supabaseAdmin
+    .from('quizzes')
+    .update({ season_points_awarded: true })
+    .eq('id', quizId)
+
+  if (flagError) {
+    console.error(`[award-season-points] Klarte ikke sette season_points_awarded på quiz ${quizId}:`, flagError.message)
+    return { rows: 0, error: flagError.message }
+  }
+
   // Beste forsøk per bruker
   const bestByUser = new Map<string, RawAttempt>()
   for (const a of rawAttempts as RawAttempt[]) {
@@ -190,16 +203,6 @@ async function processQuiz(
       totalRows += rows.length
     }
     console.log(`[award-season-points]   org: ${byOrg.size} organisasjoner, scope-rader inkludert i total`)
-  }
-
-  // Marker quizen som ferdig — settes ETTER alle inserts
-  const { error: flagError } = await supabaseAdmin
-    .from('quizzes')
-    .update({ season_points_awarded: true })
-    .eq('id', quizId)
-
-  if (flagError) {
-    console.error(`[award-season-points] Klarte ikke sette season_points_awarded på quiz ${quizId}:`, flagError.message)
   }
 
   return { rows: totalRows, error: null }

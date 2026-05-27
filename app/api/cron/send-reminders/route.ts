@@ -29,14 +29,17 @@ export async function GET(request: NextRequest) {
   }
 
   // Find a quiz opening in the precise 55–65 minute reminder window.
+  // Also check reminder_sent_at IS NULL to prevent double-sends if the cron
+  // fires more than once within the window (e.g. retry or overlapping schedules).
   const windowStart = new Date(now + 55 * 60 * 1000).toISOString()
   const windowEnd   = new Date(now + 65 * 60 * 1000).toISOString()
 
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, opens_at')
+    .select('id, title, opens_at, reminder_sent_at')
     .gte('opens_at', windowStart)
     .lte('opens_at', windowEnd)
+    .is('reminder_sent_at', null)
     .order('opens_at', { ascending: true })
     .limit(1)
     .maybeSingle()
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!nextQuiz) {
-    return NextResponse.json({ skipped: true, reason: 'No quiz in reminder window' })
+    return NextResponse.json({ skipped: true, reason: 'No quiz in reminder window (or already sent)' })
   }
 
   // A quiz is in the reminder window — return 200 immediately and do the
@@ -104,7 +107,7 @@ export async function GET(request: NextRequest) {
         return
       }
 
-      const html = quizReminderEmail(quizSnapshot.opens_at)
+      const html = quizReminderEmail(quizSnapshot.opens_at, quizSnapshot.title ?? undefined)
       const subject = `Quizen åpner snart — ${new Date(quizSnapshot.opens_at).toLocaleDateString('no-NO')}`
       let sent = 0
       let failed = 0
@@ -118,6 +121,17 @@ export async function GET(request: NextRequest) {
         )
         sent   += results.filter(r => r.status === 'fulfilled').length
         failed += results.filter(r => r.status === 'rejected').length
+      }
+
+      // Mark the quiz so a re-run of the cron does not send duplicate emails
+      if (sent > 0) {
+        const { error: markError } = await supabaseAdmin
+          .from('quizzes')
+          .update({ reminder_sent_at: new Date().toISOString() })
+          .eq('id', quizSnapshot.id)
+        if (markError) {
+          console.error('[cron/send-reminders] failed to set reminder_sent_at:', markError.message)
+        }
       }
 
       console.log(`[cron/send-reminders] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
