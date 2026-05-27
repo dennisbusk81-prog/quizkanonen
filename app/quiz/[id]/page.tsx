@@ -948,9 +948,11 @@ export default function QuizPage() {
       setQuestionStartTime(Date.now()); setPhase('playing')
 
       // Parallel: fetch rival and percentile data (non-blocking)
-      const uid = session?.user?.id
-      if (uid) {
-        fetch(`/api/quiz/rival?quizId=${quizId}&userId=${uid}`)
+      const accessToken = session?.access_token
+      if (accessToken) {
+        fetch(`/api/quiz/rival?quizId=${quizId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
           .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null })
           .then(j => {
             if (j.rival) setRivalData(j.rival)
@@ -1238,12 +1240,13 @@ export default function QuizPage() {
     try {
       if (attemptId) {
         await supabaseData.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
-        for (const ans of answers) {
-          await supabaseData.from('attempt_answers').insert({
+        const { error: answersError } = await supabaseData.from('attempt_answers').insert(
+          answers.map(ans => ({
             attempt_id: attemptId, question_id: ans.questionId,
-            selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs
-          })
-        }
+            selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs,
+          }))
+        )
+        if (answersError) console.error('[finishQuiz] attempt_answers batch insert failed:', answersError)
         await supabaseData.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
