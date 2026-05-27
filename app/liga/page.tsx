@@ -176,7 +176,7 @@ export default function MineLigaerPage() {
           <div style={{ background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
             {[
               {
-                text: 'Inviter opptil 9 venner via en delbar lenke',
+                text: 'Inviter opptil 5 venner via en delbar lenke',
                 icon: (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M19 8v6M22 11h-6"/>
