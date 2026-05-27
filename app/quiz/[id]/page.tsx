@@ -668,6 +668,7 @@ export default function QuizPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [shareResultCopied, setShareResultCopied] = useState(false)
+  const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [nameConflict, setNameConflict] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
@@ -1290,6 +1291,162 @@ export default function QuizPage() {
     return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
   }
 
+  const generateAndShareCard = async () => {
+    if (cardShareState === 'loading') return
+    setCardShareState('loading')
+    try {
+      await document.fonts.ready
+
+      const cCount = answers.filter(a => a.isCorrect).length
+      const topp = isPremium && estimatedPlacement && estimatedPlacement.total > 1
+        ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+        : null
+
+      const W = 800, H = 420
+      const canvas = document.createElement('canvas')
+      canvas.width = W * 2
+      canvas.height = H * 2
+      const ctx = canvas.getContext('2d')!
+      ctx.scale(2, 2)
+
+      // Rounded rect path helper
+      const rr = (x: number, y: number, w: number, h: number, rad: number) => {
+        ctx.beginPath()
+        ctx.moveTo(x + rad, y)
+        ctx.lineTo(x + w - rad, y)
+        ctx.arcTo(x + w, y, x + w, y + rad, rad)
+        ctx.lineTo(x + w, y + h - rad)
+        ctx.arcTo(x + w, y + h, x + w - rad, y + h, rad)
+        ctx.lineTo(x + rad, y + h)
+        ctx.arcTo(x, y + h, x, y + h - rad, rad)
+        ctx.lineTo(x, y + rad)
+        ctx.arcTo(x, y, x + rad, y, rad)
+        ctx.closePath()
+      }
+
+      // Background
+      ctx.fillStyle = '#1a1c23'
+      ctx.fillRect(0, 0, W, H)
+
+      // Card
+      const pad = 20, r = 16
+      const cX = pad, cY = pad, cW = W - pad * 2, cH = H - pad * 2
+      ctx.fillStyle = '#21242e'
+      rr(cX, cY, cW, cH, r)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(201, 168, 76, 0.2)'
+      ctx.lineWidth = 1
+      rr(cX, cY, cW, cH, r)
+      ctx.stroke()
+
+      // Gold top bar (clip to card shape)
+      ctx.save()
+      rr(cX, cY, cW, cH, r)
+      ctx.clip()
+      ctx.fillStyle = '#c9a84c'
+      ctx.fillRect(cX, cY, cW, 4)
+      ctx.restore()
+
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      const cx = W / 2
+
+      // Eyebrow
+      ctx.font = '600 11px "Instrument Sans", sans-serif'
+      ctx.fillStyle = '#c9a84c'
+      ctx.fillText('QUIZKANONEN', cx, cY + 40)
+
+      // Player name
+      const rawName = playerInfo.name
+      const displayName = rawName.length > 26 ? rawName.slice(0, 26) + '…' : rawName
+      ctx.font = '700 38px "Libre Baskerville", serif'
+      ctx.fillStyle = '#ffffff'
+      ctx.fillText(displayName, cx, cY + 90)
+
+      // Quiz title
+      const rawTitle = quiz?.title ?? ''
+      const displayTitle = rawTitle.length > 50 ? rawTitle.slice(0, 50) + '…' : rawTitle
+      ctx.font = '400 13px "Instrument Sans", sans-serif'
+      ctx.fillStyle = '#7a7873'
+      ctx.fillText(displayTitle, cx, cY + 116)
+
+      // Divider
+      ctx.strokeStyle = '#2a2d38'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(cX + 48, cY + 134)
+      ctx.lineTo(cX + cW - 48, cY + 134)
+      ctx.stroke()
+
+      // Stats
+      const statY = cY + 212
+      if (topp !== null) {
+        // Two columns: score | placement
+        const col1x = cx - 130
+        const col2x = cx + 130
+
+        ctx.font = '700 52px "Libre Baskerville", serif'
+        ctx.fillStyle = '#c9a84c'
+        ctx.fillText(`${cCount}/${questions.length}`, col1x, statY)
+        ctx.font = '500 11px "Instrument Sans", sans-serif'
+        ctx.fillStyle = '#7a7873'
+        ctx.fillText('RIKTIGE SVAR', col1x, statY + 28)
+
+        // Column separator
+        ctx.strokeStyle = '#2a2d38'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(cx, statY - 46)
+        ctx.lineTo(cx, statY + 38)
+        ctx.stroke()
+
+        ctx.font = '700 42px "Libre Baskerville", serif'
+        ctx.fillStyle = '#c9a84c'
+        ctx.fillText(`Topp ${topp}%`, col2x, statY)
+        ctx.font = '500 11px "Instrument Sans", sans-serif'
+        ctx.fillStyle = '#7a7873'
+        ctx.fillText('PLASSERING', col2x, statY + 28)
+      } else {
+        // Just score centered
+        ctx.font = '700 58px "Libre Baskerville", serif'
+        ctx.fillStyle = '#c9a84c'
+        ctx.fillText(`${cCount}/${questions.length}`, cx, statY)
+        ctx.font = '500 16px "Instrument Sans", sans-serif'
+        ctx.fillStyle = '#e8e4dd'
+        ctx.fillText('riktige svar', cx, statY + 36)
+      }
+
+      // Branding
+      ctx.font = '400 11px "Instrument Sans", sans-serif'
+      ctx.fillStyle = 'rgba(122, 120, 115, 0.45)'
+      ctx.textAlign = 'right'
+      ctx.fillText('quizkanonen.no', cX + cW - 20, cY + cH - 16)
+
+      // Export
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'))
+      if (!blob) { setCardShareState('idle'); return }
+
+      const file = new File([blob], 'quizkanonen-resultat.png', { type: 'image/png' })
+      const sharePayload = { files: [file], title: 'Quizkanonen', text: `${cCount}/${questions.length} riktige — kan du slå meg?` }
+
+      if (navigator.share && navigator.canShare && navigator.canShare(sharePayload)) {
+        await navigator.share(sharePayload)
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'quizkanonen-resultat.png'
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+
+      setCardShareState('done')
+      setTimeout(() => setCardShareState('idle'), 3000)
+    } catch {
+      setCardShareState('idle')
+    }
+  }
+
   const optionKeys: Record<string, keyof Question> = { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
 
   if (loading) return (
@@ -1761,6 +1918,32 @@ export default function QuizPage() {
         }}>
           {shareResultCopied ? 'Kopiert!' : 'Del resultatet →'}
         </button>
+
+        {isLoggedIn && (
+          <button
+            onClick={generateAndShareCard}
+            disabled={cardShareState === 'loading'}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              border: '0.5px solid #3a3d4a',
+              borderRadius: 10,
+              padding: '8px 20px',
+              fontSize: 14,
+              color: cardShareState === 'done' ? '#4caf7d' : '#e8e4dd',
+              fontFamily: "'Instrument Sans', sans-serif",
+              cursor: cardShareState === 'loading' ? 'default' : 'pointer',
+              opacity: cardShareState === 'loading' ? 0.6 : 1,
+              transition: 'color 0.2s, opacity 0.2s',
+            }}
+          >
+            {cardShareState === 'done'
+              ? 'Lastet ned!'
+              : cardShareState === 'loading'
+                ? 'Genererer…'
+                : 'Del resultatkort'}
+          </button>
+        )}
 
         {quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
