@@ -4,6 +4,7 @@ import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
+import WelcomeBanner from '@/components/WelcomeBanner'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -1287,6 +1288,8 @@ export default async function Home() {
           </div>
         </div>
       </nav>
+
+      <WelcomeBanner />
 
       <div className="qk-page">
 

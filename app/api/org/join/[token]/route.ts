@@ -84,7 +84,12 @@ export async function POST(
     .from('organizations')
     .select('slug')
     .eq('id', invite.organization_id)
-    .single()
+    .maybeSingle()
+
+  // Guard: org deleted between invite creation and join attempt
+  if (!org?.slug) {
+    return NextResponse.json({ error: 'Organisasjonen finnes ikke lenger' }, { status: 404 })
+  }
 
   // Premium transition
   const { data: profile } = await supabaseAdmin
@@ -144,5 +149,5 @@ export async function POST(
     premium_source: 'org',
   }).eq('id', user.id)
 
-  return NextResponse.json({ slug: org?.slug })
+  return NextResponse.json({ slug: org.slug })
 }

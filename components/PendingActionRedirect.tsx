@@ -35,6 +35,17 @@ export default function PendingActionRedirect() {
         localStorage.removeItem(PENDING_ACTION_KEY)
         router.push(`/liga/bli-med/${inviteToken}`)
       })
+    } else if (pending.startsWith('org_join:')) {
+      // Fallback for when the OAuth ?next= param was lost during org invite flow.
+      const inviteToken = pending.slice('org_join:'.length)
+      if (!inviteToken) return
+      supabase.auth.getSession().then(({ data }) => {
+        // NOTE: this client uses localStorage for auth (not cookies).
+        // If the session was set via cookie-based auth/callback it will NOT be found here.
+        if (!data.session) return
+        localStorage.removeItem(PENDING_ACTION_KEY)
+        router.push(`/bli-med/${inviteToken}`)
+      })
     }
   }, [router])
 

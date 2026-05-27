@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
+import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
@@ -53,6 +54,8 @@ export default function BliMedPage() {
       if (res.status === 409) { setAlreadyMember(true); return }
       if (!res.ok) { setJoinError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
       if (data.slug) {
+        // Clear pending fallback now that join succeeded
+        localStorage.removeItem(PENDING_ACTION_KEY)
         // Fire-and-forget velkomst-e-post
         fetch('/api/org/welcome-email', {
           method: 'POST',
@@ -60,6 +63,8 @@ export default function BliMedPage() {
           body: JSON.stringify({ access_token: session.access_token, orgSlug: data.slug }),
         }).catch(() => {})
         router.push(`/org/${data.slug}`)
+      } else {
+        setJoinError('Noe gikk galt. Prøv igjen.')
       }
     } catch {
       setJoinError('Noe gikk galt. Prøv igjen.')
@@ -138,7 +143,11 @@ export default function BliMedPage() {
             ) : !session ? (
               <>
                 <button
-                  onClick={() => signInWithGoogle(`/bli-med/${token}`)}
+                  onClick={() => {
+                    // Store fallback in case OAuth drops the ?next= param
+                    localStorage.setItem(PENDING_ACTION_KEY, `org_join:${token}`)
+                    signInWithGoogle(`/bli-med/${token}`)
+                  }}
                   style={{ width: '100%', background: '#ffffff', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}
                 >
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
