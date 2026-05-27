@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { quizReminderEmail } from '@/lib/email-templates'
@@ -10,8 +11,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Find a quiz opening in the 55–65 minute window from now
   const now = Date.now()
+
+  // Early exit: bail immediately if no quiz opens within the next 90 minutes.
+  // This is a cheap single-row query that lets the cron job return in < 100 ms
+  // on the vast majority of runs where no reminder is needed.
+  const { data: anyUpcoming } = await supabaseAdmin
+    .from('quizzes')
+    .select('id')
+    .gte('opens_at', new Date(now).toISOString())
+    .lte('opens_at', new Date(now + 90 * 60 * 1000).toISOString())
+    .limit(1)
+    .maybeSingle()
+
+  if (!anyUpcoming) {
+    return NextResponse.json({ skipped: true, reason: 'No quiz opening within 90 minutes' })
+  }
+
+  // Find a quiz opening in the precise 55–65 minute reminder window.
   const windowStart = new Date(now + 55 * 60 * 1000).toISOString()
   const windowEnd   = new Date(now + 65 * 60 * 1000).toISOString()
 
@@ -30,70 +47,82 @@ export async function GET(request: NextRequest) {
   }
 
   if (!nextQuiz) {
-    return NextResponse.json({ skipped: true, reason: 'No quiz opening soon' })
+    return NextResponse.json({ skipped: true, reason: 'No quiz in reminder window' })
   }
 
-  // Fetch profile IDs that have opted in to reminders
-  const { data: profiles, error: profilesError } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .eq('email_reminders', true)
+  // A quiz is in the reminder window — return 200 immediately and do the
+  // heavy lifting (profile lookup, auth pagination, email sending) in the
+  // background via waitUntil so cron-job.org never sees a timeout.
+  const quizSnapshot = nextQuiz // capture for the closure
 
-  if (profilesError) {
-    console.error('[cron/send-reminders] profiles error:', profilesError.message)
-    return NextResponse.json({ error: profilesError.message }, { status: 500 })
-  }
+  waitUntil(
+    (async () => {
+      // Fetch profile IDs that have opted in to reminders
+      const { data: profiles, error: profilesError } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('email_reminders', true)
 
-  if (!profiles || profiles.length === 0) {
-    return NextResponse.json({ sent: 0, reason: 'no subscribers' })
-  }
-
-  const subscriberIds = new Set(profiles.map(p => p.id))
-
-  // FIX 6 — paginate auth.admin.listUsers instead of calling getUserById per profile.
-  // This avoids N sequential API calls (one per subscriber) and scales to large user bases.
-  const emailsByUserId = new Map<string, string>()
-  let page = 1
-  while (true) {
-    const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-      page,
-      perPage: 1000,
-    })
-    if (listError) {
-      console.error('[cron/send-reminders] listUsers error (page', page, '):', listError.message)
-      break
-    }
-    const users = authData?.users ?? []
-    for (const u of users) {
-      if (u.email && subscriberIds.has(u.id)) {
-        emailsByUserId.set(u.id, u.email)
+      if (profilesError) {
+        console.error('[cron/send-reminders] profiles error:', profilesError.message)
+        return
       }
-    }
-    if (users.length < 1000) break // last page
-    page++
-  }
 
-  const emailsToSend = [...emailsByUserId.values()]
-  if (emailsToSend.length === 0) {
-    return NextResponse.json({ sent: 0, reason: 'no subscriber emails found' })
-  }
+      if (!profiles || profiles.length === 0) {
+        console.log('[cron/send-reminders] no subscribers — nothing to send')
+        return
+      }
 
-  const html = quizReminderEmail(nextQuiz.opens_at)
-  const subject = `Quizen åpner snart — ${new Date(nextQuiz.opens_at).toLocaleDateString('no-NO')}`
-  let sent = 0
-  let failed = 0
+      const subscriberIds = new Set(profiles.map(p => p.id))
 
-  // FIX 6 — send in batches of 20 concurrent emails (avoids overwhelming the email provider)
-  const BATCH_SIZE = 20
-  for (let i = 0; i < emailsToSend.length; i += BATCH_SIZE) {
-    const batch = emailsToSend.slice(i, i + BATCH_SIZE)
-    const results = await Promise.allSettled(
-      batch.map(email => sendEmail({ to: email, subject, html }))
-    )
-    sent   += results.filter(r => r.status === 'fulfilled').length
-    failed += results.filter(r => r.status === 'rejected').length
-  }
+      // Paginate auth.admin.listUsers to resolve subscriber emails in bulk
+      // (avoids N sequential getUserById calls).
+      const emailsByUserId = new Map<string, string>()
+      let page = 1
+      while (true) {
+        const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        })
+        if (listError) {
+          console.error('[cron/send-reminders] listUsers error (page', page, '):', listError.message)
+          break
+        }
+        const users = authData?.users ?? []
+        for (const u of users) {
+          if (u.email && subscriberIds.has(u.id)) {
+            emailsByUserId.set(u.id, u.email)
+          }
+        }
+        if (users.length < 1000) break // last page
+        page++
+      }
 
-  console.log(`[cron/send-reminders] quiz="${nextQuiz.title}" sent=${sent} failed=${failed}`)
-  return NextResponse.json({ sent, failed, quiz: nextQuiz.title })
+      const emailsToSend = [...emailsByUserId.values()]
+      if (emailsToSend.length === 0) {
+        console.log('[cron/send-reminders] no subscriber emails found')
+        return
+      }
+
+      const html = quizReminderEmail(quizSnapshot.opens_at)
+      const subject = `Quizen åpner snart — ${new Date(quizSnapshot.opens_at).toLocaleDateString('no-NO')}`
+      let sent = 0
+      let failed = 0
+
+      // Send in batches of 20 concurrent emails
+      const BATCH_SIZE = 20
+      for (let i = 0; i < emailsToSend.length; i += BATCH_SIZE) {
+        const batch = emailsToSend.slice(i, i + BATCH_SIZE)
+        const results = await Promise.allSettled(
+          batch.map(email => sendEmail({ to: email, subject, html }))
+        )
+        sent   += results.filter(r => r.status === 'fulfilled').length
+        failed += results.filter(r => r.status === 'rejected').length
+      }
+
+      console.log(`[cron/send-reminders] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
+    })()
+  )
+
+  return NextResponse.json({ ok: true })
 }
