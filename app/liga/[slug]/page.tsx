@@ -261,7 +261,8 @@ export default function LigaPage() {
             <p style={s.heroEyebrow}>Liga</p>
             <h1 style={s.heroTitle}>{league?.name}</h1>
             <span style={s.heroBadge}>
-              {league?.member_count} / 10 {league?.member_count === 1 ? 'medlem' : 'medlemmer'}
+              {league?.member_count} / 6 {league?.member_count === 1 ? 'medlem' : 'medlemmer'}
+              {(league?.member_count ?? 0) >= 6 && <> · <span style={{ color: '#c9a84c', fontWeight: 600 }}>Full</span></>}
               {league?.is_owner && <> · <span style={{ color: '#c9a84c', fontWeight: 600 }}>Du er eier</span></>}
             </span>
           </div>
@@ -271,18 +272,29 @@ export default function LigaPage() {
           {/* Owner: invite link */}
           {league?.is_owner && (
             <div style={s.inviteCard}>
-              <p style={s.inviteLabel}>Invitasjonslenke</p>
-              <div style={s.inviteRow}>
-                <input
-                  readOnly
-                  value={inviteUrl}
-                  style={s.inviteInput}
-                  onFocus={e => e.currentTarget.select()}
-                />
-                <button onClick={handleCopy} style={copied ? s.copyBtnDone : s.copyBtn}>
-                  {copied ? 'Kopiert!' : 'Kopier'}
-                </button>
-              </div>
+              <p style={s.inviteLabel}>
+                Invitasjonslenke
+                <span style={{ color: (league?.member_count ?? 0) >= 6 ? '#f87171' : '#7a7873', marginLeft: 6, fontWeight: 400, letterSpacing: 0, textTransform: 'none' as const }}>
+                  {league?.member_count}/6
+                </span>
+              </p>
+              {(league?.member_count ?? 0) < 6 ? (
+                <div style={s.inviteRow}>
+                  <input
+                    readOnly
+                    value={inviteUrl}
+                    style={s.inviteInput}
+                    onFocus={e => e.currentTarget.select()}
+                  />
+                  <button onClick={handleCopy} style={copied ? s.copyBtnDone : s.copyBtn}>
+                    {copied ? 'Kopiert!' : 'Kopier'}
+                  </button>
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4, lineHeight: 1.5 }}>
+                  Ligaen er full — ingen nye kan melde seg på.
+                </p>
+              )}
             </div>
           )}
 
