@@ -170,13 +170,17 @@ export async function POST(request: NextRequest) {
           .catch(err => console.error('[webhook] orgRenewalEmail failed:', err))
       } else {
         // B2C — send fornyelsesbekreftelse til bruker
+        const periodEnd = (invoice as unknown as { period_end?: number }).period_end
+        const nextBillingDate = periodEnd
+          ? new Date(periodEnd * 1000).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+          : undefined
         getUserEmail(stripe, customerId)
           .then(email => {
             if (email) {
               return sendEmail({
                 to: email,
                 subject: 'Abonnementet ditt er fornyet — Quizkanonen',
-                html: premiumRenewalEmail(),
+                html: premiumRenewalEmail(nextBillingDate),
               })
             }
           })
