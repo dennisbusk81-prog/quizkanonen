@@ -77,6 +77,7 @@ export default function LigaPage() {
   const [activityData, setActivityData]         = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading]   = useState(false)
   const [excludingId, setExcludingId]           = useState<string | null>(null)
+  const [excludeError, setExcludeError]         = useState<string | null>(null)
 
   useEffect(() => {
     if (!slug) return
@@ -131,7 +132,7 @@ export default function LigaPage() {
   // Last aktivitetsdata når liga og token er klare (kun for eiere)
   useEffect(() => {
     if (!league?.is_owner || !accessToken) return
-    loadActivity(activityPeriod, accessToken, league.id)
+    loadActivity(activityPeriod, league.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [league?.id, league?.is_owner, accessToken, activityPeriod])
 
@@ -165,12 +166,14 @@ export default function LigaPage() {
     }
   }
 
-  async function loadActivity(period: 'month' | 'quarter' | 'year', token: string, leagueId: string) {
+  async function loadActivity(period: 'month' | 'quarter' | 'year', leagueId: string) {
     setActivityLoading(true)
     setActivityData(null)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setActivityData([]); return }
       const res = await fetch(`/api/leagues/${leagueId}/members-activity?period=${period}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const json = res.ok ? await res.json() : { members: [] }
       setActivityData(json.members ?? [])
@@ -182,15 +185,23 @@ export default function LigaPage() {
   }
 
   async function handleExclude(userId: string, currentlyExcluded: boolean) {
-    if (!league || !accessToken) return
+    if (!league) return
     setExcludingId(userId)
+    setExcludeError(null)
     try {
-      await fetch('/api/admin/exclude-member', {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setExcludeError('Ikke innlogget.'); return }
+      const res = await fetch('/api/admin/exclude-member', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ scope_type: 'league', scope_id: league.id, user_id: userId, action: currentlyExcluded ? 'unexclude' : 'exclude' }),
       })
-      if (league) loadActivity(activityPeriod, accessToken, league.id)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setExcludeError((data as { error?: string }).error ?? 'Noe gikk galt. Prøv igjen.')
+        return
+      }
+      loadActivity(activityPeriod, league.id)
     } finally {
       setExcludingId(null)
     }
@@ -373,6 +384,12 @@ export default function LigaPage() {
                   Last ned CSV
                 </button>
               </div>
+
+              {excludeError && (
+                <p style={{ fontSize: 13, color: '#f87171', marginBottom: 10, padding: '8px 12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 8, lineHeight: 1.5 }}>
+                  {excludeError}
+                </p>
+              )}
 
               {/* Member list */}
               {activityLoading ? (

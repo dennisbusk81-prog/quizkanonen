@@ -77,5 +77,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Kunne ikke melde deg inn i ligaen.' }, { status: 500 })
   }
 
+  // Post-insert re-sjekk — beskytter mot TOCTOU-race der to samtidige joins
+  // begge passerte pre-sjekken. Rulles tilbake hvis grensen er brutt.
+  const { count: postCount } = await supabaseAdmin
+    .from('league_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('league_id', league.id)
+
+  if ((postCount ?? 0) > MAX_LEAGUE_MEMBERS) {
+    await supabaseAdmin
+      .from('league_members')
+      .delete()
+      .eq('league_id', league.id)
+      .eq('user_id', user.id)
+    return NextResponse.json({ error: 'Denne ligaen er full — maks 6 medlemmer.' }, { status: 403 })
+  }
+
   return NextResponse.json({ ok: true, slug: league.slug, name: league.name })
 }
