@@ -1,16 +1,13 @@
 function formatNorwegianDate(isoString: string): string {
   const date = new Date(isoString)
-  const days = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag']
-  const months = [
-    'januar', 'februar', 'mars', 'april', 'mai', 'juni',
-    'juli', 'august', 'september', 'oktober', 'november', 'desember',
-  ]
-  const dayName = days[date.getDay()]
-  const day = date.getDate()
-  const month = months[date.getMonth()]
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${dayName} ${day}. ${month} kl. ${hours}:${minutes}`
+  const TZ = 'Europe/Oslo'
+  // All locale parts are resolved in the Norwegian timezone so Vercel's UTC
+  // clock does not cause the time to appear 1–2 hours early in emails.
+  const weekday = date.toLocaleString('no-NO', { timeZone: TZ, weekday: 'long' })
+  const day     = date.toLocaleString('no-NO', { timeZone: TZ, day: 'numeric' })
+  const month   = date.toLocaleString('no-NO', { timeZone: TZ, month: 'long' })
+  const time    = date.toLocaleString('no-NO', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${weekday} ${day}. ${month} kl. ${time}`
 }
 
 export function trialEndingEmail(daysLeft: number): string {
@@ -1040,8 +1037,9 @@ export function premiumCancelledEmail(): string {
 </html>`
 }
 
-export function quizReminderEmail(nextQuizDate: string): string {
+export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): string {
   const formattedDate = formatNorwegianDate(nextQuizDate)
+  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
 
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1079,6 +1077,7 @@ export function quizReminderEmail(nextQuizDate: string): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
+              ${titleLine}
               <p style="margin:0 0 8px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Hei! En ny quiz er på vei på Quizkanonen.
               </p>
