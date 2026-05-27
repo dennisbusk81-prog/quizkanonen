@@ -1,4 +1,5 @@
 # Quizkanonen — Claude Code kontekst
+Sist oppdatert: 19. april 2026
 
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
@@ -39,8 +40,9 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 
 ### Knapper
 - Primær (gul fylt): `background #c9a84c`, `color #1a1c23`, `padding 10px 28px`, `width auto`
-- Aldri to gule knapper på samme skjerm
+- Aldri to gule elementer (knapp ELLER tekstlenke) på samme skjerm
 - Sekundær: outline, transparent bakgrunn
+- Founders-knapp: hvit outline (`border: 1px solid #e8e4dd`, `color: #e8e4dd`) — ikke gull
 
 ### Border-radius
 - Kort: `16px`
@@ -49,15 +51,14 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 ### Luft og padding
 - Kort padding: minimum `24px 20px`, gjerne `28px`
 - Mer luft er alltid bedre enn tettere
-- Seksjoner skal ha tydelig visuelt skille med margin-bottom
 
 ### Lenker
-- Lenker som krever klikk: `#e8e4dd` — aldri `#7a7873` (for mørk på mobil)
+- Lenker som ikke er primærhandlinger: `#e8e4dd` — aldri `#7a7873`
 - Unntak: hint-tekst og metadata som ikke krever klikk kan være `#7a7873`
 
 ### Regler
 - Ingen Tailwind
-- Ingen emoji i UI — SVG der nødvendig
+- Ingen emoji i UI — SVG der nødvendig (unntak: medalje-emoji på leaderboard)
 - Ingen hardkodede farger utenfor systemet ovenfor
 
 ---
@@ -70,10 +71,31 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 - `lib/supabase-admin.ts` er server-only (service role)
 - Admin-auth: passord i `ADMIN_PASSWORD` env-var, sesjon i localStorage 8 timer
 
+### Navnepolicy
+- display_name er påkrevd for innloggede brukere
+- Regex: `/^[\p{L}\s\-']{2,40}$/u`
+- Google-navn settes automatisk som default ved OAuth (AuthListener.tsx)
+- NameRequiredModal.tsx blokkerer ved manglende/ugyldig navn
+- Validering håndheves i `/api/profile/upsert/route.ts`
+
+### Lag og sesong
+- leader_display_name (TEXT, nullable) på attempts-tabellen
+- Laglederens user_id registreres på season_scores
+- Hint-tekst på quiz-startsiden: "Sesong-poeng registreres på deg som er innlogget."
+
 ### Database-tabeller (eksisterende)
-`quizzes`, `questions`, `attempts`, `attempt_answers`, `played_log`,
-`access_codes`, `admin_users`, `site_settings`, `profiles`,
-`organizations`, `organization_members`, `leagues`, `league_members`
+`quizzes`, `questions`, `attempts` (+ leader_display_name),
+`attempt_answers`, `played_log`, `access_codes`, `admin_users`,
+`site_settings`, `profiles`, `organizations`, `organization_members`,
+`organization_invites`, `leagues`, `league_members`, `ranking_snapshots`,
+`season_scores`, `admin_actions`, `excluded_members`
+
+### Sesong-leaderboard-arkitektur
+- `season_scores`: scope_type IN ('global', 'league', 'organization')
+- Global: scope_type='global', scope_id=NULL
+- Poeng skrives av `/api/cron/award-season-points` hvert 5. minutt
+- `SeasonLeaderboard.tsx` er delt komponent — brukes av /toppliste, /liga/[slug], /org/[slug]
+- Forsiden viser månedens globale topp 3 fra season_scores (ikke fra attempts)
 
 ### Miljøvariabler (ligger i Vercel — ikke hardkod)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
@@ -95,24 +117,24 @@ Premium: kr 49/mnd. Stripe i **Test Mode** — ikke aktiver live uten beskjed.
 
 ---
 
-## FORSIDE — QUIZ-KORT STRUKTUR
-Quiz-kortet på forsiden følger dette hierarkiet:
-1. Eyebrow: "DENNE UKEN" — `#c9a84c`, `11px`, uppercase
-2. Quiz-tittel — `26px`, `Libre Baskerville`, `#ffffff`
-3. Tagline — "X deltakere · Kan du slå dem?" — `#c9a84c`, `13px`
-4. Topp 3 fra siste quiz (vises alltid når data finnes)
-5. "Spill nå"-knapp — sentrert, gul fylt
-6. "Toppliste ↗" — diskret under, `#e8e4dd`
+## FORSIDE — STRUKTUR (app/page.tsx)
+Rekkefølge ovenfra:
+1. Nav (NavAuth.tsx) — "Toppliste" synlig på desktop, skjult på mobil
+2. Hero — tittel, undertittel, gul knapp, statuslinje
+3. Sitat-linje — kursiv, #7a7873
+4. Fakta-ikoner — tre SVG (kalender, person, stjerne)
+5. Divider
+6. Quiz-kort — eyebrow, tittel, tagline, månedlig leaderboard, outline-knapp
+7. Lenker under kortet — sesong-toppliste + alle quizer
+8. Accordion — tre items
+9. Bedrifts-seksjon — #1e1a0e bakgrunn, gull-border
+10. Founders-seksjon — uendret, hvit outline-knapp
 
-Gull-border på kortet: `border: 1px solid rgba(201,168,76,0.2)`
-Badges (ÅPEN, LAG) vises IKKE i quiz-kortet på forsiden.
-
-### Hero-statuslinje
-Under "Spill ukens quiz"-knappen:
-`✓ Gratis · ✓ Innlogget · ★ Premium kr 49/mnd`
-- Ikoner (`✓` og `★`) i `#c9a84c`
-- Tekst i `#e8e4dd`
-- Separatorer (`·`) i `#7a7873`
+Månedlig leaderboard i quiz-kortet:
+- Henter fra season_scores WHERE scope_type='global' AND scope_id IS NULL
+- Filtrert på inneværende kalender-måned (closes_at)
+- Aggregeres i JS på serveren, sortert DESC på total_points
+- Vises kun hvis minst 1 rad finnes med gyldig display_name
 
 ---
 
@@ -120,28 +142,8 @@ Under "Spill ukens quiz"-knappen:
 - Test Mode: testkort `4242 4242 4242 4242`
 - Kun Premium månedlig kr 49 — ukespass er fjernet
 - Founders Access: 30 dager gratis trial, ingen kortinfo
+- Founders-knapp: hvit outline — ikke gull (to-gule-regel)
 - Webhook håndterer: `checkout.completed`, `subscription.deleted`, `subscription.updated`
-
----
-
-## ADMIN-SIDER — DESIGNREGLER
-Alle admin-sider følger designsystemet:
-- `app/admin/quizzes/page.tsx` — alle knapper outline, ingen farget bakgrunn
-- `app/admin/quizzes/[id]/page.tsx` — ingen Tailwind, inline CSS
-- `app/admin/quizzes/[id]/analytics/page.tsx` — ingen fargerike ikoner
-
-Knapper i admin:
-- Ingen knapp skal ha farget bakgrunn unntatt primærknappen (gul)
-- Slett/destruktive handlinger: outline med `border: #2a2d38`, `color: #e8e4dd`
-
----
-
-## /BEDRIFT-SIDEN
-- Fil: `app/bedrift/page.tsx`
-- 'use client'-komponent med useState for accordion
-- Har egne CSS-variabler i STYLES-streng (nødvendig — ikke globalt tilgjengelig)
-- Accordion-noter: klikk for å ekspandere, én åpen om gangen
-- Sammenligningstabell skjules på mobil (under 640px)
 
 ---
 
@@ -151,17 +153,27 @@ Knapper i admin:
 - `lib/supabase-admin.ts` (server-only, ikke eksporter til klient)
 - `FOUNDERS_ACTIVE`-konstanten i `app/quiz/[id]/page.tsx`
 - Autentiseringsflyt og OAuth callback (`app/auth/callback/route.ts`)
+- `ranking_snapshots`-tabellen (brukes av mellomskjerm-cachen)
 
 ---
 
 ## KJENTE IKKE-BUGS (ikke fiks disse)
-- Scroll-effekt på forsiden: kun synlig i Claude in Chrome-utvidelsen, ikke for ekte brukere
-- "Laster profil...": isolert til én spesifikk testbruker, fungerer normalt for alle andre
+- Scroll-effekt på forsiden: kun synlig i Claude in Chrome-utvidelsen
+- "Laster profil...": isolert til én spesifikk testbruker
+
+## KJENTE BUGS (lav prioritet)
+- "Spill nå"-knappen i quiz-kortet på forsiden vises gul fylt istedenfor outline
+  Koden er riktig (inline style, transparent bg) men noe overstyrer den
+  Tas i dedikert økt — ikke kritisk
 
 ---
 
 ## LANSERINGS-STATUS
-Ikke lansert ennå. Stripe er i test-modus. Fokus nå:
-1. B2C komplett — TV-show-opplevelse, mellomskjerm, Stripe live
-2. B2B selvbetjening
-3. Lansering med Founders-kampanje
+Ikke lansert ennå. Stripe er i test-modus.
+
+Neste prioriterte steg:
+1. Forklaringstekst per spørsmål (admin-felt)
+2. E-post ved Stripe-hendelser
+3. Mobil-test på ekte enheter
+4. Stripe live-modus (krever ENK — Dennis oppretter ENK)
+5. Supabase Pro
