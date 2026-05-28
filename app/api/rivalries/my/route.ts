@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// GET /api/rivalries/my — returns my active + pending rivalries with opponent info + season scores
+// GET /api/rivalries/my — returns active + pending rivalries, plus declined from this month
 export async function GET(request: NextRequest) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
@@ -9,12 +9,19 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
   if (authError || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  // Fetch all active/pending rivalries where user is challenger or rival
+  // Fix 3 — compute month boundaries first (used for both expiry and declined filter)
+  const now = new Date()
+  const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const monthStart = thisMonthStart.toISOString()
+  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
+  // Fetch active/pending rivalries (any month — needed to detect expired ones for UI)
+  // Fix 4: also fetch declined from this month so challenger can see the rejection
   const { data: rivalries, error } = await supabaseAdmin
     .from('rivalries')
     .select('id, challenger_id, rival_id, status, created_at')
     .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
-    .in('status', ['active', 'pending'])
+    .in('status', ['active', 'pending', 'declined'])
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -27,12 +34,6 @@ export async function GET(request: NextRequest) {
   if (rows.length === 0) {
     return NextResponse.json({ rivalries: [] })
   }
-
-  // Fix 3 — detect expired duels: any rivalry created before the start of this calendar month
-  const now = new Date()
-  const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const monthStart = thisMonthStart.toISOString()
-  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
   // Collect all opponent IDs
   const opponentIds = rows.map(r => r.challenger_id === user.id ? r.rival_id : r.challenger_id)
@@ -66,23 +67,26 @@ export async function GET(request: NextRequest) {
     pointsMap.set(row.user_id, (pointsMap.get(row.user_id) ?? 0) + row.points)
   }
 
-  const result = rows.map(r => {
-    const opponentId = r.challenger_id === user.id ? r.rival_id : r.challenger_id
-    const opponentProfile = profileMap.get(opponentId)
-    // Fix 3: mark as expired if the duel was created in a previous calendar month
-    const isExpired = new Date(r.created_at) < thisMonthStart
-    return {
-      id:             r.id,
-      status:         r.status,
-      isChallenger:   r.challenger_id === user.id,
-      isExpired,
-      opponentId,
-      opponentName:   opponentProfile?.display_name ?? null,
-      opponentAvatar: opponentProfile?.avatar_url ?? null,
-      myPoints:       pointsMap.get(user.id) ?? 0,
-      opponentPoints: pointsMap.get(opponentId) ?? 0,
-    }
-  })
+  const result = rows
+    .map(r => {
+      const opponentId = r.challenger_id === user.id ? r.rival_id : r.challenger_id
+      const opponentProfile = profileMap.get(opponentId)
+      // A duel is expired if it was created before the start of the current calendar month
+      const isExpired = new Date(r.created_at) < thisMonthStart
+      return {
+        id:             r.id,
+        status:         r.status as 'active' | 'pending' | 'declined',
+        isChallenger:   r.challenger_id === user.id,
+        isExpired,
+        opponentId,
+        opponentName:   opponentProfile?.display_name ?? null,
+        opponentAvatar: opponentProfile?.avatar_url ?? null,
+        myPoints:       pointsMap.get(user.id) ?? 0,
+        opponentPoints: pointsMap.get(opponentId) ?? 0,
+      }
+    })
+    // Fix 4: drop declined rows from previous months — they are no longer actionable
+    .filter(r => !(r.status === 'declined' && r.isExpired))
 
   return NextResponse.json({ rivalries: result })
 }

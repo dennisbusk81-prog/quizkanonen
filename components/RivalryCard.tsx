@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 type RivalryRow = {
   id: string
-  status: 'active' | 'pending'
+  status: 'active' | 'pending' | 'declined'
   isChallenger: boolean
   isExpired: boolean
   opponentId: string
@@ -24,6 +24,8 @@ export default function RivalryCard({ isPremium }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  // Fix 2: show error when an action (accept/decline/cancel) fails
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -44,16 +46,18 @@ export default function RivalryCard({ isPremium }: Props) {
 
   async function handleAction(id: string, action: 'accept' | 'decline' | 'cancel') {
     setActionLoading(id + action)
+    setActionError(null)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setActionLoading(null); return }
     try {
+      let res: Response
       if (action === 'cancel') {
-        await fetch(`/api/rivalries/${id}`, {
+        res = await fetch(`/api/rivalries/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
       } else {
-        await fetch(`/api/rivalries/${id}`, {
+        res = await fetch(`/api/rivalries/${id}`, {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -62,7 +66,21 @@ export default function RivalryCard({ isPremium }: Props) {
           body: JSON.stringify({ action }),
         })
       }
-    } catch { /* non-critical */ }
+      // Fix 2: surface errors from failed actions
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        const msg = json.error ?? 'Noe gikk galt. Prøv igjen.'
+        setActionError(msg)
+        setTimeout(() => setActionError(null), 3000)
+        setActionLoading(null)
+        return
+      }
+    } catch {
+      setActionError('Noe gikk galt. Prøv igjen.')
+      setTimeout(() => setActionError(null), 3000)
+      setActionLoading(null)
+      return
+    }
     setActionLoading(null)
     load()
   }
@@ -70,15 +88,24 @@ export default function RivalryCard({ isPremium }: Props) {
   if (!isPremium) return null
   if (loading) return null
 
-  // Fix 3: separate expired from current duels
-  const expiredDuel  = rivalries.find(r => r.isExpired) ?? null
-  const activeDuel   = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
-  const outgoing     = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
-  const incoming     = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
+  // Separate expired from current duels, and split by status
+  const expiredDuel = rivalries.find(r => r.isExpired) ?? null
+  const activeDuel  = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
+  const outgoing    = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
+  const incoming    = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
+  // Fix 4: show declined state to challenger so they know the challenge was rejected
+  const declined    = rivalries.find(r => r.status === 'declined' && r.isChallenger && !r.isExpired) ?? null
 
   const opponentName = (r: RivalryRow) => r.opponentName ?? 'Ukjent'
 
-  // ── Fix 3: Expired duel from previous month ───────────────────
+  // Shared inline error element (Fix 2)
+  const errorEl = actionError ? (
+    <p style={{ fontSize: 13, color: '#E24B4A', marginTop: 10 }}>
+      {actionError}
+    </p>
+  ) : null
+
+  // ── Expired duel from previous month ─────────────────────────
   if (expiredDuel && !activeDuel && !outgoing && !incoming) {
     return (
       <div style={{
@@ -117,6 +144,7 @@ export default function RivalryCard({ isPremium }: Props) {
             {actionLoading === expiredDuel.id + 'cancel' ? 'Avslutter...' : 'Avslutt og start ny'}
           </button>
         </div>
+        {errorEl}
       </div>
     )
   }
@@ -196,6 +224,7 @@ export default function RivalryCard({ isPremium }: Props) {
             {actionLoading === activeDuel.id + 'cancel' ? 'Kansellerer...' : 'Avslutt duell'}
           </button>
         </div>
+        {errorEl}
       </div>
     )
   }
@@ -254,6 +283,7 @@ export default function RivalryCard({ isPremium }: Props) {
             {actionLoading === incoming.id + 'decline' ? 'Avslår...' : 'Avslå'}
           </button>
         </div>
+        {errorEl}
       </div>
     )
   }
@@ -292,6 +322,32 @@ export default function RivalryCard({ isPremium }: Props) {
         >
           {actionLoading === outgoing.id + 'cancel' ? 'Trekker tilbake...' : 'Trekk tilbake utfordringen'}
         </button>
+        {errorEl}
+      </div>
+    )
+  }
+
+  // ── Fix 4: Declined — challenger sees the rejection ───────────
+  if (declined) {
+    return (
+      <div style={{
+        background: '#21242e',
+        border: '1px solid #2a2d38',
+        borderRadius: 16,
+        padding: '18px 20px',
+        marginTop: 12,
+      }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+          Duell — avslått
+        </p>
+        <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 12 }}>
+          Din utfordring ble avslått av{' '}
+          <strong style={{ color: '#c9a84c' }}>{opponentName(declined)}</strong>.
+          Du kan utfordre en ny rival.
+        </p>
+        <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+          Finn en rival →
+        </Link>
       </div>
     )
   }

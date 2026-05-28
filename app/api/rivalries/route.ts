@@ -43,12 +43,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Motstanderen trenger også Premium for å delta i duell' }, { status: 400 })
   }
 
+  // Fix 1 — only duels created this calendar month count as "active engagements".
+  // An expired duel from last month (still status=active in DB) must not block new challenges.
+  const nowForCheck = new Date()
+  const thisMonthStart = new Date(Date.UTC(nowForCheck.getUTCFullYear(), nowForCheck.getUTCMonth(), 1)).toISOString()
+
   // Fix 2 — check each party separately so we can give a precise error message
   const { data: myExisting } = await supabaseAdmin
     .from('rivalries')
     .select('id')
     .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
     .in('status', ['pending', 'active'])
+    .gte('created_at', thisMonthStart)
     .limit(1)
 
   if (myExisting && myExisting.length > 0) {
@@ -63,6 +69,7 @@ export async function POST(request: NextRequest) {
     .select('id')
     .or(`challenger_id.eq.${rivalId},rival_id.eq.${rivalId}`)
     .in('status', ['pending', 'active'])
+    .gte('created_at', thisMonthStart)
     .limit(1)
 
   if (rivalExisting && rivalExisting.length > 0) {

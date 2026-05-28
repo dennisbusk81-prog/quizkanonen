@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback, Fragment } from 'react'
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
@@ -131,6 +131,8 @@ export default function LeaderboardPage() {
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
+  // Fix 3: store timer ref so it can be cleared on unmount
+  const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -266,14 +268,15 @@ export default function LeaderboardPage() {
         if (rivalRes.ok) {
           const rivalJson = await rivalRes.json()
           const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = rivalJson.rivalries ?? []
-          // Fix 3: expired duels do not block new challenges
-          const activeRows = rows.filter(r => !r.isExpired)
-          setActiveDuelExists(activeRows.length > 0)
-          // Fix 4: build a Set of ALL opponent IDs in non-expired duels (both sides)
-          setDuelInvolvedSet(new Set(activeRows.map(r => r.opponentId)))
+          // Only non-expired active/pending duels are "engagements" that block new challenges.
+          // Fix 4: declined duels must not block — challenger is free to start a new duel.
+          const engagedRows = rows.filter(r => !r.isExpired && r.status !== 'declined')
+          setActiveDuelExists(engagedRows.length > 0)
+          // Build a Set of ALL opponent IDs in active engagements (both challenger and rival sides)
+          setDuelInvolvedSet(new Set(engagedRows.map(r => r.opponentId)))
           // Still track outgoing-pending separately to show "Sendt" label
           setChallengeSentSet(new Set(
-            activeRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
+            engagedRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
           ))
         }
       } catch { /* ikke kritisk */ }
@@ -288,6 +291,13 @@ export default function LeaderboardPage() {
     })
     return () => subscription.unsubscribe()
   }, [loadSession])
+
+  // Fix 3: clean up challengeError timer on unmount to prevent state update on unmounted component
+  useEffect(() => {
+    return () => {
+      if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (prevRankMap.size === 0 || attempts.length === 0) return
@@ -351,15 +361,18 @@ export default function LeaderboardPage() {
         setDuelInvolvedSet(prev => new Set([...prev, rivalId]))
         setActiveDuelExists(true)
       } else {
-        // Fix 5: inline error instead of alert()
+        // inline error instead of alert()
         const json = await res.json().catch(() => ({}))
         const msg = json.error ?? 'Noe gikk galt.'
         setChallengeError({ rivalId, message: msg })
-        setTimeout(() => setChallengeError(null), 3000)
+        // Fix 3: store timer in ref so it can be cancelled on unmount
+        if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+        challengeErrorTimerRef.current = setTimeout(() => setChallengeError(null), 3000)
       }
     } catch {
       setChallengeError({ rivalId, message: 'Noe gikk galt.' })
-      setTimeout(() => setChallengeError(null), 3000)
+      if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+      challengeErrorTimerRef.current = setTimeout(() => setChallengeError(null), 3000)
     }
     setChallengeLoadingId(null)
   }
