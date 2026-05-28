@@ -5,6 +5,7 @@ import NavAuth from '@/components/NavAuth'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import WelcomeBanner from '@/components/WelcomeBanner'
+import AccordionSection from '@/components/AccordionSection'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -1326,6 +1327,11 @@ export default async function Home() {
                 <div className="qk-step-num">{n}</div>
                 <p className="qk-step-title">{title}</p>
                 <p className="qk-step-desc">{desc}</p>
+                {n === '3' && (
+                  <p style={{ fontSize: 13, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                    Sesongen nullstilles hver måned — ny sjanse for alle.
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -1430,6 +1436,11 @@ export default async function Home() {
             <p className="qk-biz-desc">Ukentlig fredagsquiz til teamet. Vi lager quizen. Dere spiller.</p>
             <Link href="/bedrift" className="qk-biz-link">Se løsninger for bedrifter →</Link>
           </div>
+        </div>
+
+        {/* ── Accordion — slik fungerer det ── */}
+        <div className="qk-acc-wrap">
+          <AccordionSection />
         </div>
 
         {/* ── Founders ── */}

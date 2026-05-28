@@ -23,6 +23,9 @@ export default function TopplisterPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#7a7873', fontStyle: 'italic' }}>
               Hvem dominerer over tid?
             </p>
+            <p style={{ fontSize: 14, color: '#7a7873', marginTop: 6 }}>
+              Poeng samles gjennom måneden. Ny sesong starter den 1. hver måned.
+            </p>
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
 
