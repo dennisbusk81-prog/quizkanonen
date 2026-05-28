@@ -128,7 +128,9 @@ export default function LeaderboardPage() {
   const [hasLeagues, setHasLeagues] = useState(false)
   const [activeDuelExists, setActiveDuelExists] = useState(false)
   const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
+  const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
+  const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -263,15 +265,16 @@ export default function LeaderboardPage() {
         })
         if (rivalRes.ok) {
           const rivalJson = await rivalRes.json()
-          const rows: { status: string; isChallenger: boolean; opponentId: string }[] = rivalJson.rivalries ?? []
-          const hasActive = rows.some(r => r.status === 'active')
-          setActiveDuelExists(hasActive)
-          const pendingOutgoing = new Set(
-            rows
-              .filter(r => r.status === 'pending' && r.isChallenger)
-              .map(r => r.opponentId)
-          )
-          setChallengeSentSet(pendingOutgoing)
+          const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = rivalJson.rivalries ?? []
+          // Fix 3: expired duels do not block new challenges
+          const activeRows = rows.filter(r => !r.isExpired)
+          setActiveDuelExists(activeRows.length > 0)
+          // Fix 4: build a Set of ALL opponent IDs in non-expired duels (both sides)
+          setDuelInvolvedSet(new Set(activeRows.map(r => r.opponentId)))
+          // Still track outgoing-pending separately to show "Sendt" label
+          setChallengeSentSet(new Set(
+            activeRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
+          ))
         }
       } catch { /* ikke kritisk */ }
     }
@@ -333,6 +336,7 @@ export default function LeaderboardPage() {
   const handleChallenge = async (rivalId: string) => {
     if (!session) return
     setChallengeLoadingId(rivalId)
+    setChallengeError(null)
     try {
       const res = await fetch('/api/rivalries', {
         method: 'POST',
@@ -344,12 +348,18 @@ export default function LeaderboardPage() {
       })
       if (res.ok) {
         setChallengeSentSet(prev => new Set([...prev, rivalId]))
+        setDuelInvolvedSet(prev => new Set([...prev, rivalId]))
+        setActiveDuelExists(true)
       } else {
+        // Fix 5: inline error instead of alert()
         const json = await res.json().catch(() => ({}))
-        alert(json.error ?? 'Noe gikk galt.')
+        const msg = json.error ?? 'Noe gikk galt.'
+        setChallengeError({ rivalId, message: msg })
+        setTimeout(() => setChallengeError(null), 3000)
       }
     } catch {
-      alert('Noe gikk galt.')
+      setChallengeError({ rivalId, message: 'Noe gikk galt.' })
+      setTimeout(() => setChallengeError(null), 3000)
     }
     setChallengeLoadingId(null)
   }
@@ -481,20 +491,30 @@ export default function LeaderboardPage() {
             </p>
           </div>
           {!isUser && isPremium && !attempt.is_team && attempt.user_id && (() => {
-            if (activeDuelExists) return null
-            const sent = challengeSentSet.has(attempt.user_id)
-            const loading = challengeLoadingId === attempt.user_id
-            if (sent) {
+            // Fix 4: hide for all users already involved in any duel with me (both sides)
+            const involved = duelInvolvedSet.has(attempt.user_id)
+            const sent     = challengeSentSet.has(attempt.user_id)
+            const isLoading = challengeLoadingId === attempt.user_id
+            if (involved && sent) {
+              // Outgoing pending: show "Sendt"
               return (
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.06em', flexShrink: 0 }}>
                   Sendt
                 </span>
               )
             }
+            if (involved) {
+              // Already in a duel relationship (incoming/active) — hide button silently
+              return null
+            }
+            if (activeDuelExists) {
+              // Has a different active duel — block all other challenges
+              return null
+            }
             return (
               <button
                 onClick={() => handleChallenge(attempt.user_id!)}
-                disabled={loading}
+                disabled={isLoading}
                 style={{
                   background: 'none',
                   border: '1px solid rgba(201,168,76,0.35)',
@@ -503,18 +523,24 @@ export default function LeaderboardPage() {
                   fontWeight: 600,
                   padding: '4px 10px',
                   borderRadius: 8,
-                  cursor: loading ? 'default' : 'pointer',
+                  cursor: isLoading ? 'default' : 'pointer',
                   fontFamily: "'Instrument Sans', sans-serif",
                   flexShrink: 0,
                   whiteSpace: 'nowrap',
-                  opacity: loading ? 0.6 : 1,
+                  opacity: isLoading ? 0.6 : 1,
                 }}
               >
-                {loading ? '…' : 'Utfordre'}
+                {isLoading ? '…' : 'Utfordre'}
               </button>
             )
           })()}
         </div>
+        {/* Fix 5: inline feilmelding under raden i 3 sekunder */}
+        {attempt.user_id && challengeError?.rivalId === attempt.user_id && (
+          <p style={{ fontSize: 13, color: '#E24B4A', margin: '-4px 0 8px 20px' }}>
+            {challengeError.message}
+          </p>
+        )}
         {showLiveNote && (
           <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-4px 0 8px' }}>
             {soloAttempts.length} spillere har spilt så langt — oppdateres gjennom dagen

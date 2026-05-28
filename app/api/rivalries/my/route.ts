@@ -28,6 +28,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ rivalries: [] })
   }
 
+  // Fix 3 — detect expired duels: any rivalry created before the start of this calendar month
+  const now = new Date()
+  const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const monthStart = thisMonthStart.toISOString()
+  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
   // Collect all opponent IDs
   const opponentIds = rows.map(r => r.challenger_id === user.id ? r.rival_id : r.challenger_id)
   const uniqueOpponentIds = [...new Set(opponentIds)]
@@ -43,10 +49,6 @@ export async function GET(request: NextRequest) {
   )
 
   // Fetch season scores for current month (global scope) for all involved user IDs
-  const now = new Date()
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
-  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
-
   const allUserIds = [user.id, ...uniqueOpponentIds]
 
   const { data: seasonScores } = await supabaseAdmin
@@ -67,10 +69,13 @@ export async function GET(request: NextRequest) {
   const result = rows.map(r => {
     const opponentId = r.challenger_id === user.id ? r.rival_id : r.challenger_id
     const opponentProfile = profileMap.get(opponentId)
+    // Fix 3: mark as expired if the duel was created in a previous calendar month
+    const isExpired = new Date(r.created_at) < thisMonthStart
     return {
-      id:           r.id,
-      status:       r.status,
-      isChallenger: r.challenger_id === user.id,
+      id:             r.id,
+      status:         r.status,
+      isChallenger:   r.challenger_id === user.id,
+      isExpired,
       opponentId,
       opponentName:   opponentProfile?.display_name ?? null,
       opponentAvatar: opponentProfile?.avatar_url ?? null,

@@ -32,10 +32,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Du trenger Premium for å utfordre en rival' }, { status: 403 })
   }
 
-  // Target must be Premium
+  // Target must be Premium — also fetch display_name for error message (Fix 2)
   const { data: rivalProfile } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status')
+    .select('premium_status, display_name')
     .eq('id', rivalId)
     .single()
 
@@ -43,20 +43,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Motstanderen trenger også Premium for å delta i duell' }, { status: 400 })
   }
 
-  // Check: no existing active or pending duel for either party
-  const { data: existing } = await supabaseAdmin
+  // Fix 2 — check each party separately so we can give a precise error message
+  const { data: myExisting } = await supabaseAdmin
     .from('rivalries')
     .select('id')
-    .or(
-      `and(challenger_id.eq.${user.id},status.in.(pending,active)),` +
-      `and(rival_id.eq.${user.id},status.in.(pending,active)),` +
-      `and(challenger_id.eq.${rivalId},status.in.(pending,active)),` +
-      `and(rival_id.eq.${rivalId},status.in.(pending,active))`
-    )
+    .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
+    .in('status', ['pending', 'active'])
     .limit(1)
 
-  if (existing && existing.length > 0) {
-    return NextResponse.json({ error: 'En av dere har allerede en aktiv eller ventende duell' }, { status: 409 })
+  if (myExisting && myExisting.length > 0) {
+    return NextResponse.json(
+      { error: 'Du har allerede en aktiv eller ventende duell.' },
+      { status: 409 }
+    )
+  }
+
+  const { data: rivalExisting } = await supabaseAdmin
+    .from('rivalries')
+    .select('id')
+    .or(`challenger_id.eq.${rivalId},rival_id.eq.${rivalId}`)
+    .in('status', ['pending', 'active'])
+    .limit(1)
+
+  if (rivalExisting && rivalExisting.length > 0) {
+    const name = rivalProfile.display_name ?? 'Motstanderen'
+    return NextResponse.json(
+      { error: `${name} har allerede en aktiv eller ventende duell.` },
+      { status: 409 }
+    )
   }
 
   const { data: rivalry, error: insertError } = await supabaseAdmin
@@ -68,6 +82,29 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     console.error('[rivalries POST] insert error:', insertError.message)
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
+  }
+
+  // Fix 1 — re-check for race condition: if another row now exists for either party,
+  // delete our newly inserted row and return a conflict.
+  // (A DB-level unique constraint is the definitive fix; this is a best-effort guard.)
+  const { data: conflict } = await supabaseAdmin
+    .from('rivalries')
+    .select('id')
+    .or(
+      `and(challenger_id.eq.${user.id},status.in.(pending,active)),` +
+      `and(rival_id.eq.${user.id},status.in.(pending,active)),` +
+      `and(challenger_id.eq.${rivalId},status.in.(pending,active)),` +
+      `and(rival_id.eq.${rivalId},status.in.(pending,active))`
+    )
+    .neq('id', rivalry.id)
+    .limit(1)
+
+  if (conflict && conflict.length > 0) {
+    await supabaseAdmin.from('rivalries').delete().eq('id', rivalry.id)
+    return NextResponse.json(
+      { error: 'En av dere fikk akkurat en ny duell. Last siden på nytt og prøv igjen.' },
+      { status: 409 }
+    )
   }
 
   return NextResponse.json({ success: true, id: rivalry.id }, { status: 201 })

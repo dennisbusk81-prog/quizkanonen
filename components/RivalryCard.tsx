@@ -8,6 +8,7 @@ type RivalryRow = {
   id: string
   status: 'active' | 'pending'
   isChallenger: boolean
+  isExpired: boolean
   opponentId: string
   opponentName: string | null
   opponentAvatar: string | null
@@ -69,11 +70,56 @@ export default function RivalryCard({ isPremium }: Props) {
   if (!isPremium) return null
   if (loading) return null
 
-  const activeDuel  = rivalries.find(r => r.status === 'active') ?? null
-  const outgoing    = rivalries.find(r => r.status === 'pending' && r.isChallenger) ?? null
-  const incoming    = rivalries.find(r => r.status === 'pending' && !r.isChallenger) ?? null
+  // Fix 3: separate expired from current duels
+  const expiredDuel  = rivalries.find(r => r.isExpired) ?? null
+  const activeDuel   = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
+  const outgoing     = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
+  const incoming     = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
 
   const opponentName = (r: RivalryRow) => r.opponentName ?? 'Ukjent'
+
+  // ── Fix 3: Expired duel from previous month ───────────────────
+  if (expiredDuel && !activeDuel && !outgoing && !incoming) {
+    return (
+      <div style={{
+        background: '#21242e',
+        border: '1px solid #2a2d38',
+        borderRadius: 16,
+        padding: '18px 20px',
+        marginTop: 12,
+      }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+          Duell — forrige sesong
+        </p>
+        <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 14 }}>
+          Sesongen er over. Duellen mot{' '}
+          <strong style={{ color: '#c9a84c' }}>{opponentName(expiredDuel)}</strong>{' '}
+          er nå avsluttet.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+            Start ny duell →
+          </Link>
+          <button
+            onClick={() => handleAction(expiredDuel.id, 'cancel')}
+            disabled={actionLoading !== null}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#7a7873',
+              fontSize: 12,
+              cursor: 'pointer',
+              fontFamily: "'Instrument Sans', sans-serif",
+              padding: 0,
+              textDecoration: 'underline',
+            }}
+          >
+            {actionLoading === expiredDuel.id + 'cancel' ? 'Avslutter...' : 'Avslutt og start ny'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ── Active duel ──────────────────────────────────────────────
   if (activeDuel) {
@@ -109,7 +155,6 @@ export default function RivalryCard({ isPremium }: Props) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* My score */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
               {me}
@@ -117,10 +162,8 @@ export default function RivalryCard({ isPremium }: Props) {
             <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>Deg</p>
           </div>
 
-          {/* VS */}
           <p style={{ fontSize: 13, fontWeight: 700, color: '#2a2d38', flexShrink: 0, margin: 0 }}>vs</p>
 
-          {/* Opponent score */}
           <div style={{ flex: 1, textAlign: 'center' }}>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
               {them}
