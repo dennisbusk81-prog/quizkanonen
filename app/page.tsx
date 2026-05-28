@@ -689,6 +689,56 @@ const SHARED_CSS = `
     .qk-steps { grid-template-columns: 1fr; max-width: 240px; }
     .qk-steps::before { display: none; }
   }
+
+  /* ── Interlude teaser ── */
+  .qk-interlude {
+    max-width: 680px;
+    margin: 0 auto 28px;
+    padding: 0 24px;
+  }
+
+  .qk-interlude-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #7a7873;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .qk-interlude-cards {
+    display: flex;
+    gap: 12px;
+  }
+
+  .qk-interlude-card {
+    flex: 1;
+    background: #21242e;
+    border: 1px solid rgba(201,168,76,0.15);
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .qk-interlude-card-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+
+  .qk-interlude-card-text {
+    font-size: 13px;
+    color: #e8e4dd;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  @media (max-width: 600px) {
+    .qk-interlude-cards { flex-direction: column; }
+  }
 `
 
 export default async function Home() {
@@ -1342,6 +1392,32 @@ export default async function Home() {
             ))}
           </div>
         </section>
+
+        {/* ── Interlude teaser ── */}
+        <div className="qk-interlude">
+          <p className="qk-interlude-eyebrow">Under quizen</p>
+          <div className="qk-interlude-cards">
+            {([
+              {
+                title: 'Se plasseringen din live',
+                text: 'Mellom hvert spørsmål ser du nøyaktig hvor du ligger — ikke bare til slutt.',
+              },
+              {
+                title: 'Jag en rival',
+                text: 'Systemet finner noen på ditt nivå. Kan du slå dem?',
+              },
+              {
+                title: 'Tilpassede meldinger',
+                text: 'Streak, halvtid, innspurt — quizen reagerer på hvordan du spiller.',
+              },
+            ] as const).map(({ title, text }) => (
+              <div key={title} className="qk-interlude-card">
+                <p className="qk-interlude-card-title">{title}</p>
+                <p className="qk-interlude-card-text">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* ── Quiz-kort ── */}
         {activeQuiz ? (
