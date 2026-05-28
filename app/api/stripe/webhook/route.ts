@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
     } else {
       // B2C
       await supabaseAdmin.from('profiles')
-        .update({ premium_status: false })
+        .update({ premium_status: false, premium_source: null })
         .eq('stripe_customer_id', customerId)
 
       // Send kanselleringsbekreftelse — fire-and-forget

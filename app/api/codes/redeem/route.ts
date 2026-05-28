@@ -70,5 +70,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
   }
 
+  // The RPC grants premium_status = true but does not set premium_source.
+  // Update it separately so the source is always tracked.
+  await supabaseAdmin
+    .from('profiles')
+    .update({ premium_source: 'code' })
+    .eq('id', user.id)
+
   return NextResponse.json({ success: true })
 }
