@@ -20,10 +20,10 @@ export default function TopplisterPage() {
             <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
               Sesong<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>topplisten</em>
             </h1>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#7a7873', fontStyle: 'italic' }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' }}>
               Hvem dominerer over tid?
             </p>
-            <p style={{ fontSize: 14, color: '#7a7873', marginTop: 6 }}>
+            <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 6 }}>
               Poeng samles gjennom måneden. Ny sesong starter den 1. hver måned.
             </p>
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />

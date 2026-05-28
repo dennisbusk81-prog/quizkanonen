@@ -133,7 +133,7 @@ export default function RivalryCard({ isPremium }: Props) {
             style={{
               background: 'none',
               border: 'none',
-              color: '#7a7873',
+              color: '#e8e4dd',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: "'Instrument Sans', sans-serif",
@@ -202,7 +202,7 @@ export default function RivalryCard({ isPremium }: Props) {
           </div>
         </div>
 
-        <p style={{ fontSize: 11, color: '#7a7873', textAlign: 'center', margin: '10px 0 0', lineHeight: 1.4 }}>
+        <p style={{ fontSize: 11, color: '#e8e4dd', textAlign: 'center', margin: '10px 0 0', lineHeight: 1.4 }}>
           Poeng fra ukens quiz. Duellen nullstilles neste måned.
         </p>
 
@@ -213,7 +213,7 @@ export default function RivalryCard({ isPremium }: Props) {
             style={{
               background: 'none',
               border: 'none',
-              color: '#7a7873',
+              color: '#e8e4dd',
               fontSize: 12,
               cursor: 'pointer',
               fontFamily: "'Instrument Sans', sans-serif",
@@ -312,7 +312,7 @@ export default function RivalryCard({ isPremium }: Props) {
           style={{
             background: 'none',
             border: 'none',
-            color: '#7a7873',
+            color: '#e8e4dd',
             fontSize: 12,
             cursor: 'pointer',
             fontFamily: "'Instrument Sans', sans-serif",
@@ -364,7 +364,7 @@ export default function RivalryCard({ isPremium }: Props) {
       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
         Duell
       </p>
-      <p style={{ fontSize: 14, color: '#7a7873', lineHeight: 1.5, marginBottom: 10 }}>
+      <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 10 }}>
         Utfordre en spiller og mål dere mot hverandre gjennom måneden.
       </p>
       <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>

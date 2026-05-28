@@ -306,7 +306,7 @@ export default function FoundersPage() {
             </>
           )}
 
-          <p style={{ fontSize: 12, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: '#e8e4dd', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
             Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter 30 dager.
           </p>
         </div>

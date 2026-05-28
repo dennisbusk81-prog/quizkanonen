@@ -33,7 +33,7 @@ const s = {
   hero:        { paddingTop: 24, paddingBottom: 16 },
   heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 6 },
   heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em', marginBottom: 6 },
-  heroBadge:   { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#7a7873' },
+  heroBadge:   { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e8e4dd' },
   rule:        { width: '100%', height: 1, background: '#2a2d38', marginBottom: 16 },
 
   // Invite box (owner)
@@ -44,7 +44,7 @@ const s = {
   copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', flexShrink: 0 },
   copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "'Instrument Sans', sans-serif", cursor: 'default', flexShrink: 0 },
 
-  resetCancelBtn:   { padding: '6px 14px', background: 'none', border: '1px solid #2a2d38', borderRadius: 7, fontSize: 13, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  resetCancelBtn:   { padding: '6px 14px', background: 'none', border: '1px solid #2a2d38', borderRadius: 7, fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
 
   errorMsg: { fontSize: 13, color: '#f87171', marginTop: 8 },
 } as const
@@ -302,7 +302,7 @@ export default function LigaPage() {
                   </button>
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4, lineHeight: 1.5 }}>
                   Ligaen er full — ingen nye kan melde seg på.
                 </p>
               )}
@@ -325,7 +325,7 @@ export default function LigaPage() {
               </button>
               {seasonOpen && (
                 <div style={{ background: '#21242e', border: '1px solid #3a3d4a', borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '18px 18px 20px' }}>
-                  <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 }}>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14 }}>
                     Nullstiller alle sesong-poeng for denne ligaen. Handlingen kan ikke angres.
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -403,7 +403,7 @@ export default function LigaPage() {
                         <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {m.displayName}{m.isExcluded ? ' (ekskludert)' : ''}
                         </div>
-                        <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>
+                        <div style={{ fontSize: 11, color: '#e8e4dd', marginTop: 1 }}>
                           {m.hasPlayed ? `${m.totalPoints} poeng · ${m.quizCount} quiz${m.quizCount !== 1 ? 'er' : ''}` : 'Ikke spilt ennå'}
                         </div>
                       </div>
@@ -418,7 +418,7 @@ export default function LigaPage() {
                   ))}
                 </div>
               ) : activityData !== null ? (
-                <p style={{ fontSize: 13, color: '#7a7873', padding: '16px 0' }}>Ingen medlemmer ennå.</p>
+                <p style={{ fontSize: 13, color: '#e8e4dd', padding: '16px 0' }}>Ingen medlemmer ennå.</p>
               ) : null}
             </div>
           )}
@@ -434,7 +434,7 @@ export default function LigaPage() {
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               Dette sletter alle sesong-poeng for ligaen. Handlingen kan ikke angres.
             </p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
+            <p style={{ fontSize: 12, color: '#e8e4dd', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
             <input
               type="text"
               value={seasonResetInput}

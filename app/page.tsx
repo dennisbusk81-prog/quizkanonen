@@ -201,7 +201,7 @@ const SHARED_CSS = `
   .qk-quote {
     font-style: italic;
     font-size: 14px;
-    color: var(--hint);
+    color: #e8e4dd;
     text-align: center;
     max-width: 460px;
     margin: 0 auto 20px;
@@ -240,7 +240,7 @@ const SHARED_CSS = `
 
   .qk-fact-desc {
     font-size: 12px;
-    color: var(--hint);
+    color: #e8e4dd;
     line-height: 1.5;
   }
 
@@ -423,7 +423,7 @@ const SHARED_CSS = `
     margin-bottom: 8px;
   }
 
-  .qk-empty-sub { font-size: 13px; color: var(--hint); line-height: 1.6; }
+  .qk-empty-sub { font-size: 13px; color: #e8e4dd; line-height: 1.6; }
 
   /* ── Accordion wrapper ── */
   .qk-acc-wrap {
@@ -681,7 +681,7 @@ const SHARED_CSS = `
 
   .qk-step-desc {
     font-size: 12px;
-    color: var(--hint);
+    color: #e8e4dd;
     line-height: 1.5;
   }
 
@@ -1029,7 +1029,7 @@ export default async function Home() {
               <div className="qk-card-actions">
                 {alreadyPlayed ? (
                   <>
-                    <p style={{ fontSize: 14, color: '#7a7873' }}>Du har allerede spilt denne uken</p>
+                    <p style={{ fontSize: 14, color: '#e8e4dd' }}>Du har allerede spilt denne uken</p>
                     <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-outline-gold">
                       Se topplisten →
                     </Link>
@@ -1089,11 +1089,11 @@ export default async function Home() {
                 Du er på{' '}
                 <strong style={{ color: '#c9a84c' }}>{userRank}. plass</strong>
                 {' '}denne måneden
-                <span style={{ color: '#7a7873' }}> · {userPoints} poeng</span>
+                <span style={{ color: '#e8e4dd' }}> · {userPoints} poeng</span>
               </p>
             )}
             {isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: playedThisMonth ? '#e8e4dd' : '#7a7873' }}>
+              <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
                   ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
                   : 'Du har ikke spilt denne måneden ennå'}
@@ -1107,7 +1107,7 @@ export default async function Home() {
               </p>
             )}
             {!isPremium && userPoints === 0 && (
-              <p style={{ fontSize: 15, color: playedThisMonth ? '#e8e4dd' : '#7a7873' }}>
+              <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
                   ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
                   : 'Du har ikke spilt denne måneden ennå'}
@@ -1166,7 +1166,7 @@ export default async function Home() {
                 <circle cx="11" cy="11" r="8"/>
                 <path d="M11 7v4l3 2"/>
               </svg>
-              <span className="qkp-shortcut-label" style={{ color: isPremium ? '#e8e4dd' : '#7a7873' }}>
+              <span className="qkp-shortcut-label" style={{ color: '#e8e4dd' }}>
                 Historikk
               </span>
               {isPremium
@@ -1332,7 +1332,7 @@ export default async function Home() {
                 <p className="qk-step-title">{title}</p>
                 <p className="qk-step-desc">{desc}</p>
                 {n === '3' && (
-                  <p style={{ fontSize: 13, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: 6, lineHeight: 1.5 }}>
                     Sesongen nullstilles hver måned — ny sjanse for alle.
                   </p>
                 )}

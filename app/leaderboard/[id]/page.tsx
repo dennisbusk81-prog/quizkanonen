@@ -31,7 +31,7 @@ const s = {
   eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
   title:    { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(28px, 6vw, 38px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
   titleEm:  { fontStyle: 'italic', color: '#c9a84c' },
-  subtitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#7a7873', fontStyle: 'italic' as const },
+  subtitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' as const },
   rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 32 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 14px' },
@@ -68,7 +68,7 @@ const s = {
 
   btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
   btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
-  btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#7a7873', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
+  btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
 
   separator: { textAlign: 'center' as const, fontSize: 11, color: '#6a6860', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
 
@@ -491,7 +491,7 @@ export default function LeaderboardPage() {
               ⏱ {formatTime(attempt.total_time_ms)}
             </p>
             {attempt.is_team && attempt.leader_display_name && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
+              <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 2 }}>
                 Lagleder: {attempt.leader_display_name}
               </p>
             )}
@@ -555,7 +555,7 @@ export default function LeaderboardPage() {
           </p>
         )}
         {showLiveNote && (
-          <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-4px 0 8px' }}>
+          <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', margin: '-4px 0 8px' }}>
             {soloAttempts.length} spillere har spilt så langt — oppdateres gjennom dagen
           </p>
         )}
@@ -779,7 +779,7 @@ export default function LeaderboardPage() {
                   { badge: 'lyn', label: 'Raskest' },
                   { badge: 'medalje', label: 'Topp 3' },
                 ] as { badge: BadgeKind; label: string }[]).map(({ badge, label }) => (
-                  <span key={badge} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#7a7873' }}>
+                  <span key={badge} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#e8e4dd' }}>
                     <BadgeCircle badge={badge} size={14} />
                     {label}
                   </span>

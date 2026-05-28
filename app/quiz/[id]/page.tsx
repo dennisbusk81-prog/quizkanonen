@@ -1477,7 +1477,7 @@ export default function QuizPage() {
   if (!quiz) return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <p style={{color:'#7a7873',fontSize:14}}>Fant ikke quizen.</p>
+      <p style={{color:'#e8e4dd',fontSize:14}}>Fant ikke quizen.</p>
       <a href="/" style={{color:'var(--gold)',fontSize:13,marginTop:16,display:'block'}}>← Tilbake</a>
     </div></div></div></>
   )
@@ -1544,7 +1544,7 @@ export default function QuizPage() {
                 onKeyDown={e => e.key === 'Enter' && startQuiz()}
                 autoFocus
               />
-              <p style={{ fontSize: 13, color: '#7a7873', marginTop: -12, marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: -12, marginBottom: 20 }}>
                 Bruk ditt ekte navn — det er det som gjør det morsomt å vinne.
               </p>
             </>
@@ -1558,7 +1558,7 @@ export default function QuizPage() {
         <div className="qk-social-proof-wrap">
           <span className="qk-social-proof-dot" />
           <span style={{
-            fontSize: 14, color: '#7a7873',
+            fontSize: 14, color: '#e8e4dd',
             fontFamily: "'Instrument Sans', sans-serif",
             whiteSpace: 'nowrap',
           }}>
@@ -1608,7 +1608,7 @@ export default function QuizPage() {
                     className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
                 ))}
               </div>
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 8, textAlign: 'center' }}>
                 Sesong-poeng registreres på deg som er innlogget.
               </p>
             </>
@@ -1624,7 +1624,7 @@ export default function QuizPage() {
         </button>
       </div>
       {!resumeData && (
-        <p style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#7a7873' }}>
+        <p style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#e8e4dd' }}>
           Rangering: flest riktige vinner — ved likt, raskest tid.
         </p>
       )}
@@ -1805,7 +1805,7 @@ export default function QuizPage() {
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
-      <p style={{fontSize:13,color:'#7a7873',marginBottom:24}}>{quiz.title}</p>
+      <p style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:6,marginBottom:10}}>
         {[
@@ -1885,7 +1885,7 @@ export default function QuizPage() {
               <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4 }}>
                 Du er bedre enn {prosent}% av deltakerne
               </div>
-              <div style={{ fontSize: 11, color: '#7a7873', marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: '#e8e4dd', marginTop: 6 }}>
                 Plass {estimatedPlacement.low} · av {estimatedPlacement.total} deltakere
               </div>
             </div>
@@ -1903,7 +1903,7 @@ export default function QuizPage() {
             <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 8 }}>
               Du er et sted mellom plass {tierStart} og {rangeY}
             </div>
-            <div style={{ fontSize: 11, color: '#7a7873', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
               av {estimatedPlacement.total} deltakere
             </div>
             <a href="/founders" style={{
@@ -2047,7 +2047,7 @@ export default function QuizPage() {
             displayStr = `fredag ${dateStr} kl. 12:00`
           }
           return (
-            <p style={{fontSize:13,color:'#7a7873',textAlign:'center'}}>
+            <p style={{fontSize:13,color:'#e8e4dd',textAlign:'center'}}>
               Neste quiz: {displayStr}
             </p>
           )
@@ -2117,21 +2117,21 @@ export default function QuizPage() {
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873' }}>{ligaBox.name}</p>
+              <p style={{ fontSize: 12, color: '#e8e4dd' }}>{ligaBox.name}</p>
             </a>
           ) : ligaBox.type === 'multi' ? (
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873' }}>Se dine ligaer</p>
+              <p style={{ fontSize: 12, color: '#e8e4dd' }}>Se dine ligaer</p>
             </a>
           ) : (
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Konkurrer mot venner
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873' }}>Opprett en privat liga og inviter vennegjengen</p>
+              <p style={{ fontSize: 12, color: '#e8e4dd' }}>Opprett en privat liga og inviter vennegjengen</p>
             </a>
           )}
         </div>

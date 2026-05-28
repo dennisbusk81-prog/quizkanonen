@@ -219,8 +219,8 @@ const s = {
   tabActive:   { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
   tabInactive: { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
 
-  countdown: { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
-  quizLabel: { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
+  countdown: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
+  quizLabel: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
 
   row:        { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   rowGold:    { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
@@ -236,7 +236,7 @@ const s = {
 
   nameBlock: { flex: 1, minWidth: 0 },
   name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
-  nameSub:   { fontSize: 11, color: '#7a7873' },
+  nameSub:   { fontSize: 11, color: '#e8e4dd' },
 
   pointsBlock: { textAlign: 'right' as const, flexShrink: 0 },
   points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
@@ -249,7 +249,7 @@ const s = {
   userCard:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
   userCardGold: { background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
 
-  ctaText:    { fontSize: 14, color: '#7a7873', lineHeight: 1.6, marginBottom: 14 },
+  ctaText:    { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14 },
   btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutline: { display: 'inline-block', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
 
@@ -257,14 +257,14 @@ const s = {
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 12 },
   emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
-  emptySub:   { fontSize: 13, color: '#7a7873', lineHeight: 1.6 },
+  emptySub:   { fontSize: 13, color: '#e8e4dd', lineHeight: 1.6 },
 
   // Historikk-accordion
   histAccordion:   { marginTop: 20, overflow: 'hidden' as const },
   histHeaderTitle: { fontSize: 13, fontWeight: 600, color: '#e8e4dd' },
   histHeaderChev:  { fontSize: 11, color: '#c9a84c' },
   histBody:        { background: '#21242e', borderTop: '1px solid #2a2d38' },
-  histEmpty:       { padding: '24px 18px', fontSize: 13, color: '#7a7873', textAlign: 'center' as const },
+  histEmpty:       { padding: '24px 18px', fontSize: 13, color: '#e8e4dd', textAlign: 'center' as const },
 
   histRow:         { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '0.5px solid #2a2d38', cursor: 'pointer' },
   histRowLast:     { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px' },
@@ -282,7 +282,7 @@ const s = {
   expandedRank:  { fontSize: 12, color: '#7a7873', width: 22, flexShrink: 0, textAlign: 'right' as const },
   expandedName:  { fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   expandedScore: { fontSize: 13, fontWeight: 600, color: '#c9a84c', flexShrink: 0 },
-  expandedSpin:  { padding: '12px 0', fontSize: 12, color: '#7a7873', textAlign: 'center' as const },
+  expandedSpin:  { padding: '12px 0', fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const },
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -494,7 +494,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           <>
             <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
             <div style={s.userCard}>
-              <p style={{ fontSize: 14, color: '#7a7873', lineHeight: 1.6, marginBottom: 6 }}>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
                 Du er på plass <strong style={{ color: '#e8e4dd' }}>#{ue.rank}</strong> — men du trenger Premium for å se fullstendig statistikk.
               </p>
               <Link href="/founders" style={s.btnOutline}>Oppgrader til Premium</Link>
@@ -564,7 +564,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                   <span style={s.histWinnerScore}>{entry.winner.score} {entry.winner.scoreLabel}</span>
                 </div>
               )}
-              {!entry.winner && <div style={{ fontSize: 12, color: '#7a7873', marginTop: 4 }}>Ingen innloggede spillere</div>}
+              {!entry.winner && <div style={{ fontSize: 12, color: '#e8e4dd', marginTop: 4 }}>Ingen innloggede spillere</div>}
             </div>
             {entry.quizId && (
               <a href={`/leaderboard/${entry.quizId}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}>
@@ -594,7 +594,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 <span style={s.histWinnerScore}>{entry.winner.score} {entry.winner.scoreLabel}</span>
               </>
             ) : (
-              <span style={{ fontSize: 12, color: '#7a7873' }}>Ingen data</span>
+              <span style={{ fontSize: 12, color: '#e8e4dd' }}>Ingen data</span>
             )}
           </div>
           <span style={s.histChevron}>{isExpanded ? '↑' : '↓'}</span>
@@ -669,7 +669,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       </div>
 
       {scope === 'organization' && globalLeagueDisabled && (
-        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', margin: '8px 0 4px' }}>
+        <p style={{ fontSize: 13, color: '#e8e4dd', textAlign: 'center', margin: '8px 0 4px' }}>
           Global konkurranse er deaktivert for din bedrift.
         </p>
       )}
@@ -679,7 +679,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       )}
 
       {isLastQuiz && data?.quizClosesAt && new Date(data.quizClosesAt) > new Date() && (
-        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: '#e8e4dd', textAlign: 'center', marginBottom: 16 }}>
           Quizen er åpen — resultater oppdateres fortløpende
         </p>
       )}
@@ -698,11 +698,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>Poengfordeling per quiz</div>
               {[['1. plass','12 poeng'],['2. plass','10 poeng'],['3. plass','8 poeng'],['4. plass','7 poeng'],['5. plass','6 poeng'],['6. plass','5 poeng'],['7. plass','4 poeng'],['8. plass','3 poeng'],['9. plass','2 poeng'],['10. plass','1 poeng'],['11+ plass','1 poeng']].map(([place, pts]) => (
                 <div key={place} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#e8e4dd', padding: '3px 0', borderBottom: '0.5px solid #2a2d38' }}>
-                  <span style={{ color: '#7a7873' }}>{place}</span>
+                  <span style={{ color: '#e8e4dd' }}>{place}</span>
                   <span style={{ fontWeight: 600 }}>{pts}</span>
                 </div>
               ))}
-              <p style={{ fontSize: 11, color: '#7a7873', fontStyle: 'italic', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 11, color: '#e8e4dd', fontStyle: 'italic', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
                 Poengene summeres over alle quizer i perioden. Konsistens belønnes.
               </p>
             </div>
@@ -735,7 +735,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
       </div>
 
-      <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
         Lagets sesong-poeng registreres på innlogget lagleder.
       </p>
     </>

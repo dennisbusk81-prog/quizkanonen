@@ -41,7 +41,7 @@ const STYLES = `
   .pkg-name-featured { color: var(--gold); }
   .pkg-price { font-family: 'Libre Baskerville', serif; font-size: 28px; font-weight: 700; color: var(--white); line-height: 1; margin-bottom: 2px; }
   .pkg-price span { font-size: 13px; font-weight: 400; color: var(--hint); font-family: 'Instrument Sans', sans-serif; }
-  .pkg-desc { font-size: 12px; color: var(--hint); margin-bottom: 20px; margin-top: 6px; line-height: 1.4; }
+  .pkg-desc { font-size: 12px; color: #e8e4dd; margin-bottom: 20px; margin-top: 6px; line-height: 1.4; }
   .pkg-divider { height: 0.5px; background: var(--border); margin-bottom: 16px; }
 
   .pkg-features { list-style: none; flex: 1; margin-bottom: 20px; }
@@ -64,7 +64,7 @@ const STYLES = `
   td:not(:first-child) { text-align: center; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(255,255,255,0.02); }
-  .td-feature { color: var(--hint); font-size: 11px; }
+  .td-feature { color: #e8e4dd; font-size: 11px; }
   .td-gold { color: var(--gold); font-weight: 500; }
   .td-yes { color: var(--gold); font-size: 14px; }
   .td-no { color: var(--border); font-size: 14px; }
@@ -106,14 +106,14 @@ const STYLES = `
   }
   .note-chevron.open { transform: rotate(180deg); }
 
-  .note-body { font-size: 12px; color: var(--hint); line-height: 1.6; margin-top: 10px; }
+  .note-body { font-size: 12px; color: #e8e4dd; line-height: 1.6; margin-top: 10px; }
 
   /* CTA */
   .cta { background: #1e1a0e; border: 1px solid var(--gold-border); border-radius: 16px; padding: 32px; text-align: center; }
   .cta-title { font-family: 'Libre Baskerville', serif; font-size: 22px; font-weight: 700; color: var(--white); margin-bottom: 8px; }
-  .cta-sub { font-size: 14px; color: var(--hint); margin-bottom: 24px; line-height: 1.6; }
+  .cta-sub { font-size: 14px; color: #e8e4dd; margin-bottom: 24px; line-height: 1.6; }
   .cta-btn { display: inline-block; background: var(--gold); color: #1a1c23; font-family: 'Instrument Sans', sans-serif; font-size: 14px; font-weight: 700; padding: 12px 32px; border-radius: 10px; text-decoration: none; }
-  .cta-note { font-size: 12px; color: var(--hint); margin-top: 12px; font-style: italic; }
+  .cta-note { font-size: 12px; color: #e8e4dd; margin-top: 12px; font-style: italic; }
 `
 
 const NOTES = [
@@ -322,7 +322,7 @@ export default function BedriftPage() {
           <div className="cta-sub">Registrer bedriften, betal via Stripe, og del invitasjonslenken med teamet. Ingen binding — avslutt når du vil.</div>
           <a href="/bedrift/registrer" className="cta-btn">Kom i gang →</a>
           <div className="cta-note">Alle ansatte får Premium inkludert i abonnementet.</div>
-          <p style={{ fontSize: 14, color: '#7a7873', marginTop: 10 }}>
+          <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 10 }}>
             Foretrekker du faktura? Send en e-post til{' '}
             <a href="mailto:hei@quizkanonen.no" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
               hei@quizkanonen.no

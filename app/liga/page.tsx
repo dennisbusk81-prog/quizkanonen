@@ -40,7 +40,7 @@ const s = {
   rowBase:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const, transition: 'border-color 0.12s' },
   rowHover:  { background: '#252836', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const },
   rowName:   { fontFamily: "'Instrument Sans', sans-serif", fontSize: 18, fontWeight: 500, color: '#ffffff', marginBottom: 3 },
-  rowMeta:   { fontSize: 13, color: '#7a7873' },
+  rowMeta:   { fontSize: 13, color: '#e8e4dd' },
   rowRight:  { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   ownerBadge:{ fontSize: 10, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 4, padding: '2px 7px' },
   rowArrow:  { fontSize: 14, color: '#7a7873' },
@@ -58,11 +58,11 @@ const s = {
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 4 },
   emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
-  emptySub:   { fontSize: 13, color: '#7a7873', lineHeight: 1.6 },
+  emptySub:   { fontSize: 13, color: '#e8e4dd', lineHeight: 1.6 },
 
   ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px 20px', textAlign: 'center' as const, marginTop: 24 },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
-  ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 16, lineHeight: 1.5 },
+  ctaSub:   { fontSize: 13, color: '#e8e4dd', marginBottom: 16, lineHeight: 1.5 },
   ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 

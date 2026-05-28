@@ -122,7 +122,7 @@ export default function PremiumPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{PLAN.name}</div>
-                  <div style={{ fontSize: 12, color: '#7a7873' }}>{PLAN.desc}</div>
+                  <div style={{ fontSize: 12, color: '#e8e4dd' }}>{PLAN.desc}</div>
                 </div>
                 <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
                   {PLAN.price}
@@ -161,7 +161,7 @@ export default function PremiumPage() {
               </button>
             </div>
 
-            <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', lineHeight: 1.6 }}>
               Du må være innlogget for å kjøpe. Betaling håndteres trygt av Stripe.
             </p>
           </div>
