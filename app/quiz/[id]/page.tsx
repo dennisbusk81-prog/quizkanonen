@@ -1917,6 +1917,63 @@ export default function QuizPage() {
         )
       })()}
 
+      {/* ── Rival-kort ── */}
+      {isLoggedIn && rivalData && (() => {
+        const rivalScore = rivalData.score
+        const outcome: 'won' | 'lost' | 'tied' =
+          correctCount > rivalScore ? 'won' : correctCount < rivalScore ? 'lost' : 'tied'
+        const name = rivalData.name
+
+        const borderColor = outcome === 'won'
+          ? 'rgba(76,175,125,0.3)'
+          : outcome === 'lost'
+            ? 'rgba(201,76,76,0.3)'
+            : 'rgba(201,168,76,0.25)'
+
+        const outcomeLabel = outcome === 'won' ? 'Du vant' : outcome === 'lost' ? 'Du tapte' : 'Likt'
+        const outcomeLabelColor = outcome === 'won' ? '#4caf7d' : outcome === 'lost' ? '#c94c4c' : '#c9a84c'
+
+        const outcomeText = outcome === 'won'
+          ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} riktige.</>
+          : outcome === 'lost'
+            ? <><span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> slo deg denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} riktige.</>
+            : <>Likt med <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> — begge fikk {rivalScore} riktige. Tiden avgjør.</>
+
+        return (
+          <div style={{
+            background: '#21242e',
+            border: `0.5px solid ${borderColor}`,
+            borderRadius: 16,
+            padding: '14px 16px',
+            textAlign: 'left',
+            marginBottom: 14,
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+            }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
+                textTransform: 'uppercase' as const, color: '#7a7873',
+              }}>
+                Rival
+              </span>
+              <span style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                textTransform: 'uppercase' as const, color: outcomeLabelColor,
+              }}>
+                {outcomeLabel}
+              </span>
+            </div>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, margin: 0 }}>
+              {outcomeText}
+            </p>
+          </div>
+        )
+      })()}
+
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={async () => {
           const shareText = toppPercent !== null
