@@ -387,6 +387,21 @@ const styles = `
     width: 100%;
   }
 
+  /* ── Mobile touch targets ──────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .qk-options { gap: 12px; }
+    .qk-option  { min-height: 52px; }
+    .qk-next-btn-wrap {
+      position: sticky;
+      bottom: 0;
+      padding: 12px 0 8px;
+      /* Fade so content behind the button is legible while scrolling */
+      background: linear-gradient(transparent, var(--bg) 28%);
+      z-index: 10;
+      margin-top: 2px;
+    }
+  }
+
   .qk-option:hover:not(:disabled) { border-color: #4a4d5a; background: #262930; }
   .qk-option:disabled { cursor: default; }
   @keyframes qkButtonPop {
@@ -1759,10 +1774,12 @@ export default function QuizPage() {
               {quiz.show_answer_explanation && question?.explanation && (
                 <div className="qk-explanation">{question.explanation}</div>
               )}
-              <button onClick={goToNext} className="qk-btn-primary">
-                {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
-              </button>
+              <div className="qk-next-btn-wrap">
+                <button onClick={goToNext} className="qk-btn-primary">
+                  {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+                </button>
+              </div>
             </div>
           )}
         </div>
