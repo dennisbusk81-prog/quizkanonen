@@ -4,6 +4,7 @@ import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
+import RivalryCard from '@/components/RivalryCard'
 import WelcomeBanner from '@/components/WelcomeBanner'
 import AccordionSection from '@/components/AccordionSection'
 import Link from 'next/link'
@@ -1179,6 +1180,9 @@ export default async function Home() {
           {leagueDataArr.length > 0 && (
             <LeagueCard leagues={leagueDataArr} />
           )}
+
+          {/* Rivalry card — H2H Duell (Premium) */}
+          <RivalryCard isPremium={isPremium} />
 
         </div>
       </>

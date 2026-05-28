@@ -126,6 +126,9 @@ export default function LeaderboardPage() {
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
   const [podiumActive, setPodiumActive] = useState(false)
   const [hasLeagues, setHasLeagues] = useState(false)
+  const [activeDuelExists, setActiveDuelExists] = useState(false)
+  const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
+  const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -252,6 +255,25 @@ export default function LeaderboardPage() {
           }
         }
       } catch { /* ikke kritisk */ }
+
+      // Hent duell-status for "Utfordre"-knapp i leaderboard-rader
+      try {
+        const rivalRes = await fetch('/api/rivalries/my', {
+          headers: { Authorization: `Bearer ${sess.access_token}` },
+        })
+        if (rivalRes.ok) {
+          const rivalJson = await rivalRes.json()
+          const rows: { status: string; isChallenger: boolean; opponentId: string }[] = rivalJson.rivalries ?? []
+          const hasActive = rows.some(r => r.status === 'active')
+          setActiveDuelExists(hasActive)
+          const pendingOutgoing = new Set(
+            rows
+              .filter(r => r.status === 'pending' && r.isChallenger)
+              .map(r => r.opponentId)
+          )
+          setChallengeSentSet(pendingOutgoing)
+        }
+      } catch { /* ikke kritisk */ }
     }
     setAuthLoading(false)
   }, [])
@@ -306,6 +328,30 @@ export default function LeaderboardPage() {
     setSession(null)
     setDisplayName(null)
     setAvatarUrl(null)
+  }
+
+  const handleChallenge = async (rivalId: string) => {
+    if (!session) return
+    setChallengeLoadingId(rivalId)
+    try {
+      const res = await fetch('/api/rivalries', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rival_id: rivalId }),
+      })
+      if (res.ok) {
+        setChallengeSentSet(prev => new Set([...prev, rivalId]))
+      } else {
+        const json = await res.json().catch(() => ({}))
+        alert(json.error ?? 'Noe gikk galt.')
+      }
+    } catch {
+      alert('Noe gikk galt.')
+    }
+    setChallengeLoadingId(null)
   }
 
   const isPremium = profile?.premium_status === true
@@ -434,6 +480,40 @@ export default function LeaderboardPage() {
               {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
             </p>
           </div>
+          {!isUser && isPremium && !attempt.is_team && attempt.user_id && (() => {
+            if (activeDuelExists) return null
+            const sent = challengeSentSet.has(attempt.user_id)
+            const loading = challengeLoadingId === attempt.user_id
+            if (sent) {
+              return (
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.06em', flexShrink: 0 }}>
+                  Sendt
+                </span>
+              )
+            }
+            return (
+              <button
+                onClick={() => handleChallenge(attempt.user_id!)}
+                disabled={loading}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(201,168,76,0.35)',
+                  color: '#c9a84c',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  cursor: loading ? 'default' : 'pointer',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  opacity: loading ? 0.6 : 1,
+                }}
+              >
+                {loading ? '…' : 'Utfordre'}
+              </button>
+            )
+          })()}
         </div>
         {showLiveNote && (
           <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-4px 0 8px' }}>
