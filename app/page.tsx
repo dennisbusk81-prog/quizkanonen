@@ -767,6 +767,7 @@ export default async function Home() {
         .from('quizzes')
         .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
         .gt('opens_at', now.toISOString())
+        .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
         .order('opens_at', { ascending: true })
         .limit(1)
       upcomingQuiz = ((upcomingData as QuizRow[] | null) ?? [])[0] ?? null
@@ -1215,11 +1216,12 @@ export default async function Home() {
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    // Kommende quiz: opens_at > now, hentes parallelt
+    // Kommende quiz: opens_at > now og ikke stengt, hentes parallelt
     supabaseAdmin
       .from('quizzes')
       .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
       .gt('opens_at', now.toISOString())
+      .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
       .order('opens_at', { ascending: true })
       .limit(1),
   ])
