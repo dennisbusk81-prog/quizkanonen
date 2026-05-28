@@ -322,6 +322,13 @@ export default function BedriftPage() {
           <div className="cta-sub">Registrer bedriften, betal via Stripe, og del invitasjonslenken med teamet. Ingen binding — avslutt når du vil.</div>
           <a href="/bedrift/registrer" className="cta-btn">Kom i gang →</a>
           <div className="cta-note">Alle ansatte får Premium inkludert i abonnementet.</div>
+          <p style={{ fontSize: 14, color: '#7a7873', marginTop: 10 }}>
+            Foretrekker du faktura? Send en e-post til{' '}
+            <a href="mailto:hei@quizkanonen.no" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
+              hei@quizkanonen.no
+            </a>
+            , så ordner vi det.
+          </p>
         </div>
 
       </div>
