@@ -524,8 +524,7 @@ export function foundersWelcomeEmail(): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Du er nå blant de første på Quizkanonen.
-                Du har 30 dager gratis tilgang til alle Premium-funksjoner.
+                Du er blant de første. Det betyr noe. 30 dager med full tilgang — ingen kortinfo, ingen forpliktelse. Bare spill.
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
@@ -829,7 +828,7 @@ export function premiumWelcomeEmail(): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Takk for at du valgte Premium. Du har nå tilgang til:
+                Premium er aktivert. Her er hva du har tilgang til:
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
@@ -1077,10 +1076,10 @@ export function reEngagementEmail(firstName?: string): string {
 
               <!-- Body text -->
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Det har gått en stund siden du var innom Quizkanonen.
+                Du mangler fra listen.
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Ny quiz åpner hver fredag kl. 12:00 — kan du klatre på topplisten?
+                Ny quiz åpner fredag kl. 12:00. Kan du ta igjen det du har gått glipp av?
               </p>
 
               <!-- CTA button -->

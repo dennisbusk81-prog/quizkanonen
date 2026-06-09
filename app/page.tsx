@@ -1376,8 +1376,8 @@ export default async function Home() {
           <div className="qk-steps">
             {([
               { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12. Svar raskt — tid teller.' },
-              { n: '2', title: 'Se plasseringen', desc: 'Sammenlign deg mot de samme folkene uke etter uke.' },
-              { n: '3', title: 'Følg sesongen', desc: 'Poeng akkumuleres. Hvem dominerer over tid?' },
+              { n: '2', title: 'Se plasseringen', desc: 'Se nøyaktig hvor du havner blant alle deltakerne.' },
+              { n: '3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatr.' },
             ] as const).map(({ n, title, desc }) => (
               <div key={n} className="qk-step">
                 <div className="qk-step-num">{n}</div>
@@ -1392,6 +1392,8 @@ export default async function Home() {
             ))}
           </div>
         </section>
+
+        <p className="qk-quote">Her teller det å kunne svaret — ikke bare å klikke først.</p>
 
         {/* ── Interlude teaser ── */}
         <div className="qk-interlude">
