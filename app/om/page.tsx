@@ -99,9 +99,8 @@ export default function OmPage() {
 
         <div style={s.card}>
 
-          <h2 style={s.firstSectionTitle}>Om Quizkanonen</h2>
           <p style={s.body}>
-            Quizkanonen er en ukentlig fredagsquiz for folk som tar quiz på alvor — men ikke seg selv.
+            Quizkanonen er en ukentlig fredagsquiz for folk som liker å vinne — og å vite at de fortjente det.
           </p>
 
           <hr style={s.rule} />
@@ -127,7 +126,8 @@ export default function OmPage() {
             Jeg ser også verdien quiz skaper på en arbeidsplass — samholdet, spenningen, noe å se frem til. Derfor har jeg bygget Quizkanonen slik at enhver bedrift enkelt kan ta det i bruk, uten at noen trenger å lage et eneste spørsmål selv.
           </p>
           <p style={s.body}>
-            Holder du quiz live og trenger en erfaren quizmaster? Jeg er tilgjengelig for private arrangementer og bedrifter — ta gjerne kontakt.
+            Holder du quiz live og trenger en erfaren quizmaster? Jeg er tilgjengelig for private arrangementer og bedrifter —{' '}
+            <a href="mailto:support@quizkanonen.no" style={s.link}>ta gjerne kontakt</a>.
           </p>
 
           <hr style={s.rule} />
