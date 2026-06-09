@@ -987,6 +987,53 @@ export default function OrgAdminPage() {
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════
+              KOM I GANG — onboarding for nye admins (kun når listen er tom)
+          ══════════════════════════════════════════════════════════════════ */}
+          {memberCount === 1 && (
+            <div style={{
+              background: '#21242e',
+              border: '1px solid rgba(201,168,76,0.3)',
+              borderRadius: 14,
+              padding: '20px 22px',
+              marginBottom: 20,
+            }}>
+              <p style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
+                textTransform: 'uppercase', color: '#7a7873', marginBottom: 10,
+              }}>
+                Kom i gang
+              </p>
+              <p style={{
+                fontFamily: "'Libre Baskerville', serif",
+                fontSize: 20, fontWeight: 700, color: '#ffffff',
+                marginBottom: 10, lineHeight: 1.3,
+              }}>
+                Inviter dine første deltakere
+              </p>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 18 }}>
+                Opprett en invitasjonslenke og del den i Slack, Teams eller på e-post.
+                Alle som klikker lenken blir automatisk medlem.
+              </p>
+              <a
+                href="#invite-section"
+                style={{
+                  display: 'inline-block',
+                  padding: '10px 28px',
+                  background: '#c9a84c',
+                  color: '#1a1c23',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                }}
+              >
+                Opprett invitasjonslenke →
+              </a>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════
               3. PLAN-BANNER
           ══════════════════════════════════════════════════════════════════ */}
           <div style={{
@@ -1219,7 +1266,11 @@ export default function OrgAdminPage() {
             )}
 
             {/* ── Invite section ─────────────────────────────────────────── */}
-            <div style={{ borderTop: '1px solid #2a2d38', padding: '16px 18px' }}>
+            <div id="invite-section" style={{ borderTop: '1px solid #2a2d38', padding: '16px 18px' }}>
+
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 12, lineHeight: 1.5 }}>
+                Del lenken i Slack, Teams eller på e-post — alle som klikker blir automatisk medlem.
+              </p>
 
               {/* RAD 1 — Delbar invitasjonslenke */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1264,7 +1315,9 @@ export default function OrgAdminPage() {
                   </>
                 ) : (
                   <>
-                    <div style={{ flex: 1 }} />
+                    <p style={{ width: '100%', fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                      Ingen aktiv invitasjonslenke ennå.
+                    </p>
                     <button
                       onClick={createInvite}
                       disabled={creatingInvite}
