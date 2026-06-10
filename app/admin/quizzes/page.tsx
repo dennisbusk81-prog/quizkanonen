@@ -243,6 +243,10 @@ export default function AdminQuizzes() {
   // Import modal
   const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
 
+  // Inline closes_at editing per quiz
+  const [closesAtEdits, setClosesAtEdits]   = useState<Record<string, string>>({})
+  const [closesAtStatus, setClosesAtStatus] = useState<Record<string, 'ok' | 'error' | null>>({})
+
   // Import modal
   const [importModal, setImportModal] = useState(false)
   const [importTitle, setImportTitle] = useState('')
@@ -413,6 +417,33 @@ export default function AdminQuizzes() {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
 
+  function toDatetimeLocal(iso: string): string {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  }
+
+  async function updateClosesAt(quizId: string) {
+    const value = closesAtEdits[quizId]
+    if (!value) return
+    try {
+      const isoValue = new Date(value).toISOString()
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ closes_at: isoValue }),
+      })
+      if (!res.ok) {
+        setClosesAtStatus(prev => ({ ...prev, [quizId]: 'error' }))
+      } else {
+        setClosesAtStatus(prev => ({ ...prev, [quizId]: 'ok' }))
+        setQuizzes(prev => prev.map(q => q.id === quizId ? { ...q, closes_at: isoValue } : q))
+      }
+    } catch {
+      setClosesAtStatus(prev => ({ ...prev, [quizId]: 'error' }))
+    }
+    setTimeout(() => setClosesAtStatus(prev => ({ ...prev, [quizId]: null })), 3000)
+  }
+
   const statusBadge = (quiz: Quiz) => {
     if (!quiz.is_active) return <span className="aqz-badge hidden">Skjult</span>
     if (isOpen(quiz)) return <span className="aqz-badge open">● Åpen</span>
@@ -502,6 +533,42 @@ export default function AdminQuizzes() {
                     </div>
                   </div>
                 </div>
+
+                {/* ── Inline closes_at editor — kun for åpne quizer ── */}
+                {mounted && isOpen(quiz) && (
+                  <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', flexShrink: 0 }}>
+                      Stenger
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={closesAtEdits[quiz.id] ?? toDatetimeLocal(quiz.closes_at)}
+                      onChange={e => setClosesAtEdits(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                      style={{
+                        background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
+                        padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
+                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+                        colorScheme: 'dark',
+                      }}
+                    />
+                    <button
+                      onClick={() => updateClosesAt(quiz.id)}
+                      style={{
+                        background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                        padding: '6px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                        cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Oppdater
+                    </button>
+                    {closesAtStatus[quiz.id] === 'ok' && (
+                      <span style={{ fontSize: 12, color: '#c9a84c' }}>Oppdatert ✓</span>
+                    )}
+                    {closesAtStatus[quiz.id] === 'error' && (
+                      <span style={{ fontSize: 12, color: '#e8e4dd' }}>Feil — prøv igjen</span>
+                    )}
+                  </div>
+                )}
 
                 <div className="aqz-actions">
                   <Link href={`/admin/quizzes/${quiz.id}/questions`} className="aqz-action blue">

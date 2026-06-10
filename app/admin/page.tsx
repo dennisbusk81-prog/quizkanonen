@@ -605,15 +605,14 @@ export default function AdminHome() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => { setResetModal('all'); setResetInput('') }}
-              style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', transition: 'background 0.15s', fontFamily: "'Instrument Sans', sans-serif" }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #c0392b', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
             >
               Nullstill all data
             </button>
             <button
               onClick={() => { setResetModal('test'); setResetInput('') }}
               className="adm-btn-outline"
+              style={{ borderRadius: 10, padding: '8px 20px' }}
             >
               Nullstill kun testdata
             </button>
