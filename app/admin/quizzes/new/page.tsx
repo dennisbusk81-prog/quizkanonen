@@ -574,6 +574,7 @@ function QuizEditorInner() {
   const [title, setTitle]           = useState('')
   const [opensAt, setOpensAt]       = useState('')
   const [closesAt, setClosesAt]     = useState('')
+  const [closesAtStatus, setClosesAtStatus] = useState<'ok' | 'error' | null>(null)
   const [quizType, setQuizType]     = useState<'weekly' | 'bonus'>('weekly')
   const [shuffleAll, setShuffleAll] = useState(false)
 
@@ -854,6 +855,30 @@ function QuizEditorInner() {
     if (metaDebounceRef.current) clearTimeout(metaDebounceRef.current)
     metaDebounceRef.current = setTimeout(() => updateQuizMeta(), 300)
   }, [updateQuizMeta])
+
+  // Standalone closes_at update — only patches the closes_at column
+  const updateClosesAtOnly = useCallback(async () => {
+    const qId = quizIdRef.current
+    if (!qId || !closesAtRef.current) return
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${qId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          closes_at: new Date(closesAtRef.current).toISOString(),
+        }),
+      })
+      if (!res.ok) {
+        setClosesAtStatus('error')
+        setTimeout(() => setClosesAtStatus(null), 3000)
+        return
+      }
+      setClosesAtStatus('ok')
+      setTimeout(() => setClosesAtStatus(null), 3000)
+    } catch {
+      setClosesAtStatus('error')
+      setTimeout(() => setClosesAtStatus(null), 3000)
+    }
+  }, [])
 
   // ── Navigation ────────────────────────────────────────────────────────────────
 
@@ -1184,13 +1209,41 @@ function QuizEditorInner() {
                 </div>
                 <div>
                   <label className="nq-label">Stenger</label>
-                  <input
-                    type="datetime-local"
-                    value={closesAt}
-                    onChange={e => setClosesAt(e.target.value)}
-                    onBlur={debouncedUpdateQuizMeta}
-                    className="nq-input"
-                  />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="datetime-local"
+                      value={closesAt}
+                      onChange={e => setClosesAt(e.target.value)}
+                      onBlur={debouncedUpdateQuizMeta}
+                      className="nq-input"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={updateClosesAtOnly}
+                      style={{
+                        padding: '6px 14px',
+                        background: 'transparent',
+                        border: '1px solid #e8e4dd',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#e8e4dd',
+                        cursor: 'pointer',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Oppdater tidsfrist
+                    </button>
+                  </div>
+                  {closesAtStatus === 'ok' && (
+                    <p style={{ fontSize: 12, color: '#c9a84c', marginTop: 4, margin: '4px 0 0' }}>Tidsfrist oppdatert</p>
+                  )}
+                  {closesAtStatus === 'error' && (
+                    <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 4, margin: '4px 0 0' }}>Noe gikk galt — prøv igjen</p>
+                  )}
                 </div>
               </div>
 

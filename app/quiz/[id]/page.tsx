@@ -2056,27 +2056,52 @@ export default function QuizPage() {
 
         {isLoggedIn && !isPremium && (
           <div style={{
-            background:'#21242e',
-            border:'0.5px solid #2a2d38',
-            borderRadius:16,
-            padding:16,
-            textAlign:'left',
+            background: '#21242e',
+            border: '1px solid rgba(201,168,76,0.15)',
+            borderRadius: 16,
+            padding: 28,
           }}>
-            <p style={{fontSize:13,color:'#e8e4dd',lineHeight:1.5,marginBottom:12}}>
-              Oppgrader til Premium for å se historikken din og følge fremgangen uke etter uke.
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: '#ffffff',
+              lineHeight: 1.3,
+              marginBottom: 8,
+            }}>
+              Følg fremgangen din uke etter uke
             </p>
+            <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+              Med Premium ser du nøyaktig hvor du plasserer deg, quizhistorikken din og om du blir bedre over tid.
+            </p>
+            <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
+              {[
+                'Nøyaktig plassering på topplisten',
+                'Historikk fra alle quizer du har spilt',
+                'Sesong-leaderboard — konkurrér over tid',
+              ].map(txt => (
+                <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
+                  {txt}
+                </li>
+              ))}
+            </ul>
             <a href="/founders" style={{
-              display:'block',textAlign:'center',
-              background:'transparent',border:'1px solid rgba(201,168,76,0.35)',
-              borderRadius:8,padding:'10px 14px',
-              fontSize:13,fontWeight:600,color:'#c9a84c',
-              textDecoration:'none',transition:'border-color 0.15s, background 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(201,168,76,0.65)'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(201,168,76,0.06)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(201,168,76,0.35)'; (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
-            >
-              Oppgrader til Premium →
+              display: 'inline-block',
+              padding: '10px 28px',
+              background: 'transparent',
+              border: '1px solid #e8e4dd',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#e8e4dd',
+              textDecoration: 'none',
+            }}>
+              Prøv gratis i 1 måned →
             </a>
+            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
+              Ingen kortinfo nødvendig
+            </p>
           </div>
         )}
 
