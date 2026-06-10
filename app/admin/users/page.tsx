@@ -147,7 +147,7 @@ type UserRow = {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function initial(name: string | null, email: string | null): string {

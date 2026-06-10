@@ -549,11 +549,11 @@ export default function AdminHome() {
               const isPlanned = opensAt && opensAt > now
               const statusLabel = isOpen ? '● Åpen' : isClosed ? 'Stengt' : isPlanned ? 'Planlagt' : 'Stengt'
               const statusClass = isOpen ? 'adm-badge--open' : isClosed ? 'adm-badge--closed' : isPlanned ? 'adm-badge--hidden' : 'adm-badge--closed'
-              const opensDate = opensAt ? opensAt.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
-              const closesDate = closesAt ? closesAt.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' }) : null
+              const opensDate = opensAt ? opensAt.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
+              const closesDate = closesAt ? closesAt.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
               const dateHint = opensDate && closesDate
                 ? `${opensDate} – ${closesDate}`
-                : opensDate ?? closesDate ?? new Date(quiz.created_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
+                : opensDate ?? closesDate ?? new Date(quiz.created_at).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
               return (
                 <div key={quiz.id} className="adm-quiz-row">
                   <div style={{ minWidth: 0 }}>
@@ -598,9 +598,8 @@ export default function AdminHome() {
         {/* Sesong-toppliste */}
         <div className="adm-section">
           <p className="adm-section-label">Sesong-toppliste</p>
-          <p style={{ fontSize: 12, color: 'var(--hint)', marginBottom: 12, lineHeight: 1.5 }}>
-            Nullstilling sletter alle season_scores og setter season_points_awarded = false på quizer.
-            Ved neste cron-kjøring fylles data inn igjen for alle stengte quizer.
+          <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 12, lineHeight: 1.5 }}>
+            Nullstiller alle sesong-poeng. Historiske quizer fylles inn igjen automatisk.
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
@@ -611,8 +610,7 @@ export default function AdminHome() {
             </button>
             <button
               onClick={() => { setResetModal('test'); setResetInput('') }}
-              className="adm-btn-outline"
-              style={{ borderRadius: 10, padding: '8px 20px' }}
+              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
             >
               Nullstill kun testdata
             </button>

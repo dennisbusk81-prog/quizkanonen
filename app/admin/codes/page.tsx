@@ -364,7 +364,7 @@ export default function AdminCodes() {
     }
   }
 
-  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('no-NO') : 'Aldri'
+  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Aldri'
   const isExpired = (d: string | null) => mounted && (d ? new Date(d) < new Date() : false)
 
   if (loading) return (

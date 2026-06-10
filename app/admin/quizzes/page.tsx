@@ -244,7 +244,9 @@ export default function AdminQuizzes() {
   const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
 
   // Inline closes_at editing per quiz
-  const [closesAtEdits, setClosesAtEdits]   = useState<Record<string, string>>({})
+  const [closesAtDate,   setClosesAtDate]   = useState<Record<string, string>>({})
+  const [closesAtTime,   setClosesAtTime]   = useState<Record<string, string>>({})
+  const [closesAtError,  setClosesAtError]  = useState<Record<string, string | null>>({})
   const [closesAtStatus, setClosesAtStatus] = useState<Record<string, 'ok' | 'error' | null>>({})
 
   // Import modal
@@ -413,21 +415,46 @@ export default function AdminQuizzes() {
     return new Date(quiz.opens_at) <= now && new Date(quiz.closes_at) >= now
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleString('no-NO', {
+  const formatDate = (d: string) => new Date(d).toLocaleString('nb-NO', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
   })
 
-  function toDatetimeLocal(iso: string): string {
-    if (!iso) return ''
+  function toDatetimeParts(iso: string): [string, string] {
+    if (!iso) return ['', '']
     const d = new Date(iso)
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const dateStr = `${pad(local.getUTCDate())}.${pad(local.getUTCMonth() + 1)}.${local.getUTCFullYear()}`
+    const timeStr = `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`
+    return [dateStr, timeStr]
+  }
+
+  function parseNorwegianDateTime(dateStr: string, timeStr: string): Date | null {
+    const dateParts = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+    const timeParts = timeStr.match(/^(\d{1,2}):(\d{2})$/)
+    if (!dateParts || !timeParts) return null
+    const d = parseInt(dateParts[1], 10)
+    const m = parseInt(dateParts[2], 10)
+    const y = parseInt(dateParts[3], 10)
+    const h = parseInt(timeParts[1], 10)
+    const min = parseInt(timeParts[2], 10)
+    if (m < 1 || m > 12 || d < 1 || d > 31 || h > 23 || min > 59) return null
+    return new Date(y, m - 1, d, h, min)
   }
 
   async function updateClosesAt(quizId: string) {
-    const value = closesAtEdits[quizId]
-    if (!value) return
+    const quiz = quizzes.find(q => q.id === quizId)
+    const [defaultDate, defaultTime] = toDatetimeParts(quiz?.closes_at ?? '')
+    const dateStr = closesAtDate[quizId] ?? defaultDate
+    const timeStr = closesAtTime[quizId] ?? defaultTime
+    const parsed = parseNorwegianDateTime(dateStr, timeStr)
+    if (!parsed) {
+      setClosesAtError(prev => ({ ...prev, [quizId]: 'Ugyldig format — bruk DD.MM.ÅÅÅÅ og TT:MM' }))
+      return
+    }
+    setClosesAtError(prev => ({ ...prev, [quizId]: null }))
     try {
-      const isoValue = new Date(value).toISOString()
+      const isoValue = parsed.toISOString()
       const res = await adminFetch(`/api/admin/quizzes/${quizId}`, {
         method: 'PATCH',
         body: JSON.stringify({ closes_at: isoValue }),
@@ -541,14 +568,25 @@ export default function AdminQuizzes() {
                       Stenger
                     </span>
                     <input
-                      type="datetime-local"
-                      value={closesAtEdits[quiz.id] ?? toDatetimeLocal(quiz.closes_at)}
-                      onChange={e => setClosesAtEdits(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                      type="text"
+                      value={closesAtDate[quiz.id] ?? toDatetimeParts(quiz.closes_at)[0]}
+                      onChange={e => setClosesAtDate(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                      placeholder="DD.MM.ÅÅÅÅ"
                       style={{
                         background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
                         padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
-                        colorScheme: 'dark',
+                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none', width: 110,
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={closesAtTime[quiz.id] ?? toDatetimeParts(quiz.closes_at)[1]}
+                      onChange={e => setClosesAtTime(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                      placeholder="TT:MM"
+                      style={{
+                        background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
+                        padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
+                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none', width: 72,
                       }}
                     />
                     <button
@@ -561,6 +599,9 @@ export default function AdminQuizzes() {
                     >
                       Oppdater
                     </button>
+                    {closesAtError[quiz.id] && (
+                      <span style={{ fontSize: 12, color: '#f87171' }}>{closesAtError[quiz.id]}</span>
+                    )}
                     {closesAtStatus[quiz.id] === 'ok' && (
                       <span style={{ fontSize: 12, color: '#c9a84c' }}>Oppdatert ✓</span>
                     )}
