@@ -682,6 +682,7 @@ export default function QuizPage() {
   const [orgBox, setOrgBox] = useState<{ orgName: string; orgSlug: string; userRank: number | null } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
+  const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [nameConflict, setNameConflict] = useState(false)
@@ -733,7 +734,29 @@ export default function QuizPage() {
         .maybeSingle()
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-      setIsPremium(prof?.premium_status === true)
+      const isP = prof?.premium_status === true
+      setIsPremium(isP)
+      // Hent founders-data for CTA — cache 5 min i sessionStorage
+      if (!isP) {
+        try {
+          const CACHE_KEY = 'qk_founders_count'
+          const CACHE_TTL = 5 * 60 * 1000
+          const cached = sessionStorage.getItem(CACHE_KEY)
+          if (cached) {
+            const { ts, data } = JSON.parse(cached) as { ts: number; data: typeof foundersData }
+            if (Date.now() - ts < CACHE_TTL) { setFoundersData(data); }
+            else {
+              const r = await fetch('/api/founders/count'); const d = await r.json()
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d }))
+              setFoundersData(d)
+            }
+          } else {
+            const r = await fetch('/api/founders/count'); const d = await r.json()
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d }))
+            setFoundersData(d)
+          }
+        } catch { /* founders-data er valgfri */ }
+      }
       if (prof?.age_confirmed_at) {
         setAgeAlreadyConfirmed(true)
         setAgeConfirmed(true)
@@ -2084,6 +2107,23 @@ export default function QuizPage() {
             borderRadius: 16,
             padding: 28,
           }}>
+            {/* Founders-badge */}
+            {foundersData?.isFounders && (
+              <div style={{ marginBottom: 12 }}>
+                <span style={{
+                  display: 'inline-block',
+                  background: '#c9a84c',
+                  color: '#1a1c23',
+                  borderRadius: 20,
+                  padding: '4px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  fontFamily: "'Instrument Sans', sans-serif",
+                }}>
+                  Founders-tilbud · {foundersData.remaining} plasser igjen
+                </span>
+              </div>
+            )}
             <p style={{
               fontFamily: "'Libre Baskerville', serif",
               fontSize: 18,
@@ -2092,10 +2132,9 @@ export default function QuizPage() {
               lineHeight: 1.3,
               marginBottom: 8,
             }}>
-              Følg fremgangen din uke etter uke
-            </p>
-            <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
-              Med Premium ser du nøyaktig hvor du plasserer deg, quizhistorikken din og om du blir bedre over tid.
+              {foundersData
+                ? `Prøv Premium gratis i ${foundersData.daysFree} dager`
+                : 'Følg fremgangen din uke etter uke'}
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
               {[
@@ -2120,11 +2159,22 @@ export default function QuizPage() {
               color: '#e8e4dd',
               textDecoration: 'none',
             }}>
-              Prøv gratis i 1 måned →
+              {foundersData?.isFounders
+                ? `Aktiver ${foundersData.daysFree} dager gratis — ingen kortinfo →`
+                : foundersData
+                  ? `Start ${foundersData.daysFree} dager gratis →`
+                  : 'Prøv gratis i 30 dager →'}
             </a>
-            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
-              Ingen kortinfo nødvendig
-            </p>
+            {foundersData?.isFounders && (
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
+                Kun {foundersData.remaining} plasser igjen
+              </p>
+            )}
+            {!foundersData?.isFounders && (
+              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
+                Ingen kortinfo nødvendig
+              </p>
+            )}
           </div>
         )}
 

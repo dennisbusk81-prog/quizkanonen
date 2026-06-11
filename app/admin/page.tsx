@@ -354,11 +354,16 @@ export default function AdminHome() {
   const [resetting, setResetting] = useState(false)
   const [resetDone, setResetDone] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
+  const [foundersCount, setFoundersCount] = useState<{ used: number; max: number; remaining: number; isFounders: boolean } | null>(null)
+  const [foundersSettings, setFoundersSettings] = useState({ max: 250, daysFree: 30, trialDays: 7 })
+  const [foundersSaving, setFoundersSaving] = useState(false)
+  const [foundersSaved, setFoundersSaved] = useState(false)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
     fetchAll()
     fetchNextQuiz()
+    fetchFounders()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -381,6 +386,41 @@ export default function AdminHome() {
       console.error('fetchAll feilet:', e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchFounders() {
+    try {
+      const [countRes, settingsRes] = await Promise.all([
+        fetch('/api/founders/count'),
+        adminFetch('/api/admin/founders-settings'),
+      ])
+      if (countRes.ok) setFoundersCount(await countRes.json())
+      if (settingsRes.ok) {
+        const s = await settingsRes.json()
+        setFoundersSettings({ max: s.maxSlots, daysFree: s.daysFree, trialDays: s.trialDays })
+      }
+    } catch { /* ignoreres */ }
+  }
+
+  async function saveFoundersSettings() {
+    setFoundersSaving(true)
+    try {
+      const r = await adminFetch('/api/admin/founders-settings', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          founders_max_slots: foundersSettings.max,
+          founders_days_free: foundersSettings.daysFree,
+          founders_trial_days: foundersSettings.trialDays,
+        }),
+      })
+      if (r.ok) {
+        setFoundersSaved(true)
+        setTimeout(() => setFoundersSaved(false), 3000)
+        await fetchFounders()
+      }
+    } finally {
+      setFoundersSaving(false)
     }
   }
 
@@ -596,6 +636,80 @@ export default function AdminHome() {
             })}
           </div>
         )}
+
+        {/* Founders-tilbud */}
+        <div className="adm-section">
+          <p className="adm-section-label">Founders-tilbud</p>
+
+          {/* Live status */}
+          {foundersCount && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 8 }}>
+                {foundersCount.used} av {foundersCount.max} plasser brukt
+              </p>
+              <div style={{ height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, (foundersCount.used / foundersCount.max) * 100)}%`,
+                  background: '#c9a84c',
+                  borderRadius: 4,
+                  transition: 'width 0.6s ease',
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Innstillinger */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Maks plasser
+              </label>
+              <input
+                type="number"
+                value={foundersSettings.max}
+                onChange={e => setFoundersSettings(p => ({ ...p, max: Number(e.target.value) }))}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Dager gratis (Founders)
+              </label>
+              <input
+                type="number"
+                value={foundersSettings.daysFree}
+                onChange={e => setFoundersSettings(p => ({ ...p, daysFree: Number(e.target.value) }))}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                Dager gratis (etter Founders)
+              </label>
+              <input
+                type="number"
+                value={foundersSettings.trialDays}
+                onChange={e => setFoundersSettings(p => ({ ...p, trialDays: Number(e.target.value) }))}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={saveFoundersSettings}
+              disabled={foundersSaving}
+              className="adm-btn-primary"
+            >
+              {foundersSaving ? 'Lagrer...' : 'Lagre'}
+            </button>
+            {foundersSaved && (
+              <span style={{ fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+                Lagret
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Sesong-toppliste */}
         <div className="adm-section">

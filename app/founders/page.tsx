@@ -1,10 +1,19 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
 import type { Session } from '@supabase/supabase-js'
+
+type FoundersCount = {
+  used: number
+  max: number
+  remaining: number
+  isFull: boolean
+  daysFree: number
+  isFounders: boolean
+}
 
 const s = {
   page: {
@@ -36,21 +45,61 @@ const s = {
     color: '#ffffff',
     lineHeight: 1.08,
     letterSpacing: '-0.02em',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   logoEm: {
     fontStyle: 'italic',
     color: '#c9a84c',
   },
+  countdownCard: {
+    background: '#21242e',
+    border: '1px solid rgba(201,168,76,0.3)',
+    borderRadius: 16,
+    padding: 24,
+    textAlign: 'center' as const,
+    marginBottom: 16,
+  },
+  countdownLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase' as const,
+    color: '#7a7873',
+    marginBottom: 10,
+  },
+  countdownTitle: {
+    fontFamily: "'Libre Baskerville', serif",
+    fontSize: 28,
+    fontWeight: 700,
+    color: '#ffffff',
+    marginBottom: 8,
+    lineHeight: 1.15,
+  },
+  countdownSub: {
+    fontSize: 15,
+    color: '#e8e4dd',
+    marginBottom: 14,
+  },
+  progressTrack: {
+    height: 4,
+    background: '#2a2d38',
+    borderRadius: 4,
+    overflow: 'hidden' as const,
+    marginBottom: 8,
+  },
+  countdownHint: {
+    fontSize: 12,
+    color: '#7a7873',
+  },
   card: {
     background: '#21242e',
     border: '1px solid #2a2d38',
-    borderRadius: 20,
-    padding: '40px 36px',
+    borderRadius: 16,
+    padding: '36px 32px',
   },
   heading: {
     fontFamily: "'Libre Baskerville', serif",
-    fontSize: 'clamp(28px, 6vw, 36px)',
+    fontSize: 'clamp(24px, 5vw, 30px)',
     fontWeight: 700,
     color: '#ffffff',
     letterSpacing: '-0.02em',
@@ -61,13 +110,13 @@ const s = {
     fontStyle: 'italic',
     fontSize: 16,
     color: '#e8e4dd',
-    marginBottom: 32,
+    marginBottom: 28,
     lineHeight: 1.5,
   },
   checkList: {
     listStyle: 'none',
     padding: 0,
-    margin: '0 0 36px',
+    margin: '0 0 32px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 14,
@@ -141,19 +190,7 @@ const s = {
     transition: 'border-color 0.15s, color 0.15s',
     marginBottom: 14,
   },
-  disclaimer: {
-    fontSize: 12,
-    color: '#7a7873',
-    lineHeight: 1.6,
-    textAlign: 'center' as const,
-  },
 }
-
-const PERKS = [
-  '1 måned gratis — ingen kortinfo nødvendig',
-  'Tilgang til alle Premium-funksjoner',
-  'For deg som er tidlig ute og vil forme produktet.',
-]
 
 export default function FoundersPage() {
   const router = useRouter()
@@ -162,6 +199,15 @@ export default function FoundersPage() {
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [foundersData, setFoundersData] = useState<FoundersCount | null>(null)
+
+  // Hent live founders-data
+  useEffect(() => {
+    fetch('/api/founders/count')
+      .then(r => r.json())
+      .then(setFoundersData)
+      .catch(() => {/* bruk null — vis fallback-tekst */})
+  }, [])
 
   async function runActivate(accessToken: string) {
     setLoading(true)
@@ -208,7 +254,6 @@ export default function FoundersPage() {
           .eq('id', s.user.id)
           .maybeSingle()
           .then(({ data }) => setIsPremium(data?.premium_status === true))
-        // Fullfør pending checkout etter OAuth-redirect
         if (event === 'SIGNED_IN') {
           const pending = localStorage.getItem('qk_pending_action')
           if (pending === 'founders_checkout' && s.access_token) {
@@ -225,12 +270,9 @@ export default function FoundersPage() {
   }, [])
 
   async function handleActivate() {
-    // Show loading immediately — don't wait for async session check.
     setLoading(true)
     setErrorMsg(null)
     try {
-      // getSession() is authoritative — don't rely on session state which may
-      // not yet be set if onAuthStateChange hasn't fired INITIAL_SESSION.
       let { data: { session: s } } = await supabase.auth.getSession()
       if (!s) {
         await new Promise<void>(resolve => setTimeout(resolve, 500))
@@ -250,6 +292,16 @@ export default function FoundersPage() {
     }
   }
 
+  const fd = foundersData
+  const daysFree = fd?.daysFree ?? 30
+  const isFounders = fd?.isFounders ?? true
+
+  const btnLabel = loading
+    ? 'Aktiverer...'
+    : isFounders
+      ? `Aktiver ${daysFree} dager gratis →`
+      : `Start ${daysFree} dager gratis →`
+
   return (
     <div style={s.page}>
       <div style={s.inner}>
@@ -258,12 +310,49 @@ export default function FoundersPage() {
           Quiz<em style={s.logoEm}>kanonen</em>
         </h1>
 
+        {/* Live plass-nedtelling */}
+        {fd && (
+          <div style={s.countdownCard}>
+            <p style={s.countdownLabel}>
+              {fd.isFounders ? 'Founders-tilbud' : 'Prøv gratis'}
+            </p>
+            <p style={s.countdownTitle}>
+              {fd.isFounders
+                ? `${fd.remaining} av ${fd.max} plasser igjen`
+                : `${fd.daysFree} dager gratis`}
+            </p>
+            <p style={s.countdownSub}>
+              {fd.isFounders
+                ? `${fd.daysFree} dager gratis — ingen kortinfo nødvendig`
+                : 'Ingen kortinfo nødvendig'}
+            </p>
+            {fd.isFounders && (
+              <>
+                <div style={s.progressTrack}>
+                  <div style={{
+                    height: '100%',
+                    width: `${Math.min(100, (fd.used / fd.max) * 100)}%`,
+                    background: '#c9a84c',
+                    borderRadius: 4,
+                    transition: 'width 0.6s ease',
+                  }} />
+                </div>
+                <p style={s.countdownHint}>{fd.used} har allerede aktivert</p>
+              </>
+            )}
+          </div>
+        )}
+
         <div style={s.card}>
           <h2 style={s.heading}>Founders Access</h2>
           <p style={s.ingress}>Du er blant de første. Det skal lønne seg.</p>
 
           <ul style={s.checkList}>
-            {PERKS.map(perk => (
+            {[
+              `${daysFree} dager gratis — ingen kortinfo nødvendig`,
+              'Tilgang til alle Premium-funksjoner',
+              'For deg som er tidlig ute og vil forme produktet.',
+            ].map(perk => (
               <li key={perk} style={s.checkItem}>
                 <span style={s.checkMark}>✓</span>
                 <span>{perk}</span>
@@ -295,7 +384,7 @@ export default function FoundersPage() {
                   onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
                 >
-                  {loading ? 'Aktiverer...' : 'Start gratis måned'}
+                  {btnLabel}
                 </button>
               </div>
               {errorMsg && (
@@ -307,7 +396,7 @@ export default function FoundersPage() {
           )}
 
           <p style={{ fontSize: 12, color: '#e8e4dd', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
-            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter 30 dager.
+            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter {daysFree} dager.
           </p>
         </div>
       </div>

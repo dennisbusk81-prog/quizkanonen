@@ -50,10 +50,29 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id)
     }
 
+    // Hent dynamisk prøvetid fra site_settings
+    const { data: settings } = await supabaseAdmin
+      .from('site_settings')
+      .select('founders_max_slots, founders_days_free, founders_trial_days')
+      .maybeSingle()
+
+    const maxSlots  = (settings as Record<string, number> | null)?.founders_max_slots  ?? 250
+    const daysFree  = (settings as Record<string, number> | null)?.founders_days_free  ?? 30
+    const trialDays = (settings as Record<string, number> | null)?.founders_trial_days ?? 7
+
+    const { count } = await supabaseAdmin
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .in('premium_source', ['founders', 'code'])
+      .eq('premium_status', true)
+
+    const isFull = (count ?? 0) >= maxSlots
+    const trialPeriodDays = isFull ? trialDays : daysFree
+
     await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: FOUNDERS_PRICE_ID }],
-      trial_period_days: 30,
+      trial_period_days: trialPeriodDays,
       payment_settings: { save_default_payment_method: 'off' },
     })
 
