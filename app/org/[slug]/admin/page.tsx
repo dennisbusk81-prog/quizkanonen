@@ -1147,7 +1147,7 @@ export default function OrgAdminPage() {
                   </button>
                 </div>
                 {reminderMsg && (
-                  <p style={{ fontSize: 12, color: reminderMsg.ok ? '#e8e4dd' : '#c94c4c', margin: 0 }}>
+                  <p style={{ fontSize: 12, color: reminderMsg.ok ? '#4ade80' : '#c94c4c', margin: 0 }}>
                     {reminderMsg.text}
                   </p>
                 )}
@@ -1212,7 +1212,7 @@ export default function OrgAdminPage() {
                         {(() => {
                           const s = streaks.get(member.user_id) ?? 0
                           if (s < 2) return null
-                          return <span style={{ color: '#c9a84c' }}>{` · ${s} uker`}</span>
+                          return <span style={{ color: '#c9a84c' }}>{` · streak: ${s} uker`}</span>
                         })()}
                       </p>
                     </div>
@@ -1365,7 +1365,7 @@ export default function OrgAdminPage() {
                         background: emailInviteSending || !emailInviteText.trim() ? 'transparent' : '#c9a84c',
                         border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#c9a84c'}`,
                         borderRadius: 8, fontSize: 13, fontWeight: 700,
-                        color: emailInviteSending || !emailInviteText.trim() ? '#4a4d5a' : '#1a1c23',
+                        color: emailInviteSending || !emailInviteText.trim() ? '#7a7873' : '#1a1c23',
                         cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer',
                         fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}

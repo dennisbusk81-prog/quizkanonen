@@ -11,7 +11,7 @@ const EXTRA_STYLES = `
   .tp-tab-row::-webkit-scrollbar { display: none; }
   .tp-tab-row { scrollbar-width: none; -ms-overflow-style: none; }
   .tp-accordion-wrap {
-    border: 1px solid #3a3d4a;
+    border: 1px solid #2a2d38;
     border-radius: 16px;
     overflow: hidden;
     transition: border-color 150ms ease;

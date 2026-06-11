@@ -67,9 +67,9 @@ const s = {
   qCardNoAns:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '10px 16px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10, opacity: 0.7 },
 
   // Correct card elements
-  checkIcon:  { fontSize: 14, color: '#4caf7d', marginTop: 1, flexShrink: 0 },
+  checkIcon:  { fontSize: 14, color: '#4ade80', marginTop: 1, flexShrink: 0 },
   qTextShort: { fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, marginBottom: 2, flex: 1 },
-  ansTextOk:  { fontSize: 13, color: '#4caf7d', fontWeight: 500 },
+  ansTextOk:  { fontSize: 13, color: '#4ade80', fontWeight: 500 },
   ansTime:    { fontSize: 10, color: '#7a7873', marginTop: 6, textAlign: 'right' as const },
 
   // Wrong card elements

@@ -825,7 +825,7 @@ export default function QuizQuestions() {
                                 fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
                                 border: `1px solid ${correctLoading || correctPick === q.correct_answer ? '#2a2d38' : '#e8e4dd'}`,
                                 background: 'transparent',
-                                color: correctLoading || correctPick === q.correct_answer ? '#4a4d5a' : '#e8e4dd',
+                                color: correctLoading || correctPick === q.correct_answer ? '#7a7873' : '#e8e4dd',
                                 cursor: correctLoading || correctPick === q.correct_answer ? 'not-allowed' : 'pointer',
                                 fontFamily: "'Instrument Sans', sans-serif",
                               }}

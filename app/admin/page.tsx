@@ -353,6 +353,7 @@ export default function AdminHome() {
   const [resetInput, setResetInput] = useState('')
   const [resetting, setResetting] = useState(false)
   const [resetDone, setResetDone] = useState<string | null>(null)
+  const [resetError, setResetError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -428,7 +429,7 @@ export default function AdminHome() {
         body: JSON.stringify({ scope: resetModal }),
       })
       const data = await res.json()
-      if (!res.ok) { alert(data.error ?? 'Noe gikk galt.'); return }
+      if (!res.ok) { setResetError(data.error ?? 'Noe gikk galt.'); setTimeout(() => setResetError(null), 5000); return }
       setResetModal(null)
       setResetInput('')
       setResetDone('Sesong nullstilt')
@@ -574,7 +575,7 @@ export default function AdminHome() {
                         onClick={() => shareQuizResults(quiz.id)}
                         style={{
                           fontSize: 13,
-                          color: copiedQuizId === quiz.id ? '#e8e4dd' : '#e8e4dd',
+                          color: copiedQuizId === quiz.id ? '#4ade80' : '#e8e4dd',
                           background: 'transparent',
                           border: `0.5px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
                           borderRadius: 8,
@@ -618,6 +619,11 @@ export default function AdminHome() {
             {resetDone && (
               <span style={{ fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.08)', padding: '4px 10px', borderRadius: 6 }}>
                 {resetDone}
+              </span>
+            )}
+            {resetError && (
+              <span style={{ fontSize: 12, color: '#c94c4c', background: 'rgba(201,76,76,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+                {resetError}
               </span>
             )}
           </div>

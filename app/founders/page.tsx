@@ -77,7 +77,7 @@ const s = {
     alignItems: 'flex-start',
     gap: 12,
     fontSize: 15,
-    color: '#e8e0d0',
+    color: '#e8e4dd',
     lineHeight: 1.4,
   },
   checkMark: {
@@ -103,7 +103,7 @@ const s = {
   btnDisabled: {
     width: 'auto',
     padding: '10px 28px',
-    background: '#3a3d4a',
+    background: '#2a2d38',
     color: '#7a7873',
     border: 'none',
     borderRadius: 10,

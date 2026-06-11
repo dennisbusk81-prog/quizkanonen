@@ -1,4 +1,4 @@
-export default function Personvern() {
+﻿export default function Personvern() {
   return (
     <main className="min-h-screen" style={{ background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif" }}>
       <style>{`
@@ -13,7 +13,7 @@ export default function Personvern() {
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
+          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
         </div>
       </div>
 
@@ -25,10 +25,10 @@ export default function Personvern() {
           <p style={{ color: '#c9a84c', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
             Juridisk
           </p>
-          <h1 className="page-title" style={{ color: '#e8e0d0', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 700, lineHeight: 1.2, marginBottom: '1rem' }}>
+          <h1 className="page-title" style={{ color: '#e8e4dd', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 700, lineHeight: 1.2, marginBottom: '1rem' }}>
             Personvernerklæring
           </h1>
-          <p style={{ color: '#8a8d9a', fontSize: '1.05rem', lineHeight: 1.7 }}>
+          <p style={{ color: '#7a7873', fontSize: '1.05rem', lineHeight: 1.7 }}>
             Vi tar personvernet ditt på alvor. Denne erklæringen forklarer hvilke opplysninger vi samler inn, 
             hvorfor, og hvilke rettigheter du har.
           </p>
@@ -40,7 +40,7 @@ export default function Personvern() {
           <Section title="1. Behandlingsansvarlig">
             <P>Quizkanonen drives av:</P>
             <Box>
-              <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
+              <strong style={{ color: '#e8e4dd' }}>Dennis Busk</strong><br />
               Slåtteveien 12<br />
               1084 Oslo<br />
               E-post: <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>support@quizkanonen.no</a>
@@ -57,12 +57,12 @@ export default function Personvern() {
               ['Svartider', 'Registreres automatisk under spilling', 'Rangeringslogikk'],
               ['Tidspunkt for gjennomspilling', 'Registreres automatisk', 'Administrasjon og statistikk'],
             ]} />
-            <P>Vi samler <strong style={{ color: '#e8e0d0' }}>ikke inn</strong> navn, e-postadresse, telefonnummer, betalingsinformasjon eller andre identifiserbare personopplysninger i den gratis versjonen av tjenesten.</P>
+            <P>Vi samler <strong style={{ color: '#e8e4dd' }}>ikke inn</strong> navn, e-postadresse, telefonnummer, betalingsinformasjon eller andre identifiserbare personopplysninger i den gratis versjonen av tjenesten.</P>
           </Section>
 
           <Section title="3. Rettslig grunnlag">
             <P>Vi behandler opplysningene på følgende rettslige grunnlag etter personvernforordningen (GDPR):</P>
-            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}><strong style={{ color: '#c9a84c' }}>Berettiget interesse (art. 6 (1) f)</strong> — for å forhindre dobbeltspilling og sikre rettferdig konkurranse</li>
               <li style={{ marginBottom: '0.5rem' }}><strong style={{ color: '#c9a84c' }}>Avtale (art. 6 (1) b)</strong> — for å levere quiz-tjenesten du aktivt velger å delta i</li>
               <li><strong style={{ color: '#c9a84c' }}>Samtykke (art. 6 (1) a)</strong> — for eventuelle analyser og statistikk utover det teknisk nødvendige</li>
@@ -70,7 +70,7 @@ export default function Personvern() {
           </Section>
 
           <Section title="4. Hvordan vi bruker opplysningene">
-            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Vise leaderboard med kallenavn og poengsum</li>
               <li style={{ marginBottom: '0.5rem' }}>Hindre at samme enhet spiller samme quiz flere ganger</li>
               <li style={{ marginBottom: '0.5rem' }}>Beregne rangeringslogikk (antall riktige, svartid, streak)</li>
@@ -109,7 +109,7 @@ export default function Personvern() {
               ].map(([right, desc]) => (
                 <div key={right} style={{ display: 'flex', gap: '1rem', background: '#21242e', border: '1px solid #2a2d38', borderRadius: '10px', padding: '0.875rem 1rem' }}>
                   <span style={{ color: '#c9a84c', fontWeight: 600, fontSize: '0.85rem', minWidth: '160px', flexShrink: 0 }}>{right}</span>
-                  <span style={{ color: '#8a8d9a', fontSize: '0.9rem' }}>{desc}</span>
+                  <span style={{ color: '#7a7873', fontSize: '0.9rem' }}>{desc}</span>
                 </div>
               ))}
             </div>
@@ -119,18 +119,18 @@ export default function Personvern() {
 
           <Section title="8. Informasjonskapsler (cookies)">
             <P>Quizkanonen bruker teknisk nødvendige cookies til autentisering, samt lokal lagring i nettleseren for quiz-funksjonalitet. Teknisk nødvendige cookies krever ikke samtykke, men vi informerer om dem her av hensyn til åpenhet.</P>
-            <P><strong style={{ color: '#e8e0d0' }}>Autentiserings-cookies (browser cookies)</strong></P>
+            <P><strong style={{ color: '#e8e4dd' }}>Autentiserings-cookies (browser cookies)</strong></P>
             <Table rows={[
               ['sb-*-auth-token', 'Cookie (httpOnly)', 'Supabase sesjonstoken — holder deg innlogget', 'Settes kun ved innlogging. Slettes ved utlogging eller når sesjonen utløper.'],
             ]} headers={['Nøkkel', 'Type', 'Formål', 'Levetid']} />
-            <P><strong style={{ color: '#e8e0d0' }}>Lokal lagring (localStorage)</strong></P>
+            <P><strong style={{ color: '#e8e4dd' }}>Lokal lagring (localStorage)</strong></P>
             <Table rows={[
               ['quizkanonen_device_id', 'localStorage', 'Unik enhets-ID for å hindre dobbeltspilling', 'Permanent (til nettleserdata slettes)'],
               ['quizkanonen_admin_session', 'localStorage', 'Admin-innlogging (kun for admin-brukere)', '8 timer'],
               ['quiz_progress_[id]', 'localStorage', 'Lagrer fremgang ved internett-brudd', 'Slettes etter fullført quiz'],
             ]} headers={['Nøkkel', 'Type', 'Formål', 'Levetid']} />
             <P>Oppsummert:</P>
-            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.4rem' }}>Vi bruker teknisk nødvendige cookies til autentisering (Supabase-sesjon)</li>
               <li style={{ marginBottom: '0.4rem' }}>Disse settes kun når du logger inn</li>
               <li style={{ marginBottom: '0.4rem' }}>De slettes når du logger ut eller når sesjonen utløper</li>
@@ -151,7 +151,7 @@ export default function Personvern() {
         {/* Footer nav */}
         <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid #2a2d38', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <a href="/vilkar" style={{ color: '#c9a84c', fontSize: '0.9rem', textDecoration: 'none' }}>Brukervilkår →</a>
-          <a href="/" style={{ color: '#4a4d5a', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
+          <a href="/" style={{ color: '#7a7873', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
         </div>
 
       </div>
@@ -164,7 +164,7 @@ export default function Personvern() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: '20px', padding: '2rem' }}>
-      <h2 className="section-title" style={{ color: '#e8e0d0', fontSize: '1.15rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+      <h2 className="section-title" style={{ color: '#e8e4dd', fontSize: '1.15rem', fontWeight: 700, marginBottom: '1.25rem' }}>
         {title}
       </h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
@@ -175,12 +175,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p style={{ color: '#8a8d9a', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
+  return <p style={{ color: '#7a7873', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
 }
 
 function Box({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#8a8d9a', fontSize: '0.9rem', lineHeight: 1.8 }}>
+    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#7a7873', fontSize: '0.9rem', lineHeight: 1.8 }}>
       {children}
     </div>
   )
@@ -205,7 +205,7 @@ function Table({ rows, headers }: { rows: string[][]; headers?: string[] }) {
           {rows.map((row, i) => (
             <tr key={i} style={{ borderBottom: i < rows.length - 1 ? '1px solid #2a2d38' : 'none' }}>
               {row.map((cell, j) => (
-                <td key={j} style={{ padding: '0.625rem 0.75rem', color: j === 0 ? '#e8e0d0' : '#8a8d9a', verticalAlign: 'top' }}>
+                <td key={j} style={{ padding: '0.625rem 0.75rem', color: j === 0 ? '#e8e4dd' : '#7a7873', verticalAlign: 'top' }}>
                   {cell}
                 </td>
               ))}

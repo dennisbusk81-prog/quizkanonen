@@ -636,7 +636,7 @@ export default function AdminQuizzes() {
                       onClick={() => shareQuizResults(quiz.id)}
                       className="aqz-action"
                       style={{
-                        color: copiedQuizId === quiz.id ? '#e8e4dd' : '#e8e4dd',
+                        color: copiedQuizId === quiz.id ? '#4ade80' : '#e8e4dd',
                         border: `1px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
                         background: 'transparent',
                         transition: 'color 0.15s, border-color 0.15s',

@@ -314,9 +314,9 @@ export default function LigaPage() {
             <div style={{ marginBottom: 16 }}>
               <button
                 onClick={() => setSeasonOpen(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #3a3d4a', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#c9a84c'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = seasonOpen ? '#3a3d4a' : '#3a3d4a'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = seasonOpen ? '#2a2d38' : '#2a2d38'}
               >
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd' }}>Sesong-administrasjon</span>
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: seasonOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
@@ -324,7 +324,7 @@ export default function LigaPage() {
                 </svg>
               </button>
               {seasonOpen && (
-                <div style={{ background: '#21242e', border: '1px solid #3a3d4a', borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '18px 18px 20px' }}>
+                <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '18px 18px 20px' }}>
                   <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14 }}>
                     Nullstiller alle sesong-poeng for denne ligaen. Handlingen kan ikke angres.
                   </p>
@@ -398,7 +398,7 @@ export default function LigaPage() {
                 <div>
                   {activityData.map(m => (
                     <div key={m.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, marginBottom: 6 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.hasPlayed ? '#4ade80' : '#2a2d38', border: m.hasPlayed ? 'none' : '1px solid #3a3d4a', flexShrink: 0 }} />
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.hasPlayed ? '#4ade80' : '#2a2d38', border: m.hasPlayed ? 'none' : '1px solid #2a2d38', flexShrink: 0 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {m.displayName}{m.isExcluded ? ' (ekskludert)' : ''}

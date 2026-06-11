@@ -143,7 +143,7 @@ export default function NameRequiredModal() {
           style={{
             width: '100%',
             padding: '12px',
-            background: isValid && !saving ? '#c9a84c' : '#3a3d4a',
+            background: isValid && !saving ? '#c9a84c' : '#2a2d38',
             color: isValid && !saving ? '#1a1c23' : '#7a7873',
             border: 'none',
             borderRadius: 10,

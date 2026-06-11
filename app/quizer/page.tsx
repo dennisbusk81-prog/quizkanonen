@@ -130,7 +130,7 @@ const css = `
     font-weight: 600;
     padding: 9px 18px;
     border-radius: 10px;
-    border: 0.5px solid #4a4d5a;
+    border: 0.5px solid #7a7873;
     text-decoration: none;
     white-space: nowrap;
     transition: border-color 0.15s, color 0.15s;

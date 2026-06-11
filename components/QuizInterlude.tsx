@@ -143,7 +143,7 @@ export default function QuizInterlude({
             display: 'inline-block',
             background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
             borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
-            color: '#4caf7d', fontSize: 15, fontWeight: 600,
+            color: '#4ade80', fontSize: 15, fontWeight: 600,
           }}>
             ✓ Riktig svar
           </div>

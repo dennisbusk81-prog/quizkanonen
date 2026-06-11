@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -168,7 +168,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               fontSize: 13, fontWeight: 600,
               color: '#e8e4dd', background: 'transparent',
               textDecoration: 'none', padding: '6px 14px',
-              borderRadius: 10, border: '1px solid #4a4d5a',
+              borderRadius: 10, border: '1px solid #7a7873',
               whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
               transition: 'border-color 0.15s, color 0.15s',
             }}

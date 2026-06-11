@@ -1,4 +1,4 @@
-export default function Vilkar() {
+﻿export default function Vilkar() {
   return (
     <main className="min-h-screen" style={{ background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif" }}>
       <style>{`
@@ -13,7 +13,7 @@ export default function Vilkar() {
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#4a4d5a', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
+          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
         </div>
       </div>
 
@@ -25,10 +25,10 @@ export default function Vilkar() {
           <p style={{ color: '#c9a84c', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>
             Juridisk
           </p>
-          <h1 className="page-title" style={{ color: '#e8e0d0', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 700, lineHeight: 1.2, marginBottom: '1rem' }}>
+          <h1 className="page-title" style={{ color: '#e8e4dd', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 700, lineHeight: 1.2, marginBottom: '1rem' }}>
             Brukervilkår
           </h1>
-          <p style={{ color: '#8a8d9a', fontSize: '1.05rem', lineHeight: 1.7 }}>
+          <p style={{ color: '#7a7873', fontSize: '1.05rem', lineHeight: 1.7 }}>
             Ved å bruke Quizkanonen godtar du disse vilkårene. Les dem gjerne — de er skrevet for å være forståelige, ikke for å forvirre.
           </p>
         </div>
@@ -39,7 +39,7 @@ export default function Vilkar() {
           <Section title="1. Hvem vi er">
             <P>Quizkanonen er en norsk quiz-plattform drevet av:</P>
             <Box>
-              <strong style={{ color: '#e8e0d0' }}>Dennis Busk</strong><br />
+              <strong style={{ color: '#e8e4dd' }}>Dennis Busk</strong><br />
               Slåtteveien 12, 1084 Oslo<br />
               E-post: <a href="mailto:quizkanonen@gmail.com" style={{ color: '#c9a84c' }}>quizkanonen@gmail.com</a>
             </Box>
@@ -53,7 +53,7 @@ export default function Vilkar() {
 
           <Section title="3. Hva tjenesten er">
             <P>Quizkanonen er en digital quiz-plattform der du kan:</P>
-            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Delta i ukentlige quizer gratis</li>
               <li style={{ marginBottom: '0.5rem' }}>Konkurrere mot andre spillere og lag på leaderboard</li>
               <li>Få tilgang til utvidet innhold og funksjoner som premiumbruker</li>
@@ -79,7 +79,7 @@ export default function Vilkar() {
               ].map(([label, text]) => (
                 <div key={label} style={{ display: 'flex', gap: '1rem', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '0.875rem 1rem' }}>
                   <span style={{ color: '#c9a84c', fontWeight: 600, fontSize: '0.85rem', minWidth: '120px', flexShrink: 0 }}>{label}</span>
-                  <span style={{ color: '#8a8d9a', fontSize: '0.9rem', lineHeight: 1.65 }}>{text}</span>
+                  <span style={{ color: '#7a7873', fontSize: '0.9rem', lineHeight: 1.65 }}>{text}</span>
                 </div>
               ))}
             </div>
@@ -91,7 +91,7 @@ export default function Vilkar() {
 
           <Section title="7. Regler for rettferdig spill">
             <P>Quizkanonen er en ferdighetsbasert konkurranse. Følgende er ikke tillatt:</P>
-            <ul style={{ color: '#8a8d9a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Bruke automatiserte verktøy, bots eller scripts for å delta</li>
               <li style={{ marginBottom: '0.5rem' }}>Koordinere svar i sanntid med andre for å få urettferdig fordel</li>
               <li style={{ marginBottom: '0.5rem' }}>Omgå dobbeltspill-sperringen ved å manipulere nettleseren</li>
@@ -133,7 +133,7 @@ export default function Vilkar() {
         {/* Footer nav */}
         <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid #2a2d38', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <a href="/personvern" style={{ color: '#c9a84c', fontSize: '0.9rem', textDecoration: 'none' }}>Personvernerklæring →</a>
-          <a href="/" style={{ color: '#4a4d5a', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
+          <a href="/" style={{ color: '#7a7873', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
         </div>
 
       </div>
@@ -146,7 +146,7 @@ export default function Vilkar() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: '20px', padding: '2rem' }}>
-      <h2 className="section-title" style={{ color: '#e8e0d0', fontSize: '1.15rem', fontWeight: 700, marginBottom: '1.25rem' }}>
+      <h2 className="section-title" style={{ color: '#e8e4dd', fontSize: '1.15rem', fontWeight: 700, marginBottom: '1.25rem' }}>
         {title}
       </h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
@@ -157,12 +157,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p style={{ color: '#8a8d9a', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
+  return <p style={{ color: '#7a7873', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
 }
 
 function Box({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#8a8d9a', fontSize: '0.9rem', lineHeight: 1.8 }}>
+    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#7a7873', fontSize: '0.9rem', lineHeight: 1.8 }}>
       {children}
     </div>
   )

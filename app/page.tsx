@@ -121,7 +121,7 @@ const SHARED_CSS = `
     text-decoration: none;
     padding: 6px 14px;
     border-radius: var(--radius-btn);
-    border: 0.5px solid #3a3d4a;
+    border: 0.5px solid #2a2d38;
     white-space: nowrap;
     transition: border-color 0.15s, color 0.15s;
   }

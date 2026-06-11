@@ -95,7 +95,7 @@ const STYLES = `
   .login-input {
     width: 100%;
     background: #16191f;
-    border: 1px solid #3a3d4a;
+    border: 1px solid #2a2d38;
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'Instrument Sans', sans-serif;

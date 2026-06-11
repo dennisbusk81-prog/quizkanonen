@@ -31,7 +31,7 @@ const styles = `
     --white:   #ffffff;
     --body:     #e8e4dd;
     --muted:   #7a7873;
-    --green:   #4caf7d;
+    --green:   #4ade80;
     --red:     #c94c4c;
     --rcard:   20px;
     --rbtn:    10px;
@@ -165,7 +165,7 @@ const styles = `
     font-weight: 600;
     background: transparent;
     color: var(--muted);
-    border: 0.5px solid #3a3d4a;
+    border: 0.5px solid #2a2d38;
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -378,7 +378,7 @@ const styles = `
     align-items: center;
     gap: 14px;
     background: var(--card);
-    border: 0.5px solid #3a3d4a;
+    border: 0.5px solid #2a2d38;
     border-radius: var(--rcard);
     padding: 14px 16px;
     cursor: pointer;
@@ -402,7 +402,7 @@ const styles = `
     }
   }
 
-  .qk-option:hover:not(:disabled) { border-color: #4a4d5a; background: #262930; }
+  .qk-option:hover:not(:disabled) { border-color: #7a7873; background: #262930; }
   .qk-option:disabled { cursor: default; }
   @keyframes qkButtonPop {
     0%   { transform: scale(1); }
@@ -447,7 +447,7 @@ const styles = `
     height: 28px;
     border-radius: 50%;
     background: #2a2d38;
-    border: 1.5px solid #3a3d4a;
+    border: 1.5px solid #2a2d38;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -523,7 +523,7 @@ const styles = `
 
   /* ANIMATION: timer — 3 eskaleringsnivåer */
   /* Rolig (10-7s): grønn, ingen puls */
-  .qk-timer--calm { color: #4caf50; }
+  .qk-timer--calm { color: #4ade80; }
 
   /* Advarsel (6-4s): gul, svak puls */
   @keyframes timerPulseWarning {
@@ -1669,7 +1669,7 @@ export default function QuizPage() {
     const question = questions[currentIndex]
     const limit = getTimeLimit(question)
     const timerPercent = (timeLeft / limit) * 100
-    const timerBarColor = timerPercent > 60 ? '#4caf50' : timerPercent > 40 ? 'var(--gold)' : '#E24B4A'
+    const timerBarColor = timerPercent > 60 ? '#4ade80' : timerPercent > 40 ? 'var(--gold)' : '#E24B4A'
     const correctSoFar = answers.filter(a => a.isCorrect).length
     const availableOptions = question?.shuffle_options
       ? shuffledDisplayOrder.filter(o => ['A','B','C','D'].slice(0, quiz.num_options).includes(o))
@@ -1870,9 +1870,9 @@ export default function QuizPage() {
                   <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 12, color: '#e8e4dd', flex: 1, textAlign: 'left' }}>{cat}</span>
                     <div style={{ width: 100, height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: isGood ? '#4caf7d' : '#c94c4c', borderRadius: 4, transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', width: `${pct}%`, background: isGood ? '#4ade80' : '#c94c4c', borderRadius: 4, transition: 'width 0.6s ease' }} />
                     </div>
-                    <span style={{ fontSize: 11, color: isGood ? '#4caf7d' : '#c94c4c', fontWeight: 600, width: 36, textAlign: 'right', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: isGood ? '#4ade80' : '#c94c4c', fontWeight: 600, width: 36, textAlign: 'right', flexShrink: 0 }}>
                       {correct}/{total}
                     </span>
                   </div>
@@ -1954,7 +1954,7 @@ export default function QuizPage() {
             : 'rgba(201,168,76,0.25)'
 
         const outcomeLabel = outcome === 'won' ? 'Du vant' : outcome === 'lost' ? 'Du tapte' : 'Likt'
-        const outcomeLabelColor = outcome === 'won' ? '#4caf7d' : outcome === 'lost' ? '#c94c4c' : '#c9a84c'
+        const outcomeLabelColor = outcome === 'won' ? '#4ade80' : outcome === 'lost' ? '#c94c4c' : '#c9a84c'
 
         const outcomeText = outcome === 'won'
           ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} riktige.</>
@@ -2012,7 +2012,7 @@ export default function QuizPage() {
             }).catch(() => {})
           }
         }} style={{
-          width:'100%',background:'transparent',border:'0.5px solid #3a3d4a',
+          width:'100%',background:'transparent',border:'0.5px solid #2a2d38',
           borderRadius:10,padding:'8px 20px',fontSize:14,color:'#e8e4dd',
           fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
         }}>
@@ -2026,11 +2026,11 @@ export default function QuizPage() {
             style={{
               width: '100%',
               background: 'transparent',
-              border: '0.5px solid #3a3d4a',
+              border: '0.5px solid #2a2d38',
               borderRadius: 10,
               padding: '8px 20px',
               fontSize: 14,
-              color: cardShareState === 'done' ? '#4caf7d' : '#e8e4dd',
+              color: cardShareState === 'done' ? '#4ade80' : '#e8e4dd',
               fontFamily: "'Instrument Sans', sans-serif",
               cursor: cardShareState === 'loading' ? 'default' : 'pointer',
               opacity: cardShareState === 'loading' ? 0.6 : 1,

@@ -50,7 +50,7 @@ const s = {
   inputRow:    { display: 'flex', gap: 8 },
   input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  btnGoldDis:  { padding: '10px 20px', background: '#3a3d4a', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
+  btnGoldDis:  { padding: '10px 20px', background: '#2a2d38', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
   cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
   createErrMsg:{ fontSize: 12, color: '#f87171', marginTop: 8 },
 

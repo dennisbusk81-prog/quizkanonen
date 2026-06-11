@@ -558,7 +558,7 @@ export default function QuizAnalytics() {
                 padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 500,
-                color: shareState === 'copied' ? '#e8e4dd' : '#e8e4dd',
+                color: shareState === 'copied' ? '#4ade80' : '#e8e4dd',
                 cursor: shareState === 'loading' ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit',
                 whiteSpace: 'nowrap',

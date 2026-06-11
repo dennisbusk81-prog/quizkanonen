@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -251,7 +251,7 @@ export default function UserMenu() {
                       )}
                     </>
                   ) : (
-                    <span style={{ fontSize: 11, fontWeight: 400, color: '#7a7873', background: 'transparent', border: '1px solid #3a3d4a', borderRadius: 4, padding: '2px 8px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 400, color: '#7a7873', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 4, padding: '2px 8px' }}>
                       Standardkonto
                     </span>
                   ))}

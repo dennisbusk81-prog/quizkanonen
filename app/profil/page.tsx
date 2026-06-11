@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -29,7 +29,7 @@ const s = {
   inputRow:      { display: 'flex', gap: 8 },
   input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 15, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#4a4d5a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
@@ -46,7 +46,7 @@ const s = {
   btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #c9a84c' },
   redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#4a4d5a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
@@ -585,7 +585,7 @@ export default function ProfilPage() {
                 fontSize: 12, color: '#7a7873',
                 cursor: deleting ? 'not-allowed' : 'pointer',
                 fontFamily: "'Instrument Sans', sans-serif",
-                textDecoration: 'underline', textDecorationColor: '#4a4d5a',
+                textDecoration: 'underline', textDecorationColor: '#7a7873',
               }}
             >
               {deleting ? 'Sletter…' : 'Slett konto'}
