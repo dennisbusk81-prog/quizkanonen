@@ -28,11 +28,25 @@ export async function GET(request: NextRequest) {
   if (!quizId) return emptyResponse()
 
   try {
-    const { data: attempts, error: attemptsError } = await supabaseAdmin
+    // Hent quiz-vinduet for å filtrere attempts til inneværende kjøring
+    const { data: quiz, error: quizError } = await supabaseAdmin
+      .from('quizzes')
+      .select('opens_at, closes_at')
+      .eq('id', quizId)
+      .single()
+
+    if (quizError || !quiz) return emptyResponse()
+
+    let attemptsQuery = supabaseAdmin
       .from('attempts')
       .select('user_id, player_name')
       .eq('quiz_id', quizId)
       .eq('is_team', false)
+
+    if (quiz.opens_at)  attemptsQuery = attemptsQuery.gte('created_at', quiz.opens_at)
+    if (quiz.closes_at) attemptsQuery = attemptsQuery.lte('created_at', quiz.closes_at)
+
+    const { data: attempts, error: attemptsError } = await attemptsQuery
 
     if (attemptsError) {
       console.error('[social-proof] attempts query error:', attemptsError)

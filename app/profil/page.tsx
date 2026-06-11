@@ -44,9 +44,9 @@ const s = {
 
   btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #c9a84c' },
-  redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
-  redeemBtn:      { padding: '10px 12px', background: 'transparent', color: '#e8e4dd', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:   { padding: '10px 12px', background: 'transparent', color: '#4a4d5a', border: 'none', fontSize: 13, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
+  redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#4a4d5a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
@@ -544,15 +544,17 @@ export default function ProfilPage() {
           </div>
 
           {/* Verdikode */}
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '14px 16px', marginBottom: 10 }}>
-            <p style={s.sectionLabel}>Verdikode</p>
+          <div style={{ marginBottom: 10, paddingTop: 4 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+              Har du en kode?
+            </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="text"
                 value={codeInput}
                 onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
                 onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
-                placeholder="Skriv inn kode…"
+                placeholder="Verdikode"
                 maxLength={60}
                 style={s.redeemInput}
                 onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
@@ -563,11 +565,11 @@ export default function ProfilPage() {
                 disabled={codeLoading || !codeInput.trim()}
                 style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
               >
-                {codeLoading ? 'Løser inn…' : 'Løs inn →'}
+                {codeLoading ? 'Løser inn…' : 'Løs inn'}
               </button>
             </div>
-            {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 8 }}>{codeSuccess}</p>}
-            {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{codeError}</p>}
+            {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>{codeSuccess}</p>}
+            {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>{codeError}</p>}
           </div>
 
           {/* Slett konto */}
