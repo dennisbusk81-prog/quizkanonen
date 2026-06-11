@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
@@ -205,7 +205,7 @@ const styles = `
   .qk-btn-primary {
     width: 100%;
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
@@ -1134,8 +1134,8 @@ export default function QuizPage() {
 
     // 5. Streak-melding — direkte DOM
     if (streak >= 2) {
-      const msgs: Record<number, string> = { 2: '🔥 2 på rad!', 3: '🔥 3 på rad!', 4: '⚡ Ustoppelig!' }
-      const msg = streak >= 5 ? '👑 Perfekt!' : (msgs[streak] ?? `🔥 ${streak} på rad!`)
+      const msgs: Record<number, string> = { 2: '2 på rad!', 3: '3 på rad!', 4: 'Ustoppelig!' }
+      const msg = streak >= 5 ? 'Perfekt!' : (msgs[streak] ?? `${streak} på rad!`)
       const smEl = streakMsgRef.current
       if (smEl) {
         smEl.textContent = msg
@@ -1500,7 +1500,9 @@ export default function QuizPage() {
     return (
       <><style>{styles}</style>
       <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-        <span className="qk-result-icon">🔒</span>
+        <span className="qk-result-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
         <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
         <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
         <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz.</p>

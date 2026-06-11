@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -511,13 +511,13 @@ const STYLES = `
   .nq-nav-btn--gold {
     background: var(--gold);
     border-color: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-weight: 700;
   }
   .nq-nav-btn--gold:hover {
     background: #d9b85c;
     border-color: #d9b85c;
-    color: #0f0f10;
+    color: #1a1c23;
   }
 
   .nq-nav-counter {

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -43,7 +43,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -111,7 +111,7 @@ const STYLES = `
   .qq-btn-add {
     font-size: 13px;
     font-weight: 600;
-    color: #0f0f10;
+    color: #1a1c23;
     background: var(--gold);
     border: none;
     border-radius: var(--radius-btn);
@@ -204,7 +204,7 @@ const STYLES = `
     flex-shrink: 0;
   }
 
-  .qq-opt-dot.correct { background: var(--green); color: #0f0f10; }
+  .qq-opt-dot.correct { background: var(--green); color: #1a1c23; }
 
   .qq-correct-text { font-size: 10px; color: var(--green); font-weight: 600; }
 
@@ -237,7 +237,7 @@ const STYLES = `
   .qq-btn-save {
     flex: 1;
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
@@ -390,7 +390,7 @@ const STYLES = `
   .qq-btn-done {
     font-size: 13px;
     font-weight: 600;
-    color: #0f0f10;
+    color: #1a1c23;
     background: var(--green);
     border-radius: var(--radius-btn);
     padding: 10px 20px;

@@ -1,4 +1,4 @@
-function formatNorwegianDate(isoString: string): string {
+﻿function formatNorwegianDate(isoString: string): string {
   const date = new Date(isoString)
   const TZ = 'Europe/Oslo'
   // All locale parts are resolved in the Norwegian timezone so Vercel's UTC
@@ -52,7 +52,7 @@ export function trialEndingEmail(daysLeft: number): string {
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Din gratis prøveperiode på Quizkanonen utløper om <strong style="color:#ffffff;">${daysLeft} ${dayWord}</strong>.
               </p>
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#6a6860;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
                 Du mister tilgangen til
               </p>
 
@@ -73,7 +73,7 @@ export function trialEndingEmail(daysLeft: number): string {
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
                     <a href="https://www.quizkanonen.no/premium"
-                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#0f0f10;text-decoration:none;letter-spacing:0.02em;">
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Fortsett med Premium
                     </a>
                   </td>
@@ -607,7 +607,7 @@ export function orgPurchaseEmail(orgName: string, orgSlug: string): string {
                 <strong style="color:#ffffff;">${orgName}</strong> er nå opprettet og klar til bruk.
               </p>
 
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#6a6860;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
                 Neste steg
               </p>
 
@@ -919,7 +919,7 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
                 <tr>
                   <td style="background:#1a1c23;border:1px solid #2a2d38;border-radius:12px;padding:14px 18px;">
-                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#6a6860;">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#7a7873;">
                       Neste betaling
                     </span><br />
                     <span style="font-size:16px;font-weight:600;color:#ffffff;margin-top:4px;display:inline-block;">
@@ -1170,7 +1170,7 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): str
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
                     <a href="https://www.quizkanonen.no"
-                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#0f0f10;text-decoration:none;letter-spacing:0.02em;">
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Gå til Quizkanonen
                     </a>
                   </td>

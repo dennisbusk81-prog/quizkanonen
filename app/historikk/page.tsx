@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -128,7 +128,7 @@ const s = {
   emptyIcon:  { fontSize: 36, marginBottom: 12, opacity: 0.5 },
   emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 6 },
   emptySub:   { fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 },
-  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -540,7 +540,9 @@ export default function HistorikkPage() {
           {/* Quiz list */}
           {history.length === 0 ? (
             <div style={s.empty}>
-              <div style={s.emptyIcon}>📋</div>
+              <div style={s.emptyIcon}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+              </div>
               <div style={s.emptyTitle}>Ingen historikk ennå</div>
               <p style={s.emptySub}>Spill en quiz mens du er innlogget, så dukker den opp her.</p>
               <Link href="/" style={s.btnGold}>Finn en quiz</Link>

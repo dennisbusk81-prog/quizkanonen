@@ -183,7 +183,7 @@ export default function BliMedPage() {
           </div>
 
           <div style={{ textAlign: 'center', marginTop: 20 }}>
-            <Link href="/" style={{ fontSize: 12, color: '#7a7873', textDecoration: 'none' }}>
+            <Link href="/" style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none' }}>
               ← Tilbake til forsiden
             </Link>
           </div>

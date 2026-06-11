@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { supabase, supabaseData } from '@/lib/supabase'
 
@@ -53,7 +53,7 @@ const s = {
     fontWeight: 600,
     letterSpacing: '0.14em',
     textTransform: 'uppercase' as const,
-    color: '#6a6860',
+    color: '#7a7873',
   },
   widgetLink: {
     fontSize: 11,
@@ -71,7 +71,7 @@ const s = {
   rank: {
     fontSize: 11,
     fontWeight: 700,
-    color: '#6a6860',
+    color: '#7a7873',
     width: 16,
     textAlign: 'center' as const,
     flexShrink: 0,
@@ -104,7 +104,7 @@ const s = {
     textOverflow: 'ellipsis' as const,
     whiteSpace: 'nowrap' as const,
   },
-  score: { fontSize: 11, color: '#6a6860', marginTop: 1 },
+  score: { fontSize: 11, color: '#7a7873', marginTop: 1 },
   footer: {
     padding: '10px 16px',
     borderTop: '1px solid #2a2d38',
@@ -122,11 +122,11 @@ const s = {
     padding: '20px 20px',
     textAlign: 'center' as const,
   },
-  ctaText: { fontSize: 13, color: '#6a6860', marginBottom: 12, lineHeight: 1.5 },
+  ctaText: { fontSize: 13, color: '#7a7873', marginBottom: 12, lineHeight: 1.5 },
   ctaLink: {
     display: 'inline-block',
     background: '#c9a84c',
-    color: '#0f0f10',
+    color: '#1a1c23',
     fontFamily: "'Instrument Sans', sans-serif",
     fontSize: 13,
     fontWeight: 700,

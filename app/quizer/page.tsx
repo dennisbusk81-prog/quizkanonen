@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabase-admin'
+﻿import { supabaseAdmin } from '@/lib/supabase-admin'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -95,7 +95,7 @@ const css = `
 
   .qz-tag-muted {
     background: rgba(106,104,96,0.12);
-    color: #6a6860;
+    color: #7a7873;
     border: 1px solid rgba(106,104,96,0.18);
   }
 
@@ -156,7 +156,7 @@ const css = `
     padding: 48px 32px;
     text-align: center;
     font-size: 14px;
-    color: #6a6860;
+    color: #7a7873;
     line-height: 1.6;
   }
 

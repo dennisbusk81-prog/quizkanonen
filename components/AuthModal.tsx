@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef } from 'react'
 import { signInWithGoogle } from '@/lib/auth'
 
@@ -65,7 +65,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
             right: 16,
             background: 'none',
             border: 'none',
-            color: '#6a6860',
+            color: '#7a7873',
             fontSize: 20,
             cursor: 'pointer',
             lineHeight: 1,
@@ -73,7 +73,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
             transition: 'color 0.15s',
           }}
           onMouseEnter={e => (e.currentTarget.style.color = '#7a7873')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#6a6860')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#7a7873')}
         >
           ×
         </button>
@@ -105,7 +105,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
         <p style={{
           fontFamily: "'Instrument Sans', sans-serif",
           fontSize: 13,
-          color: '#6a6860',
+          color: '#7a7873',
           textAlign: 'center',
           marginBottom: 28,
           lineHeight: 1.5,
@@ -150,7 +150,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
         <p style={{
           fontFamily: "'Instrument Sans', sans-serif",
           fontSize: 11,
-          color: '#6a6860',
+          color: '#7a7873',
           textAlign: 'center',
           marginTop: 16,
           lineHeight: 1.6,

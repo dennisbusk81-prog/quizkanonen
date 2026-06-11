@@ -110,7 +110,7 @@ export default function BedriftRegistrerPage() {
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 500, margin: '0 auto', padding: '48px 20px 80px' }}>
 
-          <Link href="/bedrift" style={{ display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 32, letterSpacing: '0.04em' }}>
+          <Link href="/bedrift" style={{ display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 32, letterSpacing: '0.04em' }}>
             ← Tilbake
           </Link>
 

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
@@ -174,7 +174,7 @@ const STYLES = `
   .login-btn {
     width: 100%;
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;

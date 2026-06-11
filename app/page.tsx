@@ -1,4 +1,4 @@
-import { createSupabaseServer } from '@/lib/supabase-server'
+﻿import { createSupabaseServer } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import NavAuth from '@/components/NavAuth'
@@ -57,7 +57,7 @@ const SHARED_CSS = `
     --white:    #ffffff;
     --body:     #e8e4dd;
     --hint:     #7a7873;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --radius-card: 16px;
     --radius-btn:  10px;
   }
@@ -1120,7 +1120,7 @@ export default async function Home() {
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
                 Ukens fakta
               </p>
-              <p style={{ fontSize: 14, color: '#6dba88', lineHeight: 1.6, marginBottom: 6 }}>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
                 {pageInsights.easiest.correctPct}% svarte riktig på ukens letteste:{' '}
                 <span style={{ fontStyle: 'italic' }}>{pageInsights.easiest.questionText}</span>
               </p>

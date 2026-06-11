@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -144,7 +144,7 @@ export default function NameRequiredModal() {
             width: '100%',
             padding: '12px',
             background: isValid && !saving ? '#c9a84c' : '#3a3d4a',
-            color: isValid && !saving ? '#0f0f10' : '#7a7873',
+            color: isValid && !saving ? '#1a1c23' : '#7a7873',
             border: 'none',
             borderRadius: 10,
             fontSize: 15,

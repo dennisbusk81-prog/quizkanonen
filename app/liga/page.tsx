@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -49,12 +49,12 @@ const s = {
   createLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 10 },
   inputRow:    { display: 'flex', gap: 8 },
   input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
-  btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   btnGoldDis:  { padding: '10px 20px', background: '#3a3d4a', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
   cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
   createErrMsg:{ fontSize: 12, color: '#f87171', marginTop: 8 },
 
-  openCreateBtn: { padding: '10px 28px', background: '#c9a84c', color: '#0f0f10', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', marginBottom: 20 },
+  openCreateBtn: { padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', marginBottom: 20 },
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 4 },
   emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
@@ -63,7 +63,7 @@ const s = {
   ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px 20px', textAlign: 'center' as const, marginTop: 24 },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
   ctaSub:   { fontSize: 13, color: '#e8e4dd', marginBottom: 16, lineHeight: 1.5 },
-  ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
+  ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
 type LoadState = 'loading' | 'ready' | 'error'

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setAdminSession, setAdminPassword } from '@/lib/admin-auth'
@@ -16,7 +16,7 @@ const STYLES = `
     --gold:     #c9a84c;
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --radius-card: 20px;
     --radius-btn:  10px;
   }
@@ -127,7 +127,7 @@ const STYLES = `
 
   .login-btn {
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;

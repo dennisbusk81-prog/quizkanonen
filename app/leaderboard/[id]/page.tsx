@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
@@ -24,7 +24,7 @@ const s = {
   wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:         { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
+  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
   header:   { padding: '48px 0 36px', textAlign: 'center' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
@@ -35,9 +35,9 @@ const s = {
   rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 32 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 14px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
-  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#6a6860', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
+  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
   row:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   rowGold:      { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
@@ -46,16 +46,16 @@ const s = {
 
   rankCell: { width: 32, textAlign: 'center' as const, flexShrink: 0 },
   medal:    { fontSize: 22, lineHeight: '1', display: 'block' },
-  rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#6a6860', display: 'block' },
+  rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#7a7873', display: 'block' },
   rankTied: { fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: '#c9a84c', display: 'block' },
 
   nameBlock: { flex: 1, minWidth: 0 },
   name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
-  nameSub:   { fontSize: 12, color: '#6a6860' },
+  nameSub:   { fontSize: 12, color: '#7a7873' },
 
   scoreBlock: { textAlign: 'right' as const, flexShrink: 0 },
   score:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 3 },
-  scoreSub:   { fontSize: 11, color: '#6a6860' },
+  scoreSub:   { fontSize: 11, color: '#7a7873' },
   tiedLabel:  { color: '#c9a84c', marginLeft: 4 },
 
   profileBar: { background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '14px 20px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 },
@@ -64,24 +64,24 @@ const s = {
   card:       { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginBottom: 12 },
   cardRow:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' as const },
   cardTitle:  { fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 3 },
-  cardSub:    { fontSize: 12, color: '#6a6860' },
+  cardSub:    { fontSize: 12, color: '#7a7873' },
 
-  btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
+  btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
   btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
   btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
 
-  separator: { textAlign: 'center' as const, fontSize: 11, color: '#6a6860', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
+  separator: { textAlign: 'center' as const, fontSize: 11, color: '#7a7873', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
 
   tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 16 },
   tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#6a6860', fontStyle: 'italic' as const },
+  tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#7a7873', fontStyle: 'italic' as const },
 
   empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 32 },
   emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
   emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
-  emptySub:  { fontSize: 13, color: '#6a6860', lineHeight: 1.6, marginBottom: 24 },
-  btnLink:   { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  emptySub:  { fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 },
+  btnLink:   { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
 }
 
 type BadgeKind = 'krone' | 'pil' | 'flamme' | 'lyn' | 'medalje'
@@ -638,7 +638,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{barName}</p>
-                  <p style={{ fontSize: 11, color: '#6a6860', marginTop: 1 }}>Innlogget</p>
+                  <p style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>Innlogget</p>
                 </div>
                 <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
               </div>
@@ -730,7 +730,9 @@ export default function LeaderboardPage() {
             )
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
-              <div style={s.emptyIcon}>🏔️</div>
+              <div style={s.emptyIcon}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
               <p style={s.emptyTitle}>Ingen resultater ennå</p>
               <p style={s.emptySub}>Vær den første til å fullføre denne quizen.</p>
               <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>

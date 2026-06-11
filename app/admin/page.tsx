@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-auth'
@@ -61,7 +61,7 @@ const STYLES = `
   .adm-btn-ghost {
     font-size: 12px;
     font-weight: 500;
-    color: var(--muted);
+    color: var(--body);
     background: var(--card);
     border: 0.5px solid var(--border);
     border-radius: 8px;
@@ -574,9 +574,9 @@ export default function AdminHome() {
                         onClick={() => shareQuizResults(quiz.id)}
                         style={{
                           fontSize: 13,
-                          color: copiedQuizId === quiz.id ? '#6dba88' : '#e8e4dd',
+                          color: copiedQuizId === quiz.id ? '#e8e4dd' : '#e8e4dd',
                           background: 'transparent',
-                          border: `0.5px solid ${copiedQuizId === quiz.id ? '#6dba88' : '#2a2d38'}`,
+                          border: `0.5px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
                           borderRadius: 8,
                           padding: '4px 10px',
                           cursor: 'pointer',
@@ -659,7 +659,7 @@ export default function AdminHome() {
               <button
                 onClick={handleReset}
                 disabled={resetInput !== 'NULLSTILL' || resetting}
-                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#0f0f10' : '#7a7873', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
+                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
               >
                 {resetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

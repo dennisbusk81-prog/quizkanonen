@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -51,7 +51,7 @@ export default function NextQuizSetting() {
       marginBottom: 24,
     }}>
       <h2 style={{ color: '#fff', fontWeight: 700, fontSize: 15, marginBottom: 4 }}>⏱️ Neste quiz</h2>
-      <p style={{ color: '#6a6860', fontSize: 12, marginBottom: 16 }}>Vises som nedtelling på forsiden.</p>
+      <p style={{ color: '#7a7873', fontSize: 12, marginBottom: 16 }}>Vises som nedtelling på forsiden.</p>
 
       {feedback && (
         <div style={{
@@ -70,7 +70,7 @@ export default function NextQuizSetting() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
-          <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6a6860', display: 'block', marginBottom: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
             Dato og klokkeslett
           </label>
           <input
@@ -97,7 +97,7 @@ export default function NextQuizSetting() {
           style={{
             alignSelf: 'flex-start',
             background: '#c9a84c',
-            color: '#0f0f10',
+            color: '#1a1c23',
             fontFamily: 'inherit',
             fontSize: 14,
             fontWeight: 700,

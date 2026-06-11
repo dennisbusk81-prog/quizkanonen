@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -36,7 +36,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --green:    #4ade80;
     --radius-card: 20px;
     --radius-btn:  10px;
@@ -62,7 +62,7 @@ const STYLES = `
 
   .aqz-back {
     font-size: 12px;
-    color: var(--muted);
+    color: var(--body);
     text-decoration: none;
     display: block;
     margin-bottom: 8px;
@@ -83,7 +83,7 @@ const STYLES = `
 
   .aqz-btn-primary {
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
@@ -636,8 +636,8 @@ export default function AdminQuizzes() {
                       onClick={() => shareQuizResults(quiz.id)}
                       className="aqz-action"
                       style={{
-                        color: copiedQuizId === quiz.id ? '#6dba88' : '#e8e4dd',
-                        border: `1px solid ${copiedQuizId === quiz.id ? '#6dba88' : '#2a2d38'}`,
+                        color: copiedQuizId === quiz.id ? '#e8e4dd' : '#e8e4dd',
+                        border: `1px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
                         background: 'transparent',
                         transition: 'color 0.15s, border-color 0.15s',
                       }}

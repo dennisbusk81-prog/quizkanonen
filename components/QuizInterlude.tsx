@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState, useEffect } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
@@ -280,7 +280,7 @@ export default function QuizInterlude({
           onClick={onNext}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: '#c9a84c', color: '#0f0f10',
+            background: '#c9a84c', color: '#1a1c23',
             fontFamily: "'Instrument Sans', sans-serif",
             fontSize: 15, fontWeight: 600,
             padding: '11px 28px',

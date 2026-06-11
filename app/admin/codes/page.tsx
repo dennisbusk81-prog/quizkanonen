@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -30,7 +30,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -78,7 +78,7 @@ const STYLES = `
   .ac-btn-add {
     font-size: 13px;
     font-weight: 600;
-    color: #0f0f10;
+    color: #1a1c23;
     background: var(--gold);
     border: none;
     border-radius: var(--radius-btn);
@@ -154,7 +154,7 @@ const STYLES = `
   .ac-btn-save {
     width: 100%;
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;

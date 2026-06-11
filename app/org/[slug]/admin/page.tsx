@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -53,7 +53,7 @@ const CSS = `
 
   /* ── Rank badge colours ── */
   .oa-rank-gold   { color: #c9a84c; }
-  .oa-rank-silver { color: #a0a8b8; }
+  .oa-rank-silver { color: #7a7873; }
   .oa-rank-bronze { color: #c4825a; }
 
   /* ── Responsive ── */
@@ -137,7 +137,7 @@ function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue'
   const map = {
     gold:  { bg: 'rgba(201,168,76,0.12)',  border: 'rgba(201,168,76,0.28)',  text: '#c9a84c' },
     green: { bg: 'rgba(74,222,128,0.10)',  border: 'rgba(74,222,128,0.25)',  text: '#4ade80' },
-    blue:  { bg: 'rgba(99,179,237,0.10)',  border: 'rgba(99,179,237,0.25)',  text: '#63b3ed' },
+    blue:  { bg: 'rgba(99,179,237,0.10)',  border: 'rgba(99,179,237,0.25)',  text: '#e8e4dd' },
     muted: { bg: 'rgba(122,120,115,0.12)', border: 'rgba(122,120,115,0.25)', text: '#7a7873' },
   }
   const c = map[color]
@@ -692,11 +692,11 @@ export default function OrgAdminPage() {
     const ac = data.stats?.activeThisMonth ?? 0
     const pct = mc > 0 ? Math.round((ac / mc) * 100) : 0
     const text = [
-      `🏆 ${titleWord} Quizkanon — ${periodLabel} | ${data.org.name}`,
+      `${titleWord} Quizkanon — ${periodLabel} | ${data.org.name}`,
       '',
       ...top3Lines,
       '',
-      `📊 Deltakelse: ${ac} av ${mc} medlemmer (${pct}%)`,
+      `Deltakelse: ${ac} av ${mc} medlemmer (${pct}%)`,
       '',
       'Spill fredagsquizen på quizkanonen.no 🎯',
     ].join('\n')
@@ -1088,8 +1088,11 @@ export default function OrgAdminPage() {
                     href={`/kontakt`}
                     style={{
                       display: 'inline-block', padding: '8px 18px',
-                      background: '#c9a84c', borderRadius: 10,
-                      fontSize: 13, fontWeight: 700, color: '#1a1c23',
+                      background: memberCount === 1 ? 'transparent' : '#c9a84c',
+                      border: memberCount === 1 ? '1px solid #2a2d38' : 'none',
+                      borderRadius: 10,
+                      fontSize: 13, fontWeight: 700,
+                      color: memberCount === 1 ? '#e8e4dd' : '#1a1c23',
                       fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
                       whiteSpace: 'nowrap',
                     }}
@@ -1144,7 +1147,7 @@ export default function OrgAdminPage() {
                   </button>
                 </div>
                 {reminderMsg && (
-                  <p style={{ fontSize: 12, color: reminderMsg.ok ? '#6dba88' : '#c94c4c', margin: 0 }}>
+                  <p style={{ fontSize: 12, color: reminderMsg.ok ? '#e8e4dd' : '#c94c4c', margin: 0 }}>
                     {reminderMsg.text}
                   </p>
                 )}
@@ -1209,7 +1212,7 @@ export default function OrgAdminPage() {
                         {(() => {
                           const s = streaks.get(member.user_id) ?? 0
                           if (s < 2) return null
-                          return <span style={{ color: '#c9a84c' }}>{` · 🔥 ${s} uker`}</span>
+                          return <span style={{ color: '#c9a84c' }}>{` · ${s} uker`}</span>
                         })()}
                       </p>
                     </div>
@@ -1544,7 +1547,7 @@ export default function OrgAdminPage() {
                             return <span style={{ fontSize: 10, fontWeight: 700, color: '#c9a84c', letterSpacing: '0.04em', width: 26, textAlign: 'center', flexShrink: 0 }}>NY</span>
                           }
                           const diff = prevRank - rank
-                          if (diff > 0) return <span style={{ fontSize: 11, fontWeight: 700, color: '#6dba88', width: 26, textAlign: 'center', flexShrink: 0 }}>↑{diff}</span>
+                          if (diff > 0) return <span style={{ fontSize: 11, fontWeight: 700, color: '#e8e4dd', width: 26, textAlign: 'center', flexShrink: 0 }}>↑{diff}</span>
                           if (diff < 0) return <span style={{ fontSize: 11, fontWeight: 700, color: '#c94c4c', width: 26, textAlign: 'center', flexShrink: 0 }}>↓{Math.abs(diff)}</span>
                           return <span style={{ width: 26, flexShrink: 0, display: 'inline-block' }} />
                         })()}
@@ -1594,7 +1597,7 @@ export default function OrgAdminPage() {
                   <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.4, marginBottom: 10 }}>
                     {insightsData.easiest.questionText}
                   </p>
-                  <p style={{ fontSize: 13, color: '#6dba88', fontWeight: 600 }}>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600 }}>
                     {insightsData.easiest.correctPct}% svarte riktig
                   </p>
                 </div>
@@ -1669,7 +1672,7 @@ export default function OrgAdminPage() {
                           display: 'inline-block', marginTop: 8, fontSize: 11, padding: '4px 12px',
                           border: `1px solid ${shareHovered === period || copiedWinner === period ? '#c9a84c' : '#2a2d38'}`,
                           borderRadius: 6, background: 'transparent',
-                          color: copiedWinner === period ? '#6dba88' : shareHovered === period ? '#c9a84c' : '#7a7873',
+                          color: copiedWinner === period ? '#e8e4dd' : shareHovered === period ? '#c9a84c' : '#7a7873',
                           cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
                           transition: 'color 0.15s, border-color 0.15s',
                         }}
@@ -1755,7 +1758,7 @@ export default function OrgAdminPage() {
               <button
                 onClick={handleSeasonReset}
                 disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
-                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#0f0f10' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -35,16 +35,16 @@ const s = {
   page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#6a6860', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
-  back:     { display: 'inline-block', fontSize: 12, color: '#6a6860', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
+  back:     { display: 'inline-block', fontSize: 12, color: '#7a7873', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
   backBtn:  { display: 'inline-block', fontSize: 12, color: '#e8e4dd', background: 'none', border: 'none', padding: 0, marginBottom: 14, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" },
 
   // Hero card
   heroCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 12 },
-  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', marginBottom: 6 },
+  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 6 },
   heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 12 },
-  heroDate:    { fontSize: 12, color: '#6a6860', marginBottom: 14 },
+  heroDate:    { fontSize: 12, color: '#7a7873', marginBottom: 14 },
 
   // Three key numbers row
   statsRow:   { display: 'flex', gap: 0, borderTop: '1px solid #2a2d38', paddingTop: 14 },
@@ -52,14 +52,14 @@ const s = {
   statDivider:{ width: 1, background: '#2a2d38', margin: '0 4px' },
   statBig:    { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 3 },
   statBigGrey:{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 },
-  statLbl:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#6a6860' },
-  heroSub:    { fontSize: 12, color: '#6a6860', textAlign: 'center' as const, marginTop: 10 },
+  statLbl:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873' },
+  heroSub:    { fontSize: 12, color: '#7a7873', textAlign: 'center' as const, marginTop: 10 },
 
   // Section
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#6a6860', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
-  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#6a6860', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
+  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
   // Question cards
   qCardCorrect: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '12px 16px', marginBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 10 },
@@ -70,7 +70,7 @@ const s = {
   checkIcon:  { fontSize: 14, color: '#4caf7d', marginTop: 1, flexShrink: 0 },
   qTextShort: { fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, marginBottom: 2, flex: 1 },
   ansTextOk:  { fontSize: 13, color: '#4caf7d', fontWeight: 500 },
-  ansTime:    { fontSize: 10, color: '#6a6860', marginTop: 6, textAlign: 'right' as const },
+  ansTime:    { fontSize: 10, color: '#7a7873', marginTop: 6, textAlign: 'right' as const },
 
   // Wrong card elements
   wrongTop:     { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
@@ -79,17 +79,17 @@ const s = {
   wrongAnswers: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
   ansWrong:     { fontSize: 12, color: '#c94c4c', background: 'rgba(201,76,76,0.08)', border: '1px solid rgba(201,76,76,0.2)', borderRadius: 8, padding: '6px 10px' },
   ansGold:      { fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 8, padding: '6px 10px' },
-  wrongTime:    { fontSize: 10, color: '#6a6860', marginTop: 6, textAlign: 'right' as const },
+  wrongTime:    { fontSize: 10, color: '#7a7873', marginTop: 6, textAlign: 'right' as const },
 
   // No-answer elements
-  dashIcon:   { fontSize: 14, color: '#6a6860', marginTop: 1, flexShrink: 0 },
-  qTextGrey:  { fontSize: 12, color: '#6a6860', lineHeight: 1.4, flex: 1 },
+  dashIcon:   { fontSize: 14, color: '#7a7873', marginTop: 1, flexShrink: 0 },
+  qTextGrey:  { fontSize: 12, color: '#7a7873', lineHeight: 1.4, flex: 1 },
 
   // Not found / error
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 24 },
   emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 6 },
-  emptySub:   { fontSize: 13, color: '#6a6860', lineHeight: 1.6, marginBottom: 20 },
-  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#0f0f10', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
+  emptySub:   { fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
 // ─── Answer cards ─────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ function CorrectCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
       <span style={s.checkIcon}>✓</span>
       <div style={{ flex: 1 }}>
         <div style={s.qTextShort}>
-          <span style={{ fontSize: 10, color: '#6a6860', marginRight: 6 }}>Q{num}</span>
+          <span style={{ fontSize: 10, color: '#7a7873', marginRight: 6 }}>Q{num}</span>
           {a.question_text}
         </div>
         <div style={s.ansTextOk}>{a.selected_answer_text ?? a.selected_answer ?? '–'}</div>
@@ -116,7 +116,7 @@ function WrongCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
       <div style={s.wrongTop}>
         <span style={s.xIcon}>✗</span>
         <div style={s.qTextWrong}>
-          <span style={{ fontSize: 10, color: '#6a6860', marginRight: 6 }}>Q{num}</span>
+          <span style={{ fontSize: 10, color: '#7a7873', marginRight: 6 }}>Q{num}</span>
           {a.question_text}
         </div>
       </div>
@@ -124,7 +124,7 @@ function WrongCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
         {a.selected_answer ? (
           <div style={s.ansWrong}>Ditt svar: {a.selected_answer_text ?? a.selected_answer}</div>
         ) : (
-          <div style={{ ...s.ansWrong, color: '#6a6860' }}>— Svarte ikke</div>
+          <div style={{ ...s.ansWrong, color: '#7a7873' }}>— Svarte ikke</div>
         )}
         <div style={s.ansGold}>Riktig: {a.correct_answer_text || a.correct_answer}</div>
       </div>

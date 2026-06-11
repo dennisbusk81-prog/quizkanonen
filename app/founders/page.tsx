@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -91,7 +91,7 @@ const s = {
     width: 'auto',
     padding: '10px 28px',
     background: '#c9a84c',
-    color: '#0f0f10',
+    color: '#1a1c23',
     border: 'none',
     borderRadius: 10,
     fontSize: 15,

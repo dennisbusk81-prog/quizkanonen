@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -54,7 +54,7 @@ const s = {
   sub: { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 28 },
   btn: {
     width: '100%', padding: '11px 24px',
-    background: '#c9a84c', color: '#0f0f10',
+    background: '#c9a84c', color: '#1a1c23',
     border: 'none', borderRadius: 10,
     fontSize: 15, fontWeight: 700,
     fontFamily: "'Instrument Sans', sans-serif",
@@ -62,7 +62,7 @@ const s = {
   },
   spinner: {
     fontFamily: "'Libre Baskerville', serif",
-    fontSize: 16, color: '#6a6860', fontStyle: 'italic' as const,
+    fontSize: 16, color: '#7a7873', fontStyle: 'italic' as const,
     marginBottom: 0,
   },
   error: {

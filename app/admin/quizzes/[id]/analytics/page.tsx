@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -47,7 +47,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #6a6860;
+    --muted:    #7a7873;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -252,7 +252,7 @@ const STYLES = `
     color: var(--muted);
   }
 
-  .an-opt-letter.correct { background: var(--green); color: #0f0f10; }
+  .an-opt-letter.correct { background: var(--green); color: #1a1c23; }
 
   .an-opt-track {
     flex: 1;
@@ -340,7 +340,7 @@ const STYLES = `
     border-radius: 8px;
     border: none;
     background: var(--gold);
-    color: #0f0f10;
+    color: #1a1c23;
     cursor: pointer;
     font-family: 'Instrument Sans', sans-serif;
   }
@@ -553,12 +553,12 @@ export default function QuizAnalytics() {
               disabled={shareState === 'loading'}
               style={{
                 background: 'transparent',
-                border: `1px solid ${shareState === 'copied' ? '#6dba88' : '#2a2d38'}`,
+                border: `1px solid ${shareState === 'copied' ? '#e8e4dd' : '#2a2d38'}`,
                 borderRadius: 10,
                 padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 500,
-                color: shareState === 'copied' ? '#6dba88' : '#e8e4dd',
+                color: shareState === 'copied' ? '#e8e4dd' : '#e8e4dd',
                 cursor: shareState === 'loading' ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit',
                 whiteSpace: 'nowrap',
