@@ -93,19 +93,6 @@ async function processQuiz(
     return { rows: 0, error: null }
   }
 
-  // Sett flagget FØR upsertene starter. Hvis jobben timer ut og kjøres på nytt
-  // vil den hoppe over denne quizen og unngå at re-rangering fra nye forsøk
-  // gir inkonsistente poengscorer.
-  const { error: flagError } = await supabaseAdmin
-    .from('quizzes')
-    .update({ season_points_awarded: true })
-    .eq('id', quizId)
-
-  if (flagError) {
-    console.error(`[award-season-points] Klarte ikke sette season_points_awarded på quiz ${quizId}:`, flagError.message)
-    return { rows: 0, error: flagError.message }
-  }
-
   // Beste forsøk per bruker
   const bestByUser = new Map<string, RawAttempt>()
   for (const a of rawAttempts as RawAttempt[]) {
@@ -116,93 +103,112 @@ async function processQuiz(
   const userIds = [...bestByUser.keys()]
   let totalRows = 0
 
-  // ── Global scope ─────────────────────────────────────────────────────────────
-  const globalRanked = rankBestAttempts(bestByUser)
-  const globalRows: ScoreRow[] = globalRanked.map(({ userId, rank }) => ({
-    user_id: userId,
-    quiz_id: quizId,
-    scope_type: 'global',
-    scope_id: null,
-    points: getPoints(rank),
-    rank,
-    closes_at: closesAt,
-  }))
-  await upsertScores(globalRows)
-  totalRows += globalRows.length
-  console.log(`[award-season-points]   global: ${globalRows.length} rader`)
+  try {
+    // ── Global scope ───────────────────────────────────────────────────────────
+    const globalRanked = rankBestAttempts(bestByUser)
+    const globalRows: ScoreRow[] = globalRanked.map(({ userId, rank }) => ({
+      user_id: userId,
+      quiz_id: quizId,
+      scope_type: 'global',
+      scope_id: null,
+      points: getPoints(rank),
+      rank,
+      closes_at: closesAt,
+    }))
+    await upsertScores(globalRows)
+    totalRows += globalRows.length
+    console.log(`[award-season-points]   global: ${globalRows.length} rader`)
 
-  // ── League scope ─────────────────────────────────────────────────────────────
-  const { data: leagueMemberships } = await supabaseAdmin
-    .from('league_members')
-    .select('league_id, user_id')
-    .in('user_id', userIds)
+    // ── League scope ───────────────────────────────────────────────────────────
+    const { data: leagueMemberships } = await supabaseAdmin
+      .from('league_members')
+      .select('league_id, user_id')
+      .in('user_id', userIds)
 
-  if (leagueMemberships && leagueMemberships.length > 0) {
-    const byLeague = new Map<string, string[]>()
-    for (const lm of leagueMemberships as { league_id: string; user_id: string }[]) {
-      if (!byLeague.has(lm.league_id)) byLeague.set(lm.league_id, [])
-      byLeague.get(lm.league_id)!.push(lm.user_id)
-    }
-
-    for (const [leagueId, memberIds] of byLeague) {
-      const leagueBest = new Map<string, RawAttempt>()
-      for (const uid of memberIds) {
-        const a = bestByUser.get(uid)
-        if (a) leagueBest.set(uid, a)
+    if (leagueMemberships && leagueMemberships.length > 0) {
+      const byLeague = new Map<string, string[]>()
+      for (const lm of leagueMemberships as { league_id: string; user_id: string }[]) {
+        if (!byLeague.has(lm.league_id)) byLeague.set(lm.league_id, [])
+        byLeague.get(lm.league_id)!.push(lm.user_id)
       }
-      if (leagueBest.size === 0) continue
 
-      const ranked = rankBestAttempts(leagueBest)
-      const rows: ScoreRow[] = ranked.map(({ userId, rank }) => ({
-        user_id: userId,
-        quiz_id: quizId,
-        scope_type: 'league',
-        scope_id: leagueId,
-        points: getPoints(rank),
-        rank,
-        closes_at: closesAt,
-      }))
-      await upsertScores(rows)
-      totalRows += rows.length
-    }
-    console.log(`[award-season-points]   league: ${byLeague.size} ligaer, scope-rader inkludert i total`)
-  }
+      for (const [leagueId, memberIds] of byLeague) {
+        const leagueBest = new Map<string, RawAttempt>()
+        for (const uid of memberIds) {
+          const a = bestByUser.get(uid)
+          if (a) leagueBest.set(uid, a)
+        }
+        if (leagueBest.size === 0) continue
 
-  // ── Organization scope ───────────────────────────────────────────────────────
-  const { data: orgMemberships } = await supabaseAdmin
-    .from('organization_members')
-    .select('organization_id, user_id')
-    .in('user_id', userIds)
-
-  if (orgMemberships && orgMemberships.length > 0) {
-    const byOrg = new Map<string, string[]>()
-    for (const om of orgMemberships as { organization_id: string; user_id: string }[]) {
-      if (!byOrg.has(om.organization_id)) byOrg.set(om.organization_id, [])
-      byOrg.get(om.organization_id)!.push(om.user_id)
-    }
-
-    for (const [orgId, memberIds] of byOrg) {
-      const orgBest = new Map<string, RawAttempt>()
-      for (const uid of memberIds) {
-        const a = bestByUser.get(uid)
-        if (a) orgBest.set(uid, a)
+        const ranked = rankBestAttempts(leagueBest)
+        const rows: ScoreRow[] = ranked.map(({ userId, rank }) => ({
+          user_id: userId,
+          quiz_id: quizId,
+          scope_type: 'league',
+          scope_id: leagueId,
+          points: getPoints(rank),
+          rank,
+          closes_at: closesAt,
+        }))
+        await upsertScores(rows)
+        totalRows += rows.length
       }
-      if (orgBest.size === 0) continue
-
-      const ranked = rankBestAttempts(orgBest)
-      const rows: ScoreRow[] = ranked.map(({ userId, rank }) => ({
-        user_id: userId,
-        quiz_id: quizId,
-        scope_type: 'organization',
-        scope_id: orgId,
-        points: getPoints(rank),
-        rank,
-        closes_at: closesAt,
-      }))
-      await upsertScores(rows)
-      totalRows += rows.length
+      console.log(`[award-season-points]   league: ${byLeague.size} ligaer, scope-rader inkludert i total`)
     }
-    console.log(`[award-season-points]   org: ${byOrg.size} organisasjoner, scope-rader inkludert i total`)
+
+    // ── Organization scope ─────────────────────────────────────────────────────
+    const { data: orgMemberships } = await supabaseAdmin
+      .from('organization_members')
+      .select('organization_id, user_id')
+      .in('user_id', userIds)
+
+    if (orgMemberships && orgMemberships.length > 0) {
+      const byOrg = new Map<string, string[]>()
+      for (const om of orgMemberships as { organization_id: string; user_id: string }[]) {
+        if (!byOrg.has(om.organization_id)) byOrg.set(om.organization_id, [])
+        byOrg.get(om.organization_id)!.push(om.user_id)
+      }
+
+      for (const [orgId, memberIds] of byOrg) {
+        const orgBest = new Map<string, RawAttempt>()
+        for (const uid of memberIds) {
+          const a = bestByUser.get(uid)
+          if (a) orgBest.set(uid, a)
+        }
+        if (orgBest.size === 0) continue
+
+        const ranked = rankBestAttempts(orgBest)
+        const rows: ScoreRow[] = ranked.map(({ userId, rank }) => ({
+          user_id: userId,
+          quiz_id: quizId,
+          scope_type: 'organization',
+          scope_id: orgId,
+          points: getPoints(rank),
+          rank,
+          closes_at: closesAt,
+        }))
+        await upsertScores(rows)
+        totalRows += rows.length
+      }
+      console.log(`[award-season-points]   org: ${byOrg.size} organisasjoner, scope-rader inkludert i total`)
+    }
+
+    // Sett flagget ETTER at alle upserts er fullført uten feil
+    const { error: flagError } = await supabaseAdmin
+      .from('quizzes')
+      .update({ season_points_awarded: true })
+      .eq('id', quizId)
+
+    if (flagError) {
+      // Scores are written — log but let cron retry the flag next run
+      console.error(`[award-season-points] Klarte ikke sette season_points_awarded på quiz ${quizId}:`, flagError.message)
+    }
+
+  } catch (err) {
+    // Upsert feil — season_points_awarded forblir false, cron prøver igjen om 5 min
+    const errMsg = err instanceof Error ? err.message : String(err)
+    console.error(`[award-season-points] Upsert feil på quiz ${quizId}:`, errMsg)
+    return { rows: totalRows, error: errMsg }
   }
 
   return { rows: totalRows, error: null }

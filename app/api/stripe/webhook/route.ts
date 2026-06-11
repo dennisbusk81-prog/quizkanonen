@@ -47,6 +47,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ugyldig signatur' }, { status: 400 })
   }
 
+  // ── Idempotency — skip already-processed events (Stripe retries) ──────
+  const { error: idempotencyError } = await supabaseAdmin
+    .from('stripe_events')
+    .insert({ id: event.id, created_at: new Date().toISOString() })
+
+  if (idempotencyError) {
+    if (idempotencyError.code === '23505') {
+      // Unique violation — event already processed
+      return NextResponse.json({ received: true })
+    }
+    // Table missing or other DB error — log and continue to avoid blocking Stripe
+    console.error('[webhook] stripe_events insert failed:', idempotencyError.code, idempotencyError.message)
+  }
+
   // ── checkout.session.completed ────────────────────────────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
@@ -228,10 +242,34 @@ export async function POST(request: NextRequest) {
         })
         .catch(err => console.error('[webhook] orgCancelledEmail failed:', err))
     } else {
-      // B2C
-      await supabaseAdmin.from('profiles')
-        .update({ premium_status: false, premium_source: null })
+      // B2C — match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
+      const subscriptionId = subscription.id
+      let profileId: string | null = null
+
+      const { data: profileByCustomer } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
         .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (profileByCustomer) {
+        profileId = profileByCustomer.id
+      } else {
+        const { data: profileBySub } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('personal_stripe_subscription_id', subscriptionId)
+          .maybeSingle()
+        if (profileBySub) profileId = profileBySub.id
+      }
+
+      if (profileId) {
+        await supabaseAdmin.from('profiles')
+          .update({ premium_status: false, premium_source: null, personal_stripe_subscription_id: null })
+          .eq('id', profileId)
+      } else {
+        console.error(`[webhook] subscription.deleted: no profile found for customer=${customerId}, sub=${subscriptionId}`)
+      }
 
       // Send kanselleringsbekreftelse — fire-and-forget
       getUserEmail(stripe, customerId)
@@ -308,9 +346,42 @@ export async function POST(request: NextRequest) {
     } else {
       // B2C — 'trialing' counts as active (Founders trial period)
       const isActive = ['active', 'trialing'].includes(subscription.status)
-      await supabaseAdmin.from('profiles')
-        .update({ premium_status: isActive })
-        .eq('stripe_customer_id', customerId)
+
+      if (isActive) {
+        // Active/trialing: simple update by customer_id
+        await supabaseAdmin.from('profiles')
+          .update({ premium_status: true })
+          .eq('stripe_customer_id', customerId)
+      } else {
+        // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
+        const subscriptionId = subscription.id
+        let profileId: string | null = null
+
+        const { data: profileByCustomer } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('stripe_customer_id', customerId)
+          .maybeSingle()
+
+        if (profileByCustomer) {
+          profileId = profileByCustomer.id
+        } else {
+          const { data: profileBySub } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('personal_stripe_subscription_id', subscriptionId)
+            .maybeSingle()
+          if (profileBySub) profileId = profileBySub.id
+        }
+
+        if (profileId) {
+          await supabaseAdmin.from('profiles')
+            .update({ premium_status: false, personal_stripe_subscription_id: null })
+            .eq('id', profileId)
+        } else {
+          console.error(`[webhook] subscription.updated canceled: no profile found for customer=${customerId}, sub=${subscriptionId}`)
+        }
+      }
     }
   }
 
