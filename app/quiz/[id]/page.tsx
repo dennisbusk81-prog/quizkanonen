@@ -703,6 +703,8 @@ export default function QuizPage() {
   const [rankingSnapshot, setRankingSnapshot] = useState<{ top10MinCorrect: number; leaderName: string; leaderCorrect: number; totalPlayers: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
+  const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
@@ -938,6 +940,7 @@ export default function QuizPage() {
     const effectiveName = isTeamInput ? nameInput.trim() : (loggedInDisplayName ?? nameInput.trim())
     if (!effectiveName) return
 
+    setStartError(null)
     const info: PlayerInfo = { name: effectiveName, isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
     setPlayerInfo(info)
 
@@ -981,6 +984,7 @@ export default function QuizPage() {
         .catch(() => {})
     } catch {
       setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+      setStartError('Noe gikk galt. Prøv å laste siden på nytt.')
     }
   }
 
@@ -1298,10 +1302,15 @@ export default function QuizPage() {
           setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
         }
       }
-    } catch {}
-    finally {
-      setPhase('finished')
+    } catch {
+      setFinishSaveError('Resultatet ble ikke lagret — sjekk internettforbindelsen din')
+      setTimeout(() => {
+        setFinishSaveError(null)
+        setPhase('finished')
+      }, 4000)
+      return
     }
+    setPhase('finished')
   }
 
   const formatTime = (ms: number) => {
@@ -1623,6 +1632,11 @@ export default function QuizPage() {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
         </button>
       </div>
+      {startError && (
+        <p style={{ textAlign: 'center', fontSize: 13, color: '#e8e4dd', marginTop: 12, lineHeight: 1.5 }}>
+          {startError}
+        </p>
+      )}
       {!resumeData && (
         <p style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#e8e4dd' }}>
           Rangering: flest riktige vinner — ved likt, raskest tid.
@@ -1683,6 +1697,13 @@ export default function QuizPage() {
 
       {/* Canvas konfetti-overlay */}
       <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10000 }} />
+
+      {/* Lagrings-feil ved finishQuiz */}
+      {finishSaveError && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 20px', fontSize: 13, color: '#e8e4dd', zIndex: 9999, whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+          {finishSaveError}
+        </div>
+      )}
 
       {/* Overlay-elementer — alltid i DOM, vises/skjules via ref.style.display (ingen React re-render) */}
       <div ref={flashRef} className="qk-flash-overlay" style={{ display: 'none' }} />

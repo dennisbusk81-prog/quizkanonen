@@ -431,8 +431,9 @@ export default function AdminHome() {
       if (!res.ok) { alert(data.error ?? 'Noe gikk galt.'); return }
       setResetModal(null)
       setResetInput('')
-      setResetDone(resetModal === 'all' ? 'All sesong-data nullstilt.' : 'Testdata nullstilt.')
-      setTimeout(() => setResetDone(null), 4000)
+      setResetDone('Sesong nullstilt')
+      setTimeout(() => setResetDone(null), 3000)
+      await fetchAll()
     } finally {
       setResetting(false)
     }
@@ -615,7 +616,7 @@ export default function AdminHome() {
               Nullstill kun testdata
             </button>
             {resetDone && (
-              <span style={{ fontSize: 12, color: '#4ade80', background: 'rgba(74,222,128,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+              <span style={{ fontSize: 12, color: '#c9a84c', background: 'rgba(201,168,76,0.08)', padding: '4px 10px', borderRadius: 6 }}>
                 {resetDone}
               </span>
             )}

@@ -62,11 +62,16 @@ function SuccessContent() {
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/bli-med/${activeInvite.token}`
     : null
 
+  // true = data lastet ferdig (timeout eller fetch), false = fortsatt venter
+  const inviteResolved = !loading
+
   const copyInvite = async () => {
     if (!inviteUrl) return
-    await navigator.clipboard.writeText(inviteUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard nektet — ignorer */ }
   }
 
   if (loading) {
@@ -105,8 +110,12 @@ function SuccessContent() {
             </p>
           </div>
 
-          {/* Invite link card */}
-          {inviteUrl && (
+          {/* Invite link card — tre tilstander: laster / funnet / ikke funnet */}
+          {!inviteResolved ? (
+            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
+              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>Henter invitasjonslenke...</p>
+            </div>
+          ) : inviteUrl ? (
             <div style={{ background: '#1e1a0e', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 12 }}>
                 Invitasjonslenke
@@ -125,6 +134,17 @@ function SuccessContent() {
               <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, lineHeight: 1.5 }}>
                 Alle som trykker på lenken og logger inn blir del av teamet og får Premium-tilgang.
               </p>
+            </div>
+          ) : (
+            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
+              <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 8, lineHeight: 1.5 }}>
+                Invitasjonslenken din er klar i bedriftspanelet.
+              </p>
+              {orgSlug && (
+                <a href={`/org/${orgSlug}/admin`} style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'underline', textDecorationColor: 'rgba(232,228,221,0.3)' }}>
+                  Gå til bedriftspanelet →
+                </a>
+              )}
             </div>
           )}
 

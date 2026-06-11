@@ -23,12 +23,14 @@ const menuItem: React.CSSProperties = {
 
 export default function NavAuth({ quizId }: { quizId?: string }) {
   const [sessionResolved, setSessionResolved] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
   const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -65,19 +67,23 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       if (event === 'INITIAL_SESSION') {
         clearTimeout(timeout)
         if (session?.user) {
+          setIsLoggedIn(true)
           setDisplayName(session.user.email?.split('@')[0] ?? null)
           loadProfile(session.user.id, session.user.email)
           if (session.access_token) fetchMyOrgs(session.access_token)
         } else {
+          setIsLoggedIn(false)
           setProfileLoaded(true)
         }
         setSessionResolved(true)
       } else if (event === 'SIGNED_IN') {
         if (session?.user) {
+          setIsLoggedIn(true)
           loadProfile(session.user.id, session.user.email)
           if (session.access_token) fetchMyOrgs(session.access_token)
         }
       } else if (event === 'SIGNED_OUT') {
+        setIsLoggedIn(false)
         setDisplayName(null)
         setIsPremium(false)
         setMyOrgs([])
@@ -145,7 +151,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   }
 
   // ── Not logged in ──
-  if (!displayName) {
+  if (!isLoggedIn) {
     return (
       <>
         <style>{NAV_MOBILE_CSS}</style>
@@ -174,7 +180,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     )
   }
 
-  const initial = displayName[0]?.toUpperCase() ?? '?'
+  const initial = displayName?.[0]?.toUpperCase() ?? '?'
 
   const globalHidden = myOrgs.length > 0 && myOrgs.some(o => !o.allowGlobalLeague)
 
@@ -333,12 +339,22 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               </>
             )}
             <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
+            {signOutError && (
+              <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 6px', margin: 0, lineHeight: 1.4 }}>
+                {signOutError}
+              </p>
+            )}
             <button
               onClick={async () => {
                 setDropdownOpen(false)
-                setDisplayName(null)
-                setIsPremium(false)
-                await signOut()
+                setSignOutError(null)
+                try {
+                  await signOut()
+                  // signOut() redirects on success — state cleared by SIGNED_OUT event
+                } catch {
+                  setSignOutError('Utlogging feilet — prøv igjen')
+                  setTimeout(() => setSignOutError(null), 4000)
+                }
               }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left',

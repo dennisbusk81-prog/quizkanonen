@@ -569,6 +569,7 @@ function QuizEditorInner() {
 
   // Loading state — true only when loading an existing quiz
   const [loading, setLoading] = useState(!!editIdFromUrl)
+  const [finishError, setFinishError] = useState<string | null>(null)
 
   // Quiz header state
   const [title, setTitle]           = useState('')
@@ -1113,17 +1114,22 @@ function QuizEditorInner() {
 
   // Final: save everything and navigate to questions overview
   const handleFinish = async () => {
-    let qId = quizIdRef.current
-    if (!qId) {
-      if (!titleRef.current.trim()) { alert('Fyll inn quiztittel.'); return }
-      qId = await createQuiz()
-      if (!qId) return
-    } else {
-      await updateQuizMeta()
+    setFinishError(null)
+    try {
+      let qId = quizIdRef.current
+      if (!qId) {
+        if (!titleRef.current.trim()) { alert('Fyll inn quiztittel.'); return }
+        qId = await createQuiz()
+        if (!qId) return
+      } else {
+        await updateQuizMeta()
+      }
+      // Save ALL questions in parallel — not just the active one.
+      await Promise.all(questionsRef.current.map((_, i) => saveQuestion(i)))
+      router.push('/admin')
+    } catch {
+      setFinishError('Noe gikk galt under lagring — prøv igjen')
     }
-    // Save ALL questions in parallel — not just the active one.
-    await Promise.all(questionsRef.current.map((_, i) => saveQuestion(i)))
-    router.push('/admin')
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -1480,6 +1486,11 @@ function QuizEditorInner() {
           </div>
 
           {/* Row 2: + Legg til | Lagre og avslutt → */}
+          {finishError && (
+            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', marginBottom: 8, color: '#e8e4dd', fontSize: 13 }}>
+              {finishError}
+            </div>
+          )}
           <div className="nq-q-nav-row2">
             <button type="button" onClick={addQuestion} className="nq-nav-btn">
               + Legg til

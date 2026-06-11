@@ -19,6 +19,7 @@ const FEATURES = [
 export default function PremiumPage() {
   const [loading, setLoading] = useState(false)
   const [showLoginAlert, setShowLoginAlert] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [session, setSession] = useState<Session | null | undefined>(undefined)
 
   useEffect(() => {
@@ -27,13 +28,21 @@ export default function PremiumPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  function showError(msg: string) {
+    setCheckoutError(msg)
+    setTimeout(() => setCheckoutError(null), 5000)
+  }
+
   async function handleCheckout() {
+    setCheckoutError(null)
+    // Sesjon er ikke lastet ennå — ikke vis feil, bare vent
+    if (session === undefined) return
+    if (!session) {
+      setShowLoginAlert(true)
+      return
+    }
     setLoading(true)
     try {
-      if (!session) {
-        setShowLoginAlert(true)
-        return
-      }
       const { data: { session: freshSession } } = await supabase.auth.getSession()
       if (!freshSession?.access_token) {
         setShowLoginAlert(true)
@@ -56,10 +65,10 @@ export default function PremiumPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert('Noe gikk galt. Prøv igjen.')
+        showError('Noe gikk galt. Prøv igjen eller kontakt oss.')
       }
     } catch {
-      alert('Noe gikk galt. Prøv igjen.')
+      showError('Noe gikk galt. Prøv igjen eller kontakt oss.')
     } finally {
       setLoading(false)
     }
@@ -140,25 +149,31 @@ export default function PremiumPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               <button
                 onClick={handleCheckout}
-                disabled={loading}
+                disabled={loading || session === undefined}
                 style={{
                   padding: '10px 28px',
-                  background: loading ? '#3a3d4a' : '#c9a84c',
-                  color: loading ? '#7a7873' : '#0f0f10',
+                  background: (loading || session === undefined) ? '#2a2d38' : '#c9a84c',
+                  color: (loading || session === undefined) ? '#7a7873' : '#1a1c23',
                   border: 'none', borderRadius: 10,
                   fontSize: 15, fontWeight: 700,
                   fontFamily: "'Instrument Sans', sans-serif",
-                  cursor: loading ? 'not-allowed' : 'pointer',
+                  cursor: (loading || session === undefined) ? 'not-allowed' : 'pointer',
+                  opacity: session === undefined ? 0.6 : 1,
                   transition: 'opacity 0.15s',
                 }}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.88' }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                onMouseEnter={e => { if (!loading && session !== undefined) e.currentTarget.style.opacity = '0.88' }}
+                onMouseLeave={e => { if (session !== undefined) e.currentTarget.style.opacity = '1' }}
               >
-                {loading ? 'Laster...' : 'Gå til betaling'}
+                {session === undefined ? 'Laster...' : loading ? 'Videresender...' : 'Gå til betaling'}
               </button>
+              {checkoutError && (
+                <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+                  {checkoutError}
+                </p>
+              )}
             </div>
 
             <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', lineHeight: 1.6 }}>

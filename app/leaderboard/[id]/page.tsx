@@ -142,7 +142,7 @@ export default function LeaderboardPage() {
           supabaseData.from('attempts').select('*').eq('quiz_id', quizId)
             .order('correct_answers', { ascending: false })
             .order('total_time_ms', { ascending: true })
-            .limit(500),
+            .limit(2000),
         ])
         const err = e1 ?? e2
         if (err) throw err
