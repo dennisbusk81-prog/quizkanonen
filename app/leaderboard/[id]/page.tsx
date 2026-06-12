@@ -20,8 +20,11 @@ const podiumStyles = `
   .podium-rest  { animation: podiumFadeIn 200ms ease-out both; animation-delay: 1400ms; }
 
   @media (min-width: 769px) {
-    .qk-lb-hero-score { font-size: 64px !important; }
-    .qk-lb-card       { padding: 28px 32px !important; }
+    .qk-lb-card        { padding: 28px 32px !important; }
+    .qk-lb-result-wrap { flex-direction: row !important; align-items: center !important; justify-content: space-between !important; text-align: left !important; padding: 16px 24px !important; gap: 20px !important; }
+    .qk-lb-hero-score  { font-size: 36px !important; }
+    .qk-lb-score-label { font-size: 18px !important; }
+    .qk-lb-meta-row    { justify-content: flex-end !important; }
   }
 `
 
@@ -645,11 +648,6 @@ export default function LeaderboardPage() {
             <div style={s.rule} />
           </header>
 
-          {/* TEMP DEBUG — fjernes etter feilsøking */}
-          <p style={{ fontSize: 11, color: '#7a7873', textAlign: 'center', padding: '4px 0' }}>
-            debug: isPremium={String(isPremium)} · isPremiumOverride={String(isPremiumOverride)} · authLoading={String(authLoading)}
-          </p>
-
           {/* Profile bar */}
           {!authLoading && session && (() => {
             const barName =
@@ -681,48 +679,54 @@ export default function LeaderboardPage() {
             const rank = isPremium && userAttempt ? userAttempt.rank : null
             const streak = userAttempt?.correct_streak ?? null
             const scorePct = correctAnswers != null && totalQ != null ? Math.round(correctAnswers / totalQ * 100) : null
+            const hasStats = rank != null || timeMs != null || scorePct != null || (streak != null && streak > 0)
 
             return (
-              <div style={{ background: '#21242e', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '28px 24px', marginBottom: 12, textAlign: 'center' }}>
-                {/* Antall riktige — hero-tall */}
-                {correctAnswers != null && (
-                  <>
-                    <p style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
-                      <span className="qk-lb-hero-score" style={{ fontSize: 52 }}>{correctAnswers}</span>
-                      {totalQ != null && <span style={{ fontSize: 22, color: '#7a7873', fontWeight: 400 }}> av {totalQ}</span>}
-                    </p>
-                    <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontWeight: 600, marginBottom: rank != null ? 16 : 20 }}>riktige svar</p>
-                  </>
-                )}
-                {/* Nøyaktig plassering — kun Premium */}
-                {rank != null && (
-                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 24, fontWeight: 700, color: '#c9a84c', marginBottom: 20, lineHeight: 1.1 }}>
-                    Plass {rank} av {totalCount}
-                  </p>
-                )}
-                {/* Sekundær statistikk */}
-                {(timeMs != null || scorePct != null || (streak != null && streak > 0)) && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 28, flexWrap: 'wrap' as const }}>
-                    {timeMs != null && (
-                      <div>
-                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{formatTime(timeMs)}</p>
-                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
-                      </div>
-                    )}
-                    {scorePct != null && (
-                      <div>
-                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{scorePct}%</p>
-                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
-                      </div>
-                    )}
-                    {streak != null && streak > 0 && (
-                      <div>
-                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{streak}</p>
-                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div style={{ background: '#21242e', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, marginBottom: 12 }}>
+                {/* qk-lb-result-wrap: kolonne på mobil, rad på desktop */}
+                <div className="qk-lb-result-wrap" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
+
+                  {/* Score-seksjon */}
+                  {correctAnswers != null && (
+                    <div>
+                      <p style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 }}>
+                        <span className="qk-lb-hero-score" style={{ fontSize: 52 }}>{correctAnswers}</span>
+                        {totalQ != null && <span className="qk-lb-score-label" style={{ fontSize: 22, color: '#7a7873', fontWeight: 400 }}> av {totalQ}</span>}
+                      </p>
+                      <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontWeight: 600 }}>riktige svar</p>
+                    </div>
+                  )}
+
+                  {/* Meta-rad: plassering + statistikk */}
+                  {hasStats && (
+                    <div className="qk-lb-meta-row" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const, justifyContent: 'center' }}>
+                      {rank != null && (
+                        <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#c9a84c', whiteSpace: 'nowrap' as const }}>
+                          Plass {rank} av {totalCount}
+                        </span>
+                      )}
+                      {timeMs != null && (
+                        <div style={{ textAlign: 'center' as const }}>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{formatTime(timeMs)}</p>
+                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
+                        </div>
+                      )}
+                      {scorePct != null && (
+                        <div style={{ textAlign: 'center' as const }}>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{scorePct}%</p>
+                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
+                        </div>
+                      )}
+                      {streak != null && streak > 0 && (
+                        <div style={{ textAlign: 'center' as const }}>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{streak}</p>
+                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
               </div>
             )
           })()}
