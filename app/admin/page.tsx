@@ -642,22 +642,20 @@ export default function AdminHome() {
           <p className="adm-section-label">Founders-tilbud</p>
 
           {/* Live status */}
-          {foundersCount && (
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 8 }}>
-                {foundersCount.used} av {foundersCount.max} plasser brukt
-              </p>
-              <div style={{ height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(100, (foundersCount.used / foundersCount.max) * 100)}%`,
-                  background: '#c9a84c',
-                  borderRadius: 4,
-                  transition: 'width 0.6s ease',
-                }} />
-              </div>
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 8 }}>
+              {foundersCount ? `${foundersCount.used} av ${foundersCount.max} plasser brukt` : '0 av 250 plasser brukt'}
+            </p>
+            <div style={{ height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', width: '100%', marginTop: 8 }}>
+              <div style={{
+                height: '100%',
+                width: foundersCount ? `${Math.min(100, (foundersCount.used / foundersCount.max) * 100)}%` : '0%',
+                background: '#c9a84c',
+                borderRadius: 4,
+                transition: 'width 0.6s ease',
+              }} />
             </div>
-          )}
+          </div>
 
           {/* Innstillinger */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
@@ -699,7 +697,17 @@ export default function AdminHome() {
             <button
               onClick={saveFoundersSettings}
               disabled={foundersSaving}
-              className="adm-btn-primary"
+              style={{
+                background: 'transparent',
+                border: '1px solid #2a2d38',
+                color: foundersSaving ? '#7a7873' : '#e8e4dd',
+                borderRadius: 10,
+                padding: '8px 20px',
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "'Instrument Sans', sans-serif",
+                cursor: foundersSaving ? 'not-allowed' : 'pointer',
+              }}
             >
               {foundersSaving ? 'Lagrer...' : 'Lagre'}
             </button>
