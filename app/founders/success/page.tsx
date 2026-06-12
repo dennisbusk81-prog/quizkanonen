@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase-server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import Link from 'next/link'
 
 const s = {
@@ -98,7 +99,9 @@ export default async function FoundersSuccessPage() {
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  // Les premium_status med service role — RLS blokkerer kolonnen for
+  // anon/bruker-klienten (gir undefined), så vi bruker supabaseAdmin her.
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('premium_status')
     .eq('id', user.id)
