@@ -392,5 +392,30 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── charge.refunded ───────────────────────────────────────────────────
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge
+    const customerId = charge.customer as string | null
+
+    if (!customerId) {
+      console.error('[webhook] charge.refunded: charge mangler customer', charge.id)
+      return NextResponse.json({ received: true })
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+
+    if (profile) {
+      await supabaseAdmin.from('profiles')
+        .update({ premium_status: false, premium_since: null })
+        .eq('id', profile.id)
+    } else {
+      console.error(`[webhook] charge.refunded: no profile found for customer=${customerId}, charge=${charge.id}`)
+    }
+  }
+
   return NextResponse.json({ received: true })
 }
