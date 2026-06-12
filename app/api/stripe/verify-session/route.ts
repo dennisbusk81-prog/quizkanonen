@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit } from '@/lib/rate-limit'
 
 // Verifiserer en checkout-session direkte mot Stripe så success-siden ikke er
 // avhengig av at webhooken har rukket å sette premium_status i DB.
 export async function GET(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`verify-session:${ip}`, 10, 60_000).success) {
+    return NextResponse.json({ paid: false, error: 'For mange forespørsler' }, { status: 429 })
+  }
 
   const sessionId = request.nextUrl.searchParams.get('session_id')
   if (!sessionId) {
@@ -25,8 +31,9 @@ export async function GET(request: NextRequest) {
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId)
 
-    // Sesjonen må tilhøre den innloggede brukeren
-    if (session.metadata?.userId && session.metadata.userId !== user.id) {
+    // Fail-closed: sesjonen MÅ ha userId i metadata, og den må matche innlogget
+    // bruker. Mangler userId, avviser vi (ingen eierskap kan bekreftes).
+    if (session.metadata?.userId !== user.id) {
       return NextResponse.json({ paid: false }, { status: 403 })
     }
 

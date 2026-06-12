@@ -397,6 +397,11 @@ export async function POST(request: NextRequest) {
     const charge = event.data.object as Stripe.Charge
     const customerId = charge.customer as string | null
 
+    // Kun full refusjon fjerner premium — delvis refusjon endrer ingenting.
+    if (charge.amount_refunded !== charge.amount) {
+      return NextResponse.json({ received: true })
+    }
+
     if (!customerId) {
       console.error('[webhook] charge.refunded: charge mangler customer', charge.id)
       return NextResponse.json({ received: true })
