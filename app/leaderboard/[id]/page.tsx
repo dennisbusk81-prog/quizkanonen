@@ -117,7 +117,8 @@ export default function LeaderboardPage() {
   const [showModal, setShowModal] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null, premium_status: boolean | null } | null>(null)
+  const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null } | null>(null)
+  const [isPremiumOverride, setIsPremiumOverride] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [visibleTeamCount, setVisibleTeamCount] = useState(10)
@@ -220,16 +221,27 @@ export default function LeaderboardPage() {
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {
-      // isPremium baseres KUN på premium_status — ingen subscription_id-sjekk
+      // Hent profildata (display_name, avatar) client-side
       const { data: prof, error: profError } = await supabase
         .from('profiles')
-        .select('display_name, avatar_url, premium_status')
+        .select('display_name, avatar_url')
         .eq('id', sess.user.id)
         .maybeSingle()
       if (profError) console.error('[leaderboard] profile fetch error:', profError.code, profError.message)
       setProfile(prof)
       setDisplayName(prof?.display_name ?? sess.user.email?.split('@')[0] ?? null)
       setAvatarUrl(prof?.avatar_url ?? null)
+
+      // Hent premium-status server-side (service role — omgår RLS)
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${sess.access_token}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          setIsPremiumOverride(premData.isPremium === true)
+        }
+      } catch { /* ikke kritisk — fallback til false */ }
 
       // Hent ligamedlemmer for "Blant venner"-fane
       try {
@@ -384,7 +396,7 @@ export default function LeaderboardPage() {
     setChallengeLoadingId(null)
   }
 
-  const isPremium = profile?.premium_status === true
+  const isPremium = isPremiumOverride
 
   const isOpen = (q: Quiz) => {
     const now = new Date()
@@ -635,7 +647,7 @@ export default function LeaderboardPage() {
 
           {/* TEMP DEBUG — fjernes etter feilsøking */}
           <p style={{ fontSize: 11, color: '#7a7873', textAlign: 'center', padding: '4px 0' }}>
-            debug: isPremium={String(isPremium)} · premium_status={String(profile?.premium_status)} · authLoading={String(authLoading)}
+            debug: isPremium={String(isPremium)} · isPremiumOverride={String(isPremiumOverride)} · authLoading={String(authLoading)}
           </p>
 
           {/* Profile bar */}
