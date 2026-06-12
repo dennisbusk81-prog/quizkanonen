@@ -53,13 +53,12 @@ export default function UserMenu() {
     setProfileLoaded(true)
 
     // Load org admin memberships via API (uses service role — bypasses RLS)
-    if (!token) { console.log('[UserMenu] adminOrgs: no token, skipping'); return }
+    if (!token) return
     try {
       const res = await fetch('/api/org/my-admin-orgs', {
         headers: { Authorization: `Bearer ${token}` },
       })
       const json = res.ok ? await res.json() : { orgs: [] }
-      console.log('[UserMenu] adminOrgs:', json.orgs)
       setAdminOrgs(json.orgs ?? [])
     } catch (err) {
       console.error('[UserMenu] adminOrgs fetch error:', err)
