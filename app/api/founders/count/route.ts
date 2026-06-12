@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET() {
-  // Hent founders-innstillinger fra site_settings
-  const { data: settings } = await supabaseAdmin
+  // Hent founders-innstillinger fra site_settings (key/value-tabell)
+  const { data: rows } = await supabaseAdmin
     .from('site_settings')
-    .select('founders_max_slots, founders_days_free, founders_trial_days')
-    .maybeSingle()
+    .select('key, value')
+    .in('key', ['founders_max_slots', 'founders_days_free', 'founders_trial_days'])
 
-  const maxSlots  = (settings as Record<string, number> | null)?.founders_max_slots  ?? 250
-  const daysFree  = (settings as Record<string, number> | null)?.founders_days_free  ?? 30
-  const trialDays = (settings as Record<string, number> | null)?.founders_trial_days ?? 7
+  const settings = Object.fromEntries(
+    (rows ?? []).map(r => [r.key, parseInt(r.value as string)])
+  )
+  const maxSlots  = settings.founders_max_slots  ?? 250
+  const daysFree  = settings.founders_days_free  ?? 30
+  const trialDays = settings.founders_trial_days ?? 7
 
   // Tell aktive founders/code-brukere — betalende (personal/org) teller ikke med
   const { count } = await supabaseAdmin

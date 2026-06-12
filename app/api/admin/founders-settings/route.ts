@@ -9,15 +9,19 @@ function auth(req: NextRequest) {
 export async function GET(request: NextRequest) {
   if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data } = await supabaseAdmin
+  const { data: rows } = await supabaseAdmin
     .from('site_settings')
-    .select('founders_max_slots, founders_days_free, founders_trial_days')
-    .maybeSingle()
+    .select('key, value')
+    .in('key', ['founders_max_slots', 'founders_days_free', 'founders_trial_days'])
+
+  const settings = Object.fromEntries(
+    (rows ?? []).map(r => [r.key, parseInt(r.value as string)])
+  )
 
   return NextResponse.json({
-    maxSlots:  (data as Record<string, number> | null)?.founders_max_slots  ?? 250,
-    daysFree:  (data as Record<string, number> | null)?.founders_days_free  ?? 30,
-    trialDays: (data as Record<string, number> | null)?.founders_trial_days ?? 7,
+    maxSlots:  settings.founders_max_slots  ?? 250,
+    daysFree:  settings.founders_days_free  ?? 30,
+    trialDays: settings.founders_trial_days ?? 7,
   })
 }
 
@@ -26,10 +30,15 @@ export async function PATCH(request: NextRequest) {
 
   const { founders_max_slots, founders_days_free, founders_trial_days } = await request.json()
 
+  const upserts = [
+    { key: 'founders_max_slots',  value: String(founders_max_slots) },
+    { key: 'founders_days_free',  value: String(founders_days_free) },
+    { key: 'founders_trial_days', value: String(founders_trial_days) },
+  ]
+
   const { error } = await supabaseAdmin
     .from('site_settings')
-    .update({ founders_max_slots, founders_days_free, founders_trial_days })
-    .not('id', 'is', null)
+    .upsert(upserts, { onConflict: 'key' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

@@ -50,15 +50,18 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id)
     }
 
-    // Hent dynamisk prøvetid fra site_settings
-    const { data: settings } = await supabaseAdmin
+    // Hent dynamisk prøvetid fra site_settings (key/value-tabell)
+    const { data: settingsRows } = await supabaseAdmin
       .from('site_settings')
-      .select('founders_max_slots, founders_days_free, founders_trial_days')
-      .maybeSingle()
+      .select('key, value')
+      .in('key', ['founders_max_slots', 'founders_days_free', 'founders_trial_days'])
 
-    const maxSlots  = (settings as Record<string, number> | null)?.founders_max_slots  ?? 250
-    const daysFree  = (settings as Record<string, number> | null)?.founders_days_free  ?? 30
-    const trialDays = (settings as Record<string, number> | null)?.founders_trial_days ?? 7
+    const settingsMap = Object.fromEntries(
+      (settingsRows ?? []).map(r => [r.key, parseInt(r.value as string)])
+    )
+    const maxSlots  = settingsMap.founders_max_slots  ?? 250
+    const daysFree  = settingsMap.founders_days_free  ?? 30
+    const trialDays = settingsMap.founders_trial_days ?? 7
 
     const { count } = await supabaseAdmin
       .from('profiles')
