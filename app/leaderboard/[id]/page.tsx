@@ -633,6 +633,11 @@ export default function LeaderboardPage() {
             <div style={s.rule} />
           </header>
 
+          {/* TEMP DEBUG — fjernes etter feilsøking */}
+          <p style={{ fontSize: 11, color: '#7a7873', textAlign: 'center', padding: '4px 0' }}>
+            debug: isPremium={String(isPremium)} · premium_status={String(profile?.premium_status)} · authLoading={String(authLoading)}
+          </p>
+
           {/* Profile bar */}
           {!authLoading && session && (() => {
             const barName =
