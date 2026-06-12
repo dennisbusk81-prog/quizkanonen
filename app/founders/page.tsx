@@ -205,8 +205,11 @@ export default function FoundersPage() {
   useEffect(() => {
     fetch('/api/founders/count')
       .then(r => r.json())
-      .then(setFoundersData)
-      .catch(() => {/* bruk null — vis fallback-tekst */})
+      .then(data => {
+        console.log('founders count:', data)
+        setFoundersData(data)
+      })
+      .catch(err => console.error('founders count error:', err))
   }, [])
 
   async function runActivate(accessToken: string) {
