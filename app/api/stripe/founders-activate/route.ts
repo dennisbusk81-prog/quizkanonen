@@ -5,9 +5,13 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { foundersWelcomeEmail } from '@/lib/email-templates'
 
-const FOUNDERS_PRICE_ID = 'price_1THoezCgGogWnHxZwrCGAtbb'
+const FOUNDERS_PRICE_ID = process.env.STRIPE_PRICE_FOUNDERS!
 
 export async function POST(request: NextRequest) {
+  if (!FOUNDERS_PRICE_ID) {
+    return NextResponse.json({ error: 'Founders price not configured' }, { status: 500 })
+  }
+
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = rateLimit(`founders-activate:${ip}`, 5, 60_000)
