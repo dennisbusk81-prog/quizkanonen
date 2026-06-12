@@ -3,12 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET() {
   // Hent founders-innstillinger fra site_settings (key/value-tabell)
-  const { data: rows, error: settingsError } = await supabaseAdmin
+  const { data: rows } = await supabaseAdmin
     .from('site_settings')
     .select('key, value')
     .in('key', ['founders_max_slots', 'founders_days_free', 'founders_trial_days'])
-
-  console.log('[founders/count] site_settings rows:', rows, 'error:', settingsError)
 
   const settings = Object.fromEntries(
     (rows ?? []).map(r => [r.key, parseInt(r.value as string)])
@@ -18,13 +16,11 @@ export async function GET() {
   const trialDays = settings.founders_trial_days ?? 7
 
   // Tell aktive founders/code-brukere — betalende (personal/org) teller ikke med
-  const { count, error: countError } = await supabaseAdmin
+  const { count } = await supabaseAdmin
     .from('profiles')
     .select('id', { count: 'exact', head: true })
     .in('premium_source', ['founders', 'code'])
     .eq('premium_status', true)
-
-  console.log('[founders/count] profiles count:', count, 'error:', countError)
 
   const used      = count ?? 0
   const isFull    = used >= maxSlots

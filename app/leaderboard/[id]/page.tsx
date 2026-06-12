@@ -220,12 +220,13 @@ export default function LeaderboardPage() {
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {
-      // FIX 1 — single query; always call setProfile so isPremium is always correct
-      const { data: prof } = await supabase
+      // isPremium baseres KUN på premium_status — ingen subscription_id-sjekk
+      const { data: prof, error: profError } = await supabase
         .from('profiles')
         .select('display_name, avatar_url, premium_status')
         .eq('id', sess.user.id)
-        .single()
+        .maybeSingle()
+      if (profError) console.error('[leaderboard] profile fetch error:', profError.code, profError.message)
       setProfile(prof)
       setDisplayName(prof?.display_name ?? sess.user.email?.split('@')[0] ?? null)
       setAvatarUrl(prof?.avatar_url ?? null)
