@@ -13,7 +13,7 @@ const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #1a1c23; font-family: 'Instrument Sans', sans-serif; color: #e8e4dd; min-height: 100vh; }
 
-  .oa-page { max-width: 720px; margin: 0 auto; padding: 0 20px 80px; }
+  .oa-page { max-width: 900px; margin: 0 auto; padding: 0 20px 80px; }
 
   /* ── Section label ── */
   .oa-sec { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
@@ -900,7 +900,7 @@ export default function OrgAdminPage() {
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid #2a2d38',
       }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href={`/org/${slug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
             ← Tilbake
           </Link>

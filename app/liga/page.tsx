@@ -21,7 +21,7 @@ type League = {
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
+  page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
@@ -159,7 +159,7 @@ export default function MineLigaerPage() {
     <>
       <style>{FONT_IMPORT}</style>
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(26,28,35,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid #2a2d38' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <a href="/" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>Quiz<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>kanonen</em></a>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><NavAuth /></div>
         </div>

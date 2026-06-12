@@ -106,7 +106,7 @@ export default function OrgLeaderboardPage() {
 
       {/* Sticky nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(26,28,35,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid #2a2d38' }}>
-        <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
             ← Hjem
           </Link>
@@ -119,7 +119,7 @@ export default function OrgLeaderboardPage() {
       </nav>
 
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' }}>
 
           {/* Hero */}
           <div style={{ padding: '24px 0 12px', textAlign: 'center' as const }}>

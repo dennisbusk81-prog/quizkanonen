@@ -32,7 +32,7 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd', flexGrow: 1 },
-  page:     { maxWidth: 640, margin: '0 auto', padding: '0 20px 60px' },
+  page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
