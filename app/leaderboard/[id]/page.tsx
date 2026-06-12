@@ -92,7 +92,7 @@ const s = {
 type BadgeKind = 'krone' | 'pil' | 'flamme' | 'lyn' | 'medalje'
 
 function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
-  const bg = badge === 'krone' ? '#c9a84c' : badge === 'pil' ? '#3B6D11' : badge === 'flamme' ? '#E24B4A' : badge === 'lyn' ? '#7ABFFF' : '#639922'
+  const bg = '#c9a84c'
   const iconSize = Math.round(size * 0.65)
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -410,9 +410,7 @@ export default function LeaderboardPage() {
     </div>
   )
 
-  const hasPlayed = !!savedResult
-  // Only lift the hide for Premium users who have played — free users still get placement card treatment
-  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !(isPremium && hasPlayed)
+  // Beregn attempts og brukerens rad FØR hasPlayed/isHidden — hasPlayed trenger userAttempt
   const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
   const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
@@ -427,6 +425,12 @@ export default function LeaderboardPage() {
     ? teamAttempts.find(a => a.user_id === currentUserId) ?? null
     : displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null
   const userAttempt = userSoloAttempt ?? userTeamAttempt
+
+  // hasPlayed: sjekk BÅDE localStorage (savedResult) OG at forsøket finnes i leaderboard-data
+  // Dette håndterer tilfellet der bruker spilte på annen enhet (savedResult = null)
+  const hasPlayed = !!savedResult || !!userAttempt
+  // Only lift the hide for Premium users who have played — free users still get placement card treatment
+  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !(isPremium && hasPlayed)
 
   function handleGoToMyPlacement() {
     if (!userAttempt) return
@@ -772,7 +776,9 @@ export default function LeaderboardPage() {
           })()}
 
           {isHidden ? (
-            hasPlayed ? null : (
+            // Vis ingenting mens auth loader (forhindrer at premium-bruker ser låse-skjerm)
+            // Vis låse-skjerm kun når vi vet sikkert at bruker ikke har spilt
+            (!authLoading && !hasPlayed) ? (
               <div style={s.empty}>
                 <div style={{ ...s.emptyIcon, fontSize: undefined }}>
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
@@ -787,7 +793,7 @@ export default function LeaderboardPage() {
                 </p>
                 <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
               </div>
-            )
+            ) : null
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>

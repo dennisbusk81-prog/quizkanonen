@@ -195,7 +195,7 @@ function assignBadges(entries: Entry[]): Map<string, BadgeKind> {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
-  const bg = badge === 'krone' ? '#c9a84c' : badge === 'flamme' ? '#E24B4A' : badge === 'lyn' ? '#7ABFFF' : '#639922'
+  const bg = '#c9a84c'
   const iconSize = Math.round(size * 0.65)
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
