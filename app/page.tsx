@@ -70,7 +70,7 @@ const SHARED_CSS = `
   }
 
   .qk-page {
-    max-width: 720px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 0 20px 80px;
   }
@@ -738,6 +738,14 @@ const SHARED_CSS = `
 
   @media (max-width: 600px) {
     .qk-interlude-cards { flex-direction: column; }
+  }
+
+  /* ── Desktop ── */
+  @media (min-width: 769px) {
+    .qk-hero-title    { font-size: 52px; }
+    .qk-hero-subtitle { font-size: 18px; }
+    .qk-card          { padding: 32px; }
+    .qk-biz-inner     { padding: 32px; }
   }
 `
 

@@ -52,7 +52,7 @@ const styles = `
     padding: 24px 20px;
   }
 
-  .qk-box { width: 100%; max-width: 480px; }
+  .qk-box { width: 100%; max-width: 680px; }
 
   .qk-panel {
     background: var(--card);
@@ -646,6 +646,12 @@ const styles = `
     color: #c9a84c;
     text-shadow: 0 0 30px rgba(201,168,76,0.6);
     white-space: nowrap;
+  }
+
+  /* ── Desktop ── */
+  @media (min-width: 769px) {
+    .qk-panel          { padding: 44px 40px; }
+    .qk-question-text  { font-size: 20px; }
   }
 `
 

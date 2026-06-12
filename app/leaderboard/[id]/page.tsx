@@ -18,11 +18,16 @@ const podiumStyles = `
   .podium-row-1 { animation: podiumSlideIn 300ms ease-out both; animation-delay: 1000ms; }
   @keyframes podiumFadeIn { from { opacity: 0; } to { opacity: 1; } }
   .podium-rest  { animation: podiumFadeIn 200ms ease-out both; animation-delay: 1400ms; }
+
+  @media (min-width: 769px) {
+    .qk-lb-hero-score { font-size: 64px !important; }
+    .qk-lb-card       { padding: 28px 32px !important; }
+  }
 `
 
 const s = {
   wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:         { maxWidth: 640, margin: '0 auto', padding: '0 20px 80px' },
+  page:         { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
@@ -642,6 +647,60 @@ export default function LeaderboardPage() {
                   <p style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>Innlogget</p>
                 </div>
                 <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
+              </div>
+            )
+          })()}
+
+          {/* Hero result card — vises når bruker har spilt */}
+          {(hasPlayed || userAttempt) && (() => {
+            const correctAnswers = userAttempt?.correct_answers ?? savedResult?.correct_answers ?? null
+            const totalQ = userAttempt?.total_questions ?? null
+            const timeMs = userAttempt?.total_time_ms ?? savedResult?.total_time_ms ?? null
+            const rank = isPremium && userAttempt ? userAttempt.rank : null
+            const streak = userAttempt?.correct_streak ?? null
+            const scorePct = correctAnswers != null && totalQ != null ? Math.round(correctAnswers / totalQ * 100) : null
+
+            return (
+              <div style={{ background: '#21242e', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '28px 24px', marginBottom: 12, textAlign: 'center' }}>
+                {/* Antall riktige — hero-tall */}
+                {correctAnswers != null && (
+                  <>
+                    <p style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
+                      <span className="qk-lb-hero-score" style={{ fontSize: 52 }}>{correctAnswers}</span>
+                      {totalQ != null && <span style={{ fontSize: 22, color: '#7a7873', fontWeight: 400 }}> av {totalQ}</span>}
+                    </p>
+                    <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontWeight: 600, marginBottom: rank != null ? 16 : 20 }}>riktige svar</p>
+                  </>
+                )}
+                {/* Nøyaktig plassering — kun Premium */}
+                {rank != null && (
+                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 24, fontWeight: 700, color: '#c9a84c', marginBottom: 20, lineHeight: 1.1 }}>
+                    Plass {rank} av {totalCount}
+                  </p>
+                )}
+                {/* Sekundær statistikk */}
+                {(timeMs != null || scorePct != null || (streak != null && streak > 0)) && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 28, flexWrap: 'wrap' as const }}>
+                    {timeMs != null && (
+                      <div>
+                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{formatTime(timeMs)}</p>
+                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
+                      </div>
+                    )}
+                    {scorePct != null && (
+                      <div>
+                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{scorePct}%</p>
+                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
+                      </div>
+                    )}
+                    {streak != null && streak > 0 && (
+                      <div>
+                        <p style={{ fontSize: 17, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{streak}</p>
+                        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })()}
