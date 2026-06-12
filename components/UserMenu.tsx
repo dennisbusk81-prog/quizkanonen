@@ -26,18 +26,33 @@ export default function UserMenu() {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('display_name, premium_status')
+        .select('display_name')
         .eq('id', userId)
         .maybeSingle()
       setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
-      setIsPremium(data?.premium_status === true)
     } catch {
       // keep email fallback already set
     }
+
+    // Token resolution (needed for both premium check and adminOrgs)
+    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
+
+    // Premium: hent server-side for å omgå RLS
+    if (token) {
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          setIsPremium(premData.isPremium === true)
+        }
+      } catch { /* fallback: not premium */ }
+    }
+
     setProfileLoaded(true)
 
     // Load org admin memberships via API (uses service role — bypasses RLS)
-    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
     if (!token) { console.log('[UserMenu] adminOrgs: no token, skipping'); return }
     try {
       const res = await fetch('/api/org/my-admin-orgs', {

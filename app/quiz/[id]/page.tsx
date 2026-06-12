@@ -735,12 +735,22 @@ export default function QuizPage() {
       setLoggedInUserId(session.user.id)
       const { data: prof } = await supabaseData
         .from('profiles')
-        .select('display_name, age_confirmed_at, premium_status')
+        .select('display_name, age_confirmed_at')
         .eq('id', session.user.id)
         .maybeSingle()
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-      const isP = prof?.premium_status === true
+      // Premium: hent server-side for å omgå RLS
+      let isP = false
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          isP = premData.isPremium === true
+        }
+      } catch { /* fallback: not premium */ }
       setIsPremium(isP)
       // Hent founders-data for CTA — cache 5 min i sessionStorage
       if (!isP) {

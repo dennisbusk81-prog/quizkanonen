@@ -98,15 +98,24 @@ export default function ProfilPage() {
       if (!session?.user) return
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, email_reminders, premium_status')
+        .select('display_name, email_reminders')
         .eq('id', session.user.id)
         .single()
       if (profile) {
         setDisplayName(profile.display_name ?? '')
         setEditName(profile.display_name ?? '')
         setEmailReminders(profile.email_reminders ?? false)
-        setIsPremium(profile.premium_status === true)
       }
+      // Premium: hent server-side for å omgå RLS
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          setIsPremium(premData.isPremium === true)
+        }
+      } catch { /* fallback: not premium */ }
     })
   }, [])
 
@@ -140,7 +149,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, premium_status, member_number, show_member_number, email_reminders, created_at')
+          .select('display_name, member_number, show_member_number, email_reminders, created_at')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -151,7 +160,7 @@ export default function ProfilPage() {
       if (cancelled) return
 
       const profile = (profileRes as { data: unknown }).data as {
-        display_name: string | null; premium_status: boolean | null;
+        display_name: string | null;
         member_number: number | null; show_member_number: boolean | null;
         email_reminders: boolean | null; created_at: string | null;
       } | null
@@ -159,7 +168,18 @@ export default function ProfilPage() {
       const name = profile?.display_name ?? ''
       setDisplayName(name)
       setEditName(name)
-      const premium = profile?.premium_status === true
+
+      // Premium: hent server-side for å omgå RLS
+      let premium = false
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          premium = premData.isPremium === true
+        }
+      } catch { /* fallback: not premium */ }
       setIsPremium(premium)
       setAvatarUrl(avatarUrlFromMeta)
       setMemberNumber(profile?.member_number ?? null)

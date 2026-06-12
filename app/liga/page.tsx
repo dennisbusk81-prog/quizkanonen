@@ -96,14 +96,17 @@ export default function MineLigaerPage() {
 
       setAccessToken(session.access_token)
 
-      const [profileRes, leaguesRes] = await Promise.all([
-        supabase.from('profiles').select('premium_status').eq('id', session.user.id).maybeSingle(),
+      const [premRes, leaguesRes] = await Promise.all([
+        fetch('/api/profile/premium-status', { headers: { Authorization: `Bearer ${session.access_token}` } }),
         fetch('/api/leagues', { headers: { Authorization: `Bearer ${session.access_token}` } }),
       ])
 
       if (cancelled) return
 
-      setIsPremium(profileRes.data?.premium_status === true)
+      if (premRes.ok) {
+        const premData = await premRes.json()
+        setIsPremium(premData.isPremium === true)
+      }
 
       if (!leaguesRes.ok) { setLoadState('error'); return }
       const json = await leaguesRes.json()

@@ -34,18 +34,28 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  async function loadProfile(userId: string, fallbackEmail: string | undefined) {
+  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('display_name, premium_status')
+        .select('display_name')
         .eq('id', userId)
         .maybeSingle()
       setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
-      setIsPremium(data?.premium_status === true)
     } catch { /* keep fallback */ }
+    // Premium: hent server-side for å omgå RLS
+    if (accessToken) {
+      try {
+        const premRes = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (premRes.ok) {
+          const premData = await premRes.json()
+          setIsPremium(premData.isPremium === true)
+        }
+      } catch { /* fallback: not premium */ }
+    }
     setProfileLoaded(true)
-
   }
 
   async function fetchMyOrgs(accessToken: string) {
@@ -69,7 +79,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         if (session?.user) {
           setIsLoggedIn(true)
           setDisplayName(session.user.email?.split('@')[0] ?? null)
-          loadProfile(session.user.id, session.user.email)
+          loadProfile(session.user.id, session.user.email, session.access_token)
           if (session.access_token) fetchMyOrgs(session.access_token)
         } else {
           setIsLoggedIn(false)
@@ -79,7 +89,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       } else if (event === 'SIGNED_IN') {
         if (session?.user) {
           setIsLoggedIn(true)
-          loadProfile(session.user.id, session.user.email)
+          loadProfile(session.user.id, session.user.email, session.access_token)
           if (session.access_token) fetchMyOrgs(session.access_token)
         }
       } else if (event === 'SIGNED_OUT') {

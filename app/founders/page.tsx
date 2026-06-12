@@ -248,12 +248,14 @@ export default function FoundersPage() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (s?.user) {
-        supabase
-          .from('profiles')
-          .select('premium_status')
-          .eq('id', s.user.id)
-          .maybeSingle()
-          .then(({ data }) => setIsPremium(data?.premium_status === true))
+        if (s.access_token) {
+          fetch('/api/profile/premium-status', {
+            headers: { Authorization: `Bearer ${s.access_token}` },
+          })
+            .then(r => r.ok ? r.json() : { isPremium: false })
+            .then(data => setIsPremium(data.isPremium === true))
+            .catch(() => { /* fallback: not premium */ })
+        }
         if (event === 'SIGNED_IN') {
           const pending = localStorage.getItem('qk_pending_action')
           if (pending === 'founders_checkout' && s.access_token) {
