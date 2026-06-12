@@ -85,6 +85,13 @@ const s = {
     textDecorationColor: 'rgba(232,228,221,0.3)',
     textUnderlineOffset: 3,
   },
+  footer: {
+    marginTop: 24,
+    textAlign: 'center' as const,
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: '#7a7873',
+  },
 }
 
 export default function OmPage() {
@@ -158,6 +165,10 @@ export default function OmPage() {
           </p>
 
         </div>
+
+        <footer style={s.footer}>
+          Busk Media · Org.nr. 937 880 987
+        </footer>
       </div>
     </div>
   )
