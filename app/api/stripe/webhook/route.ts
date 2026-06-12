@@ -133,12 +133,19 @@ export async function POST(request: NextRequest) {
       const userId = session.metadata?.userId
       if (!userId) return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
 
-      await supabaseAdmin.from('profiles').update({
+      // Bruk upsert — oppretter profiles-rad hvis den mangler (f.eks. bruker betalte
+      // før navn-modal ble fullført), ellers oppdaterer eksisterende rad som normalt.
+      const { error: profileUpsertError } = await supabaseAdmin.from('profiles').upsert({
+        id: userId,
         premium_status: true,
         premium_since: new Date().toISOString(),
         stripe_customer_id: session.customer as string ?? null,
         premium_source: 'personal',
-      }).eq('id', userId)
+      }, { onConflict: 'id' })
+
+      if (profileUpsertError) {
+        console.error('[webhook] checkout: profiles upsert feilet for userId', userId, profileUpsertError.code, profileUpsertError.message)
+      }
 
       // Send kjøpsbekreftelse — fire-and-forget
       supabaseAdmin.auth.admin.getUserById(userId)
