@@ -211,6 +211,7 @@ export default function LeaderboardPage() {
   }, [quizId])
 
   const loadSession = useCallback(async () => {
+    setAuthLoading(true)
     const sess = await getSession()
     setSession(sess)
     if (sess?.user) {

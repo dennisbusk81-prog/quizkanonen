@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 function avatarColor(seed: string): string {
-  const palette = ['#c9a84c', '#4caf7d', '#4c94c9', '#af4cc9', '#c94c7d']
+  const palette = ['#c9a84c', '#4ade80', '#4c94c9', '#c9a84c', '#4ade80']
   let h = 0
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return palette[h % palette.length]

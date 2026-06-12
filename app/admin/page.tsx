@@ -532,7 +532,7 @@ export default function AdminHome() {
 
         {/* Stats */}
         <div className="adm-stats">
-          <Link href="/admin/quizzes" className="adm-stat">
+          <Link href="/admin/users" className="adm-stat">
             <div className="adm-stat-value">{stats.players}</div>
             <div className="adm-stat-label">Registrerte spillere</div>
             <div className="adm-stat-link">Se mer →</div>
