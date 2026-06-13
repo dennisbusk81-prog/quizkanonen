@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const { data: candidates, error: profilesError } = await supabaseAdmin
     .from('profiles')
     .select('id, display_name')
-    .eq('email_reminders', true)
+    .eq('email_reengagement', true)
     .is('re_engagement_sent_at', null)
     .lt('last_seen_at', cutoff)
 

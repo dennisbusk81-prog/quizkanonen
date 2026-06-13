@@ -71,7 +71,10 @@ export default function ProfilPage() {
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
   const [memberSince, setMemberSince] = useState<string | null>(null)
   const [showMemberNumber, setShowMemberNumber] = useState(false)
-  const [emailReminders, setEmailReminders] = useState(false)
+  const [emailReminders, setEmailReminders] = useState(true)
+  const [emailReengagement, setEmailReengagement] = useState(true)
+  const [emailDuelNotifications, setEmailDuelNotifications] = useState(true)
+  const [prefSavedKey, setPrefSavedKey] = useState<string | null>(null)
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [orgs, setOrgs] = useState<OrgEntry[]>([])
   const [saving, setSaving] = useState(false)
@@ -100,13 +103,15 @@ export default function ProfilPage() {
       if (!session?.user) return
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, email_reminders')
+        .select('display_name, email_reminders, email_reengagement, email_duel_notifications')
         .eq('id', session.user.id)
         .single()
       if (profile) {
         setDisplayName(profile.display_name ?? '')
         setEditName(profile.display_name ?? '')
-        setEmailReminders(profile.email_reminders ?? false)
+        setEmailReminders(profile.email_reminders ?? true)
+        setEmailReengagement(profile.email_reengagement ?? true)
+        setEmailDuelNotifications(profile.email_duel_notifications ?? true)
       }
       // Premium: hent server-side for å omgå RLS
       try {
@@ -151,7 +156,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, member_number, show_member_number, email_reminders, created_at')
+          .select('display_name, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -164,7 +169,8 @@ export default function ProfilPage() {
       const profile = (profileRes as { data: unknown }).data as {
         display_name: string | null;
         member_number: number | null; show_member_number: boolean | null;
-        email_reminders: boolean | null; created_at: string | null;
+        email_reminders: boolean | null; email_reengagement: boolean | null;
+        email_duel_notifications: boolean | null; created_at: string | null;
       } | null
 
       const name = profile?.display_name ?? ''
@@ -186,7 +192,9 @@ export default function ProfilPage() {
       setAvatarUrl(avatarUrlFromMeta)
       setMemberNumber(profile?.member_number ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
-      setEmailReminders(profile?.email_reminders ?? false)
+      setEmailReminders(profile?.email_reminders ?? true)
+      setEmailReengagement(profile?.email_reengagement ?? true)
+      setEmailDuelNotifications(profile?.email_duel_notifications ?? true)
       if (profile?.created_at) {
         const d = new Date(profile.created_at)
         const day = d.getDate()
@@ -282,21 +290,38 @@ export default function ProfilPage() {
     }
   }
 
-  async function handleToggleEmailReminders() {
-    if (!userId) return
-    const next = !emailReminders
-    setEmailReminders(next)
+  async function savePref(patch: Record<string, boolean>, key: string) {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      await fetch('/api/profile/upsert', {
-        method: 'POST',
+      await fetch('/api/profile/preferences', {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ id: userId, display_name: displayName, email_reminders: next }),
+        body: JSON.stringify(patch),
       })
+      setPrefSavedKey(key)
+      setTimeout(() => setPrefSavedKey(null), 2000)
     } catch { /* silent — optimistic update already applied */ }
+  }
+
+  function handleToggleEmailReminders() {
+    const next = !emailReminders
+    setEmailReminders(next)
+    savePref({ email_reminders: next }, 'reminders')
+  }
+
+  function handleToggleEmailReengagement() {
+    const next = !emailReengagement
+    setEmailReengagement(next)
+    savePref({ email_reengagement: next }, 'reengagement')
+  }
+
+  function handleToggleEmailDuelNotifications() {
+    const next = !emailDuelNotifications
+    setEmailDuelNotifications(next)
+    savePref({ email_duel_notifications: next }, 'duel')
   }
 
   async function handleRedeemCode() {
@@ -497,36 +522,6 @@ export default function ProfilPage() {
                 </label>
               )}
 
-              <div style={s.cardDivider} />
-
-              <p style={s.sectionLabel}>Påminnelser</p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <span style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.4 }}>
-                  Send meg e-post når quizen åpner
-                </span>
-                <div
-                  role="switch"
-                  aria-checked={emailReminders}
-                  onClick={handleToggleEmailReminders}
-                  style={{
-                    width: 42, height: 24, borderRadius: 12,
-                    background: emailReminders ? '#c9a84c' : '#2a2d38',
-                    position: 'relative', cursor: 'pointer', flexShrink: 0,
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  <div style={{
-                    position: 'absolute', top: 4,
-                    left: emailReminders ? 22 : 4,
-                    width: 16, height: 16, borderRadius: '50%',
-                    background: emailReminders ? '#1a1c23' : '#7a7873',
-                    transition: 'left 0.15s',
-                  }} />
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
-                Du får e-post fredag morgen når ukens quiz er klar
-              </p>
             </div>
 
             {/* Din bedrift — kun hvis org-medlem */}
@@ -587,6 +582,68 @@ export default function ProfilPage() {
             ) : (
               <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
             )}
+          </div>
+
+          {/* E-postvarsler */}
+          <div style={{ ...s.card, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ ...s.sectionLabel, marginBottom: 0 }}>E-postvarsler</p>
+              {prefSavedKey && (
+                <span style={{ fontSize: 12, color: '#4ade80' }}>Lagret</span>
+              )}
+            </div>
+            {([
+              {
+                key: 'reminders',
+                title: 'Fredagspåminnelse',
+                desc: 'Få e-post når ukens quiz er klar',
+                value: emailReminders,
+                toggle: handleToggleEmailReminders,
+              },
+              {
+                key: 'reengagement',
+                title: 'Aktivitetspåminnelse',
+                desc: 'Få e-post hvis du ikke har spilt på to uker',
+                value: emailReengagement,
+                toggle: handleToggleEmailReengagement,
+              },
+              {
+                key: 'duel',
+                title: 'Duell-utfordringer',
+                desc: 'Få e-post når noen utfordrer deg til duell',
+                value: emailDuelNotifications,
+                toggle: handleToggleEmailDuelNotifications,
+              },
+            ] as { key: string; title: string; desc: string; value: boolean; toggle: () => void }[]).map((item, i) => (
+              <div key={item.key}>
+                {i > 0 && <div style={s.cardDivider} />}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>{item.title}</p>
+                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>{item.desc}</p>
+                  </div>
+                  <div
+                    role="switch"
+                    aria-checked={item.value}
+                    onClick={item.toggle}
+                    style={{
+                      width: 42, height: 24, borderRadius: 12,
+                      background: item.value ? '#c9a84c' : '#2a2d38',
+                      position: 'relative', cursor: 'pointer', flexShrink: 0,
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 4,
+                      left: item.value ? 22 : 4,
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: item.value ? '#1a1c23' : '#7a7873',
+                      transition: 'left 0.15s',
+                    }} />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Abonnement — kun for Premium-brukere */}

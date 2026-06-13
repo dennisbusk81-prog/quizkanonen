@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   // Target must be Premium — also fetch display_name for error message (Fix 2)
   const { data: rivalProfile } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, display_name')
+    .select('premium_status, display_name, email_duel_notifications')
     .eq('id', rivalId)
     .single()
 
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     const challengerName = challengerProfile
       ? (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
       : user.email ?? 'En spiller'
-    if (rivalUser?.email) {
+    if (rivalUser?.email && rivalProfile?.email_duel_notifications !== false) {
       await sendEmail({
         to: rivalUser.email,
         subject: `${challengerName} utfordrer deg til en duell!`,
