@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
+import SkeletonCard from '@/components/SkeletonCard'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -771,7 +772,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     return (
       <>
         <style>{FONT_IMPORT + EXTRA_STYLES}</style>
-        <div style={s.spinWrap}><p style={s.spinner}>Laster toppliste…</p></div>
+        <SkeletonCard rows={8} showHeader style={{ marginTop: 16 }} />
       </>
     )
   }

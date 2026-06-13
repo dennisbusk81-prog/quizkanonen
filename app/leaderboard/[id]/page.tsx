@@ -6,6 +6,7 @@ import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
+import SkeletonCard from '@/components/SkeletonCard'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -141,6 +142,7 @@ export default function LeaderboardPage() {
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
+  const [challengeCopied, setChallengeCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -424,7 +426,12 @@ export default function LeaderboardPage() {
   }
 
   if (loading) return (
-    <div style={s.centered}><p style={s.centeredText}>Laster leaderboard...</p></div>
+    <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <SkeletonCard rows={2} showHeader style={{ height: 110 }} />
+        <SkeletonCard rows={10} showHeader />
+      </div>
+    </div>
   )
 
   if (!quiz) return (
@@ -765,8 +772,21 @@ export default function LeaderboardPage() {
               }
             }
 
+            const challengeUrl = `https://www.quizkanonen.no/utfordring?fra=${encodeURIComponent(displayName ?? 'En spiller')}&quiz=${quiz?.id ?? ''}`
+            const challengeText = `${displayName ?? 'En spiller'} utfordrer deg på ukens Quizkanonen! Kan du slå meg? 🎯`
+
+            async function handleChallenge() {
+              if (navigator.share) {
+                await navigator.share({ text: challengeText, url: challengeUrl }).catch(() => {/* avbrutt */})
+              } else {
+                await navigator.clipboard.writeText(`${challengeText}\n${challengeUrl}`).catch(() => {})
+                setChallengeCopied(true)
+                setTimeout(() => setChallengeCopied(false), 2500)
+              }
+            }
+
             return (
-              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ textAlign: 'center', marginBottom: 12, display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={handleShare}
                   style={{
@@ -783,6 +803,23 @@ export default function LeaderboardPage() {
                   }}
                 >
                   {shareCopied ? 'Kopiert!' : 'Del resultatet ditt'}
+                </button>
+                <button
+                  onClick={handleChallenge}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #2a2d38',
+                    color: challengeCopied ? '#4ade80' : '#e8e4dd',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: '10px 24px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {challengeCopied ? 'Lenke kopiert!' : 'Utfordre en venn'}
                 </button>
               </div>
             )

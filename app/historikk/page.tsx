@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
+import SkeletonCard from '@/components/SkeletonCard'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -451,7 +452,12 @@ export default function HistorikkPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}><p style={s.spinner}>Laster historikk…</p></div>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
+          <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <SkeletonCard rows={3} showHeader={false} style={{ height: 120 }} />
+            <SkeletonCard rows={8} showHeader />
+          </div>
+        </div>
       </>
     )
   }

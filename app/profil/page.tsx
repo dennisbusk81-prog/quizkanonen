@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { PlayerStats } from '@/lib/history'
+import SkeletonCard from '@/components/SkeletonCard'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -426,7 +427,13 @@ export default function ProfilPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}><p style={s.spinner}>Laster profil…</p></div>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
+          <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <SkeletonCard rows={4} showHeader />
+            <SkeletonCard rows={3} showHeader />
+            <SkeletonCard rows={5} showHeader />
+          </div>
+        </div>
       </>
     )
   }

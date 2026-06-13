@@ -691,6 +691,7 @@ export default function QuizPage() {
   const [isPremium, setIsPremium] = useState(false)
   const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
+  const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [nameConflict, setNameConflict] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
@@ -1879,6 +1880,11 @@ export default function QuizPage() {
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
           <div key={questionKey} className="qk-question-card qk-animate-in">
+            {question?.category && (
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 8 }}>
+                {question.category}
+              </p>
+            )}
             <p className="qk-question-text">{question?.question_text}</p>
           </div>
 
@@ -2136,6 +2142,28 @@ export default function QuizPage() {
           fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
         }}>
           {shareResultCopied ? 'Kopiert!' : 'Del resultatet →'}
+        </button>
+
+        <button onClick={async () => {
+          const name = playerInfo.name
+          const challengeUrl = `https://www.quizkanonen.no/utfordring?fra=${encodeURIComponent(name)}&quiz=${quizId}`
+          const challengeText = `${name} utfordrer deg på ukens Quizkanonen! Kan du slå meg? 🎯`
+          const shareData = { title: 'Quizkanonen', text: challengeText, url: challengeUrl }
+          if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData).catch(() => {})
+          } else {
+            navigator.clipboard.writeText(`${challengeText}\n${challengeUrl}`).then(() => {
+              setChallengeResultCopied(true)
+              setTimeout(() => setChallengeResultCopied(false), 2500)
+            }).catch(() => {})
+          }
+        }} style={{
+          width:'100%',background:'transparent',border:'0.5px solid #2a2d38',
+          borderRadius:10,padding:'8px 20px',fontSize:14,color: challengeResultCopied ? '#4ade80' : '#e8e4dd',
+          fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
+          transition: 'color 0.15s',
+        }}>
+          {challengeResultCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
         </button>
 
         {isLoggedIn && (
