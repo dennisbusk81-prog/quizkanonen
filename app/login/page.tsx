@@ -201,11 +201,17 @@ const STYLES = `
   .login-back:hover { color: #ffffff; }
 `
 
+function isInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /FBAN|FBAV|Instagram|Snapchat|TikTok|Twitter|LinkedIn|WhatsApp/i.test(navigator.userAgent)
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
+  const inApp = typeof window !== 'undefined' && isInAppBrowser()
 
   const handleSend = async () => {
     if (!email.trim()) return
@@ -240,6 +246,35 @@ export default function LoginPage() {
           <h1 className="login-title">Logg <em>inn</em></h1>
           <p className="login-sub">Ingen passord — vi sender deg en innloggingslenke</p>
           <div className="login-rule" />
+
+          {inApp && (
+            <div style={{
+              background: '#2a1a0a',
+              border: '1px solid #c9a84c',
+              borderRadius: 12,
+              padding: '16px 20px',
+              marginBottom: 20,
+            }}>
+              <p style={{
+                fontFamily: "'Libre Baskerville', serif",
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#ffffff',
+                marginBottom: 6,
+              }}>
+                Åpne i Safari eller Chrome
+              </p>
+              <p style={{
+                fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 13,
+                color: '#e8e4dd',
+                lineHeight: 1.6,
+                margin: 0,
+              }}>
+                Det ser ut til at du bruker en nettleser inne i en app. Google-innlogging fungerer ikke her. Åpne quizkanonen.no i Safari eller Chrome for å logge inn.
+              </p>
+            </div>
+          )}
 
           <button
             className="login-google-btn"
