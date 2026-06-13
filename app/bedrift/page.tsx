@@ -74,6 +74,8 @@ const STYLES = `
   .td-yes { color: var(--gold); font-size: 14px; }
   .td-no { color: var(--border); font-size: 14px; }
   .col-featured { background: var(--gold-dim); }
+  .col-soon { opacity: 0.5; }
+  .th-soon-label { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-top: 4px; }
 
   @media (max-width: 640px) {
     .table-wrap { display: none; }
@@ -226,8 +228,8 @@ export default function BedriftPage() {
                 <th>Funksjon</th>
                 <th>Starter</th>
                 <th className="col-featured">Standard</th>
-                <th>Pro</th>
-                <th>Enterprise</th>
+                <th className="col-soon">Pro<span className="th-soon-label">Kommer snart</span></th>
+                <th className="col-soon">Enterprise<span className="th-soon-label">Kommer snart</span></th>
               </tr>
             </thead>
             <tbody>
@@ -235,64 +237,64 @@ export default function BedriftPage() {
                 <td>Fredagsquiz</td>
                 <td className="td-yes">✓</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes">✓</td>
-                <td className="td-yes">✓</td>
+                <td className="td-yes col-soon">✓</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Quizer per uke</td>
                 <td>1</td>
                 <td className="col-featured td-gold">3</td>
-                <td className="td-gold">5+</td>
-                <td className="td-gold">Valgfritt</td>
+                <td className="td-gold col-soon">5+</td>
+                <td className="td-gold col-soon">Valgfritt</td>
               </tr>
               <tr>
                 <td>Daglig miniquiz (man–tors)</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-yes">✓</td>
-                <td className="td-yes">✓</td>
+                <td className="td-yes col-soon">✓</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Bedrifts-leaderboard</td>
                 <td className="td-yes">✓</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes">✓</td>
-                <td className="td-yes">✓</td>
+                <td className="td-yes col-soon">✓</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Maks antall ansatte</td>
                 <td>25</td>
                 <td className="col-featured">50</td>
-                <td>100</td>
-                <td className="td-gold">Ubegrenset</td>
+                <td className="col-soon">100</td>
+                <td className="td-gold col-soon">Ubegrenset</td>
               </tr>
               <tr>
                 <td>Ukentlig statistikk-rapport</td>
                 <td className="td-no">—</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes">✓</td>
-                <td className="td-yes">✓</td>
+                <td className="td-yes col-soon">✓</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Egne quizer</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-gold">Kommer</td>
-                <td className="td-yes">✓</td>
+                <td className="td-gold col-soon">Kommer</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Faktura</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-no">—</td>
-                <td className="td-yes">✓</td>
+                <td className="td-no col-soon">—</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Pris per mnd</td>
                 <td>499 kr</td>
                 <td className="col-featured td-gold">899 kr</td>
-                <td>1 499 kr</td>
-                <td>Fra 2 499 kr</td>
+                <td className="col-soon">1 499 kr</td>
+                <td className="col-soon">Fra 2 499 kr</td>
               </tr>
             </tbody>
           </table>
