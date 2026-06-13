@@ -95,10 +95,13 @@ export default function ProfilPage() {
   const [pushLoading, setPushLoading] = useState(false)
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'PushManager' in window && 'Notification' in window) {
-      setPushSupported(true)
-      setPushEnabled(Notification.permission === 'granted')
-    }
+    if (typeof window === 'undefined' || !('PushManager' in window) || !('Notification' in window)) return
+    setPushSupported(true)
+    if (Notification.permission !== 'granted') return
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => { setPushEnabled(!!sub) })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
