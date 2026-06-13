@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
+function isFullName(name: string): boolean {
+  return name.includes(' ') || name.includes('-')
+}
 
 export default function NameRequiredModal() {
   const [open, setOpen] = useState(false)
@@ -30,7 +33,8 @@ export default function NameRequiredModal() {
   if (!open) return null
 
   const trimmed = nameInput.trim()
-  const isValid = NAME_RE.test(trimmed)
+  const isValid = NAME_RE.test(trimmed) && isFullName(trimmed)
+  const showFullNameHint = NAME_RE.test(trimmed) && !isFullName(trimmed)
 
   async function handleSave() {
     if (!isValid || saving) return
@@ -133,6 +137,11 @@ export default function NameRequiredModal() {
           onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
         />
 
+        {showFullNameHint && (
+          <p style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>
+            Vennligst bruk ditt fulle navn (fornavn og etternavn)
+          </p>
+        )}
         {error && (
           <p style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>{error}</p>
         )}
@@ -158,7 +167,7 @@ export default function NameRequiredModal() {
         </button>
 
         <p style={{ fontSize: 11, color: '#7a7873', marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
-          Kun bokstaver, mellomrom og bindestrek. Du kan endre navnet senere på profilsiden.
+          Fornavn og etternavn. Kun bokstaver, mellomrom og bindestrek.
         </p>
       </div>
     </div>

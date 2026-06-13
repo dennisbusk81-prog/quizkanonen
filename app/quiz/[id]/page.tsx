@@ -712,6 +712,7 @@ export default function QuizPage() {
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
+  const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
@@ -736,9 +737,14 @@ export default function QuizPage() {
       setLoggedInUserId(session.user.id)
       const { data: prof } = await supabaseData
         .from('profiles')
-        .select('display_name, age_confirmed_at')
+        .select('display_name, age_confirmed_at, suspended_until')
         .eq('id', session.user.id)
         .maybeSingle()
+      if (prof?.suspended_until && new Date(prof.suspended_until) > new Date()) {
+        setIsSuspended(true)
+        setLoading(false)
+        return
+      }
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
       // Premium: hent server-side for å omgå RLS
@@ -1526,6 +1532,14 @@ export default function QuizPage() {
     <div className="qk-loading">
       <span className="qk-loading-dot"/><span className="qk-loading-dot"/><span className="qk-loading-dot"/>
     </div></>
+  )
+
+  if (isSuspended) return (
+    <><style>{styles}</style>
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+      <p style={{fontFamily:"'Libre Baskerville', serif", fontSize:20, fontWeight:700, color:'#ffffff', marginBottom:12}}>Kontoen er midlertidig suspendert</p>
+      <p style={{color:'#e8e4dd', fontSize:14, lineHeight:1.6}}>Kontakt oss på <a href="mailto:support@quizkanonen.no" style={{color:'#e8e4dd'}}>support@quizkanonen.no</a> for mer informasjon.</p>
+    </div></div></div></>
   )
 
   if (!quiz) return (

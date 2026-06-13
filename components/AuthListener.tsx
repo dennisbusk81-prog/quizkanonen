@@ -6,7 +6,10 @@ import type { User } from '@supabase/supabase-js'
 const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
 
 function isValidName(name: string | null | undefined): boolean {
-  return !!name && NAME_RE.test(name.trim())
+  if (!name) return false
+  const trimmed = name.trim()
+  if (!NAME_RE.test(trimmed)) return false
+  return trimmed.includes(' ') || trimmed.includes('-')
 }
 
 // Henter session med timeout slik at auth-lock-konflikt ikke henger evig

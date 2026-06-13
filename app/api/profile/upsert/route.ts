@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
 
   const { id, display_name, avatar_color, show_member_number, age_confirmed_at, email_reminders } = parsed.data
 
+  // Full name required: must contain a space or hyphen (Anne-Marie counts)
+  const hasFullName = display_name.trim().includes(' ') || display_name.trim().includes('-')
+  if (!hasFullName) {
+    return NextResponse.json({ error: 'Vennligst bruk ditt fulle navn (fornavn og etternavn)' }, { status: 400 })
+  }
+
   const upsertData: Record<string, unknown> = {
     id,
     display_name,

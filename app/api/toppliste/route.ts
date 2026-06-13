@@ -105,6 +105,15 @@ export async function GET(request: NextRequest) {
   const { data: excludedRows } = await excludedQuery
   const excludedSet = new Set((excludedRows ?? []).map((e: { user_id: string }) => e.user_id))
 
+  // Suspenderte brukere ekskluderes fra alle leaderboards
+  const { data: suspendedRows } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .gt('suspended_until', new Date().toISOString())
+  for (const row of (suspendedRows ?? []) as { id: string }[]) {
+    excludedSet.add(row.id)
+  }
+
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
     // Hent nyeste quiz som faktisk har minst én attempt (INNER JOIN).

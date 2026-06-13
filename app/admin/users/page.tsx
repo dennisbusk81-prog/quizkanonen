@@ -129,6 +129,31 @@ const STYLES = `
     font-size: 18px; color: var(--hint); font-style: italic;
   }
 
+  .adm-btn-suspend {
+    font-size: 11px; font-weight: 600; padding: 4px 10px;
+    border-radius: 6px; border: 0.5px solid var(--border);
+    background: transparent; color: var(--hint); cursor: pointer;
+    white-space: nowrap; font-family: 'Instrument Sans', sans-serif;
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .adm-btn-suspend:hover { border-color: rgba(201,168,76,0.4); color: var(--gold); }
+
+  .adm-btn-delete {
+    font-size: 11px; font-weight: 600; padding: 4px 10px;
+    border-radius: 6px; border: 0.5px solid rgba(201,76,76,0.3);
+    background: transparent; color: #c94c4c; cursor: pointer;
+    white-space: nowrap; font-family: 'Instrument Sans', sans-serif;
+    transition: border-color 0.12s;
+  }
+  .adm-btn-delete:hover { border-color: rgba(201,76,76,0.6); }
+
+  .adm-badge-suspended {
+    font-size: 10px; font-weight: 600;
+    color: #c94c4c; background: rgba(201,76,76,0.08);
+    border: 0.5px solid rgba(201,76,76,0.25);
+    border-radius: 999px; padding: 2px 8px; white-space: nowrap;
+  }
+
   @media (max-width: 520px) {
     .adm-user-date { display: none; }
   }
@@ -142,6 +167,7 @@ type UserRow = {
   created_at: string | null
   quiz_count: number
   is_premium: boolean
+  suspended_until: string | null
 }
 
 function fmtDate(iso: string | null): string {
@@ -155,11 +181,16 @@ function initial(name: string | null, email: string | null): string {
   return src[0]?.toUpperCase() ?? '?'
 }
 
+type ConfirmAction = { type: 'suspend' | 'delete'; userId: string; name: string }
+
 export default function AdminUsersPage() {
   const router = useRouter()
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [confirm, setConfirm] = useState<ConfirmAction | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
@@ -169,6 +200,28 @@ export default function AdminUsersPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [router])
+
+  async function handleConfirm() {
+    if (!confirm || actionLoading) return
+    setActionLoading(true)
+    setActionError(null)
+    try {
+      if (confirm.type === 'suspend') {
+        const res = await adminFetch(`/api/admin/users/${confirm.userId}/suspend`, { method: 'PATCH' })
+        if (!res.ok) { setActionError('Karantene feilet'); setActionLoading(false); return }
+        const json = await res.json()
+        setUsers(prev => prev.map(u => u.id === confirm.userId ? { ...u, suspended_until: json.suspended_until } : u))
+      } else {
+        const res = await adminFetch(`/api/admin/users/${confirm.userId}`, { method: 'DELETE' })
+        if (!res.ok) { setActionError('Sletting feilet'); setActionLoading(false); return }
+        setUsers(prev => prev.filter(u => u.id !== confirm.userId))
+      }
+      setConfirm(null)
+    } catch {
+      setActionError('Noe gikk galt')
+    }
+    setActionLoading(false)
+  }
 
   const filtered = useMemo(() => {
     if (!query.trim()) return users
@@ -235,6 +288,9 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="adm-user-right">
+              {u.suspended_until && new Date(u.suspended_until) > new Date() && (
+                <span className="adm-badge-suspended">Karantene</span>
+              )}
               {u.is_premium && (
                 <span className="adm-badge-premium">Premium</span>
               )}
@@ -242,6 +298,20 @@ export default function AdminUsersPage() {
                 {u.quiz_count} {u.quiz_count === 1 ? 'quiz' : 'quizer'}
               </span>
               <span className="adm-user-date">{fmtDate(u.created_at)}</span>
+              {!(u.suspended_until && new Date(u.suspended_until) > new Date()) && (
+                <button
+                  className="adm-btn-suspend"
+                  onClick={() => setConfirm({ type: 'suspend', userId: u.id, name: u.display_name ?? u.email ?? u.id })}
+                >
+                  Karantene
+                </button>
+              )}
+              <button
+                className="adm-btn-delete"
+                onClick={() => setConfirm({ type: 'delete', userId: u.id, name: u.display_name ?? u.email ?? u.id })}
+              >
+                Slett
+              </button>
             </div>
           </div>
         ))}
@@ -253,6 +323,44 @@ export default function AdminUsersPage() {
         )}
 
       </div>
+
+      {/* Bekreftelsesmodal */}
+      {confirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 380, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
+              {confirm.type === 'suspend' ? 'Sett i karantene?' : 'Slett bruker?'}
+            </p>
+            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
+              <strong style={{ color: '#e8e4dd' }}>{confirm.name}</strong>
+            </p>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 }}>
+              {confirm.type === 'suspend'
+                ? 'Brukeren kan ikke starte quiz og vises ikke på leaderboard i 30 dager.'
+                : 'Er du sikker? Dette kan ikke angres. All data slettes permanent.'}
+            </p>
+            {actionError && (
+              <p style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{actionError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleConfirm}
+                disabled={actionLoading}
+                style={{ flex: 1, background: confirm.type === 'delete' ? '#c94c4c' : '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: actionLoading ? 'default' : 'pointer', opacity: actionLoading ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {actionLoading ? 'Venter…' : confirm.type === 'suspend' ? 'Sett i karantene' : 'Slett bruker'}
+              </button>
+              <button
+                onClick={() => { setConfirm(null); setActionError(null) }}
+                disabled={actionLoading}
+                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
