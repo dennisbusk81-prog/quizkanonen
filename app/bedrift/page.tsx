@@ -37,6 +37,10 @@ const STYLES = `
   .pkg-featured { background: #1e1a0e; border: 1px solid var(--gold-border); }
   .pkg-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--gold); color: #1a1c23; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 12px; border-radius: 20px; white-space: nowrap; }
 
+  /* Kommer snart — faded kort med diskret gull-ribbon */
+  .pkg-soon { opacity: 0.5; }
+  .pkg-ribbon { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: #1a1c23; color: var(--gold); border: 0.5px solid var(--gold-border); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 12px; border-radius: 20px; white-space: nowrap; }
+
   .pkg-name { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hint); margin-bottom: 6px; }
   .pkg-name-featured { color: var(--gold); }
   .pkg-price { font-family: 'Libre Baskerville', serif; font-size: 28px; font-weight: 700; color: var(--white); line-height: 1; margin-bottom: 2px; }
@@ -52,6 +56,7 @@ const STYLES = `
 
   .pkg-btn { display: block; text-align: center; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: 'Instrument Sans', sans-serif; text-decoration: none; border: 1px solid var(--border); color: var(--body); background: transparent; cursor: pointer; }
   .pkg-btn-featured { background: var(--gold); color: #1a1c23; border-color: var(--gold); }
+  .pkg-btn-soon { display: block; text-align: center; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: 'Instrument Sans', sans-serif; border: 1px solid var(--border); color: var(--body); background: transparent; cursor: not-allowed; }
 
   /* Comparison table — overflow-x: auto so table scrolls on mobile instead of clipping */
   .section-title { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
@@ -175,7 +180,8 @@ export default function BedriftPage() {
             <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>
 
-          <div className="pkg">
+          <div className="pkg pkg-soon">
+            <div className="pkg-ribbon">Kommer snart</div>
             <div className="pkg-name">Pro</div>
             <div className="pkg-price">1 499 <span>kr/mnd</span></div>
             <div className="pkg-desc">Daglig miniquiz + fredagsquiz.</div>
@@ -188,10 +194,11 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
               <li><span className="check">✓</span>Egne quizer (kommer)</li>
             </ul>
-            <a href="/bedrift/registrer?plan=pro" className="pkg-btn">Velg Pro</a>
+            <span className="pkg-btn-soon" aria-disabled="true">Kommer snart</span>
           </div>
 
-          <div className="pkg">
+          <div className="pkg pkg-soon">
+            <div className="pkg-ribbon">Kommer snart</div>
             <div className="pkg-name">Enterprise</div>
             <div className="pkg-price">Fra 2 499 <span>kr/mnd</span></div>
             <div className="pkg-desc">Skreddersydd for store team.</div>
@@ -204,7 +211,7 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Dedikert support</li>
               <li><span className="check">✓</span>Faktura</li>
             </ul>
-            <a href="mailto:support@quizkanonen.no?subject=Enterprise" className="pkg-btn">Ta kontakt</a>
+            <span className="pkg-btn-soon" aria-disabled="true">Kommer snart</span>
           </div>
 
         </div>
