@@ -1,19 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 export default function UtfordringPage() {
-  const [fra,     setFra]     = useState<string | null>(null)
-  const [quiz,    setQuiz]    = useState('')
-  const [mounted, setMounted] = useState(false)
+  const [fra,       setFra]       = useState<string | null>(null)
+  const [quiz,      setQuiz]      = useState('')
+  const [mounted,   setMounted]   = useState(false)
+  const [loggedIn,  setLoggedIn]  = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setFra(params.get('fra') ?? 'En spiller')
     setQuiz(params.get('quiz') ?? '')
     setMounted(true)
+    supabase.auth.getSession().then(({ data }) => {
+      setLoggedIn(!!data.session)
+    })
   }, [])
 
   const name = fra ?? 'En spiller'
@@ -104,12 +109,14 @@ export default function UtfordringPage() {
               </a>
             )}
 
-            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 20 }}>
-              <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
-                Logg inn
-              </a>
-              {' '}for å lagre resultatet og utfordre andre
-            </p>
+            {!loggedIn && (
+              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 20 }}>
+                <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+                  Logg inn
+                </a>
+                {' '}for å lagre resultatet og utfordre andre
+              </p>
+            )}
           </div>
         </div>
       </div>
