@@ -1281,7 +1281,7 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }] = await Promise.all([
+  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }, foundersSettingsResult] = await Promise.all([
     // Aktiv quiz: opens_at <= now og ikke stengt ennå
     supabaseAdmin
       .from('quizzes')
@@ -1311,6 +1311,25 @@ export default async function Home() {
       .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
       .order('opens_at', { ascending: true })
       .limit(1),
+    (async () => {
+      try {
+        const { data: settingsRows } = await supabaseAdmin
+          .from('site_settings')
+          .select('key, value')
+          .in('key', ['founders_max_slots'])
+        const rows = (settingsRows ?? []) as { key: string; value: string }[]
+        const maxSlots = parseInt(rows.find(r => r.key === 'founders_max_slots')?.value ?? '250')
+        const { count } = await supabaseAdmin
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .in('premium_source', ['founders', 'code'])
+          .eq('premium_status', true)
+        const used = count ?? 0
+        return { remaining: Math.max(0, maxSlots - used), max: maxSlots }
+      } catch {
+        return null
+      }
+    })(),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
@@ -1602,6 +1621,18 @@ export default async function Home() {
             <p className="qk-founders-eyebrow">Founders Access</p>
             <h2 className="qk-founders-title">Prøv Premium gratis i én måned</h2>
             <p className="qk-founders-sub">Ingen kortinfo. Ingen automatisk trekk. Vi minner deg på e-post før perioden utløper.</p>
+            {foundersSettingsResult && (
+              <p style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: '#c9a84c',
+                marginBottom: 14,
+              }}>
+                {foundersSettingsResult.remaining} av {foundersSettingsResult.max} plasser igjen
+              </p>
+            )}
             <Link href="/founders" className="qk-founders-btn">Aktiver gratis tilgang →</Link>
           </div>
         )}
