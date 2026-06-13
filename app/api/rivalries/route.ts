@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { sendEmail } from '@/lib/email'
+import { duelInviteEmail } from '@/lib/email-templates'
 
 // POST /api/rivalries — send a duel challenge to another user
 export async function POST(request: NextRequest) {
@@ -112,6 +114,23 @@ export async function POST(request: NextRequest) {
       { error: 'En av dere fikk akkurat en ny duell. Last siden på nytt og prøv igjen.' },
       { status: 409 }
     )
+  }
+
+  // Send e-post til motstanderen — non-blocking, feil stopper ikke responsen
+  try {
+    const { data: { user: rivalUser } } = await supabaseAdmin.auth.admin.getUserById(rivalId)
+    const challengerName = challengerProfile
+      ? (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
+      : user.email ?? 'En spiller'
+    if (rivalUser?.email) {
+      await sendEmail({
+        to: rivalUser.email,
+        subject: `${challengerName} utfordrer deg til en duell!`,
+        html: duelInviteEmail(challengerName),
+      })
+    }
+  } catch {
+    // E-postfeil skal ikke blokkere duell-opprettelsen
   }
 
   return NextResponse.json({ success: true, id: rivalry.id }, { status: 201 })

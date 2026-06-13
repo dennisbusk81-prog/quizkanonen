@@ -20,8 +20,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const body = await request.json()
   const action = body.action
-  if (action !== 'accept' && action !== 'decline') {
-    return NextResponse.json({ error: 'Ugyldig handling. Bruk accept eller decline.' }, { status: 400 })
+  if (action !== 'accept' && action !== 'decline' && action !== 'seen') {
+    return NextResponse.json({ error: 'Ugyldig handling. Bruk accept, decline eller seen.' }, { status: 400 })
   }
 
   const { data: rivalry } = await supabaseAdmin
@@ -31,6 +31,18 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     .single()
 
   if (!rivalry) return NextResponse.json({ error: 'Duellen finnes ikke' }, { status: 404 })
+
+  // Mark as seen — only rival_id can do this, no status restriction
+  if (action === 'seen') {
+    if (rivalry.rival_id !== user.id) return NextResponse.json({ error: 'Ikke autorisert' }, { status: 403 })
+    await supabaseAdmin
+      .from('rivalries')
+      .update({ seen_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('seen_at', null)
+    return NextResponse.json({ success: true })
+  }
+
   if (rivalry.status !== 'pending') return NextResponse.json({ error: 'Duellen er ikke lenger ventende' }, { status: 409 })
   if (rivalry.rival_id !== user.id) return NextResponse.json({ error: 'Bare den utfordrede kan svare' }, { status: 403 })
 

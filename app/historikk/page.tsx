@@ -260,6 +260,7 @@ export default function HistorikkPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+  const [expiredPremium, setExpiredPremium] = useState(false)
 
   // Read any qk_historikk_* cache before first paint — prevents loading flash on back-navigation.
   // Runs synchronously before the browser paints; safe because this is a client-only component.
@@ -390,7 +391,20 @@ export default function HistorikkPage() {
 
       if (cancelled) return
 
-      if (res.status === 403) { router.replace('/premium'); return }
+      if (res.status === 403) {
+        // Check if this is a former Premium user (has season_scores) → show retention banner
+        const { count } = await supabase
+          .from('season_scores')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', session.user.id)
+          .eq('scope_type', 'global')
+        if ((count ?? 0) > 0) {
+          if (!cancelled) { setExpiredPremium(true); setLoadState('ready') }
+        } else {
+          router.replace('/premium')
+        }
+        return
+      }
       if (!res.ok) { if (!cancelled) setLoadState('error'); return }
 
       const json = await res.json() as { history: HistoryAttempt[]; stats: PlayerStats; total: number; pageSize: number }
@@ -452,6 +466,31 @@ export default function HistorikkPage() {
   }
 
   const progMsg = stats?.progresjon ? toProgMsg(stats.progresjon) : null
+
+  if (expiredPremium) {
+    return (
+      <>
+        <style>{FONT_IMPORT}</style>
+        <div style={s.wrap}>
+          <div style={s.page}>
+            <div style={{ paddingTop: 48, maxWidth: 520, margin: '0 auto' }}>
+              <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px 24px' }}>
+                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
+                  Historikken din er lagret
+                </p>
+                <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
+                  Poengene dine er lagret. Reaktiver Premium for å se din plassering og quizhistorikk.
+                </p>
+                <a href="/premium" style={{ display: 'inline-block', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', color: '#e8e4dd', fontSize: 14, fontWeight: 600, textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif" }}>
+                  Reaktiver Premium →
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>

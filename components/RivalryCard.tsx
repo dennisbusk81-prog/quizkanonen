@@ -14,6 +14,7 @@ type RivalryRow = {
   opponentAvatar: string | null
   myPoints: number
   opponentPoints: number
+  isUnseen?: boolean
 }
 
 type Props = {
@@ -36,7 +37,20 @@ export default function RivalryCard({ isPremium }: Props) {
       })
       if (res.ok) {
         const json = await res.json()
-        setRivalries(json.rivalries ?? [])
+        const rows: RivalryRow[] = json.rivalries ?? []
+        setRivalries(rows)
+        // Mark unseen incoming challenges as seen
+        const unseen = rows.find(r => r.isUnseen && !r.isChallenger && r.status === 'pending')
+        if (unseen) {
+          fetch(`/api/rivalries/${unseen.id}`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'seen' }),
+          }).catch(() => {/* non-critical */})
+        }
       }
     } catch { /* non-critical */ }
     setLoading(false)
@@ -231,6 +245,7 @@ export default function RivalryCard({ isPremium }: Props) {
 
   // ── Incoming pending challenge ────────────────────────────────
   if (incoming) {
+    const isUnseen = incoming.isUnseen ?? false
     return (
       <div style={{
         background: 'rgba(201,168,76,0.06)',
@@ -239,6 +254,17 @@ export default function RivalryCard({ isPremium }: Props) {
         padding: '18px 20px',
         marginTop: 12,
       }}>
+        {isUnseen && (
+          <p style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#c9a84c',
+            marginBottom: 10,
+            letterSpacing: '0.02em',
+          }}>
+            Du har en ny duell-utfordring!
+          </p>
+        )}
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
           Duell-utfordring
         </p>

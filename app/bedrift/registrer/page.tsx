@@ -13,8 +13,10 @@ const STORAGE_KEY = 'qk-bedrift-pending'
 const PLANS = [
   { id: 'starter',  label: 'Starter',  price: '499 kr/mnd',   desc: 'Opptil 25 ansatte · 1 quiz/uke' },
   { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · 3 quizer/uke', featured: true },
-  { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · 5+ quizer/uke' },
+  { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · 5+ quizer/uke', disabled: true },
 ]
+
+const AVAILABLE_PLAN_IDS = PLANS.filter(p => !('disabled' in p && p.disabled)).map(p => p.id)
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -27,9 +29,13 @@ export default function BedriftRegistrerPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Pick up plan from query string
+    // Pick up plan from query string — redirect disabled plans back to /bedrift
     const p = new URLSearchParams(window.location.search).get('plan')
-    if (p && PLANS.some(x => x.id === p)) setPlan(p)
+    if (p && !AVAILABLE_PLAN_IDS.includes(p)) {
+      router.replace('/bedrift')
+      return
+    }
+    if (p && AVAILABLE_PLAN_IDS.includes(p)) setPlan(p)
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s)
@@ -147,17 +153,19 @@ export default function BedriftRegistrerPage() {
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {PLANS.map(p => {
-                  const selected = plan === p.id
+                  const isDisabled = 'disabled' in p && p.disabled
+                  const selected = plan === p.id && !isDisabled
                   return (
                     <div
                       key={p.id}
-                      onClick={() => setPlan(p.id)}
+                      onClick={() => !isDisabled && setPlan(p.id)}
                       style={{
-                        background: selected ? (p.featured ? '#1e1a0e' : 'rgba(201,168,76,0.04)') : '#1a1c23',
-                        border: selected ? '1.5px solid #c9a84c' : '1px solid #2a2d38',
+                        background: isDisabled ? 'transparent' : selected ? (p.featured ? '#1e1a0e' : 'rgba(201,168,76,0.04)') : '#1a1c23',
+                        border: isDisabled ? '1px solid #2a2d38' : selected ? '1.5px solid #c9a84c' : '1px solid #2a2d38',
                         borderRadius: 10,
                         padding: '14px 16px',
-                        cursor: 'pointer',
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isDisabled ? 0.4 : 1,
                         display: 'flex',
                         alignItems: 'center',
                         gap: 14,
@@ -168,7 +176,7 @@ export default function BedriftRegistrerPage() {
                       </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 2 }}>
-                          {p.label}{p.featured ? ' — mest populær' : ''}
+                          {p.label}{p.featured ? ' — mest populær' : ''}{isDisabled ? ' — kommer snart' : ''}
                         </div>
                         <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{p.price}</div>
                         <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>{p.desc}</div>

@@ -793,13 +793,13 @@ export default function LeaderboardPage() {
             }
             return (
               <div style={s.card}>
-                <div style={s.cardRow}>
-                  <div>
-                    <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
-                    <p style={s.cardSub}>Bli Premium — se nøyaktig hvor du ligger an gjennom hele dagen</p>
-                  </div>
-                  <a href="/premium" style={s.btnGold}>Bli Premium</a>
-                </div>
+                <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
+                <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                  Se nøyaktig plassering —{' '}
+                  <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
+                    få Premium
+                  </a>
+                </p>
               </div>
             )
           })()}

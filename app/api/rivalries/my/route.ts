@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   // Fix 4: also fetch declined from this month so challenger can see the rejection
   const { data: rivalries, error } = await supabaseAdmin
     .from('rivalries')
-    .select('id, challenger_id, rival_id, status, created_at')
+    .select('id, challenger_id, rival_id, status, created_at, seen_at')
     .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
     .in('status', ['active', 'pending', 'declined'])
     .order('created_at', { ascending: false })
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
     .map(r => {
       const opponentId = r.challenger_id === user.id ? r.rival_id : r.challenger_id
       const opponentProfile = profileMap.get(opponentId)
-      // A duel is expired if it was created before the start of the current calendar month
       const isExpired = new Date(r.created_at) < thisMonthStart
+      const isIncoming = r.challenger_id !== user.id
       return {
         id:             r.id,
         status:         r.status as 'active' | 'pending' | 'declined',
@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
         opponentAvatar: opponentProfile?.avatar_url ?? null,
         myPoints:       pointsMap.get(user.id) ?? 0,
         opponentPoints: pointsMap.get(opponentId) ?? 0,
+        isUnseen:       isIncoming && r.status === 'pending' && !r.seen_at,
       }
     })
     // Fix 4: drop declined rows from previous months — they are no longer actionable

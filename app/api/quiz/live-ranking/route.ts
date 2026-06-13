@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit } from '@/lib/rate-limit'
 
 // FIX 12 — removed `export const revalidate = 30`; caching is set via response headers instead
 
@@ -11,6 +12,7 @@ type AttemptRow = {
 }
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const { searchParams } = new URL(request.url)
   const quizId         = searchParams.get('quiz_id')
   const currentCorrect = parseInt(searchParams.get('current_correct') ?? '0', 10)
@@ -18,6 +20,14 @@ export async function GET(request: NextRequest) {
 
   if (!quizId) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
+  }
+
+  const rl = rateLimit(`live-ranking:${ip}:${quizId}`, 30, 60_000)
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: 'For mange forespørsler — prøv igjen om litt' },
+      { status: 429 }
+    )
   }
 
   // FIX 12 — max-age=0 so browsers revalidate every time; s-maxage=30 lets CDN/edge cache for 30s

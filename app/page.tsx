@@ -1465,7 +1465,7 @@ export default async function Home() {
                 : 'Kan du slå dem?'}
             </p>
             <div className="qk-card-actions">
-              <a href={`/quiz/${activeQuiz.id}`} className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
+              <a href={`/quiz/${activeQuiz.id}`} className="qk-btn-outline-dark">
                 Spill nå
               </a>
               <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">

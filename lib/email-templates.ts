@@ -1,4 +1,13 @@
-﻿function formatNorwegianDate(isoString: string): string {
+﻿const UNSUBSCRIBE_ROW = `
+          <tr>
+            <td align="center" style="padding-top:12px;">
+              <p style="margin:0;font-size:11px;color:#7a7873;line-height:1.7;text-align:center;">
+                Ønsker du ikke flere e-poster? <a href="https://quizkanonen.no/profil" style="color:#7a7873;text-decoration:underline;">Meld deg av her.</a>
+              </p>
+            </td>
+          </tr>`
+
+function formatNorwegianDate(isoString: string): string {
   const date = new Date(isoString)
   const TZ = 'Europe/Oslo'
   // All locale parts are resolved in the Norwegian timezone so Vercel's UTC
@@ -92,6 +101,7 @@ export function trialEndingEmail(daysLeft: number): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -186,6 +196,7 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -268,6 +279,7 @@ export function orgRemovedEmail(orgName: string): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -340,6 +352,7 @@ export function orgInviteEmail(senderName: string, orgName: string, inviteUrl: s
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -411,6 +424,7 @@ export function paymentFailedEmail(): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -482,6 +496,7 @@ export function orgPaymentFailedEmail(orgName: string, orgSlug: string): string 
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -867,6 +882,7 @@ export function premiumWelcomeEmail(): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -950,6 +966,7 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -1027,6 +1044,7 @@ export function premiumCancelledEmail(): string {
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -1101,11 +1119,11 @@ export function reEngagementEmail(firstName?: string): string {
           <tr>
             <td align="center" style="padding-top:28px;">
               <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
-                <a href="https://www.quizkanonen.no/profil" style="color:#9a9590;text-decoration:underline;">Ikke flere e-poster</a>
+                Du mottar denne e-posten fordi du er registrert på Quizkanonen.
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -1314,6 +1332,77 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): str
               </p>
             </td>
           </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export function duelInviteEmail(challengerName: string): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${challengerName} utfordrer deg til en duell!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Du har en ny duell-utfordring
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                <strong style="color:#ffffff;">${challengerName}</strong> har utfordret deg til en H2H Duell på Quizkanonen denne måneden.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Aksepter eller avslå utfordringen på forsiden din. Duellen teller sesong-poeng gjennom hele måneden — den med flest poeng vinner.
+              </p>
+
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Gå til Quizkanonen
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Du mottar denne e-posten fordi du er registrert på Quizkanonen.
+              </p>
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>

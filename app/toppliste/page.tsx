@@ -1,8 +1,59 @@
 'use client'
 
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
+import { supabase } from '@/lib/supabase'
+
+function ExpiredPremiumBanner() {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const [profileRes, scoresRes] = await Promise.all([
+        fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+        supabase
+          .from('season_scores')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', session.user.id)
+          .eq('scope_type', 'global'),
+      ])
+
+      if (cancelled) return
+      const profile = profileRes.ok ? await profileRes.json() : null
+      const isPremium = profile?.isPremium === true
+      const hasScores = (scoresRes.count ?? 0) > 0
+      if (!isPremium && hasScores) setShow(true)
+    }
+    check()
+    return () => { cancelled = true }
+  }, [])
+
+  if (!show) return null
+  return (
+    <div style={{
+      background: '#21242e',
+      border: '1px solid #2a2d38',
+      borderRadius: 16,
+      padding: '16px 20px',
+      marginBottom: 16,
+    }}>
+      <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, margin: 0 }}>
+        Poengene dine er lagret.{' '}
+        <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+          Reaktiver Premium
+        </a>
+        {' '}for å se din plassering.
+      </p>
+    </div>
+  )
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -29,6 +80,7 @@ export default function TopplisterPage() {
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
 
+          <ExpiredPremiumBanner />
           <SeasonLeaderboard scope="global" />
 
         </div>
