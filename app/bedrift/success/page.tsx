@@ -15,9 +15,9 @@ type OrgData = {
 }
 
 const STEPS = [
-  { n: '1', title: 'Kopier invitasjonslenken', desc: 'Del lenken med alle ansatte — den gir direkte tilgang til teamet.' },
-  { n: '2', title: 'Ansatte logger inn', desc: 'De trykker på lenken, logger inn med Google eller e-post, og er med på sekunder.' },
-  { n: '3', title: 'Spill neste quiz', desc: 'Alle ser eget leaderboard — kun for din bedrift. Premium inkludert for alle.' },
+  { n: '1', title: 'Gå til admin-panelet ditt', desc: 'I admin-panelet finner du invitasjonslenken, ser hvem som har blitt med og administrerer tilganger.' },
+  { n: '2', title: 'Del invitasjonslenken', desc: 'Alle som logger inn via lenken får automatisk Premium-tilgang og havner på bedriftens leaderboard.' },
+  { n: '3', title: 'Spill ukens quiz på fredag', desc: 'Quizkanonen sender ut ny quiz hver fredag. Alle med tilgang kan spille og konkurrere om topp-plasseringen i bedriften.' },
 ]
 
 function SuccessContent() {

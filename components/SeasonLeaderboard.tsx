@@ -339,6 +339,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [activeDuelExists, setActiveDuelExists]     = useState(false)
   const [challengeError, setChallengeError]         = useState<{ rivalId: string; message: string } | null>(null)
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pendingChallenge, setPendingChallenge]     = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -530,7 +531,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const isLoading = challengeLoadingId === entry.userId
     return (
       <button
-        onClick={() => handleChallenge(entry.userId)}
+        onClick={() => setPendingChallenge({ id: entry.userId, name: entry.displayName })}
         disabled={isLoading}
         style={{ ...s.challengeBtn, cursor: isLoading ? 'default' : 'pointer', opacity: isLoading ? 0.6 : 1 }}
       >
@@ -891,6 +892,38 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
         Lagets sesong-poeng registreres på innlogget lagleder.
       </p>
+
+      {/* Duell-bekreftelsesmodal */}
+      {pendingChallenge && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 360, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+              Utfordre {pendingChallenge.name}?
+            </p>
+            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 24 }}>
+              Du sender en H2H-duell-utfordring. Motstanderen kan godta eller avslå.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={async () => {
+                  const id = pendingChallenge.id
+                  setPendingChallenge(null)
+                  await handleChallenge(id)
+                }}
+                style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Send utfordring
+              </button>
+              <button
+                onClick={() => setPendingChallenge(null)}
+                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

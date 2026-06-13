@@ -675,6 +675,7 @@ export default function QuizPage() {
   const [nameInput, setNameInput] = useState('')
   const [isTeamInput, setIsTeamInput] = useState(false)
   const [teamSizeInput, setTeamSizeInput] = useState(2)
+  const [teamAgeConfirmed, setTeamAgeConfirmed] = useState(false)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
@@ -1342,11 +1343,16 @@ export default function QuizPage() {
         }
       }
     } catch {
-      setFinishSaveError('Resultatet ble ikke lagret — sjekk internettforbindelsen din')
+      const isLate = quiz?.closes_at && new Date(quiz.closes_at) < new Date()
+      setFinishSaveError(
+        isLate
+          ? 'Quizen stengte mens du spilte — svaret ditt ble ikke lagret. Sesong-poeng gjelder ikke for sente innleveringer.'
+          : 'Resultatet ble ikke lagret — sjekk internettforbindelsen din'
+      )
       setTimeout(() => {
         setFinishSaveError(null)
         setPhase('finished')
-      }, 4000)
+      }, 5000)
       return
     }
     setPhase('finished')
@@ -1639,7 +1645,7 @@ export default function QuizPage() {
 
       {quiz.allow_teams && (
         <>
-          <div className="qk-toggle-row" onClick={() => setIsTeamInput(!isTeamInput)}>
+          <div className="qk-toggle-row" onClick={() => { setIsTeamInput(v => !v); setTeamAgeConfirmed(false) }}>
             <div className={`qk-toggle${isTeamInput ? ' on' : ''}`}>
               <div className="qk-toggle-thumb"/>
             </div>
@@ -1658,6 +1664,14 @@ export default function QuizPage() {
                     className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
                 ))}
               </div>
+              <div
+                className="qk-check-row"
+                style={{ marginTop: 14 }}
+                onClick={() => setTeamAgeConfirmed(v => !v)}
+              >
+                <div className={`qk-check-box${teamAgeConfirmed ? ' checked' : ''}`} />
+                <span className="qk-check-label">Alle lagmedlemmer er 13 år eller eldre</span>
+              </div>
               <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 8, textAlign: 'center' }}>
                 Sesong-poeng registreres på deg som er innlogget.
               </p>
@@ -1667,7 +1681,7 @@ export default function QuizPage() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <button onClick={startQuiz} disabled={isTeamInput ? !nameInput.trim() : (!loggedInDisplayName && !nameInput.trim())} className="qk-btn-primary"
+        <button onClick={startQuiz} disabled={isTeamInput ? (!nameInput.trim() || !teamAgeConfirmed) : (!loggedInDisplayName && !nameInput.trim())} className="qk-btn-primary"
           style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
           {resumeData ? 'Fortsett quiz' : 'Start quiz'}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>

@@ -78,8 +78,7 @@ const STYLES = `
   .th-soon-label { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-top: 4px; }
 
   @media (max-width: 640px) {
-    .table-wrap { display: none; }
-    .section-title { display: none; }
+    .table-scroll { overflow-x: auto; }
   }
 
   /* Notes accordion */

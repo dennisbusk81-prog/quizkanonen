@@ -41,7 +41,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         .select('display_name')
         .eq('id', userId)
         .maybeSingle()
-      setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
+      setDisplayName(data?.display_name ?? null)
     } catch { /* keep fallback */ }
     // Premium: hent server-side for å omgå RLS
     if (accessToken) {
@@ -78,7 +78,6 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         clearTimeout(timeout)
         if (session?.user) {
           setIsLoggedIn(true)
-          setDisplayName(session.user.email?.split('@')[0] ?? null)
           loadProfile(session.user.id, session.user.email, session.access_token)
           if (session.access_token) fetchMyOrgs(session.access_token)
         } else {

@@ -40,6 +40,12 @@ export async function DELETE(request: NextRequest) {
     }
   }
 
+  // Explicit cascade — remove user data from tables without FK cascade to auth.users
+  await supabaseAdmin.from('rivalries').delete().or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
+  await supabaseAdmin.from('league_members').delete().eq('user_id', user.id)
+  await supabaseAdmin.from('season_scores').delete().eq('user_id', user.id)
+  await supabaseAdmin.from('organization_members').delete().eq('user_id', user.id)
+
   // Delete user — RLS CASCADE removes the profiles row automatically
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
   if (deleteError) {
