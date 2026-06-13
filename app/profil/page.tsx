@@ -90,6 +90,16 @@ export default function ProfilPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+  const [pushSupported, setPushSupported] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'PushManager' in window && 'Notification' in window) {
+      setPushSupported(true)
+      setPushEnabled(Notification.permission === 'granted')
+    }
+  }, [])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
@@ -323,6 +333,52 @@ export default function ProfilPage() {
     const next = !emailDuelNotifications
     setEmailDuelNotifications(next)
     savePref({ email_duel_notifications: next }, 'duel')
+  }
+
+  async function handleTogglePush() {
+    if (pushLoading) return
+    setPushLoading(true)
+    try {
+      if (!pushEnabled) {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') { setPushLoading(false); return }
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        if (!vapidKey) { setPushLoading(false); return }
+        const reg = await navigator.serviceWorker.ready
+        const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4)
+        const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+        const raw = atob(base64)
+        const key = Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+        const subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { setPushLoading(false); return }
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ subscription }),
+        })
+        setPushEnabled(true)
+      } else {
+        const reg = await navigator.serviceWorker.ready
+        const subscription = await reg.pushManager.getSubscription()
+        if (subscription) {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session) {
+            await fetch('/api/push/unsubscribe', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({ endpoint: subscription.endpoint }),
+            })
+          }
+          await subscription.unsubscribe()
+        }
+        setPushEnabled(false)
+      }
+    } catch (err) {
+      console.error('[ProfilPage push]', err)
+    } finally {
+      setPushLoading(false)
+    }
   }
 
   async function handleRedeemCode() {
@@ -651,6 +707,40 @@ export default function ProfilPage() {
                 </div>
               </div>
             ))}
+
+            {pushSupported && (
+              <>
+                <div style={s.cardDivider} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>Push-varsler</p>
+                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                      {pushEnabled ? 'Aktivert — du får varsel når quizen åpner' : 'Få push-varsel til enheten når quizen er klar'}
+                    </p>
+                  </div>
+                  <div
+                    role="switch"
+                    aria-checked={pushEnabled}
+                    onClick={handleTogglePush}
+                    style={{
+                      width: 42, height: 24, borderRadius: 12,
+                      background: pushEnabled ? '#c9a84c' : '#2a2d38',
+                      position: 'relative', cursor: pushLoading ? 'default' : 'pointer', flexShrink: 0,
+                      transition: 'background 0.2s',
+                      opacity: pushLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 4,
+                      left: pushEnabled ? 22 : 4,
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: pushEnabled ? '#1a1c23' : '#7a7873',
+                      transition: 'left 0.15s',
+                    }} />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Abonnement — kun for Premium-brukere */}

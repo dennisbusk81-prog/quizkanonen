@@ -9,6 +9,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import WelcomeBanner from '@/components/WelcomeBanner'
 import AccordionSection from '@/components/AccordionSection'
 import NotifyForm from '@/components/NotifyForm'
+import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -1606,6 +1607,8 @@ export default async function Home() {
         )}
 
       </div>
+
+      <PushNotificationPrompt />
     </>
   )
 }

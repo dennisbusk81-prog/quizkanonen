@@ -7,6 +7,7 @@ import NameRequiredModal from "@/components/NameRequiredModal";
 import UserMenu from "@/components/UserMenu";
 import UserMenuErrorBoundary from "@/components/UserMenuErrorBoundary";
 import BackNav from "@/components/BackNav";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import Link from "next/link";
 
 const geistSans = Geist({
@@ -22,6 +23,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Quizkanonen",
   description: "Ukentlig quiz for deg og laget ditt",
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'apple-mobile-web-app-title': 'Quizkanonen',
+  },
 };
 
 export default function RootLayout({
@@ -34,6 +41,11 @@ export default function RootLayout({
       lang="no"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#c9a84c" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+      </head>
       <body className="min-h-full flex flex-col">
         <UserMenuErrorBoundary>
           <UserMenu />
@@ -42,6 +54,7 @@ export default function RootLayout({
         {children}
         <AuthListener />
         <NameRequiredModal />
+        <ServiceWorkerRegistration />
         <ConsentBanner />
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
