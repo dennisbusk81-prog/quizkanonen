@@ -46,7 +46,10 @@ export default function NameRequiredModal() {
 
       const res = await fetch('/api/profile/upsert', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ id: session.user.id, display_name: trimmed }),
       })
       const data = await res.json()
