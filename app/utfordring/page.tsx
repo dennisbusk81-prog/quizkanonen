@@ -1,14 +1,22 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { useEffect, useState } from 'react'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
-function ChallengeContent() {
-  const params = useSearchParams()
-  const fra   = params.get('fra') ?? 'En spiller'
-  const quiz  = params.get('quiz') ?? ''
+export default function UtfordringPage() {
+  const [fra,     setFra]     = useState<string | null>(null)
+  const [quiz,    setQuiz]    = useState('')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setFra(params.get('fra') ?? 'En spiller')
+    setQuiz(params.get('quiz') ?? '')
+    setMounted(true)
+  }, [])
+
+  const name = fra ?? 'En spiller'
 
   return (
     <>
@@ -49,15 +57,18 @@ function ChallengeContent() {
               color: '#ffffff',
               lineHeight: 1.2,
               marginBottom: 14,
+              minHeight: mounted ? undefined : 36,
             }}>
-              {fra} utfordrer deg!
+              {mounted ? `${name} utfordrer deg!` : ''}
             </h1>
 
-            <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 32 }}>
-              Kan du slå {fra} på ukens quiz? Spill nå og se hvem som vinner.
+            <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 32, minHeight: mounted ? undefined : 48 }}>
+              {mounted ? `Kan du slå ${name} på ukens quiz? Spill nå og se hvem som vinner.` : ''}
             </p>
 
-            {quiz ? (
+            {!mounted ? (
+              <div style={{ height: 44 }} />
+            ) : quiz ? (
               <a
                 href={`/quiz/${quiz}`}
                 style={{
@@ -70,7 +81,6 @@ function ChallengeContent() {
                   padding: '11px 28px',
                   borderRadius: 10,
                   textDecoration: 'none',
-                  border: 'none',
                 }}
               >
                 Ta imot utfordringen
@@ -104,13 +114,5 @@ function ChallengeContent() {
         </div>
       </div>
     </>
-  )
-}
-
-export default function UtfordringPage() {
-  return (
-    <Suspense>
-      <ChallengeContent />
-    </Suspense>
   )
 }
