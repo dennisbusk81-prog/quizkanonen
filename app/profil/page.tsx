@@ -84,6 +84,8 @@ export default function ProfilPage() {
   const [codeSuccess, setCodeSuccess] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640)
@@ -371,6 +373,30 @@ export default function ProfilPage() {
     } catch { /* silent — optimistic update already applied */ }
   }
 
+  async function handlePortal() {
+    setPortalLoading(true)
+    setPortalError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPortalError(data.error ?? 'Noe gikk galt. Prøv igjen.')
+        setTimeout(() => setPortalError(null), 4000)
+      } else if (data.url) {
+        window.location.href = data.url
+      }
+    } catch {
+      setPortalError('Noe gikk galt. Prøv igjen.')
+      setTimeout(() => setPortalError(null), 4000)
+    } finally {
+      setPortalLoading(false)
+    }
+  }
+
   if (loadState === 'loading') {
     return (
       <>
@@ -562,6 +588,38 @@ export default function ProfilPage() {
               <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
             )}
           </div>
+
+          {/* Abonnement — kun for Premium-brukere */}
+          {isPremium && (
+            <div style={{ ...s.card, marginBottom: 10 }}>
+              <p style={s.sectionLabel}>Abonnement</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — aktivt</p>
+                  <p style={{ fontSize: 12, color: '#7a7873' }}>kr 49/mnd · Avslutt når du vil</p>
+                </div>
+                <button
+                  onClick={handlePortal}
+                  disabled={portalLoading}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #2a2d38',
+                    color: portalLoading ? '#7a7873' : '#e8e4dd',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: '9px 18px',
+                    borderRadius: 10,
+                    cursor: portalLoading ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap' as const,
+                  }}
+                >
+                  {portalLoading ? 'Åpner…' : 'Administrer abonnement'}
+                </button>
+              </div>
+              {portalError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{portalError}</p>}
+            </div>
+          )}
 
           {/* Verdikode */}
           <div style={{ marginBottom: 10, paddingTop: 4 }}>

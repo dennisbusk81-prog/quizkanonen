@@ -63,6 +63,7 @@ type ApiResponse = {
   userIsPremium: boolean
   quizTitle?: string | null
   quizClosesAt?: string | null
+  activeQuizClosesAt?: string | null
 }
 
 type HistoryWinner = {
@@ -642,11 +643,16 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       )
     }
 
+    const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
+    const notPlayedMsg = quizStillOpen
+      ? 'Poeng registreres når ukens quiz stenger. Kom tilbake for å se plasseringen din.'
+      : NOT_PLAYED_TEXT[period]
+
     return (
       <>
         <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
         <div style={s.userCard}>
-          <p style={{ ...s.ctaText, marginBottom: 12 }}>{NOT_PLAYED_TEXT[period]}</p>
+          <p style={{ ...s.ctaText, marginBottom: 12 }}>{notPlayedMsg}</p>
           <a href="/" style={s.btnOutline}>Se ukens quiz →</a>
         </div>
       </>
@@ -845,12 +851,25 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       )}
 
       {/* Topp 10 */}
-      {!loading && data?.entries.length === 0 ? (
-        <div style={s.empty}>
-          <p style={s.emptyTitle}>{emptyText.title}</p>
-          <p style={s.emptySub}>{emptyText.sub}</p>
-        </div>
-      ) : (
+      {!loading && data?.entries.length === 0 ? (() => {
+        const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
+        if (quizStillOpen) {
+          return (
+            <div style={s.empty}>
+              <p style={s.emptyTitle}>Poeng beregnes etter quizen</p>
+              <p style={s.emptySub}>
+                Poeng for ukens quiz registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div style={s.empty}>
+            <p style={s.emptyTitle}>{emptyText.title}</p>
+            <p style={s.emptySub}>{emptyText.sub}</p>
+          </div>
+        )
+      })() : (
         data?.entries.map(entry => renderRow(entry))
       )}
 

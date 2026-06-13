@@ -49,6 +49,22 @@ export async function GET(request: NextRequest) {
     (profiles ?? []).map((p: { id: string; display_name: string | null; avatar_url: string | null }) => [p.id, p])
   )
 
+  // Fallback: for opponents whose profile row is missing or has no display_name,
+  // fetch name from auth.users metadata (e.g. Google full_name)
+  const missingIds = uniqueOpponentIds.filter(id => !profileMap.get(id)?.display_name)
+  for (const id of missingIds) {
+    const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(id)
+    if (authUser) {
+      const name =
+        (authUser.user_metadata?.full_name as string | undefined) ??
+        (authUser.user_metadata?.name as string | undefined) ??
+        authUser.email?.split('@')[0] ??
+        null
+      const existing = profileMap.get(id)
+      profileMap.set(id, { id, display_name: name, avatar_url: existing?.avatar_url ?? null })
+    }
+  }
+
   // Fetch season scores for current month (global scope) for all involved user IDs
   const allUserIds = [user.id, ...uniqueOpponentIds]
 

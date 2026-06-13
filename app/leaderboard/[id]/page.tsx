@@ -140,6 +140,7 @@ export default function LeaderboardPage() {
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -731,6 +732,51 @@ export default function LeaderboardPage() {
             )
           })()}
 
+          {/* Del-knapp — innloggede brukere som har spilt */}
+          {!authLoading && session && hasPlayed && (() => {
+            const shareCorrect = userAttempt?.correct_answers ?? savedResult?.correct_answers ?? null
+            const shareTotalQ  = userAttempt?.total_questions ?? null
+            const shareRank    = isPremium && userAttempt ? userAttempt.rank : null
+            if (shareCorrect == null) return null
+            const shareText = shareRank != null && shareTotalQ != null
+              ? `Jeg fikk ${shareCorrect}/${shareTotalQ} og havnet på ${shareRank}. av ${totalCount} på Quizkanonen! 🎯`
+              : shareTotalQ != null
+              ? `Jeg fikk ${shareCorrect}/${shareTotalQ} på Quizkanonen! 🎯`
+              : `Jeg fikk ${shareCorrect} riktige på Quizkanonen! 🎯`
+
+            async function handleShare() {
+              if (navigator.share) {
+                await navigator.share({ text: shareText }).catch(() => {/* avbrutt */})
+              } else {
+                await navigator.clipboard.writeText(shareText).catch(() => {})
+                setShareCopied(true)
+                setTimeout(() => setShareCopied(false), 2500)
+              }
+            }
+
+            return (
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <button
+                  onClick={handleShare}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #2a2d38',
+                    color: shareCopied ? '#4ade80' : '#e8e4dd',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: '10px 24px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {shareCopied ? 'Kopiert!' : 'Del resultatet ditt'}
+                </button>
+              </div>
+            )
+          })()}
+
           {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
           {!authLoading && !session && totalCount > 0 && (() => {
             // Vis kun plasserings-estimat hvis gjesten faktisk har spilt (har et lagret forsøk).
@@ -892,6 +938,23 @@ export default function LeaderboardPage() {
               <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</a>
             </p>
           )}
+
+          {/* Neste steg */}
+          <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 14, letterSpacing: '0.04em' }}>
+              Neste quiz kommer fredag
+            </p>
+            <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {!authLoading && session && (
+                <Link href="/historikk" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                  Se din quizhistorikk →
+                </Link>
+              )}
+              <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                Se sesong-topplisten →
+              </Link>
+            </div>
+          </div>
 
         </div>
       </div>

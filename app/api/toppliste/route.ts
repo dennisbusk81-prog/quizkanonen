@@ -227,7 +227,17 @@ export async function GET(request: NextRequest) {
   const { data: scores } = await scoresQuery
 
   if (!scores || scores.length === 0) {
-    return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
+    // Include closes_at of the currently open quiz so the client can show
+    // a "pending" message instead of "no one has played yet"
+    const { data: openQuiz } = await supabaseAdmin
+      .from('quizzes')
+      .select('closes_at')
+      .eq('quiz_type', 'weekly')
+      .gt('closes_at', new Date().toISOString())
+      .order('closes_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null, activeQuizClosesAt: openQuiz?.closes_at ?? null })
   }
 
   // 2. Aggregér per bruker
