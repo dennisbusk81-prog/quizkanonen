@@ -17,8 +17,8 @@ const items = [
   },
   {
     title: 'Gratis eller Premium?',
-    teaser: 'Du kan alltid spille gratis.',
-    content: 'Alle kan spille gratis — ingen konto nødvendig. Med gratis konto huskes du på topplisten med nøyaktig plassering. Premium (kr 49/mnd) gir deg quizhistorikk, statistikk, private ligaer og mer. Prøv gratis i én måned — ingen kortinfo nødvendig.',
+    teaser: 'Gratis å spille — logg inn med Google for å delta.',
+    content: 'Det er gratis å spille — du logger inn med Google på ett sekund, og huskes på topplisten med nøyaktig plassering. Premium (kr 49/mnd) gir deg quizhistorikk, statistikk, private ligaer og mer. Prøv Premium gratis i én måned — ingen kortinfo nødvendig.',
     link: null,
   },
 ]

@@ -39,7 +39,7 @@ export default function WelcomeBanner() {
           flex: 1,
           textAlign: 'center',
         }}>
-          Ukentlig quiz for folk som tar kunnskap på alvor — spill gratis, konkurrer mot de samme menneskene hver uke.
+          Ukentlig quiz for folk som tar kunnskap på alvor — gratis å spille, logg inn med Google og konkurrer mot de samme menneskene hver uke.
         </p>
         <button
           onClick={() => setVisible(false)}
