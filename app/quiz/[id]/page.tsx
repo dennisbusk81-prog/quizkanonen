@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 import QuizInterlude from '@/components/QuizInterlude'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
@@ -1054,7 +1055,9 @@ export default function QuizPage() {
     if (answered) return
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
-    const isCorrect = answer === question.correct_answer
+    const isCorrect = question.correct_answers && question.correct_answers.length > 0
+      ? question.correct_answers.includes(answer)
+      : answer === question.correct_answer
 
     // ANIMASJON FØRST — direkte via refs, ingen React, ingen delay
     if (isCorrect) {
@@ -1267,7 +1270,10 @@ export default function QuizPage() {
     const lastAns = answers[answers.length - 1]
     const optMap: Record<string, keyof Question> = { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
     const q = questions[currentIndex]
-    const correctText = q ? (q[optMap[q.correct_answer]] as string) || q.correct_answer : ''
+    const correctKeys = q?.correct_answers && q.correct_answers.length > 0 ? q.correct_answers : [q?.correct_answer]
+    const correctText = q
+      ? correctKeys.map(k => k ? (q[optMap[k]] as string) || k : '').filter(Boolean).join(' / ')
+      : ''
     const streak = (() => {
       let s = 0
       for (let i = answers.length - 1; i >= 0; i--) {
@@ -1797,7 +1803,10 @@ export default function QuizPage() {
 
     const getOptionClass = (opt: string) => {
       if (!answered) return ''
-      const isCorrectOpt = opt === question?.correct_answer
+      const correctSet = question?.correct_answers && question.correct_answers.length > 0
+        ? question.correct_answers
+        : [question?.correct_answer]
+      const isCorrectOpt = correctSet.includes(opt)
       const isSelected = opt === selectedAnswer
       if (isCorrectOpt && isSelected) return ' correct-self'
       if (isCorrectOpt) return ' correct'
@@ -1837,25 +1846,27 @@ export default function QuizPage() {
 
       {/* Intermediate screen */}
       {interPhase !== 'hidden' && (
-        <QuizInterlude
-          phase={interPhase}
-          lastCorrect={interLastCorrect}
-          correctAnswerText={interCorrectAnswerText}
-          explanation={interExplanation}
-          score={interScore}
-          totalQuestions={questions.length}
-          streak={interStreak}
-          wrongInARow={interWrongInARow}
-          questionIndex={interNextQNum - 2}
-          low={interLow}
-          high={interHigh}
-          rival={rivalData}
-          percentileData={percentileData}
-          rankingSnapshot={rankingSnapshot ?? undefined}
-          isPremium={isPremium}
-          quizId={quizId}
-          onNext={handleInterludeNext}
-        />
+        <ErrorBoundary>
+          <QuizInterlude
+            phase={interPhase}
+            lastCorrect={interLastCorrect}
+            correctAnswerText={interCorrectAnswerText}
+            explanation={interExplanation}
+            score={interScore}
+            totalQuestions={questions.length}
+            streak={interStreak}
+            wrongInARow={interWrongInARow}
+            questionIndex={interNextQNum - 2}
+            low={interLow}
+            high={interHigh}
+            rival={rivalData}
+            percentileData={percentileData}
+            rankingSnapshot={rankingSnapshot ?? undefined}
+            isPremium={isPremium}
+            quizId={quizId}
+            onNext={handleInterludeNext}
+          />
+        </ErrorBoundary>
       )}
       <div ref={playShellRef} className="qk-play-shell">
         <div className="qk-play-header">

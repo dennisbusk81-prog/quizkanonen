@@ -18,6 +18,8 @@ type QuestionForm = {
   option_c: string
   option_d: string
   correct_answer: string
+  correct_answers: string[]
+  is_classic: boolean
   explanation: string
   time_limit_seconds: string
   shuffle_options: boolean
@@ -26,7 +28,8 @@ type QuestionForm = {
 
 const emptyForm = (): QuestionForm => ({
   question_text: '', option_a: '', option_b: '', option_c: '', option_d: '',
-  correct_answer: 'A', explanation: '', time_limit_seconds: '', shuffle_options: false, category: '',
+  correct_answer: 'A', correct_answers: [], is_classic: false,
+  explanation: '', time_limit_seconds: '', shuffle_options: false, category: '',
 })
 
 const STYLES = `
@@ -488,7 +491,9 @@ export default function QuizQuestions() {
           option_b: newQ.option_b,
           option_c: newQ.option_c || null,
           option_d: newQ.option_d || null,
-          correct_answer: newQ.correct_answer,
+          correct_answer: newQ.correct_answers.length > 0 ? newQ.correct_answers[0] : newQ.correct_answer,
+          correct_answers: newQ.correct_answers.length > 1 ? newQ.correct_answers : null,
+          is_classic: newQ.is_classic,
           explanation: newQ.explanation || null,
           time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
           shuffle_options: newQ.shuffle_options,
@@ -517,7 +522,9 @@ export default function QuizQuestions() {
           option_b: editForm.option_b,
           option_c: editForm.option_c || null,
           option_d: editForm.option_d || null,
-          correct_answer: editForm.correct_answer,
+          correct_answer: editForm.correct_answers.length > 0 ? editForm.correct_answers[0] : editForm.correct_answer,
+          correct_answers: editForm.correct_answers.length > 1 ? editForm.correct_answers : null,
+          is_classic: editForm.is_classic,
           explanation: editForm.explanation || null,
           time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
           shuffle_options: editForm.shuffle_options,
@@ -553,6 +560,8 @@ export default function QuizQuestions() {
       option_c: q.option_c || '',
       option_d: q.option_d || '',
       correct_answer: q.correct_answer,
+      correct_answers: q.correct_answers ?? [],
+      is_classic: q.is_classic ?? false,
       explanation: q.explanation || '',
       time_limit_seconds: q.time_limit_seconds?.toString() || '',
       shuffle_options: q.shuffle_options ?? false,
@@ -607,6 +616,16 @@ export default function QuizQuestions() {
     label: string
   ) {
     const upd = (key: string, val: string) => setForm({ ...form, [key]: val })
+
+    const toggleCorrectAnswer = (opt: string) => {
+      const current = form.correct_answers.length > 0 ? form.correct_answers : [form.correct_answer]
+      const next = current.includes(opt) ? current.filter(o => o !== opt) : [...current, opt]
+      if (next.length === 0) return // minst ett svar må være valgt
+      setForm({ ...form, correct_answers: next, correct_answer: next[0] })
+    }
+
+    const effectiveCorrectAnswers = form.correct_answers.length > 0 ? form.correct_answers : [form.correct_answer]
+
     return (
       <div className="qq-form-card">
         <p className="qq-form-title">{label}</p>
@@ -620,7 +639,7 @@ export default function QuizQuestions() {
         <div className="qq-field qq-grid-2">
           {options.map(opt => {
             const key = opt === 'A' ? 'option_a' : opt === 'B' ? 'option_b' : opt === 'C' ? 'option_c' : 'option_d'
-            const isCorrect = form.correct_answer === opt
+            const isCorrect = effectiveCorrectAnswers.includes(opt)
             return (
               <div key={opt}>
                 <div className="qq-opt-label">
@@ -638,15 +657,23 @@ export default function QuizQuestions() {
         </div>
 
         <div className="qq-field">
-          <label className="qq-label">Riktig svar</label>
+          <label className="qq-label">Riktig svar — velg ett eller flere</label>
           <div className="qq-answer-btns">
-            {options.map(opt => (
-              <button key={opt} onClick={() => upd('correct_answer', opt)}
-                className={`qq-answer-btn ${form.correct_answer === opt ? 'active' : ''}`}>
-                {opt}
-              </button>
-            ))}
+            {options.map(opt => {
+              const isCorrect = effectiveCorrectAnswers.includes(opt)
+              return (
+                <button key={opt} onClick={() => toggleCorrectAnswer(opt)}
+                  className={`qq-answer-btn ${isCorrect ? 'active' : ''}`}>
+                  {opt}
+                </button>
+              )
+            })}
           </div>
+          {effectiveCorrectAnswers.length > 1 && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, fontFamily: "'Instrument Sans', sans-serif" }}>
+              Valgt: {effectiveCorrectAnswers.join(', ')} — {effectiveCorrectAnswers.length} riktige svar
+            </p>
+          )}
         </div>
 
         <div className="qq-field qq-grid-2">
@@ -692,6 +719,29 @@ export default function QuizQuestions() {
               <span style={{
                 position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
                 left: form.shuffle_options ? 23 : 3, transition: 'left 0.2s',
+              }} />
+            </button>
+          </div>
+        </div>
+
+        <div className="qq-field">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+            <div>
+              <span style={{ fontSize: 13, color: 'var(--body)' }}>Lagre som klassiker</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 2 }}>Lagrer spørsmålet i klassiker-banken</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, is_classic: !form.is_classic })}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: form.is_classic ? 'var(--gold)' : 'var(--border)',
+                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
+                left: form.is_classic ? 23 : 3, transition: 'left 0.2s',
               }} />
             </button>
           </div>
@@ -788,6 +838,16 @@ export default function QuizQuestions() {
                         {q.shuffle_options && (
                           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 8px' }}>
                             Blander
+                          </span>
+                        )}
+                        {q.is_classic && (
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--gold)', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '2px 8px' }}>
+                            Klassiker
+                          </span>
+                        )}
+                        {q.correct_answers && q.correct_answers.length > 1 && (
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#4ade80', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 20, padding: '2px 8px' }}>
+                            {q.correct_answers.length} riktige
                           </span>
                         )}
                       </div>

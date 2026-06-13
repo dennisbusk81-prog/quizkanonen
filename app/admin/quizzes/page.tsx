@@ -522,6 +522,11 @@ export default function AdminQuizzes() {
               onChange={handleFileChange}
               style={{ display: 'none' }}
             />
+            <Link href="/admin/classics" style={{
+              background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+              padding: '10px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+              textDecoration: 'none', whiteSpace: 'nowrap',
+            }}>Klassikere</Link>
             <Link href="/admin/quizzes/new" className="aqz-btn-primary">+ Ny quiz</Link>
           </div>
         </header>

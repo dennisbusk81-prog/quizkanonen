@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { supabase } from '@/lib/supabase'
 
 function ExpiredPremiumBanner() {
@@ -81,7 +82,9 @@ export default function TopplisterPage() {
           </div>
 
           <ExpiredPremiumBanner />
-          <SeasonLeaderboard scope="global" />
+          <ErrorBoundary>
+            <SeasonLeaderboard scope="global" />
+          </ErrorBoundary>
 
         </div>
       </div>

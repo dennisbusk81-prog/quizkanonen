@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
 import SkeletonCard from '@/components/SkeletonCard'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -499,6 +500,7 @@ export default function HistorikkPage() {
   }
 
   return (
+    <ErrorBoundary>
     <>
       <style>{FONT_IMPORT}</style>
       <div style={s.wrap}>
@@ -653,5 +655,6 @@ export default function HistorikkPage() {
         </div>
       </div>
     </>
+    </ErrorBoundary>
   )
 }

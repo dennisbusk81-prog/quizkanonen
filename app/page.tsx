@@ -5,6 +5,7 @@ import NavAuth from '@/components/NavAuth'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import RivalryCard from '@/components/RivalryCard'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import WelcomeBanner from '@/components/WelcomeBanner'
 import AccordionSection from '@/components/AccordionSection'
 import NotifyForm from '@/components/NotifyForm'
@@ -1266,7 +1267,9 @@ export default async function Home() {
           )}
 
           {/* Rivalry card — H2H Duell (Premium) */}
-          <RivalryCard isPremium={isPremium} />
+          <ErrorBoundary>
+            <RivalryCard isPremium={isPremium} />
+          </ErrorBoundary>
 
         </div>
       </>

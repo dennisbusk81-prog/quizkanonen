@@ -61,6 +61,8 @@ export type Question = {
   option_c: string | null
   option_d: string | null
   correct_answer: string
+  correct_answers: string[] | null
+  is_classic: boolean | null
   explanation: string | null
   order_index: number
   time_limit_seconds: number | null
