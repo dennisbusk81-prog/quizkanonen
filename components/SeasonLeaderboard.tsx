@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
@@ -242,6 +242,9 @@ const s = {
   points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
   pointsSub:   { fontSize: 10, color: '#7a7873', letterSpacing: '0.04em' },
 
+  challengeBtn:  { background: 'transparent', border: '1px solid #2a2d38', color: '#e8e4dd', fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 8, fontFamily: "'Instrument Sans', sans-serif", flexShrink: 0, whiteSpace: 'nowrap' as const },
+  challengeSent: { fontSize: 11, fontWeight: 600, color: '#e8e4dd', letterSpacing: '0.04em', flexShrink: 0, whiteSpace: 'nowrap' as const },
+
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
@@ -328,11 +331,87 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [expandedKey, setExpandedKey]   = useState<string | null>(null)
   const [expandedData, setExpandedData] = useState<Map<string, ExpandedEntry[] | 'loading'>>(new Map())
 
+  // ── H2H Duell ("Utfordre") ──────────────────────────────────────────────────
+  const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
+  const [challengeSentSet, setChallengeSentSet]     = useState<Set<string>>(new Set())
+  const [duelInvolvedSet, setDuelInvolvedSet]       = useState<Set<string>>(new Set())
+  const [activeDuelExists, setActiveDuelExists]     = useState(false)
+  const [challengeError, setChallengeError]         = useState<{ rivalId: string; message: string } | null>(null)
+  const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => subscription.unsubscribe()
   }, [])
+
+  // Hent duell-status for "Utfordre"-knapp i topplisterad
+  useEffect(() => {
+    if (!session?.access_token) {
+      setActiveDuelExists(false)
+      setDuelInvolvedSet(new Set())
+      setChallengeSentSet(new Set())
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/rivalries/my', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok || cancelled) return
+        const json = await res.json()
+        const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = json.rivalries ?? []
+        // Kun ikke-utløpte aktive/ventende dueller blokkerer nye utfordringer (declined teller ikke).
+        const engagedRows = rows.filter(r => !r.isExpired && r.status !== 'declined')
+        if (cancelled) return
+        setActiveDuelExists(engagedRows.length > 0)
+        setDuelInvolvedSet(new Set(engagedRows.map(r => r.opponentId)))
+        setChallengeSentSet(new Set(
+          engagedRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
+        ))
+      } catch { /* ikke kritisk */ }
+    })()
+    return () => { cancelled = true }
+  }, [session])
+
+  useEffect(() => {
+    return () => {
+      if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+    }
+  }, [])
+
+  const handleChallenge = async (rivalId: string) => {
+    if (!session) return
+    setChallengeLoadingId(rivalId)
+    setChallengeError(null)
+    try {
+      const res = await fetch('/api/rivalries', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rival_id: rivalId }),
+      })
+      if (res.ok) {
+        setChallengeSentSet(prev => new Set([...prev, rivalId]))
+        setDuelInvolvedSet(prev => new Set([...prev, rivalId]))
+        setActiveDuelExists(true)
+      } else {
+        const json = await res.json().catch(() => ({}))
+        const msg = json.error ?? 'Noe gikk galt.'
+        setChallengeError({ rivalId, message: msg })
+        if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+        challengeErrorTimerRef.current = setTimeout(() => setChallengeError(null), 3000)
+      }
+    } catch {
+      setChallengeError({ rivalId, message: 'Noe gikk galt.' })
+      if (challengeErrorTimerRef.current) clearTimeout(challengeErrorTimerRef.current)
+      challengeErrorTimerRef.current = setTimeout(() => setChallengeError(null), 3000)
+    }
+    setChallengeLoadingId(null)
+  }
 
   // Hent toppliste-data
   useEffect(() => {
@@ -426,6 +505,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   }
 
   const countdown  = getCountdown(period)
+  const currentUserId = session?.user?.id ?? null
   const badges     = data ? assignBadges(data.entries) : new Map<string, BadgeKind>()
   const isLastQuiz = period === 'last_quiz'
   const showHistory = period !== 'alltime'
@@ -433,36 +513,70 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   // ── Row renderers ─────────────────────────────────────────────────────────
 
+  function renderChallengeButton(entry: Entry) {
+    // Vises kun for innloggede Premium-brukere
+    if (!session || !data?.userIsPremium) return null
+    // Ikke på egen rad
+    if (entry.userId === currentUserId) return null
+    // Bekreftelse hvis nettopp sendt / allerede utgående pending
+    if (challengeSentSet.has(entry.userId)) {
+      return <span style={s.challengeSent}>Duell sendt!</span>
+    }
+    // Allerede i en duell-relasjon (innkommende/aktiv) — skjul i stillhet
+    if (duelInvolvedSet.has(entry.userId)) return null
+    // Har en annen aktiv/ventende duell denne måneden — blokker alle andre
+    if (activeDuelExists) return null
+    const isLoading = challengeLoadingId === entry.userId
+    return (
+      <button
+        onClick={() => handleChallenge(entry.userId)}
+        disabled={isLoading}
+        style={{ ...s.challengeBtn, cursor: isLoading ? 'default' : 'pointer', opacity: isLoading ? 0.6 : 1 }}
+      >
+        {isLoading ? '…' : 'Utfordre'}
+      </button>
+    )
+  }
+
   function renderRow(entry: Entry) {
     const isFirst = entry.rank === 1
     const badge   = badges.get(entry.userId)
     const initial = entry.displayName[0]?.toUpperCase() ?? '?'
+    const showError = challengeError?.rivalId === entry.userId
 
     return (
-      <div key={entry.userId} style={isFirst ? s.rowGold : s.row}>
-        {isFirst && <div style={s.goldStripe} />}
-        <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
-        <div style={s.avatarWrap}>
-          {entry.avatarUrl
-            ? <img src={entry.avatarUrl} alt="" style={s.avatarImg} referrerPolicy="no-referrer" />
-            : <div style={s.avatarInit}>{initial}</div>
-          }
-          {badge && <div style={s.badgePos}><BadgeCircle badge={badge} size={18} /></div>}
-        </div>
-        <div style={s.nameBlock}>
-          <div style={s.name}>{entry.displayName}</div>
-          <div style={s.nameSub}>
-            {isLastQuiz
-              ? formatTime(entry.fastestMs ?? 0)
-              : `${entry.quizCount} ${entry.quizCount === 1 ? 'quiz' : 'quizer'}`
+      <React.Fragment key={entry.userId}>
+        <div style={isFirst ? s.rowGold : s.row}>
+          {isFirst && <div style={s.goldStripe} />}
+          <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
+          <div style={s.avatarWrap}>
+            {entry.avatarUrl
+              ? <img src={entry.avatarUrl} alt="" style={s.avatarImg} referrerPolicy="no-referrer" />
+              : <div style={s.avatarInit}>{initial}</div>
             }
+            {badge && <div style={s.badgePos}><BadgeCircle badge={badge} size={18} /></div>}
           </div>
+          <div style={s.nameBlock}>
+            <div style={s.name}>{entry.displayName}</div>
+            <div style={s.nameSub}>
+              {isLastQuiz
+                ? formatTime(entry.fastestMs ?? 0)
+                : `${entry.quizCount} ${entry.quizCount === 1 ? 'quiz' : 'quizer'}`
+              }
+            </div>
+          </div>
+          <div style={s.pointsBlock}>
+            <div style={s.points}>{entry.points}</div>
+            <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
+          </div>
+          {renderChallengeButton(entry)}
         </div>
-        <div style={s.pointsBlock}>
-          <div style={s.points}>{entry.points}</div>
-          <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
-        </div>
-      </div>
+        {showError && (
+          <p style={{ fontSize: 13, color: '#E24B4A', margin: '-4px 0 8px 20px' }}>
+            {challengeError!.message}
+          </p>
+        )}
+      </React.Fragment>
     )
   }
 
