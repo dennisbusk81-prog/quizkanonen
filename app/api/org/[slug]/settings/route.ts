@@ -38,14 +38,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
 
-  let body: { allow_global_league?: boolean; admin_can_see_answers?: boolean }
+  let body: { allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
 
-  const update: Record<string, boolean> = {}
+  const WEEKLY_TIMINGS = ['after_quiz', 'saturday_morning', 'monday_morning']
+
+  const update: Record<string, boolean | string> = {}
   if (typeof body.allow_global_league === 'boolean') update.allow_global_league = body.allow_global_league
   if (typeof body.admin_can_see_answers === 'boolean') update.admin_can_see_answers = body.admin_can_see_answers
+  if (typeof body.weekly_report_timing === 'string' && WEEKLY_TIMINGS.includes(body.weekly_report_timing)) {
+    update.weekly_report_timing = body.weekly_report_timing
+  }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Ingenting å oppdatere' }, { status: 400 })

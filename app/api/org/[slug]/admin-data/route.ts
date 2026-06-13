@@ -25,7 +25,7 @@ export async function GET(
   // Get org
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, plan, stripe_subscription_id, stripe_period_end, allow_global_league, admin_can_see_answers')
+    .select('id, name, plan, stripe_subscription_id, stripe_period_end, allow_global_league, admin_can_see_answers, weekly_report_timing')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -104,6 +104,7 @@ export async function GET(
       stripe_period_end: stripePeriodEnd,
       allow_global_league: org.allow_global_league,
       admin_can_see_answers: org.admin_can_see_answers,
+      weekly_report_timing: org.weekly_report_timing ?? 'monday_morning',
     },
     members,
     invites: invites ?? [],

@@ -1115,6 +1115,130 @@ export function reEngagementEmail(firstName?: string): string {
 </html>`
 }
 
+type WeeklyReportData = {
+  orgName: string
+  winner: { displayName: string; correct: number; total: number } | null
+  top3: Array<{ displayName: string; correct: number; total: number }>
+  participantCount: number
+  shareText: string
+}
+
+export function weeklyReportEmail(data: WeeklyReportData): string {
+  const { orgName, winner, top3, participantCount, shareText } = data
+
+  const medals = ['🥇', '🥈', '🥉']
+  const top3Rows = top3.map((e, i) => `
+                <tr>
+                  <td style="padding:8px 0;font-size:15px;color:#e0e0e0;border-bottom:${i < top3.length - 1 ? '1px solid #2a2d38' : 'none'};">
+                    <span style="display:inline-block;width:28px;">${medals[i] ?? `${i + 1}.`}</span>
+                    <strong style="color:#ffffff;">${e.displayName}</strong>
+                    <span style="color:#c9a84c;float:right;font-weight:600;">${e.correct}/${e.total}</span>
+                  </td>
+                </tr>`).join('')
+
+  // shareText har emoji og linjeskift — escape < og > og bytt \n til <br>.
+  const shareHtml = shareText
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br />')
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukens quiz-oppsummering — ${orgName}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Ukens oppsummering
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 20px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                ${winner
+                  ? `Ukens vinner i <strong style="color:#ffffff;">${orgName}</strong> er <strong style="color:#ffffff;">${winner.displayName}</strong> med <strong style="color:#c9a84c;">${winner.correct}/${winner.total}</strong> riktige.`
+                  : `Ukens quiz i <strong style="color:#ffffff;">${orgName}</strong> er avgjort.`}
+              </p>
+
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+                Topp 3
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px;">
+                ${top3Rows}
+              </table>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                <strong style="color:#ffffff;">${participantCount}</strong> ansatte kjempet om ukens seier.
+              </p>
+
+              <!-- Kopierbar tekstblokk for Teams/Slack -->
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+                Klar til å dele
+              </p>
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr>
+                  <td style="background:#1a1c23;border:1px solid #2a2d38;border-radius:12px;padding:18px 20px;font-size:15px;color:#e0e0e0;line-height:1.8;">
+                    ${shareHtml}
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se ukens quiz &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Du mottar denne e-posten fordi du er administrator for ${orgName} på Quizkanonen.<br />
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): string {
   const formattedDate = formatNorwegianDate(nextQuizDate)
   const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''

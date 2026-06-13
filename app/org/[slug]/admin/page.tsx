@@ -98,6 +98,7 @@ type AdminData = {
     plan: string
     stripe_period_end: string | null
     allow_global_league: boolean
+    weekly_report_timing: string
   }
   members: Member[]
   invites: Invite[]
@@ -228,6 +229,17 @@ export default function OrgAdminPage() {
   const [shareHovered, setShareHovered] = useState<false | 'month' | 'quarter' | 'year'>(false)
 
   const [allowGlobal, setAllowGlobal] = useState(false)
+
+  // Weekly report (Standard plan)
+  type WeeklyEntry = { displayName: string; correct: number; total: number }
+  type WeeklySummary = { quizTitle: string; closesAt: string; winner: WeeklyEntry | null; top3: WeeklyEntry[]; participantCount: number }
+  const [weeklySummary, setWeeklySummary]   = useState<WeeklySummary | null>(null)
+  const [weeklyShareText, setWeeklyShareText] = useState<string | null>(null)
+  const [weeklyLoading, setWeeklyLoading]   = useState(false)
+  const [weeklyCopied, setWeeklyCopied]     = useState(false)
+  const [reportTiming, setReportTiming]     = useState('monday_morning')
+  const [savingTiming, setSavingTiming]     = useState(false)
+  const [timingSaved, setTimingSaved]       = useState(false)
 
   const [emailInviteOpen, setEmailInviteOpen]     = useState(false)
   const [emailInviteText, setEmailInviteText]     = useState('')
@@ -478,6 +490,24 @@ export default function OrgAdminPage() {
     }
   }, [])
 
+  const loadWeeklySummary = useCallback(async (token: string) => {
+    setWeeklyLoading(true)
+    try {
+      const res = await fetch(`/api/org/${slug}/weekly-summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setWeeklySummary(json.summary ?? null)
+        setWeeklyShareText(json.shareText ?? null)
+      }
+    } catch {
+      // silent — weekly summary is non-critical
+    } finally {
+      setWeeklyLoading(false)
+    }
+  }, [slug])
+
   const loadData = useCallback((sess: Session) => {
     fetch(`/api/org/${slug}/admin-data`, {
       headers: { Authorization: `Bearer ${sess.access_token}` },
@@ -491,6 +521,8 @@ export default function OrgAdminPage() {
         if (d) {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
+          setReportTiming(d.org.weekly_report_timing ?? 'monday_morning')
+          if (d.org.plan === 'standard') loadWeeklySummary(sess.access_token)
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
           loadPrevRanks(d.org.id, d.members, 'month')
@@ -501,7 +533,7 @@ export default function OrgAdminPage() {
       })
       .catch(() => setError('Noe gikk galt.'))
       .finally(() => setLoading(false))
-  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadInsights, loadQuizLeaderboard])
+  }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadInsights, loadQuizLeaderboard, loadWeeklySummary])
 
   useEffect(() => {
     if (session === undefined) return
@@ -595,6 +627,34 @@ export default function OrgAdminPage() {
       setTimeout(() => setSettingsSaved(false), 2000)
     } finally {
       setSavingSettings(false)
+    }
+  }
+
+  const saveReportTiming = async () => {
+    if (!session) return
+    setSavingTiming(true)
+    setTimingSaved(false)
+    try {
+      await fetch(`/api/org/${slug}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ weekly_report_timing: reportTiming }),
+      })
+      setTimingSaved(true)
+      setTimeout(() => setTimingSaved(false), 2500)
+    } finally {
+      setSavingTiming(false)
+    }
+  }
+
+  const copyWeeklyText = async () => {
+    if (!weeklyShareText) return
+    try {
+      await navigator.clipboard.writeText(weeklyShareText)
+      setWeeklyCopied(true)
+      setTimeout(() => setWeeklyCopied(false), 2000)
+    } catch {
+      // clipboard unavailable — silent
     }
   }
 
@@ -985,6 +1045,79 @@ export default function OrgAdminPage() {
             </div>
 
           </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              UKENS OPPSUMMERING — kun Standard-plan
+          ══════════════════════════════════════════════════════════════════ */}
+          {data?.org.plan === 'standard' && (weeklyLoading || weeklySummary) && (
+            <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: 28, marginBottom: 20 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                Ukens oppsummering
+              </p>
+
+              {weeklyLoading && !weeklySummary ? (
+                <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+              ) : weeklySummary ? (
+                <>
+                  <h2 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 4 }}>
+                    {weeklySummary.winner
+                      ? <>{weeklySummary.winner.displayName} <span style={{ color: '#c9a84c' }}>vant {weeklySummary.quizTitle}</span></>
+                      : <>{weeklySummary.quizTitle} er avgjort</>}
+                  </h2>
+                  {weeklySummary.winner && (
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 18 }}>
+                      {weeklySummary.winner.correct}/{weeklySummary.winner.total} riktige
+                    </p>
+                  )}
+
+                  {weeklySummary.top3.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+                      {weeklySummary.top3.map((e, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 16, width: 22, textAlign: 'center', flexShrink: 0 }}>
+                            {['🥇', '🥈', '🥉'][i]}
+                          </span>
+                          <span style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {e.displayName}
+                          </span>
+                          <span style={{ fontSize: 14, color: '#c9a84c', fontWeight: 600, flexShrink: 0 }}>
+                            {e.correct}/{e.total}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 18 }}>
+                    {weeklySummary.participantCount} ansatte kjempet om ukens seier.
+                  </p>
+
+                  {weeklyShareText && (
+                    <>
+                      <pre style={{
+                        background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12,
+                        padding: '16px 18px', fontSize: 13, lineHeight: 1.6, color: '#e8e4dd',
+                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word', margin: '0 0 14px',
+                      }}>
+                        {weeklyShareText}
+                      </pre>
+                      <button
+                        onClick={copyWeeklyText}
+                        style={{
+                          padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
+                          border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                          fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                        }}
+                      >
+                        {weeklyCopied ? 'Kopiert!' : 'Kopier tekst'}
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════════
               KOM I GANG — onboarding for nye admins (kun når listen er tom)
@@ -1684,6 +1817,62 @@ export default function OrgAdminPage() {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              UKENTLIG RAPPORT — innstilling for når oppsummeringen sendes
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Ukentlig rapport" />
+
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 18 }}>
+              Velg når du vil motta ukens oppsummering på e-post
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
+              {([
+                { value: 'after_quiz',        label: 'Rett etter quiz stenger' },
+                { value: 'saturday_morning',  label: 'Lørdag morgen' },
+                { value: 'monday_morning',    label: 'Mandag morgen' },
+              ] as { value: string; label: string }[]).map(({ value, label }) => {
+                const selected = reportTiming === value
+                return (
+                  <label
+                    key={value}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                    onClick={() => setReportTiming(value)}
+                  >
+                    <span style={{
+                      width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                      border: `1px solid ${selected ? '#c9a84c' : '#3a3d48'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'border-color 0.15s',
+                    }}>
+                      {selected && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#c9a84c' }} />}
+                    </span>
+                    <span style={{ fontSize: 14, color: '#e8e4dd' }}>{label}</span>
+                  </label>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button
+                onClick={saveReportTiming}
+                disabled={savingTiming}
+                style={{
+                  padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
+                  border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: savingTiming ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {savingTiming ? 'Lagrer…' : 'Lagre'}
+              </button>
+              {timingSaved && (
+                <span style={{ fontSize: 13, color: '#4ade80' }}>Innstilling lagret</span>
+              )}
+            </div>
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════
