@@ -733,8 +733,10 @@ export default function LeaderboardPage() {
 
           {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
           {!authLoading && !session && totalCount > 0 && (() => {
-            let rangeX = 1
-            let rangeY = Math.min(10, totalCount)
+            // Vis kun plasserings-estimat hvis gjesten faktisk har spilt (har et lagret forsøk).
+            // Uten et forsøk er "plass 1 og 9" villedende — vis en nøytral CTA i stedet.
+            let title: string
+            let sub: string
             if (savedResult) {
               const { correct_answers, total_time_ms } = savedResult
               const allRanked = [...soloAttempts, ...teamAttempts]
@@ -744,15 +746,20 @@ export default function LeaderboardPage() {
               ).length
               const est = better + 1
               const tierStart = Math.floor((est - 1) / 10) * 10 + 1
-              rangeX = Math.max(1, tierStart)
-              rangeY = Math.min(totalCount, tierStart + 9)
+              const rangeX = Math.max(1, tierStart)
+              const rangeY = Math.min(totalCount, tierStart + 9)
+              title = `Du er et sted mellom plass ${rangeX} og ${rangeY}`
+              sub = 'Logg inn for å se nøyaktig plassering'
+            } else {
+              title = 'Logg inn og spill quizen'
+              sub = 'Se hvor du havner på topplisten.'
             }
             return (
               <div style={s.card}>
                 <div style={s.cardRow}>
                   <div>
-                    <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
-                    <p style={s.cardSub}>Logg inn for å se nøyaktig plassering</p>
+                    <p style={s.cardTitle}>{title}</p>
+                    <p style={s.cardSub}>{sub}</p>
                   </div>
                   <button onClick={() => setShowModal(true)} style={s.btnGold}>
                     <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

@@ -176,6 +176,34 @@ export default async function QuizerPage() {
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
 
+  // Antall deltakere — samme tellelogikk som /toppliste og forsiden:
+  // distinkte innloggede spillere (is_team=false, user_id ikke null), minus ekskluderte.
+  const participantCounts = new Map<string, number>()
+  const quizIds = quizList.map(q => q.id)
+  if (quizIds.length > 0) {
+    const [{ data: attemptRows }, { data: excludedRows }] = await Promise.all([
+      supabaseAdmin
+        .from('attempts')
+        .select('quiz_id, user_id')
+        .in('quiz_id', quizIds)
+        .eq('is_team', false)
+        .not('user_id', 'is', null),
+      supabaseAdmin
+        .from('excluded_members')
+        .select('user_id')
+        .eq('scope_type', 'global')
+        .is('scope_id', null),
+    ])
+    const excludedSet = new Set(((excludedRows ?? []) as { user_id: string }[]).map(e => e.user_id))
+    const perQuiz = new Map<string, Set<string>>()
+    for (const r of (attemptRows ?? []) as { quiz_id: string; user_id: string }[]) {
+      if (excludedSet.has(r.user_id)) continue
+      if (!perQuiz.has(r.quiz_id)) perQuiz.set(r.quiz_id, new Set())
+      perQuiz.get(r.quiz_id)!.add(r.user_id)
+    }
+    for (const [qid, set] of perQuiz) participantCounts.set(qid, set.size)
+  }
+
   return (
     <>
       <style>{css}</style>
@@ -195,7 +223,7 @@ export default async function QuizerPage() {
           <div>
             {quizList.map(quiz => {
               const questionCount = quiz.questions[0]?.count ?? 0
-              const participantCount = quiz.attempts[0]?.count ?? 0
+              const participantCount = participantCounts.get(quiz.id) ?? 0
               return (
                 <div key={quiz.id} className="qz-card">
                   <div className="qz-card-left">

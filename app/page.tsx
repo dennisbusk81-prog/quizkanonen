@@ -44,6 +44,30 @@ function truncateName(name: string, max = 20): string {
   return name.slice(0, max) + '…'
 }
 
+// Antall deltakere — samme tellelogikk som /toppliste (api/toppliste, last_quiz-modus):
+// distinkte innloggede spillere (is_team=false, user_id ikke null), minus ekskluderte.
+async function countParticipants(quizId: string): Promise<number> {
+  const [{ data: attemptRows }, { data: excludedRows }] = await Promise.all([
+    supabaseAdmin
+      .from('attempts')
+      .select('user_id')
+      .eq('quiz_id', quizId)
+      .eq('is_team', false)
+      .not('user_id', 'is', null),
+    supabaseAdmin
+      .from('excluded_members')
+      .select('user_id')
+      .eq('scope_type', 'global')
+      .is('scope_id', null),
+  ])
+  const excludedSet = new Set(((excludedRows ?? []) as { user_id: string }[]).map(e => e.user_id))
+  const players = new Set<string>()
+  for (const r of (attemptRows ?? []) as { user_id: string }[]) {
+    if (!excludedSet.has(r.user_id)) players.add(r.user_id)
+  }
+  return players.size
+}
+
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
@@ -831,7 +855,7 @@ export default async function Home() {
       upcomingQuiz = ((upcomingData as QuizRow[] | null) ?? [])[0] ?? null
     }
 
-    const participantCount = quiz?.attempts[0]?.count ?? 0
+    const participantCount = quiz ? await countParticipants(quiz.id) : 0
 
     // Has the user already played the active quiz?
     type PlayedRow = { quiz_id: string }
@@ -1288,6 +1312,7 @@ export default async function Home() {
   const activeQuiz = quizList[0] ?? null
   const upcomingQuiz = ((upcomingQuizData as QuizRow[] | null) ?? [])[0] ?? null
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
+  const activeParticipantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
 
   // Last closed quiz top 3
   type LastQuizRow = { id: string; title: string; questions: { count: number }[] }
@@ -1435,8 +1460,8 @@ export default async function Home() {
             <p className="qk-card-eyebrow">Denne uken</p>
             <h2 className="qk-title">{activeQuiz.title}</h2>
             <p className="qk-card-tagline">
-              {(activeQuiz.attempts[0]?.count ?? 0) > 0
-                ? `${activeQuiz.attempts[0]?.count} deltakere · Kan du slå dem?`
+              {activeParticipantCount > 0
+                ? `${activeParticipantCount} deltakere · Kan du slå dem?`
                 : 'Kan du slå dem?'}
             </p>
             <div className="qk-card-actions">
