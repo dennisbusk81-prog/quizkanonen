@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { quizReminderEmail } from '@/lib/email-templates'
+import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -137,6 +137,99 @@ export async function GET(request: NextRequest) {
       console.log(`[cron/send-reminders] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
     })()
   )
+
+  // ── Org close reminders ───────────────────────────────────────────────────
+  // Find active quiz (opens_at <= now <= closes_at) for org close time calc
+  const { data: activeQuiz } = await supabaseAdmin
+    .from('quizzes')
+    .select('id, title, closes_at')
+    .lte('opens_at', new Date(now).toISOString())
+    .gte('closes_at', new Date(now).toISOString())
+    .order('closes_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (activeQuiz) {
+    // Find orgs with org_quiz_closes_at set, not already reminded for this quiz
+    const { data: orgsWithCloseTime } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, org_quiz_closes_at, org_close_reminder_quiz_id')
+      .not('org_quiz_closes_at', 'is', null)
+
+    const quizDate = activeQuiz.closes_at.slice(0, 10) // YYYY-MM-DD
+
+    for (const org of (orgsWithCloseTime ?? []) as { id: string; name: string; org_quiz_closes_at: string; org_close_reminder_quiz_id: string | null }[]) {
+      if (org.org_close_reminder_quiz_id === activeQuiz.id) continue // already sent for this quiz
+
+      const orgCloseDatetime = `${quizDate}T${org.org_quiz_closes_at}:00.000Z`
+      const msUntilClose = new Date(orgCloseDatetime).getTime() - now
+      const minUntilClose = msUntilClose / 60_000
+
+      if (minUntilClose < 55 || minUntilClose > 65) continue // not in window
+
+      const orgId = org.id
+      const orgName = org.name
+      const orgClosesAt = orgCloseDatetime
+
+      waitUntil(
+        (async () => {
+          // Get org member user IDs
+          const { data: memberRows } = await supabaseAdmin
+            .from('organization_members')
+            .select('user_id')
+            .eq('organization_id', orgId)
+
+          if (!memberRows || memberRows.length === 0) return
+          const memberUserIds = new Set(memberRows.map(m => m.user_id))
+
+          // Find members who have email_reminders enabled
+          const { data: subscribedProfiles } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('email_reminders', true)
+            .in('id', [...memberUserIds])
+
+          if (!subscribedProfiles || subscribedProfiles.length === 0) return
+          const subscribedIds = new Set(subscribedProfiles.map(p => p.id))
+
+          // Resolve emails
+          const emailsByUserId = new Map<string, string>()
+          let page = 1
+          while (true) {
+            const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+            const users = authData?.users ?? []
+            for (const u of users) {
+              if (u.email && subscribedIds.has(u.id)) emailsByUserId.set(u.id, u.email)
+            }
+            if (users.length < 1000) break
+            page++
+          }
+
+          const emails = [...emailsByUserId.values()]
+          if (emails.length === 0) return
+
+          const html = orgCloseReminderEmail(orgName, orgClosesAt, activeQuiz.title ?? undefined)
+          const subject = `Fristen nærmer seg — en time igjen for ${orgName}`
+          const BATCH_SIZE = 20
+          let sent = 0
+          for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+            const batch = emails.slice(i, i + BATCH_SIZE)
+            const results = await Promise.allSettled(batch.map(email => sendEmail({ to: email, subject, html })))
+            sent += results.filter(r => r.status === 'fulfilled').length
+          }
+
+          if (sent > 0) {
+            await supabaseAdmin
+              .from('organizations')
+              .update({ org_close_reminder_quiz_id: activeQuiz.id })
+              .eq('id', orgId)
+          }
+
+          console.log(`[cron/send-reminders] org close reminder: org="${orgName}" sent=${sent}`)
+        })()
+      )
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -714,6 +714,9 @@ export default function QuizPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
+  const [orgQuizOpensAt, setOrgQuizOpensAt] = useState<string | null>(null)
+  const [orgQuizClosesAt, setOrgQuizClosesAt] = useState<string | null>(null)
+  const [orgName, setOrgName] = useState<string | null>(null)
   const questionCardRef      = useRef<HTMLDivElement | null>(null)
   const scoreBadgeRef        = useRef<HTMLSpanElement | null>(null)
   const streakBadgeRef       = useRef<HTMLDivElement | null>(null)
@@ -784,6 +787,18 @@ export default function QuizPage() {
         setAgeAlreadyConfirmed(true)
         setAgeConfirmed(true)
       }
+      // Hent org-spesifikke quiz-tidspunkter
+      try {
+        const timesRes = await fetch(`/api/org/my-quiz-times?quizId=${quizId}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (timesRes.ok) {
+          const timesData = await timesRes.json()
+          if (timesData.orgOpensAt) setOrgQuizOpensAt(timesData.orgOpensAt)
+          if (timesData.orgClosesAt) setOrgQuizClosesAt(timesData.orgClosesAt)
+          if (timesData.orgName) setOrgName(timesData.orgName)
+        }
+      } catch { /* org-tider er valgfrie */ }
     })
   }, [quizId])
 
@@ -1694,12 +1709,49 @@ export default function QuizPage() {
         </>
       )}
 
+      {(() => {
+        const now = new Date()
+        const beforeOrgOpen = orgQuizOpensAt && new Date(orgQuizOpensAt) > now
+        const afterOrgClose = orgQuizClosesAt && new Date(orgQuizClosesAt) < now
+        if (beforeOrgOpen) {
+          const t = new Date(orgQuizOpensAt!).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          return (
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+              Quizen åpner kl. {t} for {orgName ?? 'din bedrift'}.
+            </div>
+          )
+        }
+        if (afterOrgClose) {
+          const t = new Date(orgQuizClosesAt!).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          return (
+            <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+              Fristen for {orgName ?? 'din bedrift'} gikk ut kl. {t}. Sesong-poeng gjelder ikke for sene innleveringer.
+            </div>
+          )
+        }
+        if (orgQuizClosesAt) {
+          const t = new Date(orgQuizClosesAt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          return (
+            <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+              Frist for {orgName ?? 'din bedrift'}: kl. {t}
+            </div>
+          )
+        }
+        return null
+      })()}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <button onClick={startQuiz} disabled={isTeamInput ? (!nameInput.trim() || !teamAgeConfirmed) : (!loggedInDisplayName && !nameInput.trim())} className="qk-btn-primary"
-          style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
-          {resumeData ? 'Fortsett quiz' : 'Start quiz'}
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
-        </button>
+        {(() => {
+          const now = new Date()
+          const blocked = (orgQuizOpensAt && new Date(orgQuizOpensAt) > now)
+          const baseDisabled = isTeamInput ? (!nameInput.trim() || !teamAgeConfirmed) : (!loggedInDisplayName && !nameInput.trim())
+          return (
+            <button onClick={startQuiz} disabled={!!blocked || baseDisabled} className="qk-btn-primary"
+              style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
+              {resumeData ? 'Fortsett quiz' : 'Start quiz'}
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+            </button>
+          )
+        })()}
       </div>
       {startError && (
         <p style={{ textAlign: 'center', fontSize: 13, color: '#e8e4dd', marginTop: 12, lineHeight: 1.5 }}>

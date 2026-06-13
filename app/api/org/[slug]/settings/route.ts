@@ -38,18 +38,25 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
 
-  let body: { allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string }
+  let body: { allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
 
   const WEEKLY_TIMINGS = ['after_quiz', 'saturday_morning', 'monday_morning']
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
-  const update: Record<string, boolean | string> = {}
+  const update: Record<string, boolean | string | null> = {}
   if (typeof body.allow_global_league === 'boolean') update.allow_global_league = body.allow_global_league
   if (typeof body.admin_can_see_answers === 'boolean') update.admin_can_see_answers = body.admin_can_see_answers
   if (typeof body.weekly_report_timing === 'string' && WEEKLY_TIMINGS.includes(body.weekly_report_timing)) {
     update.weekly_report_timing = body.weekly_report_timing
+  }
+  if ('org_quiz_opens_at' in body) {
+    update.org_quiz_opens_at = (body.org_quiz_opens_at && TIME_RE.test(body.org_quiz_opens_at)) ? body.org_quiz_opens_at : null
+  }
+  if ('org_quiz_closes_at' in body) {
+    update.org_quiz_closes_at = (body.org_quiz_closes_at && TIME_RE.test(body.org_quiz_closes_at)) ? body.org_quiz_closes_at : null
   }
 
   if (Object.keys(update).length === 0) {

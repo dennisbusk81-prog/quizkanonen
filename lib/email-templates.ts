@@ -1342,6 +1342,66 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): str
 </html>`
 }
 
+export function orgCloseReminderEmail(orgName: string, closesAt: string, quizTitle?: string): string {
+  const timeStr = new Date(closesAt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' })
+  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>En time igjen til fristen!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                En time igjen!
+              </p>
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+              ${titleLine}
+              <p style="margin:0 0 8px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Hei! Fristen for ${orgName} nærmer seg.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Quizen stenger for bedriften din kl. <strong style="color:#c9a84c;">${timeStr}</strong>. Rekker du den?
+              </p>
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+                <tr>
+                  <td style="background:#c9a84c;border-radius:10px;padding:13px 32px;text-align:center;">
+                    <a href="https://quizkanonen.no" style="font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;white-space:nowrap;">
+                      Spill nå →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:12px;color:#7a7873;text-align:center;line-height:1.6;">
+                Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.<br/>
+                <a href="https://quizkanonen.no/innstillinger" style="color:#7a7873;">Endre varslingsinnstillinger</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function duelInviteEmail(challengerName: string): string {
   return `<!DOCTYPE html>
 <html lang="no">

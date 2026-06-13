@@ -99,6 +99,8 @@ type AdminData = {
     stripe_period_end: string | null
     allow_global_league: boolean
     weekly_report_timing: string
+    org_quiz_opens_at: string | null
+    org_quiz_closes_at: string | null
   }
   members: Member[]
   invites: Invite[]
@@ -240,6 +242,11 @@ export default function OrgAdminPage() {
   const [reportTiming, setReportTiming]     = useState('monday_morning')
   const [savingTiming, setSavingTiming]     = useState(false)
   const [timingSaved, setTimingSaved]       = useState(false)
+
+  const [orgQuizOpensAt, setOrgQuizOpensAt]   = useState('')
+  const [orgQuizClosesAt, setOrgQuizClosesAt] = useState('')
+  const [savingQuizTimes, setSavingQuizTimes] = useState(false)
+  const [quizTimesSaved, setQuizTimesSaved]   = useState(false)
 
   const [emailInviteOpen, setEmailInviteOpen]     = useState(false)
   const [emailInviteText, setEmailInviteText]     = useState('')
@@ -522,6 +529,8 @@ export default function OrgAdminPage() {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
           setReportTiming(d.org.weekly_report_timing ?? 'monday_morning')
+          setOrgQuizOpensAt(d.org.org_quiz_opens_at ?? '')
+          setOrgQuizClosesAt(d.org.org_quiz_closes_at ?? '')
           if (d.org.plan === 'standard') loadWeeklySummary(sess.access_token)
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
@@ -644,6 +653,26 @@ export default function OrgAdminPage() {
       setTimeout(() => setTimingSaved(false), 2500)
     } finally {
       setSavingTiming(false)
+    }
+  }
+
+  const saveQuizTimes = async () => {
+    if (!session) return
+    setSavingQuizTimes(true)
+    setQuizTimesSaved(false)
+    try {
+      await fetch(`/api/org/${slug}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          org_quiz_opens_at: orgQuizOpensAt || null,
+          org_quiz_closes_at: orgQuizClosesAt || null,
+        }),
+      })
+      setQuizTimesSaved(true)
+      setTimeout(() => setQuizTimesSaved(false), 2500)
+    } finally {
+      setSavingQuizTimes(false)
     }
   }
 
@@ -1871,6 +1900,62 @@ export default function OrgAdminPage() {
               </button>
               {timingSaved && (
                 <span style={{ fontSize: 13, color: '#4ade80' }}>Innstilling lagret</span>
+              )}
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              QUIZ-TIDSPUNKTER — org-spesifikke åpne/lukk-tider
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Quiz-tidspunkter" />
+
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 }}>
+              Sett egne tidspunkter for når quizen åpner og stenger for din bedrift. La feltene stå tomme for å bruke standard tidspunkter.
+            </p>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 22 }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                  Quiz åpner
+                </label>
+                <input
+                  type="time"
+                  value={orgQuizOpensAt}
+                  onChange={e => setOrgQuizOpensAt(e.target.value)}
+                  className="oa-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                  Quiz stenger
+                </label>
+                <input
+                  type="time"
+                  value={orgQuizClosesAt}
+                  onChange={e => setOrgQuizClosesAt(e.target.value)}
+                  className="oa-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button
+                onClick={saveQuizTimes}
+                disabled={savingQuizTimes}
+                style={{
+                  padding: '9px 22px', background: 'transparent',
+                  border: '1px solid #e8e4dd', borderRadius: 10,
+                  fontSize: 13, fontWeight: 600, color: '#e8e4dd',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: savingQuizTimes ? 'not-allowed' : 'pointer',
+                  opacity: savingQuizTimes ? 0.6 : 1,
+                }}
+              >
+                {savingQuizTimes ? 'Lagrer…' : 'Lagre'}
+              </button>
+              {quizTimesSaved && (
+                <span style={{ fontSize: 13, color: '#4ade80' }}>Tidspunkter lagret</span>
               )}
             </div>
           </div>
