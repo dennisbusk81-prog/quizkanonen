@@ -1468,9 +1468,14 @@ export default async function Home() {
               <a href={`/quiz/${activeQuiz.id}`} className="qk-btn-outline-dark">
                 Spill nå
               </a>
-              <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">
-                Toppliste ↗
-              </Link>
+              <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
+                <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">
+                  Toppliste ↗
+                </Link>
+                <Link href="/quizer" className="qk-card-toplist">
+                  Alle quizer →
+                </Link>
+              </div>
             </div>
           </div>
         ) : upcomingQuiz ? (

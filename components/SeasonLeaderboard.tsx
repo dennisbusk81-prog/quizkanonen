@@ -769,6 +769,26 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     )
   }
 
+  if (!loading && !data) {
+    const loginHref = `/login?next=/toppliste`
+    return (
+      <>
+        <style>{FONT_IMPORT + EXTRA_STYLES}</style>
+        <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '36px 28px', textAlign: 'center' }}>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
+            Ingen data ennå
+          </p>
+          <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+            Logg inn for å se din sesong-plassering.
+          </p>
+          <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
+            Logg inn
+          </Link>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <style>{FONT_IMPORT + EXTRA_STYLES}</style>
