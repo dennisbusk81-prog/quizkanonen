@@ -7,6 +7,7 @@ import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import RivalryCard from '@/components/RivalryCard'
 import WelcomeBanner from '@/components/WelcomeBanner'
 import AccordionSection from '@/components/AccordionSection'
+import NotifyForm from '@/components/NotifyForm'
 import Link from 'next/link'
 
 const FOUNDERS_ACTIVE = true
@@ -1498,6 +1499,32 @@ export default async function Home() {
             <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
               Ingen quiz planlagt akkurat nå — kom tilbake snart.
             </p>
+          </div>
+        )}
+
+        {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz */}
+        {!user && !activeQuiz && (
+          <div style={{
+            background: '#21242e',
+            border: '1px solid #2a2d38',
+            borderRadius: 16,
+            padding: '24px 24px',
+            marginBottom: 8,
+            textAlign: 'center',
+          }}>
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: 16,
+              fontWeight: 700,
+              color: '#ffffff',
+              marginBottom: 6,
+            }}>
+              Få beskjed når neste quiz er klar
+            </p>
+            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 18, lineHeight: 1.6 }}>
+              Vi sender deg en e-post når neste quiz åpner.
+            </p>
+            <NotifyForm />
           </div>
         )}
 

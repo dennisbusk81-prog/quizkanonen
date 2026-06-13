@@ -144,6 +144,17 @@ export default function LeaderboardPage() {
   // Fix 3: store timer ref so it can be cleared on unmount
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  type AnswerDistQuestion = {
+    questionId: string
+    questionText: string
+    correctAnswer: string
+    totalAnswers: number
+    distribution: { option: string; label: string; count: number; percent: number }[]
+  }
+  const [answerDist, setAnswerDist] = useState<AnswerDistQuestion[] | null>(null)
+  const [answerDistLoading, setAnswerDistLoading] = useState(false)
+  const [showAnswerDist, setShowAnswerDist] = useState(false)
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -937,6 +948,75 @@ export default function LeaderboardPage() {
               Vil du konkurrere mot vennene dine?{' '}
               <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</a>
             </p>
+          )}
+
+          {/* Svarfordeling — kun etter at quiz er stengt */}
+          {isClosed && (
+            <div style={{ marginTop: 32 }}>
+              <div style={s.sectionHeader}>
+                <span style={s.sectionText}>Svarfordeling</span>
+                <div style={s.sectionLine} />
+                <button
+                  onClick={async () => {
+                    if (!showAnswerDist && !answerDist) {
+                      setAnswerDistLoading(true)
+                      try {
+                        const res = await fetch(`/api/quiz/${quizId}/answer-distribution`)
+                        if (res.ok) {
+                          const d = await res.json()
+                          setAnswerDist(d.questions ?? [])
+                        }
+                      } catch { /* stille */ } finally {
+                        setAnswerDistLoading(false)
+                      }
+                    }
+                    setShowAnswerDist(v => !v)
+                  }}
+                  style={{ background: 'none', border: '1px solid #2a2d38', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                >
+                  {showAnswerDist ? 'Skjul' : 'Vis'}
+                </button>
+              </div>
+
+              {showAnswerDist && (
+                answerDistLoading
+                  ? <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
+                  : answerDist && answerDist.length > 0
+                    ? answerDist.map((q, qi) => (
+                        <div key={q.questionId} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 22px', marginBottom: 10 }}>
+                          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+                            Spørsmål {qi + 1}
+                          </p>
+                          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 16, lineHeight: 1.4 }}>
+                            {q.questionText}
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {q.distribution.map(d => {
+                              const isCorrect = d.option === q.correctAnswer
+                              return (
+                                <div key={d.option}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', width: 14, flexShrink: 0 }}>{d.option}</span>
+                                    <span style={{ fontSize: 13, color: isCorrect ? '#e8e4dd' : '#7a7873', flex: 1, lineHeight: 1.3 }}>{d.label}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', flexShrink: 0 }}>{d.percent}%</span>
+                                  </div>
+                                  <div style={{ height: 6, background: '#2a2d38', borderRadius: 3, overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${d.percent}%`, background: isCorrect ? '#c9a84c' : '#3a3d48', borderRadius: 3, transition: 'width 0.4s ease' }} />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {q.totalAnswers > 0 && (
+                            <p style={{ fontSize: 11, color: '#7a7873', marginTop: 12, textAlign: 'right' }}>
+                              {q.totalAnswers} svar
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    : <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>Ingen svardata tilgjengelig.</p>
+              )}
+            </div>
           )}
 
           {/* Neste steg */}
