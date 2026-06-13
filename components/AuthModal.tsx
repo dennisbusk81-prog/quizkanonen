@@ -1,15 +1,23 @@
-﻿'use client'
-import { useEffect, useRef } from 'react'
+'use client'
+import { useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 type Props = {
   open: boolean
   onClose: () => void
   next?: string
+  description?: string
 }
 
-export default function AuthModal({ open, onClose, next }: Props) {
+const DEFAULT_DESCRIPTION = 'Logg inn for å se din plassering og følge utviklingen din over tid.'
+
+export default function AuthModal({ open, onClose, next, description }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // Close on Escape
   useEffect(() => {
@@ -25,7 +33,35 @@ export default function AuthModal({ open, onClose, next }: Props) {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  // Reset magic-link state when modal closes
+  useEffect(() => {
+    if (!open) { setEmail(''); setSent(false); setLoading(false); setError('') }
+  }, [open])
+
   if (!open) return null
+
+  const handleMagicLink = async () => {
+    if (!email.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ''}`,
+        },
+      })
+      if (error) {
+        setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
+      } else {
+        setSent(true)
+      }
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div
@@ -70,10 +106,7 @@ export default function AuthModal({ open, onClose, next }: Props) {
             cursor: 'pointer',
             lineHeight: 1,
             padding: 4,
-            transition: 'color 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#7a7873')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#7a7873')}
         >
           ×
         </button>
@@ -105,12 +138,12 @@ export default function AuthModal({ open, onClose, next }: Props) {
         <p style={{
           fontFamily: "'Instrument Sans', sans-serif",
           fontSize: 13,
-          color: '#7a7873',
+          color: '#e8e4dd',
           textAlign: 'center',
           marginBottom: 28,
           lineHeight: 1.5,
         }}>
-          Logg inn for å se din plassering og følge utviklingen din over tid.
+          {description ?? DEFAULT_DESCRIPTION}
         </p>
 
         <div style={{ height: 1, background: '#2a2d38', marginBottom: 24 }} />
@@ -146,6 +179,85 @@ export default function AuthModal({ open, onClose, next }: Props) {
           </svg>
           Fortsett med Google
         </button>
+
+        {/* Divider — eller */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+          <span style={{ fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif" }}>eller</span>
+          <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+        </div>
+
+        {/* Magic link */}
+        {sent ? (
+          <p style={{
+            fontFamily: "'Instrument Sans', sans-serif",
+            fontSize: 13,
+            color: '#e8e4dd',
+            textAlign: 'center',
+            lineHeight: 1.5,
+          }}>
+            Sjekk e-posten din — vi har sendt deg en innloggingslenke.
+          </p>
+        ) : (
+          <>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleMagicLink() }}
+              placeholder="din@epost.no"
+              autoComplete="email"
+              style={{
+                width: '100%',
+                background: '#1a1c23',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 14,
+                color: '#ffffff',
+                outline: 'none',
+                marginBottom: 10,
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(201,168,76,0.5)')}
+              onBlur={e => (e.currentTarget.style.borderColor = '#2a2d38')}
+            />
+            <button
+              onClick={handleMagicLink}
+              disabled={loading || !email.trim()}
+              style={{
+                width: '100%',
+                background: 'transparent',
+                color: '#e8e4dd',
+                fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 14,
+                fontWeight: 600,
+                padding: '11px 20px',
+                borderRadius: 10,
+                border: '1px solid #2a2d38',
+                cursor: loading || !email.trim() ? 'not-allowed' : 'pointer',
+                opacity: loading || !email.trim() ? 0.6 : 1,
+                transition: 'border-color 0.15s',
+              }}
+              onMouseEnter={e => { if (!loading && email.trim()) e.currentTarget.style.borderColor = 'rgba(201,168,76,0.5)' }}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#2a2d38')}
+            >
+              {loading ? 'Sender...' : 'Send innloggingslenke'}
+            </button>
+            {error && (
+              <p style={{
+                fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 12,
+                color: '#f87171',
+                textAlign: 'center',
+                marginTop: 10,
+                lineHeight: 1.5,
+              }}>
+                {error}
+              </p>
+            )}
+          </>
+        )}
 
         <p style={{
           fontFamily: "'Instrument Sans', sans-serif",

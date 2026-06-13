@@ -403,7 +403,12 @@ export default function FoundersPage() {
         </div>
       </div>
 
-      <AuthModal open={modalOpen} onClose={() => setModalOpen(false)} next="/founders" />
+      <AuthModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        next="/founders"
+        description="Logg inn for å aktivere din gratis Founders-måned — ingen kortinfo nødvendig."
+      />
     </div>
   )
 }

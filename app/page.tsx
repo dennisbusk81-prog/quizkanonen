@@ -1361,7 +1361,7 @@ export default async function Home() {
         {/* ── Hero ── */}
         <section className="qk-hero">
           <h1 className="qk-hero-title">
-            Fredagsquizen der du <em>følger med over tid.</em>
+            Fredagsquizen som du <em>følger med over tid.</em>
           </h1>
           <p className="qk-hero-subtitle">
             Slå de samme menneskene hver fredag. Kan du klatre på topplisten?

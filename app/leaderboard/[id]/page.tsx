@@ -89,7 +89,7 @@ const s = {
   emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
   emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
   emptySub:  { fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 },
-  btnLink:   { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnLink:   { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', border: '1px solid #2a2d38', borderRadius: 10, textDecoration: 'none' },
 }
 
 type BadgeKind = 'krone' | 'pil' | 'flamme' | 'lyn' | 'medalje'
