@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
+import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import type { Session } from '@supabase/supabase-js'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
@@ -142,6 +143,7 @@ export default function BliMedPage() {
               </div>
             ) : !session ? (
               <>
+                <InAppBrowserWarning />
                 <button
                   onClick={() => {
                     // Store fallback in case OAuth drops the ?next= param

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
+import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import type { Session } from '@supabase/supabase-js'
 
 const STORAGE_KEY = 'qk-bedrift-pending'
@@ -191,6 +192,7 @@ export default function BedriftRegistrerPage() {
 
             {!session ? (
               <>
+                <InAppBrowserWarning />
                 <button
                   onClick={saveAndLogin}
                   style={{ width: '100%', background: '#ffffff', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}

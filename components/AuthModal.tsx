@@ -2,11 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { signInWithGoogle } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-
-function isInAppBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /FBAN|FBAV|Instagram|Snapchat|TikTok|Twitter|LinkedIn|WhatsApp/i.test(navigator.userAgent)
-}
+import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 
 type Props = {
   open: boolean
@@ -44,8 +40,6 @@ export default function AuthModal({ open, onClose, next, description }: Props) {
   }, [open])
 
   if (!open) return null
-
-  const inApp = isInAppBrowser()
 
   const handleMagicLink = async () => {
     if (!email.trim()) return
@@ -155,34 +149,7 @@ export default function AuthModal({ open, onClose, next, description }: Props) {
 
         <div style={{ height: 1, background: '#2a2d38', marginBottom: 24 }} />
 
-        {inApp && (
-          <div style={{
-            background: '#2a1a0a',
-            border: '1px solid #c9a84c',
-            borderRadius: 12,
-            padding: '16px 20px',
-            marginBottom: 20,
-          }}>
-            <p style={{
-              fontFamily: "'Libre Baskerville', serif",
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#ffffff',
-              marginBottom: 6,
-            }}>
-              Åpne i Safari eller Chrome
-            </p>
-            <p style={{
-              fontFamily: "'Instrument Sans', sans-serif",
-              fontSize: 13,
-              color: '#e8e4dd',
-              lineHeight: 1.6,
-              margin: 0,
-            }}>
-              Det ser ut til at du bruker en nettleser inne i en app. Google-innlogging fungerer ikke her. Åpne quizkanonen.no i Safari eller Chrome for å logge inn.
-            </p>
-          </div>
-        )}
+        <InAppBrowserWarning />
 
         {/* Google button */}
         <button

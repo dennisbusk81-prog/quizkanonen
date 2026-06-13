@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle } from '@/lib/auth'
 import Link from 'next/link'
+import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -201,17 +202,11 @@ const STYLES = `
   .login-back:hover { color: #ffffff; }
 `
 
-function isInAppBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /FBAN|FBAV|Instagram|Snapchat|TikTok|Twitter|LinkedIn|WhatsApp/i.test(navigator.userAgent)
-}
-
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
-  const inApp = typeof window !== 'undefined' && isInAppBrowser()
 
   const handleSend = async () => {
     if (!email.trim()) return
@@ -247,34 +242,7 @@ export default function LoginPage() {
           <p className="login-sub">Ingen passord — vi sender deg en innloggingslenke</p>
           <div className="login-rule" />
 
-          {inApp && (
-            <div style={{
-              background: '#2a1a0a',
-              border: '1px solid #c9a84c',
-              borderRadius: 12,
-              padding: '16px 20px',
-              marginBottom: 20,
-            }}>
-              <p style={{
-                fontFamily: "'Libre Baskerville', serif",
-                fontSize: 14,
-                fontWeight: 700,
-                color: '#ffffff',
-                marginBottom: 6,
-              }}>
-                Åpne i Safari eller Chrome
-              </p>
-              <p style={{
-                fontFamily: "'Instrument Sans', sans-serif",
-                fontSize: 13,
-                color: '#e8e4dd',
-                lineHeight: 1.6,
-                margin: 0,
-              }}>
-                Det ser ut til at du bruker en nettleser inne i en app. Google-innlogging fungerer ikke her. Åpne quizkanonen.no i Safari eller Chrome for å logge inn.
-              </p>
-            </div>
-          )}
+          <InAppBrowserWarning />
 
           <button
             className="login-google-btn"
