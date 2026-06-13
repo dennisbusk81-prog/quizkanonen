@@ -519,8 +519,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   function renderChallengeButton(entry: Entry) {
     // Vises kun for innloggede Premium-brukere
     if (!session || !data?.userIsPremium) return null
-    // Ikke på egen rad
-    if (entry.userId === currentUserId) return null
+    // Ikke på egen rad — vis diskret plassholder for å beholde symmetri
+    if (entry.userId === currentUserId) {
+      return (
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', flexShrink: 0, whiteSpace: 'nowrap' as const, padding: '5px 12px' }}>
+          Din rad
+        </span>
+      )
+    }
     // Bekreftelse hvis nettopp sendt / allerede utgående pending
     if (challengeSentSet.has(entry.userId)) {
       return <span style={s.challengeSent}>Duell sendt!</span>
