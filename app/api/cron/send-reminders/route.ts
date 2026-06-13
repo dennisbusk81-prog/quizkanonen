@@ -3,6 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
+import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -101,23 +102,25 @@ export async function GET(request: NextRequest) {
         page++
       }
 
-      const emailsToSend = [...emailsByUserId.values()]
-      if (emailsToSend.length === 0) {
+      const entriesToSend = [...emailsByUserId.entries()]
+      if (entriesToSend.length === 0) {
         console.log('[cron/send-reminders] no subscriber emails found')
         return
       }
 
-      const html = quizReminderEmail(quizSnapshot.opens_at, quizSnapshot.title ?? undefined)
       const subject = `Quizen åpner snart — ${new Date(quizSnapshot.opens_at).toLocaleDateString('no-NO')}`
       let sent = 0
       let failed = 0
 
       // Send in batches of 20 concurrent emails
       const BATCH_SIZE = 20
-      for (let i = 0; i < emailsToSend.length; i += BATCH_SIZE) {
-        const batch = emailsToSend.slice(i, i + BATCH_SIZE)
+      for (let i = 0; i < entriesToSend.length; i += BATCH_SIZE) {
+        const batch = entriesToSend.slice(i, i + BATCH_SIZE)
         const results = await Promise.allSettled(
-          batch.map(email => sendEmail({ to: email, subject, html }))
+          batch.map(([userId, email]) => {
+            const html = quizReminderEmail(quizSnapshot.opens_at, quizSnapshot.title ?? undefined, buildUnsubscribeUrl(userId, 'reminders'))
+            return sendEmail({ to: email, subject, html })
+          })
         )
         sent   += results.filter(r => r.status === 'fulfilled').length
         failed += results.filter(r => r.status === 'rejected').length

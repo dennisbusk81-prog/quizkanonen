@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { reEngagementEmail } from '@/lib/email-templates'
+import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
 // Send a single re-engagement email to users who:
 //   a. have email_reminders = true
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
     const results = await Promise.allSettled(
       batch.map(([userId, email]) => {
         const firstName = firstNameMap.get(userId)
-        const html = reEngagementEmail(firstName)
+        const html = reEngagementEmail(firstName, buildUnsubscribeUrl(userId, 'reengagement'))
         return sendEmail({ to: email, subject, html }).then(() => userId)
       })
     )

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { duelInviteEmail } from '@/lib/email-templates'
+import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
 // POST /api/rivalries — send a duel challenge to another user
 export async function POST(request: NextRequest) {
@@ -123,10 +124,11 @@ export async function POST(request: NextRequest) {
       ? (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
       : user.email ?? 'En spiller'
     if (rivalUser?.email && rivalProfile?.email_duel_notifications !== false) {
+      const unsubUrl = buildUnsubscribeUrl(rivalId, 'duel')
       await sendEmail({
         to: rivalUser.email,
         subject: `${challengerName} utfordrer deg til en duell!`,
-        html: duelInviteEmail(challengerName),
+        html: duelInviteEmail(challengerName, unsubUrl),
       })
     }
   } catch {

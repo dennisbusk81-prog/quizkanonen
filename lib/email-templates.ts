@@ -7,6 +7,17 @@
             </td>
           </tr>`
 
+function unsubscribeRow(url: string): string {
+  return `
+          <tr>
+            <td align="center" style="padding-top:12px;">
+              <p style="margin:0;font-size:11px;color:#7a7873;line-height:1.7;text-align:center;">
+                <a href="${url}" style="color:#7a7873;text-decoration:underline;">Avslutt abonnement på denne typen e-post</a>
+              </p>
+            </td>
+          </tr>`
+}
+
 function formatNorwegianDate(isoString: string): string {
   const date = new Date(isoString)
   const TZ = 'Europe/Oslo'
@@ -1054,7 +1065,7 @@ export function premiumCancelledEmail(): string {
 </html>`
 }
 
-export function reEngagementEmail(firstName?: string): string {
+export function reEngagementEmail(firstName?: string, unsubscribeUrl?: string): string {
   const greeting = firstName ? `Hei, ${firstName}!` : 'Hei!'
 
   return `<!DOCTYPE html>
@@ -1123,7 +1134,7 @@ export function reEngagementEmail(firstName?: string): string {
               </p>
             </td>
           </tr>
-          ${UNSUBSCRIBE_ROW}
+          ${unsubscribeUrl ? unsubscribeRow(unsubscribeUrl) : UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -1257,7 +1268,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
 </html>`
 }
 
-export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): string {
+export function quizReminderEmail(nextQuizDate: string, quizTitle?: string, unsubscribeUrl?: string): string {
   const formattedDate = formatNorwegianDate(nextQuizDate)
   const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
 
@@ -1332,7 +1343,7 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string): str
               </p>
             </td>
           </tr>
-          ${UNSUBSCRIBE_ROW}
+          ${unsubscribeUrl ? unsubscribeRow(unsubscribeUrl) : UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -1402,7 +1413,7 @@ export function orgCloseReminderEmail(orgName: string, closesAt: string, quizTit
 </html>`
 }
 
-export function duelInviteEmail(challengerName: string): string {
+export function duelInviteEmail(challengerName: string, unsubscribeUrl?: string): string {
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -1462,7 +1473,7 @@ export function duelInviteEmail(challengerName: string): string {
               </p>
             </td>
           </tr>
-          ${UNSUBSCRIBE_ROW}
+          ${unsubscribeUrl ? unsubscribeRow(unsubscribeUrl) : UNSUBSCRIBE_ROW}
 
         </table>
       </td>
