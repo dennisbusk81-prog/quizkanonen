@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const windowEnd   = new Date(now - WINDOW_END_MS).toISOString()
 
   // Profiles on trial: premium_status = true, premium_since 23–24 days ago,
-  // and premium_source is NULL (Founders trial) or 'founders'.
+  // premium_source NULL (Founders) or 'founders', and reminder not already sent.
   // Paying customers (premium_source = 'personal' or 'org') are excluded.
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     .gte('premium_since', windowStart)
     .lte('premium_since', windowEnd)
     .or('premium_source.is.null,premium_source.eq.founders')
+    .is('trial_reminder_sent_at', null)
 
   if (profilesError) {
     console.error('[cron/trial-reminders] profiles error:', profilesError.message)
@@ -42,7 +43,8 @@ export async function GET(request: NextRequest) {
   const trialUserIds = new Set(profiles.map(p => p.id))
 
   // Resolve emails via listUsers pagination — avoids N parallel getUserById calls.
-  const emailsToSend: string[] = []
+  // Keep a Map<userId, email> so we can mark sent rows after delivery.
+  const toSend: { id: string; email: string }[] = []
   let page = 1
   while (true) {
     const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
@@ -56,14 +58,14 @@ export async function GET(request: NextRequest) {
     const users = authData?.users ?? []
     for (const u of users) {
       if (u.email && trialUserIds.has(u.id)) {
-        emailsToSend.push(u.email)
+        toSend.push({ id: u.id, email: u.email })
       }
     }
     if (users.length < 1000) break // last page
     page++
   }
 
-  if (emailsToSend.length === 0) {
+  if (toSend.length === 0) {
     return NextResponse.json({ sent: 0, reason: 'no emails resolved for trial users' })
   }
 
@@ -81,21 +83,36 @@ export async function GET(request: NextRequest) {
     ])
   }
 
-  // Send all emails in parallel, each with a 5-second timeout
+  // Send all emails in parallel, each with a 5-second timeout.
+  // Track which user IDs succeeded so we can stamp trial_reminder_sent_at.
+  const sentAt = new Date().toISOString()
   const sendResults = await Promise.allSettled(
-    emailsToSend.map(email =>
-      withTimeout(sendEmail({ to: email, subject, html }), 5_000)
+    toSend.map(({ id, email }) =>
+      withTimeout(sendEmail({ to: email, subject, html }), 5_000).then(() => id)
     )
   )
 
+  const sentIds: string[] = []
   let sent = 0
   let failed = 0
   for (const r of sendResults) {
     if (r.status === 'fulfilled') {
+      sentIds.push(r.value)
       sent++
     } else {
       console.error('[cron/trial-reminders] failed to send:', r.reason)
       failed++
+    }
+  }
+
+  // Mark sent rows — prevents double-send if cron fires twice on the same day.
+  if (sentIds.length > 0) {
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ trial_reminder_sent_at: sentAt })
+      .in('id', sentIds)
+    if (updateError) {
+      console.error('[cron/trial-reminders] failed to stamp trial_reminder_sent_at:', updateError.message)
     }
   }
 

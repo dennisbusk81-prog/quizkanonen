@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin
       .from('profiles')
-      .update({ premium_status: true, premium_since: new Date().toISOString(), premium_source: 'founders' })
+      .update({ premium_status: true, premium_since: new Date().toISOString(), premium_source: 'founders', trial_reminder_sent_at: null })
       .eq('id', user.id)
 
     // Send founders-aktiveringsbekreftelse — fire-and-forget
