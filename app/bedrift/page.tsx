@@ -332,8 +332,8 @@ export default function BedriftPage() {
           <div className="cta-note">Alle ansatte får Premium inkludert i abonnementet.</div>
           <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 10 }}>
             Foretrekker du faktura? Send en e-post til{' '}
-            <a href="mailto:hei@quizkanonen.no" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
-              hei@quizkanonen.no
+            <a href="mailto:support@quizkanonen.no" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
+              support@quizkanonen.no
             </a>
             , så ordner vi det.
           </p>
