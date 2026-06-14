@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import webpush from 'web-push'
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT ?? 'mailto:support@quizkanonen.no',
-  process.env.VAPID_PUBLIC_KEY ?? '',
-  process.env.VAPID_PRIVATE_KEY ?? '',
-)
-
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
@@ -51,6 +45,12 @@ export async function GET(request: NextRequest) {
     await supabaseAdmin.from('quizzes').update({ push_sent_at: now }).eq('id', quiz.id)
     return NextResponse.json({ sent: 0, reason: 'no subscriptions' })
   }
+
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT ?? 'mailto:support@quizkanonen.no',
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  )
 
   const payload = JSON.stringify({
     title: 'Ukens quiz er klar!',
