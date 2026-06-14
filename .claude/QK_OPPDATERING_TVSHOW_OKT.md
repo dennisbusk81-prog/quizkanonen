@@ -302,9 +302,12 @@ investerbare historien.
    Meldingssystemet i quiz-messages.ts er et steg i riktig retning
 
 7. PLASSERINGSBEREGNING — TEKNISK GJELD
-   Beregnes live per sidevisning — greit til 200 brukere
-   Ved 2000+ bør det caches eller forhåndsberegnes etter quiz-stenging
-   Ikke kritisk nå — noter og adresser før skalering
+   Verifisert 14. juni 2026: trivielt på Supabase Pro opp til 2000+ deltakere.
+   RPC quiz_leaderboard_ranked bruker O(n log n) window-funksjon; eksisterende
+   indeks (quiz_id, correct_answers DESC, total_time_ms ASC) dekker WHERE-filteret.
+   Revurder KUN ved observert API-latens >500ms i Vercel-logger, eller ved
+   2000+ deltakere PER QUIZ — da er materialiserte views/ranking_snapshots
+   riktig grep, ikke en indeksjustering.
 
 **LAV PRIORITET / FREMTID:**
 
