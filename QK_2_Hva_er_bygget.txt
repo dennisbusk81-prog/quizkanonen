@@ -22,3 +22,19 @@ OK  Tidsbegrensning per spørsmål: 5–60 sekunder, default 10
 OK  E-post ved fjerning av ansatt fra bedrift (henter faktisk bedriftsnavn)
 OK  Trial-påminnelse e-post: to separate setninger om automatisk trekk
 OK  Direkte push til main — ikke PR-workflow
+OK  Supabase Pro aktivert (14. juni 2026)
+
+FULLFØRT 14. JUNI 2026
+-----------------------
+OK  Hydration warning #418 fikset (InAppBrowserWarning.tsx — useState+useEffect i stedet for typeof window)
+OK  Verdikode-seksjon på /profil: collapsed bak "Har du en verdikode? →"-lenke
+OK  Toppliste-terminologi konsistent på tvers av NavAuth, forside, quiz-side, leaderboard:
+      "Ukens resultater" = per-quiz-leaderboard (/leaderboard/[id])
+      "Sesongtoppliste" = sesong-rangering over tid (/toppliste)
+OK  lib/unsubscribe.ts: bruker nå NEXT_PUBLIC_SITE_URL (ikke hardkodet produksjons-URL)
+OK  Admin quiz-analytics: ny "Topp spillere"-seksjon med e-post fra auth.users
+      Kun synlig i admin (bak ADMIN_PASSWORD) — for å identifisere vinnere ved resultatdeling
+OK  B2B Standard/Pro pakketekst oppdatert: kun bygget funksjonalitet loves
+      Standard: egne quiz-tidspunkter, ukentlig statistikk-rapport, CSV-eksport, eget internt leaderboard
+      Pro: alt i Standard + prioritert support
+      Fjernet: "3 quizer/uke", "daglig miniquiz man-tors", "bedriftsliga" (ikke bygget)

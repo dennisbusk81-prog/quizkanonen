@@ -208,7 +208,7 @@ LAV:
    parallelt med annen utvikling. Kan ta 1-3 dager manuell gjennomgang.
    Krever: org.nr, adresse, eier, bankkonto, BankID/pass.
 
-2. **Supabase Pro** — oppgrader plan (10 minutter)
+2. ~~**Supabase Pro**~~ — **AKTIVERT 14. juni 2026**
 
 3. **Invitasjonsflyt B2B** — test end-to-end med annen Google-konto
 

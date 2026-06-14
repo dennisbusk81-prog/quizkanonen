@@ -100,7 +100,11 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 ### Miljøvariabler (ligger i Vercel — ikke hardkod)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `NEXT_PUBLIC_SITE_URL`,
-`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`,
+`RESEND_API_KEY`, `ANTHROPIC_API_KEY`,
+`STRIPE_PRICE_FOUNDERS`,
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+`STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`
 
 ---
 
@@ -176,4 +180,4 @@ Neste prioriterte steg:
 2. E-post ved Stripe-hendelser
 3. Mobil-test på ekte enheter
 4. Stripe live-modus (krever ENK — Dennis oppretter ENK)
-5. Supabase Pro
+5. ~~Supabase Pro~~ — AKTIVERT 14. juni 2026

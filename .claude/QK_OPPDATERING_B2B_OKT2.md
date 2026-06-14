@@ -100,7 +100,7 @@ LAV PRIORITET:
 
 1. **Test invitasjonsflyt end-to-end** med en annen Google-konto
 2. **Stripe live-modus** — bytt nøkler i Vercel, nytt price ID
-3. **Supabase Pro** — oppgrader plan
+3. ~~**Supabase Pro**~~ — **AKTIVERT 14. juni 2026**
 4. **B2C komplett** — TV-show-opplevelse, mellomresultat, forklaringstekst per spørsmål
 
 ---

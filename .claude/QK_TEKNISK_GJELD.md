@@ -54,13 +54,10 @@ QK_4-lanseringsdokumentet ved behov.
   Verifisert: anon UPDATE/DELETE påvirker ingen rader; INSERT (startQuiz) og
   submit-ruten fungerer normalt.
 
-- **Terminologi-forvirring: "Toppliste" brukes om to forskjellige ting — LAV prioritet, UX.**
-  [/leaderboard/[id]](../app/leaderboard/%5Bid%5D/page.tsx) og quiz-resultatskjermen
-  viser kun denne ukens quiz-rangering. [/toppliste](../app/toppliste/page.tsx) viser
-  sesong-rangering over tid (Siste quiz / Måned / Kvartal / År / All-time). Begge
-  presenteres som "toppliste" uten tydelig distinksjon — en ny bruker forstår ikke
-  nødvendigvis forskjellen. Vurder tydeligere titler eller forklaringstekst som
-  skiller "Ukens resultater" fra "Sesong-toppliste".
+- **~~Terminologi-forvirring: "Toppliste" brukes om to forskjellige ting~~ — LØST 14. juni 2026.**
+  Konsistent terminologi innført på tvers av NavAuth, forside, quiz-side og leaderboard-side:
+  "Ukens resultater" = per-quiz-leaderboard (/leaderboard/[id]);
+  "Sesongtoppliste" = sesong-rangering over tid (/toppliste).
 
 - **"Blant venner"-fanen kan vise brukeren alene — LAV prioritet, UX.**
   Hvis en bruker er eneste aktive deltaker i sin liga denne uken, viser
