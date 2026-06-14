@@ -43,22 +43,32 @@ QK_4-lanseringsdokumentet ved behov.
   før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
   auth/hydration-risiko rett før lansering.**
 
-- **UPDATE-policy på attempts tillater klient-side score-manipulasjon
-  — NY RUTE BYGGET 14. juni 2026, RLS-FIKS VENTER PÅ MANUELL KJØRING.**
+- **~~UPDATE/DELETE-policy på attempts tillater klient-side score-manipulasjon~~ — LØST 14. juni 2026.**
   Scoreberegning er flyttet fra klienten til service-role-ruten
-  [POST /api/quiz/[id]/submit](../app/api/quiz/%5Bid%5D/submit/route.ts):
-  klienten sender nå kun rå svar (`selectedAnswer` + `timeMs` per spørsmål),
-  serveren slår opp fasiten og beregner `correct_answers`/`correct_streak`/
-  `total_time_ms` selv (med tid-clamping mot `time_limit_seconds`). Dobbel-
-  scoring hindres via ny kolonne `attempts.submitted_at` (migrasjon
-  20260614000017). finishQuiz ([app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx))
-  kaller ruten og viser server-beregnet score.
-  **GJENSTÅR:** kjør migrasjon `20260614000017_attempts_submitted_at.sql`
-  (legger til kolonnen — MÅ kjøres FØR/samtidig som deploy, ellers feiler
-  submit i prod), og deretter RLS-innstrammingen som fjerner den permissive
-  UPDATE-policyen "Alle kan oppdatere attempts" for `public` (kun
-  `service_role` skal kunne UPDATE-e). Begge SQL-blokker er vist for manuell
-  kjøring i Supabase SQL Editor.
+  [POST /api/quiz/[id]/submit](../app/api/quiz/%5Bid%5D/submit/route.ts).
+  Klienten sender kun rå svar (`selectedAnswer` + `timeMs`); serveren beregner
+  `correct_answers`/`correct_streak`/`total_time_ms` mot fasit med tid-clamping.
+  Dobbel-scoring hindres via `attempts.submitted_at` (migrasjon 20260614000017).
+  RLS-policyene "Alle kan oppdatere attempts" og "Alle kan slette attempts" er
+  fjernet — anon/public kan ikke lenger UPDATE-e eller DELETE-e attempts.
+  Verifisert: anon UPDATE/DELETE påvirker ingen rader; INSERT (startQuiz) og
+  submit-ruten fungerer normalt.
+
+- **Terminologi-forvirring: "Toppliste" brukes om to forskjellige ting — LAV prioritet, UX.**
+  [/leaderboard/[id]](../app/leaderboard/%5Bid%5D/page.tsx) og quiz-resultatskjermen
+  viser kun denne ukens quiz-rangering. [/toppliste](../app/toppliste/page.tsx) viser
+  sesong-rangering over tid (Siste quiz / Måned / Kvartal / År / All-time). Begge
+  presenteres som "toppliste" uten tydelig distinksjon — en ny bruker forstår ikke
+  nødvendigvis forskjellen. Vurder tydeligere titler eller forklaringstekst som
+  skiller "Ukens resultater" fra "Sesong-toppliste".
+
+- **"Blant venner"-fanen kan vise brukeren alene — LAV prioritet, UX.**
+  Hvis en bruker er eneste aktive deltaker i sin liga denne uken, viser
+  "Blant venner"-fanen i [/leaderboard/[id]](../app/leaderboard/%5Bid%5D/page.tsx)
+  kun brukeren selv. Funksjonelt korrekt, men kan oppleves forvirrende — "blant
+  venner" som ikke inneholder noen venner. Vurder å skjule fanen når den kun ville
+  vise brukeren selv, eller justere teksten (f.eks. "Ingen venner har spilt denne
+  quizen ennå").
 
 - **Fasit eksponeres til klienten under quiz (`select('*')` på questions
   inkluderer `correct_answer`/`correct_answers`) — HØY prioritet.**
