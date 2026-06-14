@@ -21,5 +21,6 @@ export function verifyUnsubscribeToken(userId: string, type: UnsubscribeType, to
 
 export function buildUnsubscribeUrl(userId: string, type: UnsubscribeType): string {
   const token = generateUnsubscribeToken(userId, type)
-  return `https://www.quizkanonen.no/api/notifications/unsubscribe?token=${token}&type=${encodeURIComponent(type)}&uid=${encodeURIComponent(userId)}`
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.quizkanonen.no').replace(/\/$/, '')
+  return `${base}/api/notifications/unsubscribe?token=${token}&type=${encodeURIComponent(type)}&uid=${encodeURIComponent(userId)}`
 }
