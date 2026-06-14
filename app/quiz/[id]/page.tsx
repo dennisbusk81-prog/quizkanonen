@@ -1009,12 +1009,21 @@ export default function QuizPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const { data } = await supabaseData.from('attempts').insert({
+      const { data, error } = await supabaseData.from('attempts').insert({
         quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
         team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
         user_id: session?.user?.id ?? null,
         leader_display_name: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
       }).select().single()
+      if (error) {
+        // RLS-policyen "Suspenderte brukere kan ikke spille" blokkerer INSERT
+        // (Postgres 42501). Vis suspensjons-skjermen istedenfor generisk feil.
+        if (error.code === '42501') {
+          setIsSuspended(true)
+          return
+        }
+        throw error
+      }
       setAttemptId(data?.id || null)
       const firstIdx = resumeData ? resumeData.index : 0
       const firstQ = questions[firstIdx]

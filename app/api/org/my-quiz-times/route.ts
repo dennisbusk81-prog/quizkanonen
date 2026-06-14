@@ -21,53 +21,81 @@ export async function GET(request: NextRequest) {
   const quizId = request.nextUrl.searchParams.get('quizId')
   if (!quizId) return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
 
-  // Get the quiz's closes_at date to use as base date for combining with org times
+  // Get the quiz's global window — used both as base date and as clamp bounds
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
-    .select('closes_at')
+    .select('opens_at, closes_at')
     .eq('id', quizId)
     .maybeSingle()
 
   if (!quiz) return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
 
-  // Find user's org membership
+  // Find ALL of the user's org memberships (a user may belong to several)
   const { data: memberships } = await supabaseAdmin
     .from('organization_members')
     .select('organization_id')
     .eq('user_id', user.id)
-    .limit(1)
 
   if (!memberships || memberships.length === 0) {
     return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
   }
 
-  const orgId = memberships[0].organization_id
+  const orgIds = memberships.map(m => m.organization_id)
 
-  const { data: org } = await supabaseAdmin
+  // Only orgs that actually set a custom open/close time matter here
+  const { data: orgs } = await supabaseAdmin
     .from('organizations')
     .select('name, org_quiz_opens_at, org_quiz_closes_at')
-    .eq('id', orgId)
-    .maybeSingle()
+    .in('id', orgIds)
 
-  if (!org || (!org.org_quiz_opens_at && !org.org_quiz_closes_at)) {
+  const orgsWithTimes = (orgs ?? []).filter(
+    o => o.org_quiz_opens_at || o.org_quiz_closes_at
+  )
+
+  if (orgsWithTimes.length === 0) {
     return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
   }
 
-  // Combine the quiz date (from closes_at) with the org times
-  // We extract the date portion in UTC from quiz.closes_at
+  // Combine the quiz date (from closes_at) with an org TIME ("HH:MM" or
+  // "HH:MM:SS") → full ISO instant. slice(0,5) is robust to both formats.
   const quizDate = quiz.closes_at.slice(0, 10) // YYYY-MM-DD
+  const combine = (time: string | null): string | null =>
+    time ? `${quizDate}T${time.slice(0, 5)}:00.000Z` : null
 
-  const orgOpensAt = org.org_quiz_opens_at
-    ? `${quizDate}T${org.org_quiz_opens_at}:00.000Z`
-    : null
+  const globalOpensMs  = new Date(quiz.opens_at).getTime()
+  const globalClosesMs = new Date(quiz.closes_at).getTime()
 
-  const orgClosesAt = org.org_quiz_closes_at
-    ? `${quizDate}T${org.org_quiz_closes_at}:00.000Z`
-    : null
+  // Clamp each org's window so it can never be WIDER than the global window:
+  //   effectiveOpens  = max(orgOpens,  globalOpens)   — opens no earlier
+  //   effectiveCloses = min(orgCloses, globalCloses)  — closes no later
+  // A side the org didn't set stays null (no org-specific narrowing there).
+  const computed = orgsWithTimes.map(o => {
+    const rawOpens  = combine(o.org_quiz_opens_at)
+    const rawCloses = combine(o.org_quiz_closes_at)
+
+    const effectiveOpensAt = rawOpens
+      ? new Date(Math.max(new Date(rawOpens).getTime(), globalOpensMs)).toISOString()
+      : null
+    const effectiveClosesAt = rawCloses
+      ? new Date(Math.min(new Date(rawCloses).getTime(), globalClosesMs)).toISOString()
+      : null
+
+    // For ranking the strictest org, treat a missing close as the global close.
+    const closeForCompare = effectiveClosesAt
+      ? new Date(effectiveClosesAt).getTime()
+      : globalClosesMs
+
+    return { name: o.name, effectiveOpensAt, effectiveClosesAt, closeForCompare }
+  })
+
+  // If the user is in several orgs with custom times, pick the one with the
+  // earliest effective close (the strictest deadline applies to them).
+  computed.sort((a, b) => a.closeForCompare - b.closeForCompare)
+  const chosen = computed[0]
 
   return NextResponse.json({
-    orgOpensAt,
-    orgClosesAt,
-    orgName: org.name,
+    orgOpensAt: chosen.effectiveOpensAt,
+    orgClosesAt: chosen.effectiveClosesAt,
+    orgName: chosen.name,
   })
 }
