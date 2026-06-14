@@ -17,9 +17,32 @@ export default function PushNotificationPrompt() {
   const [visible, setVisible]   = useState(false)
   const [loading, setLoading]   = useState(false)
   const [loggedIn, setLoggedIn] = useState(false)
+  // iOS Safari støtter web-push KUN når PWA-en er lagt til hjemskjermen.
+  // I dette tilfellet viser vi installasjons-hint istedenfor en knapp som
+  // ellers ville feilet stille.
+  const [iosInstallHint, setIosInstallHint] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    const ua = window.navigator.userAgent
+    const isIOS = /iPad|iPhone|iPod/.test(ua)
+    const isStandalone =
+      ('standalone' in window.navigator && (window.navigator as Navigator & { standalone?: boolean }).standalone === true) ||
+      window.matchMedia('(display-mode: standalone)').matches
+
+    // iOS i Safari (ikke installert): push virker ikke — vis install-hint.
+    if (isIOS && !isStandalone) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          setLoggedIn(true)
+          setIosInstallHint(true)
+          setVisible(true)
+        }
+      })
+      return
+    }
+
     if (!('PushManager' in window) || !('Notification' in window)) return
     if (Notification.permission === 'granted' || Notification.permission === 'denied') return
 
@@ -84,29 +107,33 @@ export default function PushNotificationPrompt() {
       flexWrap: 'wrap',
       fontFamily: "'Instrument Sans', sans-serif",
     }}>
-      <p style={{ fontSize: 14, color: '#e8e4dd', margin: 0, lineHeight: 1.4 }}>
-        Få varsel når ukens quiz er klar
+      <p style={{ fontSize: 14, color: '#e8e4dd', margin: 0, lineHeight: 1.4, flex: iosInstallHint ? '1 1 240px' : undefined }}>
+        {iosInstallHint
+          ? 'Legg til Quizkanonen på hjemskjermen først for å få varsler — trykk Del-knappen og velg «Legg til på Hjem-skjerm».'
+          : 'Få varsel når ukens quiz er klar'}
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-        <button
-          onClick={handleEnable}
-          disabled={loading}
-          style={{
-            background: 'transparent',
-            border: '1px solid #2a2d38',
-            borderRadius: 10,
-            padding: '8px 20px',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#e8e4dd',
-            cursor: loading ? 'default' : 'pointer',
-            opacity: loading ? 0.6 : 1,
-            fontFamily: "'Instrument Sans', sans-serif",
-            transition: 'border-color 0.15s',
-          }}
-        >
-          {loading ? 'Aktiverer…' : 'Slå på varsler'}
-        </button>
+        {!iosInstallHint && (
+          <button
+            onClick={handleEnable}
+            disabled={loading}
+            style={{
+              background: 'transparent',
+              border: '1px solid #2a2d38',
+              borderRadius: 10,
+              padding: '8px 20px',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#e8e4dd',
+              cursor: loading ? 'default' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+              fontFamily: "'Instrument Sans', sans-serif",
+              transition: 'border-color 0.15s',
+            }}
+          >
+            {loading ? 'Aktiverer…' : 'Slå på varsler'}
+          </button>
+        )}
         <button
           onClick={() => setVisible(false)}
           style={{
@@ -119,7 +146,7 @@ export default function PushNotificationPrompt() {
             padding: 0,
           }}
         >
-          Ikke nå
+          {iosInstallHint ? 'Lukk' : 'Ikke nå'}
         </button>
       </div>
     </div>

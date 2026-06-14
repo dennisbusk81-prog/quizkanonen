@@ -247,6 +247,7 @@ export default function OrgAdminPage() {
   const [orgQuizClosesAt, setOrgQuizClosesAt] = useState('')
   const [savingQuizTimes, setSavingQuizTimes] = useState(false)
   const [quizTimesSaved, setQuizTimesSaved]   = useState(false)
+  const [quizTimesError, setQuizTimesError]   = useState<string | null>(null)
 
   const [emailInviteOpen, setEmailInviteOpen]     = useState(false)
   const [emailInviteText, setEmailInviteText]     = useState('')
@@ -660,8 +661,9 @@ export default function OrgAdminPage() {
     if (!session) return
     setSavingQuizTimes(true)
     setQuizTimesSaved(false)
+    setQuizTimesError(null)
     try {
-      await fetch(`/api/org/${slug}/settings`, {
+      const res = await fetch(`/api/org/${slug}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
@@ -669,6 +671,11 @@ export default function OrgAdminPage() {
           org_quiz_closes_at: orgQuizClosesAt || null,
         }),
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setQuizTimesError(d.error ?? 'Noe gikk galt. Prøv igjen.')
+        return
+      }
       setQuizTimesSaved(true)
       setTimeout(() => setQuizTimesSaved(false), 2500)
     } finally {
@@ -1956,6 +1963,9 @@ export default function OrgAdminPage() {
               </button>
               {quizTimesSaved && (
                 <span style={{ fontSize: 13, color: '#4ade80' }}>Tidspunkter lagret</span>
+              )}
+              {quizTimesError && (
+                <span style={{ fontSize: 13, color: '#f87171' }}>{quizTimesError}</span>
               )}
             </div>
           </div>

@@ -1,5 +1,8 @@
-const CACHE_NAME = 'qk-v1';
-const STATIC_ASSETS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE_NAME = 'qk-v2';
+// MERK: '/' er bevisst IKKE her. Forsiden er server-rendret med fersk
+// quiz/auth-tilstand hver uke — den må aldri serveres cache-first, ellers
+// ser returbesøk forrige ukes forside. Naviger-requests går rett til nett.
+const STATIC_ASSETS = ['/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

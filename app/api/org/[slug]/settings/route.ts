@@ -59,6 +59,16 @@ export async function PATCH(
     update.org_quiz_closes_at = (body.org_quiz_closes_at && TIME_RE.test(body.org_quiz_closes_at)) ? body.org_quiz_closes_at : null
   }
 
+  // Når begge tidspunkter settes samtidig (admin-UI sender alltid begge):
+  // åpning må være før stenging. "HH:MM"-strenger kan sammenlignes leksikalsk.
+  if (
+    typeof update.org_quiz_opens_at === 'string' &&
+    typeof update.org_quiz_closes_at === 'string' &&
+    update.org_quiz_opens_at >= update.org_quiz_closes_at
+  ) {
+    return NextResponse.json({ error: 'Åpningstid må være før stengetid.' }, { status: 400 })
+  }
+
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Ingenting å oppdatere' }, { status: 400 })
   }
