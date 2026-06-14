@@ -1631,7 +1631,7 @@ export default function QuizPage() {
         <div className="qk-divider"/>
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {quiz.show_leaderboard && (
-            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se topplisten</a>
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se ukens resultater</a>
           )}
           <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
         </div>
@@ -2301,9 +2301,9 @@ export default function QuizPage() {
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
               {[
-                'Nøyaktig plassering på topplisten',
+                'Nøyaktig plassering i ukens resultater',
                 'Historikk fra alle quizer du har spilt',
-                'Sesong-leaderboard — konkurrér over tid',
+                'Sesongtoppliste — konkurrér over tid',
               ].map(txt => (
                 <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
@@ -2363,7 +2363,7 @@ export default function QuizPage() {
                 : `Se hvordan du rangerer blant kollegene dine hos ${orgBox.orgName}`}
             </p>
             <a href={`/org/${orgBox.orgSlug}`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none' }}>
-              Se bedriftens toppliste →
+              Se bedriftens sesong-toppliste →
             </a>
           </div>
         )}

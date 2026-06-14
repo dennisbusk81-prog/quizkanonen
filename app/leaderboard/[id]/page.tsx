@@ -547,7 +547,7 @@ export default function LeaderboardPage() {
 
   if (!quiz.show_leaderboard) return (
     <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
-      <p style={s.centeredText}>Leaderboard er ikke aktivert for denne quizen.</p>
+      <p style={s.centeredText}>Ukens resultater er ikke aktivert for denne quizen.</p>
       <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
     </div>
   )
@@ -1094,7 +1094,7 @@ export default function LeaderboardPage() {
               sub = 'Logg inn for å se nøyaktig plassering'
             } else {
               title = 'Logg inn og spill quizen'
-              sub = 'Se hvor du havner på topplisten.'
+              sub = 'Se hvor du havner i ukens resultater.'
             }
             return (
               <div style={s.card}>
@@ -1163,9 +1163,9 @@ export default function LeaderboardPage() {
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                 </div>
-                <p style={s.emptyTitle}>Spill quizen for å se topplisten</p>
+                <p style={s.emptyTitle}>Spill quizen for å se ukens resultater</p>
                 <p style={s.emptySub}>
-                  Topplisten er kun synlig for de som har spilt.<br />
+                  Ukens resultater er kun synlig for de som har spilt.<br />
                   Publiseres for alle når quizen stenger.
                 </p>
                 <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>

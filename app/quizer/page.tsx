@@ -241,7 +241,7 @@ export default async function QuizerPage() {
                   </div>
                   <div className="qz-card-right">
                     <Link href={`/quiz/${quiz.id}`} className="qz-btn-outline">Spill nå</Link>
-                    <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Toppliste →</Link>
+                    <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Ukens resultater →</Link>
                   </div>
                 </div>
               )

@@ -1227,7 +1227,7 @@ export default async function Home() {
                 <rect x="9" y="8" width="4" height="12" rx="1"/>
                 <rect x="16" y="3" width="4" height="17" rx="1"/>
               </svg>
-              <span className="qkp-shortcut-label">Toppliste</span>
+              <span className="qkp-shortcut-label">Sesongtoppliste</span>
               <span className="qkp-shortcut-arrow">→</span>
             </Link>
 
@@ -1494,7 +1494,7 @@ export default async function Home() {
               </a>
               <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
                 <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">
-                  Toppliste ↗
+                  Ukens resultater ↗
                 </Link>
                 <Link href="/quizer" className="qk-card-toplist">
                   Alle quizer →

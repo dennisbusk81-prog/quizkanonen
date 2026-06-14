@@ -164,7 +164,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     return (
       <>
         <style>{NAV_MOBILE_CSS}</style>
-        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>
+        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>
         <a href="/bedrift" style={navLink} className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -198,7 +198,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     <>
       <style>{NAV_MOBILE_CSS}</style>
       <a href="/" style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' as const }}>Hjem</a>
-      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>}
+      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>}
       {/* Min bedrift — for all org members */}
       {myOrgs.length > 0 && (
         <a
