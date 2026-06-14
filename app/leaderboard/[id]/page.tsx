@@ -111,6 +111,40 @@ function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) 
   )
 }
 
+// Felles entry-form fra /api/leaderboard/[id]
+type LbEntry = {
+  rank: number
+  id: string
+  userId: string | null
+  playerName: string
+  correctAnswers: number
+  totalQuestions: number
+  totalTimeMs: number
+  correctStreak: number | null
+  isTeam: boolean
+  teamSize: number
+  leaderDisplayName: string | null
+}
+
+function entryToAttempt(e: LbEntry, quizId: string): Attempt {
+  return {
+    id: e.id,
+    quiz_id: quizId,
+    player_name: e.playerName,
+    is_team: e.isTeam,
+    team_size: e.teamSize,
+    correct_answers: e.correctAnswers,
+    total_questions: e.totalQuestions,
+    total_time_ms: e.totalTimeMs,
+    correct_streak: e.correctStreak,
+    user_id: e.userId,
+    completed_at: '',
+    leader_display_name: e.leaderDisplayName,
+  }
+}
+
+const BROWSE_PAGE_SIZE = 20
+
 export default function LeaderboardPage() {
   const params = useParams()
   const quizId = params.id as string
@@ -157,20 +191,40 @@ export default function LeaderboardPage() {
   const [answerDistLoading, setAnswerDistLoading] = useState(false)
   const [showAnswerDist, setShowAnswerDist] = useState(false)
 
+  // Server-side totaler + brukerens eksakte plassering (også utenfor topp 50)
+  const [soloTotal, setSoloTotal] = useState(0)
+  const [teamTotal, setTeamTotal] = useState(0)
+  const [serverUserSolo, setServerUserSolo] = useState<RankedAttempt | null>(null)
+  const [serverUserTeam, setServerUserTeam] = useState<RankedAttempt | null>(null)
+
+  // Premium browse-modus (paginering + søk) for "Alle"/"Lag"
+  const [browseMode, setBrowseMode]               = useState(false)
+  const [browsePage, setBrowsePage]               = useState(1)
+  const [browseSearchInput, setBrowseSearchInput] = useState('')
+  const [browseSearch, setBrowseSearch]           = useState('')
+  const [browseData, setBrowseData]   = useState<{ entries: LbEntry[]; totalCount: number; userRank: number | null } | null>(null)
+  const [browseLoading, setBrowseLoading] = useState(false)
+
   useEffect(() => {
     async function fetchData() {
       try {
-        const [{ data: quizData, error: e1 }, { data: attemptData, error: e2 }] = await Promise.all([
+        // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
+        // med JS-fallback). Erstatter tidligere nedlasting av opptil 2000 rader.
+        const [{ data: quizData, error: e1 }, soloRes, teamRes] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-          supabaseData.from('attempts').select('*').eq('quiz_id', quizId)
-            .order('correct_answers', { ascending: false })
-            .order('total_time_ms', { ascending: true })
-            .limit(2000),
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/leaderboard/${quizId}?is_team=true&limit=50`).then(r => r.ok ? r.json() : null),
         ])
-        const err = e1 ?? e2
-        if (err) throw err
+        if (e1) throw e1
         setQuiz(quizData)
-        const attemptsResult = attemptData || []
+        const soloRows: LbEntry[] = soloRes?.entries ?? []
+        const teamRows: LbEntry[] = teamRes?.entries ?? []
+        setSoloTotal(soloRes?.totalCount ?? soloRows.length)
+        setTeamTotal(teamRes?.totalCount ?? teamRows.length)
+        const attemptsResult: Attempt[] = [
+          ...soloRows.map(e => entryToAttempt(e, quizId)),
+          ...teamRows.map(e => entryToAttempt(e, quizId)),
+        ]
         setAttempts(attemptsResult)
 
         const userIds = [...new Set(attemptsResult.map((a: Attempt) => a.user_id).filter((id): id is string => !!id))]
@@ -259,6 +313,18 @@ export default function LeaderboardPage() {
           setIsPremiumOverride(premData.isPremium === true)
         }
       } catch { /* ikke kritisk — fallback til false */ }
+
+      // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
+      try {
+        const [soloMe, teamMe] = await Promise.all([
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null),
+          fetch(`/api/leaderboard/${quizId}?is_team=true&limit=1`,  { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null),
+        ])
+        if (soloMe?.userEntry) setServerUserSolo({ ...entryToAttempt(soloMe.userEntry, quizId), rank: soloMe.userEntry.rank, isTied: false })
+        if (teamMe?.userEntry) setServerUserTeam({ ...entryToAttempt(teamMe.userEntry, quizId), rank: teamMe.userEntry.rank, isTied: false })
+        if (typeof soloMe?.totalCount === 'number') setSoloTotal(soloMe.totalCount)
+        if (typeof teamMe?.totalCount === 'number') setTeamTotal(teamMe.totalCount)
+      } catch { /* ikke kritisk */ }
 
       // Hent ligamedlemmer for "Blant venner"-fane
       try {
@@ -360,6 +426,47 @@ export default function LeaderboardPage() {
     }
   }, [scrollPending])
 
+  // Nullstill browse-modus ved fanebytte
+  useEffect(() => {
+    setBrowseMode(false)
+    setBrowsePage(1)
+    setBrowseSearchInput('')
+    setBrowseSearch('')
+    setBrowseData(null)
+  }, [activeTab])
+
+  // Debounce søkefelt → browseSearch. Tomt søk på side 1 = tilbake til klassisk.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const v = browseSearchInput.trim()
+      setBrowseSearch(v)
+      setBrowsePage(1)
+      if (v !== '') setBrowseMode(true)
+      else if (browsePage === 1) setBrowseMode(false)
+    }, 300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browseSearchInput])
+
+  // Hent browse-data (Premium paginering/søk) for "Alle"/"Lag"
+  useEffect(() => {
+    if (!browseMode) return
+    if (activeTab !== 'alle' && activeTab !== 'lag') return
+    let cancelled = false
+    setBrowseLoading(true)
+    const isTeamRoom = activeTab === 'lag'
+    const headers: Record<string, string> = {}
+    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+    let url = `/api/leaderboard/${quizId}?is_team=${isTeamRoom}&page=${browsePage}`
+    if (browseSearch) url += `&search=${encodeURIComponent(browseSearch)}`
+    fetch(url, { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (!cancelled) setBrowseData(j ? { entries: j.entries ?? [], totalCount: j.totalCount ?? 0, userRank: j.userRank ?? null } : null) })
+      .catch(() => { if (!cancelled) setBrowseData(null) })
+      .finally(() => { if (!cancelled) setBrowseLoading(false) })
+    return () => { cancelled = true }
+  }, [browseMode, activeTab, browsePage, browseSearch, quizId, session])
+
   // Activate podium animation when quiz is closed and data is loaded
   useEffect(() => {
     if (!quiz || loading) return
@@ -450,15 +557,18 @@ export default function LeaderboardPage() {
   const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
   const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
   const showVennerTab = !!session && friendAttempts.length > 0
-  const totalCount = soloAttempts.length + teamAttempts.length
+  const totalCount = soloTotal + teamTotal
 
   const currentUserId = session?.user?.id ?? null
-  const userSoloAttempt = currentUserId
+  // Finn i den lastede topp-50, ellers fall tilbake til server-beregnet plassering
+  const userSoloAttempt = (currentUserId
     ? soloAttempts.find(a => a.user_id === currentUserId) ?? null
-    : displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null
-  const userTeamAttempt = currentUserId
+    : displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null)
+    ?? serverUserSolo
+  const userTeamAttempt = (currentUserId
     ? teamAttempts.find(a => a.user_id === currentUserId) ?? null
-    : displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null
+    : displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null)
+    ?? serverUserTeam
   const userAttempt = userSoloAttempt ?? userTeamAttempt
 
   // hasPlayed: sjekk BÅDE localStorage (savedResult) OG at forsøket finnes i leaderboard-data
@@ -601,7 +711,7 @@ export default function LeaderboardPage() {
         )}
         {showLiveNote && (
           <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', margin: '-4px 0 8px' }}>
-            {soloAttempts.length} spillere har spilt så langt — oppdateres gjennom dagen
+            {soloTotal} spillere har spilt så langt — oppdateres gjennom dagen
           </p>
         )}
       </Fragment>
@@ -646,6 +756,144 @@ export default function LeaderboardPage() {
           <button style={s.btnMore} onClick={onShowMore}>
             Vis {Math.min(10, remaining)} til
           </button>
+        )}
+      </div>
+    )
+  }
+
+  // ── Premium browse-modus (paginering/søk) for "Alle"/"Lag" ────────────────
+  const roomTotal    = activeTab === 'lag' ? teamTotal : soloTotal
+  const roomUserRank = activeTab === 'lag' ? (userTeamAttempt?.rank ?? null) : (userSoloAttempt?.rank ?? null)
+  const userInBrowse = !!(currentUserId && browseData?.entries.some(e => e.userId === currentUserId))
+  const browseSearching = browseMode && browseSearch.trim() !== ''
+  const showBrowseControls = isPremium && (activeTab === 'alle' || activeTab === 'lag') && (roomTotal > 10 || browseMode)
+  const showJumpToMeBrowse = showBrowseControls && roomUserRank != null && !userInBrowse && !browseSearching
+
+  function browsePageWindow(current: number, total: number): (number | 'gap')[] {
+    const wanted = [...new Set([1, 2, current - 1, current, current + 1, total - 1, total])]
+      .filter(n => n >= 1 && n <= total)
+      .sort((a, b) => a - b)
+    const out: (number | 'gap')[] = []
+    let prev = 0
+    for (const n of wanted) {
+      if (prev && n - prev > 1) out.push('gap')
+      out.push(n)
+      prev = n
+    }
+    return out
+  }
+
+  function goToMyPlacementBrowse() {
+    if (roomUserRank == null) return
+    setBrowseMode(true)
+    setBrowsePage(Math.max(1, Math.ceil(roomUserRank / BROWSE_PAGE_SIZE)))
+    setScrollPending(true)
+  }
+
+  function renderBrowseControls() {
+    if (!showBrowseControls) return null
+    const tc = browseData?.totalCount ?? 0
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <input
+          type="text"
+          value={browseSearchInput}
+          onChange={e => setBrowseSearchInput(e.target.value)}
+          placeholder="Søk etter navn…"
+          style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+        />
+        {showJumpToMeBrowse && (
+          <button
+            onClick={goToMyPlacementBrowse}
+            style={{ marginTop: 10, background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', width: 'auto' }}
+          >
+            Gå til min plassering (#{roomUserRank})
+          </button>
+        )}
+        {browseSearching && (
+          <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+            {tc === 0
+              ? `Ingen treff på «${browseSearch}».`
+              : tc > BROWSE_PAGE_SIZE
+                ? `Viser de ${BROWSE_PAGE_SIZE} første av ${tc} treff. Forsøk et mer spesifikt søk.`
+                : `${tc} treff.`}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  function renderBrowseRow(e: LbEntry) {
+    const isSelf = currentUserId != null && e.userId === currentUserId
+    const rowStyle = isSelf ? s.rowHighlight : s.row
+    const initial = (e.playerName?.[0] ?? '?').toUpperCase()
+    const avatarUrl = e.userId ? (memberInfoMap.get(e.userId)?.avatar_url ?? null) : null
+    const shownName = e.userId ? (memberInfoMap.get(e.userId)?.display_name ?? e.playerName) : e.playerName
+    return (
+      <div key={e.id} id={isSelf ? 'user-row' : undefined} style={rowStyle}>
+        {isSelf && <div style={s.goldStripe} />}
+        <div style={s.rankCell}><span style={s.rankNum}>{e.rank}</span></div>
+        <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
+            : <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>{initial}</div>
+          }
+        </div>
+        <div style={s.nameBlock}>
+          <p style={s.name}>
+            {shownName}
+            {!e.userId && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
+          </p>
+          <p style={s.nameSub}>
+            {e.isTeam && <span style={{ marginRight: 6 }}>Lag · {e.teamSize} stk ·</span>}
+            ⏱ {formatTime(e.totalTimeMs)}
+          </p>
+        </div>
+        <div style={s.scoreBlock}>
+          <p style={s.score}>{e.correctAnswers}/{e.totalQuestions}</p>
+          <p style={s.scoreSub}>{formatTime(e.totalTimeMs)}</p>
+        </div>
+      </div>
+    )
+  }
+
+  function renderBrowseList() {
+    if (browseLoading && !browseData) {
+      return <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
+    }
+    const entries = browseData?.entries ?? []
+    if (entries.length === 0) {
+      return <p style={s.tabEmpty}>{browseSearching ? `Ingen treff på «${browseSearch}».` : 'Ingen resultater.'}</p>
+    }
+    return (
+      <>
+        <div style={s.sectionHeader}>
+          <span style={s.sectionText}>{activeTab === 'lag' ? 'Lag' : 'Enkeltpersoner'}</span>
+          <div style={s.sectionLine} />
+          <span style={s.sectionCount}>{browseData?.totalCount ?? entries.length}</span>
+        </div>
+        {entries.map(renderBrowseRow)}
+      </>
+    )
+  }
+
+  function renderBrowsePagination() {
+    if (!showBrowseControls || browseSearching) return null
+    const totalPages = Math.max(1, Math.ceil(roomTotal / BROWSE_PAGE_SIZE))
+    if (totalPages <= 1) return null
+    if (!browseMode && roomTotal <= 50) return null   // klassisk "vis til" dekker ≤50
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 16 }}>
+        {browsePageWindow(browsePage, totalPages).map((p, i) =>
+          p === 'gap'
+            ? <span key={`g${i}`} style={{ color: '#7a7873', padding: '6px 4px', fontSize: 12 }}>…</span>
+            : <button
+                key={p}
+                onClick={() => { setBrowsePage(p); setBrowseMode(true) }}
+                style={{ background: p === browsePage ? 'rgba(201,168,76,0.12)' : 'transparent', border: `1px solid ${p === browsePage ? '#c9a84c' : '#2a2d38'}`, color: p === browsePage ? '#c9a84c' : '#e8e4dd', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const }}
+              >
+                {`${(p - 1) * BROWSE_PAGE_SIZE + 1}–${Math.min(p * BROWSE_PAGE_SIZE, roomTotal)}`}
+              </button>
         )}
       </div>
     )
@@ -873,7 +1121,13 @@ export default function LeaderboardPage() {
           {!authLoading && session && !isPremium && !isClosed && hasPlayed && totalCount > 0 && (() => {
             let rangeX = 1
             let rangeY = Math.min(10, totalCount)
-            if (savedResult) {
+            // Foretrekk server-beregnet plassering; fall tilbake til lokalt estimat
+            const estRank = userSoloAttempt?.rank ?? userTeamAttempt?.rank ?? null
+            if (estRank != null) {
+              const tierStart = Math.floor((estRank - 1) / 10) * 10 + 1
+              rangeX = Math.max(1, tierStart)
+              rangeY = Math.min(totalCount, tierStart + 9)
+            } else if (savedResult) {
               const { correct_answers, total_time_ms } = savedResult
               const allRanked = [...soloAttempts, ...teamAttempts]
               const better = allRanked.filter(a =>
@@ -951,7 +1205,15 @@ export default function LeaderboardPage() {
                 </button>
               </div>
 
-              {activeTab === 'alle' && renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
+              {activeTab === 'alle' && (
+                <>
+                  {renderBrowseControls()}
+                  {browseMode
+                    ? renderBrowseList()
+                    : renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
+                  {renderBrowsePagination()}
+                </>
+              )}
 
               {activeTab === 'venner' && (
                 friendAttempts.length > 0
@@ -959,7 +1221,15 @@ export default function LeaderboardPage() {
                   : <p style={s.tabEmpty}>Ingen ligavenner har spilt denne quizen ennå</p>
               )}
 
-              {activeTab === 'lag' && renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
+              {activeTab === 'lag' && (
+                <>
+                  {renderBrowseControls()}
+                  {browseMode
+                    ? renderBrowseList()
+                    : renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
+                  {renderBrowsePagination()}
+                </>
+              )}
 
               {/* Badge legend */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38' }}>

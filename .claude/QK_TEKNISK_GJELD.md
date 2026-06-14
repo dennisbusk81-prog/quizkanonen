@@ -7,6 +7,18 @@ QK_4-lanseringsdokumentet ved behov.
 
 ## LØST
 
+- **~~/leaderboard/[id] lastet opptil 2000 attempts-rader klient-side~~ — LØST 14. juni 2026 (Fase 2).**
+  Rangering + paginering + søk flyttet til Postgres window-funksjoner (ROW_NUMBER)
+  via RPC `quiz_leaderboard_ranked`/`_user_stats`/`_better_count` (migrasjon
+  20260614000015) bak ny rute `app/api/leaderboard/[id]`. "Alle"- og "Lag"-fanene
+  henter nå topp 50 server-side; Premium får paginering (20/side), navnesøk (ILIKE
+  m/ global rang) og "gå til min plassering". Automatisk JS-fallback hvis RPC ikke
+  er deployet. Gratis-visning (topp-10 + estimert spenn) uendret — estimatet
+  beregnes nå fra server-rang.
+  **NB:** "Blant venner"-fanen er bevisst fortsatt klient-side (filtrerer mot de
+  lastede topp-50 radene). Lavt radantall (≤6 ligavenner), så ikke prioritert å
+  flytte server-side. Ligavenner rangert utenfor topp 50 vises ikke i den fanen.
+
 - **~~season_scores-query i /api/toppliste mangler .limit()~~ — LØST 14. juni 2026.**
   Aggregering + rangering flyttet til Postgres window-funksjoner (ROW_NUMBER)
   via RPC `season_leaderboard_ranked` (migrasjon 20260614000014). Ruten henter
