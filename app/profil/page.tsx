@@ -87,6 +87,7 @@ export default function ProfilPage() {
   const [codeLoading, setCodeLoading] = useState(false)
   const [codeSuccess, setCodeSuccess] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
+  const [showRedeem, setShowRedeem] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
@@ -780,31 +781,40 @@ export default function ProfilPage() {
 
           {/* Verdikode */}
           <div style={{ marginBottom: 10, paddingTop: 4 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-              Har du en kode?
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                type="text"
-                value={codeInput}
-                onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
-                onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
-                placeholder="Verdikode"
-                maxLength={60}
-                style={s.redeemInput}
-                onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
-              />
+            {!showRedeem ? (
               <button
-                onClick={handleRedeemCode}
-                disabled={codeLoading || !codeInput.trim()}
-                style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
+                onClick={() => setShowRedeem(true)}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textDecorationColor: '#e8e4dd' }}
               >
-                {codeLoading ? 'Løser inn…' : 'Løs inn'}
+                Har du en verdikode? →
               </button>
-            </div>
-            {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>{codeSuccess}</p>}
-            {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>{codeError}</p>}
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0 }}>
+                  <input
+                    type="text"
+                    value={codeInput}
+                    onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(null); setCodeSuccess(null) }}
+                    onKeyDown={e => { if (e.key === 'Enter' && !codeLoading && codeInput.trim()) handleRedeemCode() }}
+                    placeholder="Verdikode"
+                    maxLength={60}
+                    autoFocus
+                    style={s.redeemInput}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
+                    onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                  />
+                  <button
+                    onClick={handleRedeemCode}
+                    disabled={codeLoading || !codeInput.trim()}
+                    style={codeLoading || !codeInput.trim() ? s.redeemBtnDis : s.redeemBtn}
+                  >
+                    {codeLoading ? 'Løser inn…' : 'Løs inn'}
+                  </button>
+                </div>
+                {codeSuccess && <p style={{ fontSize: 12, color: '#4ade80', marginTop: 6 }}>{codeSuccess}</p>}
+                {codeError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 6 }}>{codeError}</p>}
+              </>
+            )}
           </div>
 
           {/* Slett konto */}
