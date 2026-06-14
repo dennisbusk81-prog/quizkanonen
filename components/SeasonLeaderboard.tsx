@@ -65,7 +65,13 @@ type ApiResponse = {
   quizTitle?: string | null
   quizClosesAt?: string | null
   activeQuizClosesAt?: string | null
+  totalCount?: number
+  userRank?: number | null
+  page?: number
+  pageSize?: number
 }
+
+const PAGE_SIZE = 20
 
 type HistoryWinner = {
   displayName: string
@@ -226,6 +232,7 @@ const s = {
 
   row:        { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   rowGold:    { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowSelf:    { background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   goldStripe: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
 
   rankCell: { width: 28, textAlign: 'center' as const, flexShrink: 0 },
@@ -327,6 +334,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [session, setSession]         = useState<Session | null | undefined>(undefined)
   const [pointsOpen, setPointsOpen]   = useState(false)
 
+  // ── Paginering + søk (kun Premium, periode-modus) ───────────────────────────
+  const [browseMode, setBrowseMode]   = useState(false)   // false = klassisk topp-10
+  const [pageNo, setPageNo]           = useState(1)
+  const [searchInput, setSearchInput] = useState('')      // rå input
+  const [search, setSearch]           = useState('')      // debounced, sendt til API
+
   const [histOpen, setHistOpen]         = useState(false)
   const [histData, setHistData]         = useState<HistoryEntry[] | null>(null)
   const [histLoading, setHistLoading]   = useState(false)
@@ -416,12 +429,24 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     setChallengeLoadingId(null)
   }
 
+  // Debounce søkefelt → search (sendt til API). Tomt søk = klassisk topp-10.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const v = searchInput.trim()
+      setSearch(v)
+      setPageNo(1)
+      setBrowseMode(v !== '')
+    }, 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
   // Hent toppliste-data
   useEffect(() => {
     if (session === undefined) return
     let cancelled = false
     setLoading(true)
-    setData(null)
+    // Behold eksisterende liste synlig under side-/søkbytte (unngå skeleton-blink)
+    if (!browseMode) setData(null)
 
     async function load() {
       const headers: Record<string, string> = {}
@@ -429,6 +454,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       try {
         let url = `/api/toppliste?period=${period}&scope=${scope}`
         if (scopeId) url += `&scope_id=${encodeURIComponent(scopeId)}`
+        if (browseMode) {
+          url += `&page=${pageNo}`
+          if (search) url += `&search=${encodeURIComponent(search)}`
+        }
         const res = await fetch(url, { headers })
         if (cancelled) return
         if (!res.ok) { if (!cancelled) setData(null); return }
@@ -443,14 +472,18 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
     load()
     return () => { cancelled = true }
-  }, [period, session, scope, scopeId])
+  }, [period, session, scope, scopeId, browseMode, pageNo, search])
 
-  // Reset historikk når periode bytter
+  // Reset historikk + paginering når periode bytter
   useEffect(() => {
     setHistOpen(false)
     setHistData(null)
     setExpandedKey(null)
     setExpandedData(new Map())
+    setBrowseMode(false)
+    setPageNo(1)
+    setSearchInput('')
+    setSearch('')
   }, [period])
 
   // Hent historikk-data (lat)
@@ -509,10 +542,47 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   const countdown  = getCountdown(period)
   const currentUserId = session?.user?.id ?? null
-  const badges     = data ? assignBadges(data.entries) : new Map<string, BadgeKind>()
   const isLastQuiz = period === 'last_quiz'
+  // Badges (krone/medalje/lyn/flamme) gir kun mening i klassisk topp-visning
+  const badges     = (data && !browseMode) ? assignBadges(data.entries) : new Map<string, BadgeKind>()
   const showHistory = period !== 'alltime'
   const emptyText  = EMPTY_TEXT[period]
+
+  // ── Paginerings-/søke-avledninger (Premium, periode-modus) ──────────────────
+  const isPremium     = data?.userIsPremium === true
+  const totalCount    = data?.totalCount ?? 0
+  const userRank      = data?.userRank ?? null
+  const totalPages    = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
+  const searching     = browseMode && search.trim() !== ''
+  // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
+  const showControls  = isPremium && !isLastQuiz && (totalCount > 10 || browseMode)
+  const showJumpToMe  = showControls && userRank != null && !userVisible && !searching
+
+  function goToPage(p: number) {
+    // Kun synlig når man ikke søker, så søketilstand trenger ikke nullstilles her
+    setPageNo(p)
+    setBrowseMode(true)
+  }
+  function goToMyPlacement() {
+    if (userRank == null) return
+    goToPage(Math.max(1, Math.ceil(userRank / PAGE_SIZE)))
+  }
+  // Kompakt sideliste med ellipser: 1 … rundt-nåværende … siste
+  function pageWindow(current: number, total: number): (number | 'gap')[] {
+    const wanted = [...new Set([1, 2, current - 1, current, current + 1, total - 1, total])]
+      .filter(n => n >= 1 && n <= total)
+      .sort((a, b) => a - b)
+    const out: (number | 'gap')[] = []
+    let prev = 0
+    for (const n of wanted) {
+      if (prev && n - prev > 1) out.push('gap')
+      out.push(n)
+      prev = n
+    }
+    return out
+  }
+  const intervalLabel = (p: number) => `${(p - 1) * PAGE_SIZE + 1}–${Math.min(p * PAGE_SIZE, totalCount)}`
 
   // ── Row renderers ─────────────────────────────────────────────────────────
 
@@ -552,11 +622,15 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const badge   = badges.get(entry.userId)
     const initial = entry.displayName[0]?.toUpperCase() ?? '?'
     const showError = challengeError?.rivalId === entry.userId
+    // Fremhev egen rad når man blar/søker (gjør "gå til min plassering" tydelig)
+    const isSelf  = browseMode && entry.userId === currentUserId
+    const rowStyle = isFirst ? s.rowGold : isSelf ? s.rowSelf : s.row
 
     return (
       <React.Fragment key={entry.userId}>
-        <div style={isFirst ? s.rowGold : s.row}>
+        <div style={rowStyle}>
           {isFirst && <div style={s.goldStripe} />}
+          {isSelf && !isFirst && <div style={s.goldStripe} />}
           <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
           <div style={s.avatarWrap}>
             {entry.avatarUrl
@@ -606,6 +680,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       )
     }
     if (!data) return null
+    // Allerede synlig (fremhevet) i listen — eget plasserings-kort er overflødig
+    if (userVisible) return null
 
     const ue = data.userEntry
     if (ue && ue.rank <= 10) return null
@@ -858,27 +934,91 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         </div>
       )}
 
-      {/* Topp 10 */}
-      {!loading && data?.entries.length === 0 ? (() => {
-        const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
-        if (quizStillOpen) {
+      {/* Søk + gå-til-min-plassering (Premium, periode-modus) */}
+      {showControls && (
+        <div style={{ marginBottom: 16 }}>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            placeholder="Søk etter navn…"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: 'transparent',
+              border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px',
+              fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+            }}
+          />
+          {showJumpToMe && (
+            <button
+              onClick={goToMyPlacement}
+              style={{
+                marginTop: 10, background: 'transparent', color: '#e8e4dd',
+                border: '1px solid #e8e4dd', borderRadius: 10, padding: '10px 28px',
+                fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif",
+                cursor: 'pointer', width: 'auto',
+              }}
+            >
+              Gå til min plassering (#{userRank})
+            </button>
+          )}
+          {searching && (
+            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+              {totalCount === 0
+                ? `Ingen treff på «${search}».`
+                : totalCount > PAGE_SIZE
+                  ? `Viser de ${PAGE_SIZE} første av ${totalCount} treff. Forsøk et mer spesifikt søk.`
+                  : `${totalCount} ${totalCount === 1 ? 'treff' : 'treff'}.`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Liste */}
+      {!loading && data?.entries.length === 0 ? (
+        searching ? null : (() => {
+          const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
+          if (quizStillOpen) {
+            return (
+              <div style={s.empty}>
+                <p style={s.emptyTitle}>Poeng beregnes etter quizen</p>
+                <p style={s.emptySub}>
+                  Poeng for ukens quiz registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
+                </p>
+              </div>
+            )
+          }
           return (
             <div style={s.empty}>
-              <p style={s.emptyTitle}>Poeng beregnes etter quizen</p>
-              <p style={s.emptySub}>
-                Poeng for ukens quiz registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
-              </p>
+              <p style={s.emptyTitle}>{emptyText.title}</p>
+              <p style={s.emptySub}>{emptyText.sub}</p>
             </div>
           )
-        }
-        return (
-          <div style={s.empty}>
-            <p style={s.emptyTitle}>{emptyText.title}</p>
-            <p style={s.emptySub}>{emptyText.sub}</p>
-          </div>
-        )
-      })() : (
+        })()
+      ) : (
         data?.entries.map(entry => renderRow(entry))
+      )}
+
+      {/* Sidenavigasjon (Premium) */}
+      {showControls && !searching && totalPages > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 16 }}>
+          {pageWindow(pageNo, totalPages).map((p, i) =>
+            p === 'gap'
+              ? <span key={`gap-${i}`} style={{ color: '#7a7873', padding: '6px 4px', fontSize: 12 }}>…</span>
+              : <button
+                  key={p}
+                  onClick={() => goToPage(p)}
+                  style={{
+                    background: p === pageNo ? 'rgba(201,168,76,0.12)' : 'transparent',
+                    border: `1px solid ${p === pageNo ? '#c9a84c' : '#2a2d38'}`,
+                    color: p === pageNo ? '#c9a84c' : '#e8e4dd',
+                    borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                    fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const,
+                  }}
+                >
+                  {intervalLabel(p)}
+                </button>
+          )}
+        </div>
       )}
 
       {/* Historikk-accordion */}

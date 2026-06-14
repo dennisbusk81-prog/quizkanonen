@@ -5,11 +5,19 @@ QK_4-lanseringsdokumentet ved behov.
 
 ---
 
-## MEDIUM
+## LØST
 
-- **season_scores-query i /api/toppliste mangler .limit() — henter potensielt
-  20 000+ rader for alltime-visning ved skalering. Trenger
-  paginering/aggregeringsstrategi.**
+- **~~season_scores-query i /api/toppliste mangler .limit()~~ — LØST 14. juni 2026.**
+  Aggregering + rangering flyttet til Postgres window-funksjoner (ROW_NUMBER)
+  via RPC `season_leaderboard_ranked` (migrasjon 20260614000014). Ruten henter
+  nå kun den forespurte siden (LIMIT/OFFSET) i stedet for alle rader. Har
+  automatisk JS-fallback hvis RPC ikke er deployet. Premium får paginering
+  (20/side), navnesøk (ILIKE m/ rang) og "gå til min plassering" i
+  `SeasonLeaderboard.tsx`. Gratis-visning (topp-10) uendret.
+
+---
+
+## MEDIUM
 
 - **/toppliste er full klient-side rendering med session-check-waterfall
   før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
