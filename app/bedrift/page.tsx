@@ -178,7 +178,7 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Egne quiz-tidspunkter</li>
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
               <li><span className="check">✓</span>CSV-eksport av aktivitetsdata</li>
-              <li><span className="check">✓</span>Bedriftsliga</li>
+              <li><span className="check">✓</span>Eget internt leaderboard per uke og sesong</li>
             </ul>
             <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>

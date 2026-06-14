@@ -113,7 +113,7 @@ MEDIUM:
 | Pakke | Pris | Innhold |
 |---|---|---|
 | Starter | kr 499/mnd | Fredagsquiz, opptil 25 ansatte |
-| Standard | kr 899/mnd | Egne quiz-tidspunkter (sett åpne/stenge-tid per bedrift), ukentlig statistikk-rapport, CSV-eksport av aktivitetsdata, bedriftsliga |
+| Standard | kr 899/mnd | Egne quiz-tidspunkter (sett åpne/stenge-tid per bedrift), ukentlig statistikk-rapport, CSV-eksport av aktivitetsdata, eget internt leaderboard per uke og sesong |
 | Pro | kr 1 499/mnd | Alt i Standard + prioritert support |
 | Enterprise | fra kr 2 499/mnd | Skreddersydd, faktura, ubegrenset |
 
@@ -121,7 +121,7 @@ MEDIUM:
 
 ## SENTRALE BESLUTNINGER
 
-- **14. juni 2026** — B2B Standard/Pro endret fra "X quizer/uke" til verktøy som allerede er bygget (org-egne tidspunkter, rapportering, bedriftsliga). Quiz-produksjonskapasitet tillot ikke det opprinnelige løftet om 3 quizer/uke (Standard) og daglig miniquiz man-tors (Pro).
+- **14. juni 2026** — B2B Standard/Pro endret fra "X quizer/uke" til verktøy som allerede er bygget (org-egne tidspunkter, rapportering, CSV-eksport, internt leaderboard). Quiz-produksjonskapasitet tillot ikke det opprinnelige løftet om 3 quizer/uke (Standard) og daglig miniquiz man-tors (Pro). NB: "bedriftsliga" (bedrift-mot-bedrift, ekstern rangering) er IKKE bygget og skal ikke nevnes i pakkebeskrivelsene — kun det interne org-leaderboardet (/org/[slug]) finnes.
 
 ---
 

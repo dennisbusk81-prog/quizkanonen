@@ -13,7 +13,7 @@ const STORAGE_KEY = 'qk-bedrift-pending'
 
 const PLANS = [
   { id: 'starter',  label: 'Starter',  price: '499 kr/mnd',   desc: 'Opptil 25 ansatte · 1 quiz/uke' },
-  { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · egne tidspunkter + statistikk', featured: true },
+  { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · egne tidspunkter, statistikk og CSV', featured: true },
   { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · alt i Standard + prioritert support', disabled: true },
 ]
 
