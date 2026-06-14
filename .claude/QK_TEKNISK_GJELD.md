@@ -7,6 +7,14 @@ QK_4-lanseringsdokumentet ved behov.
 
 ## LØST
 
+- **~~Next.js rute-konflikt: `app/api/org/[id]/` vs `app/api/org/[slug]/`~~ — LØST 14. juni 2026.**
+  `next dev` / `next start` krasjet med "You cannot use different slug names for the same dynamic path".
+  De fem `[id]`-rutene (`reset-season`, `members-activity`, `send-invite`, `send-reminder`, `quiz-insights`)
+  tok org-UUID som URL-segment, mens `[slug]`-rutene tok org-slug. Løst ved å flytte alle fem inn i
+  `app/api/org/[slug]/` og endre destrukturering fra `{ id }` til `{ slug }` (med kommentar om at
+  verdien fortsatt er UUID). Ingen frontend-endringer nødvendig. Verifisert: `next start` starter
+  uten feil, UUID-rutene svarer 401 uten token.
+
 - **~~/leaderboard/[id] lastet opptil 2000 attempts-rader klient-side~~ — LØST 14. juni 2026 (Fase 2).**
   Rangering + paginering + søk flyttet til Postgres window-funksjoner (ROW_NUMBER)
   via RPC `quiz_leaderboard_ranked`/`_user_stats`/`_better_count` (migrasjon

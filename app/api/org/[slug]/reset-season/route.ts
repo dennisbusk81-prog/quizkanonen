@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ slug: string }> }
 
-// POST /api/org/[id]/reset-season — slett season_scores for denne organisasjonen (krever org-admin)
+// POST /api/org/[slug]/reset-season — slett season_scores for denne organisasjonen (krever org-admin)
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`org-season-reset:${ip}`, 5, 60_000).success) {
@@ -17,7 +17,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
   if (authError || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  const { id: orgId } = await params
+  // orgId er UUID her, ikke en slug — kun param-navn er endret for Next.js routing-konsistens
+  const { slug: orgId } = await params
 
   // Verifiser at brukeren er org-admin
   const { data: membership } = await supabaseAdmin

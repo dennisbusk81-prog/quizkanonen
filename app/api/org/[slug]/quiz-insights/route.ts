@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ slug: string }> }
 
 export async function GET(request: NextRequest, { params }: Params) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -10,7 +10,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  const { id: orgId } = await params
+  // orgId er UUID her, ikke en slug — kun param-namn er endret for Next.js routing-konsistens
+  const { slug: orgId } = await params
 
   // Verify admin
   const { data: membership } = await supabaseAdmin

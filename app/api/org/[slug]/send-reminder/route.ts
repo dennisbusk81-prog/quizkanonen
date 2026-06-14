@@ -5,9 +5,10 @@ import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { id: organizationId } = await params
+  // organizationId er UUID her, ikke en slug — kun param-namn er endret for Next.js routing-konsistens
+  const { slug: organizationId } = await params
 
   // Conservative rate limit — this sends emails
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'

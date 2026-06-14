@@ -8,9 +8,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { id: organizationId } = await params
+  // organizationId er UUID her, ikke en slug — kun param-navn er endret for Next.js routing-konsistens
+  const { slug: organizationId } = await params
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`send-invite:${ip}`, 5, 60_000).success) {

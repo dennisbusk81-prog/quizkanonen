@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-type Params = { params: Promise<{ id: string }> }
+type Params = { params: Promise<{ slug: string }> }
 
 function getPeriodStart(period: string): string {
   const now = new Date()
@@ -16,8 +16,9 @@ function getPeriodStart(period: string): string {
   return new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString()
 }
 
-// GET /api/org/[id]/members-activity?period=month|quarter|year&format=csv
+// GET /api/org/[slug]/members-activity?period=month|quarter|year&format=csv
 // Returnerer aktivitetsdata for alle org-medlemmer. Krever org-admin.
+// orgId er UUID her, ikke en slug — kun param-navn er endret for Next.js routing-konsistens
 export async function GET(request: NextRequest, { params }: Params) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
   if (authError || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  const { id: orgId } = await params
+  const { slug: orgId } = await params
   const { searchParams } = new URL(request.url)
   const period = ['month', 'quarter', 'year'].includes(searchParams.get('period') ?? '')
     ? (searchParams.get('period') as 'month' | 'quarter' | 'year')
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   if (!orgMembers || orgMembers.length === 0) {
     return format === 'csv'
-      ? new NextResponse('\uFEFF' + 'Navn,Aktiv denne måneden,Poeng,Antall quizer,Sist aktiv\n', {
+      ? new NextResponse('﻿' + 'Navn,Aktiv denne måneden,Poeng,Antall quizer,Sist aktiv\n', {
           headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="aktivitet-${period}.csv"` },
         })
       : NextResponse.json({ members: [], period })
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       m.quizCount,
       m.lastActiveAt ? new Date(m.lastActiveAt).toLocaleDateString('nb-NO') : '—',
     ].join(','))
-    const csv = '\uFEFF' + [header, ...rows].join('\n')
+    const csv = '﻿' + [header, ...rows].join('\n')
     return new NextResponse(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
