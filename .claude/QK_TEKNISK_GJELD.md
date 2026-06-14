@@ -7,6 +7,14 @@ QK_4-lanseringsdokumentet ved behov.
 
 ## MEDIUM
 
+- **season_scores-query i /api/toppliste mangler .limit() — henter potensielt
+  20 000+ rader for alltime-visning ved skalering. Trenger
+  paginering/aggregeringsstrategi.**
+
+- **/toppliste er full klient-side rendering med session-check-waterfall
+  før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
+  auth/hydration-risiko rett før lansering.**
+
 - **UPDATE-policy på attempts tillater klient-side score-manipulasjon.**
   Policyen "Alle kan oppdatere attempts" (`USING true` / `WITH CHECK true`)
   lar enhver klient — også anon med anon-nøkkelen via devtools — oppdatere

@@ -78,39 +78,33 @@ export async function GET(request: NextRequest) {
   const periodStartParam = searchParams.get('period_start')
   const periodEndParam   = searchParams.get('period_end')
 
-  // Identify user
+  // Identify user + bygg excludedSet — kjør alle uavhengige queries parallelt
   let userId: string | null = null
   let userIsPremium = false
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
-  if (token) {
-    const { data: { user } } = await supabaseAdmin.auth.getUser(token)
-    if (user) {
-      userId = user.id
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('premium_status')
-        .eq('id', user.id)
-        .maybeSingle()
-      userIsPremium = profile?.premium_status === true
-    }
-  }
+  const nowIso = new Date().toISOString()
 
-  // Hent ekskluderte brukere for dette scopet
   let excludedQuery = supabaseAdmin
     .from('excluded_members')
     .select('user_id')
     .eq('scope_type', scope)
   if (scopeId) excludedQuery = excludedQuery.eq('scope_id', scopeId)
   else         excludedQuery = excludedQuery.is('scope_id', null)
-  const { data: excludedRows } = await excludedQuery
-  const excludedSet = new Set((excludedRows ?? []).map((e: { user_id: string }) => e.user_id))
 
-  // Suspenderte brukere ekskluderes fra alle leaderboards
-  const { data: suspendedRows } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .gt('suspended_until', new Date().toISOString())
-  for (const row of (suspendedRows ?? []) as { id: string }[]) {
+  const [authResult, excludedResult, suspendedResult] = await Promise.all([
+    token
+      ? supabaseAdmin.auth.getUser(token)
+      : Promise.resolve({ data: { user: null }, error: null }),
+    excludedQuery,
+    supabaseAdmin.from('profiles').select('id').gt('suspended_until', nowIso),
+  ])
+
+  userId = authResult.data.user?.id ?? null
+
+  const excludedSet = new Set(
+    (excludedResult.data ?? []).map((e: { user_id: string }) => e.user_id)
+  )
+  for (const row of (suspendedResult.data ?? []) as { id: string }[]) {
     excludedSet.add(row.id)
   }
 
@@ -169,19 +163,19 @@ export async function GET(request: NextRequest) {
     const withRanks = rankAttempts([...bestByUser.values()])
 
     const top10Ids = withRanks.slice(0, 10).map(a => a.user_id)
-    const allRankedIds = withRanks.map(a => a.user_id)
-    const profileIds =
-      userId && !top10Ids.includes(userId) && allRankedIds.includes(userId)
-        ? [...top10Ids, userId]
-        : top10Ids
+    // Inkluder alltid userId for å hente premium_status i samme query (erstatter separat oppslag)
+    const profileIdsSet = new Set(top10Ids)
+    if (userId) profileIdsSet.add(userId)
+    const profileIds = [...profileIdsSet]
 
     const { data: profiles } = profileIds.length > 0
-      ? await supabaseAdmin.from('profiles').select('id, display_name').in('id', profileIds)
+      ? await supabaseAdmin.from('profiles').select('id, display_name, premium_status').in('id', profileIds)
       : { data: [] }
 
     const profileMap = new Map<string, { display_name: string | null }>()
-    for (const p of (profiles ?? []) as { id: string; display_name: string | null }[]) {
+    for (const p of (profiles ?? []) as { id: string; display_name: string | null; premium_status: boolean | null }[]) {
       profileMap.set(p.id, p)
+      if (p.id === userId) userIsPremium = p.premium_status === true
     }
 
     const entries = withRanks.slice(0, 10).map(a => {
@@ -294,21 +288,22 @@ export async function GET(request: NextRequest) {
     stats.topStreak = streak
   }
 
-  // 5. Profiloppslag for topp 10 + innlogget bruker
+  // 5. Profiloppslag for topp 10 + innlogget bruker (display_name + premium_status i én query)
   const top10 = sorted.slice(0, 10)
   const top10Ids = top10.map(s => s.userId)
-  const profileIds =
-    userId && !top10Ids.includes(userId) && userStats.has(userId)
-      ? [...top10Ids, userId]
-      : top10Ids
+  // Inkluder alltid userId for å hente premium_status i samme query (erstatter separat oppslag)
+  const profileIdsSet = new Set(top10Ids)
+  if (userId) profileIdsSet.add(userId)
+  const profileIds = [...profileIdsSet]
 
   const { data: profiles } = profileIds.length > 0
-    ? await supabaseAdmin.from('profiles').select('id, display_name').in('id', profileIds)
+    ? await supabaseAdmin.from('profiles').select('id, display_name, premium_status').in('id', profileIds)
     : { data: [] }
 
   const profileMap = new Map<string, { display_name: string | null }>()
-  for (const p of (profiles ?? []) as { id: string; display_name: string | null }[]) {
+  for (const p of (profiles ?? []) as { id: string; display_name: string | null; premium_status: boolean | null }[]) {
     profileMap.set(p.id, p)
+    if (p.id === userId) userIsPremium = p.premium_status === true
   }
 
   // 6. FastestMs — én query mot attempts for topp-10-brukere i perioden
