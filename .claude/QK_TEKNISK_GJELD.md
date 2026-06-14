@@ -82,3 +82,79 @@ QK_4-lanseringsdokumentet ved behov.
   rival/percentil-snapshot. Mulige grep: utelat fasit fra question-SELECT og
   flytt riktig-svar-avsløring til en egen verifiserings-rute per svar. Ikke
   triviell — påvirker flere komponenter og UX.
+  **Se egen seksjonen nedenfor: PROBLEM B — Fasit eksponert til klient under quiz.**
+
+---
+
+## PROBLEM B — Fasit eksponert til klient under quiz (akseptert risiko)
+
+Dokumentert: 14. juni 2026. Status: IKKE LØST — bevisst nedprioritert.
+
+### Beskrivelse
+
+Initial SELECT på questions-tabellen ([app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx),
+~linje 854-860) bruker `select('*')` og inkluderer `correct_answer`,
+`correct_answers` og `explanation` for ALLE spørsmål i quizen, hentet i ett
+kall ved quiz-start. Disse ligger i klientens React-state (`questions`) gjennom
+hele quizøkten.
+
+Verifisert: respons fra Supabase PostgREST viser `correct_answer` for spørsmål
+som ikke er besvart ennå. Synlig i Network-fanen i devtools — ingen teknisk
+kompetanse utover "åpne devtools" nødvendig.
+
+### Hvorfor det ikke er løst nå
+
+Vurdert løsning: per-spørsmål server-roundtrip (klient sender svar, server
+returnerer fasit+forklaring for nettopp det spørsmålet — fasit for spørsmål N
+sendes aldri til klient før klient har svart på N).
+
+Kartlagt grundig (to runder, Opus). Konklusjon: teknisk gjennomførbar uten
+merkbar UX-regresjon PÅ GOD LINJE (~120ms ekstra per svar, maskeres av en
+lock-in-mikroanimasjon). MEN:
+
+1. Krever omstrukturering av `handleAnswer` i
+   [app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx) — kjernefilen i hele
+   produktet. Korrekthets-spesifikk animasjon (konfetti/shake) må flyttes fra
+   "ved klikk" til "ved server-svar".
+2. Fjerner dagens offline-robusthet under spilling. I dag: quiz kjører offline
+   etter lasting, kun final submit kan feile. Etter endring: hvert svar krever
+   nett — nettverksbrudd midt i quiz blir ny feilmodus som krever retry/idempotent
+   håndtering (UPSERT attempt_answers ON CONFLICT (attempt_id, question_id)).
+3. På dårlig mobilnett (Fast 3G: ~680ms, Slow 3G: ~2,1s per svar) blir
+   forsinkelsen merkbar og krever egen venter-UI.
+
+Vurdering: stor regresjonsrisiko i produktets kjerneloop, for et problem som
+krever at noen AKTIVT velger å utnytte det (åpne devtools eller skrive et
+script). I nåværende fase (nylig lansert, kjent brukerbase ~100 personer) er
+sannsynlig utnyttelse lav, og eventuell utnyttelse vil sannsynligvis være synlig
+i leaderboard (mistenkelig høy score / 100% riktig konsekvent).
+
+### Når dette bør revurderes
+
+- Hvis leaderboard viser mistenkelige resultater (alltid 100%, unaturlig
+  score-mønster for ukjente brukere)
+- Hvis premiemodellen (fysiske/økonomiske premier) aktiveres — øker insentiv
+  til juks
+- Hvis brukerbasen vokser forbi "kjente personer i Facebook-gruppen" til en
+  skala der sosial kontroll ikke lenger er en reell brems
+- Generelt: revurder ved 500+ aktive brukere ELLER hvis premier innføres,
+  hva som inntreffer først
+
+### Hvis/når det tas opp igjen
+
+Full kartlegging er allerede gjort (to Opus-runder, juni 2026) — konklusjonen
+og tidslinjen for B er dokumentert i prosjektets chat-historikk. Anbefalt
+løsning: **B (per-spørsmål server-roundtrip)**, med:
+
+- `handleAnswer`: fyr `POST /api/quiz/[id]/answer` parallelt ved klikk, vis
+  nøytral lock-in-mikroanim (~150ms) mens man venter på respons
+- Korrekthets-animasjon flyttes til server-callback
+- `getOptionClass` og forklaringsvisning gates på server-respons
+- `played_log` skrives fortsatt ved slutt (uendret)
+- Klient sender fortsatt `timeMs`, server klamper (uendret fra Problem A-fiksen
+  — IKKE bytt til server-tidtaking, da straffer det brukere på dårlig nett
+  i rangeringen)
+- Migrasjon: unik constraint `(attempt_id, question_id)` på `attempt_answers`
+  for idempotens
+- Fjern fasit fra initial SELECT SIST, etter at server-stien er verifisert
+  i produksjon
