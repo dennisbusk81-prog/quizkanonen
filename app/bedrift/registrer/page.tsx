@@ -13,8 +13,8 @@ const STORAGE_KEY = 'qk-bedrift-pending'
 
 const PLANS = [
   { id: 'starter',  label: 'Starter',  price: '499 kr/mnd',   desc: 'Opptil 25 ansatte · 1 quiz/uke' },
-  { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · 3 quizer/uke', featured: true },
-  { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · 5+ quizer/uke', disabled: true },
+  { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · egne tidspunkter + statistikk', featured: true },
+  { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · alt i Standard + prioritert support', disabled: true },
 ]
 
 const AVAILABLE_PLAN_IDS = PLANS.filter(p => !('disabled' in p && p.disabled)).map(p => p.id)

@@ -106,6 +106,31 @@ MEDIUM:
 
 ---
 
+---
+
+## B2B-PAKKETABELL (gjeldende per 14. juni 2026)
+
+| Pakke | Pris | Innhold |
+|---|---|---|
+| Starter | kr 499/mnd | Fredagsquiz, opptil 25 ansatte |
+| Standard | kr 899/mnd | Egne quiz-tidspunkter (sett åpne/stenge-tid per bedrift), ukentlig statistikk-rapport, CSV-eksport av aktivitetsdata, bedriftsliga |
+| Pro | kr 1 499/mnd | Alt i Standard + prioritert support |
+| Enterprise | fra kr 2 499/mnd | Skreddersydd, faktura, ubegrenset |
+
+---
+
+## SENTRALE BESLUTNINGER
+
+- **14. juni 2026** — B2B Standard/Pro endret fra "X quizer/uke" til verktøy som allerede er bygget (org-egne tidspunkter, rapportering, bedriftsliga). Quiz-produksjonskapasitet tillot ikke det opprinnelige løftet om 3 quizer/uke (Standard) og daglig miniquiz man-tors (Pro).
+
+---
+
+## FREMTIDIGE B2B-FEATURES (backlog)
+
+**Quizbibliotek for org-admin** — org-admin velger fra tidligere quizer/klassikere, publiserer som egne miniquizer, poeng går KUN til `scope_type='organization'` (egen bedriftsliga). Krever duplisering av questions (ny quiz_id), ny UI i org-admin. Bygger på eksisterende season_scores scope-arkitektur. Eget lite prosjekt, ikke triviell endring. Fremtidig Pro-differensiering.
+
+---
+
 ## MERK TIL NESTE ØKET
 
 - Stripe er fortsatt i **Test Mode** — ikke bytt til live uten eksplisitt beskjed

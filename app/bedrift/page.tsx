@@ -168,15 +168,17 @@ export default function BedriftPage() {
             <div className="pkg-badge">Mest populær</div>
             <div className="pkg-name pkg-name-featured">Standard</div>
             <div className="pkg-price">899 <span>kr/mnd</span></div>
-            <div className="pkg-desc">Tre quizer i uken. Mer engasjement.</div>
+            <div className="pkg-desc">Egne tidspunkter, statistikk og CSV-eksport.</div>
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
-              <li><span className="check">✓</span>Mandag, onsdag og fredag</li>
+              <li><span className="check">✓</span>Fredagsquiz hver uke</li>
               <li><span className="check">✓</span>Eget bedrifts-leaderboard</li>
               <li><span className="check">✓</span>Opptil 50 ansatte</li>
               <li><span className="check">✓</span>Invitasjon via lenke</li>
+              <li><span className="check">✓</span>Egne quiz-tidspunkter</li>
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
-              <li><span className="check check-dim">—</span>Egne quizer</li>
+              <li><span className="check">✓</span>CSV-eksport av aktivitetsdata</li>
+              <li><span className="check">✓</span>Bedriftsliga</li>
             </ul>
             <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>
@@ -185,15 +187,13 @@ export default function BedriftPage() {
             <div className="pkg-ribbon">Kommer snart</div>
             <div className="pkg-name">Pro</div>
             <div className="pkg-price">1 499 <span>kr/mnd</span></div>
-            <div className="pkg-desc">Daglig miniquiz + fredagsquiz.</div>
+            <div className="pkg-desc">Alt i Standard + prioritert support.</div>
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
-              <li><span className="check">✓</span>Miniquiz man–tors (5 spørsmål)</li>
-              <li><span className="check">✓</span>Full fredagsquiz</li>
+              <li><span className="check">✓</span>Alt i Standard</li>
               <li><span className="check">✓</span>Opptil 100 ansatte</li>
-              <li><span className="check">✓</span>Invitasjon via lenke</li>
-              <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
-              <li><span className="check">✓</span>Egne quizer (kommer)</li>
+              <li><span className="check">✓</span>Prioritert support</li>
+              <li><span className="check check-dim">—</span>Skreddersydde quizer</li>
             </ul>
             <span className="pkg-btn-soon" aria-disabled="true">Kommer snart</span>
           </div>
@@ -240,16 +240,16 @@ export default function BedriftPage() {
                 <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>Quizer per uke</td>
-                <td>1</td>
-                <td className="col-featured td-gold">3</td>
-                <td className="td-gold col-soon">5+</td>
-                <td className="td-gold col-soon">Valgfritt</td>
+                <td>Egne quiz-tidspunkter</td>
+                <td className="td-no">—</td>
+                <td className="td-yes col-featured">✓</td>
+                <td className="td-yes col-soon">✓</td>
+                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>Daglig miniquiz (man–tors)</td>
+                <td>CSV-eksport av aktivitetsdata</td>
                 <td className="td-no">—</td>
-                <td className="td-no col-featured">—</td>
+                <td className="td-yes col-featured">✓</td>
                 <td className="td-yes col-soon">✓</td>
                 <td className="td-yes col-soon">✓</td>
               </tr>
@@ -275,10 +275,10 @@ export default function BedriftPage() {
                 <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>Egne quizer</td>
+                <td>Prioritert support</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-gold col-soon">Kommer</td>
+                <td className="td-yes col-soon">✓</td>
                 <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
