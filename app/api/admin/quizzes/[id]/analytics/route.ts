@@ -6,6 +6,17 @@ function auth(req: NextRequest) {
   return !!pw && pw === process.env.ADMIN_PASSWORD
 }
 
+type AttemptRaw = {
+  id: string
+  user_id: string | null
+  player_name: string | null
+  correct_answers: number
+  total_questions: number
+  total_time_ms: number
+  completed_at: string
+  is_team: boolean
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -45,5 +56,47 @@ export async function GET(
     }))
   }
 
-  return NextResponse.json({ quiz, questions: questions ?? [], attempts: attempts ?? [], answers })
+  // Top 10 with emails (solo only, sorted best first)
+  const soloAttempts = ((attempts ?? []) as AttemptRaw[]).filter(a => !a.is_team)
+  const top10 = [...soloAttempts]
+    .sort((a, b) => b.correct_answers - a.correct_answers || a.total_time_ms - b.total_time_ms)
+    .slice(0, 10)
+
+  // Resolve display names from profiles
+  const top10UserIds = [...new Set(top10.map(a => a.user_id).filter((uid): uid is string => !!uid))]
+  const profileMap = new Map<string, string>()
+  if (top10UserIds.length > 0) {
+    const { data: profileRows } = await supabaseAdmin
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', top10UserIds)
+    for (const p of (profileRows ?? []) as { id: string; display_name: string | null }[]) {
+      if (p.display_name) profileMap.set(p.id, p.display_name)
+    }
+  }
+
+  // Resolve emails from auth.users (service role only)
+  const emailMap = new Map<string, string>()
+  if (top10UserIds.length > 0) {
+    const { data: authRows } = await supabaseAdmin
+      .schema('auth')
+      .from('users')
+      .select('id, email')
+      .in('id', top10UserIds)
+    for (const u of (authRows ?? []) as { id: string; email: string | null }[]) {
+      if (u.email) emailMap.set(u.id, u.email)
+    }
+  }
+
+  const topPlayers = top10.map((a, i) => ({
+    rank: i + 1,
+    name: (a.user_id && profileMap.get(a.user_id)) ?? a.player_name ?? '?',
+    email: a.user_id ? (emailMap.get(a.user_id) ?? null) : null,
+    correct_answers: a.correct_answers,
+    total_questions: a.total_questions,
+    total_time_ms: a.total_time_ms,
+    user_id: a.user_id,
+  }))
+
+  return NextResponse.json({ quiz, questions: questions ?? [], attempts: attempts ?? [], answers, topPlayers })
 }

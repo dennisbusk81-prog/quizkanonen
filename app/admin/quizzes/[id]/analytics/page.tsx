@@ -15,6 +15,16 @@ type AttemptRow = {
   is_team: boolean
 }
 
+type TopPlayer = {
+  rank: number
+  name: string
+  email: string | null
+  correct_answers: number
+  total_questions: number
+  total_time_ms: number
+  user_id: string | null
+}
+
 type AnswerRow = {
   question_id: string
   is_correct: boolean
@@ -369,6 +379,32 @@ const STYLES = `
   .an-feedback.success { background: rgba(74,222,128,0.10); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
   .an-feedback.error   { background: rgba(248,113,113,0.10); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
 
+  /* Top players table */
+  .an-top-table { width: 100%; border-collapse: collapse; }
+  .an-top-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 12px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .an-top-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--body);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .an-top-table tr:last-child td { border-bottom: none; }
+  .an-top-rank { color: var(--muted); font-size: 12px; width: 28px; }
+  .an-top-name { font-weight: 500; color: var(--white); }
+  .an-top-email { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
+  .an-top-score { color: var(--body); white-space: nowrap; }
+  .an-top-anon { font-size: 11px; color: var(--muted); font-style: italic; }
+
   /* Empty */
   .an-empty {
     background: var(--card);
@@ -414,6 +450,7 @@ export default function QuizAnalytics() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [attempts, setAttempts] = useState<AttemptRow[]>([])
   const [answers, setAnswers] = useState<AnswerRow[]>([])
+  const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedOpts, setExpandedOpts] = useState<Set<string>>(new Set())
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null)
@@ -436,6 +473,7 @@ export default function QuizAnalytics() {
       setQuestions(data.questions)
       setAttempts(data.attempts)
       setAnswers(data.answers)
+      setTopPlayers(data.topPlayers ?? [])
     } catch (e) {
       console.error('fetchData feilet:', e)
     } finally {
@@ -609,6 +647,48 @@ export default function QuizAnalytics() {
                 </div>
               ))}
             </div>
+
+            {/* Topp spillere */}
+            {topPlayers.length > 0 && (
+              <>
+                <div className="an-section">
+                  <span className="an-section-text">Topp spillere</span>
+                  <div className="an-section-line" />
+                </div>
+                <div className="an-dist" style={{ padding: 0, overflow: 'hidden' }}>
+                  <table className="an-top-table">
+                    <thead>
+                      <tr>
+                        <th className="an-top-rank">#</th>
+                        <th>Navn / e-post</th>
+                        <th style={{ textAlign: 'right' }}>Poeng · Tid</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topPlayers.map(p => {
+                        const timeSec = Math.round(p.total_time_ms / 1000)
+                        const timeStr = timeSec < 60 ? `${timeSec}s` : `${Math.floor(timeSec / 60)}m ${timeSec % 60}s`
+                        return (
+                          <tr key={p.rank}>
+                            <td className="an-top-rank">{p.rank}</td>
+                            <td>
+                              <span className="an-top-name">{p.name}</span>
+                              {p.email
+                                ? <span className="an-top-email">{p.email}</span>
+                                : <span className="an-top-anon">ikke innlogget</span>
+                              }
+                            </td>
+                            <td className="an-top-score" style={{ textAlign: 'right' }}>
+                              {p.correct_answers}/{p.total_questions} · {timeStr}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             {/* Scorefordeling */}
             <div className="an-section">
