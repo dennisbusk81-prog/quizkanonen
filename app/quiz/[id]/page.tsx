@@ -682,6 +682,7 @@ export default function QuizPage() {
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
   const [estimatedPlacement, setEstimatedPlacement] = useState<{ low: number; high: number; total: number } | null>(null)
+  const [serverScore, setServerScore] = useState<{ correctAnswers: number; totalTimeMs: number; correctStreak: number } | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
   const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
@@ -1330,28 +1331,46 @@ export default function QuizPage() {
   }, [pendingNextIndex, questions, getTimeLimit, quiz])
 
   const finishQuiz = async () => {
-    const correct = answers.filter(a => a.isCorrect).length
-    const streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
     const deviceId = getDeviceId()
+    // Klient-beregning brukes kun som fallback hvis submit-ruten ikke svarer.
+    // Server-ruten er fasit: den slår opp riktige svar og beregner score selv.
+    let correct = answers.filter(a => a.isCorrect).length
+    let streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
+    let finalTimeMs = totalTimeMs
     try {
       if (attemptId) {
-        await supabaseData.from('attempts').update({ correct_answers: correct, total_time_ms: totalTimeMs, correct_streak: streak }).eq('id', attemptId)
-        const { error: answersError } = await supabaseData.from('attempt_answers').insert(
-          answers.map(ans => ({
-            attempt_id: attemptId, question_id: ans.questionId,
-            selected_answer: ans.selectedAnswer, is_correct: ans.isCorrect, time_ms: ans.timeMs,
-          }))
-        )
-        if (answersError) console.error('[finishQuiz] attempt_answers batch insert failed:', answersError)
-        await supabaseData.from('played_log').insert({ quiz_id: quizId, identifier: deviceId })
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch(`/api/quiz/${quizId}/submit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            attemptId,
+            deviceId,
+            answers: answers.map(ans => ({
+              questionId: ans.questionId,
+              selectedAnswer: ans.selectedAnswer,
+              timeMs: ans.timeMs,
+            })),
+          }),
+        })
+        if (!res.ok) throw new Error(`submit returnerte ${res.status}`)
+        const result: { correctAnswers: number; totalTimeMs: number; correctStreak: number } = await res.json()
+        correct = result.correctAnswers
+        finalTimeMs = result.totalTimeMs
+        streak = result.correctStreak
+        setServerScore(result)
+        setTotalTimeMs(finalTimeMs)
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
-      localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: totalTimeMs }))
+      localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: finalTimeMs }))
       // Hent rangering fra snapshot-endepunkt; fallback til direkte spørring
       let placementSet = false
       try {
         const snapshotRes = await fetch(
-          `/api/quiz/${quizId}/ranking-snapshot?question=${questions.length - 1}&correct=${correct}&time=${totalTimeMs}`
+          `/api/quiz/${quizId}/ranking-snapshot?question=${questions.length - 1}&correct=${correct}&time=${finalTimeMs}`
         )
         if (snapshotRes.ok) {
           const snapData: { rank: number; total: number; low: number; high: number } = await snapshotRes.json()
@@ -1370,11 +1389,11 @@ export default function QuizPage() {
           const total = allAttempts.length
           const better = allAttempts.filter(a =>
             a.correct_answers > correct ||
-            (a.correct_answers === correct && a.total_time_ms < totalTimeMs)
+            (a.correct_answers === correct && a.total_time_ms < finalTimeMs)
           ).length
           const strictlyWorse = allAttempts.filter(a =>
             a.correct_answers < correct ||
-            (a.correct_answers === correct && a.total_time_ms > totalTimeMs)
+            (a.correct_answers === correct && a.total_time_ms > finalTimeMs)
           ).length
           setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
         }
@@ -1406,7 +1425,7 @@ export default function QuizPage() {
     try {
       await document.fonts.ready
 
-      const cCount = answers.filter(a => a.isCorrect).length
+      const cCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
       const topp = isPremium && estimatedPlacement && estimatedPlacement.total > 1
         ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
         : null
@@ -1955,10 +1974,10 @@ export default function QuizPage() {
     )
   }
 
-  // RESULTAT
-  const correctCount = answers.filter(a => a.isCorrect).length
+  // RESULTAT — server-beregnet score foretrekkes; klient kun fallback
+  const correctCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
   const percentage = Math.round((correctCount / questions.length) * 100)
-  const streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
+  const streak = serverScore?.correctStreak ?? calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
   const toppPercent = estimatedPlacement && estimatedPlacement.total > 1
     ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
     : null

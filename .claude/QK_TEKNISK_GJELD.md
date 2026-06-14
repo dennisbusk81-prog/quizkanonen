@@ -43,12 +43,32 @@ QK_4-lanseringsdokumentet ved behov.
   før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
   auth/hydration-risiko rett før lansering.**
 
-- **UPDATE-policy på attempts tillater klient-side score-manipulasjon.**
-  Policyen "Alle kan oppdatere attempts" (`USING true` / `WITH CHECK true`)
-  lar enhver klient — også anon med anon-nøkkelen via devtools — oppdatere
-  hvilken som helst attempt-rad. En bruker kan dermed sette egen
-  `correct_answers`/`total_time_ms` til hva som helst (juks).
-  Krever at finishQuiz sin scoreoppdatering ([app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx))
-  flyttes til en service-role server-rute, slik at UPDATE-policyen kan
-  fjernes for `public`. Ikke kritisk for liten beta-gruppe, men bør løses
-  før B2C-skalering eller før konkurranse-incentiver (premier) introduseres.
+- **UPDATE-policy på attempts tillater klient-side score-manipulasjon
+  — NY RUTE BYGGET 14. juni 2026, RLS-FIKS VENTER PÅ MANUELL KJØRING.**
+  Scoreberegning er flyttet fra klienten til service-role-ruten
+  [POST /api/quiz/[id]/submit](../app/api/quiz/%5Bid%5D/submit/route.ts):
+  klienten sender nå kun rå svar (`selectedAnswer` + `timeMs` per spørsmål),
+  serveren slår opp fasiten og beregner `correct_answers`/`correct_streak`/
+  `total_time_ms` selv (med tid-clamping mot `time_limit_seconds`). Dobbel-
+  scoring hindres via ny kolonne `attempts.submitted_at` (migrasjon
+  20260614000017). finishQuiz ([app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx))
+  kaller ruten og viser server-beregnet score.
+  **GJENSTÅR:** kjør migrasjon `20260614000017_attempts_submitted_at.sql`
+  (legger til kolonnen — MÅ kjøres FØR/samtidig som deploy, ellers feiler
+  submit i prod), og deretter RLS-innstrammingen som fjerner den permissive
+  UPDATE-policyen "Alle kan oppdatere attempts" for `public` (kun
+  `service_role` skal kunne UPDATE-e). Begge SQL-blokker er vist for manuell
+  kjøring i Supabase SQL Editor.
+
+- **Fasit eksponeres til klienten under quiz (`select('*')` på questions
+  inkluderer `correct_answer`/`correct_answers`) — HØY prioritet.**
+  Spørsmålshentingen i [app/quiz/[id]/page.tsx](../app/quiz/%5Bid%5D/page.tsx)
+  (`questions.select('*')`) laster ned riktige svar til nettleseren. Selv etter
+  at scoringen er flyttet server-side (submit-ruten) kan en jukser lese fasiten
+  i devtools mens quizen pågår, og dermed svare riktig — server-scoringen ser
+  da et legitimt riktig svar. Krever egen arkitekturdiskusjon fordi fasiten
+  i dag brukes klient-side av flere ting: QuizInterlude/mellomskjerm (viser
+  riktig svar + forklaringstekst etter hvert spørsmål), live-plassering, og
+  rival/percentil-snapshot. Mulige grep: utelat fasit fra question-SELECT og
+  flytt riktig-svar-avsløring til en egen verifiserings-rute per svar. Ikke
+  triviell — påvirker flere komponenter og UX.
