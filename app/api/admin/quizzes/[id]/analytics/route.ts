@@ -90,6 +90,7 @@ export async function GET(
 
   const topPlayers = top10.map((a, i) => ({
     rank: i + 1,
+    attempt_id: a.id,
     name: (a.user_id && profileMap.get(a.user_id)) ?? a.player_name ?? '?',
     email: a.user_id ? (emailMap.get(a.user_id) ?? null) : null,
     correct_answers: a.correct_answers,
