@@ -607,14 +607,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   function renderChallengeButton(entry: Entry) {
     // Vises kun for innloggede Premium-brukere
     if (!session || !data?.userIsPremium) return null
-    // Ikke på egen rad — vis diskret plassholder for å beholde symmetri
-    if (entry.userId === currentUserId) {
-      return (
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', flexShrink: 0, whiteSpace: 'nowrap' as const, padding: '5px 12px' }}>
-          Din rad
-        </span>
-      )
-    }
+    // Ikke på egen rad — raden er allerede fremhevet med gull-border (rowSelf)
+    if (entry.userId === currentUserId) return null
     // Bekreftelse hvis nettopp sendt / allerede utgående pending
     if (challengeSentSet.has(entry.userId)) {
       return <span style={s.challengeSent}>Duell sendt!</span>
@@ -640,8 +634,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const badge   = badges.get(entry.userId)
     const initial = entry.displayName[0]?.toUpperCase() ?? '?'
     const showError = challengeError?.rivalId === entry.userId
-    // Fremhev egen rad når man blar/søker (gjør "gå til min plassering" tydelig)
-    const isSelf  = browseMode && entry.userId === currentUserId
+    // Fremhev alltid egen rad med gull-border (indikerer "dette er deg" uten ekstra element)
+    const isSelf  = entry.userId === currentUserId
     const rowStyle = isFirst ? s.rowGold : isSelf ? s.rowSelf : s.row
 
     return (
