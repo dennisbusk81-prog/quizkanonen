@@ -75,16 +75,12 @@ export async function GET(
     }
   }
 
-  // Resolve emails from auth.users (service role only)
+  // Resolve emails via auth.admin API (service role only)
   const emailMap = new Map<string, string>()
   if (top10UserIds.length > 0) {
-    const { data: authRows } = await supabaseAdmin
-      .schema('auth')
-      .from('users')
-      .select('id, email')
-      .in('id', top10UserIds)
-    for (const u of (authRows ?? []) as { id: string; email: string | null }[]) {
-      if (u.email) emailMap.set(u.id, u.email)
+    const results = await Promise.all(top10UserIds.map(uid => supabaseAdmin.auth.admin.getUserById(uid)))
+    for (const { data } of results) {
+      if (data?.user?.email) emailMap.set(data.user.id, data.user.email)
     }
   }
 
