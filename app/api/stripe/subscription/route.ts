@@ -40,6 +40,13 @@ export async function GET(request: NextRequest) {
       cancel_at_period_end: sub.cancel_at_period_end,
     })
   } catch (err) {
+    if (
+      err instanceof Stripe.errors.StripeInvalidRequestError &&
+      err.code === 'resource_missing'
+    ) {
+      console.warn('Stripe subscription: ukjent customer_id (mulig live/test-mismatch):', (err as Error).message)
+      return NextResponse.json({ current_period_end: null, cancel_at_period_end: false })
+    }
     console.error('Stripe subscription error:', err)
     return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
   }
