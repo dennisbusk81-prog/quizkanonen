@@ -399,7 +399,7 @@ export default function LigaPage() {
 
               {/* Member list */}
               {activityLoading ? (
-                <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '16px 0' }}>Laster…</p>
+                <SkeletonCard rows={4} showHeader={false} style={{ marginTop: 4 }} />
               ) : activityData && activityData.length > 0 ? (
                 <div>
                   {activityData.map(m => (

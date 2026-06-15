@@ -506,6 +506,11 @@ export default function HistorikkPage() {
       <div style={s.wrap}>
         <div style={s.page}>
 
+          {/* Tilbake */}
+          <div style={{ paddingTop: 20 }}>
+            <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
+          </div>
+
           {/* Hero */}
           <div style={s.hero}>
             <div style={s.heroEyebrow}>Din historikk · Premium</div>

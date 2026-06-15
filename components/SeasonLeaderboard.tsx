@@ -458,9 +458,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    // Fjern data (vis skeleton) ved periode-/sidebytte, men IKKE ved session-re-fetch
-    // (da er data allerede synlig og skal bare suppleres med brukerinfo)
-    if (!browseMode && !sessionChecked) setData(null)
+    // Fjern data (vis skeleton) ved periode-/sidebytte og initial last.
+    // Ved session-re-fetch endres sessionUserId, men browseMode er false —
+    // vi aksepterer den korte skeleton-blinken fordi det er bedre enn å
+    // vise feil periodes data mens ny hentes.
+    if (!browseMode) setData(null)
 
     async function load() {
       const headers: Record<string, string> = {}
