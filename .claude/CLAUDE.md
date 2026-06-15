@@ -1,5 +1,5 @@
 # Quizkanonen — Claude Code kontekst
-Sist oppdatert: 19. april 2026
+Sist oppdatert: 15. juni 2026
 
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
