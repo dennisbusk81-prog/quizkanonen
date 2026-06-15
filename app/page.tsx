@@ -1104,6 +1104,11 @@ export default async function Home() {
             <p style={{ fontSize: 13, color: '#7a7873' }}>{todayLabel}</p>
           </section>
 
+          {/* Rivalry card — innkommende utfordring vises høyt opp */}
+          <ErrorBoundary>
+            <RivalryCard isPremium={isPremium} prioritySlot="top" />
+          </ErrorBoundary>
+
           {/* Quiz card */}
           {quiz ? (
             <div className="qk-card">
@@ -1267,9 +1272,9 @@ export default async function Home() {
             <LeagueCard leagues={leagueDataArr} />
           )}
 
-          {/* Rivalry card — H2H Duell (Premium) */}
+          {/* Rivalry card — H2H Duell (Premium), alle tilstander unntatt incoming */}
           <ErrorBoundary>
-            <RivalryCard isPremium={isPremium} />
+            <RivalryCard isPremium={isPremium} prioritySlot="default" />
           </ErrorBoundary>
 
         </div>

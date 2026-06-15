@@ -2251,6 +2251,23 @@ export default function QuizPage() {
           </button>
         )}
 
+        {isPremium && attemptId && (
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <a href={`/historikk/${attemptId}`} style={{
+              display: 'inline-block',
+              padding: '10px 28px',
+              background: 'transparent',
+              border: '1px solid #2a2d38',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 500,
+              color: '#e8e4dd',
+              textDecoration: 'none',
+              fontFamily: "'Instrument Sans', sans-serif",
+            }}>Se dine svar →</a>
+          </div>
+        )}
+
         {quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se topplisten</a>

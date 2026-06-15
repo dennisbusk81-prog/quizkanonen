@@ -19,9 +19,10 @@ type RivalryRow = {
 
 type Props = {
   isPremium: boolean
+  prioritySlot?: 'top' | 'default'
 }
 
-export default function RivalryCard({ isPremium }: Props) {
+export default function RivalryCard({ isPremium, prioritySlot }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -107,6 +108,11 @@ export default function RivalryCard({ isPremium }: Props) {
   const activeDuel  = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
   const outgoing    = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
   const incoming    = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
+
+  // Slot-logikk: 'top' vises kun ved innkommende utfordring; 'default' skjules da
+  if (prioritySlot === 'top' && !incoming) return null
+  if (prioritySlot === 'default' && incoming) return null
+
   // Fix 4: show declined state to challenger so they know the challenge was rejected
   const declined    = rivalries.find(r => r.status === 'declined' && r.isChallenger && !r.isExpired) ?? null
 
