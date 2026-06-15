@@ -1050,6 +1050,15 @@ export default function QuizPage() {
             if (j.rankingSnapshot) setRankingSnapshot(j.rankingSnapshot)
           })
           .catch(() => {})
+
+        // Re-sjekk premium-status ved quiz-start — founders kan ha aktivert
+        // etter at quiz-siden mountet (isPremium ble satt til false ved mount)
+        fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) setIsPremium(data.isPremium === true) })
+          .catch(() => {})
       }
       fetch(`/api/quiz/percentile?quizId=${quizId}`)
         .then(r => r.ok ? r.json() : [])
@@ -1366,6 +1375,17 @@ export default function QuizPage() {
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
       localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: finalTimeMs }))
+      // Re-sjekk premium-status parallelt med snapshot-fetchen — founders-aktivering
+      // kan ha skjedd etter quiz-start, og isPremium-tilstanden er da utdatert
+      const { data: { session: finishSess } } = await supabase.auth.getSession()
+      if (finishSess?.access_token) {
+        fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${finishSess.access_token}` },
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) setIsPremium(data.isPremium === true) })
+          .catch(() => {})
+      }
       // Hent rangering fra snapshot-endepunkt; fallback til direkte spørring
       let placementSet = false
       try {
