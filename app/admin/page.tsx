@@ -608,7 +608,7 @@ export default function AdminHome() {
                     <span className={`adm-badge ${statusClass}`}>
                       {statusLabel}
                     </span>
-                    <Link href={`/admin/quizzes/${quiz.id}/questions`} className="adm-quiz-link">Rediger →</Link>
+                    <Link href={`/admin/quizzes/new?id=${quiz.id}`} className="adm-quiz-link">Rediger →</Link>
                     <Link href={`/leaderboard/${quiz.id}`} className="adm-quiz-link">Toppliste →</Link>
                     {isClosed && (
                       <button

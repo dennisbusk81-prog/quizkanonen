@@ -179,7 +179,8 @@ export default function UserMenu() {
     pathname.startsWith('/founders') ||
     pathname.startsWith('/quiz') ||
     pathname.startsWith('/org') ||
-    pathname.startsWith('/bedrift')
+    pathname.startsWith('/bedrift') ||
+    pathname.startsWith('/admin')
   ) return null
 
   const initial = displayName?.[0]?.toUpperCase() ?? '?'
