@@ -321,7 +321,13 @@ export async function GET(request: NextRequest) {
   // Periodens quiz-tidslinje via RPC (kun nødvendig i standardmodus, RPC-sti)
   async function periodQuizTimelineViaRpc(): Promise<string[]> {
     if (isPaginated) return []
-    const { data: pq } = await supabaseAdmin.rpc('season_leaderboard_period_quizzes', rpcArgs)
+    // season_leaderboard_period_quizzes aksepterer kun 4 params — ikke p_excluded_ids
+    const { data: pq } = await supabaseAdmin.rpc('season_leaderboard_period_quizzes', {
+      p_scope:        rpcArgs.p_scope,
+      p_scope_id:     rpcArgs.p_scope_id,
+      p_period_start: rpcArgs.p_period_start,
+      p_period_end:   rpcArgs.p_period_end,
+    })
     return ((pq ?? []) as { quiz_id: string; closes_at: string }[])
       .sort((a, b) => a.closes_at.localeCompare(b.closes_at))
       .map(r => r.quiz_id)
