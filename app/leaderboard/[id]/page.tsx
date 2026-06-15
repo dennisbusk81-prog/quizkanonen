@@ -312,7 +312,7 @@ export default function LeaderboardPage() {
           const premData = await premRes.json()
           setIsPremiumOverride(premData.isPremium === true)
         }
-      } catch { /* ikke kritisk — fallback til false */ }
+      } catch (err) { console.error('[leaderboard] premium-status fetch feilet:', err) }
 
       // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
       try {
@@ -393,6 +393,27 @@ export default function LeaderboardPage() {
     })
     return () => subscription.unsubscribe()
   }, [loadSession])
+
+  // Re-sjekk premium-status når siden blir synlig igjen (håndterer fanebytte
+  // og Next.js router-cache som gjenbruker gammel React-tilstand etter navigasjon)
+  useEffect(() => {
+    const handleVisible = async () => {
+      if (document.visibilityState !== 'visible') return
+      const sess = await getSession()
+      if (!sess?.access_token) return
+      try {
+        const res = await fetch('/api/profile/premium-status', {
+          headers: { Authorization: `Bearer ${sess.access_token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setIsPremiumOverride(data.isPremium === true)
+        }
+      } catch (err) { console.error('[leaderboard] visibilitychange premium-status feilet:', err) }
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    return () => document.removeEventListener('visibilitychange', handleVisible)
+  }, [])
 
   // Fix 3: clean up challengeError timer on unmount to prevent state update on unmounted component
   useEffect(() => {
