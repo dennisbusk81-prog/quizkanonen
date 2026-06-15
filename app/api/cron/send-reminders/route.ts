@@ -5,6 +5,8 @@ import { sendEmail } from '@/lib/email'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
@@ -164,7 +166,9 @@ export async function GET(request: NextRequest) {
     for (const org of (orgsWithCloseTime ?? []) as { id: string; name: string; org_quiz_closes_at: string; org_close_reminder_quiz_id: string | null }[]) {
       if (org.org_close_reminder_quiz_id === activeQuiz.id) continue // already sent for this quiz
 
-      const orgCloseDatetime = `${quizDate}T${org.org_quiz_closes_at}:00.000Z`
+      // org_quiz_closes_at er PostgreSQL TIME type → "HH:MM:SS" fra PostgREST
+      // Legg til bare .000Z (ikke :00.000Z) for gyldig ISO 8601
+      const orgCloseDatetime = `${quizDate}T${org.org_quiz_closes_at}.000Z`
       const msUntilClose = new Date(orgCloseDatetime).getTime() - now
       const minUntilClose = msUntilClose / 60_000
 
