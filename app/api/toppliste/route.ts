@@ -63,6 +63,7 @@ function getPeriodStart(period: string): string {
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
+  const t0 = Date.now()
   const { searchParams } = new URL(request.url)
   const period = searchParams.get('period') ?? 'month'
 
@@ -207,6 +208,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
     return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at })
   }
 
@@ -255,6 +257,7 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
       activeQuizClosesAt = openQuiz?.closes_at ?? null
     }
+    console.log(`[toppliste] ${period}/${scope} empty ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries: [], userEntry: uEntry, userIsPremium, quizTitle: null,
       activeQuizClosesAt, totalCount: 0, userRank: uRank, page, pageSize: PAGE_SIZE,
@@ -269,7 +272,7 @@ export async function GET(request: NextRequest) {
     const fastest = new Map<string, number>()
     if (isPaginated || listedIds.length === 0 || orderedQuizIds.length === 0) return { streak, fastest }
 
-    // Per-bruker deltagelse (bundet til de listede brukerne)
+    // Per-bruker deltagelse og raskeste tid — kjør parallelt (runder 5+6)
     let partQuery = supabaseAdmin
       .from('season_scores')
       .select('user_id, quiz_id')
@@ -279,7 +282,17 @@ export async function GET(request: NextRequest) {
     if (periodEnd) partQuery = partQuery.lt('closes_at', periodEnd)
     if (scopeId)   partQuery = partQuery.eq('scope_id', scopeId)
     else            partQuery = partQuery.is('scope_id', null)
-    const { data: partRows } = await partQuery
+
+    const [{ data: partRows }, { data: fastAttempts }] = await Promise.all([
+      partQuery,
+      supabaseAdmin
+        .from('attempts')
+        .select('user_id, total_time_ms')
+        .in('user_id', listedIds)
+        .in('quiz_id', orderedQuizIds)
+        .eq('is_team', false)
+        .not('user_id', 'is', null),
+    ])
 
     const userQuizIds = new Map<string, Set<string>>()
     for (const r of (partRows ?? []) as { user_id: string; quiz_id: string }[]) {
@@ -298,14 +311,6 @@ export async function GET(request: NextRequest) {
       streak.set(uid, s)
     }
 
-    // Raskeste tid per bruker (lyn-badge / tiebreak-visning)
-    const { data: fastAttempts } = await supabaseAdmin
-      .from('attempts')
-      .select('user_id, total_time_ms')
-      .in('user_id', listedIds)
-      .in('quiz_id', orderedQuizIds)
-      .eq('is_team', false)
-      .not('user_id', 'is', null)
     for (const a of (fastAttempts ?? []) as { user_id: string; total_time_ms: number }[]) {
       const cur = fastest.get(a.user_id)
       if (cur === undefined || a.total_time_ms < cur) fastest.set(a.user_id, a.total_time_ms)
@@ -337,16 +342,27 @@ export async function GET(request: NextRequest) {
     // ── RPC-STI ──────────────────────────────────────────────────────────────
     const rankedRows = (rankedData ?? []) as RankedRow[]
     const totalCount = Number(rankedRows[0]?.total_count ?? 0)
+    const listedIds  = rankedRows.map(r => r.user_id)
 
-    // Brukerens plassering + premium-status (uavhengig av side/søk)
+    // Runde 3 + 4 parallelt: bruker-stats/profil OG quiz-tidslinje
+    const userStatsPromise = userId
+      ? Promise.all([
+          supabaseAdmin.rpc('season_leaderboard_user_stats', { ...rpcArgs, p_user_id: userId }),
+          supabaseAdmin.from('profiles').select('display_name, premium_status').eq('id', userId).maybeSingle(),
+        ])
+      : Promise.resolve(null)
+
+    const [userResult, orderedQuizIds] = await Promise.all([
+      userStatsPromise,
+      periodQuizTimelineViaRpc(),
+    ])
+
+    // Pakk ut bruker-resultater
     let userRank: number | null = null
     let userStats: { points: number; quizCount: number } | null = null
     let userDisplayName: string | null = null
-    if (userId) {
-      const [{ data: us }, { data: prof }] = await Promise.all([
-        supabaseAdmin.rpc('season_leaderboard_user_stats', { ...rpcArgs, p_user_id: userId }),
-        supabaseAdmin.from('profiles').select('display_name, premium_status').eq('id', userId).maybeSingle(),
-      ])
+    if (userResult) {
+      const [{ data: us }, { data: prof }] = userResult
       const row = (us ?? [])[0] as { points: number; quiz_count: number; rank: number } | undefined
       if (row) { userRank = Number(row.rank); userStats = { points: Number(row.points), quizCount: Number(row.quiz_count) } }
       userIsPremium   = prof?.premium_status === true
@@ -359,8 +375,8 @@ export async function GET(request: NextRequest) {
 
     if (rankedRows.length === 0) return emptyResponse(userEntry, userRank)
 
-    const orderedQuizIds = await periodQuizTimelineViaRpc()
-    const { streak, fastest } = await enrich(rankedRows.map(r => r.user_id), orderedQuizIds)
+    // Runde 5+6 er nå parallellisert inne i enrich()
+    const { streak, fastest } = await enrich(listedIds, orderedQuizIds)
 
     const entries: EntryOut[] = rankedRows.map(r => ({
       rank: Number(r.rank),
@@ -373,6 +389,7 @@ export async function GET(request: NextRequest) {
       fastestMs: fastest.get(r.user_id) ?? null,
     }))
 
+    console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries, userEntry, userIsPremium, quizTitle: null,
       totalCount, userRank, page, pageSize: PAGE_SIZE,
@@ -461,6 +478,7 @@ export async function GET(request: NextRequest) {
     fastestMs: fastest.get(r.userId) ?? null,
   }))
 
+  console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
     entries, userEntry, userIsPremium, quizTitle: null,
     totalCount, userRank, page, pageSize: PAGE_SIZE,

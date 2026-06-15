@@ -331,7 +331,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [period, setPeriod]           = useState<Period>('last_quiz')
   const [data, setData]               = useState<ApiResponse | null>(null)
   const [loading, setLoading]         = useState(true)
-  const [session, setSession]         = useState<Session | null | undefined>(undefined)
+  const [session, setSession]         = useState<Session | null>(null)
+  // sessionChecked: true etter at getSession() har svart — brukes til å
+  // skjule "Logg inn"-kortet til vi vet om brukeren faktisk er innlogget
+  const [sessionChecked, setSessionChecked] = useState(false)
   const [pointsOpen, setPointsOpen]   = useState(false)
 
   // ── Paginering + søk (kun Premium, periode-modus) ───────────────────────────
@@ -356,8 +359,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [pendingChallenge, setPendingChallenge]     = useState<{ id: string; name: string } | null>(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      setSessionChecked(true)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s)
+      setSessionChecked(true)
+    })
     return () => subscription.unsubscribe()
   }, [])
 
@@ -441,12 +450,17 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   }, [searchInput])
 
   // Hent toppliste-data
+  // Kjøres umiddelbart ved mount (session=null → anonymt kall), og på nytt
+  // når session ankommer med access_token (for innloggede brukere).
+  // Bruker session?.user?.id i dep-arrayen for å unngå ekstra re-fetch
+  // ved token-refresh (samme bruker, nytt token).
+  const sessionUserId = session?.user?.id ?? null
   useEffect(() => {
-    if (session === undefined) return
     let cancelled = false
     setLoading(true)
-    // Behold eksisterende liste synlig under side-/søkbytte (unngå skeleton-blink)
-    if (!browseMode) setData(null)
+    // Fjern data (vis skeleton) ved periode-/sidebytte, men IKKE ved session-re-fetch
+    // (da er data allerede synlig og skal bare suppleres med brukerinfo)
+    if (!browseMode && !sessionChecked) setData(null)
 
     async function load() {
       const headers: Record<string, string> = {}
@@ -472,7 +486,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
     load()
     return () => { cancelled = true }
-  }, [period, session, scope, scopeId, browseMode, pageNo, search])
+  // sessionUserId (ikke session) for å unngå re-fetch ved token-refresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, sessionUserId, scope, scopeId, browseMode, pageNo, search])
 
   // Reset historikk + paginering når periode bytter
   useEffect(() => {
@@ -664,7 +680,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   }
 
   function renderUserSection() {
-    if (session === undefined) return null
+    if (!sessionChecked) return null
     if (!session) {
       return (
         <>
