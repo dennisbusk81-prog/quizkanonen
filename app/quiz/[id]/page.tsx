@@ -1010,22 +1010,35 @@ export default function QuizPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const { data, error } = await supabaseData.from('attempts').insert({
-        quiz_id: quizId, player_name: info.name, is_team: info.isTeam,
-        team_size: info.teamSize, total_questions: questions.length, correct_answers: 0, total_time_ms: 0,
-        user_id: session?.user?.id ?? null,
-        leader_display_name: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
-      }).select().single()
-      if (error) {
-        // RLS-policyen "Suspenderte brukere kan ikke spille" blokkerer INSERT
-        // (Postgres 42501). Vis suspensjons-skjermen istedenfor generisk feil.
-        if (error.code === '42501') {
+      // Attempt opprettes server-side (service-role) via /api/quiz/start-attempt.
+      // Klienten kan ikke lenger skrive til attempts direkte (RLS låst til service_role).
+      const res = await fetch('/api/quiz/start-attempt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          quizId,
+          playerName: info.name,
+          isTeam: info.isTeam,
+          teamSize: info.teamSize,
+          leaderDisplayName: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        // Suspendert konto — vis suspensjons-skjermen istedenfor generisk feil.
+        if (res.status === 403 && err.suspended) {
           setIsSuspended(true)
           return
         }
-        throw error
+        setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+        setStartError(err.error ?? 'Noe gikk galt. Prøv å laste siden på nytt.')
+        return
       }
-      setAttemptId(data?.id || null)
+      const { attemptId: newAttemptId } = await res.json()
+      setAttemptId(newAttemptId || null)
       const firstIdx = resumeData ? resumeData.index : 0
       const firstQ = questions[firstIdx]
       const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz!.num_options)
