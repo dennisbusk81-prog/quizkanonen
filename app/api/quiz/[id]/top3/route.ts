@@ -25,9 +25,10 @@ export async function GET(
     .limit(3)
 
   if (error) {
-    console.error('[quiz/top3] feil:', error.message)
+    console.error('[quiz/top3] feil:', { quizId, error: error.message })
     return NextResponse.json({ top3: [] })
   }
 
+  console.log('[quiz/top3]', { quizId, count: data?.length ?? 0 })
   return NextResponse.json({ top3: data ?? [] })
 }

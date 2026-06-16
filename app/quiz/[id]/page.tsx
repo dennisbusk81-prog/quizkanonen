@@ -872,9 +872,9 @@ export default function QuizPage() {
       .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
     // Topp 3 — vises for alle brukere (motivasjon, ikke Premium-feature)
     fetch(`/api/quiz/${quizId}/top3`)
-      .then(r => r.ok ? r.json() : { top3: [] })
-      .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
-      .catch(() => {})
+      .then(r => { console.log('[top3 fetch] response', r.status, r.ok); return r.ok ? r.json() : { top3: [] } })
+      .then(j => { console.log('[top3 fetch] data', j); if (Array.isArray(j.top3)) setTop3(j.top3) })
+      .catch(err => { console.log('[top3 fetch] error', err) })
   }, [phase, quizId])
 
   useEffect(() => {
