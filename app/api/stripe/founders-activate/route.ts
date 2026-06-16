@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const isFull = (count ?? 0) >= maxSlots
     const trialPeriodDays = isFull ? trialDays : daysFree
 
-    await stripe.subscriptions.create({
+    const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: FOUNDERS_PRICE_ID }],
       trial_period_days: trialPeriodDays,
@@ -85,7 +85,13 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin
       .from('profiles')
-      .update({ premium_status: true, premium_since: new Date().toISOString(), premium_source: 'founders', trial_reminder_sent_at: null })
+      .update({
+        premium_status: true,
+        premium_since: new Date().toISOString(),
+        premium_source: 'founders',
+        trial_reminder_sent_at: null,
+        personal_stripe_subscription_id: subscription.id,
+      })
       .eq('id', user.id)
 
     // Send founders-aktiveringsbekreftelse — fire-and-forget

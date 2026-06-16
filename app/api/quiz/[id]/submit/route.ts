@@ -129,6 +129,7 @@ export async function POST(
     return NextResponse.json({ error: 'Kunne ikke lagre resultatet' }, { status: 500 })
   }
 
+  let answersWarning = false
   if (scored.length > 0) {
     const { error: ansErr } = await supabaseAdmin.from('attempt_answers').insert(
       scored.map(s => ({
@@ -139,16 +140,21 @@ export async function POST(
         time_ms: s.timeMs,
       })),
     )
-    if (ansErr) console.error('[submit] attempt_answers insert feilet:', ansErr.message)
+    if (ansErr) {
+      console.error('[submit] attempt_answers insert feilet:', ansErr.message)
+      answersWarning = true
+    }
   }
 
   if (deviceId) {
     const { error: logErr } = await supabaseAdmin
       .from('played_log')
       .insert({ quiz_id: quizId, identifier: deviceId })
+    // KJENT SVAKHET: hvis denne feiler kan brukeren spille quizen på nytt
+    // (played_log brukes som deviceId-sjekk i quiz-siden). Score er lagret.
     if (logErr) console.error('[submit] played_log insert feilet:', logErr.message)
   }
 
   // ── 6. Returner server-beregnet score til resultatskjermen ──────────────────
-  return NextResponse.json({ correctAnswers, totalTimeMs, correctStreak })
+  return NextResponse.json({ correctAnswers, totalTimeMs, correctStreak, answersWarning })
 }
