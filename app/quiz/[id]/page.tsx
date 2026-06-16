@@ -867,14 +867,14 @@ export default function QuizPage() {
   }, [quizId])
 
   useEffect(() => {
-    if (phase !== 'finished') return
+    if (phase !== 'finished' && phase !== 'already_played') return
     supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
       .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
     // Topp 3 — vises for alle brukere (motivasjon, ikke Premium-feature)
     fetch(`/api/quiz/${quizId}/top3`)
-      .then(r => { console.log('[top3 fetch] response', r.status, r.ok); return r.ok ? r.json() : { top3: [] } })
-      .then(j => { console.log('[top3 fetch] data', j); if (Array.isArray(j.top3)) setTop3(j.top3) })
-      .catch(err => { console.log('[top3 fetch] error', err) })
+      .then(r => r.ok ? r.json() : { top3: [] })
+      .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
+      .catch(() => {})
   }, [phase, quizId])
 
   useEffect(() => {
@@ -1665,6 +1665,37 @@ export default function QuizPage() {
             color:'var(--gold)',
           }}>
             Neste quiz: <strong>{nextDateStr}</strong>
+          </div>
+        )}
+        {top3.length > 0 && (
+          <div style={{ marginTop: 20, textAlign: 'left' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10 }}>
+              Topp 3 denne uken
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {top3.map((row, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
+                return (
+                  <div key={row.id} style={{
+                    background: '#1a1c23',
+                    border: '1px solid #2a2d38',
+                    borderRadius: 12,
+                    padding: '14px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                  }}>
+                    <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{medal}</span>
+                    <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {row.player_name}
+                    </span>
+                    <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
+                      {row.correct_answers} riktige · {Math.round(row.total_time_ms / 1000)}s
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
         <div className="qk-divider"/>
