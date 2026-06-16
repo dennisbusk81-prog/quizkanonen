@@ -255,7 +255,7 @@ export default function BedriftPage() {
                 <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>Bedrifts-leaderboard</td>
+                <td>Intern sesong-konkurranse</td>
                 <td className="td-yes">✓</td>
                 <td className="td-yes col-featured">✓</td>
                 <td className="td-yes col-soon">✓</td>
