@@ -1,18 +1,21 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-function isInAppBrowser(): boolean {
-  return /FBAN|FBAV|Instagram|Snapchat|TikTok|Twitter|LinkedIn|WhatsApp/i.test(navigator.userAgent)
+function detectInApp(): { inApp: boolean; isAndroid: boolean } {
+  const ua = navigator.userAgent
+  const inApp = /FBAN|FBAV|Instagram|Snapchat|LinkedInApp/i.test(ua)
+  const isAndroid = /Android/i.test(ua)
+  return { inApp, isAndroid }
 }
 
 export default function InAppBrowserWarning() {
-  const [show, setShow] = useState(false)
-  useEffect(() => { setShow(isInAppBrowser()) }, [])
-  if (!show) return null
+  const [state, setState] = useState<{ inApp: boolean; isAndroid: boolean } | null>(null)
+  useEffect(() => { setState(detectInApp()) }, [])
+  if (!state?.inApp) return null
 
   return (
     <div style={{
-      background: '#2a1a0a',
+      background: '#21242e',
       border: '1px solid #c9a84c',
       borderRadius: 12,
       padding: '16px 20px',
@@ -25,7 +28,7 @@ export default function InAppBrowserWarning() {
         color: '#ffffff',
         marginBottom: 6,
       }}>
-        Åpne i Safari eller Chrome
+        Google-innlogging virker ikke her
       </p>
       <p style={{
         fontFamily: "'Instrument Sans', sans-serif",
@@ -34,8 +37,38 @@ export default function InAppBrowserWarning() {
         lineHeight: 1.6,
         margin: 0,
       }}>
-        Det ser ut til at du bruker en nettleser inne i en app. Google-innlogging fungerer ikke her. Åpne quizkanonen.no i Safari eller Chrome for å logge inn.
+        Du bruker en innebygd nettleser. Åpne siden i Chrome eller Safari for å logge inn med Google.
       </p>
+      {state.isAndroid ? (
+        <a
+          href="intent://quizkanonen.no/login#Intent;scheme=https;package=com.android.chrome;end"
+          style={{
+            display: 'inline-block',
+            marginTop: 12,
+            padding: '8px 20px',
+            background: 'transparent',
+            border: '1px solid #e8e4dd',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#e8e4dd',
+            textDecoration: 'none',
+            fontFamily: "'Instrument Sans', sans-serif",
+          }}
+        >
+          Åpne i Chrome
+        </a>
+      ) : (
+        <p style={{
+          fontFamily: "'Instrument Sans', sans-serif",
+          fontSize: 12,
+          color: '#7a7873',
+          marginTop: 10,
+          lineHeight: 1.5,
+        }}>
+          Trykk på ⋯ øverst i høyre hjørne og velg &quot;Åpne i Safari&quot;.
+        </p>
+      )}
     </div>
   )
 }

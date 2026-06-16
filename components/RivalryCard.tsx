@@ -26,8 +26,8 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  // Fix 2: show error when an action (accept/decline/cancel) fails
   const [actionError, setActionError] = useState<string | null>(null)
+  const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -97,7 +97,14 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
       return
     }
     setActionLoading(null)
-    load()
+    if (action === 'accept') {
+      setJustAcceptedId(id)
+      setRivalries(prev => prev.map(r => r.id === id ? { ...r, status: 'active' as const, isChallenger: true } : r))
+    } else if (action === 'decline') {
+      setRivalries(prev => prev.filter(r => r.id !== id))
+    } else {
+      load()
+    }
   }
 
   if (!isPremium) return null
@@ -222,6 +229,11 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
           </div>
         </div>
 
+        {justAcceptedId === activeDuel.id && (
+          <p style={{ fontSize: 13, color: '#e8e4dd', margin: '10px 0 0', lineHeight: 1.5 }}>
+            Duell akseptert! Følg med på resultatet etter fredagens quiz.
+          </p>
+        )}
         <p style={{ fontSize: 11, color: '#e8e4dd', textAlign: 'center', margin: '10px 0 0', lineHeight: 1.4 }}>
           Poeng fra ukens quiz. Duellen nullstilles neste måned.
         </p>

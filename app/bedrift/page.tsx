@@ -141,8 +141,9 @@ export default function BedriftPage() {
         <div className="header">
           <div className="eyebrow">Quizkanonen for bedrifter</div>
           <h1 className="title">Fredagsquizen som <em>samler teamet.</em></h1>
-          <p className="subtitle">Alle ansatte logger inn med sitt eget navn. Eget leaderboard. Ukentlig engasjement. Ingen installasjon — del en lenke og alle er med.</p>
-          <p className="subtitle">Teamet får sin egen liga — helt adskilt fra alle andre. Alle deltakere får Premium-tilgang inkludert.</p>
+          <p className="subtitle">Fredagsquiz som faktisk samler folk — ikke et Teams-møte til.</p>
+          <p className="subtitle">Du ser hvem som er med — og hvem som ikke er det.</p>
+          <p className="subtitle">Konkurransen holder seg varm hele sesongen, ikke bare én fredag.</p>
         </div>
 
         {/* Packages */}
@@ -177,8 +178,8 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Invitasjon via lenke</li>
               <li><span className="check">✓</span>Egne quiz-tidspunkter</li>
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
-              <li><span className="check">✓</span>CSV-eksport av aktivitetsdata</li>
-              <li><span className="check">✓</span>Eget internt leaderboard per uke og sesong</li>
+              <li><span className="check">✓</span>Se hvem som deltar — og hvem som ikke gjør det</li>
+              <li><span className="check">✓</span>Intern konkurranse som holder seg gående hele sesongen</li>
             </ul>
             <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>
@@ -247,7 +248,7 @@ export default function BedriftPage() {
                 <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>CSV-eksport av aktivitetsdata</td>
+                <td>Se hvem som deltar — og hvem som ikke gjør det</td>
                 <td className="td-no">—</td>
                 <td className="td-yes col-featured">✓</td>
                 <td className="td-yes col-soon">✓</td>
