@@ -156,7 +156,7 @@ export default function BedriftPage() {
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
               <li><span className="check">✓</span>Fredagsquiz hver uke</li>
-              <li><span className="check">✓</span>Eget bedrifts-leaderboard</li>
+              <li><span className="check">✓</span>Intern sesong-konkurranse mellom ansatte</li>
               <li><span className="check">✓</span>Opptil 25 ansatte</li>
               <li><span className="check">✓</span>Invitasjon via lenke</li>
               <li><span className="check check-dim">—</span>Ukentlig statistikk-rapport</li>
@@ -169,11 +169,11 @@ export default function BedriftPage() {
             <div className="pkg-badge">Mest populær</div>
             <div className="pkg-name pkg-name-featured">Standard</div>
             <div className="pkg-price">899 <span>kr/mnd</span></div>
-            <div className="pkg-desc">Egne tidspunkter, statistikk og CSV-eksport.</div>
+            <div className="pkg-desc">Full oversikt over engasjement, deltakelse og intern konkurranse.</div>
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
               <li><span className="check">✓</span>Fredagsquiz hver uke</li>
-              <li><span className="check">✓</span>Eget bedrifts-leaderboard</li>
+              <li><span className="check">✓</span>Intern sesong-konkurranse mellom ansatte</li>
               <li><span className="check">✓</span>Opptil 50 ansatte</li>
               <li><span className="check">✓</span>Invitasjon via lenke</li>
               <li><span className="check">✓</span>Egne quiz-tidspunkter</li>

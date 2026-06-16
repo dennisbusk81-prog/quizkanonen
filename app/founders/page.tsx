@@ -307,6 +307,9 @@ export default function FoundersPage() {
   return (
     <div style={s.page}>
       <div style={s.inner}>
+        <a href="/" style={{ color: '#e8e4dd', fontSize: 14, textDecoration: 'none', display: 'inline-block', marginBottom: 24 }}>
+          ← Tilbake til forsiden
+        </a>
         <p style={s.eyebrow}>Den ukentlige quizen</p>
         <h1 style={s.logo}>
           Quiz<em style={s.logoEm}>kanonen</em>
