@@ -713,6 +713,7 @@ export default function QuizPage() {
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
   const [rankingSnapshot, setRankingSnapshot] = useState<{ top10MinCorrect: number; leaderName: string; leaderCorrect: number; totalPlayers: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
+  const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
@@ -869,7 +870,12 @@ export default function QuizPage() {
     if (phase !== 'finished') return
     supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
       .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
-  }, [phase])
+    // Topp 3 — vises for alle brukere (motivasjon, ikke Premium-feature)
+    fetch(`/api/quiz/${quizId}/top3`)
+      .then(r => r.ok ? r.json() : { top3: [] })
+      .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
+      .catch(() => {})
+  }, [phase, quizId])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -2079,6 +2085,40 @@ export default function QuizPage() {
           </div>
         )
       })()}
+
+      {/* ── Topp 3 denne uken — for alle brukere ── */}
+      {top3.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, textAlign: 'left' }}>
+            Topp 3 denne uken
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {top3.map((row, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
+              const isMe = !!attemptId && row.id === attemptId
+              return (
+                <div key={row.id} style={{
+                  background: '#21242e',
+                  border: isMe ? '1px solid rgba(201,168,76,0.3)' : '1px solid #2a2d38',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                }}>
+                  <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{medal}</span>
+                  <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                    {row.player_name}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
+                    {row.correct_answers} riktige · {Math.round(row.total_time_ms / 1000)}s
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
