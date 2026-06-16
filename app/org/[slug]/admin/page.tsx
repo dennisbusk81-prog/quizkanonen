@@ -180,31 +180,6 @@ function getPrevPeriodRange(period: 'month' | 'quarter' | 'year'): { start: stri
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-function computeWeekStreak(timestamps: string[]): number {
-  if (timestamps.length === 0) return 0
-  // Map each timestamp to its Monday (Monday-based week start, UTC)
-  const weeks = new Set<string>()
-  for (const ts of timestamps) {
-    const d = new Date(ts)
-    const monday = new Date(d)
-    monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
-    monday.setUTCHours(0, 0, 0, 0)
-    weeks.add(monday.toISOString().slice(0, 10))
-  }
-  // Sort descending (most recent first), then count consecutive weeks
-  const sorted = [...weeks].sort().reverse()
-  let streak = 1
-  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (new Date(sorted[i]).getTime() - new Date(sorted[i + 1]).getTime() === WEEK_MS) {
-      streak++
-    } else {
-      break
-    }
-  }
-  return streak
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function OrgAdminPage() {
@@ -349,57 +324,19 @@ export default function OrgAdminPage() {
     }
   }, [])
 
-  const loadQuizLeaderboard = useCallback(async (members: Member[]) => {
+  const loadQuizLeaderboard = useCallback(async (orgId: string, token: string) => {
     setQuizLoading(true)
     setQuizData(null)
     try {
-      // Latest published quiz
-      const { data: latestQuiz } = await supabase
-        .from('quizzes')
-        .select('id, title')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (!latestQuiz) { setQuizData([]); return }
-      setQuizTitle(latestQuiz.title as string)
-
-      const memberIds = members.map(m => m.user_id).filter(Boolean)
-      if (memberIds.length === 0) { setQuizData([]); return }
-
-      const { data: attempts } = await supabase
-        .from('attempts')
-        .select('user_id, player_name, correct_answers, total_time_ms')
-        .eq('quiz_id', latestQuiz.id)
-        .eq('is_team', false)
-        .in('user_id', memberIds)
-        .not('user_id', 'is', null)
-
-      if (!attempts || attempts.length === 0) { setQuizData([]); return }
-
-      // Best attempt per user
-      const bestMap = new Map<string, QuizEntry>()
-      for (const a of attempts as { user_id: string; player_name: string; correct_answers: number; total_time_ms: number }[]) {
-        if (!a.user_id) continue
-        const member = members.find(m => m.user_id === a.user_id)
-        const displayName = member?.display_name ?? a.player_name ?? '?'
-        const existing = bestMap.get(a.user_id)
-        if (
-          !existing ||
-          a.correct_answers > existing.correctAnswers ||
-          (a.correct_answers === existing.correctAnswers && a.total_time_ms < existing.totalTimeMs)
-        ) {
-          bestMap.set(a.user_id, { userId: a.user_id, displayName, correctAnswers: a.correct_answers, totalTimeMs: a.total_time_ms })
-        }
-      }
-
-      setQuizData(
-        [...bestMap.values()].sort((a, b) =>
-          b.correctAnswers !== a.correctAnswers
-            ? b.correctAnswers - a.correctAnswers
-            : a.totalTimeMs - b.totalTimeMs
-        )
-      )
+      // attempts.user_id er ikke lenger lesbar med klient-nøkkelen — hentes
+      // server-side (verifiserer org-admin) via /api/org/[slug]/quiz-scores.
+      const res = await fetch(`/api/org/${orgId}/quiz-scores`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) { setQuizData([]); return }
+      const json = await res.json() as { quizTitle: string | null; entries: QuizEntry[] }
+      if (json.quizTitle) setQuizTitle(json.quizTitle)
+      setQuizData(json.entries ?? [])
     } catch {
       setQuizData([])
     } finally {
@@ -447,37 +384,16 @@ export default function OrgAdminPage() {
     }
   }, [])
 
-  const loadStreaks = useCallback(async (members: Member[]) => {
+  const loadStreaks = useCallback(async (orgId: string, token: string) => {
     setStreaks(new Map())
     try {
-      const memberIds = members.map(m => m.user_id).filter(Boolean)
-      if (memberIds.length === 0) return
-      const oneYearAgo = new Date()
-      oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1)
-      const { data: attemptRows } = await supabase
-        .from('attempts')
-        .select('user_id, created_at')
-        .in('user_id', memberIds)
-        .gte('created_at', oneYearAgo.toISOString())
-        .eq('is_team', false)
-        .not('user_id', 'is', null)
-
-      if (!attemptRows || attemptRows.length === 0) return
-
-      // Group timestamps by user
-      const byUser = new Map<string, string[]>()
-      for (const a of attemptRows as { user_id: string; created_at: string }[]) {
-        if (!a.user_id) continue
-        const existing = byUser.get(a.user_id) ?? []
-        existing.push(a.created_at)
-        byUser.set(a.user_id, existing)
-      }
-
-      const result = new Map<string, number>()
-      for (const [userId, timestamps] of byUser) {
-        result.set(userId, computeWeekStreak(timestamps))
-      }
-      setStreaks(result)
+      // Streaks beregnes server-side (krever attempts.user_id) via samme rute.
+      const res = await fetch(`/api/org/${orgId}/quiz-scores`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const json = await res.json() as { streaks: Record<string, number> }
+      if (json.streaks) setStreaks(new Map(Object.entries(json.streaks)))
     } catch {
       // silent — streak is non-critical
     }
@@ -536,9 +452,9 @@ export default function OrgAdminPage() {
           loadWinners(d.org.id, sess.access_token)
           loadActivity(d.org.id, sess.access_token, 'month')
           loadPrevRanks(d.org.id, d.members, 'month')
-          loadStreaks(d.members)
+          loadStreaks(d.org.id, sess.access_token)
           loadInsights(d.org.id, sess.access_token)
-          loadQuizLeaderboard(d.members)
+          loadQuizLeaderboard(d.org.id, sess.access_token)
         }
       })
       .catch(() => setError('Noe gikk galt.'))
@@ -1571,7 +1487,7 @@ export default function OrgAdminPage() {
               className={topTab === 'quiz' ? 'oa-tab-a' : 'oa-tab-i'}
               onClick={() => {
                 setTopTab('quiz')
-                if (data) loadQuizLeaderboard(data.members)
+                if (data && session) loadQuizLeaderboard(data.org.id, session.access_token)
               }}
             >
               Siste quiz

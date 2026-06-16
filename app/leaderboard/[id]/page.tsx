@@ -242,35 +242,17 @@ export default function LeaderboardPage() {
           }
         }
 
-        // Fetch previous quiz for "pil opp" badge
-        if (quizData) {
-          try {
-            const { data: prevQuiz } = await supabaseData
-              .from('quizzes')
-              .select('id')
-              .lt('closes_at', quizData.closes_at)
-              .order('closes_at', { ascending: false })
-              .limit(1)
-              .maybeSingle()
-            if (prevQuiz) {
-              const { data: prevAttemptData } = await supabaseData
-                .from('attempts')
-                .select('id, quiz_id, player_name, is_team, team_size, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at')
-                .eq('quiz_id', prevQuiz.id)
-                .eq('is_team', false)
-                .limit(200)
-              if (prevAttemptData && prevAttemptData.length > 0) {
-                const prevRanked = rankAttempts(prevAttemptData as Attempt[])
-                const map = new Map<string, number>()
-                for (const a of prevRanked) {
-                  const key = a.user_id ?? a.player_name
-                  if (!map.has(key)) map.set(key, a.rank)
-                }
-                setPrevRankMap(map)
-              }
+        // Forrige quiz' rangering for "pil opp"-merket — server-side fordi
+        // attempts.user_id ikke lenger er lesbar med anon-nøkkelen.
+        try {
+          const prevRes = await fetch(`/api/leaderboard/${quizId}/prev-rank`)
+          if (prevRes.ok) {
+            const { prevRanks } = await prevRes.json() as { prevRanks: Record<string, number> }
+            if (prevRanks && Object.keys(prevRanks).length > 0) {
+              setPrevRankMap(new Map(Object.entries(prevRanks)))
             }
-          } catch { /* Previous quiz data is optional */ }
-        }
+          }
+        } catch { /* Previous quiz data is optional */ }
       } catch (e) {
         console.error('fetchData (leaderboard) feilet:', e)
       } finally {

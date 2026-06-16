@@ -662,6 +662,10 @@ export default function QuizPage() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
+  // Spørsmål lastes inkrementelt (ett om gangen) for å skjule fasiten. questions
+  // inneholder kun spørsmålene som er vist så langt; totalQuestions er fasiten på
+  // hvor mange det er totalt (brukes til progresjon, «siste spørsmål», resultat).
+  const [totalQuestions, setTotalQuestions] = useState(0)
   const [phase, setPhase] = useState<'register' | 'playing' | 'finished' | 'already_played'>('register')
   const [playerInfo, setPlayerInfo] = useState<PlayerInfo>({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -850,21 +854,25 @@ export default function QuizPage() {
       const savedProgress = localStorage.getItem(`qk_progress_${quizId}`)
       if (savedProgress) { try { setResumeData(JSON.parse(savedProgress)) } catch {} }
 
-      let qData: Question[] = []
-      if (quizData?.randomize_questions) {
-        const { data, error: qError } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId)
-        if (qError) console.error('Questions fetch feilet:', qError)
-        qData = (data || []).sort(() => Math.random() - 0.5)
-      } else {
-        const { data, error: qError } = await supabaseData.from('questions').select('*').eq('quiz_id', quizId).order('order_index')
-        if (qError) console.error('Questions fetch feilet:', qError)
-        qData = data || []
-      }
-
-      setQuiz(quizData); setQuestions(qData); setLoading(false)
+      // Spørsmål lastes IKKE her lenger — de hentes ett om gangen via
+      // /api/quiz/[id]/questions når spillet starter (skjuler fasiten).
+      setQuiz(quizData); setLoading(false)
     }
     fetchData()
   }, [quizId])
+
+  // Henter ett spørsmål (med kun sin egen fasit) fra server-ruten. aId trengs for
+  // stabil, per-attempt randomisert rekkefølge.
+  const fetchQuestionAt = useCallback(
+    async (index: number, aId: string | null): Promise<{ question: Question; total: number }> => {
+      const sp = new URLSearchParams({ index: String(index) })
+      if (aId) sp.set('attemptId', aId)
+      const res = await fetch(`/api/quiz/${quizId}/questions?${sp.toString()}`)
+      if (!res.ok) throw new Error(`questions ${res.status}`)
+      return res.json()
+    },
+    [quizId],
+  )
 
   useEffect(() => {
     if (phase !== 'finished' && phase !== 'already_played') return
@@ -1045,15 +1053,40 @@ export default function QuizPage() {
       }
       const { attemptId: newAttemptId } = await res.json()
       setAttemptId(newAttemptId || null)
+
+      // Hent spørsmålene som trengs for å starte: fersk start → kun index 0,
+      // resume → 0..resumeData.index. Resten hentes underveis i goToNext.
       const firstIdx = resumeData ? resumeData.index : 0
-      const firstQ = questions[firstIdx]
+      let loadedQuestions: Question[]
+      let total: number
+      try {
+        if (resumeData) {
+          const results = await Promise.all(
+            Array.from({ length: resumeData.index + 1 }, (_, i) => fetchQuestionAt(i, newAttemptId || null)),
+          )
+          loadedQuestions = results.map(r => r.question)
+          total = results[0]?.total ?? loadedQuestions.length
+        } else {
+          const r0 = await fetchQuestionAt(0, newAttemptId || null)
+          loadedQuestions = [r0.question]
+          total = r0.total
+        }
+      } catch {
+        setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+        setStartError('Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
+        return
+      }
+      setQuestions(loadedQuestions)
+      setTotalQuestions(total)
+
+      const firstQ = loadedQuestions[firstIdx]
       const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz!.num_options)
       setShuffledDisplayOrder(firstQ?.shuffle_options ? [...baseOpts].sort(() => Math.random() - 0.5) : baseOpts)
       if (resumeData) {
         setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
-        setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(questions[resumeData.index]))
+        setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(firstQ))
       } else {
-        setTimeLeft(getTimeLimit(questions[0]))
+        setTimeLeft(getTimeLimit(loadedQuestions[0]))
       }
       setQuestionStartTime(Date.now()); setPhase('playing')
 
@@ -1284,14 +1317,29 @@ export default function QuizPage() {
       streakBadgeRef.current.style.opacity = ''
     }
 
-    const isLast = currentIndex === questions.length - 1
+    const isLast = currentIndex === totalQuestions - 1
     if (isLast) {
       await finishQuiz()
       return
     }
 
     const nextIndex = currentIndex + 1
-    const qLeft = questions.length - nextIndex
+    // Hent neste spørsmål (med kun sin egen fasit) før det vises i interlude.
+    if (!questions[nextIndex]) {
+      try {
+        const r = await fetchQuestionAt(nextIndex, attemptId)
+        setQuestions(prev => {
+          const copy = [...prev]
+          copy[nextIndex] = r.question
+          return copy
+        })
+      } catch {
+        setFinishSaveError('Kunne ikke laste neste spørsmål — sjekk internettforbindelsen din')
+        setTimeout(() => setFinishSaveError(null), 5000)
+        return
+      }
+    }
+    const qLeft = totalQuestions - nextIndex
     const correctSoFar = answers.filter(a => a.isCorrect).length
 
     // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil
@@ -1409,7 +1457,7 @@ export default function QuizPage() {
       let placementSet = false
       try {
         const snapshotRes = await fetch(
-          `/api/quiz/${quizId}/ranking-snapshot?question=${questions.length - 1}&correct=${correct}&time=${finalTimeMs}`
+          `/api/quiz/${quizId}/ranking-snapshot?question=${totalQuestions - 1}&correct=${correct}&time=${finalTimeMs}`
         )
         if (snapshotRes.ok) {
           const snapData: { rank: number; total: number; low: number; high: number } = await snapshotRes.json()
@@ -1554,7 +1602,7 @@ export default function QuizPage() {
 
         ctx.font = '700 52px "Libre Baskerville", serif'
         ctx.fillStyle = '#c9a84c'
-        ctx.fillText(`${cCount}/${questions.length}`, col1x, statY)
+        ctx.fillText(`${cCount}/${totalQuestions}`, col1x, statY)
         ctx.font = '500 11px "Instrument Sans", sans-serif'
         ctx.fillStyle = '#7a7873'
         ctx.fillText('RIKTIGE SVAR', col1x, statY + 28)
@@ -1577,7 +1625,7 @@ export default function QuizPage() {
         // Just score centered
         ctx.font = '700 58px "Libre Baskerville", serif'
         ctx.fillStyle = '#c9a84c'
-        ctx.fillText(`${cCount}/${questions.length}`, cx, statY)
+        ctx.fillText(`${cCount}/${totalQuestions}`, cx, statY)
         ctx.font = '500 16px "Instrument Sans", sans-serif'
         ctx.fillStyle = '#e8e4dd'
         ctx.fillText('riktige svar', cx, statY + 36)
@@ -1594,7 +1642,7 @@ export default function QuizPage() {
       if (!blob) { setCardShareState('idle'); return }
 
       const file = new File([blob], 'quizkanonen-resultat.png', { type: 'image/png' })
-      const sharePayload = { files: [file], title: 'Quizkanonen', text: `${cCount}/${questions.length} riktige — kan du slå meg?` }
+      const sharePayload = { files: [file], title: 'Quizkanonen', text: `${cCount}/${totalQuestions} riktige — kan du slå meg?` }
 
       if (navigator.share && navigator.canShare && navigator.canShare(sharePayload)) {
         await navigator.share(sharePayload)
@@ -1951,7 +1999,7 @@ export default function QuizPage() {
             correctAnswerText={interCorrectAnswerText}
             explanation={interExplanation}
             score={interScore}
-            totalQuestions={questions.length}
+            totalQuestions={totalQuestions}
             streak={interStreak}
             wrongInARow={interWrongInARow}
             questionIndex={interNextQNum - 2}
@@ -1968,7 +2016,7 @@ export default function QuizPage() {
       )}
       <div ref={playShellRef} className="qk-play-shell">
         <div className="qk-play-header">
-          <span className="qk-progress-text">{currentIndex + 1} / {questions.length}</span>
+          <span className="qk-progress-text">{currentIndex + 1} / {totalQuestions}</span>
           {quiz.category && (
             <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873' }}>{quiz.category}</span>
           )}
@@ -2033,7 +2081,7 @@ export default function QuizPage() {
               )}
               <div className="qk-next-btn-wrap">
                 <button onClick={goToNext} className="qk-btn-primary">
-                  {currentIndex === questions.length - 1 ? 'Se resultatet' : 'Neste spørsmål'}
+                  {currentIndex === totalQuestions - 1 ? 'Se resultatet' : 'Neste spørsmål'}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
                 </button>
               </div>
@@ -2046,7 +2094,7 @@ export default function QuizPage() {
 
   // RESULTAT — server-beregnet score foretrekkes; klient kun fallback
   const correctCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
-  const percentage = Math.round((correctCount / questions.length) * 100)
+  const percentage = Math.round((correctCount / totalQuestions) * 100)
   const streak = serverScore?.correctStreak ?? calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
   const toppPercent = estimatedPlacement && estimatedPlacement.total > 1
     ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
@@ -2066,7 +2114,7 @@ export default function QuizPage() {
 
       <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:6,marginBottom:10}}>
         {[
-          { val: `${correctCount}/${questions.length}`, label: 'Riktige' },
+          { val: `${correctCount}/${totalQuestions}`, label: 'Riktige' },
           { val: `${percentage}%`, label: 'Score' },
           { val: formatTime(totalTimeMs), label: 'Tid' },
           { val: String(streak), label: 'Streak' },
