@@ -847,6 +847,15 @@ export default function QuizPage() {
         const { data: setting, error: settingError } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
         if (settingError && settingError.code !== 'PGRST116') console.error('site_settings fetch feilet:', settingError)
         if (setting?.value) setNextQuizAt(setting.value)
+        // Hent topp 3 direkte her — phase-useEffect kan miste fase-endringen i
+        // already_played-stien pga. timing med loading-state.
+        try {
+          const t3res = await fetch(`/api/quiz/${quizId}/top3`)
+          if (t3res.ok) {
+            const t3json = await t3res.json()
+            if (Array.isArray(t3json.top3)) setTop3(t3json.top3)
+          }
+        } catch {}
         setLoading(false)
         return
       }
