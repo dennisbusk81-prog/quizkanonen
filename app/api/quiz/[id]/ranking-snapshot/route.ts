@@ -56,6 +56,7 @@ export async function GET(
           'total_questions, total_time_ms, correct_streak, user_id, completed_at'
         )
         .eq('quiz_id', quizId)
+        .eq('is_team', false)
         .gt('total_time_ms', 0)
 
       if (attErr) throw attErr

@@ -29,7 +29,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!profile?.stripe_customer_id) {
-      return NextResponse.json({ error: 'Ingen Stripe-kunde funnet' }, { status: 400 })
+      return NextResponse.json({
+        error: 'Abonnementet er ikke koblet til Stripe ennå. Kontakt oss på support@quizkanonen.no.',
+      }, { status: 400 })
     }
 
     const session = await stripe.billingPortal.sessions.create({
@@ -40,6 +42,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: session.url })
   } catch (err) {
     console.error('Stripe portal error:', err)
-    return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
+    if (err instanceof Stripe.errors.StripeInvalidRequestError) {
+      if (err.code === 'resource_missing') {
+        return NextResponse.json({
+          error: 'Kunde-ID er ikke gyldig i Stripe. Kontakt support@quizkanonen.no.',
+        }, { status: 400 })
+      }
+    }
+    return NextResponse.json({ error: 'Kunne ikke åpne abonnementssiden. Prøv igjen, eller kontakt support@quizkanonen.no.' }, { status: 500 })
   }
 }

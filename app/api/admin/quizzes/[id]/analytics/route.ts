@@ -60,7 +60,7 @@ export async function GET(
   const soloAttempts = ((attempts ?? []) as AttemptRaw[]).filter(a => !a.is_team)
   const top10 = [...soloAttempts]
     .sort((a, b) => b.correct_answers - a.correct_answers || a.total_time_ms - b.total_time_ms)
-    .slice(0, 10)
+    .slice(0, 50)
 
   // Resolve display names from profiles
   const top10UserIds = [...new Set(top10.map(a => a.user_id).filter((uid): uid is string => !!uid))]

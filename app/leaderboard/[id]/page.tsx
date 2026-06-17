@@ -163,7 +163,7 @@ export default function LeaderboardPage() {
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
-  const [activeTab, setActiveTab] = useState<'alle' | 'venner' | 'lag'>('alle')
+  const [activeTab, setActiveTab] = useState<'alle' | 'venner'>('alle')
   const [visibleVennerCount, setVisibleVennerCount] = useState(10)
   const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null }>>(new Map())
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
@@ -454,13 +454,12 @@ export default function LeaderboardPage() {
   // Hent browse-data (Premium paginering/søk) for "Alle"/"Lag"
   useEffect(() => {
     if (!browseMode) return
-    if (activeTab !== 'alle' && activeTab !== 'lag') return
+    if (activeTab !== 'alle') return
     let cancelled = false
     setBrowseLoading(true)
-    const isTeamRoom = activeTab === 'lag'
     const headers: Record<string, string> = {}
     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
-    let url = `/api/leaderboard/${quizId}?is_team=${isTeamRoom}&page=${browsePage}`
+    let url = `/api/leaderboard/${quizId}?is_team=false&page=${browsePage}`
     if (browseSearch) url += `&search=${encodeURIComponent(browseSearch)}`
     fetch(url, { headers })
       .then(r => r.ok ? r.json() : null)
@@ -645,10 +644,9 @@ export default function LeaderboardPage() {
               {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
             </p>
             <p style={s.nameSub}>
-              {attempt.is_team && <span style={{ marginRight: 6 }}>Lag · {attempt.team_size} stk ·</span>}
-              ⏱ {formatTime(attempt.total_time_ms)}
+                  ⏱ {formatTime(attempt.total_time_ms)}
             </p>
-            {attempt.is_team && attempt.leader_display_name && (
+            {attempt.leader_display_name && false && (
               <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 2 }}>
                 Lagleder: {attempt.leader_display_name}
               </p>
@@ -765,11 +763,11 @@ export default function LeaderboardPage() {
   }
 
   // ── Premium browse-modus (paginering/søk) for "Alle"/"Lag" ────────────────
-  const roomTotal    = activeTab === 'lag' ? teamTotal : soloTotal
-  const roomUserRank = activeTab === 'lag' ? (userTeamAttempt?.rank ?? null) : (userSoloAttempt?.rank ?? null)
+  const roomTotal    = soloTotal
+  const roomUserRank = userSoloAttempt?.rank ?? null
   const userInBrowse = !!(currentUserId && browseData?.entries.some(e => e.userId === currentUserId))
   const browseSearching = browseMode && browseSearch.trim() !== ''
-  const showBrowseControls = isPremium && (activeTab === 'alle' || activeTab === 'lag') && (roomTotal > 10 || browseMode)
+  const showBrowseControls = isPremium && activeTab === 'alle' && (roomTotal > 10 || browseMode)
   const showJumpToMeBrowse = showBrowseControls && roomUserRank != null && !userInBrowse && !browseSearching
 
   function browsePageWindow(current: number, total: number): (number | 'gap')[] {
@@ -848,8 +846,7 @@ export default function LeaderboardPage() {
             {!e.userId && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
           </p>
           <p style={s.nameSub}>
-            {e.isTeam && <span style={{ marginRight: 6 }}>Lag · {e.teamSize} stk ·</span>}
-            ⏱ {formatTime(e.totalTimeMs)}
+              ⏱ {formatTime(e.totalTimeMs)}
           </p>
         </div>
         <div style={s.scoreBlock}>
@@ -871,7 +868,7 @@ export default function LeaderboardPage() {
     return (
       <>
         <div style={s.sectionHeader}>
-          <span style={s.sectionText}>{activeTab === 'lag' ? 'Lag' : 'Enkeltpersoner'}</span>
+          <span style={s.sectionText}>Enkeltpersoner</span>
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{browseData?.totalCount ?? entries.length}</span>
         </div>
@@ -1200,12 +1197,6 @@ export default function LeaderboardPage() {
                     Blant venner
                   </button>
                 )}
-                <button
-                  style={activeTab === 'lag' ? s.tabActive : s.tabInactive}
-                  onClick={() => setActiveTab('lag')}
-                >
-                  Lag
-                </button>
               </div>
 
               {activeTab === 'alle' && (
@@ -1224,15 +1215,6 @@ export default function LeaderboardPage() {
                   : <p style={s.tabEmpty}>Ingen ligavenner har spilt denne quizen ennå</p>
               )}
 
-              {activeTab === 'lag' && (
-                <>
-                  {renderBrowseControls()}
-                  {browseMode
-                    ? renderBrowseList()
-                    : renderSection(teamAttempts, 'Lag', visibleTeamCount, () => setVisibleTeamCount(c => c + 10))}
-                  {renderBrowsePagination()}
-                </>
-              )}
 
               {/* Badge legend */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38' }}>

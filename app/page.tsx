@@ -882,6 +882,7 @@ export default async function Home() {
     const userPoints   = byUser.get(user.id)?.totalPoints ?? 0
     // Round up to nearest 5 for the free-user estimate
     const estimatedBest = userRank > 0 ? Math.max(5, Math.ceil(userRank / 5) * 5) : 0
+    const monthlyTop3 = sortedUsers.slice(0, 3).map(([, v]) => v)
 
     const playedThisMonth = (monthlyAttemptsResult.count ?? 0) > 0
 
@@ -1117,6 +1118,24 @@ export default async function Home() {
               <p className="qk-card-tagline">
                 {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
               </p>
+              {monthlyTop3.length > 0 && (
+                <div style={{ margin: '14px 0 2px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                    Månedens toppliste
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {monthlyTop3.map((entry, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, color: '#7a7873', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
+                        <span style={{ fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {truncateName(entry.displayName)}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#c9a84c', flexShrink: 0, fontWeight: 600 }}>{entry.totalPoints} p</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="qk-card-actions">
                 {alreadyPlayed ? (
                   <>
@@ -1286,7 +1305,7 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }, foundersSettingsResult] = await Promise.all([
+  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }, foundersSettingsResult, { data: anonSeasonRaw }] = await Promise.all([
     // Aktiv quiz: opens_at <= now og ikke stengt ennå
     supabaseAdmin
       .from('quizzes')
@@ -1335,6 +1354,14 @@ export default async function Home() {
         return null
       }
     })(),
+    // Månedlig global topp 3 fra season_scores (anon-visning)
+    supabaseAdmin
+      .from('season_scores')
+      .select('user_id, points, profiles(display_name)')
+      .eq('scope_type', 'global')
+      .is('scope_id', null)
+      .gte('closes_at', monthStart)
+      .lt('closes_at', monthEnd),
   ])
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
@@ -1342,6 +1369,20 @@ export default async function Home() {
   const upcomingQuiz = ((upcomingQuizData as QuizRow[] | null) ?? [])[0] ?? null
   const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
   const activeParticipantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
+
+  // Beregn månedlig global topp 3 fra season_scores for anon-visning
+  type AnonSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
+  const anonByUser = new Map<string, { displayName: string; totalPoints: number }>()
+  for (const row of (anonSeasonRaw as AnonSeasonRow[] | null) ?? []) {
+    const name = row.profiles?.display_name
+    if (!name) continue
+    const existing = anonByUser.get(row.user_id)
+    if (existing) existing.totalPoints += row.points
+    else anonByUser.set(row.user_id, { displayName: name, totalPoints: row.points })
+  }
+  const anonMonthlyTop3 = Array.from(anonByUser.values())
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+    .slice(0, 3)
 
   // Last closed quiz top 3
   type LastQuizRow = { id: string; title: string; questions: { count: number }[] }
@@ -1493,6 +1534,24 @@ export default async function Home() {
                 ? `${activeParticipantCount} deltakere · Kan du slå dem?`
                 : 'Kan du slå dem?'}
             </p>
+            {anonMonthlyTop3.length > 0 && (
+              <div style={{ margin: '14px 0 2px' }}>
+                <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                  Månedens toppliste
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {anonMonthlyTop3.map((entry, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: '#7a7873', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
+                      <span style={{ fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {truncateName(entry.displayName)}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#c9a84c', flexShrink: 0, fontWeight: 600 }}>{entry.totalPoints} p</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="qk-card-actions">
               <a href={`/quiz/${activeQuiz.id}`} className="qk-btn-outline-dark">
                 Spill nå

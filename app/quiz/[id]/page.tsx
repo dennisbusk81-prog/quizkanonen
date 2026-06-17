@@ -1834,42 +1834,6 @@ export default function QuizPage() {
         </div>
       )}
 
-      {quiz.allow_teams && (
-        <>
-          <div className="qk-toggle-row" onClick={() => { setIsTeamInput(v => !v); setTeamAgeConfirmed(false) }}>
-            <div className={`qk-toggle${isTeamInput ? ' on' : ''}`}>
-              <div className="qk-toggle-thumb"/>
-            </div>
-            <span className="qk-toggle-label">Vi spiller som lag</span>
-          </div>
-          {isTeamInput && (
-            <>
-              <label className="qk-label">Lagnavn</label>
-              <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
-                placeholder="Skriv inn lagnavn..." className="qk-input" maxLength={30}
-                onKeyDown={e => e.key === 'Enter' && startQuiz()} autoFocus />
-              <label className="qk-label">Antall på laget</label>
-              <div className="qk-sizes">
-                {[2,3,4,5,6].map(n => (
-                  <button key={n} onClick={() => setTeamSizeInput(n)}
-                    className={`qk-size-btn${teamSizeInput === n ? ' active' : ''}`}>{n}</button>
-                ))}
-              </div>
-              <div
-                className="qk-check-row"
-                style={{ marginTop: 14 }}
-                onClick={() => setTeamAgeConfirmed(v => !v)}
-              >
-                <div className={`qk-check-box${teamAgeConfirmed ? ' checked' : ''}`} />
-                <span className="qk-check-label">Alle lagmedlemmer er 13 år eller eldre</span>
-              </div>
-              <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 8, textAlign: 'center' }}>
-                Sesong-poeng registreres på deg som er innlogget.
-              </p>
-            </>
-          )}
-        </>
-      )}
 
       {(() => {
         const now = new Date()
@@ -1905,7 +1869,7 @@ export default function QuizPage() {
         {(() => {
           const now = new Date()
           const blocked = (orgQuizOpensAt && new Date(orgQuizOpensAt) > now)
-          const baseDisabled = isTeamInput ? (!nameInput.trim() || !teamAgeConfirmed) : (!loggedInDisplayName && !nameInput.trim())
+          const baseDisabled = !loggedInDisplayName && !nameInput.trim()
           return (
             <button onClick={startQuiz} disabled={!!blocked || baseDisabled} className="qk-btn-primary"
               style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
@@ -2121,9 +2085,16 @@ export default function QuizPage() {
       </h1>
       <p style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:6,marginBottom:10}}>
+      {/* Riktige svar — stor hero-visning */}
+      <div style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:12,padding:'16px 12px 12px',textAlign:'center',marginBottom:8}}>
+        <div style={{fontFamily:"'Libre Baskerville', serif",fontSize:40,fontWeight:700,color:'#ffffff',lineHeight:1}}>
+          {correctCount}<span style={{fontSize:22,color:'#7a7873',fontWeight:400}}>/{totalQuestions}</span>
+        </div>
+        <div style={{fontSize:10,color:'#7a7873',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginTop:6}}>Riktige svar</div>
+      </div>
+      {/* Tre støtte-stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:6,marginBottom:10}}>
         {[
-          { val: `${correctCount}/${totalQuestions}`, label: 'Riktige' },
           { val: `${percentage}%`, label: 'Score' },
           { val: formatTime(totalTimeMs), label: 'Tid' },
           { val: String(streak), label: 'Streak' },

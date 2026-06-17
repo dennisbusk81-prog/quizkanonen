@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => a - b)
 
   const total = scores.length
+  if (total <= 1) {
+    return NextResponse.json([], {
+      headers: { 'Cache-Control': 'public, s-maxage=60, max-age=300' },
+    })
+  }
 
   // For each unique score, compute percentile = % of players scoring strictly below
   const uniqueScores = [...new Set(scores)]
