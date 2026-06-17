@@ -12,6 +12,7 @@ export default function UserMenu() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
   const [premiumSource, setPremiumSource] = useState<string | null>(null)
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -48,6 +49,7 @@ export default function UserMenu() {
           const premData = await premRes.json()
           setIsPremium(premData.isPremium === true)
           setPremiumSource(premData.premiumSource ?? null)
+          setHasStripeCustomer(premData.hasStripeCustomer === true)
         }
       } catch { /* fallback: not premium */ }
     }
@@ -358,16 +360,17 @@ export default function UserMenu() {
                     >
                       Quizhistorikk
                     </a>
-                    {premiumSource === 'founders' && !subscriptionInfo?.current_period_end ? (
+                    {!hasStripeCustomer ? (
                       <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', marginBottom: 4 }}>Founders-tilgang</p>
-                        <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.45, marginBottom: 6 }}>Du har 1 måned gratis Premium. Ingen betaling nødvendig i prøveperioden.</p>
+                        <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
+                          Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
+                        </p>
                         <a
                           href="/premium"
                           onClick={() => setDropdownOpen(false)}
                           style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
                         >
-                          Oppgrader til betalt abonnement →
+                          Se Premium-funksjoner →
                         </a>
                       </div>
                     ) : (
