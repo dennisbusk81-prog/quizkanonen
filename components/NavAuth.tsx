@@ -26,6 +26,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -52,6 +53,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         if (premRes.ok) {
           const premData = await premRes.json()
           setIsPremium(premData.isPremium === true)
+          setHasStripeCustomer(premData.hasStripeCustomer === true)
         }
       } catch { /* fallback: not premium */ }
     }
@@ -137,6 +139,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       setPortalLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!dropdownOpen) setPortalError(null)
+  }, [dropdownOpen])
 
   useEffect(() => {
     if (!dropdownOpen) return
@@ -324,26 +330,43 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Quizhistorikk
               </a>
             )}
-            {isPremium && (
+            {profileLoaded && isPremium && (
               <>
-                <button
-                  onClick={handlePortal}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '8px 10px', background: 'none', border: 'none',
-                    borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                    fontFamily: "'Instrument Sans', sans-serif",
-                    cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  Mitt abonnement
-                </button>
-                {portalError && (
-                  <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
-                    {portalError}
-                  </p>
+                {!hasStripeCustomer ? (
+                  <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
+                    <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
+                      Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
+                    </p>
+                    <a
+                      href="/premium"
+                      onClick={() => setDropdownOpen(false)}
+                      style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
+                    >
+                      Se Premium-funksjoner →
+                    </a>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={handlePortal}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 10px', background: 'none', border: 'none',
+                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      Mitt abonnement
+                    </button>
+                    {portalError && (
+                      <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                        {portalError}
+                      </p>
+                    )}
+                  </>
                 )}
               </>
             )}
