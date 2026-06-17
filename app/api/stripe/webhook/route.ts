@@ -355,10 +355,18 @@ export async function POST(request: NextRequest) {
       const isActive = ['active', 'trialing'].includes(subscription.status)
 
       if (isActive) {
-        // Active/trialing: simple update by customer_id
-        await supabaseAdmin.from('profiles')
-          .update({ premium_status: true })
+        // Active/trialing: skriv stripe_customer_id alltid, ikke bare premium_status
+        const { data: updatedRows } = await supabaseAdmin.from('profiles')
+          .update({ premium_status: true, stripe_customer_id: customerId })
           .eq('stripe_customer_id', customerId)
+          .select('id')
+
+        // Fallback: profilen mangler stripe_customer_id (f.eks. checkout-event sviktet)
+        if (!updatedRows?.length) {
+          await supabaseAdmin.from('profiles')
+            .update({ premium_status: true, stripe_customer_id: customerId })
+            .eq('personal_stripe_subscription_id', subscription.id)
+        }
       } else {
         // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
         const subscriptionId = subscription.id
