@@ -347,6 +347,7 @@ export default function UserMenu() {
                 >
                   Sesong-topplisten →
                 </a>
+                {console.log('[UserMenu] abonnement-state:', { isPremium, hasStripeCustomer, profileLoaded }) as undefined}
                 {profileLoaded && isPremium ? (
                   <>
                     <a
