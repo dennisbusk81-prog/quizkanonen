@@ -162,6 +162,11 @@ export default function UserMenu() {
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
+  // Nullstill portalError når dropdown lukkes
+  useEffect(() => {
+    if (!dropdownOpen) setPortalError(null)
+  }, [dropdownOpen])
+
   // Close dropdown on outside click
   useEffect(() => {
     if (!dropdownOpen) return
@@ -342,7 +347,7 @@ export default function UserMenu() {
                 >
                   Sesong-topplisten →
                 </a>
-                {isPremium ? (
+                {profileLoaded && isPremium ? (
                   <>
                     <a
                       href="/historikk"
