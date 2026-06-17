@@ -208,8 +208,18 @@ export default function ProfilPage() {
       } catch { /* fallback: not premium */ }
       setIsPremium(premium)
       setAvatarUrl(avatarUrlFromMeta)
-      setMemberNumber(profile?.member_number ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
+
+      // Beregn medlemsnummer dynamisk basert på registreringsrekkefølge (created_at)
+      if (profile?.created_at) {
+        try {
+          const { count } = await supabase
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .lt('created_at', profile.created_at)
+          if (!cancelled) setMemberNumber((count ?? 0) + 1)
+        } catch { /* behold null */ }
+      }
       setEmailReminders(profile?.email_reminders ?? true)
       setEmailReengagement(profile?.email_reengagement ?? true)
       setEmailDuelNotifications(profile?.email_duel_notifications ?? true)
