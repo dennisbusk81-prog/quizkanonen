@@ -193,14 +193,26 @@ async function processQuiz(
       console.log(`[award-season-points]   org: ${byOrg.size} organisasjoner, scope-rader inkludert i total`)
     }
 
-    // Sett flagget ETTER at alle upserts er fullført uten feil
+    // Verifiser at rader faktisk finnes i season_scores før flagget settes
+    const { count: writtenCount, error: countError } = await supabaseAdmin
+      .from('season_scores')
+      .select('id', { count: 'exact', head: true })
+      .eq('quiz_id', quizId)
+
+    if (countError || writtenCount === null || writtenCount === 0) {
+      const reason = countError?.message ?? 'Ingen rader funnet i season_scores etter upsert'
+      console.error(`[award-season-points] Verifisering feilet for quiz ${quizId}: ${reason}`)
+      return { rows: totalRows, error: reason }
+    }
+
+    // Alle rader bekreftet — sett flagget
     const { error: flagError } = await supabaseAdmin
       .from('quizzes')
       .update({ season_points_awarded: true })
       .eq('id', quizId)
 
     if (flagError) {
-      // Scores are written — log but let cron retry the flag next run
+      // Scores er skrevet og bekreftet — logg men la cronen prøve flagget igjen
       console.error(`[award-season-points] Klarte ikke sette season_points_awarded på quiz ${quizId}:`, flagError.message)
     }
 
