@@ -11,6 +11,7 @@ export default function UserMenu() {
   const [session, setSession] = useState<Session | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [isPremium, setIsPremium] = useState(false)
+  const [premiumSource, setPremiumSource] = useState<string | null>(null)
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -46,6 +47,7 @@ export default function UserMenu() {
         if (premRes.ok) {
           const premData = await premRes.json()
           setIsPremium(premData.isPremium === true)
+          setPremiumSource(premData.premiumSource ?? null)
         }
       } catch { /* fallback: not premium */ }
     }
@@ -356,24 +358,40 @@ export default function UserMenu() {
                     >
                       Quizhistorikk
                     </a>
-                    <button
-                      onClick={handlePortal}
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        padding: '8px 10px', background: 'none', border: 'none',
-                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                        fontFamily: "'Instrument Sans', sans-serif",
-                        cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      Mitt abonnement
-                    </button>
-                    {portalError && (
-                      <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
-                        {portalError}
-                      </p>
+                    {premiumSource === 'founders' && !subscriptionInfo?.current_period_end ? (
+                      <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', marginBottom: 4 }}>Founders-tilgang</p>
+                        <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.45, marginBottom: 6 }}>Du har 1 måned gratis Premium. Ingen betaling nødvendig i prøveperioden.</p>
+                        <a
+                          href="/premium"
+                          onClick={() => setDropdownOpen(false)}
+                          style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
+                        >
+                          Oppgrader til betalt abonnement →
+                        </a>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handlePortal}
+                          style={{
+                            display: 'block', width: '100%', textAlign: 'left',
+                            padding: '8px 10px', background: 'none', border: 'none',
+                            borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                            fontFamily: "'Instrument Sans', sans-serif",
+                            cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                          Mitt abonnement
+                        </button>
+                        {portalError && (
+                          <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                            {portalError}
+                          </p>
+                        )}
+                      </>
                     )}
                   </>
                 ) : (

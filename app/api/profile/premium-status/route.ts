@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // Hent premium_status med service role — omgår RLS
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status')
+    .select('premium_status, premium_source')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -31,5 +31,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ isPremium: false }, { status: 500 })
   }
 
-  return NextResponse.json({ isPremium: data?.premium_status === true })
+  return NextResponse.json({
+    isPremium: data?.premium_status === true,
+    premiumSource: data?.premium_source ?? null,
+  })
 }
