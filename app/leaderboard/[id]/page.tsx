@@ -64,7 +64,7 @@ const s = {
   nameSub:   { fontSize: 12, color: '#7a7873' },
 
   scoreBlock: { textAlign: 'right' as const, flexShrink: 0, width: 64 },
-  score:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 3 },
+  score:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 3, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' as const },
   scoreSub:   { fontSize: 11, color: '#7a7873' },
   tiedLabel:  { color: '#c9a84c', marginLeft: 4 },
 
