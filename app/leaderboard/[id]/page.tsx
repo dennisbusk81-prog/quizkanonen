@@ -7,7 +7,6 @@ import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
-import PlayerName from '@/components/PlayerName'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -49,9 +48,9 @@ const s = {
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
   sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
-  row:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', minHeight: 86, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowGold:      { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '16px 20px', minHeight: 86, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowHighlight: { background: '#252836', border: '1px solid #c9a84c', borderRadius: 20, padding: '16px 20px', minHeight: 86, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  row:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowGold:      { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
+  rowHighlight: { background: '#252836', border: '1px solid #c9a84c', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
   goldStripe:   { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
 
   rankCell: { width: 32, textAlign: 'center' as const, flexShrink: 0 },
@@ -644,30 +643,30 @@ export default function LeaderboardPage() {
               </div>
             )}
           </div>
-          <div style={s.nameBlock}>
-            {attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number && memberInfoMap.get(attempt.user_id)?.member_number != null && (
-              <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 2 }}>
-                {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
-              </p>
-            )}
-            <div style={{ marginBottom: 2, minWidth: 0 }}>
-              <PlayerName
-                nickname={shownNickname}
-                displayName={shownName}
-                primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff' }}
-                secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif", fontWeight: 400 }}
-              />
-              {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
-            </div>
-            <p style={s.nameSub}>
-                  ⏱ {formatTime(attempt.total_time_ms)}
-            </p>
-            {attempt.leader_display_name && false && (
-              <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 2 }}>
-                Lagleder: {attempt.leader_display_name}
-              </p>
-            )}
-          </div>
+          {(() => {
+            // Alltid nøyaktig to linjer per rad — uniform høyde uavhengig av nickname.
+            //  Med nickname:  linje 1 = nickname, linje 2 = display_name · ⏱ tid
+            //  Uten nickname: linje 1 = display_name, linje 2 = ⏱ tid
+            const hasNick = !!shownNickname?.trim()
+            const memberNo = attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number
+              ? memberInfoMap.get(attempt.user_id)?.member_number ?? null
+              : null
+            const timeStr = `⏱ ${formatTime(attempt.total_time_ms)}`
+            const line1 = hasNick ? shownNickname!.trim() : shownName
+            return (
+              <div style={s.nameBlock}>
+                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
+                  {line1}
+                  {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
+                </p>
+                <p style={{ ...s.nameSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {memberNo != null && <span style={{ color: '#7a7873' }}>{'#' + String(memberNo).padStart(3, '0')} · </span>}
+                  {hasNick && <span style={{ color: '#7a7873' }}>{shownName} · </span>}
+                  {timeStr}
+                </p>
+              </div>
+            )
+          })()}
           <div style={s.scoreBlock}>
             <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
             <p style={s.scoreSub}>
