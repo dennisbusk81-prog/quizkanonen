@@ -793,7 +793,7 @@ export default async function Home() {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult] = await Promise.all([
+    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, lastClosedQuizResult] = await Promise.all([
       // Aktiv quiz: opens_at <= now og ikke stengt ennå
       supabaseAdmin
         .from('quizzes')
@@ -833,6 +833,15 @@ export default async function Home() {
         .eq('user_id', user.id)
         .gte('completed_at', monthStart)
         .lt('completed_at', monthEnd),
+      // Siste stengte quiz — fallback for "Se topplisten" når ingen aktiv quiz finnes
+      supabaseAdmin
+        .from('quizzes')
+        .select('id')
+        .lt('closes_at', now.toISOString())
+        .not('closes_at', 'is', null)
+        .order('closes_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     // Profile
@@ -844,6 +853,9 @@ export default async function Home() {
     // Quiz — aktiv (opens_at <= now, ikke stengt)
     const quizList = (quizResult.data as QuizRow[] | null) ?? []
     const quiz = quizList[0] ?? null
+
+    // Siste stengte quiz — brukes som "Se topplisten"-mål når ingen aktiv quiz finnes
+    const lastClosedQuizId = (lastClosedQuizResult.data as { id: string } | null)?.id ?? null
 
     // Kommende quiz — hentes kun om ingen aktiv finnes
     let upcomingQuiz: QuizRow | null = null
@@ -1158,11 +1170,25 @@ export default async function Home() {
               <p className="qk-card-date">
                 Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
               </p>
+              {lastClosedQuizId && (
+                <div className="qk-card-actions">
+                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                    Se topplisten
+                  </Link>
+                </div>
+              )}
             </div>
           ) : (
             <div className="qk-empty">
               <p className="qk-empty-title">Ingen quiz planlagt akkurat nå</p>
               <p className="qk-empty-sub">Kom tilbake snart.</p>
+              {lastClosedQuizId && (
+                <div className="qk-card-actions" style={{ marginTop: 16 }}>
+                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                    Se topplisten
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
@@ -1590,6 +1616,13 @@ export default async function Home() {
             <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
               Ingen quiz planlagt akkurat nå — kom tilbake snart.
             </p>
+            {lastQuiz && (
+              <div className="qk-card-actions">
+                <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-primary">
+                  Se topplisten
+                </Link>
+              </div>
+            )}
           </div>
         )}
 

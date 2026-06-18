@@ -842,9 +842,12 @@ export default function LeaderboardPage() {
   function renderBrowseRow(e: LbEntry) {
     const isSelf = currentUserId != null && e.userId === currentUserId
     const rowStyle = isSelf ? s.rowHighlight : s.row
-    const initial = (e.playerName?.[0] ?? '?').toUpperCase()
-    const avatarUrl = e.userId ? (memberInfoMap.get(e.userId)?.avatar_url ?? null) : null
     const shownName = e.userId ? (memberInfoMap.get(e.userId)?.display_name ?? e.playerName) : e.playerName
+    const shownNickname = e.userId ? (e.nickname ?? memberInfoMap.get(e.userId)?.nickname ?? null) : null
+    const hasNick = !!shownNickname?.trim()
+    const initial = ((hasNick ? shownNickname!.trim() : shownName)?.[0] ?? '?').toUpperCase()
+    const avatarUrl = e.userId ? (memberInfoMap.get(e.userId)?.avatar_url ?? null) : null
+    const line1 = hasNick ? shownNickname!.trim() : shownName
     return (
       <div key={e.id} id={isSelf ? 'user-row' : undefined} style={rowStyle}>
         {isSelf && <div style={s.goldStripe} />}
@@ -856,12 +859,13 @@ export default function LeaderboardPage() {
           }
         </div>
         <div style={s.nameBlock}>
-          <p style={s.name}>
-            {shownName}
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
+            {line1}
             {!e.userId && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
           </p>
-          <p style={s.nameSub}>
-              ⏱ {formatTime(e.totalTimeMs)}
+          <p style={{ ...s.nameSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {hasNick && <span style={{ color: '#7a7873' }}>{shownName} · </span>}
+            ⏱ {formatTime(e.totalTimeMs)}
           </p>
         </div>
         <div style={s.scoreBlock}>
