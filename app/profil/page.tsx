@@ -334,14 +334,14 @@ export default function ProfilPage() {
     setNicknameSuccess(false)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/profile/upsert', {
-        method: 'POST',
+      // Egen lettvekts-rute uten navnevalidering — kallenavn har kun maks-20-regel
+      const res = await fetch('/api/profile/preferences', {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        // display_name kreves av upsert-ruten — send gjeldende navn uendret
-        body: JSON.stringify({ id: userId, display_name: displayName, nickname: editNickname.trim() }),
+        body: JSON.stringify({ nickname: editNickname.trim() }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -598,8 +598,8 @@ export default function ProfilPage() {
           }}>
             {/* Visningsnavn + Påminnelser */}
             <div style={s.card}>
-              <p style={s.sectionLabel}>Visningsnavn</p>
-              <p style={s.fieldHint}>Dette er navnet andre ser på leaderboard og toppliste</p>
+              <p style={s.sectionLabel}>Fornavn og etternavn</p>
+              <p style={s.fieldHint}>Brukes til identifikasjon — vises under nicknamen din på leaderboard</p>
               <div style={s.inputRow}>
                 <input
                   type="text"
@@ -630,8 +630,8 @@ export default function ProfilPage() {
 
               {/* Kallenavn (valgfritt) */}
               <div style={{ marginTop: 20 }}>
-                <p style={s.sectionLabel}>Kallenavn (valgfritt)</p>
-                <p style={s.fieldHint}>Vises på leaderboard i stedet for ditt ekte navn. Maks 20 tegn.</p>
+                <p style={s.sectionLabel}>Nickname (valgfritt)</p>
+                <p style={s.fieldHint}>Vil du hete noe annet på leaderboard? Skriv det her — maks 20 tegn</p>
                 <div style={s.inputRow}>
                   <input
                     type="text"

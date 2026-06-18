@@ -19,10 +19,22 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
 
-  const update: Record<string, boolean> = {}
+  const update: Record<string, unknown> = {}
   if (typeof body.email_reminders === 'boolean') update.email_reminders = body.email_reminders
   if (typeof body.email_reengagement === 'boolean') update.email_reengagement = body.email_reengagement
   if (typeof body.email_duel_notifications === 'boolean') update.email_duel_notifications = body.email_duel_notifications
+
+  // Nickname — eneste regel er maks 20 tegn. Ingen navnevalidering. Tom = null.
+  if (body.nickname !== undefined) {
+    if (body.nickname !== null && typeof body.nickname !== 'string') {
+      return NextResponse.json({ error: 'Ugyldig kallenavn' }, { status: 422 })
+    }
+    const trimmed = (body.nickname as string | null)?.trim() ?? ''
+    if (trimmed.length > 20) {
+      return NextResponse.json({ error: 'Kallenavn kan maks være 20 tegn' }, { status: 422 })
+    }
+    update.nickname = trimmed === '' ? null : trimmed
+  }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Ingen gyldige felter' }, { status: 400 })
