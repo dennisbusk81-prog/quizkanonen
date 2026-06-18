@@ -162,6 +162,7 @@ const STYLES = `
 type UserRow = {
   id: string
   display_name: string | null
+  nickname: string | null
   email: string | null
   google_name: string | null
   created_at: string | null
@@ -228,6 +229,7 @@ export default function AdminUsersPage() {
     const q = query.toLowerCase()
     return users.filter(u =>
       (u.display_name ?? '').toLowerCase().includes(q) ||
+      (u.nickname ?? '').toLowerCase().includes(q) ||
       (u.email ?? '').toLowerCase().includes(q) ||
       (u.google_name ?? '').toLowerCase().includes(q)
     )
@@ -280,7 +282,9 @@ export default function AdminUsersPage() {
 
             <div className="adm-user-body">
               <div className="adm-user-name">
-                {u.display_name ?? <span style={{ color: 'var(--hint)', fontWeight: 400 }}>Intet navn</span>}
+                {u.nickname?.trim()
+                  ? <>{u.nickname.trim()} <span style={{ color: 'var(--hint)', fontWeight: 400 }}>({u.display_name ?? 'Intet navn'})</span></>
+                  : (u.display_name ?? <span style={{ color: 'var(--hint)', fontWeight: 400 }}>Intet navn</span>)}
               </div>
               <div className="adm-user-meta">
                 {[u.google_name, u.email].filter(Boolean).join(' · ')}

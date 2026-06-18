@@ -67,6 +67,11 @@ export default function ProfilPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [editName, setEditName] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [editNickname, setEditNickname] = useState('')
+  const [savingNickname, setSavingNickname] = useState(false)
+  const [nicknameError, setNicknameError] = useState<string | null>(null)
+  const [nicknameSuccess, setNicknameSuccess] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
@@ -119,12 +124,14 @@ export default function ProfilPage() {
       if (!session?.user) return
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, email_reminders, email_reengagement, email_duel_notifications')
+        .select('display_name, nickname, email_reminders, email_reengagement, email_duel_notifications')
         .eq('id', session.user.id)
         .single()
       if (profile) {
         setDisplayName(profile.display_name ?? '')
         setEditName(profile.display_name ?? '')
+        setNickname(profile.nickname ?? '')
+        setEditNickname(profile.nickname ?? '')
         setEmailReminders(profile.email_reminders ?? true)
         setEmailReengagement(profile.email_reengagement ?? true)
         setEmailDuelNotifications(profile.email_duel_notifications ?? true)
@@ -173,7 +180,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at')
+          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -184,7 +191,7 @@ export default function ProfilPage() {
       if (cancelled) return
 
       const profile = (profileRes as { data: unknown }).data as {
-        display_name: string | null;
+        display_name: string | null; nickname: string | null;
         member_number: number | null; show_member_number: boolean | null;
         email_reminders: boolean | null; email_reengagement: boolean | null;
         email_duel_notifications: boolean | null; created_at: string | null;
@@ -193,6 +200,8 @@ export default function ProfilPage() {
       const name = profile?.display_name ?? ''
       setDisplayName(name)
       setEditName(name)
+      setNickname(profile?.nickname ?? '')
+      setEditNickname(profile?.nickname ?? '')
 
       // Premium: hent server-side for å omgå RLS
       let premium = false
@@ -315,6 +324,37 @@ export default function ProfilPage() {
       setSaveError('Noe gikk galt. Prøv igjen.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveNickname() {
+    if (!userId) return
+    setSavingNickname(true)
+    setNicknameError(null)
+    setNicknameSuccess(false)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/profile/upsert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        // display_name kreves av upsert-ruten — send gjeldende navn uendret
+        body: JSON.stringify({ id: userId, display_name: displayName, nickname: editNickname.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setNicknameError(data.error ?? 'Noe gikk galt. Prøv igjen.')
+      } else {
+        setNickname(editNickname.trim())
+        setNicknameSuccess(true)
+        setTimeout(() => setNicknameSuccess(false), 3000)
+      }
+    } catch {
+      setNicknameError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setSavingNickname(false)
     }
   }
 
@@ -587,6 +627,41 @@ export default function ProfilPage() {
               )}
               {saveError && <p style={s.saveError}>{saveError}</p>}
               {saveSuccess && <p style={s.saveSuccess}>Visningsnavn oppdatert!</p>}
+
+              {/* Kallenavn (valgfritt) */}
+              <div style={{ marginTop: 20 }}>
+                <p style={s.sectionLabel}>Kallenavn (valgfritt)</p>
+                <p style={s.fieldHint}>Vises på leaderboard i stedet for ditt ekte navn. Maks 20 tegn.</p>
+                <div style={s.inputRow}>
+                  <input
+                    type="text"
+                    value={editNickname}
+                    onChange={e => { setEditNickname(e.target.value); setNicknameError(null); setNicknameSuccess(false) }}
+                    onKeyDown={e => { if (e.key === 'Enter' && editNickname.trim() !== nickname.trim() && !savingNickname) handleSaveNickname() }}
+                    placeholder="F.eks. Kalle"
+                    maxLength={20}
+                    style={s.input}
+                  />
+                  <button
+                    onClick={handleSaveNickname}
+                    disabled={savingNickname || editNickname.trim() === nickname.trim()}
+                    style={{
+                      padding: '10px 22px',
+                      background: 'transparent',
+                      color: (savingNickname || editNickname.trim() === nickname.trim()) ? '#7a7873' : '#e8e4dd',
+                      border: `1px solid ${(savingNickname || editNickname.trim() === nickname.trim()) ? '#2a2d38' : '#e8e4dd'}`,
+                      borderRadius: 10, fontSize: 14, fontWeight: 700,
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      cursor: (savingNickname || editNickname.trim() === nickname.trim()) ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {savingNickname ? 'Lagrer...' : 'Lagre'}
+                  </button>
+                </div>
+                {nicknameError && <p style={s.saveError}>{nicknameError}</p>}
+                {nicknameSuccess && <p style={s.saveSuccess}>Kallenavn oppdatert!</p>}
+              </div>
 
               {memberNumber !== null && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, cursor: 'pointer' }}>

@@ -170,11 +170,11 @@ export async function GET(request: NextRequest) {
     const profileIds = [...profileIdsSet]
 
     const { data: profiles } = profileIds.length > 0
-      ? await supabaseAdmin.from('profiles').select('id, display_name, premium_status').in('id', profileIds)
+      ? await supabaseAdmin.from('profiles').select('id, display_name, nickname, premium_status').in('id', profileIds)
       : { data: [] }
 
-    const profileMap = new Map<string, { display_name: string | null }>()
-    for (const p of (profiles ?? []) as { id: string; display_name: string | null; premium_status: boolean | null }[]) {
+    const profileMap = new Map<string, { display_name: string | null; nickname: string | null }>()
+    for (const p of (profiles ?? []) as { id: string; display_name: string | null; nickname: string | null; premium_status: boolean | null }[]) {
       profileMap.set(p.id, p)
       if (p.id === userId) userIsPremium = p.premium_status === true
     }
@@ -185,6 +185,7 @@ export async function GET(request: NextRequest) {
         rank: a.rank,
         userId: a.user_id,
         displayName: profile?.display_name ?? a.player_name,
+        nickname: profile?.nickname ?? null,
         avatarUrl: null,
         points: a.correct_answers,
         quizCount: 1,
@@ -201,6 +202,7 @@ export async function GET(request: NextRequest) {
         userEntry = {
           rank: userInRanked.rank,
           displayName: profile?.display_name ?? userInRanked.player_name,
+          nickname: profile?.nickname ?? null,
           avatarUrl: null,
           points: userInRanked.correct_answers,
           quizCount: 1,
@@ -227,11 +229,11 @@ export async function GET(request: NextRequest) {
   const excludedIds   = [...excludedSet]
 
   type EntryOut = {
-    rank: number; userId: string; displayName: string; avatarUrl: null
+    rank: number; userId: string; displayName: string; nickname: string | null; avatarUrl: null
     points: number; quizCount: number; topStreak: number; fastestMs: number | null
   }
   type UserEntryOut = {
-    rank: number; displayName: string; avatarUrl: null; points: number; quizCount: number
+    rank: number; displayName: string; nickname: string | null; avatarUrl: null; points: number; quizCount: number
   }
 
   // Felles argumenter for RPC-funksjonene
@@ -354,7 +356,7 @@ export async function GET(request: NextRequest) {
     const userStatsPromise = userId
       ? Promise.all([
           supabaseAdmin.rpc('season_leaderboard_user_stats', { ...rpcArgs, p_user_id: userId }),
-          supabaseAdmin.from('profiles').select('display_name, premium_status').eq('id', userId).maybeSingle(),
+          supabaseAdmin.from('profiles').select('display_name, nickname, premium_status').eq('id', userId).maybeSingle(),
         ])
       : Promise.resolve(null)
 
@@ -367,27 +369,42 @@ export async function GET(request: NextRequest) {
     let userRank: number | null = null
     let userStats: { points: number; quizCount: number } | null = null
     let userDisplayName: string | null = null
+    let userNickname: string | null = null
     if (userResult) {
       const [{ data: us }, { data: prof }] = userResult
       const row = (us ?? [])[0] as { points: number; quiz_count: number; rank: number } | undefined
       if (row) { userRank = Number(row.rank); userStats = { points: Number(row.points), quizCount: Number(row.quiz_count) } }
       userIsPremium   = prof?.premium_status === true
       userDisplayName = prof?.display_name ?? null
+      userNickname    = (prof as { nickname?: string | null } | null)?.nickname ?? null
     }
 
     const userEntry: UserEntryOut | null = (userId && userRank != null && userStats)
-      ? { rank: userRank, displayName: userDisplayName ?? 'Spiller', avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
+      ? { rank: userRank, displayName: userDisplayName ?? 'Spiller', nickname: userNickname, avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
       : null
 
     if (rankedRows.length === 0) return emptyResponse(userEntry, userRank)
 
     // Runde 5+6 er nå parallellisert inne i enrich()
+    // RPC returnerer ikke nickname — hent kallenavn for de listede brukerne separat
+    const nickMap = new Map<string, string | null>()
+    if (listedIds.length > 0) {
+      const { data: nickRows } = await supabaseAdmin
+        .from('profiles')
+        .select('id, nickname')
+        .in('id', listedIds)
+      for (const n of (nickRows ?? []) as { id: string; nickname: string | null }[]) {
+        nickMap.set(n.id, n.nickname ?? null)
+      }
+    }
+
     const { streak, fastest } = await enrich(listedIds, orderedQuizIds)
 
     const entries: EntryOut[] = rankedRows.map(r => ({
       rank: Number(r.rank),
       userId: r.user_id,
       displayName: r.display_name ?? 'Spiller',
+      nickname: nickMap.get(r.user_id) ?? null,
       avatarUrl: null,
       points: Number(r.points),
       quizCount: Number(r.quiz_count),
@@ -438,25 +455,27 @@ export async function GET(request: NextRequest) {
   // Profilnavn for alle rangerte (nødvendig for søk + visning). Liten skala i fallback.
   const allIds = sorted.map(s => s.userId)
   const nameMap = new Map<string, string | null>()
+  const nickMap = new Map<string, string | null>()
   if (allIds.length > 0) {
-    const { data: profs } = await supabaseAdmin.from('profiles').select('id, display_name, premium_status').in('id', allIds)
-    for (const p of (profs ?? []) as { id: string; display_name: string | null; premium_status: boolean | null }[]) {
+    const { data: profs } = await supabaseAdmin.from('profiles').select('id, display_name, nickname, premium_status').in('id', allIds)
+    for (const p of (profs ?? []) as { id: string; display_name: string | null; nickname: string | null; premium_status: boolean | null }[]) {
       nameMap.set(p.id, p.display_name)
+      nickMap.set(p.id, p.nickname ?? null)
       if (p.id === userId) userIsPremium = p.premium_status === true
     }
   }
   // Premium kan også gjelde en bruker uten season_scores ennå
   if (userId && !nameMap.has(userId)) {
-    const { data: prof } = await supabaseAdmin.from('profiles').select('display_name, premium_status').eq('id', userId).maybeSingle()
-    if (prof) { userIsPremium = prof.premium_status === true; nameMap.set(userId, prof.display_name) }
+    const { data: prof } = await supabaseAdmin.from('profiles').select('display_name, nickname, premium_status').eq('id', userId).maybeSingle()
+    if (prof) { userIsPremium = prof.premium_status === true; nameMap.set(userId, prof.display_name); nickMap.set(userId, (prof as { nickname?: string | null }).nickname ?? null) }
   }
 
   // Rangert liste med plassering = indeks+1
-  const rankedAll = sorted.map((s, i) => ({ ...s, rank: i + 1, displayName: nameMap.get(s.userId) ?? 'Spiller' }))
+  const rankedAll = sorted.map((s, i) => ({ ...s, rank: i + 1, displayName: nameMap.get(s.userId) ?? 'Spiller', nickname: nickMap.get(s.userId) ?? null }))
   const userRankIdx = userId ? rankedAll.findIndex(r => r.userId === userId) : -1
   const userRank = userRankIdx >= 0 ? userRankIdx + 1 : null
   const userEntry: UserEntryOut | null = userRankIdx >= 0
-    ? { rank: userRank!, displayName: rankedAll[userRankIdx].displayName, avatarUrl: null, points: rankedAll[userRankIdx].points, quizCount: rankedAll[userRankIdx].quizCount }
+    ? { rank: userRank!, displayName: rankedAll[userRankIdx].displayName, nickname: rankedAll[userRankIdx].nickname, avatarUrl: null, points: rankedAll[userRankIdx].points, quizCount: rankedAll[userRankIdx].quizCount }
     : null
 
   // Filtrer (søk) + paginer
@@ -477,6 +496,7 @@ export async function GET(request: NextRequest) {
     rank: r.rank,
     userId: r.userId,
     displayName: r.displayName,
+    nickname: r.nickname,
     avatarUrl: null,
     points: r.points,
     quizCount: r.quizCount,

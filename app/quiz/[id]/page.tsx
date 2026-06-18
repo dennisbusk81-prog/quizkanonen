@@ -717,7 +717,7 @@ export default function QuizPage() {
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
   const [rankingSnapshot, setRankingSnapshot] = useState<{ top10MinCorrect: number; leaderName: string; leaderCorrect: number; totalPlayers: number } | null>(null)
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
-  const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number }>>([])
+  const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number; nickname?: string | null }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
@@ -1743,8 +1743,21 @@ export default function QuizPage() {
                     gap: 14,
                   }}>
                     <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{medal}</span>
-                    <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {row.player_name}
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {row.nickname?.trim() ? (
+                        <>
+                          <span style={{ display: 'block', fontSize: 15, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {row.nickname.trim()}
+                          </span>
+                          <span style={{ display: 'block', fontSize: 12, color: '#7a7873', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {row.player_name}
+                          </span>
+                        </>
+                      ) : (
+                        <span style={{ display: 'block', fontSize: 15, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {row.player_name}
+                        </span>
+                      )}
                     </span>
                     <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
                       {row.correct_answers} riktige · {Math.round(row.total_time_ms / 1000)}s

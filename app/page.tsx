@@ -1386,7 +1386,7 @@ export default async function Home() {
 
   // Last closed quiz top 3
   type LastQuizRow = { id: string; title: string; questions: { count: number }[] }
-  type Top3AttemptRow = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null }
+  type Top3AttemptRow = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null; nickname?: string | null }
   const lastQuiz = lastQuizRaw as LastQuizRow | null
   let lastQuizTop3: Top3AttemptRow[] = []
 
@@ -1407,16 +1407,20 @@ export default async function Home() {
     if (userIds.length > 0) {
       const { data: profilesRaw } = await supabaseAdmin
         .from('profiles')
-        .select('id, display_name')
+        .select('id, display_name, nickname')
         .in('id', userIds)
       const profileMap = new Map(
-        ((profilesRaw ?? []) as { id: string; display_name: string | null }[])
-          .map(p => [p.id, p.display_name])
+        ((profilesRaw ?? []) as { id: string; display_name: string | null; nickname: string | null }[])
+          .map(p => [p.id, { displayName: p.display_name, nickname: p.nickname ?? null }])
       )
-      lastQuizTop3 = lastQuizTop3.map(r => ({
-        ...r,
-        player_name: (r.user_id && profileMap.get(r.user_id)) ? profileMap.get(r.user_id)! : r.player_name,
-      }))
+      lastQuizTop3 = lastQuizTop3.map(r => {
+        const prof = r.user_id ? profileMap.get(r.user_id) : null
+        return {
+          ...r,
+          player_name: prof?.displayName ?? r.player_name,
+          nickname: prof?.nickname ?? null,
+        }
+      })
     }
   }
 
@@ -1642,7 +1646,16 @@ export default async function Home() {
                       <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
                         {i + 1}.
                       </span>
-                      <span className="qk-top3-name">{truncateName(row.player_name)}</span>
+                      {row.nickname?.trim() ? (
+                        <span style={{ minWidth: 0 }}>
+                          <span className="qk-top3-name" style={{ display: 'block' }}>{truncateName(row.nickname.trim())}</span>
+                          <span style={{ display: 'block', fontSize: 12, color: '#7a7873', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {truncateName(row.player_name)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="qk-top3-name">{truncateName(row.player_name)}</span>
+                      )}
                     </div>
                     <div className="qk-top3-right">
                       {row.correct_answers}/{totalQ}

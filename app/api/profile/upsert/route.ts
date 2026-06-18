@@ -15,6 +15,12 @@ const bodySchema = z.object({
   show_member_number: z.boolean().optional(),
   age_confirmed_at: z.string().datetime().optional(),
   email_reminders: z.boolean().optional(),
+  nickname: z
+    .string()
+    .trim()
+    .max(20, 'Kallenavn kan maks være 20 tegn')
+    .nullable()
+    .optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -52,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
   }
 
-  const { id, display_name, avatar_color, show_member_number, age_confirmed_at, email_reminders } = parsed.data
+  const { id, display_name, avatar_color, show_member_number, age_confirmed_at, email_reminders, nickname } = parsed.data
 
   // Full name required: must contain a space or hyphen (Anne-Marie counts)
   const hasFullName = display_name.trim().includes(' ') || display_name.trim().includes('-')
@@ -76,6 +82,11 @@ export async function POST(request: NextRequest) {
   }
   if (email_reminders !== undefined) {
     upsertData.email_reminders = email_reminders
+  }
+  if (nickname !== undefined) {
+    // Tom streng lagres som null (intet kallenavn)
+    const trimmed = nickname?.trim() ?? ''
+    upsertData.nickname = trimmed === '' ? null : trimmed
   }
 
   const { error } = await supabaseAdmin.from('profiles').upsert(

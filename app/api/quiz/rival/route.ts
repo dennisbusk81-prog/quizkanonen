@@ -36,10 +36,10 @@ async function buildRankingSnapshot(quizId: string) {
     if (leaderUserId) {
       const { data: lp } = await supabaseAdmin
         .from('profiles')
-        .select('display_name')
+        .select('display_name, nickname')
         .eq('id', leaderUserId)
         .maybeSingle()
-      leaderName = lp?.display_name ?? 'Ukjent'
+      leaderName = lp?.nickname?.trim() || lp?.display_name || 'Ukjent'
     }
   }
 
@@ -153,13 +153,16 @@ export async function GET(request: NextRequest) {
   const [profileResult, rankingSnapshot] = await Promise.all([
     supabaseAdmin
       .from('profiles')
-      .select('display_name')
+      .select('display_name, nickname')
       .eq('id', rivalUserId)
       .maybeSingle(),
     buildRankingSnapshot(quizId),
   ])
 
-  const rivalName = profileResult.data?.display_name ?? 'Ukjent'
+  // Kallenavn vises i stedet for ekte navn hvis satt (rival vises i løpende tekst)
+  const rivalName = profileResult.data?.nickname?.trim()
+    || profileResult.data?.display_name
+    || 'Ukjent'
 
   return NextResponse.json(
     {

@@ -19,6 +19,7 @@ type TopPlayer = {
   rank: number
   attempt_id: string
   name: string
+  nickname: string | null
   email: string | null
   correct_answers: number
   total_questions: number
@@ -32,6 +33,7 @@ type AnswerRow = {
   selected_answer: string | null
   time_ms: number
   player_name: string
+  nickname?: string | null
 }
 
 type QuestionStat = {
@@ -506,7 +508,11 @@ export default function QuizAnalytics() {
     qAnswers.forEach(a => {
       if (a.selected_answer && option_counts[a.selected_answer] !== undefined) {
         option_counts[a.selected_answer]++
-        option_players[a.selected_answer].push(a.player_name || 'Ukjent')
+        // Vis kallenavn + ekte navn så admin ser hvem som er hvem
+        const label = a.nickname?.trim()
+          ? `${a.nickname.trim()} (${a.player_name || 'Ukjent'})`
+          : (a.player_name || 'Ukjent')
+        option_players[a.selected_answer].push(label)
       }
     })
     return {
@@ -702,7 +708,14 @@ export default function QuizAnalytics() {
                           <tr key={p.rank}>
                             <td className="an-top-rank">{p.rank}</td>
                             <td>
-                              <span className="an-top-name">{p.name}</span>
+                              {p.nickname?.trim() ? (
+                                <>
+                                  <span className="an-top-name">{p.nickname.trim()}</span>
+                                  <span className="an-top-email" style={{ color: '#7a7873' }}>{p.name}</span>
+                                </>
+                              ) : (
+                                <span className="an-top-name">{p.name}</span>
+                              )}
                               {p.email
                                 ? <span className="an-top-email">{p.email}</span>
                                 : <span className="an-top-anon">ikke innlogget</span>

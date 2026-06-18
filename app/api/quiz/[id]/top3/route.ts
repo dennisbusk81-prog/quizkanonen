@@ -15,7 +15,7 @@ export async function GET(
   // Hent nok rader til å dekke alle unike spillere i toppen
   const { data, error } = await supabaseAdmin
     .from('attempts')
-    .select('id, player_name, correct_answers, total_time_ms')
+    .select('id, user_id, player_name, correct_answers, total_time_ms')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('submitted_at', 'is', null)
@@ -31,7 +31,7 @@ export async function GET(
 
   // Beste attempt per unik player_name (allerede sortert: første treff per navn er best)
   const seen = new Set<string>()
-  const top3: typeof data = []
+  const top3: NonNullable<typeof data> = []
   for (const row of (data ?? [])) {
     if (!row.player_name || seen.has(row.player_name)) continue
     seen.add(row.player_name)
@@ -39,5 +39,26 @@ export async function GET(
     if (top3.length === 3) break
   }
 
-  return NextResponse.json({ top3 })
+  // Kallenavn for de innloggede topp-3-spillerne
+  const userIds = top3.map(r => r.user_id).filter((id): id is string => !!id)
+  const nickMap = new Map<string, string | null>()
+  if (userIds.length > 0) {
+    const { data: profs } = await supabaseAdmin
+      .from('profiles')
+      .select('id, nickname')
+      .in('id', userIds)
+    for (const p of (profs ?? []) as { id: string; nickname: string | null }[]) {
+      nickMap.set(p.id, p.nickname ?? null)
+    }
+  }
+
+  const top3WithNick = top3.map(r => ({
+    id: r.id,
+    player_name: r.player_name,
+    correct_answers: r.correct_answers,
+    total_time_ms: r.total_time_ms,
+    nickname: r.user_id ? (nickMap.get(r.user_id) ?? null) : null,
+  }))
+
+  return NextResponse.json({ top3: top3WithNick })
 }

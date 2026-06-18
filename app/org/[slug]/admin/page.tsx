@@ -79,6 +79,7 @@ type Member = {
   role: string
   joined_at: string
   display_name: string
+  nickname?: string | null
 }
 
 type Invite = {
@@ -890,7 +891,7 @@ export default function OrgAdminPage() {
   // Filtered members for search
   const q = memberSearch.toLowerCase()
   const filteredMembers = (data?.members ?? []).filter(m =>
-    !q || m.display_name.toLowerCase().includes(q)
+    !q || m.display_name.toLowerCase().includes(q) || (m.nickname ?? '').toLowerCase().includes(q)
   )
 
   // Toppliste: activityData sorted by totalPoints desc
@@ -1285,13 +1286,14 @@ export default function OrgAdminPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                          {member.display_name}
+                          {member.nickname?.trim() || member.display_name}
                         </span>
                         {isAdmin && <Tag label="Admin" color="gold" />}
                         {isMe && <Tag label="deg" color="muted" />}
                         {activity?.hasPlayed && <Tag label="Aktiv" color="green" />}
                       </div>
                       <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
+                        {member.nickname?.trim() && <>{member.display_name} · </>}
                         Ble med {new Date(member.joined_at).toLocaleDateString('nb-NO')}
                         {activity && ` · ${activity.totalPoints} poeng`}
                         {(() => {

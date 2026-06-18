@@ -42,11 +42,11 @@ export async function GET(request: NextRequest) {
   // Fetch opponent profiles
   const { data: profiles } = await supabaseAdmin
     .from('profiles')
-    .select('id, display_name, avatar_url')
+    .select('id, display_name, nickname, avatar_url')
     .in('id', uniqueOpponentIds)
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; display_name: string | null; avatar_url: string | null }) => [p.id, p])
+    (profiles ?? []).map((p: { id: string; display_name: string | null; nickname: string | null; avatar_url: string | null }) => [p.id, p])
   )
 
   // Fallback: for opponents whose profile row is missing or has no display_name,
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         authUser.email?.split('@')[0] ??
         null
       const existing = profileMap.get(id)
-      profileMap.set(id, { id, display_name: name, avatar_url: existing?.avatar_url ?? null })
+      profileMap.set(id, { id, display_name: name, nickname: existing?.nickname ?? null, avatar_url: existing?.avatar_url ?? null })
     }
   }
 
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         isChallenger:   r.challenger_id === user.id,
         isExpired,
         opponentId,
-        opponentName:   opponentProfile?.display_name ?? null,
+        opponentName:   opponentProfile?.nickname?.trim() || opponentProfile?.display_name || null,
         opponentAvatar: opponentProfile?.avatar_url ?? null,
         myPoints:       pointsMap.get(user.id) ?? 0,
         opponentPoints: pointsMap.get(opponentId) ?? 0,

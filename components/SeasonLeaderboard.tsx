@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import SkeletonCard from '@/components/SkeletonCard'
+import PlayerName from '@/components/PlayerName'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -43,6 +44,7 @@ type Entry = {
   rank: number
   userId: string
   displayName: string
+  nickname?: string | null
   avatarUrl: string | null
   points: number
   quizCount: number
@@ -53,6 +55,7 @@ type Entry = {
 type UserEntry = {
   rank: number
   displayName: string
+  nickname?: string | null
   avatarUrl: string | null
   points: number
   quizCount: number
@@ -75,6 +78,7 @@ const PAGE_SIZE = 20
 
 type HistoryWinner = {
   displayName: string
+  nickname?: string | null
   avatarUrl: string | null
   score: number
   scoreLabel: string
@@ -92,6 +96,7 @@ type ExpandedEntry = {
   rank: number
   userId: string
   displayName: string
+  nickname?: string | null
   avatarUrl: string | null
   points: number
   quizCount: number
@@ -549,7 +554,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       if (!res.ok) throw new Error()
       const json = await res.json()
       const entries: ExpandedEntry[] = (json.entries ?? []).map((e: Entry) => ({
-        rank: e.rank, userId: e.userId, displayName: e.displayName,
+        rank: e.rank, userId: e.userId, displayName: e.displayName, nickname: e.nickname ?? null,
         avatarUrl: e.avatarUrl, points: e.points, quizCount: e.quizCount,
       }))
       setExpandedData(prev => new Map(prev).set(key, entries))
@@ -652,7 +657,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             {badge && <div style={s.badgePos}><BadgeCircle badge={badge} size={18} /></div>}
           </div>
           <div style={s.nameBlock}>
-            <div style={s.name}>{entry.displayName}</div>
+            <PlayerName
+              nickname={entry.nickname}
+              displayName={entry.displayName}
+              primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 2 }}
+              secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif" }}
+            />
             <div style={s.nameSub}>
               {isLastQuiz
                 ? formatTime(entry.fastestMs ?? 0)
@@ -726,7 +736,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 }
               </div>
               <div style={s.nameBlock}>
-                <div style={s.name}>{ue.displayName}</div>
+                <PlayerName
+                  nickname={ue.nickname}
+                  displayName={ue.displayName}
+                  primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 2 }}
+                  secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif" }}
+                />
                 <div style={s.nameSub}>{isLastQuiz ? `${ue.points} riktige` : `${ue.quizCount} ${ue.quizCount === 1 ? 'quiz' : 'quizer'}`}</div>
               </div>
               <div style={s.pointsBlock}>
@@ -776,7 +791,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                       : initial
                     }
                   </div>
-                  <span style={s.histWinnerName}>{entry.winner.displayName}</span>
+                  <span style={s.histWinnerName}>{entry.winner.nickname?.trim() || entry.winner.displayName}</span>
                   <span style={s.histWinnerScore}>{entry.winner.score} {entry.winner.scoreLabel}</span>
                 </div>
               )}
@@ -825,7 +840,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               expanded.map((e, i) => (
                 <div key={e.userId} style={{ ...s.expandedRow, borderBottom: i === expanded.length - 1 ? 'none' : '0.5px solid rgba(42,45,56,0.6)' }}>
                   <span style={s.expandedRank}>#{e.rank}</span>
-                  <span style={s.expandedName}>{e.displayName}</span>
+                  <span style={s.expandedName}>{e.nickname?.trim() || e.displayName}</span>
                   <span style={s.expandedScore}>{e.points} poeng</span>
                 </div>
               ))

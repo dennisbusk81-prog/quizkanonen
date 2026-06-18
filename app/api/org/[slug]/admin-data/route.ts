@@ -53,13 +53,15 @@ export async function GET(
   const memberIds = (membersRaw ?? []).map(m => m.user_id)
   const { data: profiles } = await supabaseAdmin
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, nickname')
     .in('id', memberIds)
 
   const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.display_name]))
+  const nickProfileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.nickname ?? null]))
   const members = (membersRaw ?? []).map(m => ({
     ...m,
     display_name: profileMap[m.user_id] ?? m.user_id.slice(0, 8),
+    nickname: nickProfileMap[m.user_id] ?? null,
   }))
 
   // If stripe_period_end is missing but we have a subscription ID, fetch it live from Stripe

@@ -35,6 +35,19 @@ export async function GET(
   const err = e1 ?? e2 ?? e3
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })
 
+  // Kallenavn for alle innloggede spillere i quizen (admin ser hvem som er hvem)
+  const allUserIds = [...new Set(((attempts ?? []) as AttemptRaw[]).map(a => a.user_id).filter((uid): uid is string => !!uid))]
+  const nickByUser = new Map<string, string | null>()
+  if (allUserIds.length > 0) {
+    const { data: nickRows } = await supabaseAdmin
+      .from('profiles')
+      .select('id, nickname')
+      .in('id', allUserIds)
+    for (const p of (nickRows ?? []) as { id: string; nickname: string | null }[]) {
+      nickByUser.set(p.id, p.nickname ?? null)
+    }
+  }
+
   let answers: unknown[] = []
   const ids = (attempts ?? []).map((a: { id: string }) => a.id)
   if (ids.length > 0) {
@@ -44,8 +57,11 @@ export async function GET(
       .in('attempt_id', ids)
     if (e4) return NextResponse.json({ error: e4.message }, { status: 500 })
     const attemptPlayerMap: Record<string, string> = {}
+    const attemptNickMap: Record<string, string | null> = {}
     for (const a of (attempts ?? [])) {
-      attemptPlayerMap[(a as { id: string; player_name: string }).id] = (a as { id: string; player_name: string }).player_name || ''
+      const row = a as { id: string; player_name: string; user_id: string | null }
+      attemptPlayerMap[row.id] = row.player_name || ''
+      attemptNickMap[row.id] = row.user_id ? (nickByUser.get(row.user_id) ?? null) : null
     }
     answers = (answerData ?? []).map((a: { question_id: string; is_correct: boolean; selected_answer: string | null; time_ms: number; attempt_id: string }) => ({
       question_id: a.question_id,
@@ -53,6 +69,7 @@ export async function GET(
       selected_answer: a.selected_answer,
       time_ms: a.time_ms,
       player_name: attemptPlayerMap[a.attempt_id] || '',
+      nickname: attemptNickMap[a.attempt_id] ?? null,
     }))
   }
 
@@ -88,6 +105,7 @@ export async function GET(
     rank: i + 1,
     attempt_id: a.id,
     name: (a.user_id && profileMap.get(a.user_id)) ?? a.player_name ?? '?',
+    nickname: a.user_id ? (nickByUser.get(a.user_id) ?? null) : null,
     email: a.user_id ? (emailMap.get(a.user_id) ?? null) : null,
     correct_answers: a.correct_answers,
     total_questions: a.total_questions,

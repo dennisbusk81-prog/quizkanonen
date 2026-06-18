@@ -7,6 +7,7 @@ import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
+import PlayerName from '@/components/PlayerName'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -165,7 +166,7 @@ export default function LeaderboardPage() {
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'alle' | 'venner'>('alle')
   const [visibleVennerCount, setVisibleVennerCount] = useState(10)
-  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null }>>(new Map())
+  const [memberInfoMap, setMemberInfoMap] = useState<Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null, nickname: string | null }>>(new Map())
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
   const [podiumActive, setPodiumActive] = useState(false)
@@ -231,12 +232,12 @@ export default function LeaderboardPage() {
         if (userIds.length > 0) {
           const { data: memberProfiles } = await supabaseData
             .from('profiles')
-            .select('id, member_number, show_member_number, avatar_url, display_name')
+            .select('id, member_number, show_member_number, avatar_url, display_name, nickname')
             .in('id', userIds)
           if (memberProfiles) {
-            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null }>()
-            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null, display_name: string | null }[]) {
-              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null, display_name: p.display_name ?? null })
+            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null, nickname: string | null }>()
+            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null, display_name: string | null, nickname: string | null }[]) {
+              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null, display_name: p.display_name ?? null, nickname: p.nickname ?? null })
             }
             setMemberInfoMap(map)
           }
@@ -598,7 +599,8 @@ export default function LeaderboardPage() {
     const shownName = attempt.user_id
       ? (memberInfoMap.get(attempt.user_id)?.display_name ?? attempt.player_name)
       : attempt.player_name
-    const initial = shownName[0]?.toUpperCase() ?? '?'
+    const shownNickname = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.nickname ?? null) : null
+    const initial = (shownNickname?.trim() || shownName)[0]?.toUpperCase() ?? '?'
 
     let badge: BadgeKind | null = null
     if (attempt.rank === 1) badge = 'krone'
@@ -639,10 +641,15 @@ export default function LeaderboardPage() {
                 {'#' + String(memberInfoMap.get(attempt.user_id)!.member_number).padStart(3, '0')}
               </p>
             )}
-            <p style={s.name}>
-              {shownName}
+            <div style={{ marginBottom: 2, minWidth: 0 }}>
+              <PlayerName
+                nickname={shownNickname}
+                displayName={shownName}
+                primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff' }}
+                secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif", fontWeight: 400 }}
+              />
               {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
-            </p>
+            </div>
             <p style={s.nameSub}>
                   ⏱ {formatTime(attempt.total_time_ms)}
             </p>

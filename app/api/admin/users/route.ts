@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   // 1. All profiles, newest first
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
-    .select('id, display_name, premium_status, created_at, suspended_until')
+    .select('id, display_name, nickname, premium_status, created_at, suspended_until')
     .order('created_at', { ascending: false })
 
   if (profilesError) {
@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     return {
       id: p.id,
       display_name: p.display_name ?? null,
+      nickname: (p as { nickname?: string | null }).nickname ?? null,
       email: au?.email ?? null,
       google_name: (meta.full_name ?? meta.name ?? null) as string | null,
       created_at: p.created_at ?? null,
