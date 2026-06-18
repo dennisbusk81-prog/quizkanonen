@@ -61,8 +61,27 @@ export async function GET(
 
       if (attErr) throw attErr
 
+      // 2b. Dedupliser: behold kun beste forsøk per spiller (user_id, ellers
+      //     player_name for gjester) — unngår at samme bruker vises flere ganger
+      //     på mellomskjermen ved flere forsøk på samme quiz.
+      const allRows = (attempts ?? []) as unknown as Attempt[]
+      const bestByPlayer = new Map<string, Attempt>()
+      for (const a of allRows) {
+        const key = a.user_id ?? `name:${a.player_name}`
+        const existing = bestByPlayer.get(key)
+        if (
+          !existing ||
+          a.correct_answers > existing.correct_answers ||
+          (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms) ||
+          (a.correct_answers === existing.correct_answers && a.total_time_ms === existing.total_time_ms && (a.correct_streak ?? 0) > (existing.correct_streak ?? 0))
+        ) {
+          bestByPlayer.set(key, a)
+        }
+      }
+      const dedupedAttempts = [...bestByPlayer.values()]
+
       // 3. Ranger med eksakt samme logikk som lib/ranking.ts
-      const ranked = rankAttempts((attempts ?? []) as unknown as Attempt[])
+      const ranked = rankAttempts(dedupedAttempts)
 
       snapshot = ranked.map(a => ({
         player_name:     a.player_name,

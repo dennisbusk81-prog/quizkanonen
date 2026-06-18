@@ -118,6 +118,7 @@ type LbEntry = {
   id: string
   userId: string | null
   playerName: string
+  nickname?: string | null
   correctAnswers: number
   totalQuestions: number
   totalTimeMs: number
@@ -230,17 +231,25 @@ export default function LeaderboardPage() {
 
         const userIds = [...new Set(attemptsResult.map((a: Attempt) => a.user_id).filter((id): id is string => !!id))]
         if (userIds.length > 0) {
+          const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null, nickname: string | null }>()
           const { data: memberProfiles } = await supabaseData
             .from('profiles')
             .select('id, member_number, show_member_number, avatar_url, display_name, nickname')
             .in('id', userIds)
           if (memberProfiles) {
-            const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null, nickname: string | null }>()
             for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null, display_name: string | null, nickname: string | null }[]) {
               map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null, display_name: p.display_name ?? null, nickname: p.nickname ?? null })
             }
-            setMemberInfoMap(map)
           }
+          // Overlay kallenavn fra server-API (omgår evt. kolonne-grants på profiles
+          // som blokkerer anon-lesing av nickname). Autoritativ kilde for nickname.
+          for (const e of [...soloRows, ...teamRows]) {
+            if (!e.userId) continue
+            const existing = map.get(e.userId)
+            if (existing) existing.nickname = e.nickname ?? existing.nickname
+            else map.set(e.userId, { member_number: null, show_member_number: false, avatar_url: null, display_name: null, nickname: e.nickname ?? null })
+          }
+          setMemberInfoMap(map)
         }
 
         // Forrige quiz' rangering for "pil opp"-merket — server-side fordi

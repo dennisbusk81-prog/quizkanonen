@@ -11,6 +11,7 @@ type LbEntry = {
   id: string
   userId: string | null
   playerName: string
+  nickname: string | null
   correctAnswers: number
   totalQuestions: number
   totalTimeMs: number
@@ -48,12 +49,13 @@ function rankRows(rows: RawRow[]): Array<RawRow & { rank: number }> {
   return sorted.map((r, i) => ({ ...r, rank: i + 1 }))
 }
 
-function toEntry(r: RawRow & { rank: number }): LbEntry {
+function toEntry(r: RawRow & { rank: number }, nickname: string | null = null): LbEntry {
   return {
     rank: r.rank,
     id: r.id,
     userId: r.user_id,
     playerName: r.player_name,
+    nickname,
     correctAnswers: r.correct_answers,
     totalQuestions: r.total_questions,
     totalTimeMs: r.total_time_ms,
@@ -61,6 +63,21 @@ function toEntry(r: RawRow & { rank: number }): LbEntry {
     isTeam: r.is_team,
     teamSize: r.team_size,
     leaderDisplayName: r.leader_display_name,
+  }
+}
+
+// Henter kallenavn (nickname) for et sett user_id-er via service role (omgår
+// kolonne-grants på profiles som ellers kan blokkere anon-lesing av nickname).
+async function fetchNicknames(entries: LbEntry[]): Promise<void> {
+  const ids = [...new Set(entries.map(e => e.userId).filter((id): id is string => !!id))]
+  if (ids.length === 0) return
+  const { data } = await supabaseAdmin.from('profiles').select('id, nickname').in('id', ids)
+  const map = new Map<string, string | null>()
+  for (const p of (data ?? []) as { id: string; nickname: string | null }[]) {
+    map.set(p.id, p.nickname ?? null)
+  }
+  for (const e of entries) {
+    if (e.userId) e.nickname = map.get(e.userId) ?? null
   }
 }
 
@@ -141,6 +158,8 @@ export async function GET(
       guestRank = Number(bc ?? 0) + 1
     }
 
+    await fetchNicknames(userEntry ? [...entries, userEntry] : entries)
+
     return NextResponse.json({
       entries, totalCount, userEntry, userRank, guestRank,
       userIsPremium, page, pageSize, isTeam,
@@ -191,7 +210,9 @@ export async function GET(
   const totalCount = search ? filtered.length : totalAll
   const start = isBrowse ? (page - 1) * pageSize : 0
   const slice = filtered.slice(start, start + pageSize)
-  const entries: LbEntry[] = slice.map(toEntry)
+  const entries: LbEntry[] = slice.map(r => toEntry(r))
+
+  await fetchNicknames(userEntry ? [...entries, userEntry] : entries)
 
   return NextResponse.json({
     entries, totalCount, userEntry, userRank, guestRank,

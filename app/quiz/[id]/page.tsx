@@ -2207,18 +2207,21 @@ export default function QuizPage() {
               background: '#1e1a0e',
               border: '0.5px solid rgba(201,168,76,0.3)',
               borderRadius: 16,
-              padding: 16,
+              padding: '20px 16px',
               textAlign: 'center',
               marginBottom: 14,
             }}>
-              <div style={{ fontSize: 22, fontWeight: 500, color: '#c9a84c' }}>
-                Topp {toppX}%
+              <div style={{ fontSize: 10, color: '#7a7873', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
+                Din plassering
               </div>
-              <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 4 }}>
-                Du er bedre enn {prosent}% av deltakerne
+              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+                {estimatedPlacement.low}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
               </div>
-              <div style={{ fontSize: 11, color: '#e8e4dd', marginTop: 6 }}>
-                Plass {estimatedPlacement.low} · av {estimatedPlacement.total} deltakere
+              <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                av {estimatedPlacement.total} deltakere
+              </div>
+              <div style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+                Topp {toppX}% · bedre enn {prosent}% av deltakerne
               </div>
             </div>
           )
