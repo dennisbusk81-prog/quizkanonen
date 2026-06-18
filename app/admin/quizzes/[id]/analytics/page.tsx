@@ -251,6 +251,7 @@ const STYLES = `
 
   .an-opt-letter {
     width: 22px;
+    min-width: 22px;
     height: 22px;
     border-radius: 6px;
     display: flex;
@@ -267,6 +268,7 @@ const STYLES = `
 
   .an-opt-track {
     flex: 1;
+    min-width: 40px;
     height: 6px;
     background: var(--bg);
     border-radius: 3px;
@@ -276,7 +278,7 @@ const STYLES = `
   .an-opt-fill { height: 100%; border-radius: 3px; background: var(--border); transition: width 0.3s; }
   .an-opt-fill.correct { background: var(--green); }
 
-  .an-opt-name { font-size: 11px; color: var(--muted); width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .an-opt-name { font-size: 11px; color: var(--muted); width: 100px; min-width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .an-opt-count { font-size: 11px; color: var(--muted); width: 48px; text-align: right; flex-shrink: 0; }
 
   .an-opt-toggle {
@@ -848,11 +850,13 @@ export default function QuizAnalytics() {
                             </div>
                             <span className="an-opt-name">{label}</span>
                             <span className="an-opt-count">{count} ({pct}%)</span>
-                            {players.length > 0 && (
-                              <button className="an-opt-toggle" onClick={e => { e.stopPropagation(); toggleExpandOpt(expandKey) }}>
-                                {isExpanded ? '▾' : '▸'}
-                              </button>
-                            )}
+                            <button
+                              className="an-opt-toggle"
+                              style={{ visibility: players.length > 0 ? 'visible' : 'hidden' }}
+                              onClick={e => { e.stopPropagation(); if (players.length > 0) toggleExpandOpt(expandKey) }}
+                            >
+                              {isExpanded ? '▾' : '▸'}
+                            </button>
                           </div>
                           {isExpanded && players.length > 0 && (
                             <div className="an-opt-players">{players.join(', ')}</div>
