@@ -9,6 +9,8 @@ type QuizRow = {
   allow_teams: boolean
   requires_access_code: boolean
   time_limit_seconds: number | null
+  opens_at: string | null
+  closes_at: string | null
   questions: { count: number }[]
   attempts: { count: number }[]
 }
@@ -99,6 +101,24 @@ const css = `
     border: 1px solid rgba(106,104,96,0.18);
   }
 
+  .qz-tag-kommende {
+    background: rgba(99,179,237,0.08);
+    color: #e8e4dd;
+    border: 1px solid rgba(99,179,237,0.2);
+  }
+
+  .qz-tag-stengt {
+    background: rgba(106,104,96,0.10);
+    color: #7a7873;
+    border: 1px solid rgba(106,104,96,0.15);
+  }
+
+  .qz-status-time {
+    font-size: 12px;
+    color: #7a7873;
+    margin-top: 4px;
+  }
+
   .qz-quiz-title {
     font-family: 'Libre Baskerville', serif;
     font-size: 19px;
@@ -166,10 +186,27 @@ const css = `
   }
 `
 
+function formatNorDate(iso: string): string {
+  const d = new Date(iso)
+  const days = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag']
+  const months = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.']
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} kl. ${hh}.${mm}`
+}
+
+type QuizStatus = 'åpen' | 'kommende' | 'stengt'
+
+function getQuizStatus(opensAt: string | null, closesAt: string | null, now: Date): QuizStatus {
+  if (opensAt && new Date(opensAt) > now) return 'kommende'
+  if (closesAt && new Date(closesAt) < now) return 'stengt'
+  return 'åpen'
+}
+
 export default async function QuizerPage() {
   const { data: quizzes } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, allow_teams, requires_access_code, time_limit_seconds, questions(count), attempts(count)')
+    .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
     .eq('is_active', true)
     .or(`closes_at.is.null,closes_at.gt.${new Date().toISOString()}`)
     .order('created_at', { ascending: false })
@@ -219,35 +256,52 @@ export default async function QuizerPage() {
           <div className="qz-empty">
             Ingen aktive quizer akkurat nå — kom tilbake på fredag.
           </div>
-        ) : (
-          <div>
-            {quizList.map(quiz => {
-              const questionCount = quiz.questions[0]?.count ?? 0
-              const participantCount = participantCounts.get(quiz.id) ?? 0
-              return (
-                <div key={quiz.id} className="qz-card">
-                  <div className="qz-card-left">
-                    <div className="qz-tags">
-                      <span className="qz-tag">● Åpen</span>
-                      {quiz.allow_teams && <span className="qz-tag qz-tag-muted">Lag</span>}
-                      {quiz.requires_access_code && <span className="qz-tag qz-tag-muted">Kode</span>}
+        ) : (() => {
+          const now = new Date()
+          return (
+            <div>
+              {quizList.map(quiz => {
+                const questionCount = quiz.questions[0]?.count ?? 0
+                const participantCount = participantCounts.get(quiz.id) ?? 0
+                const status = getQuizStatus(quiz.opens_at, quiz.closes_at, now)
+                const statusLabel = status === 'åpen' ? '● Åpen' : status === 'kommende' ? '○ Kommende' : '○ Stengt'
+                const statusClass = status === 'åpen' ? 'qz-tag' : status === 'kommende' ? 'qz-tag qz-tag-kommende' : 'qz-tag qz-tag-stengt'
+                const timeNote =
+                  status === 'kommende' && quiz.opens_at
+                    ? `Åpner ${formatNorDate(quiz.opens_at)}`
+                    : status === 'åpen' && quiz.closes_at
+                      ? `Stenger ${formatNorDate(quiz.closes_at)}`
+                      : null
+                return (
+                  <div key={quiz.id} className="qz-card">
+                    <div className="qz-card-left">
+                      <div className="qz-tags">
+                        <span className={statusClass}>{statusLabel}</span>
+                        {quiz.allow_teams && <span className="qz-tag qz-tag-muted">Lag</span>}
+                        {quiz.requires_access_code && <span className="qz-tag qz-tag-muted">Kode</span>}
+                      </div>
+                      <h2 className="qz-quiz-title">{quiz.title}</h2>
+                      <div className="qz-details">
+                        {questionCount > 0 && <span className="qz-detail">{questionCount} spørsmål</span>}
+                        {participantCount > 0 && <span className="qz-detail">{participantCount} deltakere</span>}
+                        {quiz.time_limit_seconds && <span className="qz-detail">{quiz.time_limit_seconds}s per spørsmål</span>}
+                      </div>
+                      {timeNote && <p className="qz-status-time">{timeNote}</p>}
                     </div>
-                    <h2 className="qz-quiz-title">{quiz.title}</h2>
-                    <div className="qz-details">
-                      {questionCount > 0 && <span className="qz-detail">{questionCount} spørsmål</span>}
-                      {participantCount > 0 && <span className="qz-detail">{participantCount} deltakere</span>}
-                      {quiz.time_limit_seconds && <span className="qz-detail">{quiz.time_limit_seconds}s per spørsmål</span>}
+                    <div className="qz-card-right">
+                      {status !== 'kommende' && (
+                        <Link href={`/quiz/${quiz.id}`} className="qz-btn-outline">
+                          {status === 'åpen' ? 'Spill nå' : 'Se quiz'}
+                        </Link>
+                      )}
+                      <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Ukens resultater →</Link>
                     </div>
                   </div>
-                  <div className="qz-card-right">
-                    <Link href={`/quiz/${quiz.id}`} className="qz-btn-outline">Spill nå</Link>
-                    <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Ukens resultater →</Link>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )
+        })()}
       </div>
     </>
   )

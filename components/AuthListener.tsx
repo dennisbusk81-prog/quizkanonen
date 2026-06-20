@@ -21,48 +21,59 @@ async function getSessionWithTimeout(ms = 3000) {
 }
 
 async function checkAndFixDisplayName(user: User) {
-  // Hent eksisterende profil
-  const { data: existing } = await supabase
-    .from('profiles')
-    .select('id, display_name')
-    .eq('id', user.id)
-    .maybeSingle()
+  try {
+    // Hent eksisterende profil
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('id', user.id)
+      .maybeSingle()
 
-  const currentName: string | null = existing?.display_name ?? null
+    const currentName: string | null = existing?.display_name ?? null
 
-  // Gyldig navn — ingenting å gjøre
-  if (isValidName(currentName)) return
+    // Gyldig navn — ingenting å gjøre
+    if (isValidName(currentName)) return
 
-  // Forsøk å sette Google-navn automatisk
-  const googleName = (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined
-  const candidateName = isValidName(googleName ?? null) ? (googleName as string) : null
+    // Forsøk å sette Google-navn automatisk
+    const googleName = (user.user_metadata?.full_name ?? user.user_metadata?.name) as string | undefined
+    const candidateName = isValidName(googleName ?? null) ? (googleName as string) : null
 
-  if (candidateName) {
-    // Sett Google-navn automatisk — én-gangs migrering for brukere med ugyldig navn
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
-    if (!accessToken) return
+    if (candidateName) {
+      // Sett Google-navn automatisk — én-gangs migrering for brukere med ugyldig navn
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) {
+        // Sesjon ikke klar ennå — vis modal som fallback så bruker ikke sitter fast
+        window.dispatchEvent(new CustomEvent('qk:name-required'))
+        return
+      }
 
-    const res = await fetch('/api/profile/upsert', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        id: user.id,
-        display_name: candidateName,
-      }),
-    })
-    // Gi beskjed til eventuelle åpne profilsider om å laste på nytt — kun ved suksess
-    if (res.ok) {
-      window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: candidateName } }))
+      const res = await fetch('/api/profile/upsert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          id: user.id,
+          display_name: candidateName,
+        }),
+      })
+      if (res.ok) {
+        // Gi beskjed til eventuelle åpne profilsider om å laste på nytt
+        window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: candidateName } }))
+        return
+      }
+      // Upsert feilet (nettverksfeil, validering e.l.) — fall gjennom til modal
     }
-    return
-  }
 
-  // Ingen gyldig Google-navn finnes — vis modal så bruker skriver inn selv
-  window.dispatchEvent(new CustomEvent('qk:name-required'))
+    // Ingen gyldig Google-navn, eller upsert feilet — vis modal
+    window.dispatchEvent(new CustomEvent('qk:name-required'))
+  } catch {
+    // Uventet feil (nettverksfeil, kast fra fetch, etc.) — vis modal så bruker
+    // ikke sitter fast i "Laster profil..."-tilstand uten forklaring
+    window.dispatchEvent(new CustomEvent('qk:name-required'))
+  }
 }
 
 export default function AuthListener() {
