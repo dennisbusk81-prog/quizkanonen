@@ -115,13 +115,6 @@ export default function SlikFungererDetPage() {
 
           <hr style={s.rule} />
 
-          <h2 style={s.sectionTitle}>Lag</h2>
-          <p style={s.body}>
-            Spiller dere hjemme som par eller familie? Slå på lag-modusen, velg et lagnavn, og konkurrer som ett lag. Sesong-poeng registreres på den som er innlogget.
-          </p>
-
-          <hr style={s.rule} />
-
           <h2 style={s.sectionTitle}>Sesongen</h2>
           <p style={{ ...s.body, marginBottom: 16 }}>
             Quizkanonen kjøres i sesonger — måned, kvartal, år og all-time. Hver quiz gir deg sesong-poeng basert på plassering. Sesongene skifter automatisk. All-time viser summen av alle poeng du noen gang har samlet.

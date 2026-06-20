@@ -6,7 +6,7 @@ import { calculateStreak } from '@/lib/ranking'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
-type PlayerInfo = { name: string; isTeam: boolean; teamSize: number; ageConfirmed: boolean }
+type PlayerInfo = { name: string; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
 
 function getDeviceId(): string {
@@ -684,7 +684,7 @@ export default function QuizPage() {
   // hvor mange det er totalt (brukes til progresjon, «siste spørsmål», resultat).
   const [totalQuestions, setTotalQuestions] = useState(0)
   const [phase, setPhase] = useState<'register' | 'playing' | 'finished' | 'already_played'>('register')
-  const [playerInfo, setPlayerInfo] = useState<PlayerInfo>({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+  const [playerInfo, setPlayerInfo] = useState<PlayerInfo>({ name: '', ageConfirmed: false })
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<AnswerRecord[]>([])
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
@@ -695,9 +695,6 @@ export default function QuizPage() {
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [nameInput, setNameInput] = useState('')
-  const [isTeamInput, setIsTeamInput] = useState(false)
-  const [teamSizeInput, setTeamSizeInput] = useState(2)
-  const [teamAgeConfirmed, setTeamAgeConfirmed] = useState(false)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
@@ -1051,11 +1048,11 @@ export default function QuizPage() {
   }, [quizId])
 
   const startQuiz = async () => {
-    const effectiveName = isTeamInput ? nameInput.trim() : (loggedInDisplayName ?? nameInput.trim())
+    const effectiveName = loggedInDisplayName ?? nameInput.trim()
     if (!effectiveName) return
 
     setStartError(null)
-    const info: PlayerInfo = { name: effectiveName, isTeam: isTeamInput, teamSize: isTeamInput ? teamSizeInput : 1, ageConfirmed: true }
+    const info: PlayerInfo = { name: effectiveName, ageConfirmed: true }
     setPlayerInfo(info)
 
     try {
@@ -1071,9 +1068,9 @@ export default function QuizPage() {
         body: JSON.stringify({
           quizId,
           playerName: info.name,
-          isTeam: info.isTeam,
-          teamSize: info.teamSize,
-          leaderDisplayName: info.isTeam && loggedInDisplayName ? loggedInDisplayName : null,
+          isTeam: false,
+          teamSize: 1,
+          leaderDisplayName: null,
         }),
       })
       if (!res.ok) {
@@ -1083,7 +1080,7 @@ export default function QuizPage() {
           setIsSuspended(true)
           return
         }
-        setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+        setPlayerInfo({ name: '', ageConfirmed: false })
         setStartError(err.error ?? 'Noe gikk galt. Prøv å laste siden på nytt.')
         return
       }
@@ -1108,7 +1105,7 @@ export default function QuizPage() {
           total = r0.total
         }
       } catch {
-        setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+        setPlayerInfo({ name: '', ageConfirmed: false })
         setStartError('Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
         return
       }
@@ -1153,7 +1150,7 @@ export default function QuizPage() {
         .then(j => { if (Array.isArray(j)) setPercentileData(j) })
         .catch(() => {})
     } catch {
-      setPlayerInfo({ name: '', isTeam: false, teamSize: 1, ageConfirmed: false })
+      setPlayerInfo({ name: '', ageConfirmed: false })
       setStartError('Noe gikk galt. Prøv å laste siden på nytt.')
     }
   }
@@ -1525,7 +1522,6 @@ export default function QuizPage() {
         // lese user_id lenger (kolonne-lås), så server-ruten er eneste korrekte vei.
         try {
           const params = new URLSearchParams()
-          if (playerInfo?.isTeam) params.set('is_team', 'true')
           if (!finishSess?.access_token) {
             params.set('my_correct', String(correct))
             params.set('my_time', String(finalTimeMs))
@@ -1836,26 +1832,25 @@ export default function QuizPage() {
       {quiz.category && (
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873', marginBottom: 16 }}>{quiz.category}</p>
       )}
-      {!isTeamInput && (
-        loggedInDisplayName
-          ? <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName}</strong>. Lykke til!</p>
-          : <>
-              <label className="qk-label">Navn</label>
-              <input
-                type="text"
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                placeholder="Skriv inn navnet ditt..."
-                className="qk-input"
-                maxLength={30}
-                onKeyDown={e => e.key === 'Enter' && startQuiz()}
-                autoFocus
-              />
-              <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: -12, marginBottom: 20 }}>
-                Bruk ditt ekte navn — det er det som gjør det morsomt å vinne.
-              </p>
-            </>
-      )}
+      {loggedInDisplayName
+        ? <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName}</strong>. Lykke til!</p>
+        : <>
+            <label className="qk-label">Navn</label>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              placeholder="Skriv inn navnet ditt..."
+              className="qk-input"
+              maxLength={30}
+              onKeyDown={e => e.key === 'Enter' && startQuiz()}
+              autoFocus
+            />
+            <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: -12, marginBottom: 20 }}>
+              Bruk ditt ekte navn — det er det som gjør det morsomt å vinne.
+            </p>
+          </>
+      }
 
       {resumeData && (
         <div className="qk-banner">🔄 Vi fant en påbegynt quiz — du fortsetter der du slapp.</div>

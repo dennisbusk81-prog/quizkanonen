@@ -122,8 +122,6 @@ type LbEntry = {
   totalQuestions: number
   totalTimeMs: number
   correctStreak: number | null
-  isTeam: boolean
-  teamSize: number
   leaderDisplayName: string | null
 }
 
@@ -132,8 +130,8 @@ function entryToAttempt(e: LbEntry, quizId: string): Attempt {
     id: e.id,
     quiz_id: quizId,
     player_name: e.playerName,
-    is_team: e.isTeam,
-    team_size: e.teamSize,
+    is_team: false,
+    team_size: 1,
     correct_answers: e.correctAnswers,
     total_questions: e.totalQuestions,
     total_time_ms: e.totalTimeMs,
@@ -160,7 +158,6 @@ export default function LeaderboardPage() {
   const [isPremiumOverride, setIsPremiumOverride] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
-  const [visibleTeamCount, setVisibleTeamCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
   const [friendNames, setFriendNames] = useState<Set<string>>(new Set())
@@ -194,9 +191,7 @@ export default function LeaderboardPage() {
 
   // Server-side totaler + brukerens eksakte plassering (også utenfor topp 50)
   const [soloTotal, setSoloTotal] = useState(0)
-  const [teamTotal, setTeamTotal] = useState(0)
   const [serverUserSolo, setServerUserSolo] = useState<RankedAttempt | null>(null)
-  const [serverUserTeam, setServerUserTeam] = useState<RankedAttempt | null>(null)
 
   // Premium browse-modus (paginering + søk) for "Alle"/"Lag"
   const [browseMode, setBrowseMode]               = useState(false)
@@ -211,21 +206,15 @@ export default function LeaderboardPage() {
       try {
         // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
         // med JS-fallback). Erstatter tidligere nedlasting av opptil 2000 rader.
-        const [{ data: quizData, error: e1 }, soloRes, teamRes] = await Promise.all([
+        const [{ data: quizData, error: e1 }, soloRes] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
           fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50`).then(r => r.ok ? r.json() : null),
-          fetch(`/api/leaderboard/${quizId}?is_team=true&limit=50`).then(r => r.ok ? r.json() : null),
         ])
         if (e1) throw e1
         setQuiz(quizData)
         const soloRows: LbEntry[] = soloRes?.entries ?? []
-        const teamRows: LbEntry[] = teamRes?.entries ?? []
         setSoloTotal(soloRes?.totalCount ?? soloRows.length)
-        setTeamTotal(teamRes?.totalCount ?? teamRows.length)
-        const attemptsResult: Attempt[] = [
-          ...soloRows.map(e => entryToAttempt(e, quizId)),
-          ...teamRows.map(e => entryToAttempt(e, quizId)),
-        ]
+        const attemptsResult: Attempt[] = soloRows.map(e => entryToAttempt(e, quizId))
         setAttempts(attemptsResult)
 
         const userIds = [...new Set(attemptsResult.map((a: Attempt) => a.user_id).filter((id): id is string => !!id))]
@@ -242,7 +231,7 @@ export default function LeaderboardPage() {
           }
           // Overlay kallenavn fra server-API (omgår evt. kolonne-grants på profiles
           // som blokkerer anon-lesing av nickname). Autoritativ kilde for nickname.
-          for (const e of [...soloRows, ...teamRows]) {
+          for (const e of soloRows) {
             if (!e.userId) continue
             const existing = map.get(e.userId)
             if (existing) existing.nickname = e.nickname ?? existing.nickname
@@ -307,14 +296,9 @@ export default function LeaderboardPage() {
 
       // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
       try {
-        const [soloMe, teamMe] = await Promise.all([
-          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null),
-          fetch(`/api/leaderboard/${quizId}?is_team=true&limit=1`,  { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null),
-        ])
+        const soloMe = await fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null)
         if (soloMe?.userEntry) setServerUserSolo({ ...entryToAttempt(soloMe.userEntry, quizId), rank: soloMe.userEntry.rank, isTied: false })
-        if (teamMe?.userEntry) setServerUserTeam({ ...entryToAttempt(teamMe.userEntry, quizId), rank: teamMe.userEntry.rank, isTied: false })
         if (typeof soloMe?.totalCount === 'number') setSoloTotal(soloMe.totalCount)
-        if (typeof teamMe?.totalCount === 'number') setTeamTotal(teamMe.totalCount)
       } catch { /* ikke kritisk */ }
 
       // Hent ligamedlemmer for "Blant venner"-fane
@@ -564,11 +548,10 @@ export default function LeaderboardPage() {
   )
 
   // Beregn attempts og brukerens rad FØR hasPlayed/isHidden — hasPlayed trenger userAttempt
-  const soloAttempts = rankAttempts(attempts.filter(a => !a.is_team))
-  const teamAttempts = rankAttempts(attempts.filter(a => a.is_team))
-  const friendAttempts = rankAttempts(attempts.filter(a => !a.is_team && friendNames.has(a.player_name)))
+  const soloAttempts = rankAttempts(attempts)
+  const friendAttempts = rankAttempts(attempts.filter(a => friendNames.has(a.player_name)))
   const showVennerTab = !!session && friendAttempts.length > 0
-  const totalCount = soloTotal + teamTotal
+  const totalCount = soloTotal
 
   const currentUserId = session?.user?.id ?? null
   // Finn i den lastede topp-50, ellers fall tilbake til server-beregnet plassering
@@ -576,11 +559,7 @@ export default function LeaderboardPage() {
     ? soloAttempts.find(a => a.user_id === currentUserId) ?? null
     : displayName ? soloAttempts.find(a => a.player_name === displayName) ?? null : null)
     ?? serverUserSolo
-  const userTeamAttempt = (currentUserId
-    ? teamAttempts.find(a => a.user_id === currentUserId) ?? null
-    : displayName ? teamAttempts.find(a => a.player_name === displayName) ?? null : null)
-    ?? serverUserTeam
-  const userAttempt = userSoloAttempt ?? userTeamAttempt
+  const userAttempt = userSoloAttempt
 
   // hasPlayed: sjekk BÅDE localStorage (savedResult) OG at forsøket finnes i leaderboard-data
   // Dette håndterer tilfellet der bruker spilte på annen enhet (savedResult = null)
@@ -590,8 +569,7 @@ export default function LeaderboardPage() {
 
   function handleGoToMyPlacement() {
     if (!userAttempt) return
-    if (userSoloAttempt && userAttempt.rank > visibleSoloCount) setVisibleSoloCount(userAttempt.rank + 5)
-    if (userTeamAttempt && !userSoloAttempt && userAttempt.rank > visibleTeamCount) setVisibleTeamCount(userAttempt.rank + 5)
+    if (userAttempt.rank > visibleSoloCount) setVisibleSoloCount(userAttempt.rank + 5)
     setScrollPending(true)
   }
 
@@ -1100,7 +1078,7 @@ export default function LeaderboardPage() {
             let sub: string
             if (savedResult) {
               const { correct_answers, total_time_ms } = savedResult
-              const allRanked = [...soloAttempts, ...teamAttempts]
+              const allRanked = soloAttempts
               const better = allRanked.filter(a =>
                 a.correct_answers > correct_answers ||
                 (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
@@ -1141,14 +1119,14 @@ export default function LeaderboardPage() {
             let rangeX = 1
             let rangeY = Math.min(10, totalCount)
             // Foretrekk server-beregnet plassering; fall tilbake til lokalt estimat
-            const estRank = userSoloAttempt?.rank ?? userTeamAttempt?.rank ?? null
+            const estRank = userSoloAttempt?.rank ?? null
             if (estRank != null) {
               const tierStart = Math.floor((estRank - 1) / 10) * 10 + 1
               rangeX = Math.max(1, tierStart)
               rangeY = Math.min(totalCount, tierStart + 9)
             } else if (savedResult) {
               const { correct_answers, total_time_ms } = savedResult
-              const allRanked = [...soloAttempts, ...teamAttempts]
+              const allRanked = soloAttempts
               const better = allRanked.filter(a =>
                 a.correct_answers > correct_answers ||
                 (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
