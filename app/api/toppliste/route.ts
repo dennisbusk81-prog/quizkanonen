@@ -1,46 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 
-// ── Ranking helpers (brukes av last_quiz-modus) ───────────────────────────────
-
-type RawAttempt = {
-  user_id: string
-  player_name: string
-  correct_answers: number
-  total_time_ms: number
-  correct_streak: number | null
-}
-
-function pickBestAttempt(existing: RawAttempt, challenger: RawAttempt): RawAttempt {
-  if (challenger.correct_answers > existing.correct_answers) return challenger
-  if (challenger.correct_answers === existing.correct_answers && challenger.total_time_ms < existing.total_time_ms) return challenger
-  if (
-    challenger.correct_answers === existing.correct_answers &&
-    challenger.total_time_ms === existing.total_time_ms &&
-    (challenger.correct_streak ?? 0) > (existing.correct_streak ?? 0)
-  ) return challenger
-  return existing
-}
-
-function rankAttempts(attempts: RawAttempt[]): Array<RawAttempt & { rank: number }> {
-  const sorted = [...attempts].sort((a, b) => {
-    if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
-    if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
-    return (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
-  })
-  const withRanks: Array<RawAttempt & { rank: number }> = []
-  for (let i = 0; i < sorted.length; i++) {
-    let rank = i + 1
-    if (i > 0) {
-      const prev = sorted[i - 1]
-      if (sorted[i].correct_answers === prev.correct_answers && sorted[i].total_time_ms === prev.total_time_ms) {
-        rank = withRanks[i - 1].rank
-      }
-    }
-    withRanks.push({ ...sorted[i], rank })
-  }
-  return withRanks
-}
+// last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
+// Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
 
 // ── Period helpers ────────────────────────────────────────────────────────────
 
@@ -138,10 +101,11 @@ export async function GET(request: NextRequest) {
 
     const { data: rawAttempts } = await supabaseAdmin
       .from('attempts')
-      .select('user_id, player_name, correct_answers, total_time_ms, correct_streak')
+      .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
       .eq('quiz_id', latestQuiz.id)
       .not('user_id', 'is', null)
       .eq('is_team', false)
+      .limit(5000)
 
     if (!rawAttempts || rawAttempts.length === 0) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
@@ -163,15 +127,17 @@ export async function GET(request: NextRequest) {
       memberSet = new Set((orgMembers ?? []).map((m: { user_id: string }) => m.user_id))
     }
 
-    const bestByUser = new Map<string, RawAttempt>()
-    for (const a of rawAttempts as RawAttempt[]) {
-      if (excludedSet.has(a.user_id)) continue
-      if (memberSet && !memberSet.has(a.user_id)) continue
-      const existing = bestByUser.get(a.user_id)
-      bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) : a)
-    }
+    // Scope-/eksklusjons-filtrering før rangering (helperen kjenner ikke
+    // excluded_members eller liga/org-medlemskap).
+    const scopedRows = (rawAttempts as Array<RankableAttempt & { user_id: string }>).filter(a => {
+      if (excludedSet.has(a.user_id)) return false
+      if (memberSet && !memberSet.has(a.user_id)) return false
+      return true
+    })
 
-    const withRanks = rankAttempts([...bestByUser.values()])
+    // Delt helper: submitted-filter, dedup per user_id, 4-nøkkels tiebreak.
+    // includeGuests:false — kun innloggede teller på sesong-toppliste.
+    const withRanks = rankQuizAttempts(scopedRows, { includeGuests: false, requireSubmitted: true })
 
     // Søk på player_name (beste tilnærming uten full profilfetch)
     const filtered = search

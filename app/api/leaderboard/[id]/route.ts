@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rankQuizAttempts } from '@/lib/ranking'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
-// Mønster: speiler /api/toppliste. Rangerer RÅ attempt-rader (ingen dedup per
-// bruker), separate rom via is_team. RPC (quiz_leaderboard_*) med automatisk
-// JS-fallback hvis migrasjon 20260614000015 ikke er kjørt enda.
+// Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
+// per spiller (user_id, ellers player_name for gjester), 4-nøkkels tiebreak.
+// Gjester inkluderes. Identisk #1 som Topp 3 og toppliste. Separate rom via
+// is_team. RPC-stien er fjernet bevisst — den dedup'et ikke og ga duplikate
+// rader + ulik vinner.
 
 type LbEntry = {
   rank: number
@@ -32,22 +35,11 @@ type RawRow = {
   is_team: boolean
   team_size: number
   leader_display_name: string | null
+  submitted_at: string | null
 }
 
 const SELECT_COLS =
-  'id, user_id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, is_team, team_size, leader_display_name'
-
-// Samme tiebreak som lib/ranking.ts: correct DESC, tid ASC, streak DESC, id ASC.
-function rankRows(rows: RawRow[]): Array<RawRow & { rank: number }> {
-  const sorted = [...rows].sort((a, b) => {
-    if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
-    if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
-    const sd = (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
-    if (sd !== 0) return sd
-    return a.id.localeCompare(b.id)
-  })
-  return sorted.map((r, i) => ({ ...r, rank: i + 1 }))
-}
+  'id, user_id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, is_team, team_size, leader_display_name, submitted_at'
 
 function toEntry(r: RawRow & { rank: number }, nickname: string | null = null): LbEntry {
   return {
@@ -119,56 +111,9 @@ export async function GET(
       ? { correct: parseInt(myCorrectRaw, 10), timeMs: parseInt(myTimeRaw, 10) }
       : null
 
-  // ── Forsøk RPC-sti ──────────────────────────────────────────────────────────
-  type RankedRow = RawRow & { rank: number; total_count: number }
-  const { data: rankedData, error: rankedError } = await supabaseAdmin.rpc('quiz_leaderboard_ranked', {
-    p_quiz_id: quizId,
-    p_is_team: isTeam,
-    p_page: isBrowse ? page : 1,
-    p_page_size: pageSize,
-    p_search: isBrowse ? search : null,
-  })
-
-  if (!rankedError) {
-    // ── RPC-STI ────────────────────────────────────────────────────────────────
-    const rows = (rankedData ?? []) as RankedRow[]
-    const totalCount = Number(rows[0]?.total_count ?? 0)
-    const entries: LbEntry[] = rows.map(r => toEntry({ ...r, rank: Number(r.rank) }))
-
-    let userEntry: LbEntry | null = null
-    let userRank: number | null = null
-    if (userId) {
-      const [{ data: us }, { data: prof }] = await Promise.all([
-        supabaseAdmin.rpc('quiz_leaderboard_user_stats', { p_quiz_id: quizId, p_is_team: isTeam, p_user_id: userId }),
-        supabaseAdmin.from('profiles').select('display_name, premium_status').eq('id', userId).maybeSingle(),
-      ])
-      userIsPremium = prof?.premium_status === true
-      const row = (us ?? [])[0] as (RawRow & { rank: number }) | undefined
-      if (row) {
-        userRank = Number(row.rank)
-        userEntry = toEntry({ ...row, rank: Number(row.rank), user_id: userId, is_team: isTeam })
-      }
-    }
-
-    let guestRank: number | null = null
-    if (guestScore && !Number.isNaN(guestScore.correct) && !Number.isNaN(guestScore.timeMs)) {
-      const { data: bc } = await supabaseAdmin.rpc('quiz_leaderboard_better_count', {
-        p_quiz_id: quizId, p_is_team: isTeam, p_correct: guestScore.correct, p_time_ms: guestScore.timeMs,
-      })
-      guestRank = Number(bc ?? 0) + 1
-    }
-
-    await fetchNicknames(userEntry ? [...entries, userEntry] : entries)
-
-    return NextResponse.json({
-      entries, totalCount, userEntry, userRank, guestRank,
-      userIsPremium, page, pageSize, isTeam,
-    })
-  }
-
-  // ── JS-FALLBACK (pre-migrasjon) ──────────────────────────────────────────────
-  console.warn('[leaderboard] RPC quiz_leaderboard_ranked utilgjengelig, bruker JS-fallback:', rankedError?.message)
-
+  // ── Delt rangerings-helper (service role) ────────────────────────────────────
+  // Henter alle rader for rommet (solo/lag), filtrerer på submitted, dedup'er per
+  // spiller og rangerer med 4-nøkkels tiebreak. Søk/paginering skjer i JS etterpå.
   const { data: allRowsRaw } = await supabaseAdmin
     .from('attempts')
     .select(SELECT_COLS)
@@ -176,7 +121,10 @@ export async function GET(
     .eq('is_team', isTeam)
     .limit(5000)
 
-  const ranked = rankRows((allRowsRaw ?? []) as RawRow[])
+  const ranked = rankQuizAttempts((allRowsRaw ?? []) as RawRow[], {
+    includeGuests: true,
+    requireSubmitted: true,
+  })
   const totalAll = ranked.length
 
   // Premium-status (fallback)

@@ -1513,22 +1513,26 @@ export default function QuizPage() {
         }
       } catch { /* snapshot feilet — fall through til fallback */ }
       if (!placementSet) {
-        const { data: allAttempts } = await supabaseData
-          .from('attempts')
-          .select('correct_answers, total_time_ms')
-          .eq('quiz_id', quizId)
-        if (allAttempts && allAttempts.length > 0) {
-          const total = allAttempts.length
-          const better = allAttempts.filter(a =>
-            a.correct_answers > correct ||
-            (a.correct_answers === correct && a.total_time_ms < finalTimeMs)
-          ).length
-          const strictlyWorse = allAttempts.filter(a =>
-            a.correct_answers < correct ||
-            (a.correct_answers === correct && a.total_time_ms > finalTimeMs)
-          ).length
-          setEstimatedPlacement({ low: better + 1, high: total - strictlyWorse, total })
-        }
+        // Fallback via leaderboard-API-et (samme delte rangerings-helper) i stedet
+        // for en usortert/udedupert anon-spørring. Anon-klienten kan uansett ikke
+        // lese user_id lenger (kolonne-lås), så server-ruten er eneste korrekte vei.
+        try {
+          const params = new URLSearchParams()
+          if (playerInfo?.isTeam) params.set('is_team', 'true')
+          if (!finishSess?.access_token) {
+            params.set('my_correct', String(correct))
+            params.set('my_time', String(finalTimeMs))
+          }
+          const lbRes = await fetch(`/api/leaderboard/${quizId}?${params.toString()}`, {
+            headers: finishSess?.access_token ? { Authorization: `Bearer ${finishSess.access_token}` } : {},
+          })
+          if (lbRes.ok) {
+            const lb: { userRank?: number | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
+            const rank = lb.userRank ?? lb.guestRank ?? null
+            const total = lb.totalCount ?? 0
+            if (rank && total > 1) setEstimatedPlacement({ low: rank, high: rank, total })
+          }
+        } catch { /* fallback feilet — la plassering være uoppgitt */ }
       }
     } catch {
       const isLate = quiz?.closes_at && new Date(quiz.closes_at) < new Date()

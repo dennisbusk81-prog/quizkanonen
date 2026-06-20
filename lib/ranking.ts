@@ -67,6 +67,73 @@ export function rankAttempts(attempts: Attempt[]): RankedAttempt[] {
   })
 }
 
+// ── Delt rangerings-helper for quiz-resultater ───────────────────────────────
+// Brukes av Topp 3, quiz-leaderboard, toppliste (last_quiz) og resultatskjermen
+// for å garantere IDENTISK #1 overalt. Tidligere divergerte de tre flatene på
+// filter, dedup-nøkkel og tiebreak, noe som ga ulik vinner og duplikate rader.
+//
+// Regler:
+//  1. Filter: kun innsendte forsøk (submitted_at IS NOT NULL) når requireSubmitted.
+//  2. Dedup: beste forsøk per spiller. Nøkkel = user_id hvis satt, ellers
+//     `name:<player_name>` for gjester.
+//  3. Gjester: inkluderes når includeGuests (Topp 3 + leaderboard), ekskluderes
+//     ellers (toppliste/sesong, der kun innloggede teller).
+//  4. Tiebreak (4 nøkler, total ordning — ingen delte plasseringer):
+//     correct_answers DESC, total_time_ms ASC, correct_streak DESC, id ASC.
+
+export interface RankableAttempt {
+  id: string
+  user_id: string | null
+  player_name: string
+  correct_answers: number
+  total_time_ms: number
+  correct_streak: number | null
+  submitted_at?: string | null
+}
+
+export interface RankQuizOptions {
+  /** Inkluder gjester (user_id = null). Default true. */
+  includeGuests?: boolean
+  /** Krev submitted_at IS NOT NULL. Default true. */
+  requireSubmitted?: boolean
+}
+
+// Total ordning: returnerer < 0 hvis a skal rangeres foran b.
+export function compareAttempts(a: RankableAttempt, b: RankableAttempt): number {
+  if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
+  if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
+  const sd = (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
+  if (sd !== 0) return sd
+  return a.id.localeCompare(b.id)
+}
+
+export function rankQuizAttempts<T extends RankableAttempt>(
+  attempts: T[],
+  options: RankQuizOptions = {},
+): Array<T & { rank: number }> {
+  const { includeGuests = true, requireSubmitted = true } = options
+
+  // 1 + 3. Filtrer
+  const filtered = attempts.filter(a => {
+    if (requireSubmitted && a.submitted_at == null) return false
+    if (!includeGuests && a.user_id == null) return false
+    return true
+  })
+
+  // 2. Dedup — behold beste forsøk per spiller
+  const bestByKey = new Map<string, T>()
+  for (const a of filtered) {
+    const key = a.user_id ?? `name:${a.player_name}`
+    const existing = bestByKey.get(key)
+    if (!existing || compareAttempts(a, existing) < 0) bestByKey.set(key, a)
+  }
+
+  // 4. Sorter + tildel plassering (1-basert, total ordning)
+  return [...bestByKey.values()]
+    .sort(compareAttempts)
+    .map((a, i) => ({ ...a, rank: i + 1 }))
+}
+
 export function getMedal(rank: number): string {
   if (rank === 1) return '🥇'
   if (rank === 2) return '🥈'

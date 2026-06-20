@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rankQuizAttempts } from '@/lib/ranking'
 
 // ── Topp 3 på resultatsiden — tilgjengelig for ALLE brukere ──────────────────
-// Henter beste attempt per unik player_name, deretter topp 3.
-// Supabase JS støtter ikke DISTINCT ON — deduplisering skjer i JS.
+// Bruker den delte rangerings-helperen (lib/ranking) slik at #1 her er identisk
+// med quiz-leaderboard og toppliste. Gjester inkluderes (alle som spilte quizen).
 
 export async function GET(
   request: NextRequest,
@@ -12,32 +13,21 @@ export async function GET(
   const { id: quizId } = await params
   if (!quizId) return NextResponse.json({ top3: [] })
 
-  // Hent nok rader til å dekke alle unike spillere i toppen
+  // Hent alle solo-forsøk; helperen filtrerer (submitted), dedup'er og rangerer.
   const { data, error } = await supabaseAdmin
     .from('attempts')
-    .select('id, user_id, player_name, correct_answers, total_time_ms')
+    .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
-    .not('submitted_at', 'is', null)
-    .not('correct_streak', 'is', null)
-    .order('correct_answers', { ascending: false })
-    .order('total_time_ms', { ascending: true })
-    .limit(200)
+    .limit(5000)
 
   if (error) {
     console.error('[quiz/top3] feil:', { quizId, error: error.message })
     return NextResponse.json({ top3: [] })
   }
 
-  // Beste attempt per unik player_name (allerede sortert: første treff per navn er best)
-  const seen = new Set<string>()
-  const top3: NonNullable<typeof data> = []
-  for (const row of (data ?? [])) {
-    if (!row.player_name || seen.has(row.player_name)) continue
-    seen.add(row.player_name)
-    top3.push(row)
-    if (top3.length === 3) break
-  }
+  const ranked = rankQuizAttempts(data ?? [], { includeGuests: true, requireSubmitted: true })
+  const top3 = ranked.slice(0, 3)
 
   // Kallenavn for de innloggede topp-3-spillerne
   const userIds = top3.map(r => r.user_id).filter((id): id is string => !!id)
