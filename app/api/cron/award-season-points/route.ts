@@ -1,53 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import {
+  getSeasonPoints as getPoints,
+  pickBestSeasonAttempt as pickBestAttempt,
+  rankSeasonAttempts as rankBestAttempts,
+  type SeasonAttempt as RawAttempt,
+} from '@/lib/season-points'
 
-const POINTS_TABLE = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]
 const BATCH_SIZE = 10
-
-function getPoints(rank: number): number {
-  return rank <= 10 ? POINTS_TABLE[rank - 1] : 1
-}
-
-type RawAttempt = {
-  user_id: string
-  correct_answers: number
-  total_time_ms: number
-  correct_streak: number | null
-}
-
-function pickBestAttempt(a: RawAttempt, b: RawAttempt): RawAttempt {
-  if (b.correct_answers > a.correct_answers) return b
-  if (b.correct_answers === a.correct_answers && b.total_time_ms < a.total_time_ms) return b
-  if (
-    b.correct_answers === a.correct_answers &&
-    b.total_time_ms === a.total_time_ms &&
-    (b.correct_streak ?? 0) > (a.correct_streak ?? 0)
-  ) return b
-  return a
-}
-
-type Ranked = { userId: string; rank: number }
-
-function rankBestAttempts(bestByUser: Map<string, RawAttempt>): Ranked[] {
-  const sorted = [...bestByUser.entries()].sort(([, a], [, b]) => {
-    if (b.correct_answers !== a.correct_answers) return b.correct_answers - a.correct_answers
-    if (a.total_time_ms !== b.total_time_ms) return a.total_time_ms - b.total_time_ms
-    return (b.correct_streak ?? 0) - (a.correct_streak ?? 0)
-  })
-  const result: Ranked[] = []
-  for (let i = 0; i < sorted.length; i++) {
-    let rank = i + 1
-    if (i > 0) {
-      const [, prev] = sorted[i - 1]
-      const [, cur] = sorted[i]
-      if (cur.correct_answers === prev.correct_answers && cur.total_time_ms === prev.total_time_ms) {
-        rank = result[i - 1].rank
-      }
-    }
-    result.push({ userId: sorted[i][0], rank })
-  }
-  return result
-}
 
 type ScoreRow = {
   user_id: string

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import {
+  getSeasonPoints,
+  bestSeasonAttemptsByUser,
+  rankSeasonAttempts,
+  type SeasonAttempt,
+} from '@/lib/season-points'
 
 // GET /api/rivalries/my — returns active + pending rivalries, plus declined from this month
 export async function GET(request: NextRequest) {
@@ -65,22 +71,49 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fetch season scores for current month (global scope) for all involved user IDs
+  // Duell-stilling beregnes direkte fra attempts (ikke season_scores), slik at
+  // den teller korrekt også for brukere som har valgt seg ut av global liga og
+  // derfor mangler season_scores-rader. En duell er en privat, gjensidig avtalt
+  // sammenligning og skal alltid vise sanne tall. Bruker samme poengmodell som
+  // season_scores (delt i lib/season-points).
   const allUserIds = [user.id, ...uniqueOpponentIds]
+  const involvedSet = new Set(allUserIds)
+  const pointsMap = new Map<string, number>()
 
-  const { data: seasonScores } = await supabaseAdmin
-    .from('season_scores')
-    .select('user_id, points')
-    .eq('scope_type', 'global')
-    .is('scope_id', null)
+  // Quizer som har stengt inneværende måned — samme datasett season_scores dekker
+  const { data: monthQuizzes } = await supabaseAdmin
+    .from('quizzes')
+    .select('id')
     .gte('closes_at', monthStart)
     .lt('closes_at', monthEnd)
-    .in('user_id', allUserIds)
+    .lte('closes_at', now.toISOString())
+  const quizIds = (monthQuizzes ?? []).map((q: { id: string }) => q.id)
 
-  // Sum points per user
-  const pointsMap = new Map<string, number>()
-  for (const row of (seasonScores ?? []) as { user_id: string; points: number }[]) {
-    pointsMap.set(row.user_id, (pointsMap.get(row.user_id) ?? 0) + row.points)
+  if (quizIds.length > 0) {
+    const { data: monthAttempts } = await supabaseAdmin
+      .from('attempts')
+      .select('user_id, quiz_id, correct_answers, total_time_ms, correct_streak')
+      .in('quiz_id', quizIds)
+      .eq('is_team', false)
+      .not('user_id', 'is', null)
+      .not('submitted_at', 'is', null)
+
+    // Grupper per quiz, rangér globalt (alle spillere), tildel poeng til de
+    // involverte brukerne. Rangering må skje mot HELE feltet, ikke kun de to
+    // duellantene, for at plassering og dermed poeng skal bli riktig.
+    const byQuiz = new Map<string, SeasonAttempt[]>()
+    for (const a of (monthAttempts ?? []) as (SeasonAttempt & { quiz_id: string })[]) {
+      if (!byQuiz.has(a.quiz_id)) byQuiz.set(a.quiz_id, [])
+      byQuiz.get(a.quiz_id)!.push(a)
+    }
+    for (const quizAttempts of byQuiz.values()) {
+      const bestByUser = bestSeasonAttemptsByUser(quizAttempts)
+      for (const { userId, rank } of rankSeasonAttempts(bestByUser)) {
+        if (involvedSet.has(userId)) {
+          pointsMap.set(userId, (pointsMap.get(userId) ?? 0) + getSeasonPoints(rank))
+        }
+      }
+    }
   }
 
   const result = rows
