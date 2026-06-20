@@ -226,7 +226,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
+    console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms | totalCount=${totalCount} entries=${entries.length} page=${page} pageSize=${PAGE_SIZE}`)
     return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: PAGE_SIZE })
   }
 
