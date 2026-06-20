@@ -282,6 +282,7 @@ export default function AdminCodes() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const [codeType, setCodeType] = useState<'campaign' | 'personal'>('campaign')
   const [form, setForm] = useState({ code: '', description: '', valid_days: '60', max_uses: '100' })
   const [mounted, setMounted] = useState(false)
 
@@ -384,7 +385,7 @@ export default function AdminCodes() {
             <Link href="/admin" className="ac-back">← Admin</Link>
             <h1 className="ac-title">Verdi<em>koder</em></h1>
           </div>
-          <button onClick={() => setShowForm(!showForm)} className="ac-btn-add">
+          <button onClick={() => { setShowForm(!showForm); setCodeType('campaign'); setForm({ code: '', description: '', valid_days: '60', max_uses: '100' }) }} className="ac-btn-add">
             {showForm ? '✕ Avbryt' : '+ Ny kode'}
           </button>
         </header>
@@ -401,6 +402,46 @@ export default function AdminCodes() {
           <div className="ac-form">
             <p className="ac-form-title">Ny verdikode</p>
 
+            {/* Kodetype */}
+            <div className="ac-field">
+              <label className="ac-label">Kodetype</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {([
+                  { value: 'campaign', label: 'Kampanjekode', sub: '60 dager · 100 brukere' },
+                  { value: 'personal', label: 'Engangskode til én person', sub: '365 dager · 1 bruker' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setCodeType(opt.value)
+                      if (opt.value === 'personal') {
+                        setForm(f => ({ ...f, valid_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
+                      } else {
+                        setForm(f => ({ ...f, valid_days: '60', max_uses: '100' }))
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      background: codeType === opt.value ? 'rgba(201,168,76,0.10)' : 'transparent',
+                      border: codeType === opt.value ? '1px solid rgba(201,168,76,0.4)' : '1px solid #2a2d38',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      textAlign: 'left' as const,
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                  >
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: codeType === opt.value ? '#c9a84c' : '#e8e4dd', marginBottom: 2 }}>
+                      {opt.label}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11, color: '#7a7873' }}>{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="ac-field">
               <label className="ac-label">Kode</label>
               <input type="text" value={form.code}
@@ -413,7 +454,7 @@ export default function AdminCodes() {
               <label className="ac-label">Beskrivelse</label>
               <input type="text" value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="F.eks. Gratis tilgang til betatestere"
+                placeholder={codeType === 'personal' ? 'F.eks. Gave til Marte' : 'F.eks. Gratis tilgang til betatestere'}
                 className="ac-input" />
             </div>
 
@@ -423,6 +464,10 @@ export default function AdminCodes() {
                 <input type="number" value={form.valid_days}
                   onChange={e => setForm(f => ({ ...f, valid_days: e.target.value }))}
                   className="ac-input" />
+                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                  Styrer hvor lenge koden kan løses inn.<br />
+                  Premium brukeren får er alltid permanent.
+                </p>
               </div>
               <div>
                 <label className="ac-label">Maks brukere</label>
