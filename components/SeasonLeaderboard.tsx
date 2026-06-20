@@ -575,7 +575,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const isPremium     = data?.userIsPremium === true
   const totalCount    = data?.totalCount ?? 0
   const userRank      = data?.userRank ?? null
-  const totalPages    = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const totalPages    = Math.max(1, Math.ceil(totalCount / (data?.pageSize ?? PAGE_SIZE)))
   const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
   const searching     = browseMode && search.trim() !== ''
   // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
