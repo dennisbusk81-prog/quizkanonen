@@ -1318,6 +1318,11 @@ export default async function Home() {
             </Link>
           </div>
 
+          {/* Org card — bedriftsliga, kun for org-medlemmer */}
+          <ErrorBoundary>
+            <OrgCard />
+          </ErrorBoundary>
+
           {/* League card — klient-komponent for at velger + localStorage skal fungere */}
           {leagueDataArr.length > 0 && (
             <LeagueCard leagues={leagueDataArr} />
