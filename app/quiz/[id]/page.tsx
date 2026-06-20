@@ -722,6 +722,7 @@ export default function QuizPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
+  const [nextLoadFailed, setNextLoadFailed] = useState(false)
   const [orgQuizOpensAt, setOrgQuizOpensAt] = useState<string | null>(null)
   const [orgQuizClosesAt, setOrgQuizClosesAt] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string | null>(null)
@@ -826,18 +827,23 @@ export default function QuizPage() {
         .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
       if (playedError) console.error('played_log fetch feilet:', playedError)
 
-      // For innloggede: sjekk mot attempts-tabellen (omgår localStorage/deviceId)
+      // For innloggede: sjekk replay-status server-side (service_role). Klienten
+      // kan ikke lenger lese egne user_id/uferdige attempts direkte etter
+      // 20260616190001_attempts_hide_user_id.sql, så denne sjekken må skje på
+      // server. Kun "innsendt forsøk finnes" blokkerer (already_played).
       let playedAsUser = false
       if (!played) {
         const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (currentSession?.user?.id) {
-          const { data: existingAttempt } = await supabaseData
-            .from('attempts')
-            .select('id')
-            .eq('quiz_id', quizId)
-            .eq('user_id', currentSession.user.id)
-            .maybeSingle()
-          playedAsUser = !!existingAttempt
+        if (currentSession?.access_token) {
+          try {
+            const r = await fetch(`/api/quiz/${quizId}/my-attempt`, {
+              headers: { Authorization: `Bearer ${currentSession.access_token}` },
+            })
+            if (r.ok) {
+              const j = await r.json()
+              playedAsUser = j.played === true
+            }
+          } catch { /* nettverksfeil — la brukeren forsøke å spille */ }
         }
       }
 
@@ -1334,6 +1340,8 @@ export default function QuizPage() {
 
     const nextIndex = currentIndex + 1
     // Hent neste spørsmål (med kun sin egen fasit) før det vises i interlude.
+    // Ved feil: behold fremgang og tilby "Prøv igjen" (kaller goToNext på nytt)
+    // i stedet for å la brukeren bli stående uten vei videre.
     if (!questions[nextIndex]) {
       try {
         const r = await fetchQuestionAt(nextIndex, attemptId)
@@ -1342,9 +1350,9 @@ export default function QuizPage() {
           copy[nextIndex] = r.question
           return copy
         })
+        setNextLoadFailed(false)
       } catch {
-        setFinishSaveError('Kunne ikke laste neste spørsmål — sjekk internettforbindelsen din')
-        setTimeout(() => setFinishSaveError(null), 5000)
+        setNextLoadFailed(true)
         return
       }
     }
@@ -1965,6 +1973,21 @@ export default function QuizPage() {
       {finishSaveError && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 20px', fontSize: 13, color: '#e8e4dd', zIndex: 9999, whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
           {finishSaveError}
+        </div>
+      )}
+
+      {/* Kunne ikke laste neste spørsmål — tilby retry uten å miste fremgang */}
+      {nextLoadFailed && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: 'calc(100% - 32px)' }}>
+          <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+            Kunne ikke laste neste spørsmål. Fremgangen din er trygg.
+          </p>
+          <button
+            onClick={() => { setNextLoadFailed(false); goToNext() }}
+            style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+          >
+            Prøv igjen
+          </button>
         </div>
       )}
 

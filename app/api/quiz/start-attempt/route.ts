@@ -101,6 +101,23 @@ export async function POST(request: NextRequest) {
     if (existing) {
       return NextResponse.json({ error: 'Du har allerede spilt denne quizen', alreadyPlayed: true }, { status: 409 })
     }
+
+    // Gjenbruk eksisterende UFERDIG forsøk (submitted_at NULL) i stedet for å
+    // opprette en ny rad. Dette hindrer duplikate attempts-rader når brukeren
+    // laster siden på nytt / fortsetter etter en hang. limit(1) gjør maybeSingle
+    // trygg selv om historiske duplikater finnes.
+    const { data: unfinished } = await supabaseAdmin
+      .from('attempts')
+      .select('id')
+      .eq('quiz_id', quizId)
+      .eq('user_id', userId)
+      .is('submitted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (unfinished) {
+      return NextResponse.json({ attemptId: unfinished.id, reused: true })
+    }
   }
 
   // ── Antall spørsmål (settes ved opprettelse, brukes i resultatvisning) ─────────
@@ -131,6 +148,20 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (insertError || !inserted) {
+    // Unik constraint (attempts_user_quiz_unique) traff pga. samtidig forespørsel
+    // — hent og gjenbruk den eksisterende uferdige raden i stedet for å feile.
+    if (insertError?.code === '23505' && userId) {
+      const { data: race } = await supabaseAdmin
+        .from('attempts')
+        .select('id')
+        .eq('quiz_id', quizId)
+        .eq('user_id', userId)
+        .is('submitted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (race) return NextResponse.json({ attemptId: race.id, reused: true })
+    }
     console.error('[start-attempt] insert feilet:', insertError?.message)
     return NextResponse.json({ error: 'Kunne ikke starte forsøket' }, { status: 500 })
   }
