@@ -224,7 +224,17 @@ const styles = `
 
   .qk-btn-primary:hover:not(:disabled) { background: #d9b85c; transform: translateY(-1px); }
   .qk-btn-primary:active:not(:disabled) { transform: scale(0.98); }
-  .qk-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .qk-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .qk-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(26,28,35,0.3);
+    border-top-color: #1a1c23;
+    border-radius: 50%;
+    animation: qkSpin 0.6s linear infinite;
+  }
+  @keyframes qkSpin { to { transform: rotate(360deg); } }
 
   .qk-btn-secondary {
     width: 100%;
@@ -723,6 +733,10 @@ export default function QuizPage() {
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
   const [nextLoadFailed, setNextLoadFailed] = useState(false)
+  const [isAdvancing, setIsAdvancing] = useState(false)
+  // Re-entry-guard for goToNext: ref leses synkront (state-oppdatering er asynkron
+  // og rekker ikke å blokkere et raskt andre-klikk i samme tick).
+  const advancingRef = useRef(false)
   const [orgQuizOpensAt, setOrgQuizOpensAt] = useState<string | null>(null)
   const [orgQuizClosesAt, setOrgQuizClosesAt] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string | null>(null)
@@ -1315,6 +1329,11 @@ export default function QuizPage() {
   }
 
   const goToNext = async () => {
+    // Re-entry-guard: ignorer raske dobbeltklikk mens et forsøk allerede pågår.
+    if (advancingRef.current) return
+    advancingRef.current = true
+    setIsAdvancing(true)
+
     // Rydd opp alle løpende animasjonstimere og inline-stiler
     animationTimeoutsRef.current.forEach(clearTimeout)
     animationTimeoutsRef.current = []
@@ -1335,6 +1354,8 @@ export default function QuizPage() {
     const isLast = currentIndex === totalQuestions - 1
     if (isLast) {
       await finishQuiz()
+      advancingRef.current = false
+      setIsAdvancing(false)
       return
     }
 
@@ -1353,6 +1374,9 @@ export default function QuizPage() {
         setNextLoadFailed(false)
       } catch {
         setNextLoadFailed(true)
+        // Frigi guarden slik at "Prøv igjen"-knappen kan kalle goToNext på nytt.
+        advancingRef.current = false
+        setIsAdvancing(false)
         return
       }
     }
@@ -1404,6 +1428,10 @@ export default function QuizPage() {
     setInterQLeft(qLeft)
     setPendingNextIndex(nextIndex)
     setInterPhase('in')
+    // Mellomskjermen vises nå (overlay over svarkortet) — frigi guarden slik at
+    // neste spørsmåls "Neste"-knapp ikke står låst.
+    advancingRef.current = false
+    setIsAdvancing(false)
   }
 
   const handleInterludeNext = useCallback(() => {
@@ -2089,9 +2117,18 @@ export default function QuizPage() {
                 <div className="qk-explanation">{question.explanation}</div>
               )}
               <div className="qk-next-btn-wrap">
-                <button onClick={goToNext} className="qk-btn-primary">
-                  {currentIndex === totalQuestions - 1 ? 'Se resultatet' : 'Neste spørsmål'}
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+                <button onClick={goToNext} disabled={isAdvancing} className="qk-btn-primary">
+                  {isAdvancing ? (
+                    <>
+                      Laster…
+                      <span className="qk-spinner" aria-hidden="true" />
+                    </>
+                  ) : (
+                    <>
+                      {currentIndex === totalQuestions - 1 ? 'Se resultatet' : 'Neste spørsmål'}
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
