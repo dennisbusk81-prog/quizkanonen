@@ -456,6 +456,8 @@ export default function QuizAnalytics() {
   const [attempts, setAttempts] = useState<AttemptRow[]>([])
   const [answers, setAnswers] = useState<AnswerRow[]>([])
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([])
+  const [orgCount, setOrgCount] = useState(0)
+  const [orgBreakdown, setOrgBreakdown] = useState<{ name: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedOpts, setExpandedOpts] = useState<Set<string>>(new Set())
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null)
@@ -481,6 +483,8 @@ export default function QuizAnalytics() {
       setAttempts(data.attempts)
       setAnswers(data.answers)
       setTopPlayers(data.topPlayers ?? [])
+      setOrgCount(data.orgCount ?? 0)
+      setOrgBreakdown(data.orgBreakdown ?? [])
     } catch (e) {
       console.error('fetchData feilet:', e)
     } finally {
@@ -670,11 +674,11 @@ export default function QuizAnalytics() {
 
             <div className="an-stats">
               {[
-                { label: 'Gjennomspillinger', value: totalStarts },
+                { label: 'Deltakere totalt', value: totalStarts },
                 { label: 'Gjennomsnittsscore', value: `${avgScore}%` },
                 { label: 'Snitt spilletid', value: formatTime(avgTimeSec) },
                 { label: 'Enkeltspillere', value: soloCount },
-                { label: 'Lag', value: teamCount },
+                { label: 'Fra bedrifter', value: orgCount },
               ].map(s => (
                 <div key={s.label} className="an-stat">
                   <div className="an-stat-value">{s.value}</div>
@@ -682,6 +686,30 @@ export default function QuizAnalytics() {
                 </div>
               ))}
             </div>
+
+            {orgBreakdown.length > 0 && (
+              <div style={{
+                background: '#21242e',
+                border: '1px solid #2a2d38',
+                borderRadius: 16,
+                padding: '16px 20px',
+                marginBottom: 8,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px 24px',
+                alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#7a7873', flexShrink: 0 }}>
+                  Bedrifter
+                </span>
+                {orgBreakdown.map(o => (
+                  <span key={o.name} style={{ fontSize: 13, color: '#e8e4dd' }}>
+                    {o.name}
+                    <span style={{ color: '#7a7873', marginLeft: 6 }}>{o.count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Topp spillere */}
             {topPlayers.length > 0 && (

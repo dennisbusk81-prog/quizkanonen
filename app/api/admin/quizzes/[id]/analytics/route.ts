@@ -30,7 +30,7 @@ export async function GET(
   ] = await Promise.all([
     supabaseAdmin.from('quizzes').select('*').eq('id', id).single(),
     supabaseAdmin.from('questions').select('*').eq('quiz_id', id).order('order_index'),
-    supabaseAdmin.from('attempts').select('*').eq('quiz_id', id),
+    supabaseAdmin.from('attempts').select('*').eq('quiz_id', id).not('submitted_at', 'is', null),
   ])
   const err = e1 ?? e2 ?? e3
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })
@@ -113,5 +113,33 @@ export async function GET(
     user_id: a.user_id,
   }))
 
-  return NextResponse.json({ quiz, questions: questions ?? [], attempts: attempts ?? [], answers, topPlayers })
+  // Org breakdown — count unique participants who belong to any organization
+  const participantUserIds = [...new Set(((attempts ?? []) as AttemptRaw[]).map(a => a.user_id).filter((uid): uid is string => !!uid))]
+  let orgCount = 0
+  let orgBreakdown: { name: string; count: number }[] = []
+  if (participantUserIds.length > 0) {
+    const { data: orgMembers } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id, organization_id')
+      .in('user_id', participantUserIds)
+    if (orgMembers && orgMembers.length > 0) {
+      const orgUserIds = new Set(orgMembers.map(m => m.user_id as string))
+      orgCount = orgUserIds.size
+      const orgIds = [...new Set(orgMembers.map(m => m.organization_id as string))]
+      const { data: orgs } = await supabaseAdmin.from('organizations').select('id, name').in('id', orgIds)
+      const orgNameMap = new Map((orgs ?? []).map(o => [o.id as string, o.name as string]))
+      const countByOrg = new Map<string, Set<string>>()
+      for (const m of orgMembers) {
+        const uid = m.user_id as string
+        const oid = m.organization_id as string
+        if (!countByOrg.has(oid)) countByOrg.set(oid, new Set())
+        countByOrg.get(oid)!.add(uid)
+      }
+      orgBreakdown = [...countByOrg.entries()]
+        .map(([oid, users]) => ({ name: orgNameMap.get(oid) ?? 'Ukjent', count: users.size }))
+        .sort((a, b) => b.count - a.count)
+    }
+  }
+
+  return NextResponse.json({ quiz, questions: questions ?? [], attempts: attempts ?? [], answers, topPlayers, orgCount, orgBreakdown })
 }
