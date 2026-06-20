@@ -59,7 +59,7 @@ function formatMemberNumber(n: number): string {
 }
 
 type LoadState = 'loading' | 'ready' | 'error'
-type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }
+type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean; globalLeagueOptOut: boolean | null }
 
 export default function ProfilPage() {
   const router = useRouter()
@@ -84,6 +84,7 @@ export default function ProfilPage() {
   const [prefSavedKey, setPrefSavedKey] = useState<string | null>(null)
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [orgs, setOrgs] = useState<OrgEntry[]>([])
+  const [globalPrefSavedOrg, setGlobalPrefSavedOrg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -372,6 +373,26 @@ export default function ProfilPage() {
       setPrefSavedKey(key)
       setTimeout(() => setPrefSavedKey(null), 2000)
     } catch { /* silent — optimistic update already applied */ }
+  }
+
+  async function handleToggleGlobalLeague(org: OrgEntry) {
+    // Synlig nasjonalt = ikke aktivt fravalgt. Toggling setter eksplisitt verdi.
+    const visible = org.globalLeagueOptOut !== true
+    const newOptOut = visible ? true : false
+    setOrgs(prev => prev.map(o => o.orgId === org.orgId ? { ...o, globalLeagueOptOut: newOptOut } : o))
+    setGlobalPrefSavedOrg(org.orgId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      await fetch(`/api/org/${org.orgSlug}/league-preference`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ opt_out: newOptOut }),
+      })
+      setTimeout(() => setGlobalPrefSavedOrg(null), 2000)
+    } catch { /* optimistisk oppdatering allerede gjort */ }
   }
 
   function handleToggleEmailReminders() {
@@ -707,6 +728,55 @@ export default function ProfilPage() {
               </div>
             )}
           </div>
+
+          {/* Nasjonal toppliste — kun hvis medlem av minst én org som tillater global liga */}
+          {orgs.some(o => o.allowGlobalLeague) && (
+            <div style={{ ...s.card, marginBottom: 10 }}>
+              <p style={s.sectionLabel}>Nasjonal toppliste</p>
+              <p style={s.fieldHint}>
+                Velg om du vil vises på den nasjonale sesong-topplisten sammen med alle
+                Quizkanonen-spillere. Du kan alltid være med på bedriftens interne liga uansett.
+              </p>
+              {orgs.filter(o => o.allowGlobalLeague).map((org, i) => {
+                const visible = org.globalLeagueOptOut !== true
+                return (
+                  <div key={org.orgId}>
+                    {i > 0 && <div style={s.cardDivider} />}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>
+                          Vis meg nasjonalt
+                        </p>
+                        <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                          {org.orgName}
+                          {globalPrefSavedOrg === org.orgId && <span style={{ color: '#4ade80', marginLeft: 8 }}>Lagret</span>}
+                        </p>
+                      </div>
+                      <div
+                        role="switch"
+                        aria-checked={visible}
+                        onClick={() => handleToggleGlobalLeague(org)}
+                        style={{
+                          width: 42, height: 24, borderRadius: 12,
+                          background: visible ? '#c9a84c' : '#2a2d38',
+                          position: 'relative', cursor: 'pointer', flexShrink: 0,
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute', top: 4,
+                          left: visible ? 22 : 4,
+                          width: 16, height: 16, borderRadius: '50%',
+                          background: visible ? '#1a1c23' : '#7a7873',
+                          transition: 'left 0.15s',
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Statistikk — alltid synlig */}
           <div style={{ ...s.card, marginBottom: 10 }}>

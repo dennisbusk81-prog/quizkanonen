@@ -102,25 +102,29 @@ async function processQuiz(
 
   const userIds = [...bestByUser.keys()]
 
-  // Brukere i orger med allow_global_league=false skal ikke ha global-rad.
-  // Mest restriktiv vinner: false i én org blokkerer global selv om brukeren
-  // også er med i en org med allow_global_league=true.
+  // Brukere skal ikke ha global-rad hvis EN av disse er sanne for noen org de
+  // tilhører: (a) organisasjonens allow_global_league=false (org-tak), eller
+  // (b) brukerens egen membership har global_league_opt_out=true (individuelt
+  // fravalg). Mest restriktiv vinner — begge er uavhengige blokkeringsgrunner.
   const globallyBlockedUserIds = new Set<string>()
   if (userIds.length > 0) {
     const { data: orgMems } = await supabaseAdmin
       .from('organization_members')
-      .select('user_id, organization_id')
+      .select('user_id, organization_id, global_league_opt_out')
       .in('user_id', userIds)
     if (orgMems && orgMems.length > 0) {
-      const orgIds = [...new Set((orgMems as { organization_id: string }[]).map(m => m.organization_id))]
+      type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
+      const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
       const { data: restrictedOrgs } = await supabaseAdmin
         .from('organizations')
         .select('id')
         .in('id', orgIds)
         .eq('allow_global_league', false)
       const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-      for (const m of orgMems as { user_id: string; organization_id: string }[]) {
-        if (restrictedOrgIds.has(m.organization_id)) globallyBlockedUserIds.add(m.user_id)
+      for (const m of orgMems as Mem[]) {
+        if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
+          globallyBlockedUserIds.add(m.user_id)
+        }
       }
     }
   }

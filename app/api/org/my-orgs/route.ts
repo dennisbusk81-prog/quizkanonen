@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const { data: memberships, error: memErr } = await supabaseAdmin
     .from('organization_members')
-    .select('organization_id, role')
+    .select('organization_id, role, global_league_opt_out')
     .eq('user_id', user.id)
 
   if (memErr || !memberships || memberships.length === 0) {
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   const roleByOrg = new Map(memberships.map(m => [m.organization_id, m.role]))
+  const optOutByOrg = new Map(memberships.map(m => [m.organization_id, m.global_league_opt_out ?? null]))
 
   const result = (orgs ?? []).map(o => ({
     orgId:             o.id,
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest) {
     orgSlug:           o.slug,
     isAdmin:           roleByOrg.get(o.id) === 'admin',
     allowGlobalLeague: o.allow_global_league !== false,
+    // null = ikke besvart, true = valgt seg ut, false = valgt seg inn
+    globalLeagueOptOut: (optOutByOrg.get(o.id) ?? null) as boolean | null,
   }))
 
   return NextResponse.json({ orgs: result })

@@ -7,6 +7,7 @@ import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import RivalryCard from '@/components/RivalryCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WelcomeBanner from '@/components/WelcomeBanner'
+import GlobalLeagueChoiceBanner from '@/components/GlobalLeagueChoiceBanner'
 import AccordionSection from '@/components/AccordionSection'
 import NotifyForm from '@/components/NotifyForm'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
@@ -1085,6 +1086,11 @@ export default async function Home() {
         </nav>
 
         <div className="qk-page">
+
+          {/* Global liga-valg — vises kun til org-medlemmer som ikke har besvart */}
+          <ErrorBoundary>
+            <GlobalLeagueChoiceBanner />
+          </ErrorBoundary>
 
           {/* Welcome */}
           <section style={{ paddingTop: 40, paddingBottom: 24 }}>

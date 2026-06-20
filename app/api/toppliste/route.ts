@@ -135,18 +135,21 @@ export async function GET(request: NextRequest) {
       if (attemptUserIds.length > 0) {
         const { data: orgMems } = await supabaseAdmin
           .from('organization_members')
-          .select('user_id, organization_id')
+          .select('user_id, organization_id, global_league_opt_out')
           .in('user_id', attemptUserIds)
         if (orgMems && orgMems.length > 0) {
-          const orgIds = [...new Set((orgMems as { organization_id: string }[]).map(m => m.organization_id))]
+          type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
+          const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
           const { data: restrictedOrgs } = await supabaseAdmin
             .from('organizations')
             .select('id')
             .in('id', orgIds)
             .eq('allow_global_league', false)
           const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-          for (const m of orgMems as { user_id: string; organization_id: string }[]) {
-            if (restrictedOrgIds.has(m.organization_id)) globallyBlockedSet.add(m.user_id)
+          for (const m of orgMems as Mem[]) {
+            if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
+              globallyBlockedSet.add(m.user_id)
+            }
           }
         }
       }
