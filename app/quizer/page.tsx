@@ -31,6 +31,7 @@ const css = `
     max-width: 720px;
     margin: 0 auto;
     padding: 40px 20px 80px;
+    flex: 1;
   }
 
   .qz-back {
@@ -208,8 +209,7 @@ export default async function QuizerPage() {
     .from('quizzes')
     .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
     .eq('is_active', true)
-    .or(`closes_at.is.null,closes_at.gt.${new Date().toISOString()}`)
-    .order('created_at', { ascending: false })
+    .order('opens_at', { ascending: false, nullsFirst: false })
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
 
@@ -249,12 +249,12 @@ export default async function QuizerPage() {
 
         <header className="qz-header">
           <p className="qz-eyebrow">Quizkanonen</p>
-          <h1 className="qz-title">Aktive quizer</h1>
+          <h1 className="qz-title">Alle quizer</h1>
         </header>
 
         {quizList.length === 0 ? (
           <div className="qz-empty">
-            Ingen aktive quizer akkurat nå — kom tilbake på fredag.
+            Ingen quizer ennå — kom tilbake på fredag.
           </div>
         ) : (() => {
           const now = new Date()
