@@ -579,7 +579,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
   const searching     = browseMode && search.trim() !== ''
   // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
-  const showControls  = (isPremium || scope === 'organization') && !isLastQuiz && (totalCount > 10 || browseMode)
+  const showControls  = (isPremium || scope === 'organization') && (totalCount > 10 || browseMode)
   const showJumpToMe  = showControls && userRank != null && !userVisible && !searching
 
   function goToPage(p: number) {

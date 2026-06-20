@@ -109,6 +109,15 @@ export async function GET(request: NextRequest) {
     excludedSet.add(row.id)
   }
 
+  // Paginering og søk — beregnes før last_quiz slik at begge modiene kan bruke dem
+  const pageParamRaw  = searchParams.get('page')
+  const searchRaw     = (searchParams.get('search') ?? '').trim()
+  const isPaginated   = pageParamRaw !== null || searchRaw !== ''
+  const PAGE_SIZE     = isPaginated ? 20 : 10
+  const page          = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
+  const search        = searchRaw === '' ? null : searchRaw
+  const excludedIds   = [...excludedSet]
+
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
     // Hent nyeste quiz som faktisk har minst én attempt (INNER JOIN).
@@ -163,9 +172,16 @@ export async function GET(request: NextRequest) {
 
     const withRanks = rankAttempts([...bestByUser.values()])
 
-    const top10Ids = withRanks.slice(0, 10).map(a => a.user_id)
-    // Inkluder alltid userId for å hente premium_status i samme query (erstatter separat oppslag)
-    const profileIdsSet = new Set(top10Ids)
+    // Søk på player_name (beste tilnærming uten full profilfetch)
+    const filtered = search
+      ? withRanks.filter(a => a.player_name.toLowerCase().includes(search.toLowerCase()))
+      : withRanks
+    const totalCount = filtered.length
+    const pageSlice  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+    // Hent profiler kun for siden + innlogget bruker
+    const pageIds = pageSlice.map(a => a.user_id)
+    const profileIdsSet = new Set(pageIds)
     if (userId) profileIdsSet.add(userId)
     const profileIds = [...profileIdsSet]
 
@@ -179,7 +195,7 @@ export async function GET(request: NextRequest) {
       if (p.id === userId) userIsPremium = p.premium_status === true
     }
 
-    const entries = withRanks.slice(0, 10).map(a => {
+    const entries = pageSlice.map(a => {
       const profile = profileMap.get(a.user_id)
       return {
         rank: a.rank,
@@ -211,22 +227,12 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
-    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at })
+    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: PAGE_SIZE })
   }
 
   // ── PERIOD MODE — sesong-poeng fra season_scores ──────────────────────────
   const periodStart = periodStartParam ?? getPeriodStart(period)
   const periodEnd   = periodEndParam ?? null   // null = ingen øvre grense
-
-  // Nye Premium-moduser: ?page=N (paginering) og ?search= (navnesøk).
-  // Fravær av begge = klassisk topp-10-visning (uendret for gratis-brukere).
-  const pageParamRaw  = searchParams.get('page')
-  const searchRaw     = (searchParams.get('search') ?? '').trim()
-  const isPaginated   = pageParamRaw !== null || searchRaw !== ''
-  const PAGE_SIZE     = isPaginated ? 20 : 10
-  const page          = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
-  const search        = searchRaw === '' ? null : searchRaw
-  const excludedIds   = [...excludedSet]
 
   type EntryOut = {
     rank: number; userId: string; displayName: string; nickname: string | null; avatarUrl: null
