@@ -380,19 +380,7 @@ export default function LigaPage() {
                     )}
                   </div>
 
-                  <div style={{ borderTop: '1px solid #2a2d38', marginTop: 16, paddingTop: 16 }}>
-                    <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 10 }}>
-                      Sletter ligaen permanent — alle medlemmer mister tilgang og alle sesong-poeng slettes. Kan ikke angres.
-                    </p>
-                    <button
-                      onClick={() => { setDeleteModal(true); setDeleteInput(''); setDeleteError(null) }}
-                      style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      Slett liga
-                    </button>
-                  </div>
+
                 </div>
               )}
             </div>
@@ -406,7 +394,7 @@ export default function LigaPage() {
           {/* Eier: Medlemsoversikt */}
           {league?.is_owner && (
             <div style={{ marginTop: 24 }}>
-              {/* Header */}
+              {/* Section header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 14px' }}>
                 <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
                   Medlemsoversikt
@@ -470,6 +458,32 @@ export default function LigaPage() {
               ) : activityData !== null ? (
                 <p style={{ fontSize: 13, color: '#e8e4dd', padding: '16px 0' }}>Ingen medlemmer ennå.</p>
               ) : null}
+            </div>
+          )}
+
+          {/* Eier: Faresone — alltid synlig */}
+          {league?.is_owner && (
+            <div style={{ marginTop: 40 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
+                  Faresone
+                </span>
+                <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+              </div>
+              <div style={{ background: '#21242e', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 16, padding: '20px 20px' }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 6 }}>Slett liga</p>
+                <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+                  Sletter ligaen permanent. Alle medlemmer mister tilgang og alle sesong-poeng fjernes. Kan ikke angres.
+                </p>
+                <button
+                  onClick={() => { setDeleteModal(true); setDeleteInput(''); setDeleteError(null) }}
+                  style={{ fontSize: 13, fontWeight: 600, color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  Slett liga
+                </button>
+              </div>
             </div>
           )}
 
