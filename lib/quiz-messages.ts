@@ -44,7 +44,7 @@ export const quizMessages: Record<QuizMessageCategory, QuizMessage[]> = {
   halftime_bad: [
     { headline: 'Halvtid.', subline: 'Vanskeligere enn du trodde?' },
     { headline: 'Midtpause.', subline: 'Det er fortsatt mulig å snu det.' },
-    { headline: 'Halve veien.', subline: 'Konsentrer deg — nå gjelder det.' },
+    { headline: 'Du er halvveis.', subline: 'Konsentrer deg — nå gjelder det.' },
   ],
 
   final_push: [
@@ -54,8 +54,8 @@ export const quizMessages: Record<QuizMessageCategory, QuizMessage[]> = {
   ],
 
   rival_intro: [
-    { headline: '{rivalName} er å slå.', subline: 'Du er ikke langt unna.' },
-    { headline: 'Duell pågår.', subline: '{rivalName} følger med.' },
-    { headline: 'Jakten er på.', subline: 'Sist uke: {rivalName}.' },
+    { headline: '{rivalName} leder foran deg.', subline: 'Kan du ta igjen?' },
+    { headline: 'Du jakter på {rivalName} akkurat nå.', subline: null },
+    { headline: 'Sist uke vant {rivalName}.', subline: 'Revansje?' },
   ],
 }
