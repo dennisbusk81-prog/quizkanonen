@@ -34,6 +34,44 @@ async function getOrgAdminEmail(organizationId: string): Promise<{ email: string
   return { email: data.user?.email ?? null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
 }
 
+// Sender kjøpsbekreftelse til org-admin. Tåler race condition der admin-medlemsraden
+// ikke er ferdig committet når webhooket ankommer (Dennis sin Elkjøp-betaling 19.6):
+// ett ekstra forsøk etter kort pause. Hopper aldri over stille — manglende felt logges
+// eksplisitt med [webhook] orgPurchaseEmail SKIPPED slik at det er søkbart i Vercel.
+async function sendOrgPurchaseConfirmation(organizationId: string): Promise<void> {
+  let info = await getOrgAdminEmail(organizationId)
+
+  if (!info.email) {
+    // Mulig race: org-checkout-skrivingen er ikke committet ennå. Vent og prøv én gang til.
+    await new Promise(r => setTimeout(r, 1500))
+    info = await getOrgAdminEmail(organizationId)
+  }
+
+  const { email, orgName, orgSlug } = info
+  if (!email || !orgName || !orgSlug) {
+    const missing = [
+      !email && 'email',
+      !orgName && 'orgName',
+      !orgSlug && 'orgSlug',
+    ].filter(Boolean).join(', ')
+    console.error(
+      `[webhook] orgPurchaseEmail SKIPPED — manglende felt: ${missing}. ` +
+      `organization_id=${organizationId}, orgName=${orgName ?? 'null'}, orgSlug=${orgSlug ?? 'null'}`
+    )
+    return
+  }
+
+  try {
+    await sendEmail({
+      to: email,
+      subject: `Velkommen til Quizkanonen for bedrifter — ${orgName}`,
+      html: orgPurchaseEmail(orgName, orgSlug),
+    })
+  } catch (err) {
+    console.error('[webhook] orgPurchaseEmail failed:', err)
+  }
+}
+
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const body = await request.text()
@@ -116,18 +154,9 @@ export async function POST(request: NextRequest) {
         }).in('id', memberIds)
       }
 
-      // Send kjøpsbekreftelse til org-admin — fire-and-forget
-      getOrgAdminEmail(organizationId)
-        .then(({ email, orgName, orgSlug }) => {
-          if (email && orgName && orgSlug) {
-            return sendEmail({
-              to: email,
-              subject: `Velkommen til Quizkanonen for bedrifter — ${orgName}`,
-              html: orgPurchaseEmail(orgName, orgSlug),
-            })
-          }
-        })
-        .catch(err => console.error('[webhook] orgPurchaseEmail failed:', err))
+      // Send kjøpsbekreftelse til org-admin — awaites så funksjonen ikke fryses
+      // av serverless-runtimen før e-posten faktisk er sendt. Egen retry + logging.
+      await sendOrgPurchaseConfirmation(organizationId)
     } else {
       // B2C personal checkout
       const userId = session.metadata?.userId
