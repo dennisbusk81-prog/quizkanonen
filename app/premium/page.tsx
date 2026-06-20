@@ -12,8 +12,7 @@ const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', des
 const FEATURES = [
   'Nøyaktig plassering på leaderboard',
   'Full sesong-toppliste — søk og bla gjennom alle spillere',
-  'H2H Duell — utfordre en fast rival over sesongen',
-  'Historikk og statistikk',
+  'Historikk og statistikk — beste plassering, streak og utvikling over tid',
   'Private ligaer med venner',
 ]
 
