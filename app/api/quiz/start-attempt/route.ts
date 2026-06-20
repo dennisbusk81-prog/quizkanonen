@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       .eq('quiz_id', quizId)
       .eq('user_id', userId)
       .is('submitted_at', null)
-      .order('created_at', { ascending: true })
+      .order('completed_at', { ascending: true, nullsFirst: false })
       .limit(1)
       .maybeSingle()
     if (unfinished) {
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         .eq('quiz_id', quizId)
         .eq('user_id', userId)
         .is('submitted_at', null)
-        .order('created_at', { ascending: true })
+        .order('completed_at', { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle()
       if (race) return NextResponse.json({ attemptId: race.id, reused: true })

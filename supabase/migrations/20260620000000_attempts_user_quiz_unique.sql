@@ -29,7 +29,7 @@
 --          SELECT id, row_number() OVER (
 --            PARTITION BY user_id, quiz_id
 --            ORDER BY (submitted_at IS NOT NULL) DESC, correct_answers DESC,
---                     total_time_ms ASC, created_at DESC
+--                     total_time_ms ASC, completed_at DESC NULLS LAST
 --          ) rn FROM attempts WHERE user_id IS NOT NULL
 --        ) r WHERE r.id = a.id AND r.rn > 1
 --      );
@@ -44,10 +44,10 @@ WITH ranked AS (
     row_number() OVER (
       PARTITION BY user_id, quiz_id
       ORDER BY
-        (submitted_at IS NOT NULL) DESC,  -- innsendt foran uferdig
-        correct_answers DESC,             -- høyest score
-        total_time_ms ASC,                -- raskest tid
-        created_at DESC                   -- ellers nyeste
+        (submitted_at IS NOT NULL) DESC,    -- innsendt foran uferdig
+        correct_answers DESC,               -- høyest score
+        total_time_ms ASC,                  -- raskest tid
+        completed_at DESC NULLS LAST        -- ellers nyeste fullførte
     ) AS rn
   FROM public.attempts
   WHERE user_id IS NOT NULL

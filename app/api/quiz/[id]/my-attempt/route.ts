@@ -43,7 +43,7 @@ export async function GET(
     .eq('quiz_id', quizId)
     .eq('user_id', user.id)
     .is('submitted_at', null)
-    .order('created_at', { ascending: true })
+    .order('completed_at', { ascending: true, nullsFirst: false })
     .limit(1)
     .maybeSingle()
 
