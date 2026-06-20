@@ -579,7 +579,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
   const searching     = browseMode && search.trim() !== ''
   // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
-  const showControls  = isPremium && !isLastQuiz && (totalCount > 10 || browseMode)
+  const showControls  = (isPremium || scope === 'organization') && !isLastQuiz && (totalCount > 10 || browseMode)
   const showJumpToMe  = showControls && userRank != null && !userVisible && !searching
 
   function goToPage(p: number) {
@@ -710,7 +710,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
     if (ue && ue.rank > 10) {
       const initial = ue.displayName[0]?.toUpperCase() ?? '?'
-      if (!data.userIsPremium) {
+      if (!data.userIsPremium && scope !== 'organization') {
         return (
           <>
             <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
