@@ -127,11 +127,37 @@ export async function GET(request: NextRequest) {
       memberSet = new Set((orgMembers ?? []).map((m: { user_id: string }) => m.user_id))
     }
 
+    // Global scope: ekskluder brukere i orger med allow_global_league=false.
+    // Belt-and-suspenders mot cronen — primærfiksen er at disse radene aldri skrives.
+    const globallyBlockedSet = new Set<string>()
+    if (scope === 'global') {
+      const attemptUserIds = [...new Set((rawAttempts as Array<{ user_id: string }>).map(a => a.user_id).filter(Boolean))]
+      if (attemptUserIds.length > 0) {
+        const { data: orgMems } = await supabaseAdmin
+          .from('organization_members')
+          .select('user_id, organization_id')
+          .in('user_id', attemptUserIds)
+        if (orgMems && orgMems.length > 0) {
+          const orgIds = [...new Set((orgMems as { organization_id: string }[]).map(m => m.organization_id))]
+          const { data: restrictedOrgs } = await supabaseAdmin
+            .from('organizations')
+            .select('id')
+            .in('id', orgIds)
+            .eq('allow_global_league', false)
+          const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
+          for (const m of orgMems as { user_id: string; organization_id: string }[]) {
+            if (restrictedOrgIds.has(m.organization_id)) globallyBlockedSet.add(m.user_id)
+          }
+        }
+      }
+    }
+
     // Scope-/eksklusjons-filtrering før rangering (helperen kjenner ikke
     // excluded_members eller liga/org-medlemskap).
     const scopedRows = (rawAttempts as Array<RankableAttempt & { user_id: string }>).filter(a => {
       if (excludedSet.has(a.user_id)) return false
       if (memberSet && !memberSet.has(a.user_id)) return false
+      if (globallyBlockedSet.has(a.user_id)) return false
       return true
     })
 

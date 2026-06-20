@@ -101,20 +101,46 @@ async function processQuiz(
   }
 
   const userIds = [...bestByUser.keys()]
+
+  // Brukere i orger med allow_global_league=false skal ikke ha global-rad.
+  // Mest restriktiv vinner: false i én org blokkerer global selv om brukeren
+  // også er med i en org med allow_global_league=true.
+  const globallyBlockedUserIds = new Set<string>()
+  if (userIds.length > 0) {
+    const { data: orgMems } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id, organization_id')
+      .in('user_id', userIds)
+    if (orgMems && orgMems.length > 0) {
+      const orgIds = [...new Set((orgMems as { organization_id: string }[]).map(m => m.organization_id))]
+      const { data: restrictedOrgs } = await supabaseAdmin
+        .from('organizations')
+        .select('id')
+        .in('id', orgIds)
+        .eq('allow_global_league', false)
+      const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
+      for (const m of orgMems as { user_id: string; organization_id: string }[]) {
+        if (restrictedOrgIds.has(m.organization_id)) globallyBlockedUserIds.add(m.user_id)
+      }
+    }
+  }
+
   let totalRows = 0
 
   try {
     // ── Global scope ───────────────────────────────────────────────────────────
     const globalRanked = rankBestAttempts(bestByUser)
-    const globalRows: ScoreRow[] = globalRanked.map(({ userId, rank }) => ({
-      user_id: userId,
-      quiz_id: quizId,
-      scope_type: 'global',
-      scope_id: null,
-      points: getPoints(rank),
-      rank,
-      closes_at: closesAt,
-    }))
+    const globalRows: ScoreRow[] = globalRanked
+      .filter(({ userId }) => !globallyBlockedUserIds.has(userId))
+      .map(({ userId, rank }) => ({
+        user_id: userId,
+        quiz_id: quizId,
+        scope_type: 'global',
+        scope_id: null,
+        points: getPoints(rank),
+        rank,
+        closes_at: closesAt,
+      }))
     await upsertScores(globalRows)
     totalRows += globalRows.length
     console.log(`[award-season-points]   global: ${globalRows.length} rader`)
