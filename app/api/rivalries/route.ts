@@ -24,26 +24,17 @@ export async function POST(request: NextRequest) {
   if (!rivalId) return NextResponse.json({ error: 'Mangler rival_id' }, { status: 400 })
   if (rivalId === user.id) return NextResponse.json({ error: 'Du kan ikke utfordre deg selv' }, { status: 400 })
 
-  // Challenger must be Premium
-  const { data: challengerProfile } = await supabaseAdmin
-    .from('profiles')
-    .select('premium_status')
-    .eq('id', user.id)
-    .single()
-
-  if (challengerProfile?.premium_status !== true) {
-    return NextResponse.json({ error: 'Du trenger Premium for å utfordre en rival' }, { status: 403 })
-  }
-
-  // Target must be Premium — also fetch display_name for error message (Fix 2)
+  // H2H Duell er gratis for alle innloggede — ingen Premium-krav.
+  // Hent likevel motstanderens profil for navn (feilmelding/e-post) og
+  // e-postpreferanse. Verifiser samtidig at brukeren finnes.
   const { data: rivalProfile } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, display_name, email_duel_notifications')
+    .select('display_name, email_duel_notifications')
     .eq('id', rivalId)
     .single()
 
-  if (!rivalProfile || rivalProfile.premium_status !== true) {
-    return NextResponse.json({ error: 'Motstanderen trenger også Premium for å delta i duell' }, { status: 400 })
+  if (!rivalProfile) {
+    return NextResponse.json({ error: 'Fant ikke motstanderen' }, { status: 400 })
   }
 
   // Fix 1 — only duels created this calendar month count as "active engagements".
@@ -120,9 +111,7 @@ export async function POST(request: NextRequest) {
   // Send e-post til motstanderen — non-blocking, feil stopper ikke responsen
   try {
     const { data: { user: rivalUser } } = await supabaseAdmin.auth.admin.getUserById(rivalId)
-    const challengerName = challengerProfile
-      ? (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
-      : user.email ?? 'En spiller'
+    const challengerName = (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
     if (rivalUser?.email && rivalProfile?.email_duel_notifications !== false) {
       const unsubUrl = buildUnsubscribeUrl(rivalId, 'duel')
       await sendEmail({

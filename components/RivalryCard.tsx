@@ -18,11 +18,10 @@ type RivalryRow = {
 }
 
 type Props = {
-  isPremium: boolean
   prioritySlot?: 'top' | 'default'
 }
 
-export default function RivalryCard({ isPremium, prioritySlot }: Props) {
+export default function RivalryCard({ prioritySlot }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -108,7 +107,8 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
     }
   }
 
-  if (!isPremium) return null
+  // H2H Duell er gratis — vises for alle innloggede brukere (komponenten
+  // rendres kun i innlogget kontekst). Ingen Premium-gating.
   if (loading) return null
 
   // Aktive/ventende dueller (denne måneden)

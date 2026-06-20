@@ -1125,7 +1125,7 @@ export default async function Home() {
 
           {/* Rivalry card — innkommende utfordring vises høyt opp */}
           <ErrorBoundary>
-            <RivalryCard isPremium={isPremium} prioritySlot="top" />
+            <RivalryCard prioritySlot="top" />
           </ErrorBoundary>
 
           {/* Quiz card */}
@@ -1323,9 +1323,9 @@ export default async function Home() {
             <LeagueCard leagues={leagueDataArr} />
           )}
 
-          {/* Rivalry card — H2H Duell (Premium), alle tilstander unntatt incoming */}
+          {/* Rivalry card — H2H Duell (gratis), alle tilstander unntatt incoming */}
           <ErrorBoundary>
-            <RivalryCard isPremium={isPremium} prioritySlot="default" />
+            <RivalryCard prioritySlot="default" />
           </ErrorBoundary>
 
         </div>

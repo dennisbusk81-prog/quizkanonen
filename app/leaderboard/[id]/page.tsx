@@ -652,7 +652,8 @@ export default function LeaderboardPage() {
               {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
             </p>
           </div>
-          {!isUser && isPremium && !attempt.is_team && attempt.user_id && (() => {
+          {/* H2H Duell er gratis — Utfordre vises for alle innloggede, på alle rader unntatt egen */}
+          {!isUser && currentUserId && !attempt.is_team && attempt.user_id && (() => {
             // Fix 4: hide for all users already involved in any duel with me (both sides)
             const involved = duelInvolvedSet.has(attempt.user_id)
             const sent     = challengeSentSet.has(attempt.user_id)
