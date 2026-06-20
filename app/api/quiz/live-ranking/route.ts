@@ -34,12 +34,18 @@ export async function GET(request: NextRequest) {
   const HEADERS = { 'Cache-Control': 'public, s-maxage=30, max-age=0' }
 
   // FIX 6 — add ORDER BY and increase limit to 500
+  // .gt('total_time_ms', 0) = kun fullførte forsøk. Uten dette telles uferdige
+  // forsøk (opprettet ved quiz-start med correct_answers/total_time_ms = 0,
+  // submitted_at NULL) som reelle spillere — det gir en falsk "under deg med 0
+  // riktige"-rad og blåser opp totalPlayers/userRank. Samme filter som
+  // ranking-snapshot/route.ts bruker.
   const { data: rawAttempts } = await supabaseAdmin
     .from('attempts')
     .select('user_id, player_name, correct_answers, total_time_ms')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('user_id', 'is', null)
+    .gt('total_time_ms', 0)
     .order('correct_answers', { ascending: false })
     .order('total_time_ms', { ascending: true })
     .limit(500)

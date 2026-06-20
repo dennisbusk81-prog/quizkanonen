@@ -187,8 +187,8 @@ export default function QuizInterlude({
           </p>
         )}
 
-        {/* Live ranking */}
-        {low !== null && high !== null && (
+        {/* Live ranking — gratis ser estimert spenn, Premium ser eksakt plassering */}
+        {!isPremium && low !== null && high !== null && (
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
@@ -202,6 +202,45 @@ export default function QuizInterlude({
             }}>
               {low}–{high}
             </p>
+          </div>
+        )}
+
+        {/* Premium: eksakt plassering som hovedelement, mini-leaderboard som støtte */}
+        {isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
+          <div style={{ marginBottom: 18 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
+              textTransform: 'uppercase', color: '#7a7873', marginBottom: 6,
+            }}>
+              Din plassering
+            </p>
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
+            }}>
+              {liveRanking.userRank}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
+            </p>
+            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 6 }}>
+              av {liveRanking.totalPlayers} spillere så langt
+            </p>
+
+            {/* Mini-leaderboard — naboer rundt deg. "Du"-raden er hvit (ikke gull)
+                så plasseringstallet over forblir det eneste gule elementet. */}
+            <div style={{ marginTop: 14, lineHeight: 1.8 }}>
+              {liveRanking.above && (
+                <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                  #{liveRanking.userRank - 1} {liveRanking.above.name} · {liveRanking.above.correct} riktige
+                </p>
+              )}
+              <p style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, margin: 0 }}>
+                #{liveRanking.userRank} Du · {score} riktige
+              </p>
+              {liveRanking.below && (
+                <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                  #{liveRanking.userRank + 1} {liveRanking.below.name} · {liveRanking.below.correct} riktige
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -246,25 +285,6 @@ export default function QuizInterlude({
           }}>
             Du er bedre enn {percentileEntry.percentile}% av deltakerne
           </p>
-        )}
-
-        {/* Live mini-leaderboard — Premium only */}
-        {isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
-          <div style={{ marginBottom: 20, lineHeight: 1.8 }}>
-            {liveRanking.above && (
-              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
-                #{liveRanking.userRank - 1} {liveRanking.above.name} · {liveRanking.above.correct} riktige
-              </p>
-            )}
-            <p style={{ fontSize: 14, color: '#c9a84c', fontWeight: 600, margin: 0 }}>
-              #{liveRanking.userRank} Du · {score} riktige
-            </p>
-            {liveRanking.below && (
-              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
-                #{liveRanking.userRank + 1} {liveRanking.below.name} · {liveRanking.below.correct} riktige
-              </p>
-            )}
-          </div>
         )}
 
         {/* Score line */}
