@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 type QuizRow = {
   id: string
   title: string
-  allow_teams: boolean
+
   requires_access_code: boolean
   time_limit_seconds: number | null
   opens_at: string | null
@@ -207,7 +207,7 @@ function getQuizStatus(opensAt: string | null, closesAt: string | null, now: Dat
 export default async function QuizerPage() {
   const { data: quizzes } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
+    .select('id, title, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
     .eq('is_active', true)
     .order('opens_at', { ascending: false, nullsFirst: false })
 
@@ -277,7 +277,7 @@ export default async function QuizerPage() {
                     <div className="qz-card-left">
                       <div className="qz-tags">
                         <span className={statusClass}>{statusLabel}</span>
-                        {quiz.allow_teams && <span className="qz-tag qz-tag-muted">Lag</span>}
+
                         {quiz.requires_access_code && <span className="qz-tag qz-tag-muted">Kode</span>}
                       </div>
                       <h2 className="qz-quiz-title">{quiz.title}</h2>
