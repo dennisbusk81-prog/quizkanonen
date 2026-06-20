@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -28,6 +28,7 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -110,18 +111,16 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
   if (!isPremium) return null
   if (loading) return null
 
-  // Separate expired from current duels, and split by status
-  const expiredDuel = rivalries.find(r => r.isExpired) ?? null
-  const activeDuel  = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
-  const outgoing    = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
-  const incoming    = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
+  // Aktive/ventende dueller (denne måneden)
+  const activeDuel = rivalries.find(r => r.status === 'active'  && !r.isExpired) ?? null
+  const outgoing   = rivalries.find(r => r.status === 'pending' && r.isChallenger  && !r.isExpired) ?? null
+  const incoming   = rivalries.find(r => r.status === 'pending' && !r.isChallenger && !r.isExpired) ?? null
+  // Historiske dueller: utløpte fra forrige måned + avslåtte
+  const historicalDuels = rivalries.filter(r => r.isExpired || r.status === 'declined')
 
   // Slot-logikk: 'top' vises kun ved innkommende utfordring; 'default' skjules da
   if (prioritySlot === 'top' && !incoming) return null
   if (prioritySlot === 'default' && incoming) return null
-
-  // Fix 4: show declined state to challenger so they know the challenge was rejected
-  const declined    = rivalries.find(r => r.status === 'declined' && r.isChallenger && !r.isExpired) ?? null
 
   const opponentName = (r: RivalryRow) => r.opponentName ?? 'Ukjent'
 
@@ -132,49 +131,44 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
     </p>
   ) : null
 
-  // ── Expired duel from previous month ─────────────────────────
-  if (expiredDuel && !activeDuel && !outgoing && !incoming) {
-    return (
-      <div style={{
-        background: '#21242e',
-        border: '1px solid #2a2d38',
-        borderRadius: 16,
-        padding: '18px 20px',
-        marginTop: 12,
-      }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-          Duell — forrige sesong
-        </p>
-        <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 14 }}>
-          Sesongen er over. Duellen mot{' '}
-          <strong style={{ color: '#c9a84c' }}>{opponentName(expiredDuel)}</strong>{' '}
-          er nå avsluttet.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            Start ny duell →
-          </Link>
-          <button
-            onClick={() => handleAction(expiredDuel.id, 'cancel')}
-            disabled={actionLoading !== null}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#e8e4dd',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
-              padding: 0,
-              textDecoration: 'underline',
-            }}
-          >
-            {actionLoading === expiredDuel.id + 'cancel' ? 'Avslutter...' : 'Avslutt og start ny'}
-          </button>
+  // Kollapset historikk-seksjon (kun i default-slot)
+  const historySectionEl = prioritySlot !== 'top' && historicalDuels.length > 0 ? (
+    <div style={{ marginTop: 12 }}>
+      <button
+        onClick={() => setHistoryOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#7a7873', letterSpacing: '0.04em' }}>
+          Tidligere dueller
+        </span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: historyOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
+          <path d="M1 1L5 5L9 1" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      </button>
+      {historyOpen && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {historicalDuels.map(r => {
+            const statusLabel = r.isExpired ? 'Avsluttet' : r.status === 'declined' ? (r.isChallenger ? 'Avslått' : 'Avslåtte') : r.status
+            return (
+              <div key={r.id} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600, marginBottom: 2 }}>
+                    {opponentName(r)}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#7a7873' }}>{statusLabel}</p>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#7a7873' }}>
+                    {r.myPoints} – {r.opponentPoints}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        {errorEl}
-      </div>
-    )
-  }
+      )}
+    </div>
+  ) : null
 
   // ── Active duel ──────────────────────────────────────────────
   if (activeDuel) {
@@ -193,71 +187,74 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
       outcome === 'losing'  ? 'Du ligger under' : 'Likt'
 
     return (
-      <div style={{
-        background: '#21242e',
-        border: `1px solid ${borderColor}`,
-        borderRadius: 16,
-        padding: '18px 20px',
-        marginTop: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', margin: 0 }}>
-            Duell — denne måneden
-          </p>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: outcomeColor }}>
-            {outcomeLabel}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
-              {me}
+      <Fragment>
+        <div style={{
+          background: '#21242e',
+          border: `1px solid ${borderColor}`,
+          borderRadius: 16,
+          padding: '18px 20px',
+          marginTop: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', margin: 0 }}>
+              Duell — denne måneden
             </p>
-            <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>Deg</p>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: outcomeColor }}>
+              {outcomeLabel}
+            </span>
           </div>
 
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#2a2d38', flexShrink: 0, margin: 0 }}>vs</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
+                {me}
+              </p>
+              <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>Deg</p>
+            </div>
 
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
-              {them}
-            </p>
-            <p style={{ fontSize: 11, color: '#7a7873', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {opponentName(activeDuel)}
-            </p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#2a2d38', flexShrink: 0, margin: 0 }}>vs</p>
+
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
+                {them}
+              </p>
+              <p style={{ fontSize: 11, color: '#7a7873', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {opponentName(activeDuel)}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {justAcceptedId === activeDuel.id && (
-          <p style={{ fontSize: 13, color: '#e8e4dd', margin: '10px 0 0', lineHeight: 1.5 }}>
-            Duell akseptert! Følg med på resultatet etter fredagens quiz.
+          {justAcceptedId === activeDuel.id && (
+            <p style={{ fontSize: 13, color: '#e8e4dd', margin: '10px 0 0', lineHeight: 1.5 }}>
+              Duell akseptert! Følg med på resultatet etter fredagens quiz.
+            </p>
+          )}
+          <p style={{ fontSize: 11, color: '#e8e4dd', textAlign: 'center', margin: '10px 0 0', lineHeight: 1.4 }}>
+            Poeng fra ukens quiz. Duellen nullstilles neste måned.
           </p>
-        )}
-        <p style={{ fontSize: 11, color: '#e8e4dd', textAlign: 'center', margin: '10px 0 0', lineHeight: 1.4 }}>
-          Poeng fra ukens quiz. Duellen nullstilles neste måned.
-        </p>
 
-        <div style={{ marginTop: 12, textAlign: 'right' }}>
-          <button
-            onClick={() => handleAction(activeDuel.id, 'cancel')}
-            disabled={actionLoading !== null}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#e8e4dd',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
-              padding: 0,
-              textDecoration: 'underline',
-            }}
-          >
-            {actionLoading === activeDuel.id + 'cancel' ? 'Kansellerer...' : 'Avslutt duell'}
-          </button>
+          <div style={{ marginTop: 12, textAlign: 'right' }}>
+            <button
+              onClick={() => handleAction(activeDuel.id, 'cancel')}
+              disabled={actionLoading !== null}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#e8e4dd',
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: "'Instrument Sans', sans-serif",
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              {actionLoading === activeDuel.id + 'cancel' ? 'Kansellerer...' : 'Avslutt duell'}
+            </button>
+          </div>
+          {errorEl}
         </div>
-        {errorEl}
-      </div>
+        {historySectionEl}
+      </Fragment>
     )
   }
 
@@ -335,45 +332,48 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
   // ── Outgoing pending ─────────────────────────────────────────
   if (outgoing) {
     return (
-      <div style={{
-        background: '#21242e',
-        border: '1px solid #2a2d38',
-        borderRadius: 16,
-        padding: '18px 20px',
-        marginTop: 12,
-      }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-          Duell — venter på svar
-        </p>
-        <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 12 }}>
-          Du har utfordret{' '}
-          <strong style={{ color: '#c9a84c' }}>{opponentName(outgoing)}</strong>{' '}
-          til duell. Venter på svar…
-        </p>
-        <button
-          onClick={() => handleAction(outgoing.id, 'cancel')}
-          disabled={actionLoading !== null}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#e8e4dd',
-            fontSize: 12,
-            cursor: 'pointer',
-            fontFamily: "'Instrument Sans', sans-serif",
-            padding: 0,
-            textDecoration: 'underline',
-          }}
-        >
-          {actionLoading === outgoing.id + 'cancel' ? 'Trekker tilbake...' : 'Trekk tilbake utfordringen'}
-        </button>
-        {errorEl}
-      </div>
+      <Fragment>
+        <div style={{
+          background: '#21242e',
+          border: '1px solid #2a2d38',
+          borderRadius: 16,
+          padding: '18px 20px',
+          marginTop: 12,
+        }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+            Duell — venter på svar
+          </p>
+          <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 12 }}>
+            Du har utfordret{' '}
+            <strong style={{ color: '#c9a84c' }}>{opponentName(outgoing)}</strong>{' '}
+            til duell. Venter på svar…
+          </p>
+          <button
+            onClick={() => handleAction(outgoing.id, 'cancel')}
+            disabled={actionLoading !== null}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#e8e4dd',
+              fontSize: 12,
+              cursor: 'pointer',
+              fontFamily: "'Instrument Sans', sans-serif",
+              padding: 0,
+              textDecoration: 'underline',
+            }}
+          >
+            {actionLoading === outgoing.id + 'cancel' ? 'Trekker tilbake...' : 'Trekk tilbake utfordringen'}
+          </button>
+          {errorEl}
+        </div>
+        {historySectionEl}
+      </Fragment>
     )
   }
 
-  // ── Fix 4: Declined — challenger sees the rejection ───────────
-  if (declined) {
-    return (
+  // ── No active rivalry — invite to challenge + history ─────────
+  return (
+    <Fragment>
       <div style={{
         background: '#21242e',
         border: '1px solid #2a2d38',
@@ -382,38 +382,16 @@ export default function RivalryCard({ isPremium, prioritySlot }: Props) {
         marginTop: 12,
       }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-          Duell — avslått
+          Duell
         </p>
-        <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 12 }}>
-          Din utfordring ble avslått av{' '}
-          <strong style={{ color: '#c9a84c' }}>{opponentName(declined)}</strong>.
-          Du kan utfordre en ny rival.
+        <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 10 }}>
+          Utfordre en spiller og mål dere mot hverandre gjennom måneden.
         </p>
         <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-          Finn en rival →
+          Utfordre en rival →
         </Link>
       </div>
-    )
-  }
-
-  // ── No rivalry — invite to challenge ─────────────────────────
-  return (
-    <div style={{
-      background: '#21242e',
-      border: '1px solid #2a2d38',
-      borderRadius: 16,
-      padding: '18px 20px',
-      marginTop: 12,
-    }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-        Duell
-      </p>
-      <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 10 }}>
-        Utfordre en spiller og mål dere mot hverandre gjennom måneden.
-      </p>
-      <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-        Utfordre en rival →
-      </Link>
-    </div>
+      {historySectionEl}
+    </Fragment>
   )
 }

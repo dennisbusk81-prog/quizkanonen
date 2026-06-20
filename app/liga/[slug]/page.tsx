@@ -72,6 +72,12 @@ export default function LigaPage() {
   const [seasonResetModal, setSeasonResetModal] = useState(false)
   const [seasonResetDone, setSeasonResetDone]   = useState(false)
 
+  // Slett liga
+  const [deleteModal, setDeleteModal]   = useState(false)
+  const [deleteInput, setDeleteInput]   = useState('')
+  const [deleting, setDeleting]         = useState(false)
+  const [deleteError, setDeleteError]   = useState<string | null>(null)
+
   // Medlemsoversikt
   type MemberActivity = { userId: string; displayName: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
   const [activityPeriod, setActivityPeriod]     = useState<'month' | 'quarter' | 'year'>('month')
@@ -164,6 +170,30 @@ export default function LigaPage() {
       }
     } finally {
       setSeasonResetting(false)
+    }
+  }
+
+  async function handleDeleteLeague() {
+    if (!league || deleting || deleteInput !== 'SLETT') return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setDeleteError('Ikke innlogget.'); setDeleting(false); return }
+      const res = await fetch(`/api/leagues/${league.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (res.ok) {
+        router.replace('/liga')
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setDeleteError((data as { error?: string }).error ?? 'Noe gikk galt. Prøv igjen.')
+    } catch {
+      setDeleteError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -349,6 +379,20 @@ export default function LigaPage() {
                       </span>
                     )}
                   </div>
+
+                  <div style={{ borderTop: '1px solid #2a2d38', marginTop: 16, paddingTop: 16 }}>
+                    <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 10 }}>
+                      Sletter ligaen permanent — alle medlemmer mister tilgang og alle sesong-poeng slettes. Kan ikke angres.
+                    </p>
+                    <button
+                      onClick={() => { setDeleteModal(true); setDeleteInput(''); setDeleteError(null) }}
+                      style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      Slett liga
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -431,6 +475,41 @@ export default function LigaPage() {
 
         </div>
       </div>
+
+      {/* Slett-liga modal */}
+      {deleteModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>Slett liga</p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
+              Ligaen <strong style={{ color: '#ffffff' }}>{league?.name}</strong> slettes permanent. Alle medlemmer mister tilgang og alle sesong-poeng fjernes. Dette kan ikke angres.
+            </p>
+            <p style={{ fontSize: 12, color: '#e8e4dd', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>SLETT</strong> for å bekrefte:</p>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              placeholder="SLETT"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleDeleteLeague() }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+            />
+            {deleteError && (
+              <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{deleteError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button onClick={() => { setDeleteModal(false); setDeleteInput(''); setDeleteError(null) }} style={{ ...s.resetCancelBtn, padding: '8px 16px' }}>Avbryt</button>
+              <button
+                onClick={handleDeleteLeague}
+                disabled={deleteInput !== 'SLETT' || deleting}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteInput === 'SLETT' ? '#1a1c23' : '#7a7873', background: deleteInput === 'SLETT' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteInput === 'SLETT' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {deleting ? 'Sletter…' : 'Slett liga'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sesong-reset modal */}
       {seasonResetModal && (
