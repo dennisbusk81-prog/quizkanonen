@@ -1163,9 +1163,12 @@ export default async function Home() {
                     </Link>
                   </>
                 ) : (
-                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
-                    Spill ukens quiz
-                  </Link>
+                  <>
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>Ukens quiz venter på deg.</p>
+                    <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
+                      Spill ukens quiz
+                    </Link>
+                  </>
                 )}
               </div>
             </div>
@@ -1252,7 +1255,7 @@ export default async function Home() {
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
                   ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
-                  : 'Du har ikke spilt denne måneden ennå'}
+                  : 'Du er ikke i gang denne måneden ennå — bli med på fredag!'}
               </p>
             )}
 
@@ -1322,6 +1325,57 @@ export default async function Home() {
               }
             </Link>
           </div>
+
+          {/* Premium-fordeler — kun for ikke-Premium-brukere */}
+          {!isPremium && (
+            <div style={{
+              background: '#21242e',
+              border: '1px solid #2a2d38',
+              borderRadius: 16,
+              padding: '20px 24px',
+              marginTop: 10,
+            }}>
+              <p style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#7a7873',
+                marginBottom: 12,
+              }}>
+                Dette får du med Premium
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {([
+                  'Nøyaktig plassering på leaderboard',
+                  'Full sesong-toppliste — søk og bla gjennom alle spillere',
+                  'Historikk og statistikk — beste plassering, streak og utvikling over tid',
+                  'Private ligaer med venner',
+                ] as const).map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 2, flexShrink: 0 }}>
+                      <circle cx="7" cy="7" r="6.5" stroke="#c9a84c" strokeWidth="1"/>
+                      <path d="M4.5 7L6.5 9L9.5 5.5" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/premium" style={{
+                display: 'inline-block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#e8e4dd',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                padding: '8px 20px',
+                textDecoration: 'none',
+                fontFamily: "'Instrument Sans', sans-serif",
+              }}>
+                Se Premium →
+              </Link>
+            </div>
+          )}
 
           {/* League card — klient-komponent for at velger + localStorage skal fungere */}
           {leagueDataArr.length > 0 && (
