@@ -54,19 +54,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kunne ikke opprette organisasjon' }, { status: 500 })
     }
 
-    await supabaseAdmin.from('organization_members').insert({
+    // Admin-medlemsraden MÅ committes her — uten den finner webhookets
+    // getOrgAdminEmail ingen admin, og orgPurchaseEmail uteblir stille.
+    // Feiler innsettingen, avbryt før Stripe-checkout i stedet for å sende
+    // brukeren videre til betaling for en org uten fungerende admin-tilknytning.
+    const { error: memberErr } = await supabaseAdmin.from('organization_members').insert({
       organization_id: org.id,
       user_id: user.id,
       role: 'admin',
     })
 
+    if (memberErr) {
+      console.error('[org-checkout] member insert failed:', memberErr, 'org:', org.id, 'user:', user.id)
+      return NextResponse.json({ error: 'Kunne ikke opprette administrator-tilknytning. Prøv igjen.' }, { status: 500 })
+    }
+
     const inviteToken = randomBytes(16).toString('hex')
-    await supabaseAdmin.from('organization_invites').insert({
+    const { error: inviteErr } = await supabaseAdmin.from('organization_invites').insert({
       organization_id: org.id,
       token: inviteToken,
       created_by: user.id,
       is_active: true,
     })
+
+    // Invite-raden er ikke kritisk for betaling/admin-tilknytning — admin kan
+    // regenerere invitasjonslenken i bedriftspanelet. Logg, men ikke avbryt.
+    if (inviteErr) {
+      console.error('[org-checkout] invite insert failed:', inviteErr, 'org:', org.id, 'user:', user.id)
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
