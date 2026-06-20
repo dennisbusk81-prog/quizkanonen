@@ -589,7 +589,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   }
   function goToMyPlacement() {
     if (userRank == null) return
-    goToPage(Math.max(1, Math.ceil(userRank / PAGE_SIZE)))
+    goToPage(Math.max(1, Math.ceil(userRank / effectivePageSize)))
   }
   // Kompakt sideliste med ellipser: 1 … rundt-nåværende … siste
   function pageWindow(current: number, total: number): (number | 'gap')[] {
@@ -605,7 +605,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     }
     return out
   }
-  const intervalLabel = (p: number) => `${(p - 1) * PAGE_SIZE + 1}–${Math.min(p * PAGE_SIZE, totalCount)}`
+  const effectivePageSize = data?.pageSize ?? PAGE_SIZE
+  const intervalLabel = (p: number) => `${(p - 1) * effectivePageSize + 1}–${Math.min(p * effectivePageSize, totalCount)}`
 
   // ── Row renderers ─────────────────────────────────────────────────────────
 

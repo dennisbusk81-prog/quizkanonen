@@ -109,11 +109,12 @@ export async function GET(request: NextRequest) {
     excludedSet.add(row.id)
   }
 
-  // Paginering og søk — beregnes før last_quiz slik at begge modiene kan bruke dem
+  // Paginering og søk — beregnes før last_quiz slik at begge modiene kan bruke dem.
+  // last_quiz bruker alltid PAGE_SIZE=10; period-modus overstyrer til 20 ved paginering.
   const pageParamRaw  = searchParams.get('page')
   const searchRaw     = (searchParams.get('search') ?? '').trim()
   const isPaginated   = pageParamRaw !== null || searchRaw !== ''
-  const PAGE_SIZE     = isPaginated ? 20 : 10
+  const LAST_QUIZ_PAGE_SIZE = 10
   const page          = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
   const search        = searchRaw === '' ? null : searchRaw
   const excludedIds   = [...excludedSet]
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
       ? withRanks.filter(a => a.player_name.toLowerCase().includes(search.toLowerCase()))
       : withRanks
     const totalCount = filtered.length
-    const pageSlice  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    const pageSlice  = filtered.slice((page - 1) * LAST_QUIZ_PAGE_SIZE, page * LAST_QUIZ_PAGE_SIZE)
 
     // Hent profiler kun for siden + innlogget bruker
     const pageIds = pageSlice.map(a => a.user_id)
@@ -227,12 +228,13 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
-    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: PAGE_SIZE })
+    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: LAST_QUIZ_PAGE_SIZE })
   }
 
   // ── PERIOD MODE — sesong-poeng fra season_scores ──────────────────────────
   const periodStart = periodStartParam ?? getPeriodStart(period)
   const periodEnd   = periodEndParam ?? null   // null = ingen øvre grense
+  const PAGE_SIZE   = isPaginated ? 20 : 10   // period-modus: 20 ved paginering, 10 ellers
 
   type EntryOut = {
     rank: number; userId: string; displayName: string; nickname: string | null; avatarUrl: null
