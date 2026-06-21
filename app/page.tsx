@@ -783,8 +783,13 @@ export default async function Home() {
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
   // ── Session check via cookie-based Supabase SSR client ──
+  // Middleware (middleware.ts) already called getUser() on this same request,
+  // which validates + refreshes the token cookie. Reading getSession() here is a
+  // local cookie read (no extra GoTrue round-trip) — the JWT is Supabase-signed,
+  // so the user.id is trustworthy for personalizing content.
   const supabaseServer = await createSupabaseServer()
-  const { data: { user } } = await supabaseServer.auth.getUser()
+  const { data: { session } } = await supabaseServer.auth.getSession()
+  const user = session?.user ?? null
 
   // ══════════════════════════════════════════════════════════
   // PERSONALIZED VIEW — logged-in users

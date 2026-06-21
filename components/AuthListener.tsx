@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -12,8 +12,10 @@ function isValidName(name: string | null | undefined): boolean {
   return trimmed.includes(' ') || trimmed.includes('-')
 }
 
-// Henter session med timeout slik at auth-lock-konflikt ikke henger evig
-async function getSessionWithTimeout(ms = 3000) {
+// Henter session med timeout slik at auth-lock-konflikt ikke henger evig.
+// 1500ms holder rikelig: getSession() leser normalt cookie/localStorage på
+// <100ms — verdien er kun en sikkerhetsventil mot lock-konflikt, ikke normal last.
+async function getSessionWithTimeout(ms = 1500) {
   return Promise.race([
     supabase.auth.getSession(),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
@@ -77,12 +79,24 @@ async function checkAndFixDisplayName(user: User) {
 }
 
 export default function AuthListener() {
+  // Dedupe-vakt: getSession-stien OG onAuthStateChange(INITIAL_SESSION) fyrer
+  // begge ved innlogging. Vi beholder begge som robusthetsnett, men kjører
+  // checkAndFixDisplayName kun ÉN gang per bruker — den stien som fyrer først vinner.
+  // En ny bruker-id (logg ut → logg inn som annen) tillates å kjøre på nytt.
+  const handledUserIdRef = useRef<string | null>(null)
+
   useEffect(() => {
+    const runOnce = (user: User) => {
+      if (handledUserIdRef.current === user.id) return
+      handledUserIdRef.current = user.id
+      checkAndFixDisplayName(user)
+    }
+
     // Primary: getSession() med timeout — omgår heng fra auth-lock-konflikt
-    getSessionWithTimeout(3000).then((result) => {
+    getSessionWithTimeout().then((result) => {
       if (!result) return  // timeout
       const session = result.data?.session
-      if (session?.user) checkAndFixDisplayName(session.user)
+      if (session?.user) runOnce(session.user)
     })
 
     // Backup: onAuthStateChange for innlogging og tilfeller der
@@ -90,7 +104,7 @@ export default function AuthListener() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if ((event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') || !session?.user) return
-        checkAndFixDisplayName(session.user)
+        runOnce(session.user)
       }
     )
 

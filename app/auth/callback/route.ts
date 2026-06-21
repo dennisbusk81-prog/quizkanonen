@@ -65,36 +65,42 @@ export async function GET(request: NextRequest) {
   const initialDisplayName =
     (user.user_metadata?.full_name as string | undefined) ?? null
 
-  const profilePayload = {
-    id: user.id,
-    display_name: initialDisplayName,
-    avatar_color: null as string | null,
-    last_seen_at: now,
-  }
-  console.log('[auth/callback] upserting profile:', profilePayload)
-
-  // ignoreDuplicates: true → INSERT for new users, no-op for existing users
-  // (preserves display_name set by the user after first login)
-  const { error: upsertError } = await supabaseAdmin
+  // Returning users (≈all logins): a single UPDATE refreshes last_seen_at and
+  // preserves the display_name the user chose after first login — one round-trip.
+  // Brand-new users: the UPDATE affects 0 rows, so we INSERT and seed display_name
+  // (Google full_name, or null for magic link → AuthListener prompts for a name).
+  const { data: updated, error: updateError } = await supabaseAdmin
     .from('profiles')
-    .upsert(profilePayload, { onConflict: 'id', ignoreDuplicates: true })
+    .update({ last_seen_at: now })
+    .eq('id', user.id)
+    .select('id')
 
-  // Always refresh last_seen_at, even for returning users
-  if (!upsertError) {
-    await supabaseAdmin
-      .from('profiles')
-      .update({ last_seen_at: now })
-      .eq('id', user.id)
-  }
-
-  if (upsertError) {
+  if (updateError) {
     console.error(
-      '[auth/callback] profile upsert failed — code:', upsertError.code,
-      'message:', upsertError.message,
-      'details:', upsertError.details
+      '[auth/callback] profile last_seen update failed — code:', updateError.code,
+      'message:', updateError.message,
+      'details:', updateError.details
     )
+  } else if (!updated || updated.length === 0) {
+    // No existing row → new user. ignoreDuplicates guards against a race where two
+    // concurrent first-logins both miss the UPDATE and try to INSERT.
+    const { error: insertError } = await supabaseAdmin
+      .from('profiles')
+      .upsert(
+        { id: user.id, display_name: initialDisplayName, avatar_color: null as string | null, last_seen_at: now },
+        { onConflict: 'id', ignoreDuplicates: true }
+      )
+    if (insertError) {
+      console.error(
+        '[auth/callback] profile insert failed — code:', insertError.code,
+        'message:', insertError.message,
+        'details:', insertError.details
+      )
+    } else {
+      console.log('[auth/callback] profile created for new user', user.id)
+    }
   } else {
-    console.log('[auth/callback] profile upserted ok for user', user.id)
+    console.log('[auth/callback] profile last_seen refreshed for user', user.id)
   }
 
   // Session is now stored in cookies on `response` — no URL hash needed.
