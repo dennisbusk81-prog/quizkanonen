@@ -709,8 +709,9 @@ const styles = `
       margin: 0;
     }
     .qk-side { display: block; }
-    /* Juster global footer til å matche game-wrap-bredden på quiz-siden */
-    footer > div { max-width: 980px; }
+    /* Juster global footer til å matche game-wrap-bredden på quiz-siden.
+       !important nødvendig for å vinne over Tailwinds .max-w-5xl (klasse-selektors høyere spesifisitet) */
+    footer > div { max-width: 980px !important; }
   }
 `
 
