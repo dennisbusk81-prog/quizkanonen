@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import OrgLockedScreen from '@/components/OrgLockedScreen'
+import { isOrgLocked } from '@/lib/org-access'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -98,6 +100,7 @@ type AdminData = {
     name: string
     plan: string
     stripe_period_end: string | null
+    subscription_status: string
     allow_global_league: boolean
     weekly_report_timing: string
     org_quiz_opens_at: string | null
@@ -858,6 +861,11 @@ export default function OrgAdminPage() {
         </div>
       </>
     )
+  }
+
+  // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
+  if (data && session && isOrgLocked(data.org)) {
+    return <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} accessToken={session.access_token} />
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────

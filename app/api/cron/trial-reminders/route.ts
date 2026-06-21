@@ -1,7 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { trialEndingEmail } from '@/lib/email-templates'
+import { trialEndingEmail, orgTrialEndingEmail } from '@/lib/email-templates'
+
+// Sender påminnelse til org-admin når en B2B-trial nærmer seg slutt (innen 2 døgn)
+// og ikke allerede er påminnet. Stempler organizations.trial_reminder_sent_at for
+// å unngå dobbel-sending, samme mønster som B2C-logikken under.
+async function sendOrgTrialReminders(now: number): Promise<number> {
+  const windowEnd = new Date(now + 2 * 24 * 60 * 60 * 1000).toISOString()
+  const nowIso = new Date(now).toISOString()
+
+  const { data: orgs, error } = await supabaseAdmin
+    .from('organizations')
+    .select('id, name, slug, stripe_period_end')
+    .eq('subscription_status', 'trialing')
+    .not('stripe_period_end', 'is', null)
+    .gte('stripe_period_end', nowIso)
+    .lte('stripe_period_end', windowEnd)
+    .is('trial_reminder_sent_at', null)
+
+  if (error) {
+    console.error('[cron/trial-reminders] org query error:', error.message)
+    return 0
+  }
+  if (!orgs || orgs.length === 0) return 0
+
+  let orgSent = 0
+  for (const org of orgs) {
+    // Finn org-admin sin e-post
+    const { data: adminMember } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', org.id)
+      .eq('role', 'admin')
+      .maybeSingle()
+    if (!adminMember) continue
+
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
+    const email = authData.user?.email
+    if (!email || !org.stripe_period_end) continue
+
+    try {
+      await sendEmail({
+        to: email,
+        subject: `Prøveperioden er snart over — ${org.name}`,
+        html: orgTrialEndingEmail(org.name, org.slug, org.stripe_period_end),
+      })
+      await supabaseAdmin.from('organizations')
+        .update({ trial_reminder_sent_at: new Date(now).toISOString() })
+        .eq('id', org.id)
+      orgSent++
+    } catch (err) {
+      console.error('[cron/trial-reminders] org reminder failed for', org.slug, err)
+    }
+  }
+  return orgSent
+}
 
 const DAYS_LEFT = 7
 // Window: users whose premium_since is between 23 and 24 days ago (caught once per daily run)
@@ -16,6 +70,10 @@ export async function GET(request: NextRequest) {
   }
 
   const now = Date.now()
+
+  // Org-trial-påminnelser kjøres uavhengig av om det finnes B2C-trials.
+  const orgSent = await sendOrgTrialReminders(now)
+
   const windowStart = new Date(now - WINDOW_START_MS).toISOString()
   const windowEnd   = new Date(now - WINDOW_END_MS).toISOString()
 
@@ -37,7 +95,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!profiles || profiles.length === 0) {
-    return NextResponse.json({ sent: 0, reason: 'no trials ending soon' })
+    return NextResponse.json({ sent: 0, orgSent, reason: 'no trials ending soon' })
   }
 
   const trialUserIds = new Set(profiles.map(p => p.id))
@@ -66,7 +124,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (toSend.length === 0) {
-    return NextResponse.json({ sent: 0, reason: 'no emails resolved for trial users' })
+    return NextResponse.json({ sent: 0, orgSent, reason: 'no emails resolved for trial users' })
   }
 
   const html = trialEndingEmail(DAYS_LEFT)
@@ -116,5 +174,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sent, failed })
+  return NextResponse.json({ sent, failed, orgSent })
 }

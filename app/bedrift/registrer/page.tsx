@@ -27,6 +27,7 @@ export default function BedriftRegistrerPage() {
   const [orgName, setOrgName] = useState('')
   const [plan, setPlan] = useState('standard')
   const [loading, setLoading] = useState(false)
+  const [trialLoading, setTrialLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -96,6 +97,31 @@ export default function BedriftRegistrerPage() {
       setError('Noe gikk galt. Prøv igjen.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTrial = async () => {
+    if (!orgName.trim()) { setError('Oppgi et bedriftsnavn.'); return }
+    if (!session) { saveAndLogin(); return }
+
+    setTrialLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/stripe/org-founders-activate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ organizationName: orgName.trim(), plan }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
+      if (data.slug) window.location.href = `/org/${data.slug}/admin`
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setTrialLoading(false)
     }
   }
 
@@ -213,13 +239,30 @@ export default function BedriftRegistrerPage() {
               <>
                 <button
                   onClick={handleSubmit}
-                  disabled={loading || !orgName.trim()}
-                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || !orgName.trim() ? 0.4 : 1 }}
+                  disabled={loading || trialLoading || !orgName.trim()}
+                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
                 >
                   {loading ? 'Sender...' : 'Gå til betaling →'}
                 </button>
                 <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                   Betaling håndteres sikkert av Stripe. Ingen binding.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+                  <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+                  <span style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.08em', textTransform: 'uppercase' }}>eller</span>
+                  <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
+                </div>
+
+                <button
+                  onClick={handleTrial}
+                  disabled={loading || trialLoading || !orgName.trim()}
+                  style={{ width: '100%', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
+                >
+                  {trialLoading ? 'Starter...' : 'Prøv gratis i 14 dager'}
+                </button>
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                  Ingen kortinfo nødvendig. Bedriftssidene sperres til betaling hvis du ikke fortsetter etter prøveperioden.
                 </p>
               </>
             )}

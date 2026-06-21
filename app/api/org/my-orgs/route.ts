@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const { data: orgs, error: orgErr } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, allow_global_league')
+    .select('id, name, slug, allow_global_league, subscription_status')
     .in('id', orgIds)
 
   if (orgErr) {
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     orgName:           o.name,
     orgSlug:           o.slug,
     isAdmin:           roleByOrg.get(o.id) === 'admin',
+    subscriptionStatus: o.subscription_status ?? 'active',
     allowGlobalLeague: o.allow_global_league !== false,
     // null = ikke besvart, true = valgt seg ut, false = valgt seg inn
     globalLeagueOptOut: (optOutByOrg.get(o.id) ?? null) as boolean | null,

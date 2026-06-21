@@ -23,9 +23,77 @@ export async function POST(request: NextRequest) {
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  let body: { organizationName?: string; plan?: string }
+  let body: { organizationName?: string; plan?: string; reactivateOrgId?: string }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
+  }
+
+  // ── Reaktivering av en låst org ───────────────────────────────────────────
+  // Brukes av lås-skjermen når en utløpt trial (eller kansellert abonnement) skal
+  // gjenopptas. Oppretter IKKE en ny org — lager en ny checkout-sesjon for den
+  // eksisterende org-en, knyttet til samme Stripe-kunde. Webhookets
+  // checkout.session.completed (type=org) setter subscription_status='active'.
+  if (body.reactivateOrgId) {
+    const orgId = body.reactivateOrgId
+    const { data: membership } = await supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', orgId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membership?.role !== 'admin') {
+      return NextResponse.json({ error: 'Ingen admin-tilgang' }, { status: 403 })
+    }
+
+    const { data: org } = await supabaseAdmin
+      .from('organizations')
+      .select('id, slug, plan, stripe_customer_id')
+      .eq('id', orgId)
+      .maybeSingle()
+
+    if (!org) return NextResponse.json({ error: 'Organisasjon ikke funnet' }, { status: 404 })
+
+    const reactPriceId = PLAN_PRICES[org.plan]
+    if (!reactPriceId) return NextResponse.json({ error: 'Ugyldig plan' }, { status: 400 })
+
+    try {
+      // FIX 1 — kanseller gjenværende ikke-terminale abonnementer på kunden før
+      // ny checkout, slik at org-en aldri ender med to samtidig aktive abonnementer.
+      // Terminale tilstander (canceled, incomplete_expired) trenger ingen handling.
+      if (org.stripe_customer_id) {
+        const existing = await stripe.subscriptions.list({
+          customer: org.stripe_customer_id,
+          status: 'all',
+          limit: 100,
+        })
+        const cancellable = existing.data.filter(s =>
+          ['past_due', 'unpaid', 'trialing', 'active'].includes(s.status)
+        )
+        for (const sub of cancellable) {
+          try {
+            await stripe.subscriptions.cancel(sub.id)
+          } catch (cancelErr) {
+            console.error('[org-checkout] kunne ikke kansellere gammelt abonnement', sub.id, cancelErr)
+          }
+        }
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: reactPriceId, quantity: 1 }],
+        ...(org.stripe_customer_id
+          ? { customer: org.stripe_customer_id }
+          : { customer_email: user.email ?? undefined }),
+        metadata: { organization_id: org.id, type: 'org', userId: user.id },
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/org/${org.slug}/admin`,
+        cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/org/${org.slug}/admin`,
+      })
+      return NextResponse.json({ url: session.url })
+    } catch (err) {
+      console.error('[org-checkout] reactivation error:', err, 'org:', orgId)
+      return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
+    }
   }
 
   const { organizationName, plan } = body

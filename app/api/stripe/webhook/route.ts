@@ -138,6 +138,8 @@ export async function POST(request: NextRequest) {
         stripe_customer_id: session.customer as string,
         stripe_subscription_id: subscriptionId,
         stripe_period_end: periodEnd,
+        // Betalt checkout (ny kjøp ELLER reaktivering av låst org) → full tilgang.
+        subscription_status: 'active',
       }).eq('id', organizationId)
 
       // Activate premium for all current members — single batch update
@@ -206,7 +208,12 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       if (orgForInvoice) {
-        // B2B — send fornyelsesbekreftelse til org-admin
+        // B2B — vellykket fornyelsesbetaling: sikre at org er aktiv (idempotent).
+        await supabaseAdmin.from('organizations')
+          .update({ subscription_status: 'active' })
+          .eq('id', orgForInvoice.id)
+
+        // send fornyelsesbekreftelse til org-admin
         getOrgAdminEmail(orgForInvoice.id)
           .then(({ email, orgName, orgSlug }) => {
             if (email && orgName && orgSlug) {
@@ -246,12 +253,31 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id, name, slug')
+      .select('id, name, slug, stripe_subscription_id')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
-    if (org) {
-      // B2B: revoke premium from all members — single batch update
+    // FIX 2 — robust mot stale subscription-id. En sen deleted-hendelse for et
+    // gammelt, erstattet abonnement (f.eks. etter reaktivering med et nytt) skal
+    // IKKE låse en org som nå kjører på et nyere abonnement. Lås kun hvis den
+    // slettede subscription-en faktisk er den org-en peker på i dag.
+    const isCurrentOrgSub = !!org && org.stripe_subscription_id === subscription.id
+
+    if (org && !isCurrentOrgSub) {
+      console.log(
+        `[webhook] subscription.deleted ignorert for org ${org.id} — stale sub ` +
+        `${subscription.id}, gjeldende er ${org.stripe_subscription_id ?? 'null'}`
+      )
+    }
+
+    if (org && isCurrentOrgSub) {
+      // B2B: lås org-sidene og trekk premium fra alle medlemmer.
+      // Dekker både kansellert betalt abonnement OG utløpt trial uten kort
+      // (Stripe kansellerer trial-en automatisk → denne hendelsen).
+      await supabaseAdmin.from('organizations')
+        .update({ subscription_status: 'locked' })
+        .eq('id', org.id)
+
       const { data: members } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
@@ -277,8 +303,10 @@ export async function POST(request: NextRequest) {
           }
         })
         .catch(err => console.error('[webhook] orgCancelledEmail failed:', err))
-    } else {
-      // B2C — match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
+    } else if (!org) {
+      // B2C — kun når ingen org matcher kunden. (En org med stale sub faller
+      // bevisst hverken hit eller i org-grenen — den ignoreres.)
+      // Match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
       const subscriptionId = subscription.id
       let profileId: string | null = null
 
@@ -374,11 +402,40 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (org) {
-      // B2B: update period end
+      // B2B: oppdater periode-slutt + speil betalingsstatus til subscription_status.
+      // Speiler B2C Founders-håndteringen — vi stoler ikke på Stripe-tilstanden alene,
+      // men setter eksplisitt 'active'/'trialing'/'locked' og synker premium for medlemmer.
       const periodEnd = new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
+
+      const status = subscription.status
+      let nextStatus: 'trialing' | 'active' | 'locked' | null = null
+      if (status === 'trialing') nextStatus = 'trialing'
+      else if (status === 'active') nextStatus = 'active'
+      else if (['past_due', 'unpaid', 'canceled', 'incomplete_expired'].includes(status)) nextStatus = 'locked'
+
       await supabaseAdmin.from('organizations')
-        .update({ stripe_period_end: periodEnd })
+        .update({ stripe_period_end: periodEnd, ...(nextStatus ? { subscription_status: nextStatus } : {}) })
         .eq('id', org.id)
+
+      // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
+      if (nextStatus === 'active' || nextStatus === 'trialing' || nextStatus === 'locked') {
+        const { data: members } = await supabaseAdmin
+          .from('organization_members')
+          .select('user_id')
+          .eq('organization_id', org.id)
+        const memberIds = (members ?? []).map(m => m.user_id)
+        if (memberIds.length > 0) {
+          if (nextStatus === 'locked') {
+            await supabaseAdmin.from('profiles')
+              .update({ premium_status: false, premium_source: null })
+              .in('id', memberIds)
+          } else {
+            await supabaseAdmin.from('profiles')
+              .update({ premium_status: true, premium_source: 'org' })
+              .in('id', memberIds)
+          }
+        }
+      }
     } else {
       // B2C — 'trialing' counts as active (Founders trial period)
       const isActive = ['active', 'trialing'].includes(subscription.status)

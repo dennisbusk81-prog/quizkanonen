@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
+import OrgLockedScreen from '@/components/OrgLockedScreen'
+import { isOrgLocked } from '@/lib/org-access'
 import type { Session } from '@supabase/supabase-js'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
@@ -13,11 +15,12 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Basker
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type OrgInfo = {
-  orgId:             string
-  orgName:           string
-  orgSlug:           string
-  isAdmin:           boolean
-  allowGlobalLeague: boolean
+  orgId:              string
+  orgName:            string
+  orgSlug:            string
+  isAdmin:            boolean
+  subscriptionStatus: string
+  allowGlobalLeague:  boolean
 }
 
 type LoadState = 'loading' | 'ready' | 'notfound' | 'error'
@@ -96,6 +99,11 @@ export default function OrgLeaderboardPage() {
         </div>
       </>
     )
+  }
+
+  // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
+  if (org && session && isOrgLocked(org)) {
+    return <OrgLockedScreen orgName={org.orgName} orgId={org.orgId} accessToken={session.access_token} />
   }
 
   // ── Ready ─────────────────────────────────────────────────────────────────
