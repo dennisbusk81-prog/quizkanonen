@@ -47,7 +47,7 @@ export default function OrgLockedScreen({
       <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
         <div style={{ maxWidth: 460, width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '32px 28px', textAlign: 'center' }}>
 
-          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 12 }}>
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
             {orgName}
           </p>
 
