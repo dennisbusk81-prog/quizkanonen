@@ -52,8 +52,9 @@ export async function POST(request: NextRequest) {
       html: orgPurchaseEmail(org.name, org.slug),
     })
   } catch (err) {
-    console.error('[org-resend-purchase] sendEmail feil:', err)
-    return NextResponse.json({ error: 'Kunne ikke sende e-post' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[org-resend-purchase] sendEmail feil:', msg, err)
+    return NextResponse.json({ error: `Kunne ikke sende e-post: ${msg}` }, { status: 500 })
   }
 
   return NextResponse.json({ sent: true, to: email, org: org.name })
