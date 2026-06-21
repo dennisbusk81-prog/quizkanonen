@@ -461,15 +461,15 @@ const styles = `
   .qk-option.idle { opacity: 0.4; }
 
   .qk-opt-letter {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: #2a2d38;
     border: 1.5px solid #2a2d38;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #e8e4dd;
     flex-shrink: 0;
@@ -479,7 +479,7 @@ const styles = `
   .qk-option.correct .qk-opt-letter { background: var(--green); border-color: var(--green); color: #fff; }
   .qk-option.wrong .qk-opt-letter { background: var(--red); border-color: var(--red); color: #fff; }
 
-  .qk-opt-text { font-size: 14px; font-weight: 500; color: var(--white); line-height: 1.4; }
+  .qk-opt-text { font-size: 16px; font-weight: 500; color: var(--white); line-height: 1.4; }
 
   .qk-explanation {
     background: rgba(201,168,76,0.06);
@@ -522,7 +522,7 @@ const styles = `
   }
 
   .qk-streak-badge {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #c9a84c;
     text-align: center;
