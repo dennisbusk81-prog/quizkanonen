@@ -709,6 +709,8 @@ const styles = `
       margin: 0;
     }
     .qk-side { display: block; }
+    /* Juster global footer til å matche game-wrap-bredden på quiz-siden */
+    footer > div { max-width: 980px; }
   }
 `
 
