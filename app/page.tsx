@@ -115,7 +115,7 @@ const SHARED_CSS = `
   }
 
   .qk-nav-inner {
-    max-width: 720px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 0 20px;
     height: 54px;
