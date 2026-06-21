@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   const displayName = profile?.display_name ?? authUser.email.split('@')[0]
   const firstName = displayName.split(' ')[0]
 
-  const isTrial = (org as { subscription_status?: string }).subscription_status === 'trial'
+  const isTrial = (org as { subscription_status?: string }).subscription_status === 'trialing'
 
   // Send e-post
   try {
