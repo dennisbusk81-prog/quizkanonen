@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   // Hent org
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, subscription_status')
     .eq('slug', orgSlug)
     .maybeSingle()
 
@@ -59,12 +59,15 @@ export async function POST(request: NextRequest) {
   const displayName = profile?.display_name ?? authUser.email.split('@')[0]
   const firstName = displayName.split(' ')[0]
 
+  const isTrial = (org as { subscription_status?: string }).subscription_status === 'trial'
+
   // Send e-post
   try {
     await sendEmail({
       to: authUser.email,
-      subject: `Du er med i ${org.name} på Quizkanonen`,
-      html: orgWelcomeEmail(firstName, org.name, org.slug),
+      subject: 'Velkommen til Quizkanonen!',
+      html: orgWelcomeEmail(firstName, org.name, org.slug, isTrial),
+      replyTo: 'support@quizkanonen.no',
     })
   } catch (err) {
     console.error('[welcome-email] sendEmail feil:', err)

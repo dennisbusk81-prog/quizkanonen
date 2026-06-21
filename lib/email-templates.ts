@@ -122,13 +122,13 @@ export function trialEndingEmail(daysLeft: number): string {
 </html>`
 }
 
-export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: string): string {
+export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: string, isTrial?: boolean): string {
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Du er med i ${orgName} på Quizkanonen</title>
+  <title>Velkommen til Quizkanonen!</title>
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
@@ -152,7 +152,7 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
 
               <!-- Title -->
               <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
-                Hei ${firstName}!
+                Hei ${firstName},
               </p>
 
               <!-- Divider -->
@@ -160,40 +160,37 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
 
               <!-- Body text -->
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                <strong style="color:#ffffff;">${orgName}</strong> har invitert deg til fredagsquizen på Quizkanonen.
+                Velkommen til Quizkanonen! Vi håper det blir mange morsomme timer for teamet hos <strong style="color:#ffffff;">${orgName}</strong>.
               </p>
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Hver fredag kl. 12 legges det ut 15 spørsmål. Du konkurrerer mot kollegene dine og samler poeng gjennom sesongen — se hvem som topper listen når måneden er omme.
-              </p>
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Her teller det å kunne svaret — ikke bare å klikke først.
-              </p>
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Logg inn med Google, så er du med hver fredag.
-              </p>
-              <p style="margin:0 0 28px;font-size:14px;color:#e0e0e0;line-height:1.7;">
-                Tips: Gå til <a href="https://quizkanonen.no/profil" style="color:#c9a84c;text-decoration:none;">profilen din</a> og slå på e-postpåminnelse, så får du beskjed når quizen åpner hver fredag.
+                Det eneste du trenger å gjøre nå, er å få med kollegene dine. Gå inn på bedriftspanelet — der kan du enten dele en invitasjonslenke direkte, eller la oss sende e-post til dem for deg.
               </p>
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no"
+                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Spill ukens quiz →
+                      Gå til bedriftspanelet &rarr;
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <!-- Secondary link -->
-              <p style="margin:0;font-size:14px;color:#e0e0e0;line-height:1.7;">
-                Se hvordan du ligger an mot kollegene:<br />
-                <a href="https://quizkanonen.no/org/${orgSlug}"
-                   style="color:#c9a84c;text-decoration:none;">
-                  Bedriftens toppliste →
-                </a>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Når de er med, trenger du ikke gjøre noe mer — alle får automatisk en påminnelse på e-post hver fredag når ukens quiz åpner, så ingen glemmer å bli med.
+              </p>
+
+              ${isTrial ? `
+              <!-- Trial note -->
+              <p style="margin:0 0 16px;font-size:14px;color:#7a7873;line-height:1.7;border-left:2px solid #2a2d38;padding-left:14px;">
+                Dere har 14 dager gratis, ingen kortinfo nødvendig.
+              </p>
+              ` : ''}
+
+              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Spørsmål? Bare svar på denne e-posten.
               </p>
 
             </td>
@@ -203,11 +200,10 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
           <tr>
             <td align="center" style="padding-top:28px;">
               <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Lykke til!<br />Quizkanonen
+                — Dennis, Quizkanonen
               </p>
             </td>
           </tr>
-          ${UNSUBSCRIBE_ROW}
 
         </table>
       </td>
