@@ -671,6 +671,45 @@ const styles = `
     .qk-panel          { padding: 44px 40px; }
     .qk-question-text  { font-size: 20px; }
   }
+
+  /* ── Desktop side panels (1100px+) ── */
+  .qk-side { display: none; }
+  .qk-side-card {
+    background: #21242e;
+    border: 1px solid #2a2d38;
+    border-radius: 16px;
+    padding: 20px 18px;
+  }
+  .qk-side-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #7a7873;
+    margin-bottom: 14px;
+    font-family: 'Instrument Sans', sans-serif;
+  }
+  @media (min-width: 1100px) {
+    .qk-game-wrap {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 560px) 180px;
+      gap: 24px;
+      align-items: start;
+      justify-content: center;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 40px 20px 0;
+    }
+    .qk-game-wrap .qk-play-shell {
+      min-height: 0;
+      padding-top: 0;
+      padding-left: 0;
+      padding-right: 0;
+      max-width: none;
+      margin: 0;
+    }
+    .qk-side { display: block; }
+  }
 `
 
 export default function QuizPage() {
@@ -2057,6 +2096,33 @@ export default function QuizPage() {
           />
         </ErrorBoundary>
       )}
+      <div className="qk-game-wrap">
+
+      {/* Venstre panel — Din rival (kun desktop 1100px+) */}
+      <div className="qk-side">
+        {rivalData && (
+          <div className="qk-side-card">
+            <p className="qk-side-label">Din rival</p>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: rivalData.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
+                {rivalData.name.charAt(0).toUpperCase()}
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', lineHeight: 1.3 }}>{rivalData.name}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                <span style={{ color: '#7a7873' }}>Rival</span>
+                <span style={{ color: '#e8e4dd', fontWeight: 600 }}>{rivalData.score} riktige</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                <span style={{ color: '#7a7873' }}>Du</span>
+                <span style={{ color: correctSoFar > rivalData.score ? '#c9a84c' : '#e8e4dd', fontWeight: 600 }}>{correctSoFar} riktige</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div ref={playShellRef} className="qk-play-shell">
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {totalQuestions}</span>
@@ -2140,7 +2206,45 @@ export default function QuizPage() {
             </div>
           )}
         </div>
-      </div></>
+      </div>
+
+      {/* Høyre panel — Akkurat nå (kun desktop 1100px+) */}
+      <div className="qk-side">
+        <div className="qk-side-card">
+          <p className="qk-side-label">Akkurat nå</p>
+          {rankingSnapshot && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#1a1c23', fontFamily: "'Libre Baskerville', serif", flexShrink: 0 }}>
+                  {rankingSnapshot.leaderName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderName}</div>
+                  <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} riktige</div>
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{ borderTop: rankingSnapshot ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot ? 14 : 0 }}>
+            {interLow !== null && interHigh !== null ? (
+              <>
+                <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 4 }}>Din plass</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#c9a84c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                  #{interLow}–{interHigh}
+                </div>
+                <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginTop: 2 }}>estimert</div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
+                Svar på første spørsmål for å se din estimerte plass.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      </div>{/* end qk-game-wrap */}</>
     )
   }
 
