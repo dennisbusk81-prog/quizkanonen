@@ -880,33 +880,34 @@ export default function QuizPage() {
 
       const { data: quizData, error: quizError } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
       if (quizError) console.error('Quiz fetch feilet:', quizError)
-      const deviceId = getDeviceId()
-      const { data: played, error: playedError } = await supabaseData
-        .from('played_log').select('id')
-        .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
-      if (playedError) console.error('played_log fetch feilet:', playedError)
-
-      // For innloggede: sjekk replay-status server-side (service_role). Klienten
-      // kan ikke lenger lese egne user_id/uferdige attempts direkte etter
-      // 20260616190001_attempts_hide_user_id.sql, så denne sjekken må skje på
-      // server. Kun "innsendt forsøk finnes" blokkerer (already_played).
-      let playedAsUser = false
-      if (!played) {
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (currentSession?.access_token) {
-          try {
-            const r = await fetch(`/api/quiz/${quizId}/my-attempt`, {
-              headers: { Authorization: `Bearer ${currentSession.access_token}` },
-            })
-            if (r.ok) {
-              const j = await r.json()
-              playedAsUser = j.played === true
-            }
-          } catch { /* nettverksfeil — la brukeren forsøke å spille */ }
-        }
+      // Innloggede: kun bruker-ID (verifisert token) avgjør om quizen er spilt.
+      // played_log (enhetsbasert) sjekkes IKKE for innloggede — den er enhet-agnostisk
+      // og vil feilaktig blokkere en annen konto som deler samme nettleser.
+      // Gjester: kun played_log (enhet-ID), siden det ikke finnes noen user_id.
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      let alreadyPlayed = false
+      if (currentSession?.access_token) {
+        // Innlogget → bruker-basert sjekk via service_role
+        try {
+          const r = await fetch(`/api/quiz/${quizId}/my-attempt`, {
+            headers: { Authorization: `Bearer ${currentSession.access_token}` },
+          })
+          if (r.ok) {
+            const j = await r.json()
+            alreadyPlayed = j.played === true
+          }
+        } catch { /* nettverksfeil — la brukeren forsøke å spille */ }
+      } else {
+        // Gjest → enhet-basert sjekk via played_log
+        const deviceId = getDeviceId()
+        const { data: played, error: playedError } = await supabaseData
+          .from('played_log').select('id')
+          .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
+        if (playedError) console.error('played_log fetch feilet:', playedError)
+        alreadyPlayed = !!played
       }
 
-      if (played || playedAsUser) {
+      if (alreadyPlayed) {
         setPhase('already_played')
         setQuiz(quizData)
         const { data: setting, error: settingError } = await supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
