@@ -250,10 +250,10 @@ export function welcomeFreeEmail(firstName: string): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Velkommen til Quizkanonen! Du er nå logget inn og klar til å spille.
               </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Som innlogget spiller du under ditt eget navn fra uke til uke, og kan utfordre andre til en H2H-duell — helt gratis.
               </p>
 
@@ -270,13 +270,13 @@ export function welcomeFreeEmail(firstName: string): string {
               </table>
 
               <!-- MIDLERTIDIG: Founders Access-nevnelse — fjern når kampanjen avsluttes -->
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Nysgjerrig på mer? Med
                 <a href="https://www.quizkanonen.no/founders" style="color:#e8e4dd;text-decoration:underline;">Founders Access</a>
                 får du 30 dager med full tilgang — nøyaktig plassering, historikk, statistikk, private ligaer og sesongtoppliste — helt gratis, ingen kortinfo nødvendig.
               </p>
 
-              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Spørsmål? Bare svar på denne e-posten.
               </p>
 
