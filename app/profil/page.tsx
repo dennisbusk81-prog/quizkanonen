@@ -75,6 +75,7 @@ export default function ProfilPage() {
   const [isPremium, setIsPremium] = useState(false)
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarColor, setAvatarColor] = useState<string | null>(null)
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
   const [memberSince, setMemberSince] = useState<string | null>(null)
   const [showMemberNumber, setShowMemberNumber] = useState(false)
@@ -181,7 +182,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at')
+          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -196,6 +197,7 @@ export default function ProfilPage() {
         member_number: number | null; show_member_number: boolean | null;
         email_reminders: boolean | null; email_reengagement: boolean | null;
         email_duel_notifications: boolean | null; created_at: string | null;
+        avatar_color: string | null;
       } | null
 
       const name = profile?.display_name ?? ''
@@ -218,6 +220,7 @@ export default function ProfilPage() {
       } catch { /* fallback: not premium */ }
       setIsPremium(premium)
       setAvatarUrl(avatarUrlFromMeta)
+      setAvatarColor(profile?.avatar_color ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
 
       // Beregn medlemsnummer dynamisk basert på registreringsrekkefølge (created_at)
@@ -597,7 +600,7 @@ export default function ProfilPage() {
             {avatarUrl ? (
               <img src={avatarUrl} alt="" width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', width: 64, height: 64, border: '2px solid #2a2d38', marginBottom: 6, display: 'block' }} />
             ) : (
-              <div style={{ ...s.avatar, background: '#4a5568', border: '2px solid #4a5568' }}>{initial}</div>
+              <div style={{ ...s.avatar, background: avatarColor ?? '#2a2d38', border: `2px solid ${avatarColor ?? '#2a2d38'}` }}>{initial}</div>
             )}
             <div style={s.displayName}>{displayName}</div>
             {isPremium
