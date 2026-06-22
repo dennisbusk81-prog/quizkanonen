@@ -1089,7 +1089,7 @@ export default function LeaderboardPage() {
               const rangeX = Math.max(1, tierStart)
               const rangeY = Math.min(totalCount, tierStart + 9)
               title = `Du er et sted mellom plass ${rangeX} og ${rangeY}`
-              sub = 'Logg inn for å se nøyaktig plassering'
+              sub = 'Logg inn for å spille under ditt eget navn'
             } else {
               title = 'Logg inn og spill quizen'
               sub = 'Se hvor du havner i ukens resultater.'

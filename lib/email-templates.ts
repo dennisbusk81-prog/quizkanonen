@@ -213,6 +213,93 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
 </html>`
 }
 
+export function welcomeFreeEmail(firstName: string): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Velkommen til Quizkanonen!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo / header -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <!-- Title -->
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Hei ${firstName},
+              </p>
+
+              <!-- Divider -->
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <!-- Body text -->
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Velkommen til Quizkanonen! Du er nå logget inn og klar til å spille.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Som innlogget spiller du under ditt eget navn fra uke til uke, og kan utfordre andre til en H2H-duell — helt gratis.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Spill ukens quiz &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- MIDLERTIDIG: Founders Access-nevnelse — fjern når kampanjen avsluttes -->
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Nysgjerrig på mer? Med
+                <a href="https://www.quizkanonen.no/founders" style="color:#e8e4dd;text-decoration:underline;">Founders Access</a>
+                får du 30 dager med full tilgang — nøyaktig plassering, historikk, statistikk, private ligaer og sesongtoppliste — helt gratis, ingen kortinfo nødvendig.
+              </p>
+
+              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Spørsmål? Bare svar på denne e-posten.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                — Dennis, Quizkanonen
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function orgRemovedEmail(orgName: string): string {
   return `<!DOCTYPE html>
 <html lang="no">

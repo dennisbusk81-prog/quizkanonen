@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
+import { sendEmail } from '@/lib/email'
+import { welcomeFreeEmail } from '@/lib/email-templates'
 
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
@@ -98,6 +100,22 @@ export async function GET(request: NextRequest) {
       )
     } else {
       console.log('[auth/callback] profile created for new user', user.id)
+      // Send velkomstmail til ny gratisbruker — fire-and-forget, blokkerer aldri innlogging.
+      // Kjøres kun én gang: denne INSERT-grenen nås bare når UPDATE traff 0 rader (ny bruker).
+      if (user.email) {
+        const firstName = (initialDisplayName ?? user.email.split('@')[0]).split(' ')[0]
+        try {
+          await sendEmail({
+            to: user.email,
+            subject: 'Velkommen til Quizkanonen!',
+            html: welcomeFreeEmail(firstName),
+            replyTo: 'support@quizkanonen.no',
+          })
+        } catch (emailErr) {
+          // Logg feilen men la innloggingen gå gjennom uansett
+          console.error('[auth/callback] welcomeFreeEmail feilet:', emailErr)
+        }
+      }
     }
   } else {
     console.log('[auth/callback] profile last_seen refreshed for user', user.id)
