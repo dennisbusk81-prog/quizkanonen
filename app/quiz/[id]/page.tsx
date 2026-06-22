@@ -1111,9 +1111,6 @@ export default function QuizPage() {
         body: JSON.stringify({
           quizId,
           playerName: info.name,
-          isTeam: false,
-          teamSize: 1,
-          leaderDisplayName: null,
         }),
       })
       if (!res.ok) {
