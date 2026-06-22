@@ -597,7 +597,7 @@ export default function ProfilPage() {
         <div style={s.page}>
           {/* Avatar + identity */}
           <div style={s.avatarSection}>
-            {avatarUrl ? (
+            {avatarUrl && !avatarColor ? (
               <img src={avatarUrl} alt="" width={64} height={64} style={{ borderRadius: '50%', objectFit: 'cover', width: 64, height: 64, border: '2px solid #2a2d38', marginBottom: 6, display: 'block' }} />
             ) : (
               <div style={{ ...s.avatar, background: avatarColor ?? '#2a2d38', border: `2px solid ${avatarColor ?? '#2a2d38'}` }}>{initial}</div>
