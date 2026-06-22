@@ -353,7 +353,7 @@ export function orgRemovedEmail(orgName: string, graceUntil?: string | null): st
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Din personlige profil, sesong-poeng og quizhistorikk er intakt.
               </p>
               ${premiumBlock}
