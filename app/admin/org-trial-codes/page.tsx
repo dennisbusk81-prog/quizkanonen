@@ -264,6 +264,8 @@ export default function AdminOrgTrialCodes() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [form, setForm] = useState({ package: 'standard', trial_days: '14', code: '', note: '' })
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<TrialCode | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -314,6 +316,25 @@ export default function AdminOrgTrialCodes() {
       showFeedback('error', 'Uventet feil ved generering.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function deleteCode(id: string) {
+    setDeleting(true)
+    try {
+      const res = await adminFetch(`/api/admin/org-trial-codes/${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        showFeedback('error', data.error ?? 'Kunne ikke slette koden.')
+      } else {
+        showFeedback('success', 'Kode slettet.')
+        fetchCodes()
+      }
+    } catch {
+      showFeedback('error', 'Uventet feil ved sletting.')
+    } finally {
+      setDeleting(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -442,12 +463,21 @@ export default function AdminOrgTrialCodes() {
                   </p>
                 </div>
                 {!used && (
-                  <button
-                    onClick={() => copyCode(code.id, code.code)}
-                    className="tc-copy-btn"
-                  >
-                    {copiedId === code.id ? 'Kopiert!' : 'Kopier'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      onClick={() => copyCode(code.id, code.code)}
+                      className="tc-copy-btn"
+                    >
+                      {copiedId === code.id ? 'Kopiert!' : 'Kopier'}
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(code)}
+                      className="tc-copy-btn"
+                      style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
+                    >
+                      Slett
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -455,6 +485,34 @@ export default function AdminOrgTrialCodes() {
         </div>
 
       </div>
+
+      {deleteTarget && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
+              Slett kode
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 24 }}>
+              Slett koden <strong style={{ color: '#ffffff', fontFamily: "'Courier New', monospace", letterSpacing: '0.06em' }}>{deleteTarget.code}</strong>? Dette kan ikke angres.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 10, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => deleteCode(deleteTarget.id)}
+                disabled={deleting}
+                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: deleting ? '#2a2d38' : '#f87171', border: 'none', borderRadius: 10, padding: '8px 20px', cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {deleting ? 'Sletter...' : 'Slett'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
