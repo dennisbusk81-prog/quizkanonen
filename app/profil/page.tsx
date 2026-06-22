@@ -733,7 +733,7 @@ export default function ProfilPage() {
           {orgs.some(o => o.allowGlobalLeague) && (
             <div style={{ ...s.card, marginBottom: 10 }}>
               <p style={s.sectionLabel}>Nasjonal toppliste</p>
-              <p style={s.fieldHint}>
+              <p style={{ ...s.fieldHint, color: '#e8e4dd' }}>
                 Velg om du vil vises på den nasjonale sesong-topplisten sammen med alle
                 Quizkanonen-spillere. Du kan alltid være med på bedriftens interne liga uansett.
               </p>
@@ -767,7 +767,7 @@ export default function ProfilPage() {
                           position: 'absolute', top: 4,
                           left: visible ? 22 : 4,
                           width: 16, height: 16, borderRadius: '50%',
-                          background: visible ? '#1a1c23' : '#7a7873',
+                          background: visible ? '#1a1c23' : '#e8e4dd',
                           transition: 'left 0.15s',
                         }} />
                       </div>
