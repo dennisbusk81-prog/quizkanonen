@@ -300,7 +300,23 @@ export function welcomeFreeEmail(firstName: string): string {
 </html>`
 }
 
-export function orgRemovedEmail(orgName: string): string {
+export function orgRemovedEmail(orgName: string, graceUntil?: string | null): string {
+  const premiumBlock = graceUntil
+    ? `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Hadde du Premium gjennom bedriften, beholder du tilgangen i 7 dager — frem til ${formatNorwegianDate(graceUntil)}.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vil du fortsette med Premium etter det? Tegn ditt eget abonnement på
+                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — kr 49/mnd, fornyes automatisk til du selv avslutter.
+              </p>`
+    : `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Hvis du hadde Premium gjennom bedriften, har du nå mistet denne tilgangen.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Ønsker du å fortsette med Premium?
+                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a><br />
+                Premium fornyes automatisk hver måned til du selv avslutter.
+              </p>`
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -340,14 +356,7 @@ export function orgRemovedEmail(orgName: string): string {
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Din personlige profil, sesong-poeng og quizhistorikk er intakt.
               </p>
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Hvis du hadde Premium gjennom bedriften, har du nå mistet denne tilgangen.
-              </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Ønsker du å fortsette med Premium?
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a><br />
-                Premium fornyes automatisk hver måned til du selv avslutter.
-              </p>
+              ${premiumBlock}
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0">
@@ -368,6 +377,85 @@ export function orgRemovedEmail(orgName: string): string {
           <tr>
             <td align="center" style="padding-top:28px;">
               <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
+                Spørsmål? Svar på denne e-posten.
+              </p>
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export function gracePeriodEndedEmail(): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Premium-tilgangen din er avsluttet</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo / header -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <!-- Title -->
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Premium-tilgangen din er avsluttet
+              </p>
+
+              <!-- Divider -->
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <!-- Body text -->
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Den midlertidige Premium-tilgangen du hadde gjennom en bedrift er nå avsluttet. Profilen din, sesong-poengene og quizhistorikken er fortsatt intakt.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vil du beholde Premium? Tegn ditt eget abonnement på
+                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — kr 49/mnd.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/premium"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se Premium
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#7a7873;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
                 Spørsmål? Svar på denne e-posten.
               </p>

@@ -47,16 +47,12 @@ export async function POST(
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
   }
 
-  // Log personal subscription if exists (for reference)
+  // Premium-tilstand til den fjernede brukeren
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('personal_stripe_subscription_id')
+    .select('premium_status, personal_stripe_subscription_id')
     .eq('id', membership.user_id)
     .maybeSingle()
-
-  if (profile?.personal_stripe_subscription_id) {
-    console.log(`[remove-member] user ${membership.user_id} had personal_stripe_subscription_id: ${profile.personal_stripe_subscription_id}`)
-  }
 
   // Fetch org name for email
   const { data: org } = await supabaseAdmin
@@ -71,11 +67,17 @@ export async function POST(
     .delete()
     .eq('id', membershipId)
 
-  // Revoke premium
-  await supabaseAdmin.from('profiles').update({
-    premium_status: false,
-    premium_source: null,
-  }).eq('id', membership.user_id)
+  // Grace period: brukere som har Premium gjennom orgen (uten eget Stripe-
+  // abonnement) beholder Premium i 7 dager. premium_status holdes true; cron-
+  // jobben /api/cron/expire-grace-periods slår den av når grace utløper.
+  // Brukere med eget abonnement røres ikke — de beholder sin egen Premium.
+  let graceUntil: string | null = null
+  if (profile?.premium_status === true && !profile?.personal_stripe_subscription_id) {
+    graceUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    await supabaseAdmin.from('profiles')
+      .update({ org_premium_grace_until: graceUntil })
+      .eq('id', membership.user_id)
+  }
 
   // Send removal email (fire-and-forget)
   if (org?.name) {
@@ -84,7 +86,7 @@ export async function POST(
       sendEmail({
         to: removedUser.email,
         subject: `Du er fjernet fra ${org.name} på Quizkanonen`,
-        html: orgRemovedEmail(org.name),
+        html: orgRemovedEmail(org.name, graceUntil),
       }).catch((err) => console.error('[remove-member] sendEmail feil:', err))
     }
   }

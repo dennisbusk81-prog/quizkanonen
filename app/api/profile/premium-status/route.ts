@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // Hent premium_status med service role — omgår RLS
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, premium_source, stripe_customer_id')
+    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -31,8 +31,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ isPremium: false }, { status: 500 })
   }
 
+  // Grace period: brukere som mistet org-Premium beholder tilgang til grace utløper
+  const graceActive = !!data?.org_premium_grace_until
+    && new Date(data.org_premium_grace_until) > new Date()
+
   return NextResponse.json({
-    isPremium: data?.premium_status === true,
+    isPremium: data?.premium_status === true || graceActive,
     premiumSource: data?.premium_source ?? null,
     hasStripeCustomer: !!data?.stripe_customer_id,
   })

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { sendEmail } from '@/lib/email'
+import { orgRemovedEmail } from '@/lib/email-templates'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -68,6 +70,53 @@ export async function POST(request: NextRequest, { params }: Params) {
       console.error('[org-delete] Stripe-kansellering feilet, avbryter sletting', orgId, stripeErr)
       return NextResponse.json({ error: 'Kunne ikke kansellere abonnementet. Ingen data ble slettet.' }, { status: 500 })
     }
+  }
+
+  // ── 1b. Grace period for medlemmer med org-Premium ─────────────────────────
+  // Hent alle medlemmer + premium-tilstand FØR medlemskapene slettes. De som har
+  // Premium gjennom orgen (uten eget Stripe-abonnement) får 7 dager grace:
+  // premium_status holdes true, og org_premium_grace_until settes. Cron-jobben
+  // slår av Premium når grace utløper. Brukere med eget abonnement røres ikke.
+  // Grace/e-post skal aldri blokkere selve slettingen.
+  try {
+    const { data: members } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', orgId)
+
+    const memberIds = (members ?? []).map(m => m.user_id)
+    if (memberIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, premium_status, personal_stripe_subscription_id')
+        .in('id', memberIds)
+
+      const eligible = (profiles ?? []).filter(
+        p => p.premium_status === true && !p.personal_stripe_subscription_id
+      )
+
+      if (eligible.length > 0) {
+        const graceUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        await supabaseAdmin
+          .from('profiles')
+          .update({ org_premium_grace_until: graceUntil })
+          .in('id', eligible.map(p => p.id))
+
+        // Send grace-e-post til hver berørt bruker (fire-and-forget)
+        for (const p of eligible) {
+          const { data: { user: u } } = await supabaseAdmin.auth.admin.getUserById(p.id)
+          if (u?.email) {
+            sendEmail({
+              to: u.email,
+              subject: `Du er fjernet fra ${org.name} på Quizkanonen`,
+              html: orgRemovedEmail(org.name, graceUntil),
+            }).catch(err => console.error('[org-delete] sendEmail feil:', err))
+          }
+        }
+      }
+    }
+  } catch (graceErr) {
+    console.error('[org-delete] grace-period-steg feilet (fortsetter sletting)', orgId, graceErr)
   }
 
   // ── 2. Slett org-spesifikke rader i riktig rekkefølge (FK-hensyn) ──────────
