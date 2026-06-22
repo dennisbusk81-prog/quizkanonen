@@ -528,6 +528,7 @@ export default function AdminHome() {
           <Link href="/admin/quizzes/new" className="adm-btn-primary">+ Lag ny quiz</Link>
           <Link href="/admin/users" className="adm-btn-outline">Brukere →</Link>
           <Link href="/admin/codes" className="adm-btn-outline">Verdikoder →</Link>
+          <Link href="/admin/org-trial-codes" className="adm-btn-outline">Bedriftskoder →</Link>
         </div>
 
         {/* Stats */}

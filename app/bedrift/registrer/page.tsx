@@ -30,6 +30,13 @@ export default function BedriftRegistrerPage() {
   const [trialLoading, setTrialLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Promo-kode (admin-initiert pilot-trial)
+  const [promoOpen, setPromoOpen] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoValidating, setPromoValidating] = useState(false)
+  const [promoError, setPromoError] = useState('')
+  const [validatedCode, setValidatedCode] = useState<{ code: string; package: string; trial_days: number } | null>(null)
+
   useEffect(() => {
     // Pick up plan from query string — redirect disabled plans back to /bedrift
     const p = new URLSearchParams(window.location.search).get('plan')
@@ -48,6 +55,7 @@ export default function BedriftRegistrerPage() {
             const saved = JSON.parse(raw)
             if (saved.orgName) setOrgName(saved.orgName)
             if (saved.plan)    setPlan(saved.plan)
+            if (saved.promoCode) validatePromo(saved.promoCode)
           } catch { /* ignore */ }
           sessionStorage.removeItem(STORAGE_KEY)
         }
@@ -62,6 +70,7 @@ export default function BedriftRegistrerPage() {
             const saved = JSON.parse(raw)
             if (saved.orgName) setOrgName(saved.orgName)
             if (saved.plan)    setPlan(saved.plan)
+            if (saved.promoCode) validatePromo(saved.promoCode)
           } catch { /* ignore */ }
           sessionStorage.removeItem(STORAGE_KEY)
         }
@@ -71,8 +80,44 @@ export default function BedriftRegistrerPage() {
   }, [])
 
   const saveAndLogin = () => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ orgName, plan }))
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ orgName, plan, promoCode: validatedCode?.code ?? '' }))
     signInWithGoogle('/bedrift/registrer')
+  }
+
+  const planLabel = (id: string) => PLANS.find(p => p.id === id)?.label ?? id
+
+  const validatePromo = async (rawCode?: string) => {
+    const code = (rawCode ?? promoCode).trim().toUpperCase()
+    if (!code) { setPromoError('Skriv inn en kode.'); return }
+    setPromoValidating(true)
+    setPromoError('')
+    try {
+      const res = await fetch('/api/org/trial-code/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.valid) {
+        setPromoError(data.error ?? 'Ugyldig kode.')
+        setValidatedCode(null)
+        return
+      }
+      setPromoOpen(true)
+      setPromoCode(code)
+      setValidatedCode({ code, package: data.package, trial_days: data.trial_days })
+      setPlan(data.package)
+    } catch {
+      setPromoError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setPromoValidating(false)
+    }
+  }
+
+  const clearPromo = () => {
+    setValidatedCode(null)
+    setPromoCode('')
+    setPromoError('')
   }
 
   const handleSubmit = async () => {
@@ -113,7 +158,11 @@ export default function BedriftRegistrerPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ organizationName: orgName.trim(), plan }),
+        body: JSON.stringify({
+          organizationName: orgName.trim(),
+          plan,
+          ...(validatedCode ? { trialCode: validatedCode.code } : {}),
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
@@ -173,46 +222,110 @@ export default function BedriftRegistrerPage() {
               style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
             />
 
-            {/* Plan selection */}
-            <div style={{ marginTop: 24 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 10 }}>
-                Velg plan
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {PLANS.map(p => {
-                  const isDisabled = 'disabled' in p && p.disabled
-                  const selected = plan === p.id && !isDisabled
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => !isDisabled && setPlan(p.id)}
-                      style={{
-                        background: isDisabled ? 'transparent' : selected ? (p.featured ? '#1e1a0e' : 'rgba(201,168,76,0.04)') : '#1a1c23',
-                        border: isDisabled ? '1px solid #2a2d38' : selected ? '1.5px solid #c9a84c' : '1px solid #2a2d38',
-                        borderRadius: 10,
-                        padding: '14px 16px',
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        opacity: isDisabled ? 0.4 : 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 14,
-                      }}
-                    >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${selected ? '#c9a84c' : '#2a2d38'}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {selected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#c9a84c' }} />}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 2 }}>
-                          {p.label}{p.featured ? ' — mest populær' : ''}{isDisabled ? ' — kommer snart' : ''}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{p.price}</div>
-                        <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>{p.desc}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+            {validatedCode ? (
+              /* Innløst promo-kode: koden bestemmer pakke og trial-lengde, så
+                 planvelger og pris skjules. */
+              <div style={{ marginTop: 24 }}>
+                <div style={{ background: '#1e1a0e', border: '1.5px solid #c9a84c', borderRadius: 10, padding: '18px 20px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 6 }}>
+                    Promo-kode aktivert
+                  </p>
+                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+                    {validatedCode.trial_days} dager gratis — {planLabel(validatedCode.package)}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
+                    Ingen kortinfo nødvendig. Koden <strong style={{ color: '#ffffff' }}>{validatedCode.code}</strong> gir full tilgang i prøveperioden.
+                  </p>
+                  <button
+                    onClick={clearPromo}
+                    style={{ marginTop: 12, fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                  >
+                    Fjern kode
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Plan selection */}
+                <div style={{ marginTop: 24 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 10 }}>
+                    Velg plan
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {PLANS.map(p => {
+                      const isDisabled = 'disabled' in p && p.disabled
+                      const selected = plan === p.id && !isDisabled
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => !isDisabled && setPlan(p.id)}
+                          style={{
+                            background: isDisabled ? 'transparent' : selected ? (p.featured ? '#1e1a0e' : 'rgba(201,168,76,0.04)') : '#1a1c23',
+                            border: isDisabled ? '1px solid #2a2d38' : selected ? '1.5px solid #c9a84c' : '1px solid #2a2d38',
+                            borderRadius: 10,
+                            padding: '14px 16px',
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            opacity: isDisabled ? 0.4 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 14,
+                          }}
+                        >
+                          <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${selected ? '#c9a84c' : '#2a2d38'}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {selected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#c9a84c' }} />}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 2 }}>
+                              {p.label}{p.featured ? ' — mest populær' : ''}{isDisabled ? ' — kommer snart' : ''}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{p.price}</div>
+                            <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>{p.desc}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Promo-kode */}
+                <div style={{ marginTop: 20 }}>
+                  {!promoOpen ? (
+                    <button
+                      onClick={() => setPromoOpen(true)}
+                      style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                    >
+                      Har du en promo-kode?
+                    </button>
+                  ) : (
+                    <>
+                      <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                        Promo-kode
+                      </label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="text"
+                          value={promoCode}
+                          onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError('') }}
+                          onKeyDown={e => e.key === 'Enter' && validatePromo()}
+                          placeholder="F.eks. PILOT-ELKJOP"
+                          style={{ flex: 1, minWidth: 0, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', letterSpacing: '0.04em' }}
+                        />
+                        <button
+                          onClick={() => validatePromo()}
+                          disabled={promoValidating || !promoCode.trim()}
+                          style={{ background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: promoValidating || !promoCode.trim() ? 'not-allowed' : 'pointer', opacity: promoValidating || !promoCode.trim() ? 0.4 : 1, whiteSpace: 'nowrap' }}
+                        >
+                          {promoValidating ? 'Sjekker…' : 'Bruk kode'}
+                        </button>
+                      </div>
+                      {promoError && (
+                        <p style={{ fontSize: 13, color: '#f87171', marginTop: 8, lineHeight: 1.5 }}>{promoError}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
             <div style={{ height: 1, background: '#2a2d38', margin: '24px 0' }} />
 
@@ -233,6 +346,19 @@ export default function BedriftRegistrerPage() {
                 </button>
                 <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                   Skjemaet er lagret — du sendes til betaling etter innlogging
+                </p>
+              </>
+            ) : validatedCode ? (
+              <>
+                <button
+                  onClick={handleTrial}
+                  disabled={loading || trialLoading || !orgName.trim()}
+                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
+                >
+                  {trialLoading ? 'Starter...' : 'Aktiver prøveperiode →'}
+                </button>
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                  Bedriftssidene sperres til betaling hvis du ikke fortsetter etter prøveperioden.
                 </p>
               </>
             ) : (

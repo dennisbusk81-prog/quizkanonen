@@ -31,27 +31,57 @@ export async function POST(request: NextRequest) {
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  let body: { organizationName?: string; plan?: string }
+  let body: { organizationName?: string; plan?: string; trialCode?: string }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
 
-  const { organizationName, plan } = body
-  if (!organizationName?.trim() || !plan) {
-    return NextResponse.json({ error: 'Mangler organisasjonsnavn eller plan' }, { status: 400 })
+  const { organizationName, trialCode } = body
+  if (!organizationName?.trim()) {
+    return NextResponse.json({ error: 'Mangler organisasjonsnavn' }, { status: 400 })
+  }
+
+  // Promo-kode (admin-initiert pilot) overstyrer plan og trial-lengde. Uten kode
+  // brukes valgt plan fra body og trial-lengde fra site_settings.
+  let plan = body.plan
+  let codedTrialDays: number | null = null
+  let trialCodeId: string | null = null
+
+  const normalizedCode = trialCode?.trim().toUpperCase()
+  if (normalizedCode) {
+    const { data: codeRow } = await supabaseAdmin
+      .from('org_trial_codes')
+      .select('id, package, trial_days, used_at')
+      .eq('code', normalizedCode)
+      .maybeSingle()
+
+    if (!codeRow) return NextResponse.json({ error: 'Ukjent promo-kode.' }, { status: 400 })
+    if (codeRow.used_at) return NextResponse.json({ error: 'Promo-koden er allerede brukt.' }, { status: 409 })
+
+    plan = codeRow.package
+    codedTrialDays = codeRow.trial_days
+    trialCodeId = codeRow.id
+  }
+
+  if (!plan) {
+    return NextResponse.json({ error: 'Mangler plan' }, { status: 400 })
   }
 
   const priceId = PLAN_PRICES[plan]
   if (!priceId) return NextResponse.json({ error: 'Ugyldig plan' }, { status: 400 })
 
   try {
-    // Trial-lengde fra site_settings (key/value), samme mønster som founders_days_free.
-    const { data: settingRow } = await supabaseAdmin
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'org_trial_days')
-      .maybeSingle()
-    const trialDays = settingRow?.value ? parseInt(settingRow.value as string) : 14
+    // Trial-lengde: fra koden hvis innløst, ellers site_settings (samme mønster
+    // som founders_days_free), med 14 dager som fallback.
+    let trialDays = codedTrialDays
+    if (trialDays == null) {
+      const { data: settingRow } = await supabaseAdmin
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'org_trial_days')
+        .maybeSingle()
+      trialDays = settingRow?.value ? parseInt(settingRow.value as string) : 14
+    }
 
     // 1. Opprett org med subscription_status='trialing'
     const slug = randomBytes(4).toString('hex')
@@ -64,6 +94,25 @@ export async function POST(request: NextRequest) {
     if (orgErr || !org) {
       console.error('[org-trial] org insert failed:', orgErr)
       return NextResponse.json({ error: 'Kunne ikke opprette organisasjon' }, { status: 500 })
+    }
+
+    // 1b. Innløs promo-kode atomisk: marker brukt KUN hvis fortsatt ubrukt.
+    //     Hindrer dobbel innløsning ved samtidige forsøk. Feiler claimet, ruller
+    //     vi tilbake den nyopprettede org-en og avbryter.
+    if (trialCodeId) {
+      const { data: claimed } = await supabaseAdmin
+        .from('org_trial_codes')
+        .update({ used_at: new Date().toISOString(), used_by_org_id: org.id })
+        .eq('id', trialCodeId)
+        .is('used_at', null)
+        .select('id')
+        .maybeSingle()
+
+      if (!claimed) {
+        await supabaseAdmin.from('organizations').delete().eq('id', org.id)
+        console.error('[org-trial] promo-kode allerede brukt ved claim, rullet tilbake org:', org.id)
+        return NextResponse.json({ error: 'Promo-koden er allerede brukt.' }, { status: 409 })
+      }
     }
 
     // 2. Admin-medlemsraden MÅ committes — samme robuste mønster som org-checkout.
