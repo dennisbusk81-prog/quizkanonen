@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Slik fungerer det — Quizkanonen',
-  description: 'Alt du trenger å vite om Quizkanonen — scoring, sesonger, ligaer og mer.',
+  description: 'Alt du trenger å vite om Quizkanonen — scoring, sesonger, private ligaer og forskjellen på gratis og Premium.',
 }
 
 const s = {
