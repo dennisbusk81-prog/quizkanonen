@@ -759,7 +759,9 @@ export function orgPurchaseEmail(orgName: string, orgSlug: string): string {
 }
 
 function formatTrialEndDate(isoString: string): string {
-  return new Date(isoString).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
+  const d = new Date(isoString)
+  if (isNaN(d.getTime())) return 'prøveperioden'
+  return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
 }
 
 export function orgTrialEmail(orgName: string, orgSlug: string, trialEndIso: string): string {

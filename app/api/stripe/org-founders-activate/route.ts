@@ -157,9 +157,12 @@ export async function POST(request: NextRequest) {
       metadata: { organization_id: org.id, type: 'org' },
     })
 
-    const periodEnd = new Date(
-      (subscription as unknown as { current_period_end: number }).current_period_end * 1000
-    ).toISOString()
+    // Stripe trial-abonnementer: trial_end er den kanoniske slutt-epoken.
+    // current_period_end er null i dahlia-APIet for trialing-abonnementer.
+    // Fallback: nå + trial-dager × 86400 sek, slik at periodEnd aldri er ugyldig.
+    const sub = subscription as unknown as { trial_end: number | null; current_period_end: number | null }
+    const endEpoch = sub.trial_end ?? sub.current_period_end ?? (Math.floor(Date.now() / 1000) + (trialDays ?? 14) * 86400)
+    const periodEnd = new Date(endEpoch * 1000).toISOString()
 
     // 6. Lagre Stripe-felt på org (subscription_status forblir 'trialing')
     await supabaseAdmin.from('organizations').update({
