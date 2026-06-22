@@ -1204,7 +1204,7 @@ export default function OrgAdminPage() {
                 >
                   {portalLoading ? 'Laster...' : 'Innstillinger'}
                 </button>
-                {currentPlan !== 'pro' && (
+                {currentPlan !== 'pro' && data?.org.subscription_status !== 'trialing' && (
                   <Link
                     href={`/kontakt`}
                     style={{
@@ -1222,6 +1222,15 @@ export default function OrgAdminPage() {
                   </Link>
                 )}
                 </div>
+                {data?.org.subscription_status === 'trialing' && (
+                  <button
+                    onClick={openPortal}
+                    disabled={portalLoading}
+                    style={{ fontSize: 12, color: '#7a7873', background: 'transparent', border: 'none', padding: 0, cursor: portalLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textAlign: 'right' }}
+                  >
+                    Legg inn betaling for å fortsette etter prøveperioden
+                  </button>
+                )}
                 {portalError && (
                   <p style={{ fontSize: 12, color: '#7a7873', margin: 0 }}>{portalError}</p>
                 )}
