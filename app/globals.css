@@ -29,6 +29,11 @@ body {
   .qk-nav-toppliste { display: none !important; }
 }
 
+/* Datepicker-kontrast — gjør nettleserens dato/tid-popup lesbar på mørk bakgrunn */
+input[type="datetime-local"], input[type="date"] {
+  color-scheme: dark;
+}
+
 body::before {
   content: '';
   position: fixed;

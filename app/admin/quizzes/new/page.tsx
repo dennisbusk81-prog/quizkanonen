@@ -235,9 +235,28 @@ const STYLES = `
   /* ── Dots row (compact, no label) ── */
   .nq-nav-bar {
     display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 12px;
     padding: 14px 0 10px;
   }
+
+  /* ── Reorder arrows (ved siden av prikkene) ── */
+  .nq-reorder-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 9px;
+    color: var(--body);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .nq-reorder-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .nq-reorder-btn:disabled { opacity: 0.3; cursor: default; }
 
   .nq-dots-row {
     display: flex;
@@ -544,6 +563,103 @@ const STYLES = `
   }
   .nq-add-q-link:hover { color: var(--gold); }
 
+  /* ── Faresone (slett spørsmål) ── */
+  .nq-danger-zone {
+    margin-top: 22px;
+    border: 1px solid rgba(248,113,113,0.3);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .nq-danger-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #f87171;
+  }
+  .nq-delete-q-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid rgba(248,113,113,0.4);
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .nq-delete-q-btn:hover { border-color: #f87171; background: rgba(248,113,113,0.08); }
+  .nq-delete-error { font-size: 12px; color: #f87171; }
+
+  /* ── Bekreftelsesmodal ── */
+  .nq-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .nq-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 380px;
+    width: 100%;
+  }
+  .nq-modal-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 10px;
+  }
+  .nq-modal-text {
+    font-size: 14px;
+    color: var(--body);
+    line-height: 1.5;
+    margin-bottom: 22px;
+  }
+  .nq-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .nq-modal-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--body);
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .nq-modal-cancel:hover { border-color: var(--gold); color: var(--gold); }
+  .nq-modal-delete {
+    background: #c94c4c;
+    border: 1px solid #c94c4c;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .nq-modal-delete:hover { background: #d65a5a; }
+
   /* ── Responsive ── */
   @media (max-width: 540px) {
     .nq-datetime-row { grid-template-columns: 1fr; }
@@ -607,6 +723,10 @@ function QuizEditorInner() {
   const [aiGenTopic, setAiGenTopic]         = useState('')
   const [aiGenAllLoading, setAiGenAllLoading] = useState(false)
   const [aiGenAllError, setAiGenAllError]     = useState<string | null>(null)
+
+  // Slett spørsmål (bekreftelsesmodal + feilmelding)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteError, setDeleteError]         = useState<string | null>(null)
 
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
@@ -900,6 +1020,107 @@ function QuizEditorInner() {
     setActiveIdx(newIdx)
     activeIdxRef.current = newIdx
   }, [saveQuestion])
+
+  // Flytt aktivt spørsmål én plass frem (dir=-1, mot starten) eller bakover
+  // (dir=1). Bytter posisjon lokalt og lagrer ny order_index for de to radene.
+  const moveQuestion = useCallback(async (dir: -1 | 1) => {
+    const i = activeIdxRef.current
+    const target = i + dir
+    const list = questionsRef.current
+    if (target < 0 || target >= list.length) return
+
+    // Lagre eventuelle ulagrede endringer på nåværende spørsmål først
+    saveQuestion(i)
+
+    // Bytt posisjon i de lokale parallelle arrayene
+    const newQuestions = list.slice()
+    ;[newQuestions[i], newQuestions[target]] = [newQuestions[target], newQuestions[i]]
+    questionsRef.current = newQuestions
+    setQuestions(newQuestions)
+
+    const newIds = questionDbIdsRef.current.slice()
+    ;[newIds[i], newIds[target]] = [newIds[target], newIds[i]]
+    questionDbIdsRef.current = newIds
+    setQuestionDbIds(newIds)
+
+    setActiveIdx(target)
+    activeIdxRef.current = target
+
+    // Lagre ny rekkefølge i DB (kun for rader som allerede finnes)
+    const qId = quizIdRef.current
+    if (!qId || qId === 'creating') return
+    setSaveStatus('saving')
+    try {
+      const reqs: Promise<Response>[] = []
+      if (newIds[i])      reqs.push(adminFetch(`/api/admin/quizzes/${qId}/questions/${newIds[i]}`,      { method: 'PATCH', body: JSON.stringify({ order_index: i + 1 }) }))
+      if (newIds[target]) reqs.push(adminFetch(`/api/admin/quizzes/${qId}/questions/${newIds[target]}`, { method: 'PATCH', body: JSON.stringify({ order_index: target + 1 }) }))
+      const results = await Promise.all(reqs)
+      if (results.some(r => !r.ok)) { setSaveStatus('error'); return }
+      showSaved()
+    } catch {
+      setSaveStatus('error')
+    }
+  }, [saveQuestion])
+
+  // Slett aktivt spørsmål (etter bekreftelse). Nekter når det er det eneste.
+  // Sletter fra DB + lokal state, renormaliserer order_index, og navigerer
+  // deretter til forrige spørsmål (eller første).
+  const deleteQuestion = useCallback(async () => {
+    const i = activeIdxRef.current
+    const list = questionsRef.current
+    if (list.length <= 1) {
+      setDeleteError('Kan ikke slette det eneste spørsmålet. En quiz må ha minst ett spørsmål.')
+      setDeleteModalOpen(false)
+      return
+    }
+
+    const qId = quizIdRef.current
+    const dbId = questionDbIdsRef.current[i]
+
+    // Slett fra DB hvis spørsmålet er lagret
+    if (qId && qId !== 'creating' && dbId) {
+      setSaveStatus('saving')
+      try {
+        const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, { method: 'DELETE' })
+        if (!res.ok) { setSaveStatus('error'); setDeleteModalOpen(false); return }
+      } catch {
+        setSaveStatus('error'); setDeleteModalOpen(false); return
+      }
+    }
+
+    // Fjern fra de lokale arrayene
+    const newQuestions = list.slice(); newQuestions.splice(i, 1)
+    const newIds = questionDbIdsRef.current.slice(); newIds.splice(i, 1)
+    questionsRef.current = newQuestions
+    setQuestions(newQuestions)
+    questionDbIdsRef.current = newIds
+    setQuestionDbIds(newIds)
+
+    // Naviger til forrige (eller første)
+    const newIdx = Math.max(0, i - 1)
+    setActiveIdx(newIdx)
+    activeIdxRef.current = newIdx
+
+    setDeleteModalOpen(false)
+    setDeleteError(null)
+
+    // Renormaliser order_index for gjenværende lagrede rader (parallelt)
+    if (qId && qId !== 'creating') {
+      try {
+        const reqs = newIds
+          .map((id, p) => id
+            ? adminFetch(`/api/admin/quizzes/${qId}/questions/${id}`, { method: 'PATCH', body: JSON.stringify({ order_index: p + 1 }) })
+            : null)
+          .filter((r): r is Promise<Response> => r !== null)
+        await Promise.all(reqs)
+        showSaved()
+      } catch {
+        setSaveStatus('error')
+      }
+    } else {
+      showSaved()
+    }
+  }, [])
 
   // Keyboard shortcuts: arrow keys when no input is focused
   useEffect(() => {
@@ -1309,8 +1530,20 @@ function QuizEditorInner() {
 
         </div>
 
-        {/* ── Dots row (compact) ── */}
+        {/* ── Reorder-piler + prikkerad (compact) ── */}
         <div className="nq-nav-bar">
+          <button
+            type="button"
+            className="nq-reorder-btn"
+            onClick={() => moveQuestion(-1)}
+            disabled={activeIdx === 0}
+            title="Flytt spørsmålet frem"
+            aria-label="Flytt spørsmålet frem"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
           <div className="nq-dots-row">
             {questions.map((qItem, i) => (
               <button
@@ -1330,6 +1563,18 @@ function QuizEditorInner() {
               />
             ))}
           </div>
+          <button
+            type="button"
+            className="nq-reorder-btn"
+            onClick={() => moveQuestion(1)}
+            disabled={isLast}
+            title="Flytt spørsmålet bakover"
+            aria-label="Flytt spørsmålet bakover"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
         </div>
 
         {/* ── Question card ── */}
@@ -1457,6 +1702,26 @@ function QuizEditorInner() {
             </button>
           </div>
           {aiError && <p className="nq-ai-error">{aiError}</p>}
+
+          {/* ── Faresone — slett spørsmål ── */}
+          <div className="nq-danger-zone">
+            <span className="nq-danger-label">Faresone</span>
+            <button
+              type="button"
+              className="nq-delete-q-btn"
+              onClick={() => {
+                setDeleteError(null)
+                if (questions.length <= 1) {
+                  setDeleteError('Kan ikke slette det eneste spørsmålet. En quiz må ha minst ett spørsmål.')
+                  return
+                }
+                setDeleteModalOpen(true)
+              }}
+            >
+              Slett spørsmål
+            </button>
+            {deleteError && <p className="nq-delete-error">{deleteError}</p>}
+          </div>
         </div>
 
         {/* ── Navigation — sticky at bottom ── */}
@@ -1501,6 +1766,24 @@ function QuizEditorInner() {
           </div>
 
         </div>
+
+        {/* ── Bekreftelsesmodal for sletting ── */}
+        {deleteModalOpen && (
+          <div className="nq-modal-overlay" onClick={() => setDeleteModalOpen(false)}>
+            <div className="nq-modal" onClick={e => e.stopPropagation()}>
+              <h3 className="nq-modal-title">Slett spørsmål {activeIdx + 1}?</h3>
+              <p className="nq-modal-text">Dette kan ikke angres.</p>
+              <div className="nq-modal-actions">
+                <button type="button" className="nq-modal-cancel" onClick={() => setDeleteModalOpen(false)}>
+                  Avbryt
+                </button>
+                <button type="button" className="nq-modal-delete" onClick={deleteQuestion}>
+                  Slett
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </>
