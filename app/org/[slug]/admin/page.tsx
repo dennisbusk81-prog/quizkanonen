@@ -239,6 +239,11 @@ export default function OrgAdminPage() {
   const [seasonResetting, setSeasonResetting]     = useState(false)
   const [seasonResetDone, setSeasonResetDone]     = useState(false)
 
+  const [deleteOrgModal, setDeleteOrgModal]       = useState(false)
+  const [deleteOrgInput, setDeleteOrgInput]       = useState('')
+  const [deletingOrg, setDeletingOrg]             = useState(false)
+  const [deleteOrgError, setDeleteOrgError]       = useState<string | null>(null)
+
   const [portalLoading, setPortalLoading]         = useState(false)
   const [portalError, setPortalError]             = useState<string | null>(null)
 
@@ -768,6 +773,28 @@ export default function OrgAdminPage() {
       }
     } finally {
       setSeasonResetting(false)
+    }
+  }
+
+  const handleDeleteOrg = async () => {
+    if (!data || !session || deletingOrg || deleteOrgInput.trim() !== data.org.name) return
+    setDeletingOrg(true)
+    setDeleteOrgError(null)
+    try {
+      const res = await fetch(`/api/org/${data.org.id}/delete`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setDeleteOrgError(d.error ?? 'Noe gikk galt. Prøv igjen.')
+        return
+      }
+      router.push('/?melding=org-slettet')
+    } catch {
+      setDeleteOrgError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setDeletingOrg(false)
     }
   }
 
@@ -1933,6 +1960,38 @@ export default function OrgAdminPage() {
             </button>
           </div>
 
+          {/* Avslutt bedriftskonto — selvsletting av org */}
+          <div style={{
+            background: 'rgba(201,76,76,0.04)', border: '1px solid rgba(201,76,76,0.3)',
+            borderRadius: 14, padding: '20px 22px', marginTop: 14,
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
+                Avslutt bedriftskonto
+              </p>
+              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+                Dette avslutter abonnementet og fjerner bedriftens konto fra Quizkanonen.
+                Alle ansattes personlige kontoer og quizhistorikk beholdes — de fortsetter
+                som vanlige brukere.
+              </p>
+            </div>
+            <button
+              onClick={() => { setDeleteOrgModal(true); setDeleteOrgInput(''); setDeleteOrgError(null) }}
+              style={{
+                padding: '9px 18px', background: 'transparent',
+                border: '1px solid rgba(248,113,113,0.4)',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
+                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              Avslutt bedriftskonto
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -1971,6 +2030,51 @@ export default function OrgAdminPage() {
                 style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Avslutt-bedriftskonto-modal ────────────────────────────────────── */}
+      {deleteOrgModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
+              Avslutt bedriftskonto
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+              Dette avslutter abonnementet og fjerner {data?.org.name} fra Quizkanonen.
+              Handlingen kan ikke angres. Ansattes personlige kontoer og quizhistorikk beholdes.
+            </p>
+            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>
+              Skriv bedriftens navn — <strong style={{ color: '#e8e4dd' }}>{data?.org.name}</strong> — for å bekrefte:
+            </p>
+            <input
+              type="text"
+              value={deleteOrgInput}
+              onChange={e => setDeleteOrgInput(e.target.value)}
+              placeholder={data?.org.name}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleDeleteOrg() }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+            />
+            {deleteOrgError && (
+              <p style={{ fontSize: 12, color: '#f87171', marginBottom: 16 }}>{deleteOrgError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setDeleteOrgModal(false); setDeleteOrgInput(''); setDeleteOrgError(null) }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleDeleteOrg}
+                disabled={deleteOrgInput.trim() !== data?.org.name || deletingOrg}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteOrgInput.trim() === data?.org.name ? '#1a1c23' : '#7a7873', background: deleteOrgInput.trim() === data?.org.name ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteOrgInput.trim() === data?.org.name ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {deletingOrg ? 'Avslutter…' : 'Avslutt konto'}
               </button>
             </div>
           </div>
