@@ -1,11 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { randomBytes } from 'crypto'
-
-function auth(req: NextRequest) {
-  const pw = req.headers.get('x-admin-password')
-  return !!pw && pw === process.env.ADMIN_PASSWORD
-}
 
 const VALID_PACKAGES = ['starter', 'standard', 'pro'] as const
 
@@ -21,7 +17,7 @@ function randomCode(): string {
 // POST /api/admin/org-trial-codes/generate — opprett en ny engangskode for B2B-trial.
 // Body: { package, trial_days, note?, code? }. Genererer kode hvis ingen oppgis.
 export async function POST(request: NextRequest) {
-  if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: { package?: string; trial_days?: number; note?: string; code?: string }
   try { body = await request.json() } catch {

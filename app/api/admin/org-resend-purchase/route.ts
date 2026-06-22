@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { orgPurchaseEmail } from '@/lib/email-templates'
@@ -12,13 +13,8 @@ import { orgPurchaseEmail } from '@/lib/email-templates'
 //     -H "Content-Type: application/json" \
 //     -d '{"slug":"<org-slug>"}'
 
-function auth(req: NextRequest) {
-  const pw = req.headers.get('x-admin-password')
-  return !!pw && pw === process.env.ADMIN_PASSWORD
-}
-
 export async function POST(request: NextRequest) {
-  if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
   const slug: string | undefined = body?.slug

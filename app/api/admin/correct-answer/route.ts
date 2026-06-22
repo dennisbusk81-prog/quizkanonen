@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function POST(request: NextRequest) {
-  const adminPassword = request.headers.get('x-admin-password')
-  if (!adminPassword || adminPassword !== process.env.ADMIN_PASSWORD) {
+  if (!verifyAdminRequest(request)) {
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 401 })
   }
 

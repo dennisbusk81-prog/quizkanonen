@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 
 // Mode: suggest answers for an existing question
 const SYSTEM_PROMPT_SUGGEST = `Du er en quiz-assistent for Quizkanonen, en norsk ukentlig quiz.
@@ -20,13 +21,8 @@ Returner KUN JSON uten annen tekst:
 }`
 
 export async function POST(req: NextRequest) {
-  // FIX 5 — require admin password
-  const adminPassword = process.env.ADMIN_PASSWORD
-  if (adminPassword) {
-    const provided = req.headers.get('x-admin-password') ?? ''
-    if (provided !== adminPassword) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!verifyAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY

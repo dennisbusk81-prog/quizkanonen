@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-
-function auth(req: NextRequest) {
-  const pw = req.headers.get('x-admin-password')
-  return !!pw && pw === process.env.ADMIN_PASSWORD
-}
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000)
@@ -21,7 +17,7 @@ type AttemptRow = {
 }
 
 export async function POST(request: NextRequest) {
-  if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: { quizId?: unknown }
   try { body = await request.json() } catch {

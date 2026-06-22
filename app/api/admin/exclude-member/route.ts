@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 // POST /api/admin/exclude-member
@@ -14,12 +15,11 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
-  const adminPw = request.headers.get('x-admin-password')
   const bearerToken = request.headers.get('authorization')?.replace('Bearer ', '')
 
   let authed = false
 
-  if (adminPw && adminPw === process.env.ADMIN_PASSWORD) {
+  if (verifyAdminRequest(request)) {
     authed = true
   } else if (bearerToken) {
     const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(bearerToken)

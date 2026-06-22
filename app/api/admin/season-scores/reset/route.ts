@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-
-function auth(req: NextRequest) {
-  const pw = req.headers.get('x-admin-password')
-  return !!pw && pw === process.env.ADMIN_PASSWORD
-}
 
 // POST /api/admin/season-scores/reset
 // Body: { scope: 'all' | 'test' }
 // Beskyttet med admin-passord.
 export async function POST(request: NextRequest) {
-  if (!auth(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: { scope?: string }
   try { body = await request.json() } catch { body = {} }

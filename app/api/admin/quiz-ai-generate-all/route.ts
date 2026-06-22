@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { verifyAdminRequest } from '@/lib/admin-auth'
 
 const SYSTEM_PROMPT_TEMPLATE = `Du er en quiz-assistent for Quizkanonen, en ukentlig nordisk quiz.
 Generer {count} varierte quiz-spørsmål på norsk basert på temaet: {topic}.
@@ -19,13 +20,8 @@ type AiQuestion = {
 }
 
 export async function POST(req: NextRequest) {
-  // FIX 5 — require admin password
-  const adminPassword = process.env.ADMIN_PASSWORD
-  if (adminPassword) {
-    const provided = req.headers.get('x-admin-password') ?? ''
-    if (provided !== adminPassword) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!verifyAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
