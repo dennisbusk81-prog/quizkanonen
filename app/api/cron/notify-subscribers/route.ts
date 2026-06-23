@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 </html>`
 
       const subject = `Ukens quiz er klar — ${quizSnapshot.title ?? 'Quizkanonen'}`
-      const ids = subscribers.map(s => s.id)
+      const sentIds: string[] = []
       let sent = 0
       let failed = 0
 
@@ -116,16 +116,24 @@ export async function GET(request: NextRequest) {
         const results = await Promise.allSettled(
           batch.map(s => sendEmail({ to: s.email, subject, html }))
         )
-        sent   += results.filter(r => r.status === 'fulfilled').length
-        failed += results.filter(r => r.status === 'rejected').length
+        results.forEach((r, idx) => {
+          if (r.status === 'fulfilled') {
+            sentIds.push(batch[idx].id)
+            sent++
+          } else {
+            failed++
+          }
+        })
       }
 
-      // Mark all as notified
-      if (sent > 0) {
+      // Stem kun IDer der sendingen faktisk lyktes. Feilede rader forblir
+      // ustemplate og vil plukkes opp av neste kjøring hvis dedup-sjekken
+      // ikke allerede blokkerer (eksisterende begrensning).
+      if (sentIds.length > 0) {
         await supabaseAdmin
           .from('quiz_notifications')
           .update({ notified_at: now.toISOString(), notified_quiz_id: quizSnapshot.id })
-          .in('id', ids)
+          .in('id', sentIds)
       }
 
       console.log(`[cron/notify-subscribers] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
