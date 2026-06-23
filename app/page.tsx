@@ -12,10 +12,9 @@ import AccordionSection from '@/components/AccordionSection'
 import NotifyForm from '@/components/NotifyForm'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import Link from 'next/link'
+import { unstable_cache } from 'next/cache'
 
 const FOUNDERS_ACTIVE = true
-
-export const dynamic = 'force-dynamic'
 
 type QuizRow = {
   id: string
@@ -71,6 +70,232 @@ async function countParticipants(quizId: string): Promise<number> {
   }
   return players.size
 }
+
+// ── Delt (ikke-personalisert) forsidedata ─────────────────────────────────────
+// Identisk for alle besøkende (anonyme og innloggede). Cachet med unstable_cache
+// (revalidate 60s) slik at gjentatte besøk ikke trigger nye DB-spørringer.
+//
+// LEKKASJE-GARANTI: Disse funksjonene tar INGEN bruker-input og leser ALDRI
+// cookies/session. De spør kun offentlig, delt innhold via supabaseAdmin. Ingen
+// personalisert verdi kan derfor havne i den cachede responsen. Personalisert
+// data (profil, ligaer, spilt-status, org-medlemskap) hentes per-request i
+// branch-koden under, utenfor cachen.
+
+const QUIZ_CARD_COLS =
+  'id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)'
+
+type StandingRow = { userId: string; displayName: string; totalPoints: number }
+type Top3Row = { player_name: string; correct_answers: number; total_time_ms: number; nickname: string | null }
+type SharedHomeData = {
+  activeQuiz: QuizRow | null
+  upcomingQuiz: QuizRow | null
+  lastClosedQuiz: { id: string; title: string; questionsCount: number } | null
+  nextQuizAt: string | null
+  founders: { remaining: number; max: number } | null
+  monthlyStandings: StandingRow[]
+  participantCount: number
+  lastQuizTop3: Top3Row[]
+}
+type PageInsights = {
+  easiest: { questionText: string; correctPct: number }
+  hardest: { questionText: string; correctPct: number }
+}
+
+async function computeSharedHomeData(): Promise<SharedHomeData> {
+  const now = new Date()
+  const nowIso = now.toISOString()
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+  const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
+  type RawSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
+
+  const [activeRes, upcomingRes, lastClosedRes, nextSettingRes, foundersRes, seasonRes] = await Promise.all([
+    supabaseAdmin
+      .from('quizzes')
+      .select(QUIZ_CARD_COLS)
+      .lte('opens_at', nowIso)
+      .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
+      .order('opens_at', { ascending: false })
+      .limit(1),
+    supabaseAdmin
+      .from('quizzes')
+      .select(QUIZ_CARD_COLS)
+      .gt('opens_at', nowIso)
+      .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
+      .order('opens_at', { ascending: true })
+      .limit(1),
+    supabaseAdmin
+      .from('quizzes')
+      .select('id, title, questions(count)')
+      .lt('closes_at', nowIso)
+      .not('closes_at', 'is', null)
+      .order('closes_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'next_quiz_at')
+      .maybeSingle(),
+    (async () => {
+      try {
+        const { data: settingsRows } = await supabaseAdmin
+          .from('site_settings')
+          .select('key, value')
+          .in('key', ['founders_max_slots'])
+        const rows = (settingsRows ?? []) as { key: string; value: string }[]
+        const maxSlots = parseInt(rows.find(r => r.key === 'founders_max_slots')?.value ?? '250')
+        const { count } = await supabaseAdmin
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .in('premium_source', ['founders', 'code'])
+          .eq('premium_status', true)
+        const used = count ?? 0
+        return { remaining: Math.max(0, maxSlots - used), max: maxSlots }
+      } catch {
+        return null
+      }
+    })(),
+    supabaseAdmin
+      .from('season_scores')
+      .select('user_id, points, profiles(display_name)')
+      .eq('scope_type', 'global')
+      .is('scope_id', null)
+      .gte('closes_at', monthStart)
+      .lt('closes_at', monthEnd),
+  ])
+
+  const activeQuiz = ((activeRes.data as QuizRow[] | null) ?? [])[0] ?? null
+  const upcomingQuiz = ((upcomingRes.data as QuizRow[] | null) ?? [])[0] ?? null
+
+  const lcq = lastClosedRes.data as { id: string; title: string; questions: { count: number }[] } | null
+  const lastClosedQuiz = lcq
+    ? { id: lcq.id, title: lcq.title, questionsCount: lcq.questions?.[0]?.count ?? 0 }
+    : null
+
+  const nextQuizAt = (nextSettingRes.data as { value: string } | null)?.value ?? null
+  const founders = foundersRes
+
+  // Aggreger månedlig global toppliste (offentlig). Behold rader med tomt/null
+  // navn som '—' slik at innlogget rang er identisk med tidligere; anon-visning
+  // filtrerer '—' bort før topp 3.
+  const byUser = new Map<string, StandingRow>()
+  for (const row of (seasonRes.data as RawSeasonRow[] | null) ?? []) {
+    const name = row.profiles?.display_name ?? '—'
+    const existing = byUser.get(row.user_id)
+    if (existing) existing.totalPoints += row.points
+    else byUser.set(row.user_id, { userId: row.user_id, displayName: name, totalPoints: row.points })
+  }
+  const monthlyStandings = [...byUser.values()].sort((a, b) => b.totalPoints - a.totalPoints)
+
+  const participantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
+
+  // Topp 3 fra siste stengte quiz, med profilnavn/kallenavn der tilgjengelig.
+  let lastQuizTop3: Top3Row[] = []
+  if (lastClosedQuiz) {
+    const { data: top3Raw } = await supabaseAdmin
+      .from('attempts')
+      .select('player_name, correct_answers, total_time_ms, user_id')
+      .eq('quiz_id', lastClosedQuiz.id)
+      .eq('is_team', false)
+      .order('correct_answers', { ascending: false })
+      .order('total_time_ms', { ascending: true })
+      .limit(3)
+
+    type RawTop3 = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null }
+    const rows = (top3Raw as RawTop3[] | null) ?? []
+    const userIds = rows.map(r => r.user_id).filter(Boolean) as string[]
+    let profileMap = new Map<string, { displayName: string | null; nickname: string | null }>()
+    if (userIds.length > 0) {
+      const { data: profilesRaw } = await supabaseAdmin
+        .from('profiles')
+        .select('id, display_name, nickname')
+        .in('id', userIds)
+      profileMap = new Map(
+        ((profilesRaw ?? []) as { id: string; display_name: string | null; nickname: string | null }[])
+          .map(p => [p.id, { displayName: p.display_name, nickname: p.nickname ?? null }])
+      )
+    }
+    lastQuizTop3 = rows.map(r => {
+      const prof = r.user_id ? profileMap.get(r.user_id) : null
+      return {
+        player_name: prof?.displayName ?? r.player_name,
+        correct_answers: r.correct_answers,
+        total_time_ms: r.total_time_ms,
+        nickname: prof?.nickname ?? null,
+      }
+    })
+  }
+
+  return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, monthlyStandings, participantCount, lastQuizTop3 }
+}
+
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v1'], { revalidate: 60 })
+
+async function computePageInsights(): Promise<PageInsights | null> {
+  const now = new Date()
+  try {
+    const { data: closedQuizRow } = await supabaseAdmin
+      .from('quizzes')
+      .select('id, attempts!inner(id, attempt_answers!inner(id))')
+      .lt('closes_at', now.toISOString())
+      .not('closes_at', 'is', null)
+      .order('closes_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!closedQuizRow) return null
+    const cqId = (closedQuizRow as { id: string }).id
+    const { data: attemptRows } = await supabaseAdmin
+      .from('attempts')
+      .select('id')
+      .eq('quiz_id', cqId)
+      .eq('is_team', false)
+      .not('user_id', 'is', null)
+      .limit(500)
+
+    const attemptIds = ((attemptRows ?? []) as { id: string }[]).map(a => a.id)
+    if (attemptIds.length < 3) return null
+
+    const { data: answerRows } = await supabaseAdmin
+      .from('attempt_answers')
+      .select('question_id, is_correct')
+      .in('attempt_id', attemptIds)
+
+    if (!answerRows || answerRows.length === 0) return null
+    const statsMap = new Map<string, { total: number; correct: number }>()
+    for (const a of answerRows as { question_id: string; is_correct: boolean }[]) {
+      const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
+      s.total++
+      if (a.is_correct) s.correct++
+      statsMap.set(a.question_id, s)
+    }
+    const qualified = [...statsMap.entries()]
+      .filter(([, s]) => s.total >= 3)
+      .map(([qId, s]) => ({ questionId: qId, correctPct: Math.round((s.correct / s.total) * 100) }))
+      .sort((a, b) => b.correctPct - a.correctPct)
+
+    if (qualified.length < 2) return null
+    const { data: questionRows } = await supabaseAdmin
+      .from('questions')
+      .select('id, question_text')
+      .in('id', qualified.map(q => q.questionId))
+
+    const textMap = new Map(
+      ((questionRows ?? []) as { id: string; question_text: string }[]).map(q => [q.id, q.question_text])
+    )
+    const withText = qualified
+      .map(q => ({ questionText: textMap.get(q.questionId) ?? '', correctPct: q.correctPct }))
+      .filter(q => q.questionText)
+
+    if (withText.length < 2) return null
+    return { easiest: withText[0], hardest: withText[withText.length - 1] }
+  } catch {
+    return null
+  }
+}
+
+const getPageInsights = unstable_cache(computePageInsights, ['home-page-insights-v1'], { revalidate: 60 })
 
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -795,26 +1020,15 @@ export default async function Home() {
   // PERSONALIZED VIEW — logged-in users
   // ══════════════════════════════════════════════════════════
   if (user) {
-    type RawSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, lastClosedQuizResult, orgMembershipResult] = await Promise.all([
-      // Aktiv quiz: opens_at <= now og ikke stengt ennå
-      supabaseAdmin
-        .from('quizzes')
-        .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-        .lte('opens_at', now.toISOString())
-        .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
-        .order('opens_at', { ascending: false })
-        .limit(1),
-      supabaseAdmin
-        .from('season_scores')
-        .select('user_id, points, profiles(display_name)')
-        .eq('scope_type', 'global')
-        .is('scope_id', null)
-        .gte('closes_at', monthStart)
-        .lt('closes_at', monthEnd),
+    // Delt, ikke-personalisert data (quiz-kort, månedlig global toppliste,
+    // deltakerantall, siste quiz) hentes fra den cachede bundelen — identisk for
+    // alle og trygt å dele. Personaliserte spørringer kjøres per-request under.
+    const shared = await getSharedHomeData()
+
+    const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, orgMembershipResult] = await Promise.all([
       supabaseAdmin
         .from('profiles')
         .select('display_name, premium_status')
@@ -839,15 +1053,6 @@ export default async function Home() {
         .eq('user_id', user.id)
         .gte('completed_at', monthStart)
         .lt('completed_at', monthEnd),
-      // Siste stengte quiz — fallback for "Se topplisten" når ingen aktiv quiz finnes
-      supabaseAdmin
-        .from('quizzes')
-        .select('id')
-        .lt('closes_at', now.toISOString())
-        .not('closes_at', 'is', null)
-        .order('closes_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
       // Org-medlemskap — for kontekstuell "Se topplisten" når quizen er stengt
       supabaseAdmin
         .from('organization_members')
@@ -861,12 +1066,11 @@ export default async function Home() {
     const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
     const firstName = displayName.split(' ')[0]
 
-    // Quiz — aktiv (opens_at <= now, ikke stengt)
-    const quizList = (quizResult.data as QuizRow[] | null) ?? []
-    const quiz = quizList[0] ?? null
+    // Quiz — aktiv (fra delt cache)
+    const quiz = shared.activeQuiz
 
-    // Siste stengte quiz — brukes som "Se topplisten"-mål når ingen aktiv quiz finnes
-    const lastClosedQuizId = (lastClosedQuizResult.data as { id: string } | null)?.id ?? null
+    // Siste stengte quiz — "Se topplisten"-mål når ingen aktiv quiz finnes
+    const lastClosedQuizId = shared.lastClosedQuiz?.id ?? null
 
     // Org-medlemskap — er brukeren med i nøyaktig én org, lenker "Se topplisten"
     // (når quizen er stengt) til bedriftens side i stedet for quiz-topplisten.
@@ -877,20 +1081,10 @@ export default async function Home() {
       .filter((sl): sl is string => !!sl)
     const singleOrgToplistHref = orgSlugs.length === 1 ? `/org/${orgSlugs[0]}` : null
 
-    // Kommende quiz — hentes kun om ingen aktiv finnes
-    let upcomingQuiz: QuizRow | null = null
-    if (!quiz) {
-      const { data: upcomingData } = await supabaseAdmin
-        .from('quizzes')
-        .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-        .gt('opens_at', now.toISOString())
-        .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
-        .order('opens_at', { ascending: true })
-        .limit(1)
-      upcomingQuiz = ((upcomingData as QuizRow[] | null) ?? [])[0] ?? null
-    }
+    // Kommende quiz (fra delt cache) — vises kun når ingen aktiv finnes
+    const upcomingQuiz: QuizRow | null = quiz ? null : shared.upcomingQuiz
 
-    const participantCount = quiz ? await countParticipants(quiz.id) : 0
+    const participantCount = shared.participantCount
 
     // Has the user already played the active quiz?
     type PlayedRow = { quiz_id: string }
@@ -899,22 +1093,16 @@ export default async function Home() {
     )
     const alreadyPlayed = quiz ? playedQuizIds.has(quiz.id) : false
 
-    // Season — aggregate and compute user rank
-    const rawRows = (allSeasonResult.data as RawSeasonRow[] | null) ?? []
-    const byUser = new Map<string, { displayName: string; totalPoints: number }>()
-    for (const row of rawRows) {
-      const name = row.profiles?.display_name ?? '—'
-      const existing = byUser.get(row.user_id)
-      if (existing) existing.totalPoints += row.points
-      else byUser.set(row.user_id, { displayName: name, totalPoints: row.points })
-    }
-    const sortedUsers = Array.from(byUser.entries()).sort((a, b) => b[1].totalPoints - a[1].totalPoints)
-    const userRankIdx  = sortedUsers.findIndex(([uid]) => uid === user.id)
+    // Season — fra delt cache (offentlig månedlig global toppliste). Brukerens
+    // egen rang utledes lokalt fra den delte lista (userId er offentlig toppliste-
+    // info — ingen privat data i cachen).
+    const standings = shared.monthlyStandings
+    const userRankIdx  = standings.findIndex(s => s.userId === user.id)
     const userRank     = userRankIdx === -1 ? 0 : userRankIdx + 1
-    const userPoints   = byUser.get(user.id)?.totalPoints ?? 0
+    const userPoints   = standings.find(s => s.userId === user.id)?.totalPoints ?? 0
     // Round up to nearest 5 for the free-user estimate
     const estimatedBest = userRank > 0 ? Math.max(5, Math.ceil(userRank / 5) * 5) : 0
-    const monthlyTop3 = sortedUsers.slice(0, 3).map(([, v]) => v)
+    const monthlyTop3: MonthEntry[] = standings.slice(0, 3).map(s => ({ displayName: s.displayName, totalPoints: s.totalPoints }))
 
     const playedThisMonth = (monthlyAttemptsResult.count ?? 0) > 0
 
@@ -1023,72 +1211,8 @@ export default async function Home() {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo',
     })
 
-    // ── Quiz insights: most recent closed quiz, all players ──
-    type PageInsights = { easiest: { questionText: string; correctPct: number }; hardest: { questionText: string; correctPct: number } }
-    let pageInsights: PageInsights | null = null
-    try {
-      const { data: closedQuizRow } = await supabaseAdmin
-        .from('quizzes')
-        .select('id, attempts!inner(id, attempt_answers!inner(id))')
-        .lt('closes_at', now.toISOString())
-        .not('closes_at', 'is', null)
-        .order('closes_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (closedQuizRow) {
-        const cqId = (closedQuizRow as { id: string }).id
-        const { data: attemptRows } = await supabaseAdmin
-          .from('attempts')
-          .select('id')
-          .eq('quiz_id', cqId)
-          .eq('is_team', false)
-          .not('user_id', 'is', null)
-          .limit(500)
-
-        const attemptIds = ((attemptRows ?? []) as { id: string }[]).map(a => a.id)
-        if (attemptIds.length >= 3) {
-          const { data: answerRows } = await supabaseAdmin
-            .from('attempt_answers')
-            .select('question_id, is_correct')
-            .in('attempt_id', attemptIds)
-
-          if (answerRows && answerRows.length > 0) {
-            const statsMap = new Map<string, { total: number; correct: number }>()
-            for (const a of answerRows as { question_id: string; is_correct: boolean }[]) {
-              const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
-              s.total++
-              if (a.is_correct) s.correct++
-              statsMap.set(a.question_id, s)
-            }
-            const qualified = [...statsMap.entries()]
-              .filter(([, s]) => s.total >= 3)
-              .map(([qId, s]) => ({ questionId: qId, correctPct: Math.round((s.correct / s.total) * 100) }))
-              .sort((a, b) => b.correctPct - a.correctPct)
-
-            if (qualified.length >= 2) {
-              const { data: questionRows } = await supabaseAdmin
-                .from('questions')
-                .select('id, question_text')
-                .in('id', qualified.map(q => q.questionId))
-
-              const textMap = new Map(
-                ((questionRows ?? []) as { id: string; question_text: string }[]).map(q => [q.id, q.question_text])
-              )
-              const withText = qualified
-                .map(q => ({ questionText: textMap.get(q.questionId) ?? '', correctPct: q.correctPct }))
-                .filter(q => q.questionText)
-
-              if (withText.length >= 2) {
-                pageInsights = { easiest: withText[0], hardest: withText[withText.length - 1] }
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      // silent — insights are non-critical
-    }
+    // ── Quiz insights (delt, cachet) ──
+    const pageInsights = await getPageInsights()
 
     return (
       <>
@@ -1097,7 +1221,7 @@ export default async function Home() {
 
         <nav className="qk-nav">
           <div className="qk-nav-inner">
-            <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
+            <Link href="/" className="qk-nav-logo">Quiz<em>kanonen</em></Link>
             <div className="qk-nav-actions">
               <NavAuth quizId={quiz?.id} />
             </div>
@@ -1415,124 +1539,25 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const [{ data: quizzes }, { data: nextQuizSetting }, { data: lastQuizRaw }, { data: upcomingQuizData }, foundersSettingsResult, { data: anonSeasonRaw }] = await Promise.all([
-    // Aktiv quiz: opens_at <= now og ikke stengt ennå
-    supabaseAdmin
-      .from('quizzes')
-      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-      .lte('opens_at', now.toISOString())
-      .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
-      .order('opens_at', { ascending: false })
-      .limit(1),
-    supabaseAdmin
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'next_quiz_at')
-      .maybeSingle(),
-    supabaseAdmin
-      .from('quizzes')
-      .select('id, title, questions(count)')
-      .lt('closes_at', now.toISOString())
-      .not('closes_at', 'is', null)
-      .order('closes_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    // Kommende quiz: opens_at > now og ikke stengt, hentes parallelt
-    supabaseAdmin
-      .from('quizzes')
-      .select('id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
-      .gt('opens_at', now.toISOString())
-      .or(`closes_at.is.null,closes_at.gte.${now.toISOString()}`)
-      .order('opens_at', { ascending: true })
-      .limit(1),
-    (async () => {
-      try {
-        const { data: settingsRows } = await supabaseAdmin
-          .from('site_settings')
-          .select('key, value')
-          .in('key', ['founders_max_slots'])
-        const rows = (settingsRows ?? []) as { key: string; value: string }[]
-        const maxSlots = parseInt(rows.find(r => r.key === 'founders_max_slots')?.value ?? '250')
-        const { count } = await supabaseAdmin
-          .from('profiles')
-          .select('id', { count: 'exact', head: true })
-          .in('premium_source', ['founders', 'code'])
-          .eq('premium_status', true)
-        const used = count ?? 0
-        return { remaining: Math.max(0, maxSlots - used), max: maxSlots }
-      } catch {
-        return null
-      }
-    })(),
-    // Månedlig global topp 3 fra season_scores (anon-visning)
-    supabaseAdmin
-      .from('season_scores')
-      .select('user_id, points, profiles(display_name)')
-      .eq('scope_type', 'global')
-      .is('scope_id', null)
-      .gte('closes_at', monthStart)
-      .lt('closes_at', monthEnd),
-  ])
+  const shared = await getSharedHomeData()
 
-  const quizList = (quizzes as QuizRow[] | null) ?? []
-  const activeQuiz = quizList[0] ?? null
-  const upcomingQuiz = ((upcomingQuizData as QuizRow[] | null) ?? [])[0] ?? null
-  const nextQuizAt: string | null = (nextQuizSetting as { value: string } | null)?.value ?? null
-  const activeParticipantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
+  const activeQuiz   = shared.activeQuiz
+  const upcomingQuiz = shared.upcomingQuiz
+  const nextQuizAt: string | null = shared.nextQuizAt
+  const activeParticipantCount = shared.participantCount
+  const foundersSettingsResult = shared.founders
 
-  // Beregn månedlig global topp 3 fra season_scores for anon-visning
-  type AnonSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
-  const anonByUser = new Map<string, { displayName: string; totalPoints: number }>()
-  for (const row of (anonSeasonRaw as AnonSeasonRow[] | null) ?? []) {
-    const name = row.profiles?.display_name
-    if (!name) continue
-    const existing = anonByUser.get(row.user_id)
-    if (existing) existing.totalPoints += row.points
-    else anonByUser.set(row.user_id, { displayName: name, totalPoints: row.points })
-  }
-  const anonMonthlyTop3 = Array.from(anonByUser.values())
-    .sort((a, b) => b.totalPoints - a.totalPoints)
+  // Månedlig global topp 3 (anon) — filtrer bort tomme/manglende navn (som før),
+  // deretter slice topp 3.
+  const anonMonthlyTop3: MonthEntry[] = shared.monthlyStandings
+    .filter(s => s.displayName && s.displayName !== '—')
     .slice(0, 3)
+    .map(s => ({ displayName: s.displayName, totalPoints: s.totalPoints }))
 
-  // Last closed quiz top 3
-  type LastQuizRow = { id: string; title: string; questions: { count: number }[] }
-  type Top3AttemptRow = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null; nickname?: string | null }
-  const lastQuiz = lastQuizRaw as LastQuizRow | null
-  let lastQuizTop3: Top3AttemptRow[] = []
-
-  if (lastQuiz) {
-    const { data: top3Raw } = await supabaseAdmin
-      .from('attempts')
-      .select('player_name, correct_answers, total_time_ms, user_id')
-      .eq('quiz_id', lastQuiz.id)
-      .eq('is_team', false)
-      .order('correct_answers', { ascending: false })
-      .order('total_time_ms', { ascending: true })
-      .limit(3)
-
-    lastQuizTop3 = (top3Raw as Top3AttemptRow[] | null) ?? []
-
-    // Replace player_name with profile display_name where available
-    const userIds = lastQuizTop3.map(r => r.user_id).filter(Boolean) as string[]
-    if (userIds.length > 0) {
-      const { data: profilesRaw } = await supabaseAdmin
-        .from('profiles')
-        .select('id, display_name, nickname')
-        .in('id', userIds)
-      const profileMap = new Map(
-        ((profilesRaw ?? []) as { id: string; display_name: string | null; nickname: string | null }[])
-          .map(p => [p.id, { displayName: p.display_name, nickname: p.nickname ?? null }])
-      )
-      lastQuizTop3 = lastQuizTop3.map(r => {
-        const prof = r.user_id ? profileMap.get(r.user_id) : null
-        return {
-          ...r,
-          player_name: prof?.displayName ?? r.player_name,
-          nickname: prof?.nickname ?? null,
-        }
-      })
-    }
-  }
+  // Siste stengte quiz + topp 3 (fra delt cache)
+  const lastQuiz = shared.lastClosedQuiz
+  const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
+  const lastQuizTop3 = shared.lastQuizTop3
 
   // Next Friday at 12:00 (Oslo time) — for fallback card
   const nextFridayLabel = (() => {
@@ -1556,7 +1581,7 @@ export default async function Home() {
 
       <nav className="qk-nav">
         <div className="qk-nav-inner">
-          <a href="/" className="qk-nav-logo">Quiz<em>kanonen</em></a>
+          <Link href="/" className="qk-nav-logo">Quiz<em>kanonen</em></Link>
           <div className="qk-nav-actions">
             <NavAuth quizId={activeQuiz?.id} />
           </div>
@@ -1756,7 +1781,7 @@ export default async function Home() {
             <div className="qk-top3-rows qkp-league-top3">
               {lastQuizTop3.map((row, i) => {
                 const totalSec = Math.round(row.total_time_ms / 1000)
-                const totalQ = lastQuiz.questions[0]?.count ?? '?'
+                const totalQ = lastQuizQuestionCount || '?'
                 return (
                   <div key={i} className="qk-top3-row">
                     <div className="qk-top3-left">
