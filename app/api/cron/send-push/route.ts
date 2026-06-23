@@ -90,11 +90,16 @@ export async function GET(request: NextRequest) {
       .in('endpoint', staleEndpoints)
   }
 
-  // Mark quiz as notified
-  await supabaseAdmin
-    .from('quizzes')
-    .update({ push_sent_at: now })
-    .eq('id', quiz.id)
+  // Mark quiz as notified — kun hvis minst én push faktisk ble levert. Stemples
+  // ubetinget ville et totalt sende-svikt (f.eks. VAPID-feil) markert quizen som
+  // varslet og hindret retry. Cronens 10-min-vindu (minutesAgo > 10) begrenser
+  // antall nye forsøk. Samme mønster som e-post-cronene.
+  if (sent > 0) {
+    await supabaseAdmin
+      .from('quizzes')
+      .update({ push_sent_at: now })
+      .eq('id', quiz.id)
+  }
 
   console.log(`[cron/send-push] quiz="${quiz.title}" sent=${sent} failed=${failed} stale=${staleEndpoints.length}`)
   return NextResponse.json({ sent, failed, stale: staleEndpoints.length })
