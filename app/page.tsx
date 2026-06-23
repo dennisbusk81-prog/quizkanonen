@@ -1042,7 +1042,7 @@ export default async function Home() {
       // For logged-in users, attempts table is the authoritative source (mirrors quiz/[id]/page.tsx logic)
       supabaseAdmin
         .from('attempts')
-        .select('quiz_id')
+        .select('quiz_id, submitted_at')
         .eq('user_id', user.id)
         .order('completed_at', { ascending: false })
         .limit(10),
@@ -1087,11 +1087,11 @@ export default async function Home() {
     const participantCount = shared.participantCount
 
     // Has the user already played the active quiz?
-    type PlayedRow = { quiz_id: string }
-    const playedQuizIds = new Set(
-      ((playedLogResult.data as PlayedRow[] | null) ?? []).map(r => r.quiz_id)
-    )
-    const alreadyPlayed = quiz ? playedQuizIds.has(quiz.id) : false
+    type PlayedRow = { quiz_id: string; submitted_at: string | null }
+    const attemptRows = (playedLogResult.data as PlayedRow[] | null) ?? []
+    const myActiveAttempt = quiz ? attemptRows.find(r => r.quiz_id === quiz.id) : null
+    const alreadyPlayed = myActiveAttempt?.submitted_at != null
+    const hasUnfinished = myActiveAttempt != null && myActiveAttempt.submitted_at == null
 
     // Season — fra delt cache (offentlig månedlig global toppliste). Brukerens
     // egen rang utledes lokalt fra den delte lista (userId er offentlig toppliste-
@@ -1305,6 +1305,10 @@ export default async function Home() {
                       Se topplisten →
                     </Link>
                   </>
+                ) : hasUnfinished ? (
+                  <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
+                    Fortsett quizen →
+                  </Link>
                 ) : (
                   <>
                     <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>Ukens quiz venter på deg.</p>
