@@ -85,6 +85,19 @@ export async function GET(request: NextRequest) {
       const email = await getOrgAdminEmail(org.id)
       if (!email) continue
 
+      // Stemple FØR sending: duplikat-e-post er verre enn tapt e-post.
+      // Feiler stemplingen, hopper vi over — cron prøver igjen om 15 min.
+      const { error: stampErr } = await supabaseAdmin
+        .from('organizations')
+        .update({ weekly_report_sent_at: now.toISOString() })
+        .eq('id', org.id)
+
+      if (stampErr) {
+        console.error('[cron/weekly-report] stamp failed, hopper over org:', org.id, stampErr.message)
+        errors.push(`${org.id}: stamp feilet — ${stampErr.message}`)
+        continue
+      }
+
       const shareText = buildWeeklyShareText(summary)
       await sendEmail({
         to: email,
@@ -98,11 +111,6 @@ export async function GET(request: NextRequest) {
           shareText,
         }),
       })
-
-      await supabaseAdmin
-        .from('organizations')
-        .update({ weekly_report_sent_at: now.toISOString() })
-        .eq('id', org.id)
 
       sent++
     } catch (err) {
