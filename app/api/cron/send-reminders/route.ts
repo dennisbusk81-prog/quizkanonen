@@ -16,34 +16,19 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now()
 
-  // Early exit: bail immediately if no quiz opens within the next 90 minutes.
-  // This is a cheap single-row query that lets the cron job return in < 100 ms
-  // on the vast majority of runs where no reminder is needed.
-  const { data: anyUpcoming } = await supabaseAdmin
-    .from('quizzes')
-    .select('id')
-    .gte('opens_at', new Date(now).toISOString())
-    .lte('opens_at', new Date(now + 90 * 60 * 1000).toISOString())
-    .limit(1)
-    .maybeSingle()
-
-  if (!anyUpcoming) {
-    return NextResponse.json({ skipped: true, reason: 'No quiz opening within 90 minutes' })
-  }
-
-  // Find a quiz opening in the precise 55–65 minute reminder window.
-  // Also check reminder_sent_at IS NULL to prevent double-sends if the cron
-  // fires more than once within the window (e.g. retry or overlapping schedules).
-  const windowStart = new Date(now + 55 * 60 * 1000).toISOString()
-  const windowEnd   = new Date(now + 65 * 60 * 1000).toISOString()
+  // Find a quiz that just opened (opens_at within the last 0–5 minutes).
+  // E-posten sendes NÅR quizen er åpen — ikke en time før. reminder_sent_at IS NULL
+  // hindrer dobbel-sending hvis cron-en kjører flere ganger i vinduet.
+  const windowStart = new Date(now - 5 * 60 * 1000).toISOString()
+  const nowIso      = new Date(now).toISOString()
 
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, opens_at, reminder_sent_at')
+    .select('id, title, opens_at, closes_at, reminder_sent_at')
+    .lte('opens_at', nowIso)
     .gte('opens_at', windowStart)
-    .lte('opens_at', windowEnd)
     .is('reminder_sent_at', null)
-    .order('opens_at', { ascending: true })
+    .order('opens_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
@@ -53,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!nextQuiz) {
-    return NextResponse.json({ skipped: true, reason: 'No quiz in reminder window (or already sent)' })
+    return NextResponse.json({ skipped: true, reason: 'No quiz opened in the last 5 minutes (or already sent)' })
   }
 
   // A quiz is in the reminder window — return 200 immediately and do the
@@ -110,7 +95,7 @@ export async function GET(request: NextRequest) {
         return
       }
 
-      const subject = `Quizen åpner snart — ${new Date(quizSnapshot.opens_at).toLocaleDateString('no-NO')}`
+      const subject = 'Fredagsquizen er nå åpen'
       let sent = 0
       let failed = 0
 
@@ -120,7 +105,7 @@ export async function GET(request: NextRequest) {
         const batch = entriesToSend.slice(i, i + BATCH_SIZE)
         const results = await Promise.allSettled(
           batch.map(([userId, email]) => {
-            const html = quizReminderEmail(quizSnapshot.opens_at, quizSnapshot.title ?? undefined, buildUnsubscribeUrl(userId, 'reminders'))
+            const html = quizReminderEmail(quizSnapshot.id, quizSnapshot.closes_at ?? null, quizSnapshot.title ?? undefined, buildUnsubscribeUrl(userId, 'reminders'))
             return sendEmail({ to: email, subject, html })
           })
         )

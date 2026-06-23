@@ -1611,16 +1611,21 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
 </html>`
 }
 
-export function quizReminderEmail(nextQuizDate: string, quizTitle?: string, unsubscribeUrl?: string): string {
-  const formattedDate = formatNorwegianDate(nextQuizDate)
+export function quizReminderEmail(quizId: string, closesAt?: string | null, quizTitle?: string, unsubscribeUrl?: string): string {
   const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
+  const closesLine = closesAt
+    ? `<p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Du har til <strong style="color:#ffffff;">${formatNorwegianDate(closesAt)}</strong> på deg.
+              </p>`
+    : ''
+  const quizUrl = `https://www.quizkanonen.no/quiz/${quizId}`
 
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quizen åpner snart!</title>
+  <title>Quizen er åpen nå!</title>
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
@@ -1644,7 +1649,7 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string, unsu
 
               <!-- Title -->
               <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
-                Quizen åpner snart!
+                Quizen er åpen nå!
               </p>
 
               <!-- Divider -->
@@ -1652,22 +1657,19 @@ export function quizReminderEmail(nextQuizDate: string, quizTitle?: string, unsu
 
               <!-- Body text -->
               ${titleLine}
-              <p style="margin:0 0 8px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Hei! En ny quiz er på vei på Quizkanonen.
+              <p style="margin:0 0 ${closesAt ? '16' : '28'}px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Ukens quiz på Quizkanonen er nå åpen. Spill med en gang —
+                vær rask for best mulig plassering.
               </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Sett av tid — quizen åpner
-                <strong style="color:#ffffff;">${formattedDate}</strong>.
-                Vær klar fra første sekund for best mulig plassering.
-              </p>
+              ${closesLine}
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://www.quizkanonen.no"
+                    <a href="${quizUrl}"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Gå til Quizkanonen
+                      Spill nå &rarr;
                     </a>
                   </td>
                 </tr>
