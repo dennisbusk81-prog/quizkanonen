@@ -118,11 +118,16 @@ export default function OrgLeaderboardPage() {
           <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
             ← Hjem
           </Link>
-          {org?.isAdmin && (
-            <Link href={`/org/${slug}/admin`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none', flexShrink: 0 }}>
-              Admin-panel →
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
+              Nasjonal toppliste →
             </Link>
-          )}
+            {org?.isAdmin && (
+              <Link href={`/org/${slug}/admin`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none', flexShrink: 0 }}>
+                Admin-panel →
+              </Link>
+            )}
+          </div>
         </div>
       </nav>
 
