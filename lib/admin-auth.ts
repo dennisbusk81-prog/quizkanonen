@@ -13,7 +13,6 @@ function safeEqual(a: string, b: string): boolean {
 // Passordet hentes (i prioritert rekkefølge) fra:
 //   1. x-admin-password-header  — måten frontend sender det på i dag
 //   2. Authorization: Bearer <passord>
-//   3. ?password=<passord> query-parameter
 // Sammenlignes timing-safe mot ADMIN_PASSWORD. Body leses ikke her: funksjonen
 // er synkron og å konsumere request-strømmen ville brutt handlere som selv
 // kaller await req.json() etterpå.
@@ -28,14 +27,7 @@ export function verifyAdminRequest(req: Request): boolean {
     ? authHeader.slice(7).trim()
     : null
 
-  let fromQuery: string | null = null
-  try {
-    fromQuery = new URL(req.url).searchParams.get('password')
-  } catch {
-    fromQuery = null
-  }
-
-  const provided = fromHeader ?? fromBearer ?? fromQuery
+  const provided = fromHeader ?? fromBearer
   if (!provided) return false
 
   return safeEqual(provided, expected)
