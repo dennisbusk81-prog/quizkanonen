@@ -4,6 +4,17 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail } from '@/lib/email-templates'
 
+// Kaster ved feil på en kritisk DB-skriving slik at den ytre try/catch-en sletter
+// idempotens-stemplet og returnerer 500 → Stripe retry-er hele hendelsen. Bruk KUN
+// på skrivinger der org og medlemmer må forbli konsistente. E-postkall er IKKE
+// kritiske og skal aldri kaste. Alle skrivinger her er idempotente, så retry er trygt.
+function assertCriticalWrite(error: { code?: string; message: string } | null, context: string): void {
+  if (error) {
+    console.error(`[webhook] KRITISK skrivefeil — ${context}:`, error.code, error.message)
+    throw new Error(`Kritisk DB-skriving feilet (${context}): ${error.message}`)
+  }
+}
+
 async function getUserEmail(stripe: Stripe, customerId: string): Promise<string | null> {
   try {
     const customer = await stripe.customers.retrieve(customerId)
@@ -26,6 +37,7 @@ async function getOrgAdminEmail(organizationId: string): Promise<{ email: string
     .select('user_id')
     .eq('organization_id', organizationId)
     .eq('role', 'admin')
+    .limit(1)
     .maybeSingle()
 
   if (!adminMember) return { email: null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
@@ -140,13 +152,14 @@ export async function POST(request: NextRequest) {
         console.warn('[webhook] could not determine period_end, using 30-day fallback for org', organizationId)
       }
 
-      await supabaseAdmin.from('organizations').update({
+      const { error: orgUpdateError } = await supabaseAdmin.from('organizations').update({
         stripe_customer_id: session.customer as string,
         stripe_subscription_id: subscriptionId,
         stripe_period_end: periodEnd,
         // Betalt checkout (ny kjøp ELLER reaktivering av låst org) → full tilgang.
         subscription_status: 'active',
       }).eq('id', organizationId)
+      assertCriticalWrite(orgUpdateError, `checkout org-update org=${organizationId}`)
 
       // Activate premium for all current members — single batch update
       const { data: members } = await supabaseAdmin
@@ -156,10 +169,11 @@ export async function POST(request: NextRequest) {
 
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
-        await supabaseAdmin.from('profiles').update({
+        const { error: memberUpdateError } = await supabaseAdmin.from('profiles').update({
           premium_status: true,
           premium_source: 'org',
         }).in('id', memberIds)
+        assertCriticalWrite(memberUpdateError, `checkout medlems-premium org=${organizationId}`)
       }
 
       // Send kjøpsbekreftelse til org-admin — awaites så funksjonen ikke fryses
@@ -180,9 +194,7 @@ export async function POST(request: NextRequest) {
         premium_source: 'personal',
       }, { onConflict: 'id' })
 
-      if (profileUpsertError) {
-        console.error('[webhook] checkout: profiles upsert feilet for userId', userId, profileUpsertError.code, profileUpsertError.message)
-      }
+      assertCriticalWrite(profileUpsertError, `checkout B2C premium-upsert userId=${userId}`)
 
       // Send kjøpsbekreftelse — fire-and-forget
       supabaseAdmin.auth.admin.getUserById(userId)
@@ -215,9 +227,10 @@ export async function POST(request: NextRequest) {
 
       if (orgForInvoice) {
         // B2B — vellykket fornyelsesbetaling: sikre at org er aktiv (idempotent).
-        await supabaseAdmin.from('organizations')
+        const { error: orgRenewError } = await supabaseAdmin.from('organizations')
           .update({ subscription_status: 'active' })
           .eq('id', orgForInvoice.id)
+        assertCriticalWrite(orgRenewError, `invoice-fornyelse org-active org=${orgForInvoice.id}`)
 
         // send fornyelsesbekreftelse til org-admin
         getOrgAdminEmail(orgForInvoice.id)
@@ -280,9 +293,10 @@ export async function POST(request: NextRequest) {
       // B2B: lås org-sidene og trekk premium fra alle medlemmer.
       // Dekker både kansellert betalt abonnement OG utløpt trial uten kort
       // (Stripe kansellerer trial-en automatisk → denne hendelsen).
-      await supabaseAdmin.from('organizations')
+      const { error: orgLockError } = await supabaseAdmin.from('organizations')
         .update({ subscription_status: 'locked' })
         .eq('id', org.id)
+      assertCriticalWrite(orgLockError, `sub.deleted org-lock org=${org.id}`)
 
       const { data: members } = await supabaseAdmin
         .from('organization_members')
@@ -291,10 +305,11 @@ export async function POST(request: NextRequest) {
 
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
-        await supabaseAdmin.from('profiles').update({
+        const { error: memberLockError } = await supabaseAdmin.from('profiles').update({
           premium_status: false,
           premium_source: null,
         }).in('id', memberIds)
+        assertCriticalWrite(memberLockError, `sub.deleted medlems-premium-fjerning org=${org.id}`)
       }
 
       // Send kanselleringsvarsel til org-admin — fire-and-forget
@@ -334,9 +349,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (profileId) {
-        await supabaseAdmin.from('profiles')
+        const { error: b2cDeleteError } = await supabaseAdmin.from('profiles')
           .update({ premium_status: false, premium_source: null, personal_stripe_subscription_id: null })
           .eq('id', profileId)
+        assertCriticalWrite(b2cDeleteError, `sub.deleted B2C premium-fjerning profile=${profileId}`)
       } else {
         console.error(`[webhook] subscription.deleted: no profile found for customer=${customerId}, sub=${subscriptionId}`)
       }
@@ -429,9 +445,10 @@ export async function POST(request: NextRequest) {
       else if (status === 'active') nextStatus = 'active'
       else if (['past_due', 'unpaid', 'canceled', 'incomplete_expired'].includes(status)) nextStatus = 'locked'
 
-      await supabaseAdmin.from('organizations')
+      const { error: orgUpdError } = await supabaseAdmin.from('organizations')
         .update({ ...(periodEnd ? { stripe_period_end: periodEnd } : {}), ...(nextStatus ? { subscription_status: nextStatus } : {}) })
         .eq('id', org.id)
+      assertCriticalWrite(orgUpdError, `sub.updated org-status org=${org.id}`)
 
       // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
       if (nextStatus === 'active' || nextStatus === 'trialing' || nextStatus === 'locked') {
@@ -442,13 +459,15 @@ export async function POST(request: NextRequest) {
         const memberIds = (members ?? []).map(m => m.user_id)
         if (memberIds.length > 0) {
           if (nextStatus === 'locked') {
-            await supabaseAdmin.from('profiles')
+            const { error: memberLockErr } = await supabaseAdmin.from('profiles')
               .update({ premium_status: false, premium_source: null })
               .in('id', memberIds)
+            assertCriticalWrite(memberLockErr, `sub.updated medlems-premium-fjerning org=${org.id}`)
           } else {
-            await supabaseAdmin.from('profiles')
+            const { error: memberActivateErr } = await supabaseAdmin.from('profiles')
               .update({ premium_status: true, premium_source: 'org' })
               .in('id', memberIds)
+            assertCriticalWrite(memberActivateErr, `sub.updated medlems-premium-aktivering org=${org.id}`)
           }
         }
       }
@@ -458,16 +477,18 @@ export async function POST(request: NextRequest) {
 
       if (isActive) {
         // Active/trialing: skriv stripe_customer_id alltid, ikke bare premium_status
-        const { data: updatedRows } = await supabaseAdmin.from('profiles')
+        const { data: updatedRows, error: b2cActivateError } = await supabaseAdmin.from('profiles')
           .update({ premium_status: true, stripe_customer_id: customerId })
           .eq('stripe_customer_id', customerId)
           .select('id')
+        assertCriticalWrite(b2cActivateError, `sub.updated B2C premium-aktivering customer=${customerId}`)
 
         // Fallback: profilen mangler stripe_customer_id (f.eks. checkout-event sviktet)
         if (!updatedRows?.length) {
-          await supabaseAdmin.from('profiles')
+          const { error: b2cFallbackError } = await supabaseAdmin.from('profiles')
             .update({ premium_status: true, stripe_customer_id: customerId })
             .eq('personal_stripe_subscription_id', subscription.id)
+          assertCriticalWrite(b2cFallbackError, `sub.updated B2C premium-aktivering (fallback) sub=${subscription.id}`)
         }
       } else {
         // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
@@ -492,9 +513,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (profileId) {
-          await supabaseAdmin.from('profiles')
+          const { error: b2cCancelError } = await supabaseAdmin.from('profiles')
             .update({ premium_status: false, personal_stripe_subscription_id: null })
             .eq('id', profileId)
+          assertCriticalWrite(b2cCancelError, `sub.updated B2C premium-fjerning profile=${profileId}`)
         } else {
           console.error(`[webhook] subscription.updated canceled: no profile found for customer=${customerId}, sub=${subscriptionId}`)
         }
@@ -524,9 +546,10 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (profile) {
-      await supabaseAdmin.from('profiles')
+      const { error: refundError } = await supabaseAdmin.from('profiles')
         .update({ premium_status: false, premium_since: null })
         .eq('id', profile.id)
+      assertCriticalWrite(refundError, `charge.refunded premium-fjerning profile=${profile.id}`)
     } else {
       console.error(`[webhook] charge.refunded: no profile found for customer=${customerId}, charge=${charge.id}`)
     }

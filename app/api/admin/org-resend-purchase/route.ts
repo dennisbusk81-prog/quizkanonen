@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     .select('user_id')
     .eq('organization_id', org.id)
     .eq('role', 'admin')
+    .limit(1)
     .maybeSingle()
 
   if (!adminMember) return NextResponse.json({ error: 'Ingen admin-medlem funnet for org' }, { status: 404 })

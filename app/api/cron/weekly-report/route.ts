@@ -28,6 +28,7 @@ async function getOrgAdminEmail(orgId: string): Promise<string | null> {
     .select('user_id')
     .eq('organization_id', orgId)
     .eq('role', 'admin')
+    .limit(1)
     .maybeSingle()
   if (!adminMember) return null
   const { data } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)

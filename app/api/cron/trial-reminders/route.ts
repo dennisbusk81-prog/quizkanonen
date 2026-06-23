@@ -33,6 +33,7 @@ async function sendOrgTrialReminders(now: number): Promise<number> {
       .select('user_id')
       .eq('organization_id', org.id)
       .eq('role', 'admin')
+      .limit(1)
       .maybeSingle()
     if (!adminMember) continue
 
