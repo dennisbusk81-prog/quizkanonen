@@ -31,6 +31,18 @@ export async function POST(request: NextRequest) {
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
   if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
+  // Per-bruker-grense: hindrer at samme bruker oppretter vilkårlig mange gratis
+  // trial-orger (rate-limit over er kun per-IP). Én aktiv/trialing org per bruker.
+  const { count: existingOrgCount } = await supabaseAdmin
+    .from('organizations')
+    .select('id', { count: 'exact', head: true })
+    .eq('created_by', user.id)
+    .in('subscription_status', ['trialing', 'active'])
+
+  if ((existingOrgCount ?? 0) > 0) {
+    return NextResponse.json({ error: 'Du har allerede en aktiv organisasjon.' }, { status: 409 })
+  }
+
   let body: { organizationName?: string; plan?: string; trialCode?: string }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
