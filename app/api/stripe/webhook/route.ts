@@ -99,6 +99,12 @@ export async function POST(request: NextRequest) {
     console.error('[webhook] stripe_events insert failed:', idempotencyError.code, idempotencyError.message)
   }
 
+  // Prosesseringen wrappes i try/catch: kaster noe underveis, fjernes idempotens-
+  // stemplet over (i catch) slik at Stripe sin retry kan prosessere hendelsen på
+  // nytt. Uten dette ville 23505 ved retry returnert { received: true } uten å
+  // prosessere — og låst en halvskrevet tilstand permanent.
+  try {
+
   // ── checkout.session.completed ────────────────────────────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
@@ -405,7 +411,17 @@ export async function POST(request: NextRequest) {
       // B2B: oppdater periode-slutt + speil betalingsstatus til subscription_status.
       // Speiler B2C Founders-håndteringen — vi stoler ikke på Stripe-tilstanden alene,
       // men setter eksplisitt 'active'/'trialing'/'locked' og synker premium for medlemmer.
-      const periodEnd = new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
+      // current_period_end er null/undefined for trialing-abonnementer i dahlia-
+      // APIet → undefined * 1000 = NaN → new Date(NaN).toISOString() kaster.
+      // Bruk trial_end som fallback; finnes ingen gyldig epoch, hopp over
+      // stripe_period_end (oppdater kun status) i stedet for å kaste.
+      const subForPeriod = subscription as unknown as { current_period_end: number | null; trial_end: number | null }
+      const endEpoch = typeof subForPeriod.current_period_end === 'number'
+        ? subForPeriod.current_period_end
+        : typeof subForPeriod.trial_end === 'number'
+          ? subForPeriod.trial_end
+          : null
+      const periodEnd = endEpoch !== null ? new Date(endEpoch * 1000).toISOString() : null
 
       const status = subscription.status
       let nextStatus: 'trialing' | 'active' | 'locked' | null = null
@@ -414,7 +430,7 @@ export async function POST(request: NextRequest) {
       else if (['past_due', 'unpaid', 'canceled', 'incomplete_expired'].includes(status)) nextStatus = 'locked'
 
       await supabaseAdmin.from('organizations')
-        .update({ stripe_period_end: periodEnd, ...(nextStatus ? { subscription_status: nextStatus } : {}) })
+        .update({ ...(periodEnd ? { stripe_period_end: periodEnd } : {}), ...(nextStatus ? { subscription_status: nextStatus } : {}) })
         .eq('id', org.id)
 
       // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
@@ -517,4 +533,11 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ received: true })
+  } catch (err) {
+    // Rull tilbake idempotens-stemplet så Stripe sin neste retry kan prosessere
+    // hendelsen på nytt i stedet for å bli avvist som duplikat (23505).
+    console.error('[webhook] prosesseringsfeil — fjerner idempotens-stempel for', event.id, err)
+    await supabaseAdmin.from('stripe_events').delete().eq('id', event.id)
+    return NextResponse.json({ error: 'Webhook-prosessering feilet' }, { status: 500 })
+  }
 }
