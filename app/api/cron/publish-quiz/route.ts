@@ -1,5 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
+import { processQuiz } from '@/lib/award-season-points'
+
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -10,6 +14,7 @@ export async function GET(request: NextRequest) {
 
   const now = new Date().toISOString()
 
+  // ── Publiser quizer som er klare til å åpne ───────────────────────────────
   const { data, error } = await supabaseAdmin
     .from('quizzes')
     .update({ is_active: true })
@@ -26,6 +31,38 @@ export async function GET(request: NextRequest) {
   const count = data?.length ?? 0
   if (count > 0) {
     console.log('[cron/publish-quiz] published:', data?.map(q => q.title).join(', '))
+  }
+
+  // ── Tildel sesongpoeng for quizer som nettopp har stengt ──────────────────
+  // Kjøres her slik at poengene er synlige umiddelbart etter closes_at, i stedet
+  // for å vente opptil 5 minutter på neste award-season-points-kjøring.
+  // award-season-points-cronen er idempotent (season_points_awarded-flagget), så
+  // dobbel kjøring er ufarlig.
+  const { data: closedQuizzes, error: closedError } = await supabaseAdmin
+    .from('quizzes')
+    .select('id, title, closes_at')
+    .lt('closes_at', now)
+    .eq('season_points_awarded', false)
+    .order('closes_at', { ascending: true })
+    .limit(5)
+
+  if (closedError) {
+    console.error('[cron/publish-quiz] closed-quiz lookup error:', closedError.message)
+  } else if (closedQuizzes && closedQuizzes.length > 0) {
+    const snapshot = closedQuizzes as { id: string; title: string; closes_at: string }[]
+    waitUntil(
+      (async () => {
+        for (const quiz of snapshot) {
+          console.log(`[cron/publish-quiz] tildeler sesongpoeng for "${quiz.title}"`)
+          const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
+          if (procError) {
+            console.error(`[cron/publish-quiz] sesongpoeng feilet for "${quiz.title}":`, procError)
+          } else {
+            console.log(`[cron/publish-quiz] sesongpoeng OK for "${quiz.title}" — ${rows} rader`)
+          }
+        }
+      })()
+    )
   }
 
   return NextResponse.json({ published: count, quizzes: data })
