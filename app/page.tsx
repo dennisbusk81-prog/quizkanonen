@@ -837,6 +837,8 @@ const SHARED_CSS = `
 
   .qkp-league-top3 { max-width: none; margin-bottom: 16px; }
 
+  .qkp-greeting { font-size: 28px; }
+
   /* ── Responsive ── */
   @media (max-width: 600px) {
     .qk-hero { padding: 36px 0 28px; }
@@ -997,8 +999,11 @@ const SHARED_CSS = `
   @media (min-width: 769px) {
     .qk-hero-title    { font-size: 52px; }
     .qk-hero-subtitle { font-size: 18px; }
-    .qk-card          { padding: 32px; }
+    .qk-card          { padding: 36px; margin-bottom: 24px; }
     .qk-biz-inner     { padding: 32px; }
+    .qkp-greeting     { font-size: 2.4rem; }
+    .qkp-plain-card   { margin-top: 24px; }
+    .qkp-shortcuts    { margin-top: 24px; }
   }
 `
 
@@ -1238,9 +1243,8 @@ export default async function Home() {
           {/* Welcome */}
           <section style={{ paddingTop: 40, paddingBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
-              <h1 style={{
+              <h1 className="qkp-greeting" style={{
                 fontFamily: "'Libre Baskerville', serif",
-                fontSize: 28,
                 fontWeight: 700,
                 color: '#ffffff',
                 lineHeight: 1.2,
