@@ -126,6 +126,10 @@ export async function POST(request: NextRequest) {
     .select('id', { count: 'exact', head: true })
     .eq('quiz_id', quizId)
 
+  if (questionCount === null) {
+    return NextResponse.json({ error: 'Kunne ikke hente antall spørsmål.' }, { status: 500 })
+  }
+
   // ── Opprett attempt ─────────────────────────────────────────────────────────
   // correct_streak settes bevisst IKKE her — NULL er markøren for "ikke ferdig
   // scoret" som historikk/ranking filtrerer på. submit/route.ts setter den ved
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest) {
       player_name: playerName,
       is_team: isTeam,
       team_size: teamSize,
-      total_questions: questionCount ?? 0,
+      total_questions: questionCount,
       correct_answers: 0,
       total_time_ms: 0,
       user_id: userId,

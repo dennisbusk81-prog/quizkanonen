@@ -336,6 +336,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [period, setPeriod]           = useState<Period>('last_quiz')
   const [data, setData]               = useState<ApiResponse | null>(null)
   const [loading, setLoading]         = useState(true)
+  const [loadError, setLoadError]     = useState(false)
   const [session, setSession]         = useState<Session | null>(null)
   // sessionChecked: true etter at getSession() har svart — brukes til å
   // skjule "Logg inn"-kortet til vi vet om brukeren faktisk er innlogget
@@ -468,6 +469,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     // vi aksepterer den korte skeleton-blinken fordi det er bedre enn å
     // vise feil periodes data mens ny hentes.
     if (!browseMode) setData(null)
+    setLoadError(false)
 
     async function load() {
       const headers: Record<string, string> = {}
@@ -481,11 +483,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         }
         const res = await fetch(url, { headers })
         if (cancelled) return
-        if (!res.ok) { if (!cancelled) setData(null); return }
+        if (!res.ok) { if (!cancelled) { setData(null); setLoadError(true) }; return }
         const json = await res.json()
         if (!cancelled) setData(json)
       } catch {
-        if (!cancelled) setData(null)
+        if (!cancelled) { setData(null); setLoadError(true) }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -765,7 +767,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
         <div style={s.userCard}>
           <p style={{ ...s.ctaText, marginBottom: 12 }}>{notPlayedMsg}</p>
-          <a href="/" style={s.btnOutline}>Se ukens quiz →</a>
+          <Link href="/" style={s.btnOutline}>Se ukens quiz →</Link>
         </div>
       </>
     )
@@ -889,19 +891,28 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   if (!loading && !data) {
     const loginHref = `/login?next=/toppliste`
+    const showError = loadError && sessionChecked && !!session
     return (
       <>
         <style>{FONT_IMPORT + EXTRA_STYLES}</style>
         <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '36px 28px', textAlign: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
-            Ingen data ennå
-          </p>
-          <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
-            Logg inn for å se din sesong-plassering.
-          </p>
-          <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
-            Logg inn
-          </Link>
+          {showError ? (
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff' }}>
+              Noe gikk galt. Prøv å laste siden på nytt.
+            </p>
+          ) : (
+            <>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
+                Ingen data ennå
+              </p>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+                Logg inn for å se din sesong-plassering.
+              </p>
+              <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
+                Logg inn
+              </Link>
+            </>
+          )}
         </div>
       </>
     )

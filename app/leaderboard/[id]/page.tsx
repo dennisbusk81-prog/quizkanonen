@@ -174,6 +174,7 @@ export default function LeaderboardPage() {
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
   const [userOrgs, setUserOrgs] = useState<{ orgSlug: string; orgName: string }[]>([])
+  const [fetchError, setFetchError] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [challengeCopied, setChallengeCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
@@ -254,6 +255,7 @@ export default function LeaderboardPage() {
         } catch { /* Previous quiz data is optional */ }
       } catch (e) {
         console.error('fetchData (leaderboard) feilet:', e)
+        setFetchError(true)
       } finally {
         setLoading(false)
       }
@@ -549,7 +551,11 @@ export default function LeaderboardPage() {
   )
 
   if (!quiz) return (
-    <div style={s.centered}><p style={s.centeredText}>Fant ikke quizen.</p></div>
+    <div style={s.centered}>
+      <p style={s.centeredText}>
+        {fetchError ? 'Noe gikk galt. Prøv å laste siden på nytt.' : 'Fant ikke quizen.'}
+      </p>
+    </div>
   )
 
   if (!quiz.show_leaderboard) return (
@@ -1248,7 +1254,7 @@ export default function LeaderboardPage() {
           {!authLoading && session && !hasLeagues && (
             <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>
               Vil du konkurrere mot vennene dine?{' '}
-              <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</a>
+              <Link href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</Link>
             </p>
           )}
 
