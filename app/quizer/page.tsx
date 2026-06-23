@@ -209,6 +209,7 @@ export default async function QuizerPage() {
     .from('quizzes')
     .select('id, title, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
     .eq('is_active', true)
+    .eq('is_test', false)
     .order('opens_at', { ascending: false, nullsFirst: false })
 
   const quizList = (quizzes as QuizRow[] | null) ?? []

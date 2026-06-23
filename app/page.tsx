@@ -113,6 +113,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
     supabaseAdmin
       .from('quizzes')
       .select(QUIZ_CARD_COLS)
+      .eq('is_test', false)
       .lte('opens_at', nowIso)
       .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
       .order('opens_at', { ascending: false })
@@ -120,6 +121,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
     supabaseAdmin
       .from('quizzes')
       .select(QUIZ_CARD_COLS)
+      .eq('is_test', false)
       .gt('opens_at', nowIso)
       .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
       .order('opens_at', { ascending: true })
@@ -127,6 +129,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
     supabaseAdmin
       .from('quizzes')
       .select('id, title, questions(count)')
+      .eq('is_test', false)
       .lt('closes_at', nowIso)
       .not('closes_at', 'is', null)
       .order('closes_at', { ascending: false })
@@ -230,7 +233,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, monthlyStandings, participantCount, lastQuizTop3 }
 }
 
-const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v1'], { revalidate: 60 })
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v2'], { revalidate: 60 })
 
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
@@ -238,6 +241,7 @@ async function computePageInsights(): Promise<PageInsights | null> {
     const { data: closedQuizRow } = await supabaseAdmin
       .from('quizzes')
       .select('id, attempts!inner(id, attempt_answers!inner(id))')
+      .eq('is_test', false)
       .lt('closes_at', now.toISOString())
       .not('closes_at', 'is', null)
       .order('closes_at', { ascending: false })

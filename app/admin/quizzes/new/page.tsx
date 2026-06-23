@@ -694,6 +694,7 @@ function QuizEditorInner() {
   const [closesAtStatus, setClosesAtStatus] = useState<'ok' | 'error' | null>(null)
   const [quizType, setQuizType]     = useState<'weekly' | 'bonus'>('weekly')
   const [shuffleAll, setShuffleAll] = useState(false)
+  const [isTest, setIsTest]         = useState(false)
 
   // Collapsible meta panel: open for new quiz, collapsed when editing (data already loaded)
   const [metaOpen, setMetaOpen] = useState(!editIdFromUrl)
@@ -731,6 +732,7 @@ function QuizEditorInner() {
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
   const shuffleAllRef    = useRef(shuffleAll)
+  const isTestRef        = useRef(false)
   const quizIdRef        = useRef<string | null>(null)
   const questionDbIdsRef = useRef<string[]>([])
   const opensAtRef       = useRef(opensAt)
@@ -741,6 +743,7 @@ function QuizEditorInner() {
 
   useEffect(() => { questionsRef.current = questions },         [questions])
   useEffect(() => { shuffleAllRef.current = shuffleAll },       [shuffleAll])
+  useEffect(() => { isTestRef.current = isTest },               [isTest])
   useEffect(() => { opensAtRef.current = opensAt },             [opensAt])
   useEffect(() => { closesAtRef.current = closesAt },           [closesAt])
   useEffect(() => { quizTypeRef.current = quizType },           [quizType])
@@ -796,6 +799,9 @@ function QuizEditorInner() {
       }
       const loadedType = (quizData.quiz_type as 'weekly' | 'bonus') ?? 'weekly'
       setQuizType(loadedType); quizTypeRef.current = loadedType
+
+      const loadedIsTest = quizData.is_test ?? false
+      setIsTest(loadedIsTest); isTestRef.current = loadedIsTest
 
       // Quiz ID — set immediately so all saves use PATCH
       setQuizId(id); quizIdRef.current = id
@@ -859,6 +865,7 @@ function QuizEditorInner() {
           opens_at:  opensAtRef.current  ? new Date(opensAtRef.current).toISOString()  : undefined,
           closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
           quiz_type: quizTypeRef.current,
+          is_test:   isTestRef.current,
           questions: Array.from({ length: count }, () => ({
             question_text: '', option_a: '', option_b: '',
             option_c: null, option_d: null,
@@ -962,6 +969,7 @@ function QuizEditorInner() {
           opens_at:  opensAtRef.current  ? new Date(opensAtRef.current).toISOString()  : undefined,
           closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
           quiz_type: quizTypeRef.current,
+          is_test:   isTestRef.current,
         }),
       })
       if (!res.ok) { setSaveStatus('error'); return }
@@ -1497,6 +1505,25 @@ function QuizEditorInner() {
                     <div className="nq-toggle-knob" />
                   </button>
                   <span className="nq-shuffle-text">Bland svaralternativer</span>
+                </label>
+              </div>
+
+              {/* Testquiz */}
+              <div style={{ marginTop: 12 }}>
+                <label className="nq-shuffle-row">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newVal = !isTestRef.current
+                      isTestRef.current = newVal
+                      setIsTest(newVal)
+                      updateQuizMeta()
+                    }}
+                    className={`nq-toggle${isTest ? ' on' : ''}`}
+                  >
+                    <div className="nq-toggle-knob" />
+                  </button>
+                  <span className="nq-shuffle-text">Testquiz (vises ikke på forsiden)</span>
                 </label>
               </div>
 

@@ -17,12 +17,13 @@ export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, questions, opens_at, closes_at, quiz_type }: {
+  const { title, questions, opens_at, closes_at, quiz_type, is_test }: {
     title: string
     questions: ImportQuestion[]
     opens_at?: string
     closes_at?: string
     quiz_type?: string
+    is_test?: boolean
   } = body
 
   if (!title || !questions?.length) {
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       allow_teams: true,
       requires_access_code: false,
       quiz_type: quiz_type ?? 'weekly',
+      is_test: is_test ?? false,
     })
     .select()
     .single()
