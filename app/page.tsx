@@ -1230,6 +1230,11 @@ export default async function Home() {
             </div>
           )}
 
+          {/* Org card — bedriftsliga, kun for org-medlemmer */}
+          <ErrorBoundary>
+            <OrgCard />
+          </ErrorBoundary>
+
           {/* Season placement card */}
           <div className="qkp-plain-card">
             <p className="qkp-section-label">Sesong — {monthName}</p>
@@ -1282,11 +1287,6 @@ export default async function Home() {
               )}
             </div>
           </div>
-
-          {/* Org card — bedriftsliga, kun for org-medlemmer */}
-          <ErrorBoundary>
-            <OrgCard />
-          </ErrorBoundary>
 
           {/* Shortcut grid */}
           <div className="qkp-shortcuts">

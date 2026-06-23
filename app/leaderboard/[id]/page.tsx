@@ -173,6 +173,7 @@ export default function LeaderboardPage() {
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
+  const [userOrgs, setUserOrgs] = useState<{ orgSlug: string; orgName: string }[]>([])
   const [shareCopied, setShareCopied] = useState(false)
   const [challengeCopied, setChallengeCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
@@ -335,6 +336,17 @@ export default function LeaderboardPage() {
             ))
           }
         }
+      } catch { /* ikke kritisk */ }
+
+      // Hent org-medlemskap for kontekstuell navigasjon nederst på siden
+      try {
+        const orgsRes = await fetch('/api/org/my-orgs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: sess.access_token }),
+        }).then(r => r.ok ? r.json() : { orgs: [] }).catch(() => ({ orgs: [] }))
+        const orgs: { orgSlug: string; orgName: string }[] = (orgsRes.orgs ?? []).map((o: { orgSlug: string; orgName: string }) => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
+        setUserOrgs(orgs)
       } catch { /* ikke kritisk */ }
 
       // Hent duell-status for "Utfordre"-knapp i leaderboard-rader
@@ -1325,6 +1337,25 @@ export default function LeaderboardPage() {
               </Link>
             </div>
           </div>
+
+          {/* Kontekstuell navigasjon — kun for innloggede */}
+          {!authLoading && session && (userOrgs.length > 0) && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                Se også
+              </p>
+              <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                  Nasjonal toppliste →
+                </Link>
+                {userOrgs.map(org => (
+                  <Link key={org.orgSlug} href={`/org/${org.orgSlug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                    {org.orgName} →
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
