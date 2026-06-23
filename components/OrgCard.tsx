@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 
 type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }
 type Top3Entry = { displayName: string; totalPoints: number }
+type DashAttempt = { user_id: string | null; rank: number }
+type Placement = { rank: number | null; total: number; quizTitle: string }
 
 const medals = ['🥇', '🥈', '🥉']
 
@@ -15,15 +17,13 @@ function truncateName(name: string) {
 export default function OrgCard() {
   const [org, setOrg] = useState<OrgEntry | null>(null)
   const [top3, setTop3] = useState<Top3Entry[]>([])
+  const [placement, setPlacement] = useState<Placement | null>(null)
   const [loaded, setLoaded] = useState(false)
-
-  console.log('[OrgCard] mounted, loaded:', loaded, 'org:', org?.orgName, 'top3:', top3.length)
 
   useEffect(() => {
     let cancelled = false
 
     async function load(accessToken: string) {
-      console.log('[OrgCard] load() called with token prefix:', accessToken.slice(0, 10))
       const orgsRes = await fetch('/api/org/my-orgs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,21 +34,38 @@ export default function OrgCard() {
       if (orgs.length === 0 || cancelled) return
 
       const first = orgs[0]
-      const summaryRes = await fetch(`/api/org/${first.orgSlug}/season-summary`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken }),
-      }).then(r => r.json()).catch(() => ({ top3: [] }))
+      const [summaryRes, dashRes] = await Promise.all([
+        fetch(`/api/org/${first.orgSlug}/season-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: accessToken }),
+        }).then(r => r.json()).catch(() => ({ top3: [] })),
+        fetch(`/api/org/${first.orgSlug}/dashboard`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ])
 
       if (cancelled) return
-      console.log('[OrgCard] setting org:', first.orgName, 'top3:', summaryRes.top3)
       setOrg(first)
       setTop3(summaryRes.top3 ?? [])
+
+      // Brukerens plassering i siste quiz med org-aktivitet — diskret linje.
+      // Ingen data ennå (ingen quiz) ⇒ vis ingenting (ikke feilmelding).
+      if (dashRes?.quiz && Array.isArray(dashRes.attempts)) {
+        const mine = (dashRes.attempts as DashAttempt[])
+          .filter(a => a.user_id === dashRes.currentUserId)
+          .sort((a, b) => a.rank - b.rank)
+        setPlacement({
+          quizTitle: dashRes.quiz.title as string,
+          total: dashRes.attempts.length,
+          rank: mine.length > 0 ? mine[0].rank : null,
+        })
+      }
+
       setLoaded(true)
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[OrgCard] auth event:', event, 'has token:', !!session?.access_token)
       if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
       if (!session?.access_token) return
       load(session.access_token)
@@ -76,10 +93,22 @@ export default function OrgCard() {
       <p style={{
         fontFamily: "'Libre Baskerville', serif",
         fontSize: 18, fontWeight: 700, color: '#ffffff',
-        marginBottom: 14, letterSpacing: '-0.01em',
+        marginBottom: placement ? 4 : 14, letterSpacing: '-0.01em',
       }}>
         {org.orgName}
       </p>
+
+      {placement && (
+        placement.rank != null ? (
+          <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 14, lineHeight: 1.5 }}>
+            Du var {placement.rank} av {placement.total} i {placement.quizTitle}
+          </p>
+        ) : (
+          <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 14, lineHeight: 1.5 }}>
+            Du spilte ikke ukens quiz
+          </p>
+        )
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
         {top3.map((entry, i) => (

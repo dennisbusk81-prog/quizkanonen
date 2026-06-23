@@ -799,7 +799,7 @@ export default async function Home() {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
     type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, lastClosedQuizResult] = await Promise.all([
+    const [quizResult, allSeasonResult, profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, lastClosedQuizResult, orgMembershipResult] = await Promise.all([
       // Aktiv quiz: opens_at <= now og ikke stengt ennå
       supabaseAdmin
         .from('quizzes')
@@ -848,6 +848,11 @@ export default async function Home() {
         .order('closes_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      // Org-medlemskap — for kontekstuell "Se topplisten" når quizen er stengt
+      supabaseAdmin
+        .from('organization_members')
+        .select('organizations(slug)')
+        .eq('user_id', user.id),
     ])
 
     // Profile
@@ -862,6 +867,15 @@ export default async function Home() {
 
     // Siste stengte quiz — brukes som "Se topplisten"-mål når ingen aktiv quiz finnes
     const lastClosedQuizId = (lastClosedQuizResult.data as { id: string } | null)?.id ?? null
+
+    // Org-medlemskap — er brukeren med i nøyaktig én org, lenker "Se topplisten"
+    // (når quizen er stengt) til bedriftens side i stedet for quiz-topplisten.
+    // Flere orger eller ingen ⇒ behold dagens leaderboard-lenke.
+    type OrgSlugRow = { organizations: { slug: string } | { slug: string }[] | null }
+    const orgSlugs = ((orgMembershipResult.data as OrgSlugRow[] | null) ?? [])
+      .map(r => Array.isArray(r.organizations) ? r.organizations[0]?.slug : r.organizations?.slug)
+      .filter((sl): sl is string => !!sl)
+    const singleOrgToplistHref = orgSlugs.length === 1 ? `/org/${orgSlugs[0]}` : null
 
     // Kommende quiz — hentes kun om ingen aktiv finnes
     let upcomingQuiz: QuizRow | null = null
@@ -1184,9 +1198,9 @@ export default async function Home() {
               <p className="qk-card-date">
                 Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
               </p>
-              {lastClosedQuizId && (
+              {(lastClosedQuizId || singleOrgToplistHref) && (
                 <div className="qk-card-actions">
-                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                  <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
                     Se topplisten
                   </Link>
                 </div>
@@ -1196,9 +1210,9 @@ export default async function Home() {
             <div className="qk-empty">
               <p className="qk-empty-title">Ingen quiz planlagt akkurat nå</p>
               <p className="qk-empty-sub">Kom tilbake snart.</p>
-              {lastClosedQuizId && (
+              {(lastClosedQuizId || singleOrgToplistHref) && (
                 <div className="qk-card-actions" style={{ marginTop: 16 }}>
-                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                  <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
                     Se topplisten
                   </Link>
                 </div>
