@@ -10,8 +10,16 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 // correct_answer/correct_answers sendes fortsatt med — men kun for spørsmålet
 // spilleren er på akkurat nå (umiddelbar tap→animasjon-feedback beholdes). Den
 // autoritative scoringen skjer uansett server-side i submit/route.ts.
+//
+// YTELSE: Tidligere hentet ruten ALLE spørsmål (med full fasit) og shufflet dem
+// på HVERT kall — N fulle tabellhentinger per spillerunde. Nå lagres den
+// shufflede rekkefølgen (array av question_id) på attempt-raden ved første
+// kall, og påfølgende kall henter kun det ene spørsmålet direkte by id.
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const QUESTION_COLUMNS =
+  'id, question_text, option_a, option_b, option_c, option_d, correct_answer, correct_answers, explanation, time_limit_seconds, shuffle_options, category, order_index'
 
 // Deterministisk PRNG slik at randomisert rekkefølge er stabil per attempt
 // (samme rekkefølge på tvers av kall og ved resume), men unik per spiller.
@@ -64,14 +72,27 @@ export async function GET(
     return NextResponse.json({ error: 'Ugyldig index' }, { status: 400 })
   }
   const attemptId = searchParams.get('attemptId') ?? ''
+  const hasAttempt = UUID_RE.test(attemptId)
 
-  // ── Quizen må finnes og være åpen ─────────────────────────────────────────────
-  const { data: quiz } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, opens_at, closes_at, randomize_questions')
-    .eq('id', quizId)
-    .maybeSingle()
+  // ── Quiz + attempt parallelt ──────────────────────────────────────────────────
+  // Quizen må finnes/være åpen; attempt-raden bærer den lagrede rekkefølgen.
+  // Begge er uavhengige oppslag → Promise.all (tidligere sekvensielt).
+  const [quizRes, attemptRes] = await Promise.all([
+    supabaseAdmin
+      .from('quizzes')
+      .select('id, opens_at, closes_at, randomize_questions')
+      .eq('id', quizId)
+      .maybeSingle(),
+    hasAttempt
+      ? supabaseAdmin
+          .from('attempts')
+          .select('id, quiz_id, question_order')
+          .eq('id', attemptId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
 
+  const quiz = quizRes.data
   if (!quiz) {
     return NextResponse.json({ error: 'Quizen finnes ikke' }, { status: 404 })
   }
@@ -82,27 +103,97 @@ export async function GET(
     return NextResponse.json({ error: 'Quizen er ikke åpen' }, { status: 403 })
   }
 
-  // ── Hent spørsmål (med fasit) server-side ─────────────────────────────────────
-  const { data: rows, error } = await supabaseAdmin
+  // Attempt må tilhøre denne quizen for å brukes som rekkefølge-kilde.
+  const attempt = (attemptRes.data && (attemptRes.data as { quiz_id?: string }).quiz_id === quizId)
+    ? (attemptRes.data as { id: string; quiz_id: string; question_order: unknown })
+    : null
+
+  const shouldRandomize = quiz.randomize_questions === true && attempt !== null
+
+  // ── Randomisert: bruk (eller bygg) lagret rekkefølge på attempt-raden ─────────
+  if (shouldRandomize && attempt) {
+    let order: string[] | null = Array.isArray(attempt.question_order)
+      ? (attempt.question_order as string[])
+      : null
+
+    if (!order) {
+      // Første kall for denne attempten — bygg rekkefølgen fra KUN id-kolonnen
+      // (lett henting, ingen fasit), shuffle deterministisk, og lagre den.
+      const { data: idRows } = await supabaseAdmin
+        .from('questions')
+        .select('id')
+        .eq('quiz_id', quizId)
+        .order('order_index', { ascending: true })
+
+      const ids = ((idRows ?? []) as { id: string }[]).map(r => r.id)
+      order = seededShuffle(ids, attemptId)
+
+      // Lagre atomisk: kun hvis fortsatt null. Hindrer at to samtidige kall
+      // (f.eks. index 0 og 1) skriver ulik rekkefølge — taperen leser vinnerens.
+      const { data: claimed } = await supabaseAdmin
+        .from('attempts')
+        .update({ question_order: order })
+        .eq('id', attemptId)
+        .is('question_order', null)
+        .select('question_order')
+        .maybeSingle()
+
+      if (!claimed) {
+        const { data: fresh } = await supabaseAdmin
+          .from('attempts')
+          .select('question_order')
+          .eq('id', attemptId)
+          .maybeSingle()
+        if (fresh && Array.isArray(fresh.question_order)) {
+          order = fresh.question_order as string[]
+        }
+      }
+    }
+
+    const total = order.length
+    if (index >= total) {
+      return NextResponse.json({ error: 'Index utenfor rekkevidde', total }, { status: 404 })
+    }
+
+    const questionId = order[index]
+    const { data: question, error } = await supabaseAdmin
+      .from('questions')
+      .select(QUESTION_COLUMNS)
+      .eq('id', questionId)
+      .eq('quiz_id', quizId)
+      .maybeSingle()
+
+    if (error) {
+      console.error('[quiz/questions] feil:', { quizId, error: error.message })
+      return NextResponse.json({ error: 'Kunne ikke hente spørsmål' }, { status: 500 })
+    }
+    if (!question) {
+      return NextResponse.json({ error: 'Index utenfor rekkevidde', total }, { status: 404 })
+    }
+
+    return NextResponse.json({ question, total })
+  }
+
+  // ── Ikke-randomisert: deterministisk på order_index ───────────────────────────
+  // Hent KUN spørsmålet på posisjon `index` via range(), og total via count i
+  // samme spørring. Aldri hele settet.
+  const { data: rows, count, error } = await supabaseAdmin
     .from('questions')
-    .select('id, question_text, option_a, option_b, option_c, option_d, correct_answer, correct_answers, explanation, time_limit_seconds, shuffle_options, category, order_index')
+    .select(QUESTION_COLUMNS, { count: 'exact' })
     .eq('quiz_id', quizId)
     .order('order_index', { ascending: true })
+    .range(index, index)
 
   if (error) {
     console.error('[quiz/questions] feil:', { quizId, error: error.message })
     return NextResponse.json({ error: 'Kunne ikke hente spørsmål' }, { status: 500 })
   }
 
-  const ordered = quiz.randomize_questions && UUID_RE.test(attemptId)
-    ? seededShuffle(rows ?? [], attemptId)
-    : (rows ?? [])
-
-  const total = ordered.length
-  if (index >= total) {
+  const total = count ?? 0
+  const question = (rows ?? [])[0]
+  if (!question) {
     return NextResponse.json({ error: 'Index utenfor rekkevidde', total }, { status: 404 })
   }
 
-  // Returnerer KUN spørsmålet på posisjon `index` — aldri fremtidige spørsmål.
-  return NextResponse.json({ question: ordered[index], total })
+  return NextResponse.json({ question, total })
 }
