@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase'
 
 type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }
 type Top3Entry = { displayName: string; totalPoints: number }
-type DashAttempt = { user_id: string | null; rank: number }
 type Placement = { rank: number | null; total: number; quizTitle: string }
 
 const medals = ['🥇', '🥈', '🥉']
@@ -34,13 +33,13 @@ export default function OrgCard() {
       if (orgs.length === 0 || cancelled) return
 
       const first = orgs[0]
-      const [summaryRes, dashRes] = await Promise.all([
+      const [summaryRes, placementRes] = await Promise.all([
         fetch(`/api/org/${first.orgSlug}/season-summary`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ access_token: accessToken }),
         }).then(r => r.json()).catch(() => ({ top3: [] })),
-        fetch(`/api/org/${first.orgSlug}/dashboard`, {
+        fetch(`/api/org/${first.orgSlug}/my-placement`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }).then(r => r.ok ? r.json() : null).catch(() => null),
       ])
@@ -50,16 +49,10 @@ export default function OrgCard() {
       setTop3(summaryRes.top3 ?? [])
 
       // Brukerens plassering i siste quiz med org-aktivitet — diskret linje.
-      // Ingen data ennå (ingen quiz) ⇒ vis ingenting (ikke feilmelding).
-      if (dashRes?.quiz && Array.isArray(dashRes.attempts)) {
-        const mine = (dashRes.attempts as DashAttempt[])
-          .filter(a => a.user_id === dashRes.currentUserId)
-          .sort((a, b) => a.rank - b.rank)
-        setPlacement({
-          quizTitle: dashRes.quiz.title as string,
-          total: dashRes.attempts.length,
-          rank: mine.length > 0 ? mine[0].rank : null,
-        })
+      // placement=null: ingen quiz-aktivitet ennå → vis ingenting.
+      // placement.rank=null: quiz finnes, brukeren spilte ikke → vis melding.
+      if (placementRes?.placement !== undefined) {
+        setPlacement(placementRes.placement)
       }
 
       setLoaded(true)
