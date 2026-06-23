@@ -80,7 +80,7 @@ export async function GET(
   const [quizRes, attemptRes] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
-      .select('id, opens_at, closes_at, randomize_questions')
+      .select('id, opens_at, closes_at, randomize_questions, quiz_type')
       .eq('id', quizId)
       .maybeSingle(),
     hasAttempt
@@ -108,7 +108,7 @@ export async function GET(
     ? (attemptRes.data as { id: string; quiz_id: string; question_order: unknown })
     : null
 
-  const shouldRandomize = quiz.randomize_questions === true && attempt !== null
+  const shouldRandomize = quiz.randomize_questions === true && (quiz as { quiz_type?: string }).quiz_type !== 'weekly' && attempt !== null
 
   // ── Randomisert: bruk (eller bygg) lagret rekkefølge på attempt-raden ─────────
   if (shouldRandomize && attempt) {

@@ -53,6 +53,9 @@ const styles = `
     padding: 24px 20px;
   }
 
+  /* Skjul global footer og nav på alle quiz-faser */
+  footer { display: none !important; }
+
   /* Desktop: top-aligned så kortet vokser nedover i stedet for å hoppe opp/ned */
   @media (min-width: 641px) {
     .qk-shell { align-items: flex-start; padding-top: 80px; }

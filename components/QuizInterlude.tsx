@@ -132,7 +132,8 @@ export default function QuizInterlude({
       style={{
         position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '0 32px',
+        minHeight: '100vh', overflowY: 'auto',
+        padding: '40px 32px',
       }}
     >
       <div style={{ textAlign: 'center', maxWidth: 360, width: '100%' }}>
