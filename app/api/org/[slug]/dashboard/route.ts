@@ -50,27 +50,39 @@ export async function GET(
     return NextResponse.json({ org: { name: org.name, plan: org.plan }, quiz: null, attempts: [], userRole: membership.role })
   }
 
-  // Get latest quiz with attempts from members
-  const { data: quizzes } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title, is_active, created_at')
-    .order('created_at', { ascending: false })
-    .limit(10)
+  // Get latest quiz with attempts from members — én enkelt spørring via
+  // embedded join (erstatter tidligere N+1-løkke over quizer). Henter alle
+  // medlems-attempts med tilhørende quiz; nyeste quiz (etter created_at)
+  // velges i JS fordi PostgREST ikke kan sortere topp-nivå på en embedded
+  // kolonne. Det embeddede quiz-feltet strippes så attempt-formen forblir
+  // identisk med før (rankAttempts spreder hele objektet).
+  type EmbeddedQuiz = { id: string; title: string; is_active: boolean; created_at: string }
+  const { data: memberAttempts } = await supabaseAdmin
+    .from('attempts')
+    .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size, quiz:quizzes!inner(id, title, is_active, created_at)')
+    .in('user_id', memberUserIds)
 
-  let quiz = null
+  let quiz: { id: string; title: string; is_active: boolean } | null = null
   let attempts: unknown[] = []
 
-  for (const q of (quizzes ?? [])) {
-    const { data: qAttempts } = await supabaseAdmin
-      .from('attempts')
-      .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size')
-      .eq('quiz_id', q.id)
-      .in('user_id', memberUserIds)
-
-    if (qAttempts && qAttempts.length > 0) {
-      quiz = { id: q.id, title: q.title, is_active: q.is_active }
-      attempts = qAttempts
-      break
+  // attempts → quizzes er many-to-one, så PostgREST returnerer quiz som ett
+  // objekt på runtime selv om supabase-js typer det som array. Cast via unknown.
+  const rows = (memberAttempts ?? []) as unknown as Array<Record<string, unknown> & { quiz: EmbeddedQuiz }>
+  if (rows.length > 0) {
+    let latest: EmbeddedQuiz | null = null
+    for (const row of rows) {
+      if (!latest || row.quiz.created_at > latest.created_at) latest = row.quiz
+    }
+    if (latest) {
+      quiz = { id: latest.id, title: latest.title, is_active: latest.is_active }
+      const latestId = latest.id
+      attempts = rows
+        .filter(row => row.quiz.id === latestId)
+        .map(row => {
+          const rest = { ...row }
+          delete (rest as { quiz?: unknown }).quiz
+          return rest
+        })
     }
   }
 
