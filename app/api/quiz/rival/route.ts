@@ -51,6 +51,58 @@ async function buildRankingSnapshot(quizId: string) {
   }
 }
 
+// Finn rival = personen nærmest OVER brukeren i quizens rangering (ikke toppen).
+// - Har brukeren et fullført forsøk: personen rett over i rangeringen.
+//   På 1. plass: personen rett under (eller ingen hvis alene).
+// - Har ikke spilt ennå (vanlig under quiz): bruk median-plasseringen som
+//   referanse og match mot personen rett over medianen — aldri toppen.
+async function findRival(
+  quizId: string,
+  userId: string,
+): Promise<{ user_id: string; correct_answers: number } | null> {
+  const { data: attempts } = await supabaseAdmin
+    .from('attempts')
+    .select('user_id, correct_answers, total_time_ms')
+    .eq('quiz_id', quizId)
+    .eq('is_team', false)
+    .not('user_id', 'is', null)
+    .order('correct_answers', { ascending: false })
+    .order('total_time_ms', { ascending: true })
+
+  const ranked = attempts ?? []
+  if (ranked.length === 0) return null
+
+  // Behold beste forsøk per bruker (første forekomst = best, siden sortert)
+  const seen = new Set<string>()
+  const unique: { user_id: string; correct_answers: number }[] = []
+  for (const a of ranked) {
+    if (!a.user_id || seen.has(a.user_id)) continue
+    seen.add(a.user_id)
+    unique.push({ user_id: a.user_id, correct_answers: a.correct_answers ?? 0 })
+  }
+  if (unique.length === 0) return null
+
+  const userIdx = unique.findIndex(a => a.user_id === userId)
+
+  let rivalIdx: number
+  if (userIdx === 0) {
+    // Brukeren er på 1. plass — vis personen rett under (eller ingen)
+    rivalIdx = unique.length > 1 ? 1 : -1
+  } else if (userIdx > 0) {
+    // Personen med nest høyeste score rett over brukeren
+    rivalIdx = userIdx - 1
+  } else {
+    // Brukeren har ikke spilt ennå — median som referanse, personen rett over den
+    const medianIdx = Math.floor(unique.length / 2)
+    rivalIdx = Math.max(0, medianIdx - 1)
+  }
+
+  if (rivalIdx < 0 || rivalIdx >= unique.length) return null
+  const rival = unique[rivalIdx]
+  if (rival.user_id === userId) return null // sikkerhetsnett
+  return rival
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const quizId = searchParams.get('quizId')
@@ -84,65 +136,10 @@ export async function GET(request: NextRequest) {
   // FIX 5 — userId comes from the verified token, not from query params
   const userId = user.id
 
-  // Find user's leagues
-  const { data: memberships } = await supabaseAdmin
-    .from('league_members')
-    .select('league_id')
-    .eq('user_id', userId)
+  // Rival = personen nærmest over brukeren i rangeringen (ikke toppen)
+  const rivalRow = await findRival(quizId, userId)
 
-  const leagueIds = (memberships ?? []).map(m => m.league_id).filter(Boolean)
-
-  let rivalUserId: string | null = null
-  let rivalScore: number | null = null
-
-  if (leagueIds.length > 0) {
-    // Get other members of user's leagues
-    const { data: leagueMembers } = await supabaseAdmin
-      .from('league_members')
-      .select('user_id')
-      .in('league_id', leagueIds)
-      .neq('user_id', userId)
-
-    const peerIds = [...new Set((leagueMembers ?? []).map(m => m.user_id).filter(Boolean))]
-
-    if (peerIds.length > 0) {
-      // Find the peer with best attempt on this quiz
-      const { data: peerAttempts } = await supabaseAdmin
-        .from('attempts')
-        .select('user_id, correct_answers')
-        .eq('quiz_id', quizId)
-        .eq('is_team', false)
-        .in('user_id', peerIds)
-        .order('correct_answers', { ascending: false })
-        .limit(1)
-
-      if (peerAttempts && peerAttempts.length > 0) {
-        rivalUserId = peerAttempts[0].user_id
-        rivalScore = peerAttempts[0].correct_answers
-      }
-    }
-  }
-
-  // Fallback: global top player (not the user)
-  if (!rivalUserId) {
-    const { data: topAttempts } = await supabaseAdmin
-      .from('attempts')
-      .select('user_id, correct_answers')
-      .eq('quiz_id', quizId)
-      .eq('is_team', false)
-      .neq('user_id', userId)
-      .not('user_id', 'is', null)
-      .order('correct_answers', { ascending: false })
-      .limit(1)
-
-    if (topAttempts && topAttempts.length > 0) {
-      rivalUserId = topAttempts[0].user_id
-      rivalScore = topAttempts[0].correct_answers
-    }
-  }
-
-  // Build ranking snapshot in parallel with rival profile lookup
-  if (!rivalUserId || rivalScore === null) {
+  if (!rivalRow) {
     const rankingSnapshot = await buildRankingSnapshot(quizId)
     return NextResponse.json(
       { rival: null, rankingSnapshot },
@@ -154,7 +151,7 @@ export async function GET(request: NextRequest) {
     supabaseAdmin
       .from('profiles')
       .select('display_name, nickname')
-      .eq('id', rivalUserId)
+      .eq('id', rivalRow.user_id)
       .maybeSingle(),
     buildRankingSnapshot(quizId),
   ])
@@ -166,7 +163,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json(
     {
-      rival: { name: rivalName, avatarColor: avatarColor(rivalUserId), score: rivalScore },
+      rival: { name: rivalName, avatarColor: avatarColor(rivalRow.user_id), score: rivalRow.correct_answers },
       rankingSnapshot,
     },
     { headers: { 'Cache-Control': 'private, max-age=60' } }
