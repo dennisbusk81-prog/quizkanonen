@@ -66,6 +66,8 @@ async function findRival(
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('user_id', 'is', null)
+    .not('submitted_at', 'is', null) // kun fullførte forsøk
+    .gt('correct_answers', 0)        // ignorer 0-scorere
     .order('correct_answers', { ascending: false })
     .order('total_time_ms', { ascending: true })
 
