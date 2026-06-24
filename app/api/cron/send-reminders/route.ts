@@ -37,16 +37,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: quizError.message }, { status: 500 })
   }
 
-  if (!nextQuiz) {
-    return NextResponse.json({ skipped: true, reason: 'No quiz opened in the last 5 minutes (or already sent)' })
-  }
+  // Quiz-påminnelser kjøres kun når en quiz nettopp åpnet. Org-close-
+  // påminnelsene lenger ned er en egen, uavhengig seksjon som skal kjøre
+  // hver gang cronen fyrer — derfor ingen tidlig return her lenger.
+  if (nextQuiz) {
+    // A quiz is in the reminder window — do the heavy lifting (profile
+    // lookup, auth pagination, email sending) in the background via
+    // waitUntil so cron-job.org never sees a timeout.
+    const quizSnapshot = nextQuiz // capture for the closure
 
-  // A quiz is in the reminder window — return 200 immediately and do the
-  // heavy lifting (profile lookup, auth pagination, email sending) in the
-  // background via waitUntil so cron-job.org never sees a timeout.
-  const quizSnapshot = nextQuiz // capture for the closure
-
-  waitUntil(
+    waitUntil(
     (async () => {
       // Fetch profile IDs that have opted in to reminders
       const { data: profiles, error: profilesError } = await supabaseAdmin
@@ -126,7 +126,8 @@ export async function GET(request: NextRequest) {
 
       console.log(`[cron/send-reminders] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
     })()
-  )
+    )
+  }
 
   // ── Org close reminders ───────────────────────────────────────────────────
   // Find active quiz (opens_at <= now <= closes_at) for org close time calc
