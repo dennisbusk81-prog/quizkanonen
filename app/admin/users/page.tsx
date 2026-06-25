@@ -27,7 +27,7 @@ const STYLES = `
     min-height: 100vh;
   }
 
-  .adm-page { max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
+  .adm-page { flex: 1; max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
 
   .adm-header {
     padding: 24px 0 28px;

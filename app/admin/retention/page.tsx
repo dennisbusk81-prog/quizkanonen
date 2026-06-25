@@ -27,7 +27,8 @@ const STYLES = `
     min-height: 100vh;
   }
 
-  .ret-page { max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
+  .ret-shell { min-height: 100vh; display: flex; flex-direction: column; }
+  .ret-page { flex: 1; max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
 
   .ret-header {
     padding: 24px 0 28px;
@@ -191,6 +192,7 @@ export default function AdminRetention() {
   return (
     <>
       <style>{STYLES}</style>
+      <div className="ret-shell">
       <div className="ret-page">
 
         <header className="ret-header">
@@ -244,6 +246,7 @@ export default function AdminRetention() {
           )}
         </div>
 
+      </div>
       </div>
     </>
   )

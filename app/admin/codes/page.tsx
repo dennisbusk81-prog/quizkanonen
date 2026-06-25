@@ -45,7 +45,7 @@ const STYLES = `
     min-height: 100vh;
   }
 
-  .ac-page { max-width: 680px; margin: 0 auto; padding: 0 20px 80px; }
+  .ac-page { flex: 1; max-width: 680px; margin: 0 auto; padding: 0 20px 80px; }
 
   .ac-header {
     padding: 48px 0 28px;

@@ -42,7 +42,7 @@ const STYLES = `
 
   body { background: var(--bg); font-family: 'Instrument Sans', sans-serif; color: var(--body); }
 
-  .cl-page { max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
+  .cl-page { flex: 1; max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
   .cl-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 32px 0 20px; flex-wrap: wrap; }
   .cl-back { font-size: 12px; color: var(--body); text-decoration: none; display: inline-block; margin-bottom: 6px; }
   .cl-back:hover { color: var(--white); }

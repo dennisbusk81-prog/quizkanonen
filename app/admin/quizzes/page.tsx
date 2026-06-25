@@ -49,7 +49,7 @@ const STYLES = `
     min-height: 100vh;
   }
 
-  .aqz-page { max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
+  .aqz-page { flex: 1; max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
 
   .aqz-header {
     padding: 48px 0 36px;
