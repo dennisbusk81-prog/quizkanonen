@@ -836,7 +836,7 @@ export default function QuizQuestions() {
                           </span>
                         )}
                         {q.shuffle_options && (
-                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 8px' }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--bg)', background: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: 20, padding: '2px 8px' }}>
                             Blander
                           </span>
                         )}
