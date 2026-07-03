@@ -2181,7 +2181,11 @@ export default function QuizPage() {
                 style={{ animationDelay: `${i * 50}ms` }}
                 className={`qk-option qk-animate-in${getOptionClass(opt)}`}
               >
-                <span className="qk-opt-letter">{opt}</span>
+                {/* Vist bokstav følger visnings-POSISJONEN (0→A, 1→B ...), ikke DB-
+                    kolonnen. `opt` er fortsatt DB-bokstaven og brukes til klikk,
+                    scoring, tekst-oppslag og highlight — så fasiten kan ikke lenger
+                    utledes fra bokstaven når svaralternativene stokkes. */}
+                <span className="qk-opt-letter">{['A', 'B', 'C', 'D'][i]}</span>
                 <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
               </button>
             ))}
