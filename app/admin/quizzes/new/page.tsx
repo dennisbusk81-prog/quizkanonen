@@ -954,6 +954,34 @@ function QuizEditorInner() {
     }
   }, [refreshQuestionIds])
 
+  // Toggle "bland svaralternativer" på quiz-nivå. Selv om verdien lagres per rad
+  // i questions, skal den oppføre seg som én quiz-innstilling — så vi skriver
+  // den til ALLE spørsmål med én bulk-PATCH med det samme. Uten dette fikk kun
+  // spørsmålet som tilfeldigvis ble lagret sist (via blur/navigasjon) den nye
+  // verdien, mens resten beholdt den gamle.
+  const toggleShuffleAll = useCallback(async () => {
+    const newVal = !shuffleAllRef.current
+    setShuffleAll(newVal)
+    shuffleAllRef.current = newVal
+
+    const qId = quizIdRef.current
+    // Ny quiz ikke opprettet ennå: verdien stemples på alle spørsmål ved lagring
+    // (createQuiz + saveQuestion bruker shuffleAllRef.current), så ingen PATCH nå.
+    if (!qId || qId === 'creating') return
+
+    setSaveStatus('saving')
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ shuffle_options: newVal }),
+      })
+      if (!res.ok) { setSaveStatus('error'); return }
+      showSaved()
+    } catch {
+      setSaveStatus('error')
+    }
+  }, [])
+
   // Save quiz metadata (title, dates, type) — used when editing an existing quiz
   const updateQuizMeta = useCallback(async () => {
     const qId = quizIdRef.current
@@ -1499,7 +1527,7 @@ function QuizEditorInner() {
                 <label className="nq-shuffle-row">
                   <button
                     type="button"
-                    onClick={() => setShuffleAll(v => !v)}
+                    onClick={toggleShuffleAll}
                     className={`nq-toggle${shuffleAll ? ' on' : ''}`}
                   >
                     <div className="nq-toggle-knob" />

@@ -437,6 +437,10 @@ export default function QuizQuestions() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  // "Bland svaralternativer" er en quiz-innstilling (samme for alle spørsmål).
+  // Verdien lagres per rad i questions, men styres her som én felles bryter.
+  const [shuffleAll, setShuffleAll] = useState(false)
+  const [shuffleSaving, setShuffleSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   // Rett svar
@@ -457,6 +461,8 @@ export default function QuizQuestions() {
       const { quiz: quizData, questions: questionData } = await res.json()
       setQuiz(quizData)
       setQuestions(questionData)
+      // Quiz-nivå-verdien avledes fra spørsmålene (uniform etter bulk-lagring).
+      setShuffleAll(questionData?.[0]?.shuffle_options ?? false)
     } catch (e) {
       console.error('fetchData feilet:', e)
       setFeedback({ type: 'error', msg: 'Kunne ikke laste inn quiz. Sjekk tilkoblingen og prøv igjen.' })
@@ -468,6 +474,32 @@ export default function QuizQuestions() {
   function showFeedback(type: 'success' | 'error', msg: string) {
     setFeedback({ type, msg })
     setTimeout(() => setFeedback(null), 3000)
+  }
+
+  // Sett "bland svaralternativer" på hele quizen i én operasjon — alle spørsmål
+  // får samme verdi, så de ikke kan komme ut av sync.
+  async function toggleShuffleAll() {
+    const newVal = !shuffleAll
+    setShuffleAll(newVal)
+    setShuffleSaving(true)
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ shuffle_options: newVal }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setShuffleAll(!newVal) // rull tilbake ved feil
+        showFeedback('error', 'Kunne ikke oppdatere: ' + d.error)
+      } else {
+        setQuestions(qs => qs.map(q => ({ ...q, shuffle_options: newVal })))
+      }
+    } catch {
+      setShuffleAll(!newVal)
+      showFeedback('error', 'Uventet feil ved oppdatering.')
+    } finally {
+      setShuffleSaving(false)
+    }
   }
 
   const optionKeys: Record<string, keyof Question> = {
@@ -496,7 +528,7 @@ export default function QuizQuestions() {
           is_classic: newQ.is_classic,
           explanation: newQ.explanation || null,
           time_limit_seconds: newQ.time_limit_seconds ? parseInt(newQ.time_limit_seconds) : null,
-          shuffle_options: newQ.shuffle_options,
+          shuffle_options: shuffleAll, // arver quiz-nivå-innstillingen
           category: newQ.category || null,
           order_index: questions.length + 1,
         }),
@@ -527,7 +559,7 @@ export default function QuizQuestions() {
           is_classic: editForm.is_classic,
           explanation: editForm.explanation || null,
           time_limit_seconds: editForm.time_limit_seconds ? parseInt(editForm.time_limit_seconds) : null,
-          shuffle_options: editForm.shuffle_options,
+          shuffle_options: shuffleAll, // holdes lik quiz-nivå-innstillingen
           category: editForm.category || null,
         }),
       })
@@ -706,26 +738,6 @@ export default function QuizQuestions() {
 
         <div className="qq-field">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-            <span style={{ fontSize: 13, color: 'var(--body)' }}>Bland svaralternativer</span>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, shuffle_options: !form.shuffle_options })}
-              style={{
-                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                background: form.shuffle_options ? 'var(--gold)' : 'var(--border)',
-                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
-              }}
-            >
-              <span style={{
-                position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
-                left: form.shuffle_options ? 23 : 3, transition: 'left 0.2s',
-              }} />
-            </button>
-          </div>
-        </div>
-
-        <div className="qq-field">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
             <div>
               <span style={{ fontSize: 13, color: 'var(--body)' }}>Lagre som klassiker</span>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 2 }}>Lagrer spørsmålet i klassiker-banken</span>
@@ -791,6 +803,30 @@ export default function QuizQuestions() {
           </div>
         )}
 
+        {/* Quiz-nivå-innstilling: gjelder alle spørsmål i quizen */}
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-btn)', padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <span style={{ fontSize: 13, color: 'var(--body)' }}>Bland svaralternativer</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginTop: 2 }}>Gjelder hele quizen — rekkefølgen stokkes for hvert spørsmål</span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleShuffleAll}
+            disabled={shuffleSaving}
+            style={{
+              width: 44, height: 24, borderRadius: 12, border: 'none',
+              cursor: shuffleSaving ? 'not-allowed' : 'pointer',
+              background: shuffleAll ? 'var(--gold)' : 'var(--border)',
+              position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%',
+              left: shuffleAll ? 23 : 3, transition: 'left 0.2s',
+            }} />
+          </button>
+        </div>
+
         {showForm && renderForm(newQ, setNewQ, saveQuestion, () => setShowForm(false), 'Nytt spørsmål')}
 
         {questions.length === 0 && !showForm ? (
@@ -833,11 +869,6 @@ export default function QuizQuestions() {
                         {q.category && (
                           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--gold)', background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '2px 8px' }}>
                             {q.category}
-                          </span>
-                        )}
-                        {q.shuffle_options && (
-                          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--bg)', background: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: 20, padding: '2px 8px' }}>
-                            Blander
                           </span>
                         )}
                         {q.is_classic && (
