@@ -75,6 +75,20 @@ const styles = `
     .qk-panel { padding: 28px 22px; }
   }
 
+  /* ── Laptop / kort viewport: kompaktere resultatskjerm ─────────────────────
+     Vanlige bærbare (1366×768, 1440×900) har lav viewport-HØYDE — det er høyden,
+     ikke bredden, som skiller laptop fra stor desktop. Den luftige desktop-
+     layouten ble da for høy og krevde utzooming. Vi komprimerer KUN
+     resultatskjermen (phase 'finished'), og kun på korte viewporter (≥641px bred,
+     ≤900px høy). Mobil og høye skjermer (stor desktop) beholder full luft. */
+  @media (min-width: 641px) and (max-height: 900px) {
+    .qk-shell--result { padding-top: 20px; }
+    .qk-panel--result { padding: 22px 30px; }
+    .qk-panel--result .qk-rsec { margin-bottom: 9px !important; }
+    .qk-result-cta { gap: 6px !important; }
+    .qk-result-upsell { padding: 18px !important; }
+  }
+
   .qk-eyebrow {
     font-size: 10px;
     font-weight: 600;
@@ -2281,12 +2295,12 @@ export default function QuizPage() {
 
   return (
     <><style>{styles}</style>
-    <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+    <div className="qk-shell qk-shell--result"><div className="qk-box"><div className="qk-panel qk-panel--result" style={{textAlign:'center'}}>
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
-      <p style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
+      <p className="qk-rsec" style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
 
       {/* Riktige svar — stor hero-visning */}
       <div style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:12,padding:'16px 12px 12px',textAlign:'center',marginBottom:8}}>
@@ -2296,7 +2310,7 @@ export default function QuizPage() {
         <div style={{fontSize:10,color:'#7a7873',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginTop:6}}>Riktige svar</div>
       </div>
       {/* Tre støtte-stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:6,marginBottom:10}}>
+      <div className="qk-rsec" style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:6,marginBottom:10}}>
         {[
           { val: `${percentage}%`, label: 'Score' },
           { val: formatTime(totalTimeMs), label: 'Tid' },
@@ -2323,7 +2337,7 @@ export default function QuizPage() {
         const cats = Object.entries(categoryStats)
         if (cats.length === 0) return null
         return (
-          <div style={{ marginBottom: 14 }}>
+          <div className="qk-rsec" style={{ marginBottom: 14 }}>
             <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10, textAlign: 'left' }}>
               Kategorier
             </p>
@@ -2350,7 +2364,7 @@ export default function QuizPage() {
 
       {/* ── Topp 3 denne uken — for alle brukere ── */}
       {top3.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
+        <div className="qk-rsec" style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, textAlign: 'left' }}>
             Topp 3 denne uken
           </p>
@@ -2398,7 +2412,7 @@ export default function QuizPage() {
           const prosentEksakt = Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
           const toppXEksakt = 100 - prosentEksakt
           return (
-            <div style={{
+            <div className="qk-rsec" style={{
               background: '#1e1a0e',
               border: '0.5px solid rgba(201,168,76,0.3)',
               borderRadius: 16,
@@ -2422,7 +2436,7 @@ export default function QuizPage() {
           )
         }
         return (
-          <div style={{
+          <div className="qk-rsec" style={{
             background: '#21242e',
             border: '0.5px solid #2a2d38',
             borderRadius: 16,
@@ -2470,7 +2484,7 @@ export default function QuizPage() {
             : <>Likt med <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> — begge fikk {rivalScore} riktige. Tiden avgjør.</>
 
         return (
-          <div style={{
+          <div className="qk-rsec" style={{
             background: '#21242e',
             border: `0.5px solid ${borderColor}`,
             borderRadius: 16,
@@ -2504,7 +2518,7 @@ export default function QuizPage() {
         )
       })()}
 
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      <div className="qk-result-cta" style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={async () => {
           const shareText = toppPercent !== null
             ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg?`
@@ -2624,7 +2638,7 @@ export default function QuizPage() {
 
 
         {isLoggedIn && !isPremium && (
-          <div style={{
+          <div className="qk-result-upsell" style={{
             background: '#21242e',
             border: '1px solid rgba(201,168,76,0.15)',
             borderRadius: 16,
