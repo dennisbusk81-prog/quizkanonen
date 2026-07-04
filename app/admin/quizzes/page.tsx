@@ -237,6 +237,11 @@ export default function AdminQuizzes() {
   const router = useRouter()
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en bekreftet tom liste. Uten dette
+  // ble enhver feil (nettverk, cold-start, engangs 401/5xx) vist som "Ingen
+  // quizer ennå" — villedende når det faktisk finnes quizer.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -353,7 +358,7 @@ export default function AdminQuizzes() {
   useEffect(() => {
     setMounted(true)
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
-    fetchQuizzes()
+    loadInitial()
   }, [])
 
   function showFeedback(type: 'success' | 'error', msg: string) {
@@ -361,16 +366,58 @@ export default function AdminQuizzes() {
     setTimeout(() => setFeedback(null), 3500)
   }
 
-  async function fetchQuizzes() {
+  // Ett enkelt henteforsøk. Kaster ved feil ELLER uventet (ikke-array) svar, slik
+  // at kalleren kan skille "feilet" fra en gyldig, faktisk tom liste.
+  async function fetchQuizzesOnce(): Promise<Quiz[]> {
+    const res = await adminFetch('/api/admin/quizzes')
+    if (!res.ok) throw new Error(`API svarte ${res.status}`)
+    const data = await res.json()
+    if (!Array.isArray(data)) throw new Error('Uventet svarformat fra serveren')
+    return data as Quiz[]
+  }
+
+  // Førstegangslasting: ett automatisk retry etter kort delay dekker transiente
+  // hikke (f.eks. deploy-cutover) uten at brukeren merker det. Feiler begge →
+  // loadError (feilkort med "Prøv igjen"), ALDRI den villedende tom-tilstanden.
+  async function loadInitial() {
+    setLoading(true)
+    setLoadError(false)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        setQuizzes(await fetchQuizzesOnce())
+        setLoading(false)
+        return
+      } catch (e) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
+        console.error('loadInitial feilet:', e)
+        setLoadError(true)
+        setLoading(false)
+      }
+    }
+  }
+
+  // Manuelt "Prøv igjen" fra feilkortet — beholder feilkortet synlig ved ny feil.
+  async function retryLoad() {
+    setRetrying(true)
     try {
-      const res = await adminFetch('/api/admin/quizzes')
-      if (!res.ok) throw new Error(`API svarte ${res.status}`)
-      const data: Quiz[] = await res.json()
-      setQuizzes(data)
+      setQuizzes(await fetchQuizzesOnce())
+      setLoadError(false)
     } catch (e) {
-      console.error('fetchQuizzes feilet:', e)
+      console.error('retryLoad feilet:', e)
+      setLoadError(true)
     } finally {
-      setLoading(false)
+      setRetrying(false)
+    }
+  }
+
+  // Stille oppfriskning etter en handling (publiser/slett/reset). Ved feil beholdes
+  // den eksisterende lista — vi blanker den ALDRI — og viser en kort feilmelding.
+  async function refreshQuizzes() {
+    try {
+      setQuizzes(await fetchQuizzesOnce())
+    } catch (e) {
+      console.error('refreshQuizzes feilet:', e)
+      showFeedback('error', 'Kunne ikke oppdatere listen — last siden på nytt.')
     }
   }
 
@@ -381,7 +428,7 @@ export default function AdminQuizzes() {
         body: JSON.stringify({ is_active: !quiz.is_active }),
       })
       if (!res.ok) showFeedback('error', 'Kunne ikke oppdatere quiz.')
-      else fetchQuizzes()
+      else refreshQuizzes()
     } catch {
       showFeedback('error', 'Kunne ikke oppdatere quiz.')
     }
@@ -392,7 +439,7 @@ export default function AdminQuizzes() {
     try {
       const res = await adminFetch(`/api/admin/quizzes/${id}`, { method: 'DELETE' })
       if (!res.ok) showFeedback('error', 'Kunne ikke slette quiz.')
-      else fetchQuizzes()
+      else refreshQuizzes()
     } catch {
       showFeedback('error', 'Kunne ikke slette quiz.')
     }
@@ -403,7 +450,7 @@ export default function AdminQuizzes() {
     try {
       const res = await adminFetch(`/api/admin/quizzes/${id}/reset`, { method: 'POST' })
       if (!res.ok) showFeedback('error', `Kunne ikke nullstille "${title}".`)
-      else { showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`); fetchQuizzes() }
+      else { showFeedback('success', `"${title}" er nullstilt — alle kan spille igjen.`); refreshQuizzes() }
     } catch {
       showFeedback('error', `Kunne ikke nullstille "${title}".`)
     }
@@ -539,7 +586,33 @@ export default function AdminQuizzes() {
           </div>
         )}
 
-        {quizzes.length === 0 ? (
+        {loadError ? (
+          <div className="aqz-empty">
+            <p className="aqz-empty-title">Kunne ikke laste quizer</p>
+            <p className="aqz-empty-sub">
+              Noe gikk galt under henting av quizene. De ligger trygt i databasen —
+              dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button
+              onClick={retryLoad}
+              disabled={retrying}
+              style={{
+                background: 'transparent',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#e8e4dd',
+                cursor: retrying ? 'not-allowed' : 'pointer',
+                fontFamily: "'Instrument Sans', sans-serif",
+                opacity: retrying ? 0.6 : 1,
+              }}
+            >
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : quizzes.length === 0 ? (
           <div className="aqz-empty">
             <p className="aqz-empty-title">Ingen quizer ennå</p>
             <p className="aqz-empty-sub">Lag din første quiz for å komme i gang.</p>
