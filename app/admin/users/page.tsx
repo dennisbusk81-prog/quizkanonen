@@ -188,6 +188,11 @@ export default function AdminUsersPage() {
   const router = useRouter()
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra et bekreftet tomt resultat. Uten
+  // dette ble enhver feil (nettverk, cold-start, engangs 401/5xx) vist som
+  // "Ingen brukere matcher søket" — villedende når det finnes brukere.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [query, setQuery] = useState('')
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -195,12 +200,53 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
-    adminFetch('/api/admin/users')
-      .then(r => r.ok ? r.json() : { users: [] })
-      .then(d => setUsers(d.users ?? []))
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    loadInitial()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
+
+  // Ett enkelt henteforsøk. Kaster ved feil ELLER uventet svarformat, slik at
+  // kalleren kan skille "feilet" fra et gyldig, faktisk tomt resultat.
+  async function fetchUsersOnce(): Promise<UserRow[]> {
+    const res = await adminFetch('/api/admin/users')
+    if (!res.ok) throw new Error(`API svarte ${res.status}`)
+    const data = await res.json()
+    if (!data || !Array.isArray(data.users)) throw new Error('Uventet svarformat fra serveren')
+    return data.users as UserRow[]
+  }
+
+  // Førstegangslasting: ett automatisk retry etter kort delay dekker transiente
+  // hikke (f.eks. deploy-cutover) uten at brukeren merker det. Feiler begge →
+  // loadError (feilkort med "Prøv igjen"), ALDRI den villedende tom-tilstanden.
+  async function loadInitial() {
+    setLoading(true)
+    setLoadError(false)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        setUsers(await fetchUsersOnce())
+        setLoading(false)
+        return
+      } catch (e) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1500)); continue }
+        console.error('loadInitial (brukere) feilet:', e)
+        setLoadError(true)
+        setLoading(false)
+      }
+    }
+  }
+
+  // Manuelt "Prøv igjen" fra feilkortet — beholder feilkortet synlig ved ny feil.
+  async function retryLoad() {
+    setRetrying(true)
+    try {
+      setUsers(await fetchUsersOnce())
+      setLoadError(false)
+    } catch (e) {
+      console.error('retryLoad (brukere) feilet:', e)
+      setLoadError(true)
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   async function handleConfirm() {
     if (!confirm || actionLoading) return
@@ -259,6 +305,39 @@ export default function AdminUsersPage() {
 
         <div className="adm-rule" />
 
+        {loadError ? (
+          <div style={{
+            background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
+            padding: '56px 32px', textAlign: 'center',
+          }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 }}>
+              Kunne ikke laste brukere
+            </p>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 }}>
+              Noe gikk galt under henting av brukerne. Dataene ligger trygt i
+              databasen — dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button
+              onClick={retryLoad}
+              disabled={retrying}
+              style={{
+                background: 'transparent',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                padding: '10px 20px',
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#e8e4dd',
+                cursor: retrying ? 'not-allowed' : 'pointer',
+                fontFamily: "'Instrument Sans', sans-serif",
+                opacity: retrying ? 0.6 : 1,
+              }}
+            >
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : (
+        <>
         <input
           type="search"
           placeholder="Søk på navn eller e-post…"
@@ -324,6 +403,8 @@ export default function AdminUsersPage() {
           <p style={{ fontSize: 13, color: 'var(--hint)', textAlign: 'center', marginTop: 40 }}>
             Ingen brukere matcher søket.
           </p>
+        )}
+        </>
         )}
 
       </div>
