@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
+import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
@@ -822,18 +823,14 @@ export default function QuizPage() {
       }
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-      // Premium: hent server-side for å omgå RLS
-      let isP = false
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          isP = premData.isPremium === true
-        }
-      } catch { /* fallback: not premium */ }
-      setIsPremium(isP)
+      // Premium (Sak 2): hydrer optimistisk fra sessionStorage (kun true), og
+      // bekreft deretter mot serveren. Kun et definitivt server-svar endrer
+      // status — mislykkede kall nedgraderer aldri en betalende bruker.
+      const hydrated = hydratePremiumStatus(session.user.id)
+      if (hydrated) setIsPremium(true)
+      const serverPremium = await fetchPremiumStatus(session.access_token, session.user.id)
+      if (serverPremium !== null) setIsPremium(serverPremium)
+      const isP = serverPremium !== null ? serverPremium : hydrated
       // Hent founders-data for CTA — cache 5 min i sessionStorage
       if (!isP) {
         try {
@@ -1180,13 +1177,10 @@ export default function QuizPage() {
           .catch(() => {})
 
         // Re-sjekk premium-status ved quiz-start — founders kan ha aktivert
-        // etter at quiz-siden mountet (isPremium ble satt til false ved mount)
-        fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-          .then(r => r.ok ? r.json() : null)
-          .then(data => { if (data) setIsPremium(data.isPremium === true) })
-          .catch(() => {})
+        // etter at quiz-siden mountet. Kun et definitivt server-svar endrer
+        // status (nedgraderer aldri på feil).
+        fetchPremiumStatus(accessToken, session!.user.id)
+          .then(p => { if (p !== null) setIsPremium(p) })
       }
       fetch(`/api/quiz/percentile?quizId=${quizId}`)
         .then(r => r.ok ? r.json() : [])
@@ -1538,12 +1532,8 @@ export default function QuizPage() {
       // kan ha skjedd etter quiz-start, og isPremium-tilstanden er da utdatert
       const { data: { session: finishSess } } = await supabase.auth.getSession()
       if (finishSess?.access_token) {
-        fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${finishSess.access_token}` },
-        })
-          .then(r => r.ok ? r.json() : null)
-          .then(data => { if (data) setIsPremium(data.isPremium === true) })
-          .catch(() => {})
+        fetchPremiumStatus(finishSess.access_token, finishSess.user.id)
+          .then(p => { if (p !== null) setIsPremium(p) })
       }
       // Hent rangering fra snapshot-endepunkt; fallback til direkte spørring
       let placementSet = false
@@ -2096,6 +2086,7 @@ export default function QuizPage() {
             rankingSnapshot={rankingSnapshot ?? undefined}
             isPremium={isPremium}
             quizId={quizId}
+            currentTimeMs={totalTimeMs}
             onNext={handleInterludeNext}
           />
         </ErrorBoundary>

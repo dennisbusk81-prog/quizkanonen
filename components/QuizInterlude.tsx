@@ -45,6 +45,7 @@ interface QuizInterludeProps {
   rankingSnapshot?: RankingSnapshot
   isPremium?: boolean
   quizId?: string
+  currentTimeMs?: number      // akkumulert tid så langt (for konsistent tiebreak)
   onNext: () => void
 }
 
@@ -92,6 +93,7 @@ export default function QuizInterlude({
   rankingSnapshot,
   isPremium,
   quizId,
+  currentTimeMs,
   onNext,
 }: QuizInterludeProps) {
   const [liveRanking, setLiveRanking] = useState<LiveRanking | null>(null)
@@ -99,12 +101,20 @@ export default function QuizInterlude({
   useEffect(() => {
     if (!isPremium || !quizId) return
     let cancelled = false
-    fetch(`/api/quiz/live-ranking?quiz_id=${encodeURIComponent(quizId)}&current_correct=${score}`)
+    // Les samme kortlevde snapshot (question) og bruk samme tiebreak (tid) som
+    // ikke-premium-spennet, slik at premium-eksakt og ikke-premium er konsistente.
+    const params = new URLSearchParams({
+      quiz_id: quizId,
+      question: String(questionIndex),
+      current_correct: String(score),
+      current_time_ms: String(currentTimeMs ?? 0),
+    })
+    fetch(`/api/quiz/live-ranking?${params.toString()}`)
       .then(r => r.ok ? r.json() : null)
       .then((data: LiveRanking | null) => { if (!cancelled && data) setLiveRanking(data) })
       .catch(() => {/* silent — never block next button */})
     return () => { cancelled = true }
-  }, [isPremium, quizId, score])
+  }, [isPremium, quizId, score, questionIndex, currentTimeMs])
   // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
   const percentileEntry = percentileData.find(p => p.score === score)
   const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false

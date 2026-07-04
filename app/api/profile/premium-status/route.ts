@@ -3,8 +3,12 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`premium-status:${ip}`, 30, 60_000).success) {
+  // Sak 2.3 — kun ratelimit når vi faktisk kan identifisere klienten. Uten
+  // x-forwarded-for kan vi ikke skille klienter fra hverandre; å dele én global
+  // bøtte ville latt tilfeldige brukere ta hverandres kvote og gi falske 429-er.
+  // Da faller vi heller åpent (ingen ratelimit). Grensen er hevet 30 → 120/60s.
+  const ip = req.headers.get('x-forwarded-for')
+  if (ip && !rateLimit(`premium-status:${ip}`, 120, 60_000).success) {
     return NextResponse.json({ isPremium: false, error: 'For mange forespørsler' }, { status: 429 })
   }
 
