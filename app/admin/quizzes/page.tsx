@@ -626,6 +626,9 @@ export default function AdminQuizzes() {
                   <Link href={`/admin/quizzes/${quiz.id}/analytics`} className="aqz-action gray">
                     Analytics
                   </Link>
+                  <Link href={`/admin/quizzes/${quiz.id}/results`} className="aqz-action gray">
+                    Resultater
+                  </Link>
                   <button onClick={() => toggleActive(quiz)}
                     className={`aqz-action ${quiz.is_active ? 'orange' : 'green'}`}>
                     {quiz.is_active ? 'Skjul' : 'Publiser'}
