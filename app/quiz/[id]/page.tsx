@@ -745,7 +745,7 @@ export default function QuizPage() {
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
-  const [estimatedPlacement, setEstimatedPlacement] = useState<{ low: number; high: number; total: number } | null>(null)
+  const [estimatedPlacement, setEstimatedPlacement] = useState<{ rank: number; low: number; high: number; total: number } | null>(null)
   const [serverScore, setServerScore] = useState<{ correctAnswers: number; totalTimeMs: number; correctStreak: number } | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
@@ -915,9 +915,10 @@ export default function QuizPage() {
         if (settingError && settingError.code !== 'PGRST116') console.error('site_settings fetch feilet:', settingError)
         if (setting?.value) setNextQuizAt(setting.value)
         // Hent topp 3 direkte her — phase-useEffect kan miste fase-endringen i
-        // already_played-stien pga. timing med loading-state.
+        // already_played-stien pga. timing med loading-state. Samme delte
+        // /standings-liste som resultatskjermen bruker (kun topp-3 vises her).
         try {
-          const t3res = await fetch(`/api/quiz/${quizId}/top3`)
+          const t3res = await fetch(`/api/quiz/${quizId}/standings`)
           if (t3res.ok) {
             const t3json = await t3res.json()
             if (Array.isArray(t3json.top3)) setTop3(t3json.top3)
@@ -954,11 +955,15 @@ export default function QuizPage() {
     if (phase !== 'finished' && phase !== 'already_played') return
     supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
       .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
-    // Topp 3 — vises for alle brukere (motivasjon, ikke Premium-feature)
-    fetch(`/api/quiz/${quizId}/top3`)
-      .then(r => r.ok ? r.json() : { top3: [] })
-      .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
-      .catch(() => {})
+    // Topp 3: på 'finished' hentes den sammen med plasseringen i finishQuiz
+    // (samme /standings-liste, samme øyeblikk — kan ikke divergere). Her henter
+    // vi kun for 'already_played', der plasseringskortet ikke vises.
+    if (phase === 'already_played') {
+      fetch(`/api/quiz/${quizId}/standings`)
+        .then(r => r.ok ? r.json() : { top3: [] })
+        .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
+        .catch(() => {})
+    }
   }, [phase, quizId])
 
   useEffect(() => {
@@ -1535,20 +1540,35 @@ export default function QuizPage() {
         fetchPremiumStatus(finishSess.access_token, finishSess.user.id)
           .then(p => { if (p !== null) setIsPremium(p) })
       }
-      // Hent rangering fra snapshot-endepunkt; fallback til direkte spørring
+      // Hent topp-3 OG plassering fra ETT felles endepunkt (samme rangerte liste,
+      // samme øyeblikk) — så "Topp 3" og "Din plassering" aldri kan divergere.
+      // attemptId sikrer at spilleren selv er med i lista (rebuild om nødvendig).
       let placementSet = false
       try {
-        const snapshotRes = await fetch(
-          `/api/quiz/${quizId}/ranking-snapshot?question=${totalQuestions - 1}&correct=${correct}&time=${finalTimeMs}`
-        )
-        if (snapshotRes.ok) {
-          const snapData: { rank: number; total: number; low: number; high: number } = await snapshotRes.json()
-          if (snapData.total > 1) {
-            setEstimatedPlacement({ low: snapData.low, high: snapData.high, total: snapData.total })
+        const stParams = new URLSearchParams({
+          question: String(totalQuestions - 1),
+          correct: String(correct),
+          time: String(finalTimeMs),
+        })
+        if (attemptId) stParams.set('attemptId', attemptId)
+        const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`)
+        if (stRes.ok) {
+          const st: {
+            top3?: typeof top3
+            placement?: { rank: number; total: number; low: number; high: number } | null
+          } = await stRes.json()
+          if (Array.isArray(st.top3)) setTop3(st.top3)
+          if (st.placement && st.placement.total > 1) {
+            setEstimatedPlacement({
+              rank: st.placement.rank,
+              low: st.placement.low,
+              high: st.placement.high,
+              total: st.placement.total,
+            })
             placementSet = true
           }
         }
-      } catch { /* snapshot feilet — fall through til fallback */ }
+      } catch { /* standings feilet — fall through til fallback */ }
       if (!placementSet) {
         // Fallback via leaderboard-API-et (samme delte rangerings-helper) i stedet
         // for en usortert/udedupert anon-spørring. Anon-klienten kan uansett ikke
@@ -1566,7 +1586,7 @@ export default function QuizPage() {
             const lb: { userRank?: number | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
             const rank = lb.userRank ?? lb.guestRank ?? null
             const total = lb.totalCount ?? 0
-            if (rank && total > 1) setEstimatedPlacement({ low: rank, high: rank, total })
+            if (rank && total > 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
           }
         } catch { /* fallback feilet — la plassering være uoppgitt */ }
       }
@@ -1599,7 +1619,7 @@ export default function QuizPage() {
 
       const cCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
       const topp = isPremium && estimatedPlacement && estimatedPlacement.total > 1
-        ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+        ? Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
         : null
 
       const W = 800, H = 420
@@ -2251,8 +2271,9 @@ export default function QuizPage() {
   const correctCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
   const percentage = Math.round((correctCount / totalQuestions) * 100)
   const streak = serverScore?.correctStreak ?? calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
+  // Premium deler eksakt (rank); gratis deler estimatet (low) — samme som visningen.
   const toppPercent = estimatedPlacement && estimatedPlacement.total > 1
-    ? Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
+    ? Math.round(((estimatedPlacement.total - (isPremium ? estimatedPlacement.rank : estimatedPlacement.low)) / estimatedPlacement.total) * 100)
     : null
   const shareResultText = toppPercent !== null
     ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
@@ -2371,6 +2392,11 @@ export default function QuizPage() {
           ? estimatedPlacement.total
           : Math.min(estimatedPlacement.total, tierStart + 9)
         if (isPremium) {
+          // Premium = EKSAKT plassering: bruk `rank` fra den delte lista (identisk
+          // med Topp 3), ikke spennets `low`. Dette var Kevin-symptomet — en rang-2-
+          // spiller viste "1. plass" fordi low = rank-2 ble vist som eksakt.
+          const prosentEksakt = Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
+          const toppXEksakt = 100 - prosentEksakt
           return (
             <div style={{
               background: '#1e1a0e',
@@ -2384,13 +2410,13 @@ export default function QuizPage() {
                 Din plassering
               </div>
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
-                {estimatedPlacement.low}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
+                {estimatedPlacement.rank}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
               </div>
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
               <div style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
-                Topp {toppX}% · bedre enn {prosent}% av deltakerne
+                Topp {toppXEksakt}% · bedre enn {prosentEksakt}% av deltakerne
               </div>
             </div>
           )

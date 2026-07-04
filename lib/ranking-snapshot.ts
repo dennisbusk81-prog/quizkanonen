@@ -1,18 +1,21 @@
 import { supabaseAdmin } from './supabase-admin'
-import { rankAttempts } from './ranking'
-import type { Attempt } from './supabase'
+import { rankQuizAttempts, type RankableAttempt } from './ranking'
 
-// ── Delt rangerings-snapshot for LIVE plassering underveis ────────────────────
-// Både ikke-premium-spennet (/api/quiz/[id]/ranking-snapshot) og premium-eksakt
-// (/api/quiz/live-ranking) leser NÅ den samme kortlevde snapshoten og bruker den
-// samme placeringsberegningen. Da blir de to flatene internt konsistente per
-// definisjon: samme ferdig-pool, samme rang, samme naboer.
+// ── ÉN felles rangert liste for LIVE plassering, topp-3 og sluttresultat ─────
+// Alle plasseringsflater (topp-3, "din plassering", live-ranking underveis)
+// utledes NÅ av den samme snapshoten, bygget med den SAMME rangeringsfunksjonen
+// (rankQuizAttempts — total ordning, id som siste tiebreak, ingen delte
+// plasseringer) og den SAMME ferdig-definisjonen (submitted_at IS NOT NULL).
 //
-// Merk: snapshoten er uavhengig av spørsmålsindeks (samme «ferdige forsøk»-
-// spørring uansett), men caches per (quiz_id, question_index) slik at ulike
-// steg i quizen kan dele/gjenbruke cachen.
+// Konsekvens: topp-3 og "din plassering" kan aldri lenger vise ulike tall på
+// samme skjerm — de leser samme liste, i samme øyeblikk, via /standings-ruten.
+//
+// Merk: snapshoten er uavhengig av spørsmålsindeks (samme ferdig-pool uansett),
+// men caches per (quiz_id, question_index) slik at ulike steg kan dele cachen.
 
 export type SnapshotEntry = {
+  id: string
+  user_id: string | null
   player_name: string
   rank: number
   correct_answers: number
@@ -20,16 +23,21 @@ export type SnapshotEntry = {
   correct_streak: number
 }
 
-// FIX (Sak 1B): senket fra 60s til 10s slik at live-plasseringen ikke henger
-// etter på et halvt minutt gamle tall når mange leverer samtidig.
+// FIX (Sak 1B): 10s TTL slik at live-plasseringen ikke henger etter.
 export const CACHE_TTL_MS = 10_000
 
-// Hent snapshot fra cache, eller bygg og lagre en ny hvis den mangler/er utdatert.
-// Gjester (user_id = null) INKLUDERES — samme populasjon som topp-3/leaderboard
-// (fasit i lib/ranking.ts), slik at live-plasseringen matcher sluttresultatet.
+type Opts = {
+  // Når satt: hvis dette attempt-id-et IKKE finnes i den cachede snapshoten,
+  // regnes cachen som utdatert og bygges på nytt. Brukes rett etter innsending
+  // slik at spilleren selv garantert er med i lista topp-3 og "din plassering"
+  // begge leser — uten å tvinge en rebuild på hver sidevisning (amortisering).
+  ensureAttemptId?: string | null
+}
+
 export async function getOrBuildSnapshot(
   quizId: string,
   questionIndex: number,
+  opts: Opts = {},
 ): Promise<SnapshotEntry[]> {
   const { data: cached } = await supabaseAdmin
     .from('ranking_snapshots')
@@ -38,47 +46,39 @@ export async function getOrBuildSnapshot(
     .eq('question_index', questionIndex)
     .maybeSingle()
 
-  const isStale =
-    !cached ||
-    Date.now() - new Date(cached.created_at as string).getTime() > CACHE_TTL_MS
+  const cachedSnap = cached?.snapshot as SnapshotEntry[] | undefined
+  const fresh = !!cached && Date.now() - new Date(cached.created_at as string).getTime() <= CACHE_TTL_MS
+  const missingEnsured =
+    !!opts.ensureAttemptId && !!cachedSnap && !cachedSnap.some(e => e.id === opts.ensureAttemptId)
 
-  if (!isStale && cached) {
-    return cached.snapshot as SnapshotEntry[]
+  if (fresh && cachedSnap && !missingEnsured) {
+    return cachedSnap
   }
 
-  // Hent alle fullførte solo-forsøk (total_time_ms > 0 = quiz avsluttet).
-  const { data: attempts, error: attErr } = await supabaseAdmin
+  // Hent alle LEVERTE solo-forsøk. ÉN ferdig-definisjon: submitted_at IS NOT NULL
+  // (den kanoniske innsendingsmarkøren fra submit/route.ts). Erstatter det
+  // tidligere total_time_ms>0-proxyet, så populasjonen er identisk med topp-3.
+  const { data: attempts, error } = await supabaseAdmin
     .from('attempts')
-    .select(
-      'id, quiz_id, player_name, is_team, team_size, correct_answers, ' +
-      'total_questions, total_time_ms, correct_streak, user_id, completed_at',
-    )
+    .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
-    .gt('total_time_ms', 0)
+    .not('submitted_at', 'is', null)
 
-  if (attErr) throw attErr
+  if (error) throw error
 
-  // Dedupliser: behold kun beste forsøk per spiller (user_id, ellers player_name
-  // for gjester) — unngår at samme bruker vises flere ganger ved flere forsøk.
-  const allRows = (attempts ?? []) as unknown as Attempt[]
-  const bestByPlayer = new Map<string, Attempt>()
-  for (const a of allRows) {
-    const key = a.user_id ?? `name:${a.player_name}`
-    const existing = bestByPlayer.get(key)
-    if (
-      !existing ||
-      a.correct_answers > existing.correct_answers ||
-      (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms) ||
-      (a.correct_answers === existing.correct_answers && a.total_time_ms === existing.total_time_ms && (a.correct_streak ?? 0) > (existing.correct_streak ?? 0))
-    ) {
-      bestByPlayer.set(key, a)
-    }
-  }
+  // Rangér med fasiten (rankQuizAttempts): filtrerer (submitted), dedup'er
+  // (beste per spiller; user_id, ellers name:<player_name> for gjester) og gir
+  // total ordning uten delte plasseringer. Gjester inkluderes — samme
+  // populasjon som topp-3/leaderboard.
+  const ranked = rankQuizAttempts((attempts ?? []) as unknown as RankableAttempt[], {
+    includeGuests: true,
+    requireSubmitted: true,
+  })
 
-  // Ranger med eksakt samme logikk som lib/ranking.ts.
-  const ranked = rankAttempts([...bestByPlayer.values()])
   const snapshot: SnapshotEntry[] = ranked.map(a => ({
+    id:              a.id,
+    user_id:         a.user_id,
     player_name:     a.player_name,
     rank:            a.rank,
     correct_answers: a.correct_answers,
@@ -110,57 +110,65 @@ export type Placement = {
   below: { name: string; correct: number } | null
 }
 
-// Beregn den nåværende spillerens plassering mot en snapshot av ferdige spillere.
-//
-// Del A (Sak 1) — garantér at rang <= total ALLTID (aldri «20 av 19»):
-//   playerInPool = false  → spilleren er beviselig IKKE i den ferdige poolen
-//                            (uferdig forsøk, total_time_ms = 0). Da er total =
-//                            ferdige + 1, slik at også en sisteplass (rang =
-//                            ferdige + 1) holder rang <= total. Brukes av
-//                            live-ranking underveis.
-//   playerInPool = true   → spilleren KAN allerede ligge i snapshoten (fersk
-//                            snapshot rett etter innsending på resultatskjermen).
-//                            total = max(ferdige, rang) unngår både dobbelttelling
-//                            (rang <= ferdige → total = ferdige) og umulige tall
-//                            (rang = ferdige + 1 ved utdatert cache → total følger
-//                            med opp). Brukes av ranking-snapshot-ruten.
-export function computePlacement(
-  snapshot: SnapshotEntry[],
-  correct: number,
-  time: number,
-  opts: { playerInPool: boolean },
-): Placement {
+type PlaceOpts = {
+  // Spillerens eget attempt-id. Hvis det finnes i snapshoten (spilleren har
+  // levert), brukes spillerens EGEN rank fra den delte rangerte lista — da er
+  // "din plassering" per definisjon lik topp-3 (samme liste, samme rank).
+  attemptId?: string | null
+  correct: number
+  time: number
+  // Del A — garantér rang <= total:
+  //   false → spilleren er beviselig IKKE i den ferdige poolen (uferdig forsøk
+  //           under spill) → total = ferdige + 1 (også en sisteplass holder).
+  //   true  → spilleren KAN være i poolen (resultatskjerm) → total =
+  //           max(ferdige, rang) unngår både dobbelttelling og umulige tall.
+  playerInPool: boolean
+}
+
+export function computePlacement(snapshot: SnapshotEntry[], opts: PlaceOpts): Placement {
   const finished = snapshot.length
 
-  // Snapshoten er sortert (flest riktige → raskest tid → lengst streak).
+  // ── Definitiv plassering: spilleren finnes i den delte rangerte lista ──────
+  const self = opts.attemptId ? snapshot.find(e => e.id === opts.attemptId) : undefined
+  if (self) {
+    const rank = self.rank
+    const total = finished // spilleren er allerede talt med i lista
+    const above = snapshot.find(e => e.rank === rank - 1) ?? null
+    const below = snapshot.find(e => e.rank === rank + 1) ?? null
+    return {
+      rank,
+      total,
+      low: Math.max(1, rank - 2),
+      high: Math.min(total, rank + 2),
+      above: above ? { name: above.player_name, correct: above.correct_answers } : null,
+      below: below ? { name: below.player_name, correct: below.correct_answers } : null,
+    }
+  }
+
+  // ── Estimat: spilleren er ikke i lista (under spill / gjest uten match) ─────
+  // Plasser via de samme primærnøklene som rankQuizAttempts (flest riktige,
+  // deretter raskest tid). Ingen egen andre-rangeringsfunksjon — dette bare
+  // finner hvor den delvise spilleren ville falt inn i den ferdige lista.
   const strictlyBetter = snapshot.filter(e =>
-    e.correct_answers > correct ||
-    (e.correct_answers === correct && time > 0 && e.total_time_ms < time),
+    e.correct_answers > opts.correct ||
+    (e.correct_answers === opts.correct && opts.time > 0 && e.total_time_ms < opts.time),
   )
   const strictlyWorse = snapshot.filter(e =>
-    e.correct_answers < correct ||
-    (e.correct_answers === correct && time > 0 && e.total_time_ms > time),
+    e.correct_answers < opts.correct ||
+    (e.correct_answers === opts.correct && opts.time > 0 && e.total_time_ms > opts.time),
   )
 
   const rank = strictlyBetter.length + 1
+  const total = opts.playerInPool ? Math.max(finished, rank) : finished + 1
 
-  const total = opts.playerInPool
-    ? Math.max(finished, rank)
-    : finished + 1
-
-  const low  = Math.max(1, rank - 2)
-  const high = Math.min(total, rank + 2)
-
-  // Nærmeste nabo over = den svakeste av dem som er bedre enn deg (sist i lista).
   const aboveEntry = strictlyBetter.length > 0 ? strictlyBetter[strictlyBetter.length - 1] : null
-  // Nærmeste nabo under = den sterkeste av dem som er dårligere (først i lista).
   const belowEntry = strictlyWorse.length > 0 ? strictlyWorse[0] : null
 
   return {
     rank,
     total,
-    low,
-    high,
+    low: Math.max(1, rank - 2),
+    high: Math.min(total, rank + 2),
     above: aboveEntry ? { name: aboveEntry.player_name, correct: aboveEntry.correct_answers } : null,
     below: belowEntry ? { name: belowEntry.player_name, correct: belowEntry.correct_answers } : null,
   }

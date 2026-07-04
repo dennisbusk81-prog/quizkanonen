@@ -48,12 +48,11 @@ export async function GET(request: NextRequest) {
   // playerInPool: false — under spill er den nåværende spilleren beviselig IKKE i
   // den ferdige poolen (uferdig forsøk), så total = ferdige + 1. Del A garanterer
   // dermed rang <= total («20 av 20», aldri «20 av 19»).
-  const { rank, total, above, below } = computePlacement(
-    snapshot,
-    currentCorrect,
-    isNaN(currentTime) ? 0 : currentTime,
-    { playerInPool: false },
-  )
+  const { rank, total, above, below } = computePlacement(snapshot, {
+    correct: currentCorrect,
+    time: isNaN(currentTime) ? 0 : currentTime,
+    playerInPool: false,
+  })
 
   return NextResponse.json(
     {

@@ -28,9 +28,10 @@ export async function GET(
       return NextResponse.json({ rank: 1, total: 0, low: 1, high: 1 })
     }
 
-    // playerInPool: true — på resultatskjermen kan spilleren allerede være i
-    // snapshoten. computePlacement garanterer rang <= total (Del A).
-    const { rank, total, low, high } = computePlacement(snapshot, correct, time, { playerInPool: true })
+    // Under spill: spilleren har ikke levert ennå og er ikke i den ferdige
+    // poolen → playerInPool: false (total = ferdige + 1). Resultatskjermen bruker
+    // /standings, ikke denne ruten. computePlacement garanterer rang <= total.
+    const { rank, total, low, high } = computePlacement(snapshot, { correct, time, playerInPool: false })
 
     return NextResponse.json({ rank, total, low, high })
   } catch (err) {
