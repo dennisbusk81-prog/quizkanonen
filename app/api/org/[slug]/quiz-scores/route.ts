@@ -38,55 +38,75 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const { slug: orgId } = await params
 
-  // Verifiser org-admin
-  const { data: membership } = await supabaseAdmin
-    .from('organization_members')
-    .select('role')
-    .eq('organization_id', orgId)
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (membership?.role !== 'admin') {
+  // ── Bølge 1: rolle-sjekk, org-medlemmer og siste quiz — innbyrdes uavhengige ─
+  const [membershipRes, orgMembersRes, latestQuizRes] = await Promise.all([
+    supabaseAdmin
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', orgId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', orgId),
+    supabaseAdmin
+      .from('quizzes')
+      .select('id, title')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  // 403-gate: MÅ sjekkes og returneres FØR bølge 2 kjøres eller data lekkes.
+  // (Bølge 1 kjørte parallelt, men resultatene brukes/returneres ikke ved 403.)
+  if (membershipRes.data?.role !== 'admin') {
     return NextResponse.json({ error: 'Kun admins kan se dette.' }, { status: 403 })
   }
 
-  // Org-medlemmer + profilnavn
-  const { data: orgMembers } = await supabaseAdmin
-    .from('organization_members')
-    .select('user_id')
-    .eq('organization_id', orgId)
-  const memberIds = (orgMembers ?? []).map(m => m.user_id).filter(Boolean)
+  const memberIds = (orgMembersRes.data ?? []).map(m => m.user_id).filter(Boolean)
   if (memberIds.length === 0) {
     return NextResponse.json({ quizTitle: null, entries: [], streaks: {} })
   }
+  const latestQuiz = latestQuizRes.data
 
-  const { data: profiles } = await supabaseAdmin
-    .from('profiles')
-    .select('id, display_name')
-    .in('id', memberIds)
-  const nameMap = new Map((profiles ?? []).map(p => [p.id, p.display_name as string | null]))
+  // ── Bølge 2: profiler, leaderboard-attempts og streaks-attempts — alle
+  //    avhenger av memberIds/latestQuiz fra bølge 1, men er innbyrdes uavhengige.
+  type LeaderRow = { user_id: string; player_name: string; correct_answers: number; total_time_ms: number }
+  const oneYearAgo = new Date()
+  oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1)
 
-  // Siste publiserte quiz
-  const { data: latestQuiz } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const [profilesRes, leaderboardRes, streaksRes] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', memberIds),
+    latestQuiz
+      ? supabaseAdmin
+          .from('attempts')
+          .select('user_id, player_name, correct_answers, total_time_ms')
+          .eq('quiz_id', latestQuiz.id)
+          .eq('is_team', false)
+          .in('user_id', memberIds)
+          .not('user_id', 'is', null)
+      : Promise.resolve({ data: [] as LeaderRow[] }),
+    supabaseAdmin
+      .from('attempts')
+      .select('user_id, created_at')
+      .in('user_id', memberIds)
+      .gte('created_at', oneYearAgo.toISOString())
+      .eq('is_team', false)
+      .not('user_id', 'is', null),
+  ])
+
+  const nameMap = new Map((profilesRes.data ?? []).map(p => [p.id, p.display_name as string | null]))
 
   // ── Quiz-leaderboard: beste forsøk per medlem på siste quiz ──────────────────
   type Entry = { userId: string; displayName: string; correctAnswers: number; totalTimeMs: number }
   let entries: Entry[] = []
   if (latestQuiz) {
-    const { data: attempts } = await supabaseAdmin
-      .from('attempts')
-      .select('user_id, player_name, correct_answers, total_time_ms')
-      .eq('quiz_id', latestQuiz.id)
-      .eq('is_team', false)
-      .in('user_id', memberIds)
-      .not('user_id', 'is', null)
-
     const bestMap = new Map<string, Entry>()
-    for (const a of (attempts ?? []) as { user_id: string; player_name: string; correct_answers: number; total_time_ms: number }[]) {
+    for (const a of (leaderboardRes.data ?? []) as LeaderRow[]) {
       if (!a.user_id) continue
       const displayName = nameMap.get(a.user_id) ?? a.player_name ?? '?'
       const existing = bestMap.get(a.user_id)
@@ -104,18 +124,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   // ── Ukestreaks: siste 12 måneders forsøk per medlem ──────────────────────────
-  const oneYearAgo = new Date()
-  oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1)
-  const { data: attemptRows } = await supabaseAdmin
-    .from('attempts')
-    .select('user_id, created_at')
-    .in('user_id', memberIds)
-    .gte('created_at', oneYearAgo.toISOString())
-    .eq('is_team', false)
-    .not('user_id', 'is', null)
-
   const byUser = new Map<string, string[]>()
-  for (const a of (attemptRows ?? []) as { user_id: string; created_at: string }[]) {
+  for (const a of (streaksRes.data ?? []) as { user_id: string; created_at: string }[]) {
     if (!a.user_id) continue
     const arr = byUser.get(a.user_id) ?? []
     arr.push(a.created_at)
