@@ -24,7 +24,7 @@ export default function PlayerName({
   const hasNick = !!nick && nick.length > 0
 
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', minWidth: 0, maxWidth: '100%', verticalAlign: 'bottom', lineHeight: 1.2 }}>
+    <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%', lineHeight: 1.2 }}>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...primaryStyle }}>
         {hasNick ? nick : name}
       </span>
