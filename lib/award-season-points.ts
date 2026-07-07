@@ -60,23 +60,27 @@ export async function processQuiz(
   const userIds = [...bestByUser.keys()]
 
   // Brukere blokkeres fra global-rad hvis org har allow_global_league=false
-  // eller memberen selv har global_league_opt_out=true.
+  // eller memberen selv har global_league_opt_out=true. org-medlemskapet hentes
+  // ÉN gang her og gjenbrukes for organization-scope lenger ned (fjerner tidligere
+  // duplikat-lesing av organization_members).
+  type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
   const globallyBlockedUserIds = new Set<string>()
+  let orgMemberships: Mem[] = []
   if (userIds.length > 0) {
     const { data: orgMems } = await supabaseAdmin
       .from('organization_members')
       .select('user_id, organization_id, global_league_opt_out')
       .in('user_id', userIds)
-    if (orgMems && orgMems.length > 0) {
-      type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
-      const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
+    orgMemberships = (orgMems ?? []) as Mem[]
+    if (orgMemberships.length > 0) {
+      const orgIds = [...new Set(orgMemberships.map(m => m.organization_id))]
       const { data: restrictedOrgs } = await supabaseAdmin
         .from('organizations')
         .select('id')
         .in('id', orgIds)
         .eq('allow_global_league', false)
       const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-      for (const m of orgMems as Mem[]) {
+      for (const m of orgMemberships) {
         if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
           globallyBlockedUserIds.add(m.user_id)
         }
@@ -84,7 +88,8 @@ export async function processQuiz(
     }
   }
 
-  let totalRows = 0
+  // Del 1: akkumuler ALLE rader (global + liga + org) og gjør ÉN upsert til slutt.
+  const allRows: ScoreRow[] = []
 
   try {
     // ── Global scope ───────────────────────────────────────────────────────────
@@ -100,8 +105,7 @@ export async function processQuiz(
         rank,
         closes_at: closesAt,
       }))
-    await upsertScores(globalRows)
-    totalRows += globalRows.length
+    allRows.push(...globalRows)
     console.log(`[award-season-points]   global: ${globalRows.length} rader`)
 
     // ── League scope ───────────────────────────────────────────────────────────
@@ -135,21 +139,15 @@ export async function processQuiz(
           rank,
           closes_at: closesAt,
         }))
-        await upsertScores(rows)
-        totalRows += rows.length
+        allRows.push(...rows)
       }
       console.log(`[award-season-points]   league: ${byLeague.size} ligaer`)
     }
 
-    // ── Organization scope ─────────────────────────────────────────────────────
-    const { data: orgMemberships } = await supabaseAdmin
-      .from('organization_members')
-      .select('organization_id, user_id')
-      .in('user_id', userIds)
-
-    if (orgMemberships && orgMemberships.length > 0) {
+    // ── Organization scope (gjenbruker orgMemberships hentet over) ──────────────
+    if (orgMemberships.length > 0) {
       const byOrg = new Map<string, string[]>()
-      for (const om of orgMemberships as { organization_id: string; user_id: string }[]) {
+      for (const om of orgMemberships) {
         if (!byOrg.has(om.organization_id)) byOrg.set(om.organization_id, [])
         byOrg.get(om.organization_id)!.push(om.user_id)
       }
@@ -172,11 +170,16 @@ export async function processQuiz(
           rank,
           closes_at: closesAt,
         }))
-        await upsertScores(rows)
-        totalRows += rows.length
+        allRows.push(...rows)
       }
       console.log(`[award-season-points]   org: ${byOrg.size} organisasjoner`)
     }
+
+    // ── ÉN samlet upsert for alle scopes ────────────────────────────────────────
+    // Unik-nøkkelen (user_id, quiz_id, scope_type, scope_id) skiller radene uansett
+    // rekkefølge, så én upsert er ekvivalent med de tidligere per-scope-kallene —
+    // bare ett round-trip i stedet for 4-9. Identisk poeng/rank per bruker/scope.
+    await upsertScores(allRows)
 
     // Verifiser at rader faktisk finnes i season_scores før flagget settes
     const { count: writtenCount, error: countError } = await supabaseAdmin
@@ -187,7 +190,7 @@ export async function processQuiz(
     if (countError || writtenCount === null || writtenCount === 0) {
       const reason = countError?.message ?? 'Ingen rader funnet i season_scores etter upsert'
       console.error(`[award-season-points] Verifisering feilet for quiz ${quizId}: ${reason}`)
-      return { rows: totalRows, error: reason }
+      return { rows: allRows.length, error: reason }
     }
 
     const { error: flagError } = await supabaseAdmin
@@ -202,8 +205,8 @@ export async function processQuiz(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[award-season-points] Upsert feil på quiz ${quizId}:`, errMsg)
-    return { rows: totalRows, error: errMsg }
+    return { rows: allRows.length, error: errMsg }
   }
 
-  return { rows: totalRows, error: null }
+  return { rows: allRows.length, error: null }
 }
