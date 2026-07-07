@@ -50,39 +50,42 @@ export async function GET(
     return NextResponse.json({ org: { name: org.name, plan: org.plan }, quiz: null, attempts: [], userRole: membership.role })
   }
 
-  // Get latest quiz with attempts from members — én enkelt spørring via
-  // embedded join (erstatter tidligere N+1-løkke over quizer). Henter alle
-  // medlems-attempts med tilhørende quiz; nyeste quiz (etter created_at)
-  // velges i JS fordi PostgREST ikke kan sortere topp-nivå på en embedded
-  // kolonne. Det embeddede quiz-feltet strippes så attempt-formen forblir
-  // identisk med før (rankAttempts spreder hele objektet).
-  type EmbeddedQuiz = { id: string; title: string; is_active: boolean; created_at: string }
-  const { data: memberAttempts } = await supabaseAdmin
+  // Del 2 (Disk IO) — to-trinns i stedet for å hente ALLE medlems-attempts på
+  // tvers av hele historikken (10 kolonner) bare for å finne siste quiz:
+  //   1. Distinkte quiz-id-er medlemmene har spilt — indeks-only scan via
+  //      (user_id, quiz_id)-indeksen (smal kolonne, ingen heap-lesing).
+  //   2. Nyeste quiz etter created_at (samme kriterium som før).
+  //   3. Hent KUN den quizens medlems-attempts (målrettet via quiz_id-indeks).
+  // Output er identisk med før — kun mindre data leses.
+  const { data: memberQuizRows } = await supabaseAdmin
     .from('attempts')
-    .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size, quiz:quizzes!inner(id, title, is_active, created_at)')
+    .select('quiz_id')
     .in('user_id', memberUserIds)
+
+  const playedQuizIds = [...new Set((memberQuizRows ?? []).map(r => r.quiz_id as string).filter(Boolean))]
 
   let quiz: { id: string; title: string; is_active: boolean } | null = null
   let attempts: unknown[] = []
 
-  // attempts → quizzes er many-to-one, så PostgREST returnerer quiz som ett
-  // objekt på runtime selv om supabase-js typer det som array. Cast via unknown.
-  const rows = (memberAttempts ?? []) as unknown as Array<Record<string, unknown> & { quiz: EmbeddedQuiz }>
-  if (rows.length > 0) {
-    let latest: EmbeddedQuiz | null = null
-    for (const row of rows) {
-      if (!latest || row.quiz.created_at > latest.created_at) latest = row.quiz
-    }
+  if (playedQuizIds.length > 0) {
+    const { data: latest } = await supabaseAdmin
+      .from('quizzes')
+      .select('id, title, is_active, created_at')
+      .in('id', playedQuizIds)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     if (latest) {
       quiz = { id: latest.id, title: latest.title, is_active: latest.is_active }
-      const latestId = latest.id
-      attempts = rows
-        .filter(row => row.quiz.id === latestId)
-        .map(row => {
-          const rest = { ...row }
-          delete (rest as { quiz?: unknown }).quiz
-          return rest
-        })
+      // Samme kolonner og samme populasjon (ingen is_team-filter) som før, kun
+      // begrenset til siste quiz — så rankAttempts gir identisk resultat.
+      const { data: latestAttempts } = await supabaseAdmin
+        .from('attempts')
+        .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size')
+        .eq('quiz_id', latest.id)
+        .in('user_id', memberUserIds)
+      attempts = latestAttempts ?? []
     }
   }
 
