@@ -5,6 +5,50 @@ import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
 
+// ── Korttids-cache for last_quiz-attempts (Del 1 — Disk IO) ──────────────────
+// «Siste quiz»-fanen hamres rett etter at en quiz stenger. Attemptene for en
+// STENGT quiz er statiske, så vi cacher de råe attemptene per quiz-id i minne
+// (samme getOrBuild-med-TTL-mønster som lib/ranking-snapshot, men per-instans i
+// minne — jf. modul-nivå Map i lib/rate-limit.ts). All filtrering/rangering/
+// output nedstrøms er 100 % uendret; kun DB-lesen på opptil 5000 rader spares
+// på cache-treff.
+type LastQuizRow = {
+  id: string
+  user_id: string
+  player_name: string
+  correct_answers: number
+  total_time_ms: number
+  correct_streak: number | null
+  submitted_at: string | null
+}
+const LAST_QUIZ_CACHE_TTL_MS = 30_000
+const lastQuizAttemptsCache = new Map<string, { rows: LastQuizRow[]; expires: number }>()
+
+async function getLastQuizAttempts(quizId: string): Promise<LastQuizRow[]> {
+  const now = Date.now()
+  const cached = lastQuizAttemptsCache.get(quizId)
+  if (cached && cached.expires > now) return cached.rows
+
+  const { data, error } = await supabaseAdmin
+    .from('attempts')
+    .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
+    .eq('quiz_id', quizId)
+    .not('user_id', 'is', null)
+    .eq('is_team', false)
+    .limit(5000)
+
+  // Cach IKKE en feilrespons — unngår å servere tomt i 30s ved en transient feil.
+  if (error || !data) return []
+
+  const rows = data as LastQuizRow[]
+  // Enkel opprydding så Map-en ikke vokser ubegrenset (utløpte quiz-nøkler).
+  if (lastQuizAttemptsCache.size > 50) {
+    for (const [k, v] of lastQuizAttemptsCache) if (v.expires <= now) lastQuizAttemptsCache.delete(k)
+  }
+  lastQuizAttemptsCache.set(quizId, { rows, expires: now + LAST_QUIZ_CACHE_TTL_MS })
+  return rows
+}
+
 // ── Period helpers ────────────────────────────────────────────────────────────
 
 function getPeriodStart(period: string): string {
@@ -99,15 +143,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
     }
 
-    const { data: rawAttempts } = await supabaseAdmin
-      .from('attempts')
-      .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
-      .eq('quiz_id', latestQuiz.id)
-      .not('user_id', 'is', null)
-      .eq('is_team', false)
-      .limit(5000)
+    // Del 1: cachet lesing (30s TTL per quiz-id). Identisk resultat som en
+    // direkte spørring — kun færre DB-lesinger under samtidig last etter quiz.
+    const rawAttempts = await getLastQuizAttempts(latestQuiz.id)
 
-    if (!rawAttempts || rawAttempts.length === 0) {
+    if (rawAttempts.length === 0) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
