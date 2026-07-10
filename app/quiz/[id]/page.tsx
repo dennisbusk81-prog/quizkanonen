@@ -2038,9 +2038,22 @@ export default function QuizPage() {
     const timerPercent = (timeLeft / limit) * 100
     const timerBarColor = timerPercent > 60 ? '#4ade80' : timerPercent > 40 ? 'var(--gold)' : '#E24B4A'
     const correctSoFar = answers.filter(a => a.isCorrect).length
-    const availableOptions = question?.shuffle_options
-      ? shuffledDisplayOrder.filter(o => ['A','B','C','D'].slice(0, quiz.num_options).includes(o))
+    // Render kun FAKTISK utfylte alternativer — ikke slice(0, num_options).
+    // num_options er quiz-nivå; et Ja/Nei-spørsmål i en 4-alternativers quiz
+    // (kun A/B utfylt, C/D null) ville ellers gitt to tomme, klikkbare knapper.
+    // `opt` er fortsatt DB-bokstaven som brukes til scoring/fasit — kun antall
+    // rendrede slots endres. Defensiv fallback til num_options hvis noe skulle
+    // gi tom liste (skal aldri skje: alle spørsmål har minst A/B).
+    const filledLetters = ['A','B','C','D'].filter(L => {
+      const v = question?.[optionKeys[L]]
+      return v != null && String(v).trim() !== ''
+    })
+    const optionLetters = filledLetters.length > 0
+      ? filledLetters
       : ['A','B','C','D'].slice(0, quiz.num_options)
+    const availableOptions = question?.shuffle_options
+      ? shuffledDisplayOrder.filter(o => optionLetters.includes(o))
+      : optionLetters
 
     const getOptionClass = (opt: string) => {
       if (!answered) return ''
