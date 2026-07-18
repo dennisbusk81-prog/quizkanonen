@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { PlayerStats } from '@/lib/history'
 import SkeletonCard from '@/components/SkeletonCard'
+import PasswordInput from '@/components/PasswordInput'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -48,6 +49,11 @@ const s = {
   redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
   redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+
+  // Nøytral knapp (hvit outline) — passord-seksjonen skal ikke konkurrere med de
+  // gule primærknappene ellers på siden. Samme mønster som Lagre-knappen for kallenavn.
+  pwBtn:    { padding: '10px 22px', background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  pwBtnDis: { padding: '10px 22px', background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
@@ -102,6 +108,18 @@ export default function ProfilPage() {
   const [pushSupported, setPushSupported] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
+  // Passord-seksjon: hasPassword styrer om vi tilbyr "Sett passord" (e-postbekreftet
+  // vei, som på /login) eller "Endre passord" (direkte, siden sesjonen er aktiv her).
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [hasPassword, setHasPassword] = useState(false)
+  const [showPwForm, setShowPwForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwSuccess, setPwSuccess] = useState(false)
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('PushManager' in window) || !('Notification' in window)) return
@@ -174,15 +192,16 @@ export default function ProfilPage() {
     let cancelled = false
     let loaded = false
 
-    async function loadProfile(uid: string, accessToken: string, avatarUrlFromMeta: string | null) {
+    async function loadProfile(uid: string, accessToken: string, avatarUrlFromMeta: string | null, email: string | null) {
       if (loaded || cancelled) return
       loaded = true
       setUserId(uid)
+      setUserEmail(email)
 
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color')
+          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color, has_password')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -197,8 +216,10 @@ export default function ProfilPage() {
         member_number: number | null; show_member_number: boolean | null;
         email_reminders: boolean | null; email_reengagement: boolean | null;
         email_duel_notifications: boolean | null; created_at: string | null;
-        avatar_color: string | null;
+        avatar_color: string | null; has_password: boolean | null;
       } | null
+
+      setHasPassword(profile?.has_password === true)
 
       const name = profile?.display_name ?? ''
       setDisplayName(name)
@@ -263,7 +284,7 @@ export default function ProfilPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled || !session?.user) return
       const avatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
-      loadProfile(session.user.id, session.access_token, avatarUrl).catch(
+      loadProfile(session.user.id, session.access_token, avatarUrl, session.user.email ?? null).catch(
         () => { if (!cancelled) setLoadState('error') }
       )
     })
@@ -275,7 +296,7 @@ export default function ProfilPage() {
       if (event === 'SIGNED_OUT') { router.replace('/'); return }
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         const avatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
-        loadProfile(session.user.id, session.access_token, avatarUrl).catch(
+        loadProfile(session.user.id, session.access_token, avatarUrl, session.user.email ?? null).catch(
           () => { if (!cancelled) setLoadState('error') }
         )
       }
@@ -534,6 +555,63 @@ export default function ProfilPage() {
         body: JSON.stringify({ id: userId, display_name: displayName, show_member_number: next }),
       })
     } catch { /* silent — optimistic update already applied */ }
+  }
+
+  // Bruker uten passord: send samme e-postbekreftede lenke som /login gjør.
+  // Bevisst IKKE en egen "sett passord direkte"-vei — én flyt å vedlikeholde,
+  // og e-postbekreftelsen er uansett det som gjør /sett-passord trygg.
+  async function handleSendSetPassword() {
+    if (!userEmail || resetSending) return
+    setResetSending(true)
+    setPwError(null)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/sett-passord')}`,
+      })
+      if (error) {
+        console.error('[profil] resetPasswordForEmail feilet:', error.message)
+        setPwError('Kunne ikke sende lenken. Prøv igjen.')
+      } else {
+        setResetSent(true)
+      }
+    } catch {
+      setPwError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setResetSending(false)
+    }
+  }
+
+  // Bruker som allerede har passord: sesjonen er aktiv, så updateUser holder —
+  // ingen e-postrunde nødvendig.
+  async function handleChangePassword() {
+    if (newPassword.length < 8) {
+      setPwError('Passordet må være minst 8 tegn.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('Passordene er ikke like.')
+      return
+    }
+    setPwSaving(true)
+    setPwError(null)
+    setPwSuccess(false)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) {
+        console.error('[profil] updateUser feilet:', error.message)
+        setPwError('Kunne ikke lagre passordet. Prøv igjen.')
+        return
+      }
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowPwForm(false)
+      setPwSuccess(true)
+      setTimeout(() => setPwSuccess(false), 4000)
+    } catch {
+      setPwError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setPwSaving(false)
+    }
   }
 
   async function handlePortal() {
@@ -906,6 +984,90 @@ export default function ProfilPage() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Passord */}
+          <div style={{ ...s.card, marginBottom: 10 }}>
+            <p style={s.sectionLabel}>Passord</p>
+
+            {!hasPassword ? (
+              /* Ingen passord ennå — send e-postbekreftet lenke (samme flyt som /login) */
+              resetSent ? (
+                <p style={{ fontSize: 14, color: '#4ade80', lineHeight: 1.5 }}>
+                  Vi har sendt en lenke til {userEmail}. Klikk den for å velge passord.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Du har ikke satt passord</p>
+                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                      Med passord kan du logge inn uten å være avhengig av Google
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSendSetPassword}
+                    disabled={resetSending || !userEmail}
+                    style={resetSending || !userEmail ? s.pwBtnDis : s.pwBtn}
+                  >
+                    {resetSending ? 'Sender…' : 'Sett passord'}
+                  </button>
+                </div>
+              )
+            ) : !showPwForm ? (
+              /* Har passord — direkte endring, siden sesjonen allerede er aktiv */
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Passord er satt</p>
+                  <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                    Du kan logge inn med e-post og passord
+                  </p>
+                </div>
+                <button onClick={() => { setShowPwForm(true); setPwError(null) }} style={s.pwBtn}>
+                  Endre passord
+                </button>
+              </div>
+            ) : (
+              <>
+                <p style={s.fieldHint}>Velg et nytt passord på minst 8 tegn.</p>
+                <PasswordInput
+                  value={newPassword}
+                  onChange={v => { setNewPassword(v); setPwError(null) }}
+                  placeholder="Nytt passord"
+                  autoComplete="new-password"
+                  style={s.input}
+                  marginBottom={10}
+                />
+                <PasswordInput
+                  value={confirmPassword}
+                  onChange={v => { setConfirmPassword(v); setPwError(null) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !pwSaving) handleChangePassword() }}
+                  placeholder="Gjenta nytt passord"
+                  autoComplete="new-password"
+                  style={s.input}
+                  marginBottom={12}
+                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={pwSaving || newPassword.length < 8 || !confirmPassword}
+                    style={pwSaving || newPassword.length < 8 || !confirmPassword ? s.pwBtnDis : s.pwBtn}
+                  >
+                    {pwSaving ? 'Lagrer…' : 'Lagre passord'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPwForm(false); setNewPassword(''); setConfirmPassword(''); setPwError(null)
+                    }}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              </>
+            )}
+
+            {pwError && <p style={s.saveError}>{pwError}</p>}
+            {pwSuccess && <p style={s.saveSuccess}>Passord oppdatert!</p>}
           </div>
 
           {/* Abonnement — kun for Premium-brukere */}

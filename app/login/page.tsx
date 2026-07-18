@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth'
 import Link from 'next/link'
 import InAppBrowserWarning from '@/components/InAppBrowserWarning'
+import PasswordInput from '@/components/PasswordInput'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -254,6 +255,15 @@ const STYLES = `
   }
   .login-btn-solid:hover { background: #323540; border-color: rgba(232,228,221,0.28); }
   .login-btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* "Glemt passord?" — plassert rett under passordfeltet, der brukere leter etter
+     den. Bruker samme resetPasswordForEmail-flyt som "Sett passord for denne
+     kontoen"; forskjellen er kun at kontoen allerede HAR et passord. */
+  .login-forgot {
+    text-align: right;
+    font-size: 13px;
+    margin: -4px 0 16px;
+  }
 
   .login-switch {
     text-align: center;
@@ -511,10 +521,9 @@ export default function LoginPage() {
   const renderPasswordInput = (isSignup: boolean) => (
     <>
       <label className="login-label">Passord</label>
-      <input
-        type="password"
+      <PasswordInput
         value={password}
-        onChange={e => setPassword(e.target.value)}
+        onChange={setPassword}
         onKeyDown={e => {
           if (e.key === 'Enter' && !loading) {
             isSignup ? handlePasswordSignup() : handlePasswordLogin()
@@ -621,6 +630,11 @@ export default function LoginPage() {
                 /* Eksisterende passord-bruker: passord-innlogging (primær) */
                 <>
                   {renderPasswordInput(false)}
+                  <p className="login-forgot">
+                    <button className="login-link" onClick={handleSetPassword} disabled={loading}>
+                      Glemt passord?
+                    </button>
+                  </p>
                   {error && <p className="login-error">{error}</p>}
                   <button
                     onClick={handlePasswordLogin}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import PasswordInput from '@/components/PasswordInput'
 
 // Siden brukeren lander på etter å ha klikket «sett passord»-lenken i e-posten.
 //
@@ -330,20 +331,18 @@ export default function SettPassordPage() {
           ) : (
             <>
               <label className="sp-label">Nytt passord</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder={`Minst ${MIN_LENGTH} tegn`}
                 className="sp-input"
                 autoComplete="new-password"
               />
 
               <label className="sp-label">Bekreft passord</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirm}
-                onChange={e => setConfirm(e.target.value)}
+                onChange={setConfirm}
                 onKeyDown={e => { if (e.key === 'Enter' && !loading) handleSave() }}
                 placeholder="Gjenta passordet"
                 className="sp-input"
