@@ -7,6 +7,13 @@ import { foundersWelcomeEmail } from '@/lib/email-templates'
 
 const FOUNDERS_PRICE_ID = process.env.STRIPE_PRICE_FOUNDERS!
 
+// B2C Founders-tilbudet er forlenget til 15. august 2026 kl 23:59 Europe/Oslo
+// (CEST, +02:00). Frem til denne datoen får nye Founders-signups en trial som
+// utløper på den faste datoen. ETTER datoen faller vi tilbake til den gamle
+// trial_period_days-logikken (dynamisk fra site_settings) — behold som fallback,
+// det permanente tilbudet bestemmes i en egen økt.
+const FOUNDERS_TRIAL_END = Math.floor(new Date('2026-08-15T23:59:00+02:00').getTime() / 1000)
+
 export async function POST(request: NextRequest) {
   if (!FOUNDERS_PRICE_ID) {
     return NextResponse.json({ error: 'Founders price not configured' }, { status: 500 })
@@ -76,10 +83,18 @@ export async function POST(request: NextRequest) {
     const isFull = (count ?? 0) >= maxSlots
     const trialPeriodDays = isFull ? trialDays : daysFree
 
+    // Frem til 15. august 2026: Founders-signups (når det er ledige plasser) får
+    // fast trial_end på tilbudsdatoen. Er tilbudet fullt, eller er vi forbi datoen,
+    // beholdes den eksisterende trial_period_days-logikken uendret som fallback.
+    const beforeDeadline = Date.now() < FOUNDERS_TRIAL_END * 1000
+    const useFixedTrialEnd = beforeDeadline && !isFull
+
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: FOUNDERS_PRICE_ID }],
-      trial_period_days: trialPeriodDays,
+      ...(useFixedTrialEnd
+        ? { trial_end: FOUNDERS_TRIAL_END }
+        : { trial_period_days: trialPeriodDays }),
       payment_settings: { save_default_payment_method: 'off' },
     })
 
@@ -99,7 +114,7 @@ export async function POST(request: NextRequest) {
       sendEmail({
         to: user.email,
         subject: 'Founders Access aktivert — Quizkanonen',
-        html: foundersWelcomeEmail(),
+        html: foundersWelcomeEmail(subscription.trial_end),
       }).catch(err => console.error('[founders-activate] foundersWelcomeEmail failed:', err))
     }
 

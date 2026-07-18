@@ -298,11 +298,21 @@ export default function FoundersPage() {
   const daysFree = fd?.daysFree ?? 30
   const isFounders = fd?.isFounders ?? true
 
+  // Founders-tilbudet er forlenget til 15. august 2026 (23:59 Europe/Oslo).
+  // Frem til da viser vi konkret sluttdato; etter datoen (eller når tilbudet er
+  // fullt) faller vi tilbake til «dager gratis»-teksten — i tråd med fallbacken
+  // i /api/stripe/founders-activate.
+  const beforeDeadline = Date.now() < new Date('2026-08-15T23:59:00+02:00').getTime()
+  const showDeadline = beforeDeadline && isFounders
+  const DEADLINE_LABEL = '15. august'
+
   const btnLabel = loading
     ? 'Aktiverer...'
-    : isFounders
-      ? `Aktiver ${daysFree} dager gratis →`
-      : `Start ${daysFree} dager gratis →`
+    : showDeadline
+      ? `Aktiver gratis til ${DEADLINE_LABEL} →`
+      : isFounders
+        ? `Aktiver ${daysFree} dager gratis →`
+        : `Start ${daysFree} dager gratis →`
 
   return (
     <div style={s.page}>
@@ -328,7 +338,9 @@ export default function FoundersPage() {
             </p>
             <p style={s.countdownSub}>
               {fd.isFounders
-                ? `${fd.daysFree} dager gratis — ingen kortinfo nødvendig`
+                ? (showDeadline
+                    ? `Gratis til ${DEADLINE_LABEL} — ingen kortinfo nødvendig`
+                    : `${fd.daysFree} dager gratis — ingen kortinfo nødvendig`)
                 : 'Ingen kortinfo nødvendig'}
             </p>
             {fd.isFounders && (
@@ -354,7 +366,9 @@ export default function FoundersPage() {
 
           <ul style={s.checkList}>
             {[
-              `${daysFree} dager gratis — ingen kortinfo nødvendig`,
+              showDeadline
+                ? `Gratis til ${DEADLINE_LABEL} — ingen kortinfo nødvendig`
+                : `${daysFree} dager gratis — ingen kortinfo nødvendig`,
               'Tilgang til alle Premium-funksjoner',
               'For deg som er tidlig ute og vil forme produktet.',
             ].map(perk => (
@@ -401,7 +415,7 @@ export default function FoundersPage() {
           )}
 
           <p style={{ fontSize: 12, color: '#e8e4dd', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
-            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter {daysFree} dager.
+            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette {showDeadline ? `etter ${DEADLINE_LABEL}` : `etter ${daysFree} dager`}.
           </p>
         </div>
       </div>

@@ -688,7 +688,13 @@ export function orgPaymentFailedEmail(orgName: string, orgSlug: string): string 
 </html>`
 }
 
-export function foundersWelcomeEmail(): string {
+export function foundersWelcomeEmail(trialEnd?: number | null): string {
+  // Vis konkret sluttdato basert på abonnementets faktiske trial_end (Unix-sekunder)
+  // i stedet for en hardkodet «30 dager». Faller tilbake til «30 dager» hvis vi ikke
+  // kjenner trial_end.
+  const accessLine = trialEnd
+    ? `Du er blant de første. Det betyr noe. Full tilgang gratis til ${new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' }).format(new Date(trialEnd * 1000))} — ingen kortinfo, ingen forpliktelse. Bare spill.`
+    : 'Du er blant de første. Det betyr noe. 30 dager med full tilgang — ingen kortinfo, ingen forpliktelse. Bare spill.'
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -721,7 +727,7 @@ export function foundersWelcomeEmail(): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Du er blant de første. Det betyr noe. 30 dager med full tilgang — ingen kortinfo, ingen forpliktelse. Bare spill.
+                ${accessLine}
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
