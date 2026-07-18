@@ -20,7 +20,7 @@ export async function GET(
 
   try {
     // Delt, kortlevd snapshot (samme som premium live-ranking leser).
-    const snapshot = await getOrBuildSnapshot(quizId, questionIndex)
+    const snapshot = await getOrBuildSnapshot(quizId)
 
     // FIX 8 — ingen fullførte ennå: total: 0, ikke 1 (unngår «nr. 1 av 1» når
     // ingen har spilt).

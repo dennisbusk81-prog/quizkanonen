@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 
 interface RivalData {
@@ -44,8 +44,11 @@ interface QuizInterludeProps {
   percentileData: PercentileEntry[]
   rankingSnapshot?: RankingSnapshot
   isPremium?: boolean
-  quizId?: string
-  currentTimeMs?: number      // akkumulert tid så langt (for konsistent tiebreak)
+  // Del 5: hentes nå av page.tsx (goToNext) i SAMME kall som gir low/high, og
+  // sendes ned hit. Tidligere gjorde denne komponenten sitt eget fetch mot
+  // /api/quiz/live-ranking — et andre kall mot nøyaktig samme snapshot, per
+  // spørsmål, per premium-spiller.
+  liveRanking?: LiveRanking
   onNext: () => void
 }
 
@@ -92,29 +95,9 @@ export default function QuizInterlude({
   percentileData,
   rankingSnapshot,
   isPremium,
-  quizId,
-  currentTimeMs,
+  liveRanking,
   onNext,
 }: QuizInterludeProps) {
-  const [liveRanking, setLiveRanking] = useState<LiveRanking | null>(null)
-
-  useEffect(() => {
-    if (!isPremium || !quizId) return
-    let cancelled = false
-    // Les samme kortlevde snapshot (question) og bruk samme tiebreak (tid) som
-    // ikke-premium-spennet, slik at premium-eksakt og ikke-premium er konsistente.
-    const params = new URLSearchParams({
-      quiz_id: quizId,
-      question: String(questionIndex),
-      current_correct: String(score),
-      current_time_ms: String(currentTimeMs ?? 0),
-    })
-    fetch(`/api/quiz/live-ranking?${params.toString()}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((data: LiveRanking | null) => { if (!cancelled && data) setLiveRanking(data) })
-      .catch(() => {/* silent — never block next button */})
-    return () => { cancelled = true }
-  }, [isPremium, quizId, score, questionIndex, currentTimeMs])
   // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
   const percentileEntry = percentileData.find(p => p.score === score)
   const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false

@@ -131,11 +131,19 @@ export async function GET(request: NextRequest) {
     // Hent nyeste quiz som faktisk har minst én attempt (INNER JOIN).
     // Uten dette vil testquizer med closes_at i fremtiden og 0 attempts
     // skygge for quizer der folk faktisk har spilt.
+    //
+    // Del 4 (Disk IO): joinen brukes KUN som eksistensfilter, men hentet
+    // tidligere ut hele attempts-arrayet for quizen — ucachet, på hver eneste
+    // last_quiz-forespørsel, altså nøyaktig lesingen getLastQuizAttempts-cachen
+    // skulle fjerne. limit(1) på den refererte tabellen gjør den til et rent
+    // EXISTS-oppslag (én rad via idx_attempts_quiz_id). Filteret — og dermed
+    // hvilken quiz som velges — er uendret.
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
+      .limit(1, { referencedTable: 'attempts' })
       .limit(1)
       .maybeSingle()
 

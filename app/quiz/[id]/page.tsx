@@ -778,6 +778,15 @@ export default function QuizPage() {
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
   const [interLow, setInterLow] = useState<number | null>(null)
   const [interHigh, setInterHigh] = useState<number | null>(null)
+  // Del 5: premium-blokken i mellomskjermen. Hentes i goToNext i SAMME kall som
+  // gir low/high, i stedet for at QuizInterlude gjør sitt eget fetch mot samme
+  // snapshot.
+  const [interLiveRanking, setInterLiveRanking] = useState<{
+    totalPlayers: number
+    userRank: number
+    above: { name: string; correct: number } | null
+    below: { name: string; correct: number } | null
+  } | null>(null)
   const [interQLeft, setInterQLeft] = useState(0)
   const [interLastCorrect, setInterLastCorrect] = useState<boolean | null>(null)
   const [interCorrectAnswerText, setInterCorrectAnswerText] = useState<string | null>(null)
@@ -1104,6 +1113,33 @@ export default function QuizPage() {
       const res = await fetch(
         `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}`
       )
+      if (!res.ok) return null
+      return await res.json()
+    } catch { return null }
+  }, [quizId])
+
+  // Del 5: premium-stien. /api/quiz/live-ranking returnerer nå BÅDE low/high og
+  // userRank/above/below fra samme snapshot og samme computePlacement, så ett
+  // kall dekker både spennet og premium-blokken i mellomskjermen. low/high er
+  // identiske med det fetchRankingSnapshot ville gitt.
+  const fetchLiveRankingFull = useCallback(async (
+    correctSoFar: number,
+    timeSoFar: number
+  ): Promise<{
+    totalPlayers: number
+    userRank: number
+    low: number
+    high: number
+    above: { name: string; correct: number } | null
+    below: { name: string; correct: number } | null
+  } | null> => {
+    try {
+      const params = new URLSearchParams({
+        quiz_id: quizId,
+        current_correct: String(correctSoFar),
+        current_time_ms: String(timeSoFar),
+      })
+      const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`)
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
@@ -1443,10 +1479,21 @@ export default function QuizPage() {
     const qLeft = totalQuestions - nextIndex
     const correctSoFar = answers.filter(a => a.isCorrect).length
 
-    // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil
+    // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil.
+    // Del 5: premium henter alt i ETT kall (spenn + plassering + naboer);
+    // ikke-premium trenger kun spennet og bruker den lettere ruten som før.
     let low: number | null = null
     let high: number | null = null
-    if (isLoggedIn) {
+    if (isLoggedIn && isPremium) {
+      const lr = await fetchLiveRankingFull(correctSoFar, totalTimeMs)
+      if (lr && lr.totalPlayers > 1) {
+        low = lr.low
+        high = lr.high
+      }
+      setInterLiveRanking(lr
+        ? { totalPlayers: lr.totalPlayers, userRank: lr.userRank, above: lr.above, below: lr.below }
+        : null)
+    } else if (isLoggedIn) {
       const result = await fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs)
       if (result && result.total > 1) {
         low = result.low
@@ -2132,8 +2179,7 @@ export default function QuizPage() {
             percentileData={percentileData}
             rankingSnapshot={rankingSnapshot ?? undefined}
             isPremium={isPremium}
-            quizId={quizId}
-            currentTimeMs={totalTimeMs}
+            liveRanking={interLiveRanking ?? undefined}
             onNext={handleInterludeNext}
           />
         </ErrorBoundary>

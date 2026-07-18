@@ -10,8 +10,12 @@ import { rankQuizAttempts, type RankableAttempt } from './ranking'
 // Konsekvens: topp-3 og "din plassering" kan aldri lenger vise ulike tall på
 // samme skjerm — de leser samme liste, i samme øyeblikk, via /standings-ruten.
 //
-// Merk: snapshoten er uavhengig av spørsmålsindeks (samme ferdig-pool uansett),
-// men caches per (quiz_id, question_index) slik at ulike steg kan dele cachen.
+// Merk: snapshoten er uavhengig av spørsmålsindeks (samme ferdig-pool uansett).
+// Den caches derfor med ÉN rad per quiz — ikke lenger per (quiz_id,
+// question_index). Den gamle nøkkelen delte trafikken på like mange nøkler som
+// quizen har spørsmål, slik at hver nøkkel ble truffet sjeldnere enn TTL-en og
+// cachen i praksis aldri traff. Samme rangering, samme output — kun færre
+// rebuilds og dermed færre JSONB-skrivinger (Disk IO).
 
 export type SnapshotEntry = {
   id: string
@@ -26,6 +30,12 @@ export type SnapshotEntry = {
 // FIX (Sak 1B): 10s TTL slik at live-plasseringen ikke henger etter.
 export const CACHE_TTL_MS = 10_000
 
+// Tabellen har UNIQUE(quiz_id, question_index) og question_index NOT NULL. Vi
+// beholder skjemaet uendret og bruker én fast slot-verdi som lagringsplass, slik
+// at det finnes nøyaktig én cache-rad per quiz. Ingen migrasjon nødvendig.
+// (Gamle rader med question_index > 0 blir liggende, men leses aldri mer.)
+const SNAPSHOT_SLOT = 0
+
 type Opts = {
   // Når satt: hvis dette attempt-id-et IKKE finnes i den cachede snapshoten,
   // regnes cachen som utdatert og bygges på nytt. Brukes rett etter innsending
@@ -36,14 +46,13 @@ type Opts = {
 
 export async function getOrBuildSnapshot(
   quizId: string,
-  questionIndex: number,
   opts: Opts = {},
 ): Promise<SnapshotEntry[]> {
   const { data: cached } = await supabaseAdmin
     .from('ranking_snapshots')
     .select('snapshot, created_at')
     .eq('quiz_id', quizId)
-    .eq('question_index', questionIndex)
+    .eq('question_index', SNAPSHOT_SLOT)
     .maybeSingle()
 
   const cachedSnap = cached?.snapshot as SnapshotEntry[] | undefined
@@ -54,6 +63,15 @@ export async function getOrBuildSnapshot(
   if (fresh && cachedSnap && !missingEnsured) {
     return cachedSnap
   }
+
+  // Rebuild utløst KUN av ensureAttemptId (cachen var ellers fersk): spilleren
+  // har nettopp levert og er ikke med i den cachede lista ennå. Vi beregner en
+  // fersk snapshot og returnerer den, men skriver den IKKE tilbake til DB.
+  //
+  // Uten dette ville hver eneste innsending i sluttminuttene tvinge en full
+  // JSONB-UPDATE — nøyaktig når trafikktoppen treffer ved quiz-stenging.
+  // Cachen oppdateres i stedet av neste ordinære (TTL-utløste) rebuild.
+  const skipWrite = fresh && !!cachedSnap && missingEnsured
 
   // Hent alle LEVERTE solo-forsøk. ÉN ferdig-definisjon: submitted_at IS NOT NULL
   // (den kanoniske innsendingsmarkøren fra submit/route.ts). Erstatter det
@@ -86,17 +104,19 @@ export async function getOrBuildSnapshot(
     correct_streak:  a.correct_streak ?? 0,
   }))
 
-  await supabaseAdmin
-    .from('ranking_snapshots')
-    .upsert(
-      {
-        quiz_id:        quizId,
-        question_index: questionIndex,
-        snapshot,
-        created_at:     new Date().toISOString(),
-      },
-      { onConflict: 'quiz_id,question_index' },
-    )
+  if (!skipWrite) {
+    await supabaseAdmin
+      .from('ranking_snapshots')
+      .upsert(
+        {
+          quiz_id:        quizId,
+          question_index: SNAPSHOT_SLOT,
+          snapshot,
+          created_at:     new Date().toISOString(),
+        },
+        { onConflict: 'quiz_id,question_index' },
+      )
+  }
 
   return snapshot
 }

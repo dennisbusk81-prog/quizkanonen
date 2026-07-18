@@ -61,7 +61,7 @@ export async function GET(
   // ── Rangert liste fra den delte snapshot-kilden ─────────────────────────────
   let snapshot
   try {
-    snapshot = await getOrBuildSnapshot(quizId, 0)
+    snapshot = await getOrBuildSnapshot(quizId)
   } catch (err) {
     console.error('[admin/results] snapshot feilet:', err)
     return NextResponse.json({ error: 'Kunne ikke bygge resultatliste' }, { status: 500 })

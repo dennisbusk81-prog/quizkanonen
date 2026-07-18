@@ -21,16 +21,19 @@ export async function GET(
 
   const { searchParams } = new URL(request.url)
   const attemptId    = searchParams.get('attemptId')
-  const questionIndex = parseInt(searchParams.get('question') ?? '0', 10)
+  // `question` sendes fortsatt av klienten, men påvirker ikke lenger cache-nøkkelen
+  // (snapshoten er uavhengig av spørsmålsindeks — se lib/ranking-snapshot.ts).
   const correct      = parseInt(searchParams.get('correct') ?? '0', 10)
   const time         = parseInt(searchParams.get('time') ?? '0', 10)
 
   let snapshot
   try {
     // ensureAttemptId: hvis spilleren nettopp leverte og cachen ikke har dem
-    // ennå, bygges snapshoten på nytt slik at de er med i BÅDE topp-3 og
-    // plasseringen. Ellers brukes cachen (amortisering — ingen per-visning-skann).
-    snapshot = await getOrBuildSnapshot(quizId, isNaN(questionIndex) ? 0 : questionIndex, {
+    // ennå, beregnes snapshoten på nytt slik at de er med i BÅDE topp-3 og
+    // plasseringen. Den tvungne rebuilden skrives IKKE tilbake til DB-cachen
+    // (se lib/ranking-snapshot.ts) — ellers ville hver innsending i sluttminuttene
+    // utløst en full JSONB-UPDATE. Ellers brukes cachen som normalt.
+    snapshot = await getOrBuildSnapshot(quizId, {
       ensureAttemptId: attemptId,
     })
   } catch (err) {

@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const { searchParams } = new URL(request.url)
   const quizId         = searchParams.get('quiz_id')
-  const questionIndex  = parseInt(searchParams.get('question')         ?? '0', 10)
+  // `question` sendes fortsatt av klienten, men påvirker ikke lenger cache-nøkkelen
+  // (snapshoten er uavhengig av spørsmålsindeks — se lib/ranking-snapshot.ts).
   const currentCorrect = parseInt(searchParams.get('current_correct')  ?? '0', 10)
   const currentTime    = parseInt(searchParams.get('current_time_ms')  ?? '0', 10)
 
@@ -32,15 +33,15 @@ export async function GET(request: NextRequest) {
   // (samme ferdig-pool, samme rang-definisjon, gjester inkludert).
   let snapshot
   try {
-    snapshot = await getOrBuildSnapshot(quizId, isNaN(questionIndex) ? 0 : questionIndex)
+    snapshot = await getOrBuildSnapshot(quizId)
   } catch (err) {
     console.error('[live-ranking] snapshot feilet:', err)
-    return NextResponse.json({ totalPlayers: 0, userRank: 1, above: null, below: null }, { headers: HEADERS })
+    return NextResponse.json({ totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null }, { headers: HEADERS })
   }
 
   if (snapshot.length === 0) {
     return NextResponse.json(
-      { totalPlayers: 0, userRank: 1, above: null, below: null },
+      { totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null },
       { headers: HEADERS }
     )
   }
@@ -48,16 +49,24 @@ export async function GET(request: NextRequest) {
   // playerInPool: false — under spill er den nåværende spilleren beviselig IKKE i
   // den ferdige poolen (uferdig forsøk), så total = ferdige + 1. Del A garanterer
   // dermed rang <= total («20 av 20», aldri «20 av 19»).
-  const { rank, total, above, below } = computePlacement(snapshot, {
+  const { rank, total, low, high, above, below } = computePlacement(snapshot, {
     correct: currentCorrect,
     time: isNaN(currentTime) ? 0 : currentTime,
     playerInPool: false,
   })
 
+  // low/high er additivt (Del 5): computePlacement beregnet dem allerede, ruten
+  // kastet dem bare. Med dem i responsen dekker ETT kall både premium-blokken i
+  // mellomskjermen og spenn-visningen, i stedet for at klienten gjør to separate
+  // kall mot samme snapshot per spørsmål. Identiske verdier som
+  // /api/quiz/[id]/ranking-snapshot — samme snapshot, samme computePlacement,
+  // samme playerInPool:false.
   return NextResponse.json(
     {
       totalPlayers: total,
       userRank: rank,
+      low,
+      high,
       above,
       below,
     },
