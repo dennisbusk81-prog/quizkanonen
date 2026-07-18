@@ -233,6 +233,28 @@ const STYLES = `
   .login-btn-outline:hover { border-color: rgba(201,168,76,0.5); }
   .login-btn-outline:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  /* Solid nøytral knapp — for sekundære handlinger som trenger mer synlighet enn
+     .login-btn-outline gir (den transparente bakgrunnen + border i samme farge som
+     kortets egen border blir nesten usynlig for enkelte brukere). Fylt med
+     border-fargen i stedet for transparent, og en lys, synlig kant rundt. Ikke gull
+     — det er allerede brukt av primærknappen på samme skjerm. */
+  .login-btn-solid {
+    width: 100%;
+    background: var(--border);
+    color: var(--body);
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 13px 20px;
+    border-radius: var(--radius-btn);
+    border: 1px solid rgba(232,228,221,0.16);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin-bottom: 12px;
+  }
+  .login-btn-solid:hover { background: #323540; border-color: rgba(232,228,221,0.28); }
+  .login-btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .login-switch {
     text-align: center;
     font-size: 13px;
@@ -639,7 +661,7 @@ export default function LoginPage() {
                   <button
                     onClick={handleMagicLink}
                     disabled={loading || !email.trim()}
-                    className="login-btn-outline"
+                    className="login-btn-solid"
                   >
                     {loading ? 'Sender...' : 'Få tilsendt innloggingslenke på e-post'}
                   </button>
