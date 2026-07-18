@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { trialEndingEmail, orgTrialEndingEmail } from '@/lib/email-templates'
 
 // Sender påminnelse til org-admin når en B2B-trial nærmer seg slutt (innen 2 døgn)
 // og ikke allerede er påminnet. Stempler organizations.trial_reminder_sent_at for
-// å unngå dobbel-sending, samme mønster som B2C-logikken under.
-async function sendOrgTrialReminders(now: number): Promise<number> {
+// å unngå dobbel-sending. I dry-run beregnes kandidatene, men ingenting sendes/stemples.
+async function sendOrgTrialReminders(now: number, dryRun: boolean): Promise<number> {
   const windowEnd = new Date(now + 2 * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = new Date(now).toISOString()
 
@@ -41,6 +42,11 @@ async function sendOrgTrialReminders(now: number): Promise<number> {
     const email = authData.user?.email
     if (!email || !org.stripe_period_end) continue
 
+    if (dryRun) {
+      orgSent++ // ville sendt
+      continue
+    }
+
     try {
       await sendEmail({
         to: email,
@@ -58,96 +64,90 @@ async function sendOrgTrialReminders(now: number): Promise<number> {
   return orgSent
 }
 
-const DAYS_LEFT = 7
-// Window: users whose premium_since is between 23 and 24 days ago (caught once per daily run)
-const WINDOW_START_MS = 24 * 24 * 60 * 60 * 1000
-const WINDOW_END_MS   = 23 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+// Send B2C-påminnelse når trial_end er mellom 6 og 8 dager unna. Vinduet er 3 dager
+// bredt som sikkerhetsnett hvis cronen skulle hoppe over en dag; trial_reminder_sent_at
+// hindrer dobbel-sending innenfor vinduet.
+const REMINDER_MIN_DAYS = 6
+const REMINDER_MAX_DAYS = 8
 
-export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  const authHeader = request.headers.get('authorization')
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+type B2CRecipient = { id: string; email: string; subId: string; trialEnd: number; daysLeft: number }
+type B2CResult = { candidates: number; recipients: B2CRecipient[]; sent: number; failed: number; error?: string }
 
-  const now = Date.now()
+// Wrap a promise with a per-call timeout so one hanging call can't block the whole job.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)
+    ),
+  ])
+}
 
-  // Org-trial-påminnelser kjøres uavhengig av om det finnes B2C-trials.
-  const orgSent = await sendOrgTrialReminders(now)
-
-  const windowStart = new Date(now - WINDOW_START_MS).toISOString()
-  const windowEnd   = new Date(now - WINDOW_END_MS).toISOString()
-
-  // Profiles on trial: premium_status = true, premium_since 23–24 days ago,
-  // premium_source NULL (Founders) or 'founders', and reminder not already sent.
-  // Paying customers (premium_source = 'personal' or 'org') are excluded.
+// B2C-trials: finn profiler med et personlig Stripe-abonnement der Stripe rapporterer
+// status 'trialing', og slå opp faktisk trial_end fra Stripe. Ingen antagelse om 30 dager.
+async function sendB2CTrialReminders(now: number, dryRun: boolean): Promise<B2CResult> {
+  // Kandidatpool: aktive founders/uspesifiserte trials med et personlig abonnement,
+  // som ennå ikke er påminnet. Betalende (premium_source 'personal'/'org') er ekskludert.
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
-    .select('id')
+    .select('id, personal_stripe_subscription_id')
     .eq('premium_status', true)
-    .gte('premium_since', windowStart)
-    .lte('premium_since', windowEnd)
+    .not('personal_stripe_subscription_id', 'is', null)
     .or('premium_source.is.null,premium_source.eq.founders')
     .is('trial_reminder_sent_at', null)
 
   if (profilesError) {
     console.error('[cron/trial-reminders] profiles error:', profilesError.message)
-    return NextResponse.json({ error: profilesError.message }, { status: 500 })
+    return { candidates: 0, recipients: [], sent: 0, failed: 0, error: profilesError.message }
   }
-
   if (!profiles || profiles.length === 0) {
-    return NextResponse.json({ sent: 0, orgSent, reason: 'no trials ending soon' })
+    return { candidates: 0, recipients: [], sent: 0, failed: 0 }
   }
 
-  const trialUserIds = new Set(profiles.map(p => p.id))
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
 
-  // Resolve emails via listUsers pagination — avoids N parallel getUserById calls.
-  // Keep a Map<userId, email> so we can mark sent rows after delivery.
-  const toSend: { id: string; email: string }[] = []
-  let page = 1
-  while (true) {
-    const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-      page,
-      perPage: 1000,
-    })
-    if (listError) {
-      console.error('[cron/trial-reminders] listUsers error (page', page, '):', listError.message)
-      break
+  // For hver kandidat: hent abonnementet fra Stripe, behold kun de som fortsatt er
+  // 'trialing' og hvis trial_end ligger 6–8 dager frem i tid.
+  const recipients: B2CRecipient[] = []
+  for (const p of profiles) {
+    const subId = p.personal_stripe_subscription_id as string
+    let sub: Stripe.Subscription
+    try {
+      sub = await stripe.subscriptions.retrieve(subId)
+    } catch (err) {
+      console.error('[cron/trial-reminders] failed to retrieve sub', subId, err)
+      continue
     }
-    const users = authData?.users ?? []
-    for (const u of users) {
-      if (u.email && trialUserIds.has(u.id)) {
-        toSend.push({ id: u.id, email: u.email })
-      }
-    }
-    if (users.length < 1000) break // last page
-    page++
+    if (sub.status !== 'trialing' || !sub.trial_end) continue
+
+    const daysLeft = (sub.trial_end * 1000 - now) / DAY_MS
+    if (daysLeft < REMINDER_MIN_DAYS || daysLeft > REMINDER_MAX_DAYS) continue
+
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(p.id)
+    const email = authData.user?.email
+    if (!email) continue
+
+    recipients.push({ id: p.id, email, subId, trialEnd: sub.trial_end, daysLeft: Math.round(daysLeft) })
   }
 
-  if (toSend.length === 0) {
-    return NextResponse.json({ sent: 0, orgSent, reason: 'no emails resolved for trial users' })
+  if (dryRun || recipients.length === 0) {
+    return { candidates: profiles.length, recipients, sent: 0, failed: 0 }
   }
 
-  const html = trialEndingEmail(DAYS_LEFT)
-  const subject = `${DAYS_LEFT} dager igjen av din gratis prøveperiode`
-
-  // Wrap a promise with a per-call timeout so one hanging email can't block the
-  // entire cron job.
-  function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-    return Promise.race([
-      p,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)
-      ),
-    ])
-  }
-
-  // Send all emails in parallel, each with a 5-second timeout.
-  // Track which user IDs succeeded so we can stamp trial_reminder_sent_at.
+  // Send påminnelser parallelt, hver med 5-sekunders timeout. Bruk faktisk dager-igjen
+  // per bruker i emnefelt/innhold.
   const sentAt = new Date().toISOString()
   const sendResults = await Promise.allSettled(
-    toSend.map(({ id, email }) =>
-      withTimeout(sendEmail({ to: email, subject, html }), 5_000).then(() => id)
+    recipients.map(({ id, email, daysLeft }) =>
+      withTimeout(
+        sendEmail({
+          to: email,
+          subject: `${daysLeft} dager igjen av din gratis prøveperiode`,
+          html: trialEndingEmail(daysLeft),
+        }),
+        5_000,
+      ).then(() => id)
     )
   )
 
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Mark sent rows — prevents double-send if cron fires twice on the same day.
+  // Stemple sendte rader — hindrer dobbel-sending hvis cronen fyrer flere ganger.
   if (sentIds.length > 0) {
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
@@ -175,5 +175,44 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sent, failed, orgSent })
+  return { candidates: profiles.length, recipients, sent, failed }
+}
+
+export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  const authHeader = request.headers.get('authorization')
+  if (!secret || authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // ?dry-run=1 (eller ?dryRun=1): beregn og vis hvem som VILLE fått påminnelse,
+  // uten å sende e-post eller stemple noe.
+  const params = new URL(request.url).searchParams
+  const dryRun = params.get('dry-run') === '1' || params.get('dryRun') === '1'
+
+  const now = Date.now()
+
+  const orgSent = await sendOrgTrialReminders(now, dryRun)
+  const b2c = await sendB2CTrialReminders(now, dryRun)
+
+  if (dryRun) {
+    return NextResponse.json({
+      dryRun: true,
+      orgWouldSend: orgSent,
+      b2cCandidates: b2c.candidates,
+      b2cWouldSend: b2c.recipients.length,
+      b2cRecipients: b2c.recipients.map(r => ({
+        email: r.email,
+        subId: r.subId,
+        daysLeft: r.daysLeft,
+        trialEnd: new Date(r.trialEnd * 1000).toISOString(),
+      })),
+      ...(b2c.error ? { b2cError: b2c.error } : {}),
+    })
+  }
+
+  if (b2c.error) {
+    return NextResponse.json({ error: b2c.error, orgSent }, { status: 500 })
+  }
+  return NextResponse.json({ sent: b2c.sent, failed: b2c.failed, orgSent })
 }
