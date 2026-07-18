@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail } from '@/lib/email-templates'
+import { hasActiveOrgPremium } from '@/lib/org-premium'
 
 // Kaster ved feil på en kritisk DB-skriving slik at den ytre try/catch-en sletter
 // idempotens-stemplet og returnerer 500 → Stripe retry-er hele hendelsen. Bruk KUN
@@ -397,18 +398,33 @@ export async function POST(request: NextRequest) {
         })
         .catch(err => console.error('[webhook] orgPaymentFailedEmail failed:', err))
     } else {
-      // B2C — varsle bruker
-      getUserEmail(stripe, customerId)
-        .then(email => {
-          if (email) {
-            return sendEmail({
-              to: email,
-              subject: 'Betalingen feilet — Quizkanonen Premium',
-              html: paymentFailedEmail(),
-            })
-          }
-        })
-        .catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
+      // B2C — varsle bruker, men KUN hvis de ikke allerede har aktiv Premium via en
+      // annen kilde (org-medlemskap). Har brukeren org-Premium, mister de ingenting
+      // reelt om det personlige abonnementet feiler, og e-posten er bare forvirrende.
+      const { data: profileForFailed } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (profileForFailed && await hasActiveOrgPremium(profileForFailed.id)) {
+        console.log(
+          `[webhook] paymentFailedEmail hoppet over — bruker ${profileForFailed.id} ` +
+          `har aktiv Premium via org`
+        )
+      } else {
+        getUserEmail(stripe, customerId)
+          .then(email => {
+            if (email) {
+              return sendEmail({
+                to: email,
+                subject: 'Betalingen feilet — Quizkanonen Premium',
+                html: paymentFailedEmail(),
+              })
+            }
+          })
+          .catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
+      }
     }
   }
 

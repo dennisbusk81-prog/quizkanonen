@@ -39,9 +39,28 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_customer_id, premium_status')
+      .select('stripe_customer_id, premium_status, personal_stripe_subscription_id')
       .eq('id', user.id)
       .single()
+
+    // Per-bruker-sperre mot flere aktive Founders-trials. Speiler per-bruker-grensen
+    // i org-founders-activate (som tillater kun én 'trialing'/'active' org per bruker),
+    // men sjekker her den FAKTISKE Stripe-statusen på brukerens personlige abonnement
+    // — ikke bare det denormaliserte premium_status-flagget, som kan drifte.
+    if (profile?.personal_stripe_subscription_id) {
+      try {
+        const existing = await stripe.subscriptions.retrieve(profile.personal_stripe_subscription_id)
+        if (existing.status === 'trialing' || existing.status === 'active') {
+          return NextResponse.json(
+            { error: 'Du har allerede en aktiv Founders-prøveperiode.' },
+            { status: 409 },
+          )
+        }
+      } catch (err) {
+        // Abonnementet finnes ikke i Stripe lenger (f.eks. slettet) — trygt å fortsette.
+        console.warn('[founders-activate] kunne ikke hente eksisterende abonnement, fortsetter:', err)
+      }
+    }
 
     if (profile?.premium_status === true) {
       return NextResponse.json({ error: 'Du har allerede Premium' }, { status: 400 })

@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { trialEndingEmail, orgTrialEndingEmail } from '@/lib/email-templates'
+import { hasActiveOrgPremium } from '@/lib/org-premium'
 
 // Sender påminnelse til org-admin når en B2B-trial nærmer seg slutt (innen 2 døgn)
 // og ikke allerede er påminnet. Stempler organizations.trial_reminder_sent_at for
@@ -123,6 +124,13 @@ async function sendB2CTrialReminders(now: number, dryRun: boolean): Promise<B2CR
 
     const daysLeft = (sub.trial_end * 1000 - now) / DAY_MS
     if (daysLeft < REMINDER_MIN_DAYS || daysLeft > REMINDER_MAX_DAYS) continue
+
+    // Hopp over hvis brukeren uansett har aktiv Premium via org — da mister de
+    // ingenting når det personlige trial-abonnementet utløper, og påminnelsen forvirrer.
+    if (await hasActiveOrgPremium(p.id)) {
+      console.log(`[cron/trial-reminders] hopper over ${p.id} — aktiv Premium via org`)
+      continue
+    }
 
     const { data: authData } = await supabaseAdmin.auth.admin.getUserById(p.id)
     const email = authData.user?.email
