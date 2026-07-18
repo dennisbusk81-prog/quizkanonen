@@ -12,6 +12,27 @@ export async function signInWithGoogle(next?: string): Promise<void> {
   })
 }
 
+export async function signInWithPassword(email: string, password: string) {
+  // Speiler signInWithGoogle sin struktur, men returnerer Supabase-responsen
+  // ({ data, error }) slik at innloggingssiden kan vise feil (feil passord,
+  // ikke bekreftet e-post osv.). Ingen redirect her — kalleren styrer navigasjon.
+  return supabase.auth.signInWithPassword({ email, password })
+}
+
+export async function signUpWithPassword(email: string, password: string, next?: string) {
+  // emailRedirectTo bygges likt som i signInWithGoogle. Med "Confirm email" PÅ i
+  // Supabase sendes en bekreftelseslenke hit; profilraden opprettes i /auth/callback
+  // når brukeren klikker den (samme sti som Google/magic link).
+  const emailRedirectTo = next
+    ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+    : `${window.location.origin}/auth/callback`
+  return supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo },
+  })
+}
+
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut()
   window.location.href = '/'
