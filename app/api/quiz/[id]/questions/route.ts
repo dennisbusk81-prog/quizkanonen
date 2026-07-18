@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 
 // ── Spørsmål ett om gangen — skjuler fasiten fra klienten ────────────────────
 // Tidligere gjorde klienten select('*') på questions og fikk HELE fasiten i
@@ -23,38 +24,34 @@ const QUESTION_COLUMNS =
 
 // Deterministisk PRNG slik at randomisert rekkefølge er stabil per attempt
 // (samme rekkefølge på tvers av kall og ved resume), men unik per spiller.
-function xmur3(str: string): () => number {
-  let h = 1779033703 ^ str.length
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 3432918353)
-    h = (h << 13) | (h >>> 19)
-  }
-  return () => {
-    h = Math.imul(h ^ (h >>> 16), 2246822507)
-    h = Math.imul(h ^ (h >>> 13), 3266489909)
-    h ^= h >>> 16
-    return h >>> 0
-  }
-}
-function mulberry32(a: number): () => number {
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+// Ligger i lib/seeded-shuffle.ts slik at klienten kan utlede identisk rekkefølge
+// av samme seed uten en andre kopi av algoritmen.
 
-function seededShuffle<T>(arr: T[], seedStr: string): T[] {
-  const seedFn = xmur3(seedStr)
-  const rand = mulberry32(seedFn())
-  const out = [...arr]
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
+// ── option_order: visningsrekkefølgen for svaralternativene ───────────────────
+// Klienten stokket tidligere alternativene selv med Math.random() ved oppstart.
+// Kjørte den koden to ganger (f.eks. dobbelttrykk på "Start quiz" mens de tre
+// nettverksrundene pågikk), fikk man en NY rekkefølge mens spørsmålet allerede
+// var på skjermen — radene byttet plass under fingeren og feil alternativ ble
+// registrert, uten spor i dataene.
+//
+// Rekkefølgen utledes nå deterministisk her, av samme seedede PRNG som allerede
+// styrer spørsmålsrekkefølgen. Samme (attemptId, question.id) gir alltid samme
+// rekkefølge, uansett hvor mange ganger ruten kalles — omstokking midt i et
+// spørsmål er dermed strukturelt umulig, ikke bare usannsynlig.
+//
+// Seeden er per attempt, så to spillere ser ulik rekkefølge, og per spørsmål,
+// så rekkefølgen ikke gjentas likt gjennom quizen.
+function withOptionOrder<T extends { id: string; shuffle_options?: boolean | null }>(
+  question: T,
+  attemptId: string,
+): T & { option_order: string[] | null } {
+  if (!question.shuffle_options) {
+    return { ...question, option_order: null }
   }
-  return out
+  return {
+    ...question,
+    option_order: seededShuffle(ALL_OPTION_LETTERS, optionOrderSeed(attemptId || null, question.id)),
+  }
 }
 
 export async function GET(
@@ -171,17 +168,23 @@ export async function GET(
       return NextResponse.json({ error: 'Index utenfor rekkevidde', total }, { status: 404 })
     }
 
-    return NextResponse.json({ question, total })
+    return NextResponse.json({ question: withOptionOrder(question, attemptId), total })
   }
 
   // ── Ikke-randomisert: deterministisk på order_index ───────────────────────────
   // Hent KUN spørsmålet på posisjon `index` via range(), og total via count i
   // samme spørring. Aldri hele settet.
+  // .order('id') som sekundærsortering: ved duplikate order_index-verdier (har
+  // forekommet — se scripts/inspect-order-index-9.mjs) er radrekkefølgen fra
+  // Postgres ikke garantert stabil mellom kall, og range(index, index) kunne da
+  // returnere ulikt spørsmål for samme index. Med id som tiebreaker er
+  // rekkefølgen total og deterministisk.
   const { data: rows, count, error } = await supabaseAdmin
     .from('questions')
     .select(QUESTION_COLUMNS, { count: 'exact' })
     .eq('quiz_id', quizId)
     .order('order_index', { ascending: true })
+    .order('id', { ascending: true })
     .range(index, index)
 
   if (error) {
@@ -195,5 +198,5 @@ export async function GET(
     return NextResponse.json({ error: 'Index utenfor rekkevidde', total }, { status: 404 })
   }
 
-  return NextResponse.json({ question, total })
+  return NextResponse.json({ question: withOptionOrder(question, attemptId), total })
 }

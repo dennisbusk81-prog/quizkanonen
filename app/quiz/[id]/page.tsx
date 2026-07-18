@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
+import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -807,9 +808,20 @@ export default function QuizPage() {
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
   const [nextLoadFailed, setNextLoadFailed] = useState(false)
   const [isAdvancing, setIsAdvancing] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   // Re-entry-guard for goToNext: ref leses synkront (state-oppdatering er asynkron
   // og rekker ikke å blokkere et raskt andre-klikk i samme tick).
   const advancingRef = useRef(false)
+  // Re-entry-guard for startQuiz — samme mønster som advancingRef/isAdvancing i
+  // goToNext. startQuiz gjør tre nettverksrunder (getSession, start-attempt,
+  // questions) før phase blir 'playing', og start-skjermen med knappen stod
+  // enabled hele veien. Et dobbelttrykk kjørte dermed hele oppstarten to ganger.
+  const startingRef = useRef(false)
+  // Speiler `phase` synkront. En closure fanger phase-verdien fra da funksjonen
+  // ble kalt — ved to samtidige startQuiz-kall så BEGGE 'register', så en sjekk
+  // på selve state-variabelen ville ikke fanget re-kjøringen. Ref-en leses på
+  // det tidspunktet oppdateringen faktisk skjer.
+  const phaseRef = useRef<typeof phase>('register')
   const [orgQuizOpensAt, setOrgQuizOpensAt] = useState<string | null>(null)
   const [orgQuizClosesAt, setOrgQuizClosesAt] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string | null>(null)
@@ -1050,6 +1062,32 @@ export default function QuizPage() {
   const getTimeLimit = useCallback((question: Question) =>
     question.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
 
+  // Visningsrekkefølgen for svaralternativene kommer nå ferdig stokket fra
+  // /api/quiz/[id]/questions (deterministisk av attemptId + question.id).
+  // Tidligere stokket klienten selv med Math.random() ved hvert kall — kjørte
+  // oppstarten to ganger, byttet alternativene plass mens spørsmålet allerede
+  // var synlig, og brukeren traff en annen rad enn den de siktet på.
+  // Denne funksjonen er ren og idempotent: samme spørsmål gir alltid samme
+  // rekkefølge, uansett hvor mange ganger den kalles.
+  const displayOrderFor = useCallback((
+    question: Question | undefined,
+    aId: string | null,
+  ): string[] => {
+    const baseOpts = ALL_OPTION_LETTERS.slice(0, quiz?.num_options ?? 4)
+    if (!question?.shuffle_options) return baseOpts
+    // Normalt kommer rekkefølgen ferdig utledet fra serveren. Skulle den mangle,
+    // utleder vi den lokalt av SAMME seed og SAMME algoritme — ikke usortert.
+    // Usortert ville vært direkte skadelig: alle spørsmål med shuffle_options
+    // har fasit på A i dag, så en usortert liste ville plassert riktig svar
+    // øverst hver gang.
+    const order = Array.isArray(question.option_order)
+      ? question.option_order
+      : seededShuffle(ALL_OPTION_LETTERS, optionOrderSeed(aId, question.id))
+    return order.filter(o => baseOpts.includes(o))
+  }, [quiz])
+
+  useEffect(() => { phaseRef.current = phase }, [phase])
+
   const saveProgress = useCallback((index: number, currentAnswers: AnswerRecord[], time: number) => {
     localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({ index, answers: currentAnswers, totalTime: time }))
   }, [quizId])
@@ -1149,6 +1187,15 @@ export default function QuizPage() {
     const effectiveName = loggedInDisplayName ?? nameInput.trim()
     if (!effectiveName) return
 
+    // Re-entry-guard: ignorer dobbelttrykk (og Enter-auto-repeat) mens oppstarten
+    // allerede pågår. Uten denne kjørte hele startQuiz-kroppen to ganger, og den
+    // andre kjøringen stokket om alternativene mens spørsmål 1 alt var synlig.
+    // Ref-en er synkron — en state-sjekk alene ville sluppet gjennom to trykk
+    // innenfor samme render.
+    if (startingRef.current) return
+    startingRef.current = true
+    setIsStarting(true)
+
     setStartError(null)
     const info: PlayerInfo = { name: effectiveName, ageConfirmed: true }
     setPlayerInfo(info)
@@ -1208,15 +1255,23 @@ export default function QuizPage() {
       setTotalQuestions(total)
 
       const firstQ = loadedQuestions[firstIdx]
-      const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz!.num_options)
-      setShuffledDisplayOrder(firstQ?.shuffle_options ? [...baseOpts].sort(() => Math.random() - 0.5) : baseOpts)
-      if (resumeData) {
-        setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
-        setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(firstQ))
-      } else {
-        setTimeLeft(getTimeLimit(loadedQuestions[0]))
+      setShuffledDisplayOrder(displayOrderFor(firstQ, newAttemptId || null))
+      // Kun ved FAKTISK første oppstart. En re-kjøring (nå forhindret av
+      // re-entry-guarden over, men dette er andre forsvarslinje) skal verken
+      // nullstille klokken — total_time_ms er tiebreaker på topplista, så en
+      // nullstilling gir utilsiktet fordel — eller kaste bort svar som allerede
+      // er avgitt ved å re-anvende resumeData.
+      if (phaseRef.current !== 'playing') {
+        if (resumeData) {
+          setCurrentIndex(resumeData.index); setAnswers(resumeData.answers)
+          setTotalTimeMs(resumeData.totalTime); setTimeLeft(getTimeLimit(firstQ))
+        } else {
+          setTimeLeft(getTimeLimit(loadedQuestions[0]))
+        }
+        setQuestionStartTime(Date.now())
+        phaseRef.current = 'playing'
+        setPhase('playing')
       }
-      setQuestionStartTime(Date.now()); setPhase('playing')
 
       // Parallel: fetch rival and percentile data (non-blocking)
       const accessToken = session?.access_token
@@ -1244,6 +1299,13 @@ export default function QuizPage() {
     } catch {
       setPlayerInfo({ name: '', ageConfirmed: false })
       setStartError('Noe gikk galt. Prøv å laste siden på nytt.')
+    } finally {
+      // Frigi guarden på ALLE utgangsveier — også de tidlige return-ene over
+      // (suspendert konto, feilet start-attempt, feilet spørsmålshenting), slik
+      // at brukeren kan prøve igjen. På suksess er start-skjermen uansett borte
+      // (phase = 'playing'), så frigivelsen er da uten synlig effekt.
+      startingRef.current = false
+      setIsStarting(false)
     }
   }
 
@@ -1545,8 +1607,7 @@ export default function QuizPage() {
     if (pendingNextIndex === null) return
     const ni = pendingNextIndex
     const nextQ = questions[ni]
-    const baseOpts = ['A', 'B', 'C', 'D'].slice(0, quiz?.num_options ?? 4)
-    setShuffledDisplayOrder(nextQ?.shuffle_options ? [...baseOpts].sort(() => Math.random() - 0.5) : baseOpts)
+    setShuffledDisplayOrder(displayOrderFor(nextQ, attemptId))
     setCurrentIndex(ni)
     setAnswered(false)
     setSelectedAnswer(null)
@@ -1556,7 +1617,7 @@ export default function QuizPage() {
     setPendingNextIndex(null)
     setInterPhase('out')
     setTimeout(() => setInterPhase('hidden'), 250)
-  }, [pendingNextIndex, questions, getTimeLimit, quiz])
+  }, [pendingNextIndex, questions, getTimeLimit, quiz, displayOrderFor, attemptId])
 
   const finishQuiz = async () => {
     const deviceId = getDeviceId()
@@ -1957,7 +2018,12 @@ export default function QuizPage() {
               placeholder="Skriv inn navnet ditt..."
               className="qk-input"
               maxLength={30}
-              onKeyDown={e => e.key === 'Enter' && startQuiz()}
+              onKeyDown={e => {
+                // e.repeat: tastaturets auto-repeat sender én keydown i slengen
+                // så lenge Enter holdes nede. startingRef fanger dem uansett,
+                // men vi slipper å kalle startQuiz i det hele tatt.
+                if (e.key === 'Enter' && !e.repeat && !isStarting) startQuiz()
+              }}
               autoFocus
             />
             <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: -12, marginBottom: 20 }}>
@@ -2040,10 +2106,19 @@ export default function QuizPage() {
           const blocked = (orgQuizOpensAt && new Date(orgQuizOpensAt) > now)
           const baseDisabled = !loggedInDisplayName && !nameInput.trim()
           return (
-            <button onClick={startQuiz} disabled={!!blocked || baseDisabled} className="qk-btn-primary"
+            <button onClick={startQuiz} disabled={!!blocked || baseDisabled || isStarting} className="qk-btn-primary"
               style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>
-              {resumeData ? 'Fortsett quiz' : 'Start quiz'}
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+              {isStarting ? (
+                <>
+                  Laster…
+                  <span className="qk-spinner" aria-hidden="true" />
+                </>
+              ) : (
+                <>
+                  {resumeData ? 'Fortsett quiz' : 'Start quiz'}
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2L11 7 3 12V2Z"/></svg>
+                </>
+              )}
             </button>
           )
         })()}

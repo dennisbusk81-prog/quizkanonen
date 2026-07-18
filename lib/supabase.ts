@@ -69,6 +69,10 @@ export type Question = {
   time_limit_seconds: number | null
   shuffle_options: boolean
   category: string | null
+  // Visningsrekkefølge for svaralternativene, utledet deterministisk server-side
+  // fra (attemptId, question.id) i /api/quiz/[id]/questions. null når spørsmålet
+  // ikke skal stokkes. Settes kun av den ruten — ikke en kolonne i databasen.
+  option_order?: string[] | null
 }
 
 export type Attempt = {
