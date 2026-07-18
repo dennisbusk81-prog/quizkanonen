@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail } from '@/lib/email-templates'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail } from '@/lib/email-templates'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 
 // Kaster ved feil på en kritisk DB-skriving slik at den ytre try/catch-en sletter
@@ -413,17 +413,71 @@ export async function POST(request: NextRequest) {
           `har aktiv Premium via org`
         )
       } else {
-        getUserEmail(stripe, customerId)
-          .then(email => {
-            if (email) {
-              return sendEmail({
-                to: email,
-                subject: 'Betalingen feilet — Quizkanonen Premium',
-                html: paymentFailedEmail(),
-              })
-            }
-          })
-          .catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
+        // Skill kortløse Founders-konverteringer fra ekte betalingsfeil.
+        // Founders-trials opprettes uten betalingsmetode (save_default_payment_method:'off').
+        // Når trialen konverterer til 'active', forsøker Stripe å fakturere uten kort →
+        // invoice.payment_failed. Det er ikke en «ekte» betalingsfeil for en bruker som
+        // aldri ble bedt om kort — da sender vi en vennlig «prøveperioden er over»-e-post.
+
+        // subscription-id ligger på ulike felt før/etter dahlia-API-endringen — prøv begge.
+        const inv = invoice as unknown as {
+          subscription?: string | null
+          parent?: { subscription_details?: { subscription?: string | null } | null } | null
+        }
+        const subscriptionId = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null
+
+        // Best-effort: hent subscription-objektet for kontekst/logging (status).
+        let subStatus = 'ukjent'
+        if (subscriptionId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(subscriptionId)
+            subStatus = sub.status
+          } catch (err) {
+            console.error('[webhook] kunne ikke hente subscription', subscriptionId, err)
+          }
+        }
+
+        // Avgjørende signal: har kunden NOEN betalingsmetode registrert? Vi lister
+        // faktisk vedheftede betalingsmetoder i stedet for å stole på default_payment_method
+        // alene — et avvist kort forblir vedheftet (ekte feil ⇒ ≥1 metode), mens en
+        // Founders-bruker aldri har lagt inn kort (0 metoder). default_payment_method kan
+        // dessuten være null selv når et kort finnes, så den er mindre pålitelig her.
+        let hasPaymentMethod = true // fail-safe: ved usikkerhet, behandle som ekte feil
+        try {
+          const pms = await stripe.customers.listPaymentMethods(customerId, { limit: 1 })
+          hasPaymentMethod = pms.data.length > 0
+        } catch (err) {
+          console.error('[webhook] kunne ikke hente betalingsmetoder for', customerId, '— behandler som ekte feil:', err)
+        }
+
+        const email = await getUserEmail(stripe, customerId)
+
+        if (!hasPaymentMethod) {
+          console.log(
+            `[webhook] invoice.payment_failed → KORTLØS Founders-konvertering (ingen ` +
+            `betalingsmetode) customer=${customerId} sub=${subscriptionId ?? 'ukjent'} ` +
+            `status=${subStatus} → trialEndedNoCardEmail`
+          )
+          if (email) {
+            sendEmail({
+              to: email,
+              subject: 'Prøveperioden din er over — vil du fortsette? — Quizkanonen',
+              html: trialEndedNoCardEmail(),
+            }).catch(err => console.error('[webhook] trialEndedNoCardEmail failed:', err))
+          }
+        } else {
+          console.log(
+            `[webhook] invoice.payment_failed → EKTE betalingsfeil (kort avvist) ` +
+            `customer=${customerId} sub=${subscriptionId ?? 'ukjent'} status=${subStatus} → paymentFailedEmail`
+          )
+          if (email) {
+            sendEmail({
+              to: email,
+              subject: 'Betalingen feilet — Quizkanonen Premium',
+              html: paymentFailedEmail(),
+            }).catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
+          }
+        }
       }
     }
   }
