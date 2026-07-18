@@ -149,6 +149,22 @@ const STYLES = `
   .login-input::placeholder { color: var(--muted); }
   .login-input:focus { border-color: var(--gold); }
 
+  /* Nøytraliser nettlesers autofill-styling (Chrome/Edge/Safari injiserer en lys
+     bakgrunn på felt de kjenner igjen, typisk passord — det er derfor ett felt kan
+     se lyst ut mens det andre er mørkt selv om begge deler samme CSS-klasse). */
+  .login-input:-webkit-autofill,
+  .login-input:-webkit-autofill:hover,
+  .login-input:-webkit-autofill:focus,
+  .login-input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg) inset !important;
+    -webkit-text-fill-color: var(--white) !important;
+    caret-color: var(--white);
+    transition: background-color 9999s ease-in-out 0s;
+  }
+  .login-input:autofill {
+    box-shadow: 0 0 0 1000px var(--bg) inset;
+  }
+
   .login-hint {
     font-size: 12px;
     color: var(--muted);
@@ -247,6 +263,9 @@ const STYLES = `
 `
 
 type Mode = 'login' | 'signup'
+// Passord er standardmetoden (primær, gull). Magic link er et eget, tydelig
+// atskilt alternativ — passordfeltet vises/skjules avhengig av hvilken som er valgt.
+type Method = 'password' | 'magiclink'
 
 // Kun tillat interne redirect-mål (leading slash) for å unngå open redirect.
 function safeNext(): string {
@@ -256,6 +275,7 @@ function safeNext(): string {
 
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login')
+  const [method, setMethod] = useState<Method>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -264,6 +284,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   const switchMode = (m: Mode) => { setMode(m); setError(''); setPassword('') }
+  const switchMethod = (m: Method) => { setMethod(m); setError(''); setPassword('') }
 
   // ── Magic link ──────────────────────────────────────────────────────────
   const handleMagicLink = async () => {
@@ -443,22 +464,54 @@ export default function LoginPage() {
               <div className="login-separator">eller</div>
 
               {emailInput}
-              {passwordInput}
-              {mode === 'signup' && (
-                <p className="login-hint">Velg et passord på minst 8 tegn.</p>
-              )}
 
-              {error && <p className="login-error">{error}</p>}
-
-              {mode === 'login' ? (
+              {method === 'password' ? (
                 <>
-                  <button
-                    onClick={handlePasswordLogin}
-                    disabled={loading || !email.trim() || !password}
-                    className="login-btn-primary"
-                  >
-                    {loading ? 'Logger inn...' : 'Logg inn med passord'}
-                  </button>
+                  {passwordInput}
+                  {mode === 'signup' && (
+                    <p className="login-hint">Velg et passord på minst 8 tegn.</p>
+                  )}
+
+                  {error && <p className="login-error">{error}</p>}
+
+                  {mode === 'login' ? (
+                    <>
+                      <button
+                        onClick={handlePasswordLogin}
+                        disabled={loading || !email.trim() || !password}
+                        className="login-btn-primary"
+                      >
+                        {loading ? 'Logger inn...' : 'Logg inn med passord'}
+                      </button>
+                      <p className="login-switch">
+                        <button className="login-link" onClick={() => switchMethod('magiclink')}>
+                          Bruk innloggingslenke i stedet
+                        </button>
+                      </p>
+                      <p className="login-switch">
+                        Ny bruker?{' '}
+                        <button className="login-link" onClick={() => switchMode('signup')}>Opprett konto</button>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handlePasswordSignup}
+                        disabled={loading || !email.trim() || password.length < 8}
+                        className="login-btn-primary"
+                      >
+                        {loading ? 'Oppretter...' : 'Opprett konto'}
+                      </button>
+                      <p className="login-switch">
+                        Har du allerede konto?{' '}
+                        <button className="login-link" onClick={() => switchMode('login')}>Logg inn</button>
+                      </p>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {error && <p className="login-error">{error}</p>}
                   <button
                     onClick={handleMagicLink}
                     disabled={loading || !email.trim()}
@@ -467,22 +520,9 @@ export default function LoginPage() {
                     {loading ? 'Sender...' : 'Send innloggingslenke'}
                   </button>
                   <p className="login-switch">
-                    Ny bruker?{' '}
-                    <button className="login-link" onClick={() => switchMode('signup')}>Opprett konto</button>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handlePasswordSignup}
-                    disabled={loading || !email.trim() || password.length < 8}
-                    className="login-btn-primary"
-                  >
-                    {loading ? 'Oppretter...' : 'Opprett konto'}
-                  </button>
-                  <p className="login-switch">
-                    Har du allerede konto?{' '}
-                    <button className="login-link" onClick={() => switchMode('login')}>Logg inn</button>
+                    <button className="login-link" onClick={() => switchMethod('password')}>
+                      Bruk passord i stedet
+                    </button>
                   </p>
                 </>
               )}
