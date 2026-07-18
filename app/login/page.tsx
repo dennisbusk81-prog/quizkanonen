@@ -262,10 +262,11 @@ const STYLES = `
   .login-back:hover { color: #ffffff; }
 `
 
-type Mode = 'login' | 'signup'
-// Passord er standardmetoden (primær, gull). Magic link er et eget, tydelig
-// atskilt alternativ — passordfeltet vises/skjules avhengig av hvilken som er valgt.
-type Method = 'password' | 'magiclink'
+// Identifier-first: brukeren oppgir e-post først (STEG A), deretter viser vi kun de
+// innloggingsmetodene som faktisk gjelder den e-posten (STEG B), basert på svaret
+// fra /api/auth/check-email.
+type Step = 'email' | 'method'
+type CheckResult = { exists: boolean; hasPassword: boolean; hasGoogle: boolean }
 
 // Kun tillat interne redirect-mål (leading slash) for å unngå open redirect.
 function safeNext(): string {
@@ -274,17 +275,51 @@ function safeNext(): string {
 }
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>('login')
-  const [method, setMethod] = useState<Method>('password')
+  const [step, setStep] = useState<Step>('email')
+  const [check, setCheck] = useState<CheckResult | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)          // magic link sendt
   const [signupSent, setSignupSent] = useState(false) // bekreftelsesmail sendt
+  const [resetSent, setResetSent] = useState(false)   // «sett passord»-lenke sendt
   const [loading, setLoading] = useState(false)
 
-  const switchMode = (m: Mode) => { setMode(m); setError(''); setPassword('') }
-  const switchMethod = (m: Method) => { setMethod(m); setError(''); setPassword('') }
+  const validEmail = /\S+@\S+\.\S+/.test(email.trim())
+
+  const backToEmail = () => {
+    setStep('email'); setCheck(null); setPassword(''); setError(''); setResetSent(false)
+  }
+
+  // ── STEG A: slå opp e-posten og bestem hvilke metoder som skal vises ──────
+  const handleContinue = async () => {
+    if (!validEmail) return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), phase: 'lookup' }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) {
+        setError('Kunne ikke sjekke e-posten. Prøv igjen.')
+        setLoading(false)
+        return
+      }
+      setCheck({
+        exists: data.exists === true,
+        hasPassword: data.hasPassword === true,
+        hasGoogle: data.hasGoogle === true,
+      })
+      setStep('method')
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // ── Magic link ──────────────────────────────────────────────────────────
   const handleMagicLink = async () => {
@@ -303,6 +338,37 @@ export default function LoginPage() {
         setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
       } else {
         setSent(true)
+      }
+    } catch {
+      setError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Sett passord for FØRSTE gang (konto finnes, men uten passord) ─────────
+  //
+  // Bruker Supabase sin innebygde recovery-flyt. Den heter «reset», men gjør i
+  // praksis det samme her: sender en e-postbekreftet lenke som gir en ekte sesjon,
+  // og på /sett-passord kalles updateUser({ password }). Poenget er at brukeren
+  // IKKE må komme seg inn med Google eller magic link først — e-posten alene holder.
+  // Kritisk for brukere som sitter fast i en in-app-browser der Google ikke virker.
+  //
+  // redirectTo peker på /auth/callback (som bytter koden mot en sesjon-cookie,
+  // samme sti som magic link) med next=/sett-passord.
+  const handleSetPassword = async () => {
+    if (!email.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/sett-passord')}`,
+      })
+      if (error) {
+        console.error('[login] resetPasswordForEmail feilet:', error.message)
+        setError('Kunne ikke sende lenken. Sjekk at e-postadressen er riktig og prøv igjen.')
+      } else {
+        setResetSent(true)
       }
     } catch {
       setError('Noe gikk galt. Prøv igjen.')
@@ -377,6 +443,24 @@ export default function LoginPage() {
       }).catch(() => { /* kun logging — ikke kritisk */ })
       console.log('[login] passord-signup ok, ny auth.users.id:', data.user?.id)
 
+      // DEL 1: marker at brukeren nå har satt et passord. Server-side upsert fordi
+      // det ikke finnes sesjon/profilrad ennå. Awaited (men ikke fatal) slik at
+      // has_password er lagret før brukeren senere kommer tilbake og logger inn.
+      if (data.user?.id) {
+        try {
+          const markRes = await fetch('/api/auth/mark-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: data.user.id }),
+          })
+          if (!markRes.ok) {
+            console.error('[login] mark-password feilet:', await markRes.text().catch(() => ''))
+          }
+        } catch (e) {
+          console.error('[login] mark-password-kall feilet:', e)
+        }
+      }
+
       setSignupSent(true)
     } catch {
       setError('Noe gikk galt. Prøv igjen.')
@@ -385,21 +469,24 @@ export default function LoginPage() {
     }
   }
 
-  const emailInput = (
+  // I STEG B er e-posten låst (readOnly) — endres via "← Bruk en annen e-post".
+  const renderEmailInput = (readOnly: boolean) => (
     <>
       <label className="login-label">E-postadresse</label>
       <input
         type="email"
         value={email}
         onChange={e => setEmail(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && !loading && !readOnly && validEmail) handleContinue() }}
         placeholder="din@epost.no"
         className="login-input"
         autoComplete="email"
+        readOnly={readOnly}
       />
     </>
   )
 
-  const passwordInput = (
+  const renderPasswordInput = (isSignup: boolean) => (
     <>
       <label className="login-label">Passord</label>
       <input
@@ -408,15 +495,36 @@ export default function LoginPage() {
         onChange={e => setPassword(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter' && !loading) {
-            mode === 'login' ? handlePasswordLogin() : handlePasswordSignup()
+            isSignup ? handlePasswordSignup() : handlePasswordLogin()
           }
         }}
-        placeholder={mode === 'signup' ? 'Minst 8 tegn' : 'Passord'}
+        placeholder={isSignup ? 'Minst 8 tegn' : 'Passord'}
         className="login-input"
-        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+        autoComplete={isSignup ? 'new-password' : 'current-password'}
       />
     </>
   )
+
+  const googleSvg = (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
+      <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
+      <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
+      <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
+    </svg>
+  )
+
+  const googleButton = (
+    <button
+      className="login-google-btn"
+      onClick={() => signInWithGoogle(safeNext() !== '/' ? safeNext() : undefined)}
+    >
+      {googleSvg}
+      Fortsett med Google
+    </button>
+  )
+
+  const isSignup = check?.exists === false
 
   return (
     <>
@@ -425,12 +533,14 @@ export default function LoginPage() {
         <div className="login-panel">
           <p className="login-eyebrow">Quizkanonen</p>
           <h1 className="login-title">
-            {mode === 'login' ? <>Logg <em>inn</em></> : <>Opprett <em>konto</em></>}
+            {step === 'method' && isSignup ? <>Opprett <em>konto</em></> : <>Logg <em>inn</em></>}
           </h1>
           <p className="login-sub">
-            {mode === 'login'
-              ? 'Google, passord eller innloggingslenke på e-post'
-              : 'Opprett en konto med e-post og passord'}
+            {step === 'email'
+              ? 'Skriv inn e-posten din for å fortsette'
+              : isSignup
+                ? 'Opprett en konto for å komme i gang'
+                : 'Velg hvordan du vil logge inn'}
           </p>
           <div className="login-rule" />
 
@@ -441,91 +551,104 @@ export default function LoginPage() {
               Sjekk innboksen din!<br />
               Vi har sendt en innloggingslenke til <strong>{email}</strong>.
             </p>
+          ) : resetSent ? (
+            <p className="login-success">
+              Sjekk innboksen din!<br />
+              Vi har sendt en lenke til <strong>{email}</strong>. Klikk den for å velge passord.
+            </p>
           ) : signupSent ? (
             <p className="login-success">
               Nesten i mål!<br />
               Vi har sendt en bekreftelseslenke til <strong>{email}</strong>. Klikk den for å fullføre registreringen.
             </p>
-          ) : (
+          ) : step === 'email' ? (
+            /* ── STEG A: kun e-post + Fortsett ── */
             <>
+              {renderEmailInput(false)}
+              {error && <p className="login-error">{error}</p>}
               <button
-                className="login-google-btn"
-                onClick={() => signInWithGoogle(safeNext() !== '/' ? safeNext() : undefined)}
+                onClick={handleContinue}
+                disabled={loading || !validEmail}
+                className="login-btn-primary"
               >
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
-                  <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
-                  <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
-                  <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
-                </svg>
-                Fortsett med Google
+                {loading ? 'Sjekker...' : 'Fortsett'}
               </button>
+            </>
+          ) : (
+            /* ── STEG B: metoder tilpasset e-posten ── */
+            <>
+              {renderEmailInput(true)}
 
-              <div className="login-separator">eller</div>
-
-              {emailInput}
-
-              {method === 'password' ? (
+              {isSignup ? (
+                /* Ny bruker: passord-signup (primær) + Google (alternativ) */
                 <>
-                  {passwordInput}
-                  {mode === 'signup' && (
-                    <p className="login-hint">Velg et passord på minst 8 tegn.</p>
-                  )}
-
+                  {renderPasswordInput(true)}
+                  <p className="login-hint">Velg et passord på minst 8 tegn.</p>
                   {error && <p className="login-error">{error}</p>}
-
-                  {mode === 'login' ? (
-                    <>
-                      <button
-                        onClick={handlePasswordLogin}
-                        disabled={loading || !email.trim() || !password}
-                        className="login-btn-primary"
-                      >
-                        {loading ? 'Logger inn...' : 'Logg inn med passord'}
-                      </button>
-                      <p className="login-switch">
-                        <button className="login-link" onClick={() => switchMethod('magiclink')}>
-                          Bruk innloggingslenke i stedet
-                        </button>
-                      </p>
-                      <p className="login-switch">
-                        Ny bruker?{' '}
-                        <button className="login-link" onClick={() => switchMode('signup')}>Opprett konto</button>
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handlePasswordSignup}
-                        disabled={loading || !email.trim() || password.length < 8}
-                        className="login-btn-primary"
-                      >
-                        {loading ? 'Oppretter...' : 'Opprett konto'}
-                      </button>
-                      <p className="login-switch">
-                        Har du allerede konto?{' '}
-                        <button className="login-link" onClick={() => switchMode('login')}>Logg inn</button>
-                      </p>
-                    </>
-                  )}
+                  <button
+                    onClick={handlePasswordSignup}
+                    disabled={loading || password.length < 8}
+                    className="login-btn-primary"
+                  >
+                    {loading ? 'Oppretter...' : 'Opprett konto'}
+                  </button>
+                  <div className="login-separator">eller</div>
+                  {googleButton}
+                </>
+              ) : check?.hasPassword ? (
+                /* Eksisterende passord-bruker: passord-innlogging (primær) */
+                <>
+                  {renderPasswordInput(false)}
+                  {error && <p className="login-error">{error}</p>}
+                  <button
+                    onClick={handlePasswordLogin}
+                    disabled={loading || !password}
+                    className="login-btn-primary"
+                  >
+                    {loading ? 'Logger inn...' : 'Logg inn med passord'}
+                  </button>
+                  <p className="login-switch">
+                    <button className="login-link" onClick={handleMagicLink} disabled={loading}>
+                      Bruk innloggingslenke i stedet
+                    </button>
+                  </p>
                 </>
               ) : (
+                /* Eksisterende bruker uten passord: sett passord (primær),
+                   Google og magic link beholdes som alternativer under. */
                 <>
+                  <p className="login-hint">
+                    Du har ikke satt passord ennå. Vi sender deg en lenke på e-post så du kan
+                    velge et passord — da slipper du å være avhengig av Google.
+                  </p>
                   {error && <p className="login-error">{error}</p>}
+                  <button
+                    onClick={handleSetPassword}
+                    disabled={loading || !email.trim()}
+                    className="login-btn-primary"
+                  >
+                    {loading ? 'Sender...' : 'Sett passord for denne kontoen'}
+                  </button>
+                  <div className="login-separator">eller logg inn slik</div>
+                  {check?.hasGoogle && (
+                    <>
+                      {googleButton}
+                      <div style={{ height: 12 }} />
+                    </>
+                  )}
                   <button
                     onClick={handleMagicLink}
                     disabled={loading || !email.trim()}
                     className="login-btn-outline"
                   >
-                    {loading ? 'Sender...' : 'Send innloggingslenke'}
+                    {loading ? 'Sender...' : 'Få tilsendt innloggingslenke på e-post'}
                   </button>
-                  <p className="login-switch">
-                    <button className="login-link" onClick={() => switchMethod('password')}>
-                      Bruk passord i stedet
-                    </button>
-                  </p>
                 </>
               )}
+
+              <p className="login-switch">
+                <button className="login-link" onClick={backToEmail}>← Bruk en annen e-post</button>
+              </p>
             </>
           )}
 

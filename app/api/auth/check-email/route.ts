@@ -11,9 +11,13 @@ import { rateLimit } from '@/lib/rate-limit'
 //
 // Krever service-role (admin.listUsers), derav egen server-rute.
 //
+// Returnerer { exists, hasPassword, hasGoogle } til klienten (identifier-first-flyten
+// på /login bruker dette til å vise kun relevante metoder). Ingen id-er lekkes.
+//
 // phase='pre-signup'  → forventet 0 treff for en ny bruker (ellers blokkeres signup).
 // phase='post-signup' → forventet NØYAKTIG 1 treff (verifiserer at ingen duplikat-id
 //                       ble opprettet). >1 logges som ADVARSEL.
+// phase='lookup'      → identifier-first-oppslag ved innlogging.
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   // Rate-limit for å bremse e-post-enumerering (ruten avslører om en e-post finnes).
@@ -29,14 +33,22 @@ export async function POST(request: NextRequest) {
   }
 
   const email = body.email?.trim().toLowerCase()
-  const phase = body.phase === 'post-signup' ? 'post-signup' : 'pre-signup'
+  const allowedPhases = ['pre-signup', 'post-signup', 'lookup']
+  const phase = allowedPhases.includes(body.phase ?? '') ? (body.phase as string) : 'pre-signup'
   if (!email) {
     return NextResponse.json({ error: 'Mangler e-post' }, { status: 400 })
   }
 
   // Paginer gjennom auth.users og finn ALLE treff på e-posten (case-insensitivt),
   // ikke bare det første — slik at et eventuelt duplikat kan oppdages i loggen.
+  // Behold også første treff-objekt for å lese hvilke providere brukeren har.
+  //
+  // NB: identities-arrayet er TOMT i admin.listUsers-resultatet i denne Supabase-
+  // versjonen (verifisert mot en ekte Google-bruker). Den pålitelige kilden til
+  // «har Google» er app_metadata.providers (fallback provider), ikke identities.
+  type MatchedUser = { id: string; app_metadata?: { provider?: string; providers?: string[] } }
   const matches: string[] = []
+  let matchedUser: MatchedUser | null = null
   let page = 1
   try {
     while (true) {
@@ -47,7 +59,10 @@ export async function POST(request: NextRequest) {
       }
       const users = data?.users ?? []
       for (const u of users) {
-        if (u.email && u.email.toLowerCase() === email) matches.push(u.id)
+        if (u.email && u.email.toLowerCase() === email) {
+          matches.push(u.id)
+          if (!matchedUser) matchedUser = { id: u.id, app_metadata: u.app_metadata }
+        }
       }
       if (users.length < 1000) break // siste side
       page++
@@ -57,9 +72,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Kunne ikke verifisere e-post' }, { status: 500 })
   }
 
+  // Utled hasGoogle (fra app_metadata.providers) og hasPassword (fra
+  // profiles.has_password) for den matchende brukeren. Begge false hvis e-posten
+  // ikke finnes.
+  let hasGoogle = false
+  let hasPassword = false
+  if (matchedUser) {
+    const meta = matchedUser.app_metadata ?? {}
+    const providers = meta.providers ?? (meta.provider ? [meta.provider] : [])
+    hasGoogle = providers.includes('google')
+    const { data: prof } = await supabaseAdmin
+      .from('profiles')
+      .select('has_password')
+      .eq('id', matchedUser.id)
+      .maybeSingle()
+    hasPassword = prof?.has_password === true
+  }
+
   // Logglinje for verifisering (Dennis kan lese denne i Vercel-loggen).
   console.log(
-    `[auth/check-email] phase=${phase} email=${email} matchCount=${matches.length} ids=[${matches.join(', ')}]`
+    `[auth/check-email] phase=${phase} email=${email} matchCount=${matches.length} ` +
+    `hasPassword=${hasPassword} hasGoogle=${hasGoogle} ids=[${matches.join(', ')}]`
   )
   if (phase === 'post-signup' && matches.length > 1) {
     console.error(
@@ -68,6 +101,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Returner kun boolean til klienten — ingen id-er lekkes ut.
-  return NextResponse.json({ exists: matches.length > 0 })
+  // Kun disse tre feltene til klienten — ingen id-er eller annen data lekkes ut.
+  return NextResponse.json({ exists: matches.length > 0, hasPassword, hasGoogle })
 }
