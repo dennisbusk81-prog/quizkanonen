@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
+import { revalidateTag } from 'next/cache'
 import { processQuiz } from '@/lib/award-season-points'
 
 export const maxDuration = 60
@@ -11,6 +12,23 @@ export async function GET(request: NextRequest) {
   if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Eksplisitt cache-invalidering av forsidens delte data hvert minutt (denne
+  // cronen kjører allerede hvert minutt uansett). Forsidens "quiz er åpen"-
+  // status styres av opens_at/closes_at-tidsstempler alene (ingen is_active-
+  // avhengighet), så unstable_cache sitt 60s revalidate-vindu ALENE holdt ikke
+  // dette ferskt i praksis — en kvalifiserende quiz forble usynlig på forsiden
+  // i over 12 minutter i en verifisering, til tross for at spørringen fant den
+  // korrekt ved direkte DB-oppslag. Mest sannsynlige årsak: unstable_cache sin
+  // stale-while-revalidate-bakgrunnsjobb kan bli kuttet før den fullfører på
+  // Vercel sin serverless-plattform, siden den ikke kjøres i en garantert
+  // waitUntil-kontekst. Fremfor å stole på at den passive tidsbaserte
+  // revalideringen faktisk fullfører, tvinger vi en fersk cache hvert minutt
+  // her — uavhengig av om noen quiz faktisk endret status denne kjøringen.
+  // { expire: 0 } = purg umiddelbart (denne Next.js-versjonen krever en
+  // cache-life-profil som andre argument til revalidateTag).
+  revalidateTag('home-shared-data', { expire: 0 })
+  revalidateTag('home-page-insights', { expire: 0 })
 
   const now = new Date().toISOString()
 

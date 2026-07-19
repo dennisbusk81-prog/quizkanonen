@@ -233,7 +233,11 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, monthlyStandings, participantCount, lastQuizTop3 }
 }
 
-const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v2'], { revalidate: 60 })
+// tags gjør cachen eksplisitt invaliderbar via revalidateTag (kalt fra
+// cron/publish-quiz hvert minutt) i stedet for å stole alene på at
+// revalidate-vinduet faktisk trigger en fullført bakgrunnsrevalidering på
+// Vercel sin serverless-plattform — se cron/publish-quiz for begrunnelse.
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v2'], { revalidate: 60, tags: ['home-shared-data'] })
 
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
@@ -299,7 +303,7 @@ async function computePageInsights(): Promise<PageInsights | null> {
   }
 }
 
-const getPageInsights = unstable_cache(computePageInsights, ['home-page-insights-v1'], { revalidate: 60 })
+const getPageInsights = unstable_cache(computePageInsights, ['home-page-insights-v1'], { revalidate: 60, tags: ['home-page-insights'] })
 
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
