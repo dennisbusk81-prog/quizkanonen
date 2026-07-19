@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { setAdminSession, setAdminPassword } from '@/lib/admin-auth'
+import { setAdminSession, setAdminToken } from '@/lib/admin-auth'
 import { verifyAdminPassword } from '@/lib/admin-actions'
 
 const STYLES = `
@@ -152,13 +152,15 @@ export default function AdminLogin() {
     setLoading(true)
     setError('')
     try {
-      const ok = await verifyAdminPassword(password)
-      if (ok) {
+      const result = await verifyAdminPassword(password)
+      if (result.ok) {
         setAdminSession()
-        setAdminPassword(password)
+        // Kun det signerte tokenet lagres — passordet forlater aldri dette skjemaet.
+        setAdminToken(result.token)
         router.push('/admin')
       } else {
-        setError('Feil passord. Prøv igjen.')
+        // Serveren skiller mellom feil passord og utestengelse etter for mange forsøk.
+        setError(result.error)
       }
     } catch {
       setError('Noe gikk galt. Prøv igjen.')
