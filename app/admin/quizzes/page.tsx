@@ -190,7 +190,12 @@ const STYLES = `
     font-family: 'Instrument Sans', sans-serif;
   }
 
-  .aqz-action:hover { opacity: 0.8; }
+  /* Kun ekte hover-enheter — samme mønster som .qk-option i quiz/[id]/page.tsx.
+     Uten denne vakten kan :hover henge fast etter en touch-scroll og gi et
+     synlig blink/flash på knappen (funnet ved "Del resultater" 20. juli). */
+  @media (hover: hover) and (pointer: fine) {
+    .aqz-action:hover { opacity: 0.8; }
+  }
 
   .aqz-action.blue,
   .aqz-action.gray,
