@@ -1076,10 +1076,6 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
       </div>
 
-      <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', marginTop: 16, lineHeight: 1.5 }}>
-        Lagets sesong-poeng registreres på innlogget lagleder.
-      </p>
-
       {/* Duell-bekreftelsesmodal */}
       {pendingChallenge && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
