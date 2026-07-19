@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 import type React from 'react'
 
 const NAV_MOBILE_CSS = `
@@ -195,7 +196,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     )
   }
 
-  const initial = displayName?.[0]?.toUpperCase() ?? '?'
+  const initial = getAvatarInitial(displayName)
 
   const globalHidden = myOrgs.length > 0 && myOrgs.some(o => !o.allowGlobalLeague)
 

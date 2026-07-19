@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -178,8 +179,7 @@ function fmtDate(iso: string | null): string {
 }
 
 function initial(name: string | null, email: string | null): string {
-  const src = name ?? email ?? '?'
-  return src[0]?.toUpperCase() ?? '?'
+  return getAvatarInitial(name ?? email)
 }
 
 type ConfirmAction = { type: 'suspend' | 'delete'; userId: string; name: string }

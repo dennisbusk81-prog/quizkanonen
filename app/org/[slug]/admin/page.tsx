@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import { isOrgLocked } from '@/lib/org-access'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: Math.round(size * 0.38), fontWeight: 700, color: '#c9a84c', flexShrink: 0,
     }}>
-      {(name[0] ?? '?').toUpperCase()}
+      {getAvatarInitial(name)}
     </div>
   )
 }

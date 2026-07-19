@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import SkeletonCard from '@/components/SkeletonCard'
 import PlayerName from '@/components/PlayerName'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -640,7 +641,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   function renderRow(entry: Entry) {
     const isFirst = entry.rank === 1
     const badge   = badges.get(entry.userId)
-    const initial = entry.displayName[0]?.toUpperCase() ?? '?'
+    const initial = getAvatarInitial(entry.displayName)
     const showError = challengeError?.rivalId === entry.userId
     // Fremhev alltid egen rad med gull-border (indikerer "dette er deg" uten ekstra element)
     const isSelf  = entry.userId === currentUserId
@@ -712,7 +713,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     if (ue && ue.rank <= 10) return null
 
     if (ue && ue.rank > 10) {
-      const initial = ue.displayName[0]?.toUpperCase() ?? '?'
+      const initial = getAvatarInitial(ue.displayName)
       if (!data.userIsPremium && scope !== 'organization') {
         return (
           <>
@@ -775,7 +776,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   function renderHistoryRow(entry: HistoryEntry, isLast: boolean) {
     const label   = isLastQuiz ? entry.label : formatHistoryLabel(entry.key, period)
-    const initial = entry.winner?.displayName?.[0]?.toUpperCase() ?? '?'
+    const initial = getAvatarInitial(entry.winner?.displayName)
     const isExpanded = expandedKey === entry.key
     const expanded   = expandedData.get(entry.key)
 

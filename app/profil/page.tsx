@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import type { PlayerStats } from '@/lib/history'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -662,7 +663,7 @@ export default function ProfilPage() {
     )
   }
 
-  const initial = displayName?.[0]?.toUpperCase() || '–'
+  const initial = getAvatarInitial(displayName, '–')
   const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
   const nameValid = NAME_RE.test(editName.trim())
   const nameChanged = editName.trim() !== displayName

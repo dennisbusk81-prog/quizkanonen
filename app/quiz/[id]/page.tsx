@@ -7,6 +7,7 @@ import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 
 type PlayerInfo = { name: string; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
@@ -2291,7 +2292,7 @@ export default function QuizPage() {
             <p className="qk-side-label">Din rival</p>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: rivalData.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
-                {rivalData.name.charAt(0).toUpperCase()}
+                {getAvatarInitial(rivalData.name)}
               </div>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', lineHeight: 1.3 }}>{rivalData.name}</span>
             </div>
@@ -2407,7 +2408,7 @@ export default function QuizPage() {
               <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#1a1c23', fontFamily: "'Libre Baskerville', serif", flexShrink: 0 }}>
-                  {rankingSnapshot.leaderName.charAt(0).toUpperCase()}
+                  {getAvatarInitial(rankingSnapshot.leaderName)}
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderName}</div>

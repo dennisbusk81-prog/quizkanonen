@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 
 interface RivalData {
   name: string
@@ -53,7 +54,7 @@ interface QuizInterludeProps {
 }
 
 function RivalAvatar({ rival }: { rival: RivalData }) {
-  const initial = (rival.name[0] ?? '?').toUpperCase()
+  const initial = getAvatarInitial(rival.name)
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,

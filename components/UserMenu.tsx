@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 import type { Session } from '@supabase/supabase-js'
 
 export default function UserMenu() {
@@ -192,7 +193,7 @@ export default function UserMenu() {
     pathname.startsWith('/admin')
   ) return null
 
-  const initial = displayName?.[0]?.toUpperCase() ?? '?'
+  const initial = getAvatarInitial(displayName)
 
   return (
     <>

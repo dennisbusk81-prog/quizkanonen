@@ -7,6 +7,7 @@ import { getSession, signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
+import { getAvatarInitial } from '@/lib/avatar-initial'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -604,7 +605,7 @@ export default function LeaderboardPage() {
       ? (memberInfoMap.get(attempt.user_id)?.display_name ?? attempt.player_name)
       : attempt.player_name
     const shownNickname = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.nickname ?? null) : null
-    const initial = (shownNickname?.trim() || shownName)[0]?.toUpperCase() ?? '?'
+    const initial = getAvatarInitial(shownNickname?.trim() || shownName)
 
     let badge: BadgeKind | null = null
     if (attempt.rank === 1) badge = 'krone'
@@ -942,7 +943,7 @@ export default function LeaderboardPage() {
                 <div style={s.avatar}>
                   {avatarUrl
                     ? <img src={avatarUrl} alt="" width={34} height={34} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : (barName?.[0]?.toUpperCase() ?? '?')
+                    : getAvatarInitial(barName)
                   }
                 </div>
                 <div style={{ flex: 1 }}>
