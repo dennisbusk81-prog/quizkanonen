@@ -817,6 +817,14 @@ export default function QuizPage() {
   // questions) før phase blir 'playing', og start-skjermen med knappen stod
   // enabled hele veien. Et dobbelttrykk kjørte dermed hele oppstarten to ganger.
   const startingRef = useRef(false)
+  // Synkron guard for svar-registrering. `answered`-state beholdes for visning og
+  // disabling av knappene, men state oppdateres asynkront: to trykk innenfor samme
+  // tick (to fingre, eller ett trykk som treffer to nabo-knapper) leser begge
+  // answered === false, og disabled={answered} trer først i kraft ved neste render.
+  // Begge handlerne kjørte da videre, begge bygget [...answers, record] fra samme
+  // utdaterte array, og siste setAnswers vant — brukerens tiltenkte svar kunne bli
+  // overskrevet uten spor. Ref-en leses og settes synkront og lukker det vinduet.
+  const answeredRef = useRef(false)
   // Speiler `phase` synkront. En closure fanger phase-verdien fra da funksjonen
   // ble kalt — ved to samtidige startQuiz-kall så BEGGE 'register', så en sjekk
   // på selve state-variabelen ville ikke fanget re-kjøringen. Ref-en leses på
@@ -1121,6 +1129,12 @@ export default function QuizPage() {
   }, [timeLeft, answered])
 
   const handleTimeout = useCallback(() => {
+    // Samme synkrone guard som handleAnswer. Timer-effekten som kaller hit er
+    // gatet på `answered`-state, altså med samme forsinkelse — svarer brukeren i
+    // samme tick som tiden løper ut, kunne begge kjørt og registrert hvert sitt
+    // svar. Nå vinner den som kommer først, og den andre avbryter.
+    if (answeredRef.current) return
+    answeredRef.current = true
     const question = questions[currentIndex]
     const timeMs = getTimeLimit(question) * 1000
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: null, isCorrect: false, timeMs }
@@ -1310,7 +1324,10 @@ export default function QuizPage() {
   }
 
   const handleAnswer = async (answer: string, buttonEl?: HTMLButtonElement) => {
-    if (answered) return
+    // Guard og claim skjer synkront, før ALT annet — ingen await, ingen state-lesing
+    // imellom. Et andre trykk i samme tick ser ref-en satt og avbryter.
+    if (answeredRef.current) return
+    answeredRef.current = true
     const question = questions[currentIndex]
     const timeMs = Date.now() - questionStartTime
     const isCorrect = question.correct_answers && question.correct_answers.length > 0
@@ -1332,7 +1349,10 @@ export default function QuizPage() {
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: answer, isCorrect, timeMs }
     const newAnswers = [...answers, record]
     const newTime = totalTimeMs + timeMs
-    setAnswers(newAnswers); setTotalTimeMs(newTime)
+    // Funksjonell oppdatering, samme mønster som handleTimeout. Fjerner den siste
+    // rekkefølge-avhengigheten mot en samtidig timeout — total_time_ms er
+    // tiebreaker på topplista og må ikke kunne bli feil.
+    setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
     setSelectedAnswer(answer); setAnswered(true)
     saveProgress(currentIndex, newAnswers, newTime)
     if (quiz?.show_live_placement) {
@@ -1609,6 +1629,9 @@ export default function QuizPage() {
     const nextQ = questions[ni]
     setShuffledDisplayOrder(displayOrderFor(nextQ, attemptId))
     setCurrentIndex(ni)
+    // Ref-en må frigis her sammen med state-en, ellers ville første svar på
+    // spørsmål 2 blitt avvist av guarden fra spørsmål 1.
+    answeredRef.current = false
     setAnswered(false)
     setSelectedAnswer(null)
     setTimeLeft(getTimeLimit(questions[ni]))
