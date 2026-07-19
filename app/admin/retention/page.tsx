@@ -207,8 +207,10 @@ export default function AdminRetention() {
 
         <p className="ret-intro">
           Unike innloggede spillere som fullførte hver quiz, og hvor mange av dem som
-          kom tilbake og fullførte neste quiz. Retention-raten viser andelen som ble værende
-          fra én uke til den neste.
+          også fullførte FORRIGE quiz (kronologisk før). Retention-raten viser andelen
+          av forrige quiz sine spillere som kom tilbake denne gangen — derfor mangler
+          tallet på aller eldste rad, siden det ikke finnes noen enda eldre quiz å
+          måle mot.
         </p>
 
         <div className="ret-card">

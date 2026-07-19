@@ -44,15 +44,23 @@ export async function GET(request: NextRequest) {
   const ordered = quizzes ?? []
   const rows: RetentionRow[] = ordered.map((quiz, i) => {
     const players = playersByQuiz.get(quiz.id) ?? new Set<string>()
-    const next = ordered[i + 1]
-    const nextPlayers = next ? (playersByQuiz.get(next.id) ?? new Set<string>()) : null
+    // Retention vises på DENNE quizens rad, men måles bakover mot FORRIGE quiz
+    // (kronologisk før). Dette gir et ekte tall på nyeste rad i stedet for at
+    // det henger på raden for quizen FØR — se retention-kartleggingen 20. juli.
+    // Selve definisjonen er uendret: retention = hvor stor andel av FORRIGE
+    // quiz sine spillere som kom tilbake denne gangen. Nevneren er derfor
+    // forrige quiz sitt spillertall (prevPlayers.size), ikke denne quizens —
+    // ellers hadde tallet målt noe annet ("andel av dagens spillere som er
+    // tilbakevendende"), ikke klassisk retention.
+    const prev = ordered[i - 1]
+    const prevPlayers = prev ? (playersByQuiz.get(prev.id) ?? new Set<string>()) : null
 
     let returned: number | null = null
     let retentionPct: number | null = null
-    if (nextPlayers) {
+    if (prevPlayers) {
       returned = 0
-      for (const uid of players) if (nextPlayers.has(uid)) returned++
-      retentionPct = players.size > 0 ? Math.round((returned / players.size) * 100) : 0
+      for (const uid of players) if (prevPlayers.has(uid)) returned++
+      retentionPct = prevPlayers.size > 0 ? Math.round((returned / prevPlayers.size) * 100) : 0
     }
 
     return {
