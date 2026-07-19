@@ -407,7 +407,27 @@ export async function POST(request: NextRequest) {
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
 
-      if (profileForFailed && await hasActiveOrgPremium(profileForFailed.id)) {
+      // ── Deduplisering av varsel-e-post ──────────────────────────────────────
+      // Stripe purrer den samme fakturaen flere ganger (smart retries, typisk 3-4
+      // forsøk over ~2 uker). HVER purring gir et nytt invoice.payment_failed-event
+      // med samme faktura-id, og uten denne sperren sendte vi én e-post per purring
+      // — Resend-loggen viste 2-4 identiske kopier per mottaker.
+      //
+      // attempt_count teller faktureringsforsøk på SAMME faktura og er 1 ved første
+      // feil. Vi varsler derfor kun på første forsøk. Det dedupliserer per
+      // faktureringssyklus uten lagring: en ny feil neste måned er en ny faktura med
+      // attempt_count = 1 og varsles på nytt, som den skal.
+      //
+      // Sperren ligger FØR Stripe-oppslagene under, så en purring koster heller ingen
+      // API-kall. Den gjelder begge e-postvariantene (kortløs og ekte betalingsfeil).
+      const attemptCount = (invoice as unknown as { attempt_count?: number }).attempt_count ?? 1
+
+      if (attemptCount > 1) {
+        console.log(
+          `[webhook] invoice.payment_failed — e-post hoppet over: purring #${attemptCount} ` +
+          `på faktura ${invoice.id}, varsel allerede sendt ved første forsøk`
+        )
+      } else if (profileForFailed && await hasActiveOrgPremium(profileForFailed.id)) {
         console.log(
           `[webhook] paymentFailedEmail hoppet over — bruker ${profileForFailed.id} ` +
           `har aktiv Premium via org`
