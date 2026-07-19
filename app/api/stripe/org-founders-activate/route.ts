@@ -156,6 +156,8 @@ export async function POST(request: NextRequest) {
     const customer = await stripe.customers.create({
       email: user.email ?? undefined,
       metadata: { organization_id: org.id, type: 'org' },
+    }, {
+      idempotencyKey: `org-trial:customer:${org.id}`,
     })
 
     // 5. Abonnement med trial, uten kortkrav. Avbryt automatisk ved trial-slutt
@@ -167,6 +169,8 @@ export async function POST(request: NextRequest) {
       payment_settings: { save_default_payment_method: 'off' },
       trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
       metadata: { organization_id: org.id, type: 'org' },
+    }, {
+      idempotencyKey: `org-trial:subscription:${org.id}`,
     })
 
     // Stripe trial-abonnementer: trial_end er den kanoniske slutt-epoken.

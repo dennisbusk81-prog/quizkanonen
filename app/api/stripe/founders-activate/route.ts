@@ -62,16 +62,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (profile?.premium_status === true) {
-      return NextResponse.json({ error: 'Du har allerede Premium' }, { status: 400 })
-    }
-
     let customerId = profile?.stripe_customer_id ?? null
 
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: { userId: user.id },
+      }, {
+        idempotencyKey: `founders-activate:customer:${user.id}`,
       })
       customerId = customer.id
       await supabaseAdmin
@@ -108,25 +106,61 @@ export async function POST(request: NextRequest) {
     const beforeDeadline = Date.now() < FOUNDERS_TRIAL_END * 1000
     const useFixedTrialEnd = beforeDeadline && !isFull
 
-    const subscription = await stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: FOUNDERS_PRICE_ID }],
-      ...(useFixedTrialEnd
-        ? { trial_end: FOUNDERS_TRIAL_END }
-        : { trial_period_days: trialPeriodDays }),
-      payment_settings: { save_default_payment_method: 'off' },
-    })
-
-    await supabaseAdmin
+    // Atomisk claim: hindrer TOCTOU der samtidige forespørsler (knapp, mount-sjekk
+    // og OAuth-callback kan alle passere en enkel check-then-act-sjekk) alle
+    // oppretter hvert sitt Stripe-abonnement for samme bruker. Speiler
+    // org-trial-code-claimet i org-founders-activate. Claimer FØR Stripe-kallet;
+    // rulles tilbake under hvis selve Stripe-kallet feiler.
+    const { data: claimedProfile, error: claimError } = await supabaseAdmin
       .from('profiles')
       .update({
         premium_status: true,
         premium_since: new Date().toISOString(),
         premium_source: 'founders',
         trial_reminder_sent_at: null,
-        personal_stripe_subscription_id: subscription.id,
       })
       .eq('id', user.id)
+      .not('premium_status', 'is', true)
+      .select('id')
+      .maybeSingle()
+
+    if (claimError) {
+      console.error('[founders-activate] claim-update feilet:', claimError)
+      return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
+    }
+
+    if (!claimedProfile) {
+      return NextResponse.json({ error: 'Du har allerede Premium' }, { status: 400 })
+    }
+
+    let subscription: Stripe.Subscription
+    try {
+      subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: [{ price: FOUNDERS_PRICE_ID }],
+        ...(useFixedTrialEnd
+          ? { trial_end: FOUNDERS_TRIAL_END }
+          : { trial_period_days: trialPeriodDays }),
+        payment_settings: { save_default_payment_method: 'off' },
+      }, {
+        idempotencyKey: `founders-activate:${user.id}`,
+      })
+    } catch (stripeErr) {
+      console.error('[founders-activate] Stripe-abonnement feilet, ruller tilbake claim:', stripeErr)
+      await supabaseAdmin
+        .from('profiles')
+        .update({ premium_status: false, premium_source: null, premium_since: null })
+        .eq('id', user.id)
+      return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
+    }
+
+    const { error: subIdError } = await supabaseAdmin
+      .from('profiles')
+      .update({ personal_stripe_subscription_id: subscription.id })
+      .eq('id', user.id)
+    if (subIdError) {
+      console.error('[founders-activate] kunne ikke lagre personal_stripe_subscription_id:', subIdError)
+    }
 
     // Send founders-aktiveringsbekreftelse — fire-and-forget
     if (user.email) {

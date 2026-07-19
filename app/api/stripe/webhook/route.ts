@@ -377,15 +377,24 @@ export async function POST(request: NextRequest) {
       // Match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
       const subscriptionId = subscription.id
       let profileId: string | null = null
+      let isCurrentPersonalSub = true
 
       const { data: profileByCustomer } = await supabaseAdmin
         .from('profiles')
-        .select('id')
+        .select('id, personal_stripe_subscription_id')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
 
       if (profileByCustomer) {
         profileId = profileByCustomer.id
+        // FIX 3 — speiler isCurrentOrgSub over: en sen deleted-hendelse for et
+        // gammelt abonnement (f.eks. erstattet etter en duplikat-opprydding) skal
+        // ikke slå av Premium på en profil som nå kjører på et nyere abonnement.
+        // personal_stripe_subscription_id er null for vanlige betalende kunder
+        // (kun Founders-flyten setter den) — da har vi ingen stale-signal og
+        // fortsetter som før.
+        isCurrentPersonalSub = !profileByCustomer.personal_stripe_subscription_id
+          || profileByCustomer.personal_stripe_subscription_id === subscriptionId
       } else {
         const { data: profileBySub } = await supabaseAdmin
           .from('profiles')
@@ -395,7 +404,12 @@ export async function POST(request: NextRequest) {
         if (profileBySub) profileId = profileBySub.id
       }
 
-      if (profileId) {
+      if (profileId && !isCurrentPersonalSub) {
+        console.log(
+          `[webhook] subscription.deleted ignorert for profile ${profileId} — stale sub ` +
+          `${subscriptionId}, gjeldende er annerledes`
+        )
+      } else if (profileId) {
         const { error: b2cDeleteError } = await supabaseAdmin.from('profiles')
           .update({ premium_status: false, premium_source: null, personal_stripe_subscription_id: null })
           .eq('id', profileId)
@@ -404,18 +418,23 @@ export async function POST(request: NextRequest) {
         console.error(`[webhook] subscription.deleted: no profile found for customer=${customerId}, sub=${subscriptionId}`)
       }
 
-      // Send kanselleringsbekreftelse — fire-and-forget
-      getUserEmail(stripe, customerId)
-        .then(email => {
-          if (email) {
-            return sendEmail({
-              to: email,
-              subject: 'Premium-abonnementet ditt er avsluttet — Quizkanonen',
-              html: premiumCancelledEmail(),
-            })
-          }
-        })
-        .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
+      // Send kanselleringsbekreftelse — fire-and-forget. Kun ved faktisk
+      // deaktivering: en stale sub skal ikke gi brukeren en feilaktig
+      // "abonnementet er avsluttet"-e-post (dette er nøyaktig hendelsen som
+      // skjedde 19. juli for en bruker med duplikat Founders-abonnement).
+      if (profileId && isCurrentPersonalSub) {
+        getUserEmail(stripe, customerId)
+          .then(email => {
+            if (email) {
+              return sendEmail({
+                to: email,
+                subject: 'Premium-abonnementet ditt er avsluttet — Quizkanonen',
+                html: premiumCancelledEmail(),
+              })
+            }
+          })
+          .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
+      }
     }
   }
 
@@ -630,15 +649,19 @@ export async function POST(request: NextRequest) {
         // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
         const subscriptionId = subscription.id
         let profileId: string | null = null
+        let isCurrentPersonalSub = true
 
         const { data: profileByCustomer } = await supabaseAdmin
           .from('profiles')
-          .select('id')
+          .select('id, personal_stripe_subscription_id')
           .eq('stripe_customer_id', customerId)
           .maybeSingle()
 
         if (profileByCustomer) {
           profileId = profileByCustomer.id
+          // FIX 3 — samme stale-sub-vern som subscription.deleted over.
+          isCurrentPersonalSub = !profileByCustomer.personal_stripe_subscription_id
+            || profileByCustomer.personal_stripe_subscription_id === subscriptionId
         } else {
           const { data: profileBySub } = await supabaseAdmin
             .from('profiles')
@@ -648,7 +671,12 @@ export async function POST(request: NextRequest) {
           if (profileBySub) profileId = profileBySub.id
         }
 
-        if (profileId) {
+        if (profileId && !isCurrentPersonalSub) {
+          console.log(
+            `[webhook] subscription.updated (canceled) ignorert for profile ${profileId} — ` +
+            `stale sub ${subscriptionId}, gjeldende er annerledes`
+          )
+        } else if (profileId) {
           const { error: b2cCancelError } = await supabaseAdmin.from('profiles')
             .update({ premium_status: false, personal_stripe_subscription_id: null })
             .eq('id', profileId)
