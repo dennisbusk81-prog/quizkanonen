@@ -305,7 +305,7 @@ export default function ProfilPage() {
 
     // Siste utvei: redirect etter 8s hvis ingenting har lastet
     const giveUp = setTimeout(() => {
-      if (!loaded && !cancelled) router.replace('/')
+      if (!loaded && !cancelled) router.replace('/login?next=/profil')
     }, 8000)
 
     // Lytt på automatisk navn-fix fra AuthListener
