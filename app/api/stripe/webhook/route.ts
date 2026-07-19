@@ -16,6 +16,26 @@ function assertCriticalWrite(error: { code?: string; message: string } | null, c
   }
 }
 
+// Fjerner idempotens-stempelet som ble satt før prosessering, slik at hendelsen
+// kan behandles på nytt ved en senere Stripe-retry eller en manuell replay fra
+// dashbordet.
+//
+// MÅ kalles før HVER tidlig `return` inne i try-blokken. Stempelet settes først
+// (INSERT i stripe_events) og fjernes ellers kun i catch. En tidlig return hopper
+// forbi catch, så uten dette blir stempelet stående permanent — og neste levering
+// av samme hendelse avvises som duplikat (23505) uten at den noen gang ble
+// håndtert. Hendelsen ville da vært tapt for godt.
+//
+// Merk: dette er latent i dag fordi stripe_events-tabellen ikke finnes ennå og
+// insert-en feiler stille. Det blir reelt i det migrasjonen
+// 20260719000000_stripe_events.sql kjøres.
+async function releaseIdempotencyStamp(eventId: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('stripe_events').delete().eq('id', eventId)
+  if (error) {
+    console.error(`[webhook] kunne ikke fjerne idempotens-stempel for ${eventId}:`, error.message)
+  }
+}
+
 async function getUserEmail(stripe: Stripe, customerId: string): Promise<string | null> {
   try {
     const customer = await stripe.customers.retrieve(customerId)
@@ -125,7 +145,17 @@ export async function POST(request: NextRequest) {
     if (session.metadata?.type === 'org') {
       // B2B org checkout
       const organizationId = session.metadata.organization_id
-      if (!organizationId) return NextResponse.json({ received: true })
+      if (!organizationId) {
+        // Betalt org-checkout uten organization_id i metadata: ingen org kan
+        // aktiveres. Frigi stempelet slik at en replay er mulig når årsaken er kjent.
+        console.error(
+          `[webhook] checkout.session.completed (org) MANGLER metadata.organization_id — ` +
+          `ingen organisasjon aktivert. session=${session.id} customer=${String(session.customer ?? 'ukjent')} ` +
+          `amount_total=${session.amount_total ?? 'ukjent'}. Må følges opp manuelt.`
+        )
+        await releaseIdempotencyStamp(event.id)
+        return NextResponse.json({ received: true })
+      }
 
       const subscriptionId = session.subscription as string
       let periodEnd: string | null = null
@@ -183,7 +213,23 @@ export async function POST(request: NextRequest) {
     } else {
       // B2C personal checkout
       const userId = session.metadata?.userId
-      if (!userId) return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
+      if (!userId) {
+        // ALVORLIGST av de fire: kunden HAR betalt, men vi vet ikke hvem de er,
+        // så Premium blir aldri tildelt. Logges på ERROR med alt som trengs for å
+        // rette opp manuelt, og stempelet frigis slik at en replay fra Stripe-
+        // dashbordet faktisk får prosessert hendelsen.
+        console.error(
+          `[webhook] KRITISK — BETALT CHECKOUT UTEN metadata.userId. Kunden har betalt, ` +
+          `men får IKKE Premium automatisk og må tildeles manuelt. ` +
+          `session=${session.id} ` +
+          `customer=${String(session.customer ?? 'ukjent')} ` +
+          `e-post=${session.customer_details?.email ?? 'ukjent'} ` +
+          `amount_total=${session.amount_total ?? 'ukjent'} ` +
+          `event=${event.id}`
+        )
+        await releaseIdempotencyStamp(event.id)
+        return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
+      }
 
       // Bruk upsert — oppretter profiles-rad hvis den mangler (f.eks. bruker betalte
       // før navn-modal ble fullført), ellers oppdaterer eksisterende rad som normalt.
@@ -620,12 +666,20 @@ export async function POST(request: NextRequest) {
     const customerId = charge.customer as string | null
 
     // Kun full refusjon fjerner premium — delvis refusjon endrer ingenting.
+    // Dette er en legitim «ingenting å gjøre»-sti, ikke en feil, men stempelet
+    // frigis likevel: en reprosessering er like harmløs, og da kan ingen fremtidig
+    // logikk i denne grenen bli stille blokkert av et stempel fra i dag.
     if (charge.amount_refunded !== charge.amount) {
+      await releaseIdempotencyStamp(event.id)
       return NextResponse.json({ received: true })
     }
 
     if (!customerId) {
-      console.error('[webhook] charge.refunded: charge mangler customer', charge.id)
+      console.error(
+        `[webhook] charge.refunded: full refusjon UTEN customer — premium ikke fjernet. ` +
+        `charge=${charge.id} amount_refunded=${charge.amount_refunded}. Må sjekkes manuelt.`
+      )
+      await releaseIdempotencyStamp(event.id)
       return NextResponse.json({ received: true })
     }
 
@@ -650,7 +704,7 @@ export async function POST(request: NextRequest) {
     // Rull tilbake idempotens-stemplet så Stripe sin neste retry kan prosessere
     // hendelsen på nytt i stedet for å bli avvist som duplikat (23505).
     console.error('[webhook] prosesseringsfeil — fjerner idempotens-stempel for', event.id, err)
-    await supabaseAdmin.from('stripe_events').delete().eq('id', event.id)
+    await releaseIdempotencyStamp(event.id)
     return NextResponse.json({ error: 'Webhook-prosessering feilet' }, { status: 500 })
   }
 }
