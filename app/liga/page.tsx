@@ -92,7 +92,7 @@ export default function MineLigaerPage() {
         session = data.session
       }
       if (cancelled) return
-      if (!session) { router.replace('/'); return }
+      if (!session) { router.replace('/login?next=/liga'); return }
 
       setAccessToken(session.access_token)
 

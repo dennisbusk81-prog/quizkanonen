@@ -129,7 +129,7 @@ export default function LigaPage() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
       if (cancelled) return
-      if (!session) { if (!handled) router.replace('/'); return }
+      if (!session) { if (!handled) router.replace(`/login?next=/liga/${slug}`); return }
       loadWithSession(session)
     })
 
