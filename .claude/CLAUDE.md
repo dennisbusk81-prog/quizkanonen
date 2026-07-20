@@ -1,5 +1,5 @@
 # Quizkanonen — Claude Code kontekst
-Sist oppdatert: 19. juli 2026
+Sist oppdatert: 20. juli 2026
 
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
@@ -210,8 +210,25 @@ er alltid greit uten å spørre, kun push krever godkjenning.
 ---
 
 ## SIKKERHET
-Status per 19. juli 2026, etter en runde sikkerhetsgjennomgang og retting:
+Status per 20. juli 2026, etter to runder sikkerhetsgjennomgang og retting:
 
+- **Quiz-integritet — signert attempt-token (20. juli):** `/api/quiz/[id]/questions`
+  leverte tidligere fasiten til hvem som helst som kjente quiz-id + en attempt-id,
+  så et script kunne hente hele fasiten på forhånd (ett kall per index) uten å
+  spille. `/submit` hadde ingen kobling mellom den som startet og den som leverte.
+  Nå utsteder `start-attempt` et HMAC-signert token (`lib/attempt-token.ts`,
+  speiler `lib/admin-token.ts`) over `(attemptId, quizId, utstedt)`. Både
+  `questions` og `submit` krever `x-attempt-token`, verifisert mot forespørselens
+  `(attemptId, quizId)` — tokenet kan ikke flyttes til et annet forsøk/quiz.
+  `questions` avviser dessuten attempts der `submitted_at` er satt (ingen
+  fasit-uthenting etter innsending), og gir aldri spørsmålsdata ved avvisning.
+  `submit` har fått rate-limit (10/10min/IP) og tidsvalidering mot server-klokka:
+  hard `403` under 2 sek totalt, `console.warn` under 1 sek/spørsmål i snitt.
+  Nøkkel: `QUIZ_TOKEN_SECRET || SUPABASE_SERVICE_ROLE_KEY` (ingen ny env-variabel
+  kreves i Vercel). Merk: tidsvalideringen måler mot `attempts.completed_at` —
+  tabellen har INGEN `created_at`-kolonne; `completed_at` settes av DB-defaulten
+  `now()` ved opprettelse og overskrives aldri, så den er forsøkets
+  starttidspunkt.
 - **`organizations`-tabellen:** RLS strammet til kun `service_role` 19. juli.
   Var offentlig lesbar (inkl. `stripe_customer_id`/`stripe_subscription_id` for
   alle bedriftskunder) via den åpne `organizations_select_all`-policyen siden
@@ -250,6 +267,8 @@ Fullført siden forrige status (15. juni):
 - ~~organizations-tabellen offentlig lesbar~~ — RLS strammet 19. juli 2026
 - ~~Admin-innlogging uten rate-limit / klartekst-passord~~ — rettet 19. juli 2026
 - ~~Webhook-idempotens fraværende~~ — `stripe_events` aktivert 19. juli 2026
+- ~~Fasit hentbar på forhånd via /questions uten å spille~~ — signert
+  attempt-token på questions/submit + tidsvalidering, 20. juli 2026
 
 Gjenstående/pågående:
 1. Forklaringstekst per spørsmål (admin-felt)
