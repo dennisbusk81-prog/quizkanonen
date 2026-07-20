@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   const { data: accessCode } = await supabaseAdmin
     .from('access_codes')
-    .select('id, is_active, valid_until, max_uses, used_count')
+    .select('id, is_active, valid_until, duration_days, max_uses, used_count')
     .eq('code', code)
     .maybeSingle()
 
@@ -53,13 +53,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Koden er utløpt' }, { status: 400 })
   }
 
+  // duration_days styrer hvor lenge Premium varer ETTER innløsning.
+  // NULL/0 = permanent (koden gir Premium uten utløp), som er den eneste
+  // oppførselen koder hadde før 20. juli 2026.
+  // valid_until over er en helt separat frist: siste dag koden kan LØSES INN.
+  const durationDays = accessCode.duration_days
+  const expiresAt = durationDays && durationDays > 0
+    ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
+    : null
+
   // FIX 2 + FIX 3 — single atomic RPC: increments used_count only if capacity
   // remains, then grants premium — all in one DB transaction, no partial failure.
-  // Requires supabase/migrations/redeem_access_code_rpc.sql to be run first.
+  // Requires supabase/migrations/20260720000001_access_code_duration.sql to be run first.
   const { error: rpcError } = await supabaseAdmin.rpc('redeem_access_code', {
     p_code_id:    accessCode.id,
     p_user_id:    user.id,
-    p_expires_at: null, // access codes grant indefinite premium
+    p_expires_at: expiresAt,
   })
 
   if (rpcError) {
@@ -70,12 +79,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
   }
 
-  // The RPC grants premium_status = true but does not set premium_source.
-  // Update it separately so the source is always tracked.
-  await supabaseAdmin
-    .from('profiles')
-    .update({ premium_source: 'code' })
-    .eq('id', user.id)
+  // premium_source = 'code' settes nå inne i RPC-en, i samme transaksjon som
+  // selve tildelingen. Tidligere ble den satt i et separat kall her — feilet det,
+  // fikk brukeren Premium uten kilde, og cron-jobben som rydder utløpte
+  // kode-tildelinger ville aldri funnet dem.
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, expiresAt })
 }

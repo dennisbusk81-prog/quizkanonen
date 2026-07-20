@@ -10,6 +10,7 @@ type Code = {
   code: string
   description: string
   valid_until: string | null
+  duration_days: number | null
   max_uses: number
   used_count: number
   is_active: boolean
@@ -283,7 +284,7 @@ export default function AdminCodes() {
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [codeType, setCodeType] = useState<'campaign' | 'personal'>('campaign')
-  const [form, setForm] = useState({ code: '', description: '', valid_days: '60', max_uses: '100' })
+  const [form, setForm] = useState({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' })
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -318,15 +319,20 @@ export default function AdminCodes() {
     }
     setSaving(true)
     try {
-      const validUntil = form.valid_days
-        ? new Date(Date.now() + parseInt(form.valid_days) * 24 * 60 * 60 * 1000).toISOString()
+      // Innløsningsfristen er valgfri. Tom = koden virker til den deaktiveres
+      // eller maks antall brukere er nådd. Datoen tolkes til og med hele dagen.
+      const validUntil = form.valid_until_date
+        ? new Date(`${form.valid_until_date}T23:59:59`).toISOString()
         : null
+      // Varigheten er valgfri. Tom eller 0 = permanent Premium.
+      const durationDays = parseInt(form.duration_days)
       const res = await adminFetch('/api/admin/codes', {
         method: 'POST',
         body: JSON.stringify({
           code: form.code.trim().toUpperCase(),
           description: form.description.trim(),
           valid_until: validUntil,
+          duration_days: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
           max_uses: parseInt(form.max_uses) || 100,
           used_count: 0,
           is_active: true,
@@ -337,7 +343,7 @@ export default function AdminCodes() {
         showFeedback('error', 'Feil ved lagring: ' + d.error)
       } else {
         showFeedback('success', 'Kode opprettet: ' + form.code.toUpperCase())
-        setForm({ code: '', description: '', valid_days: '60', max_uses: '100' })
+        setForm({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' })
         setShowForm(false)
         fetchCodes()
       }
@@ -385,7 +391,7 @@ export default function AdminCodes() {
             <Link href="/admin" className="ac-back">← Admin</Link>
             <h1 className="ac-title">Verdi<em>koder</em></h1>
           </div>
-          <button onClick={() => { setShowForm(!showForm); setCodeType('campaign'); setForm({ code: '', description: '', valid_days: '60', max_uses: '100' }) }} className="ac-btn-add">
+          <button onClick={() => { setShowForm(!showForm); setCodeType('campaign'); setForm({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' }) }} className="ac-btn-add">
             {showForm ? '✕ Avbryt' : '+ Ny kode'}
           </button>
         </header>
@@ -407,8 +413,8 @@ export default function AdminCodes() {
               <label className="ac-label">Kodetype</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {([
-                  { value: 'campaign', label: 'Kampanjekode', sub: '60 dager · 100 brukere' },
-                  { value: 'personal', label: 'Engangskode til én person', sub: '365 dager · 1 bruker' },
+                  { value: 'campaign', label: 'Kampanjekode', sub: '60 dager Premium · 100 brukere' },
+                  { value: 'personal', label: 'Engangskode til én person', sub: '365 dager Premium · 1 bruker' },
                 ] as const).map(opt => (
                   <button
                     key={opt.value}
@@ -416,9 +422,9 @@ export default function AdminCodes() {
                     onClick={() => {
                       setCodeType(opt.value)
                       if (opt.value === 'personal') {
-                        setForm(f => ({ ...f, valid_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
+                        setForm(f => ({ ...f, duration_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
                       } else {
-                        setForm(f => ({ ...f, valid_days: '60', max_uses: '100' }))
+                        setForm(f => ({ ...f, duration_days: '60', max_uses: '100' }))
                       }
                     }}
                     style={{
@@ -460,13 +466,14 @@ export default function AdminCodes() {
 
             <div className="ac-field ac-grid-2">
               <div>
-                <label className="ac-label">Gyldig i dager</label>
-                <input type="number" value={form.valid_days}
-                  onChange={e => setForm(f => ({ ...f, valid_days: e.target.value }))}
+                <label className="ac-label">Premium varer i dager</label>
+                <input type="number" value={form.duration_days}
+                  onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}
+                  placeholder="Tom = permanent"
                   className="ac-input" />
                 <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
-                  Styrer hvor lenge koden kan løses inn.<br />
-                  Premium brukeren får er alltid permanent.
+                  Hvor lenge brukeren har Premium etter at koden er løst inn.<br />
+                  La feltet stå tomt for å gi permanent Premium.
                 </p>
               </div>
               <div>
@@ -475,6 +482,17 @@ export default function AdminCodes() {
                   onChange={e => setForm(f => ({ ...f, max_uses: e.target.value }))}
                   className="ac-input" />
               </div>
+            </div>
+
+            <div className="ac-field">
+              <label className="ac-label">Koden kan brukes til og med</label>
+              <input type="date" value={form.valid_until_date}
+                onChange={e => setForm(f => ({ ...f, valid_until_date: e.target.value }))}
+                className="ac-input" />
+              <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                Siste dag koden kan løses inn. Påvirker ikke hvor lenge Premium varer.<br />
+                Tom = ingen frist; koden virker til den deaktiveres eller er brukt opp.
+              </p>
             </div>
 
             <button onClick={saveCode} disabled={saving} className="ac-btn-save">
@@ -502,7 +520,9 @@ export default function AdminCodes() {
                   </div>
                   <p className="ac-code-desc">{code.description}</p>
                   <p className="ac-code-meta">
-                    {code.used_count}/{code.max_uses} brukt · utløper {formatDate(code.valid_until)}
+                    {code.used_count}/{code.max_uses} brukt
+                    {' · '}gir {code.duration_days ? `${code.duration_days} dager Premium` : 'permanent Premium'}
+                    {' · '}{code.valid_until ? `kan brukes til ${formatDate(code.valid_until)}` : 'ingen innløsningsfrist'}
                   </p>
                   <div className="ac-usage-bar-track">
                     <div className="ac-usage-bar-fill" style={{ width: `${usagePct}%` }} />
