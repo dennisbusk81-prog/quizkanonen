@@ -199,10 +199,26 @@ const STYLES = `
 
   .aqz-action.blue,
   .aqz-action.gray,
-  .aqz-action.orange,
-  .aqz-action.green,
+  .aqz-action.green  { background: transparent; color: #e8e4dd; border: 1px solid #2a2d38; }
+
+  /* Skjul: reversibel synlighets-toggle (Publiser angrer den momentant) —
+     verdt en pause, men ikke destruktiv. Samme oransje som "Deaktiver" på
+     /admin/codes, gjenbrukt her i stedet for å finne opp en ny farge. */
+  .aqz-action.orange {
+    background: rgba(251, 146, 60, 0.12);
+    color: #fb923c;
+    border: 1px solid rgba(251, 146, 60, 0.35);
+  }
+
+  /* Reset og Slett sletter data permanent (alle resultater, hhv. hele
+     quizen) — begge fortjener samme fare-signal som "Nullstill all data"
+     på site-admin-forsiden, gjenbrukt her i stedet for en ny farge. */
   .aqz-action.purple,
-  .aqz-action.red    { background: transparent; color: #e8e4dd; border: 1px solid #2a2d38; }
+  .aqz-action.red {
+    background: rgba(192, 57, 43, 0.12);
+    color: #c0392b;
+    border: 1px solid rgba(192, 57, 43, 0.4);
+  }
 
   /* Empty */
   .aqz-empty {
