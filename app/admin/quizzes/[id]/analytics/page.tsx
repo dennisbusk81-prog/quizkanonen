@@ -499,7 +499,6 @@ export default function QuizAnalytics() {
   const avgTimeSec = totalStarts > 0
     ? Math.round(attempts.reduce((sum, a) => sum + a.total_time_ms, 0) / totalStarts / 1000)
     : 0
-  const soloCount = attempts.filter(a => !a.is_team).length
   const teamCount = attempts.filter(a => a.is_team).length
 
   const questionStats: QuestionStat[] = questions.map(q => {
@@ -677,7 +676,6 @@ export default function QuizAnalytics() {
                 { label: 'Deltakere totalt', value: totalStarts },
                 { label: 'Gjennomsnittsscore', value: `${avgScore}%` },
                 { label: 'Snitt spilletid', value: formatTime(avgTimeSec) },
-                { label: 'Enkeltspillere', value: soloCount },
                 { label: 'Fra bedrifter', value: orgCount },
               ].map(s => (
                 <div key={s.label} className="an-stat">
