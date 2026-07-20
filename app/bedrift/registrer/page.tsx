@@ -12,9 +12,8 @@ import type { Session } from '@supabase/supabase-js'
 const STORAGE_KEY = 'qk-bedrift-pending'
 
 const PLANS = [
-  { id: 'starter',  label: 'Starter',  price: '499 kr/mnd',   desc: 'Opptil 25 ansatte · 1 quiz/uke' },
-  { id: 'standard', label: 'Standard', price: '899 kr/mnd',   desc: 'Opptil 50 ansatte · egne tidspunkter, statistikk og CSV', featured: true },
-  { id: 'pro',      label: 'Pro',      price: '1 499 kr/mnd', desc: 'Opptil 100 ansatte · alt i Standard + prioritert support', disabled: true },
+  { id: 'starter',  label: 'Starter',  price: '499 kr/mnd', desc: 'Opptil 25 ansatte · 1 quiz/uke' },
+  { id: 'standard', label: 'Standard', price: '899 kr/mnd', desc: 'Opptil 50 ansatte · egne tidspunkter, statistikk og CSV', featured: true },
 ]
 
 const AVAILABLE_PLAN_IDS = PLANS.filter(p => !('disabled' in p && p.disabled)).map(p => p.id)
@@ -24,6 +23,7 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Basker
 export default function BedriftRegistrerPage() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [slowSessionLoad, setSlowSessionLoad] = useState(false)
   const [orgName, setOrgName] = useState('')
   const [plan, setPlan] = useState('standard')
   const [loading, setLoading] = useState(false)
@@ -36,6 +36,11 @@ export default function BedriftRegistrerPage() {
   const [promoValidating, setPromoValidating] = useState(false)
   const [promoError, setPromoError] = useState('')
   const [validatedCode, setValidatedCode] = useState<{ code: string; package: string; trial_days: number } | null>(null)
+
+  useEffect(() => {
+    const slowTimer = setTimeout(() => setSlowSessionLoad(true), 7000)
+    return () => clearTimeout(slowTimer)
+  }, [])
 
   useEffect(() => {
     // Pick up plan from query string — redirect disabled plans back to /bedrift
@@ -179,7 +184,15 @@ export default function BedriftRegistrerPage() {
       <>
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Henter kontoen din …</p>
+            {slowSessionLoad && (
+              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+                Dette tar lengre tid enn vanlig.{' '}
+                <a href="/bedrift/registrer" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+              </p>
+            )}
+          </div>
         </div>
       </>
     )

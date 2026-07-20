@@ -1902,7 +1902,15 @@ export default function QuizPage() {
       if (!blob) { setCardShareState('idle'); return }
 
       const file = new File([blob], 'quizkanonen-resultat.png', { type: 'image/png' })
-      const sharePayload = { files: [file], title: 'Quizkanonen', text: `${cCount}/${totalQuestions} riktige — kan du slå meg?` }
+      // Direkte utfordring i delingsteksten i stedet for nøytral resultattekst.
+      // Eksakt plassering tas kun med for Premium (samme gate som selve kortet
+      // over — se topp !== null), ellers overclaimer vi noe gratis-spillere
+      // faktisk ikke har fått vist.
+      const placementText = topp !== null && estimatedPlacement
+        ? ` og havnet på ${estimatedPlacement.rank}. plass`
+        : ''
+      const shareChallengeText = `Jeg fikk ${cCount} av ${totalQuestions}${placementText}. Klarer du å slå meg neste fredag?`
+      const sharePayload = { files: [file], title: 'Quizkanonen', text: shareChallengeText }
 
       if (navigator.share && navigator.canShare && navigator.canShare(sharePayload)) {
         await navigator.share(sharePayload)

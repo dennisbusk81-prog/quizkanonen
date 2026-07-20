@@ -305,6 +305,53 @@ async function computePageInsights(): Promise<PageInsights | null> {
 
 const getPageInsights = unstable_cache(computePageInsights, ['home-page-insights-v1'], { revalidate: 60, tags: ['home-page-insights'] })
 
+// ── Grunnleggerhistorie-tall ──────────────────────────────────────────────────
+// Offentlige, ikke-personaliserte tillitstall til forsidens grunnleggerseksjon.
+// Endrer seg sakte (ny fredagsquiz i uken) — revalidate 3600s (1t) er nok,
+// ingen grunn til å belaste DB som quiz-dataene.
+//
+// Definisjoner:
+// - quizzesCompleted: COUNT quizzes med is_test=false og closes_at i fortiden
+// - activePlayers: DISTINCT user_id med minst ett individuelt forsøk
+//   (is_team=false, user_id ikke null) siste 12 uker (ett kvartal — matcher
+//   Kvartal-periodiseringen i sesong-topplisten, samme spiller-definisjon som
+//   countParticipants() over, bare utvidet fra "denne quizen" til et glidende
+//   12-ukers vindu i stedet for én enkelt kalendermåned)
+//
+// Bedriftsantall er bevisst UTELATT — kun én reell betalende kunde per 20. juli
+// 2026 gjør et rått tall til svakt sosialt bevis. Legges til igjen når
+// kundeantallet faktisk sier noe.
+type FounderStoryStats = { quizzesCompleted: number; activePlayers: number }
+
+async function computeFounderStoryStats(): Promise<FounderStoryStats> {
+  const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000).toISOString()
+  const nowIso = new Date().toISOString()
+
+  const [{ count: quizzesCompleted }, { data: activeRows }] = await Promise.all([
+    supabaseAdmin
+      .from('quizzes')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_test', false)
+      .not('closes_at', 'is', null)
+      .lt('closes_at', nowIso),
+    supabaseAdmin
+      .from('attempts')
+      .select('user_id')
+      .eq('is_team', false)
+      .not('user_id', 'is', null)
+      .gte('completed_at', twelveWeeksAgo),
+  ])
+
+  const activePlayers = new Set(((activeRows ?? []) as { user_id: string }[]).map(r => r.user_id)).size
+
+  return {
+    quizzesCompleted: quizzesCompleted ?? 0,
+    activePlayers,
+  }
+}
+
+const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v1'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
+
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
@@ -692,6 +739,78 @@ const SHARED_CSS = `
     margin-bottom: 36px;
   }
 
+  /* ── Grunnleggerhistorie — sekundær kort-stil, IKKE gull (to-gule-regel) ── */
+  .qk-founder-story {
+    max-width: 680px;
+    margin: 0 auto 36px;
+    padding: 0 24px;
+  }
+
+  .qk-founder-story-inner {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 28px;
+    text-align: center;
+  }
+
+  .qk-founder-story-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--hint);
+    margin-bottom: 10px;
+  }
+
+  .qk-founder-story-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: clamp(18px, 4vw, 20px);
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.35;
+    margin-bottom: 12px;
+  }
+
+  .qk-founder-story-body {
+    font-size: 14px;
+    color: var(--body);
+    line-height: 1.65;
+    margin-bottom: 20px;
+  }
+
+  .qk-founder-story-stats {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding-top: 18px;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .qk-founder-stat-num {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  .qk-founder-stat-label {
+    font-size: 11px;
+    color: var(--hint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+  }
+
+  .qk-founder-story-link {
+    font-size: 13px;
+    color: #e8e4dd;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(232,228,221,0.3);
+  }
+
   /* ── Bedrift ── */
   .qk-biz {
     max-width: 680px;
@@ -1019,6 +1138,11 @@ export default async function Home() {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+
+  // Grunnleggerhistorie-tall — delt, ikke-personalisert, brukes i begge
+  // grenene under (innlogget/gjest). Cachet (1t), så ett kall her koster
+  // ingenting ekstra selv om det havner over begge return-stiene.
+  const founderStats = await getFounderStoryStats()
 
   // ── Session check via cookie-based Supabase SSR client ──
   // Middleware (middleware.ts) already called getUser() on this same request,
@@ -1835,6 +1959,28 @@ export default async function Home() {
 
         {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
         <OrgCard />
+
+        {/* ── Grunnleggerhistorie ── */}
+        <div className="qk-founder-story">
+          <div className="qk-founder-story-inner">
+            <p className="qk-founder-story-eyebrow">Laget av en quizmaster</p>
+            <h2 className="qk-founder-story-title">Over 20 års erfaring — hvert spørsmål skrives og kvalitetssikres før det havner i quizen.</h2>
+            <p className="qk-founder-story-body">
+              Dennis har laget og ledet quiz i over 20 år, digitalt og live, i Norge og Spania. Quizkanonen er bygget slik han selv ville ønsket det.
+            </p>
+            <div className="qk-founder-story-stats">
+              <div>
+                <div className="qk-founder-stat-num">{founderStats.quizzesCompleted}+</div>
+                <div className="qk-founder-stat-label">Quizer gjennomført</div>
+              </div>
+              <div>
+                <div className="qk-founder-stat-num">{founderStats.activePlayers}+</div>
+                <div className="qk-founder-stat-label">Aktive spillere</div>
+              </div>
+            </div>
+            <Link href="/om" className="qk-founder-story-link">Les historien →</Link>
+          </div>
+        </div>
 
         {/* ── Bedrift ── */}
         <div className="qk-biz">

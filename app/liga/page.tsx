@@ -71,6 +71,7 @@ type LoadState = 'loading' | 'ready' | 'error'
 export default function MineLigaerPage() {
   const router = useRouter()
   const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [slowLoad, setSlowLoad] = useState(false)
   const [leagues, setLeagues] = useState<League[]>([])
   const [isPremium, setIsPremium] = useState(false)
   const [accessToken, setAccessToken] = useState('')
@@ -79,6 +80,11 @@ export default function MineLigaerPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const slowTimer = setTimeout(() => setSlowLoad(true), 7000)
+    return () => clearTimeout(slowTimer)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -144,7 +150,17 @@ export default function MineLigaerPage() {
   if (loadState === 'loading') return (
     <>
       <style>{FONT_IMPORT}</style>
-      <div style={s.centered}><p style={s.spinner}>Laster ligaer…</p></div>
+      <div style={s.centered}>
+        <div style={{ textAlign: 'center' as const }}>
+          <p style={s.spinner}>Henter ligaene dine …</p>
+          {slowLoad && (
+            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+              Dette tar lengre tid enn vanlig.{' '}
+              <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+            </p>
+          )}
+        </div>
+      </div>
     </>
   )
 

@@ -34,11 +34,17 @@ export default function OrgLeaderboardPage() {
   const [session,   setSession]   = useState<Session | null | undefined>(undefined)
   const [org,       setOrg]       = useState<OrgInfo | null>(null)
   const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [slowLoad, setSlowLoad] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const slowTimer = setTimeout(() => setSlowLoad(true), 7000)
+    return () => clearTimeout(slowTimer)
   }, [])
 
   useEffect(() => {
@@ -67,7 +73,15 @@ export default function OrgLeaderboardPage() {
       <>
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Henter bedriften din …</p>
+            {slowLoad && (
+              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+                Dette tar lengre tid enn vanlig.{' '}
+                <a href={`/org/${slug}`} style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+              </p>
+            )}
+          </div>
         </div>
       </>
     )

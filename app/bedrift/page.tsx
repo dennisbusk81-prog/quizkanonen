@@ -29,7 +29,7 @@ const STYLES = `
   .subtitle { font-size: 15px; color: var(--body); margin-top: 16px; line-height: 1.6; max-width: 520px; margin-left: auto; margin-right: auto; }
 
   /* Packages grid — minmax(0,1fr) prevents columns from overflowing viewport */
-  .packages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 48px; }
+  .packages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 48px; }
   @media (max-width: 780px) { .packages { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
   @media (max-width: 480px) { .packages { grid-template-columns: minmax(0, 1fr); } }
 
@@ -37,14 +37,11 @@ const STYLES = `
   .pkg-featured { background: #1e1a0e; border: 1px solid var(--gold-border); }
   .pkg-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--gold); color: #1a1c23; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 12px; border-radius: 20px; white-space: nowrap; }
 
-  /* Kommer snart — faded kort med diskret gull-ribbon */
-  .pkg-soon { opacity: 0.5; }
-  .pkg-ribbon { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: #1a1c23; color: var(--gold); border: 0.5px solid var(--gold-border); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 12px; border-radius: 20px; white-space: nowrap; }
-
   .pkg-name { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hint); margin-bottom: 6px; }
   .pkg-name-featured { color: var(--gold); }
   .pkg-price { font-family: 'Libre Baskerville', serif; font-size: 28px; font-weight: 700; color: var(--white); line-height: 1; margin-bottom: 2px; }
   .pkg-price span { font-size: 13px; font-weight: 400; color: var(--hint); font-family: 'Instrument Sans', sans-serif; }
+  .pkg-contact-headline { font-family: 'Libre Baskerville', serif; font-size: 17px; font-weight: 700; color: var(--white); line-height: 1.3; margin-bottom: 8px; }
   .pkg-desc { font-size: 12px; color: #e8e4dd; margin-bottom: 20px; margin-top: 6px; line-height: 1.4; }
   .pkg-divider { height: 0.5px; background: var(--border); margin-bottom: 16px; }
 
@@ -56,11 +53,10 @@ const STYLES = `
 
   .pkg-btn { display: block; text-align: center; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: 'Instrument Sans', sans-serif; text-decoration: none; border: 1px solid var(--border); color: var(--body); background: transparent; cursor: pointer; }
   .pkg-btn-featured { background: var(--gold); color: #1a1c23; border-color: var(--gold); }
-  .pkg-btn-soon { display: block; text-align: center; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: 'Instrument Sans', sans-serif; border: 1px solid var(--border); color: var(--body); background: transparent; cursor: not-allowed; }
 
   /* Comparison table — overflow-x: auto so table scrolls on mobile instead of clipping */
   .section-title { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); margin-bottom: 20px; }
-  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 48px; }
+  .table-wrap { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
   table { width: 100%; min-width: 480px; border-collapse: collapse; }
   th { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--hint); padding: 14px 16px; text-align: left; border-bottom: 0.5px solid var(--border); background: #1e2028; }
@@ -74,8 +70,6 @@ const STYLES = `
   .td-yes { color: var(--gold); font-size: 14px; }
   .td-no { color: var(--border); font-size: 14px; }
   .col-featured { background: var(--gold-dim); }
-  .col-soon { opacity: 0.5; }
-  .th-soon-label { display: block; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-top: 4px; }
 
   @media (max-width: 640px) {
     .table-scroll { overflow-x: auto; }
@@ -142,7 +136,7 @@ export default function BedriftPage() {
           <div className="eyebrow">Quizkanonen for bedrifter</div>
           <h1 className="title">Fredagsquizen som <em>samler teamet.</em></h1>
           <p className="subtitle">Fredagsquiz som faktisk samler folk — ikke et Teams-møte til.</p>
-          <p className="subtitle">Du ser hvem som er med — og hvem som ikke er det.</p>
+          <p className="subtitle">Følg deltakelse og engasjement over tid.</p>
           <p className="subtitle">Konkurransen holder seg varm hele sesongen, ikke bare én fredag.</p>
         </div>
 
@@ -178,42 +172,23 @@ export default function BedriftPage() {
               <li><span className="check">✓</span>Invitasjon via lenke</li>
               <li><span className="check">✓</span>Egne quiz-tidspunkter</li>
               <li><span className="check">✓</span>Ukentlig statistikk-rapport</li>
-              <li><span className="check">✓</span>Se hvem som deltar — og hvem som ikke gjør det</li>
+              <li><span className="check">✓</span>Se hvor mange i teamet som blir med hver uke</li>
               <li><span className="check">✓</span>Intern konkurranse som holder seg gående hele sesongen</li>
             </ul>
             <a href="/bedrift/registrer?plan=standard" className="pkg-btn pkg-btn-featured">Velg Standard</a>
           </div>
 
-          <div className="pkg pkg-soon">
-            <div className="pkg-ribbon">Kommer snart</div>
-            <div className="pkg-name">Pro</div>
-            <div className="pkg-price">1 499 <span>kr/mnd</span></div>
-            <div className="pkg-desc">Alt i Standard + prioritert support.</div>
+          <div className="pkg">
+            <div className="pkg-name">Større team</div>
+            <div className="pkg-contact-headline">Trenger dere mer enn 50 plasser?</div>
+            <div className="pkg-desc" style={{ marginTop: 0 }}>Skreddersydde quizer, dedikert support og fakturering for større bedrifter.</div>
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
-              <li><span className="check">✓</span>Alt i Standard</li>
-              <li><span className="check">✓</span>Opptil 100 ansatte</li>
-              <li><span className="check">✓</span>Prioritert support</li>
-              <li><span className="check check-dim">—</span>Skreddersydde quizer</li>
+              <li><span className="check">✓</span>Ubegrenset antall ansatte</li>
+              <li><span className="check">✓</span>Skreddersydde quizer om egen bransje</li>
+              <li><span className="check">✓</span>Dedikert support og faktura</li>
             </ul>
-            <span className="pkg-btn-soon" aria-disabled="true">Kommer snart</span>
-          </div>
-
-          <div className="pkg pkg-soon">
-            <div className="pkg-ribbon">Kommer snart</div>
-            <div className="pkg-name">Enterprise</div>
-            <div className="pkg-price">Fra 2 499 <span>kr/mnd</span></div>
-            <div className="pkg-desc">Skreddersydd for store team.</div>
-            <div className="pkg-divider"></div>
-            <ul className="pkg-features">
-              <li><span className="check">✓</span>Alt i Pro</li>
-              <li><span className="check">✓</span>Ubegrenset ansatte</li>
-              <li><span className="check">✓</span>Skreddersydde quizer</li>
-              <li><span className="check">✓</span>Quizer om eget produkt/bransje</li>
-              <li><span className="check">✓</span>Dedikert support</li>
-              <li><span className="check">✓</span>Faktura</li>
-            </ul>
-            <span className="pkg-btn-soon" aria-disabled="true">Kommer snart</span>
+            <a href="mailto:support@quizkanonen.no?subject=Quizkanonen%20for%20bedrift%20%E2%80%94%20mer%20enn%2050%20ansatte" className="pkg-btn">Kontakt oss</a>
           </div>
 
         </div>
@@ -228,8 +203,6 @@ export default function BedriftPage() {
                 <th>Funksjon</th>
                 <th>Starter</th>
                 <th className="col-featured">Standard</th>
-                <th className="col-soon">Pro<span className="th-soon-label">Kommer snart</span></th>
-                <th className="col-soon">Enterprise<span className="th-soon-label">Kommer snart</span></th>
               </tr>
             </thead>
             <tbody>
@@ -237,69 +210,57 @@ export default function BedriftPage() {
                 <td>Fredagsquiz</td>
                 <td className="td-yes">✓</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Egne quiz-tidspunkter</td>
                 <td className="td-no">—</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
-                <td>Se hvem som deltar — og hvem som ikke gjør det</td>
+                <td>Se hvor mange i teamet som blir med hver uke</td>
                 <td className="td-no">—</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Intern sesong-konkurranse</td>
                 <td className="td-yes">✓</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Maks antall ansatte</td>
                 <td>25</td>
                 <td className="col-featured">50</td>
-                <td className="col-soon">100</td>
-                <td className="td-gold col-soon">Ubegrenset</td>
               </tr>
               <tr>
                 <td>Ukentlig statistikk-rapport</td>
                 <td className="td-no">—</td>
                 <td className="td-yes col-featured">✓</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Prioritert support</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-yes col-soon">✓</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Faktura</td>
                 <td className="td-no">—</td>
                 <td className="td-no col-featured">—</td>
-                <td className="td-no col-soon">—</td>
-                <td className="td-yes col-soon">✓</td>
               </tr>
               <tr>
                 <td>Pris per mnd</td>
                 <td>499 kr</td>
                 <td className="col-featured td-gold">899 kr</td>
-                <td className="col-soon">1 499 kr</td>
-                <td className="col-soon">Fra 2 499 kr</td>
               </tr>
             </tbody>
           </table>
           </div>
         </div>
+        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center' as const, marginBottom: 48 }}>
+          Trenger dere mer enn 50 plasser?{' '}
+          <a href="mailto:support@quizkanonen.no?subject=Quizkanonen%20for%20bedrift%20%E2%80%94%20mer%20enn%2050%20ansatte" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
+            Kontakt oss
+          </a>
+        </p>
 
         {/* Notes accordion */}
         <div className="notes">
