@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth'
 import Link from 'next/link'
 import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import PasswordInput from '@/components/PasswordInput'
+import { sendLinkErrorMessage, linkErrorMessage } from '@/lib/auth-messages'
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -303,7 +304,7 @@ type CheckResult = { exists: boolean; hasPassword: boolean; hasGoogle: boolean }
 // Kun tillat interne redirect-mål (leading slash) for å unngå open redirect.
 function safeNext(): string {
   const raw = new URLSearchParams(window.location.search).get('next')
-  return raw && raw.startsWith('/') ? raw : '/'
+  return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
 }
 
 export default function LoginPage() {
@@ -316,6 +317,18 @@ export default function LoginPage() {
   const [signupSent, setSignupSent] = useState(false) // bekreftelsesmail sendt
   const [resetSent, setResetSent] = useState(false)   // «sett passord»-lenke sendt
   const [loading, setLoading] = useState(false)
+  const [linkError, setLinkError] = useState('')      // forklaring fra ?error=
+
+  // Les ?error= én gang, vis forklaringen, og fjern parameteren fra URL-en så en
+  // refresh ikke gjentar en feil som allerede er lest.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const code = url.searchParams.get('error')
+    if (!code) return
+    setLinkError(linkErrorMessage(code))
+    url.searchParams.delete('error')
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`)
+  }, [])
 
   const validEmail = /\S+@\S+\.\S+/.test(email.trim())
 
@@ -367,7 +380,8 @@ export default function LoginPage() {
         },
       })
       if (error) {
-        setError('Noe gikk galt. Sjekk at e-postadressen er riktig og prøv igjen.')
+        console.error('[login] signInWithOtp feilet:', error.message)
+        setError(sendLinkErrorMessage(error))
       } else {
         setSent(true)
       }
@@ -398,7 +412,7 @@ export default function LoginPage() {
       })
       if (error) {
         console.error('[login] resetPasswordForEmail feilet:', error.message)
-        setError('Kunne ikke sende lenken. Sjekk at e-postadressen er riktig og prøv igjen.')
+        setError(sendLinkErrorMessage(error))
       } else {
         setResetSent(true)
       }
@@ -576,6 +590,12 @@ export default function LoginPage() {
           <div className="login-rule" />
 
           <InAppBrowserWarning />
+
+          {/* Forklaring fra ?error=. Vikes for et ferskt kvitteringsbanner eller en
+              ny inline-feil, så brukeren aldri ser to motstridende meldinger. */}
+          {linkError && !sent && !resetSent && !signupSent && !error && (
+            <p className="login-error">{linkError}</p>
+          )}
 
           {sent ? (
             <p className="login-success">

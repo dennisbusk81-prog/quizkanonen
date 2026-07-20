@@ -1,10 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
-import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
-import { sendEmail } from '@/lib/email'
-import { welcomeFreeEmail } from '@/lib/email-templates'
+import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 
+// PKCE-callback. Etter 20. juli er dette i praksis Google OAuth-stien.
+//
+// E-postlenker (magic link, «sett passord», kontobekreftelse) går nå via
+// /auth/bekreft → POST /api/auth/bekreft, som bruker token_hash i stedet.
+// Grunnen: PKCE binder koden til nettleseren som BA om lenken, via en
+// code_verifier-cookie. Ba du om lenken på PC og åpnet e-posten på mobil,
+// fantes ikke cookien, exchangeCodeForSession feilet, og brukeren havnet her
+// på /login?error=auth_failed. For OAuth er den bindingen uproblematisk —
+// der skjer hele flyten i samme nettleser per definisjon.
+//
+// Ruten beholdes uendret i oppførsel for OAuth, og fortsetter å virke for
+// e-postlenker som allerede er sendt ut med gammel mal.
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`auth-callback:${ip}`, 20, 60_000).success) {
@@ -13,7 +23,9 @@ export async function GET(request: NextRequest) {
 
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+  // safeNextPath stopper åpen redirect: next=`@evil.com` ga tidligere
+  // `https://quizkanonen.no@evil.com`, som nettleseren sender til evil.com.
+  const next = safeNextPath(searchParams.get('next'))
 
   if (!code) {
     console.log('[auth/callback] no code in URL, redirecting to', next)
@@ -23,7 +35,7 @@ export async function GET(request: NextRequest) {
   // Pre-create the success redirect response so we can attach session cookies to it.
   // The setAll closure captures this variable — by the time Supabase calls setAll
   // (during exchangeCodeForSession), response is already assigned.
-  let response = NextResponse.redirect(`${origin}${next}`)
+  const response = NextResponse.redirect(`${origin}${next}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,70 +68,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`)
   }
 
-  const { user } = data
-  console.log('[auth/callback] session ok, user id:', user.id, 'email:', user.email)
+  console.log('[auth/callback] session ok, user id:', data.user.id, 'email:', data.user.email)
 
-  // Insert profile for new users only — never overwrite display_name on re-login.
-  // Google users: seed display_name from full_name in metadata.
-  // Magic link users: display_name stays null → AuthListener dispatches
-  //   qk:name-required so the user is prompted to enter their real name.
-  const now = new Date().toISOString()
-  const initialDisplayName =
-    (user.user_metadata?.full_name as string | undefined) ?? null
-
-  // Returning users (≈all logins): a single UPDATE refreshes last_seen_at and
-  // preserves the display_name the user chose after first login — one round-trip.
-  // Brand-new users: the UPDATE affects 0 rows, so we INSERT and seed display_name
-  // (Google full_name, or null for magic link → AuthListener prompts for a name).
-  const { data: updated, error: updateError } = await supabaseAdmin
-    .from('profiles')
-    .update({ last_seen_at: now })
-    .eq('id', user.id)
-    .select('id')
-
-  if (updateError) {
-    console.error(
-      '[auth/callback] profile last_seen update failed — code:', updateError.code,
-      'message:', updateError.message,
-      'details:', updateError.details
-    )
-  } else if (!updated || updated.length === 0) {
-    // No existing row → new user. ignoreDuplicates guards against a race where two
-    // concurrent first-logins both miss the UPDATE and try to INSERT.
-    const { error: insertError } = await supabaseAdmin
-      .from('profiles')
-      .upsert(
-        { id: user.id, display_name: initialDisplayName, avatar_color: null as string | null, last_seen_at: now },
-        { onConflict: 'id', ignoreDuplicates: true }
-      )
-    if (insertError) {
-      console.error(
-        '[auth/callback] profile insert failed — code:', insertError.code,
-        'message:', insertError.message,
-        'details:', insertError.details
-      )
-    } else {
-      console.log('[auth/callback] profile created for new user', user.id)
-      // Send velkomstmail til ny gratisbruker — fire-and-forget, blokkerer aldri innlogging.
-      // Kjøres kun én gang: denne INSERT-grenen nås bare når UPDATE traff 0 rader (ny bruker).
-      if (user.email) {
-        const firstName = (initialDisplayName ?? user.email.split('@')[0]).split(' ')[0]
-        try {
-          await sendEmail({
-            to: user.email,
-            subject: 'Velkommen til Quizkanonen!',
-            html: welcomeFreeEmail(firstName),
-            replyTo: 'support@quizkanonen.no',
-          })
-        } catch (emailErr) {
-          // Logg feilen men la innloggingen gå gjennom uansett
-          console.error('[auth/callback] welcomeFreeEmail feilet:', emailErr)
-        }
-      }
-    }
-  } else {
-    console.log('[auth/callback] profile last_seen refreshed for user', user.id)
-  }
+  await ensureProfileForUser(data.user)
 
   // Session is now stored in cookies on `response` — no URL hash needed.
   // createBrowserClient on the client will read the cookies and fire onAuthStateChange.

@@ -8,6 +8,7 @@ import type { PlayerStats } from '@/lib/history'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import { sendLinkErrorMessage } from '@/lib/auth-messages'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -571,7 +572,7 @@ export default function ProfilPage() {
       })
       if (error) {
         console.error('[profil] resetPasswordForEmail feilet:', error.message)
-        setPwError('Kunne ikke sende lenken. Prøv igjen.')
+        setPwError(sendLinkErrorMessage(error))
       } else {
         setResetSent(true)
       }
