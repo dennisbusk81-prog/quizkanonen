@@ -68,17 +68,6 @@ export async function POST(
     return NextResponse.json({ error: 'Invitasjonslenken er full' }, { status: 410 })
   }
 
-  // One org per user
-  const { data: existing } = await supabaseAdmin
-    .from('organization_members')
-    .select('id')
-    .eq('user_id', user.id)
-    .limit(1)
-
-  if (existing && existing.length > 0) {
-    return NextResponse.json({ error: 'Du er allerede medlem av en organisasjon.' }, { status: 409 })
-  }
-
   // Get org slug for redirect
   const { data: org } = await supabaseAdmin
     .from('organizations')
@@ -89,6 +78,23 @@ export async function POST(
   // Guard: org deleted between invite creation and join attempt
   if (!org?.slug) {
     return NextResponse.json({ error: 'Organisasjonen finnes ikke lenger' }, { status: 404 })
+  }
+
+  // One org per user — but re-clicking an invite you already used for THIS
+  // org should not dead-end. Only block when the user belongs to a
+  // DIFFERENT org than the one this invite points to.
+  const { data: existing } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    if (existing.organization_id === invite.organization_id) {
+      return NextResponse.json({ slug: org.slug })
+    }
+    return NextResponse.json({ error: 'Du er allerede medlem av en organisasjon.' }, { status: 409 })
   }
 
   // Premium transition
