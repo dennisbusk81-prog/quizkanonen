@@ -443,24 +443,31 @@ export default function AdminQuizzes() {
   }
 
   async function toggleActive(quiz: Quiz) {
+    const nextActive = !quiz.is_active
     try {
       const res = await adminFetch(`/api/admin/quizzes/${quiz.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ is_active: !quiz.is_active }),
+        body: JSON.stringify({ is_active: nextActive }),
       })
       if (!res.ok) showFeedback('error', 'Kunne ikke oppdatere quiz.')
-      else refreshQuizzes()
+      else {
+        showFeedback('success', `"${quiz.title}" er ${nextActive ? 'publisert' : 'skjult'}.`)
+        refreshQuizzes()
+      }
     } catch {
       showFeedback('error', 'Kunne ikke oppdatere quiz.')
     }
   }
 
-  async function deleteQuiz(id: string) {
+  async function deleteQuiz(id: string, title: string) {
     if (!confirm('Er du sikker på at du vil slette denne quizen? Dette kan ikke angres.')) return
     try {
       const res = await adminFetch(`/api/admin/quizzes/${id}`, { method: 'DELETE' })
       if (!res.ok) showFeedback('error', 'Kunne ikke slette quiz.')
-      else refreshQuizzes()
+      else {
+        showFeedback('success', `"${title}" er slettet.`)
+        refreshQuizzes()
+      }
     } catch {
       showFeedback('error', 'Kunne ikke slette quiz.')
     }
@@ -730,7 +737,7 @@ export default function AdminQuizzes() {
                   <button onClick={() => resetQuiz(quiz.id, quiz.title)} className="aqz-action purple">
                     Reset
                   </button>
-                  <button onClick={() => deleteQuiz(quiz.id)} className="aqz-action red">
+                  <button onClick={() => deleteQuiz(quiz.id, quiz.title)} className="aqz-action red">
                     Slett
                   </button>
                   {mounted && quiz.closes_at && new Date(quiz.closes_at) < new Date() && (
