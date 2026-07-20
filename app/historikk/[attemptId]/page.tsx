@@ -9,11 +9,7 @@ import type { AttemptDetail, AttemptAnswerDetail } from '@/lib/history'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatTime(ms: number): string {
-  const totalSec = Math.round(ms / 1000)
-  if (totalSec < 60) return `${totalSec}s`
-  const min = Math.floor(totalSec / 60)
-  const sec = totalSec % 60
-  return `${min}:${sec.toString().padStart(2, '0')}`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 function formatDate(iso: string): string {

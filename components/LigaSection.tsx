@@ -145,8 +145,7 @@ const s = {
 }
 
 function formatTime(ms: number): string {
-  const sec = Math.floor(ms / 1000)
-  return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 function initials(name: string): string {

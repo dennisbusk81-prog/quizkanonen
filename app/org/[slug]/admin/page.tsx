@@ -163,9 +163,7 @@ function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue'
 }
 
 function formatTime(ms: number): string {
-  const s = Math.round(ms / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}:${(s % 60).toString().padStart(2, '0')}` : `${s}s`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 function getPrevPeriodRange(period: 'month' | 'quarter' | 'year'): { start: string; end: string } {

@@ -537,10 +537,7 @@ export default function LeaderboardPage() {
     return new Date(q.opens_at) <= now && new Date(q.closes_at) >= now
   }
 
-  const formatTime = (ms: number) => {
-    const sec = Math.floor(ms / 1000)
-    return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`
-  }
+  const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>

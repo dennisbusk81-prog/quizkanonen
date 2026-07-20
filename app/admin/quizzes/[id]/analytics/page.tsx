@@ -730,8 +730,7 @@ export default function QuizAnalytics() {
                     </thead>
                     <tbody>
                       {topPlayers.map(p => {
-                        const timeSec = Math.round(p.total_time_ms / 1000)
-                        const timeStr = timeSec < 60 ? `${timeSec}s` : `${Math.floor(timeSec / 60)}m ${timeSec % 60}s`
+                        const timeStr = `${(p.total_time_ms / 1000).toFixed(1)}s`
                         return (
                           <tr key={p.rank}>
                             <td className="an-top-rank">{p.rank}</td>

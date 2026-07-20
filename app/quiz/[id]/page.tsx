@@ -1752,10 +1752,7 @@ export default function QuizPage() {
     setPhase('finished')
   }
 
-  const formatTime = (ms: number) => {
-    const s = Math.floor(ms / 1000)
-    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
-  }
+  const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 
   const generateAndShareCard = async () => {
     if (cardShareState === 'loading') return
@@ -2002,7 +1999,7 @@ export default function QuizPage() {
                       )}
                     </span>
                     <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
-                      {row.correct_answers} riktige · {Math.round(row.total_time_ms / 1000)}s
+                      {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
                     </span>
                   </div>
                 )
@@ -2545,7 +2542,7 @@ export default function QuizPage() {
                     {row.player_name}
                   </span>
                   <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
-                    {row.correct_answers} riktige · {Math.round(row.total_time_ms / 1000)}s
+                    {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
                   </span>
                 </div>
               )

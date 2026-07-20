@@ -1796,7 +1796,7 @@ export default async function Home() {
             }}>Forrige uke — hvem vant?</p>
             <div className="qk-top3-rows qkp-league-top3">
               {lastQuizTop3.map((row, i) => {
-                const totalSec = Math.round(row.total_time_ms / 1000)
+                const timeStr = `${(row.total_time_ms / 1000).toFixed(1)}s`
                 const totalQ = lastQuizQuestionCount || '?'
                 return (
                   <div key={i} className="qk-top3-row">
@@ -1817,7 +1817,7 @@ export default async function Home() {
                     </div>
                     <div className="qk-top3-right">
                       {row.correct_answers}/{totalQ}
-                      <span className="qk-top3-time"> · {totalSec}s</span>
+                      <span className="qk-top3-time"> · {timeStr}</span>
                     </div>
                   </div>
                 )

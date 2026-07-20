@@ -332,8 +332,7 @@ const STYLES = `
 `
 
 function formatTime(ms: number): string {
-  const sec = Math.round(ms / 1000)
-  return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 function diffClass(pct: number) { return pct >= 70 ? 'easy' : pct >= 40 ? 'medium' : 'hard' }
