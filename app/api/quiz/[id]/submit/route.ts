@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { calculateStreak } from '@/lib/ranking'
+import { rateLimit } from '@/lib/rate-limit'
+import { verifyAttemptToken } from '@/lib/attempt-token'
 
 // ── Service-role scoring for ukens quiz ──────────────────────────────────────
 // Klienten sender KUN rå svar (selectedAnswer + timeMs per spørsmål). Serveren
@@ -24,6 +26,11 @@ export async function POST(
   const { id: quizId } = await params
   if (!quizId) return NextResponse.json({ error: 'Mangler quiz-id' }, { status: 400 })
 
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(`submit:${ip}`, 10, 600_000).success) {
+    return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
+  }
+
   let body: { attemptId?: unknown; deviceId?: unknown; answers?: unknown }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
@@ -32,6 +39,14 @@ export async function POST(
   const attemptId = typeof body.attemptId === 'string' ? body.attemptId : null
   const deviceId = typeof body.deviceId === 'string' ? body.deviceId : null
   if (!attemptId) return NextResponse.json({ error: 'Mangler attemptId' }, { status: 400 })
+
+  // Samme signerte token som questions krever — knytter innsendingen til det
+  // forsøket som faktisk ble startet gjennom start-attempt.
+  const attemptToken = request.headers.get('x-attempt-token') ?? ''
+  if (!attemptToken || !verifyAttemptToken(attemptToken, attemptId, quizId)) {
+    return NextResponse.json({ error: 'Ugyldig eller manglende attempt-token' }, { status: 403 })
+  }
+
   if (!Array.isArray(body.answers)) {
     return NextResponse.json({ error: 'Mangler svar' }, { status: 400 })
   }
@@ -47,7 +62,7 @@ export async function POST(
   // ── 1. Hent attempt-raden og verifiser eierskap ────────────────────────────
   const { data: attempt, error: attErr } = await supabaseAdmin
     .from('attempts')
-    .select('id, quiz_id, user_id, correct_answers, submitted_at')
+    .select('id, quiz_id, user_id, correct_answers, submitted_at, completed_at')
     .eq('id', attemptId)
     .maybeSingle()
 
@@ -74,6 +89,30 @@ export async function POST(
   // Dobbel-scoring-vern: allerede scoret?
   if (attempt.submitted_at !== null || (attempt.correct_answers ?? 0) > 0) {
     return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 403 })
+  }
+
+  // ── 1b. Tidsvalidering mot server-klokken ───────────────────────────────────
+  // Alt tidsforbruk klienten selv rapporterer er manipulerbart. Her måler vi mot
+  // attempts.completed_at, som settes til now() av DB-defaulten når raden
+  // opprettes i start-attempt og aldri overskrives etterpå — altså forsøkets
+  // starttidspunkt, skrevet av serveren. (Tabellen har ingen created_at-kolonne;
+  // completed_at er den faktiske server-tidsstemplingen ved opprettelse.)
+  // En hel quiz levert på under to sekunder er ikke en rask spiller — det er et
+  // script.
+  //
+  // Todelt med vilje: harde avvisninger kun der ingen ekte spiller kan havne;
+  // det mer sannsynlige gråsone-tilfellet (under ett sekund per spørsmål i snitt)
+  // logges i stedet, så vi ser omfanget uten å risikere falske positiver på en
+  // fredagsquiz i live drift.
+  const elapsedMs = Date.now() - new Date(attempt.completed_at).getTime()
+  if (elapsedMs < 2000) {
+    console.warn('[submit] avvist på tid:', { attemptId, quizId, elapsedMs })
+    return NextResponse.json({ error: 'Innsendingen kom for raskt' }, { status: 403 })
+  }
+  if (answers.length > 0 && elapsedMs < answers.length * 1000) {
+    console.warn('[submit] mistenkelig rask innsending:', {
+      attemptId, quizId, elapsedMs, questions: answers.length,
+    })
   }
 
   // ── 2. Hent quiz + spørsmål (fasit) ─────────────────────────────────────────

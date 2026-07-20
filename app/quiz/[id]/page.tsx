@@ -755,6 +755,10 @@ export default function QuizPage() {
   const [questionStartTime, setQuestionStartTime] = useState(0)
   const [totalTimeMs, setTotalTimeMs] = useState(0)
   const [attemptId, setAttemptId] = useState<string | null>(null)
+  // Signert token fra start-attempt. Kreves av /questions og /submit. Holdes kun
+  // i minnet — aldri localStorage: gjenopptakelse etter reload kaller
+  // start-attempt på nytt (reused-stien) og får et ferskt token derfra.
+  const [attemptToken, setAttemptToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [nameInput, setNameInput] = useState('')
   const [ageConfirmed, setAgeConfirmed] = useState(false)
@@ -984,11 +988,15 @@ export default function QuizPage() {
 
   // Henter ett spørsmål (med kun sin egen fasit) fra server-ruten. aId trengs for
   // stabil, per-attempt randomisert rekkefølge.
+  // Tokenet tas som argument (ikke fra state) fordi startQuiz kaller denne i
+  // samme tick som tokenet mottas — state er ikke oppdatert ennå der.
   const fetchQuestionAt = useCallback(
-    async (index: number, aId: string | null): Promise<{ question: Question; total: number }> => {
+    async (index: number, aId: string | null, token: string | null): Promise<{ question: Question; total: number }> => {
       const sp = new URLSearchParams({ index: String(index) })
       if (aId) sp.set('attemptId', aId)
-      const res = await fetch(`/api/quiz/${quizId}/questions?${sp.toString()}`)
+      const res = await fetch(`/api/quiz/${quizId}/questions?${sp.toString()}`, {
+        headers: token ? { 'x-attempt-token': token } : {},
+      })
       if (!res.ok) throw new Error(`questions ${res.status}`)
       return res.json()
     },
@@ -1241,8 +1249,9 @@ export default function QuizPage() {
         setStartError(err.error ?? 'Noe gikk galt. Prøv å laste siden på nytt.')
         return
       }
-      const { attemptId: newAttemptId } = await res.json()
+      const { attemptId: newAttemptId, attemptToken: newAttemptToken } = await res.json()
       setAttemptId(newAttemptId || null)
+      setAttemptToken(newAttemptToken || null)
 
       // Hent spørsmålene som trengs for å starte: fersk start → kun index 0,
       // resume → 0..resumeData.index. Resten hentes underveis i goToNext.
@@ -1252,12 +1261,14 @@ export default function QuizPage() {
       try {
         if (resumeData) {
           const results = await Promise.all(
-            Array.from({ length: resumeData.index + 1 }, (_, i) => fetchQuestionAt(i, newAttemptId || null)),
+            Array.from({ length: resumeData.index + 1 }, (_, i) =>
+              fetchQuestionAt(i, newAttemptId || null, newAttemptToken || null),
+            ),
           )
           loadedQuestions = results.map(r => r.question)
           total = results[0]?.total ?? loadedQuestions.length
         } else {
-          const r0 = await fetchQuestionAt(0, newAttemptId || null)
+          const r0 = await fetchQuestionAt(0, newAttemptId || null, newAttemptToken || null)
           loadedQuestions = [r0.question]
           total = r0.total
         }
@@ -1544,7 +1555,7 @@ export default function QuizPage() {
     // i stedet for å la brukeren bli stående uten vei videre.
     if (!questions[nextIndex]) {
       try {
-        const r = await fetchQuestionAt(nextIndex, attemptId)
+        const r = await fetchQuestionAt(nextIndex, attemptId, attemptToken)
         setQuestions(prev => {
           const copy = [...prev]
           copy[nextIndex] = r.question
@@ -1658,6 +1669,7 @@ export default function QuizPage() {
           headers: {
             'Content-Type': 'application/json',
             ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            ...(attemptToken ? { 'x-attempt-token': attemptToken } : {}),
           },
           body: JSON.stringify({
             attemptId,

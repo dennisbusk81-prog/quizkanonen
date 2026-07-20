@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
+import { verifyAttemptToken } from '@/lib/attempt-token'
 
 // ── Spørsmål ett om gangen — skjuler fasiten fra klienten ────────────────────
 // Tidligere gjorde klienten select('*') på questions og fikk HELE fasiten i
@@ -68,8 +69,27 @@ export async function GET(
   if (!Number.isInteger(index) || index < 0) {
     return NextResponse.json({ error: 'Ugyldig index' }, { status: 400 })
   }
+  // ── Adgangskontroll: gyldig, signert attempt-token kreves ────────────────────
+  // Uten dette kunne hvem som helst hente hele fasiten på forhånd med ett kall
+  // per index, uten å spille. Gaten kjører FØR all databehandling og gjelder
+  // uavhengig av quiz_type/randomize_questions. Ved avvisning skal responsen
+  // aldri inneholde spørsmålsdata.
+  //
+  // Merk: her kreves IKKE Authorization-header, kun attempt-tokenet. Tokenet er
+  // allerede bundet til (attemptId, quizId), og en sesjon som fornyes midt i en
+  // quiz skal ikke kunne stoppe spilleren i å få neste spørsmål.
   const attemptId = searchParams.get('attemptId') ?? ''
-  const hasAttempt = UUID_RE.test(attemptId)
+  if (!UUID_RE.test(attemptId)) {
+    return NextResponse.json({ error: 'Mangler eller ugyldig attemptId' }, { status: 400 })
+  }
+
+  const attemptToken = request.headers.get('x-attempt-token') ?? ''
+  if (!attemptToken) {
+    return NextResponse.json({ error: 'Mangler attempt-token' }, { status: 401 })
+  }
+  if (!verifyAttemptToken(attemptToken, attemptId, quizId)) {
+    return NextResponse.json({ error: 'Ugyldig attempt-token' }, { status: 403 })
+  }
 
   // ── Quiz + attempt parallelt ──────────────────────────────────────────────────
   // Quizen må finnes/være åpen; attempt-raden bærer den lagrede rekkefølgen.
@@ -80,14 +100,23 @@ export async function GET(
       .select('id, opens_at, closes_at, randomize_questions, quiz_type')
       .eq('id', quizId)
       .maybeSingle(),
-    hasAttempt
-      ? supabaseAdmin
-          .from('attempts')
-          .select('id, quiz_id, question_order')
-          .eq('id', attemptId)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    supabaseAdmin
+      .from('attempts')
+      .select('id, quiz_id, question_order, submitted_at')
+      .eq('id', attemptId)
+      .maybeSingle(),
   ])
+
+  // Raden må finnes, tilhøre denne quizen, og ikke være levert. Siste punkt
+  // hindrer at et brukt token gjenbrukes til å hente fasiten i ro og mak etterpå.
+  const attemptRow = attemptRes.data as
+    { id: string; quiz_id: string; question_order: unknown; submitted_at: string | null } | null
+  if (!attemptRow || attemptRow.quiz_id !== quizId) {
+    return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
+  }
+  if (attemptRow.submitted_at !== null) {
+    return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 403 })
+  }
 
   const quiz = quizRes.data
   if (!quiz) {
@@ -100,12 +129,11 @@ export async function GET(
     return NextResponse.json({ error: 'Quizen er ikke åpen' }, { status: 403 })
   }
 
-  // Attempt må tilhøre denne quizen for å brukes som rekkefølge-kilde.
-  const attempt = (attemptRes.data && (attemptRes.data as { quiz_id?: string }).quiz_id === quizId)
-    ? (attemptRes.data as { id: string; quiz_id: string; question_order: unknown })
-    : null
+  // Attempt er allerede verifisert i gaten over — den kan brukes direkte som
+  // rekkefølge-kilde.
+  const attempt = attemptRow
 
-  const shouldRandomize = quiz.randomize_questions === true && (quiz as { quiz_type?: string }).quiz_type !== 'weekly' && attempt !== null
+  const shouldRandomize = quiz.randomize_questions === true && (quiz as { quiz_type?: string }).quiz_type !== 'weekly'
 
   // ── Randomisert: bruk (eller bygg) lagret rekkefølge på attempt-raden ─────────
   if (shouldRandomize && attempt) {

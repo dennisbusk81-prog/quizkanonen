@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { createAttemptToken } from '@/lib/attempt-token'
 
 // ── Service-role attempt-opprettelse ─────────────────────────────────────────
 // Erstatter den gamle klient-INSERT-en i app/quiz/[id]/page.tsx (startQuiz).
@@ -116,7 +117,13 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle()
     if (unfinished) {
-      return NextResponse.json({ attemptId: unfinished.id, reused: true })
+      // Tokenet MÅ følge med også her — gjenopptakelse etter reload går denne
+      // veien, og uten token kommer klienten ikke videre til questions/submit.
+      return NextResponse.json({
+        attemptId: unfinished.id,
+        attemptToken: createAttemptToken(unfinished.id, quizId),
+        reused: true,
+      })
     }
   }
 
@@ -164,11 +171,20 @@ export async function POST(request: NextRequest) {
         .order('completed_at', { ascending: true, nullsFirst: false })
         .limit(1)
         .maybeSingle()
-      if (race) return NextResponse.json({ attemptId: race.id, reused: true })
+      if (race) {
+        return NextResponse.json({
+          attemptId: race.id,
+          attemptToken: createAttemptToken(race.id, quizId),
+          reused: true,
+        })
+      }
     }
     console.error('[start-attempt] insert feilet:', insertError?.message)
     return NextResponse.json({ error: 'Kunne ikke starte forsøket' }, { status: 500 })
   }
 
-  return NextResponse.json({ attemptId: inserted.id })
+  return NextResponse.json({
+    attemptId: inserted.id,
+    attemptToken: createAttemptToken(inserted.id, quizId),
+  })
 }

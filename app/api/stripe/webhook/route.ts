@@ -468,9 +468,30 @@ export async function POST(request: NextRequest) {
       // reelt om det personlige abonnementet feiler, og e-posten er bare forvirrende.
       const { data: profileForFailed } = await supabaseAdmin
         .from('profiles')
-        .select('id')
+        .select('id, personal_stripe_subscription_id')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
+
+      // subscription-id ligger på ulike felt før/etter dahlia-API-endringen — prøv begge.
+      // Utledes FØR e-postbeslutningen fordi stale-sub-sjekken under trenger den.
+      const inv = invoice as unknown as {
+        subscription?: string | null
+        parent?: { subscription_details?: { subscription?: string | null } | null } | null
+      }
+      const subscriptionId = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null
+
+      // ── Stale-sub-vern (samme rotårsak som FIX 3 i subscription.deleted) ────
+      // Ruten matchet tidligere KUN på stripe_customer_id. En sen purring på et
+      // gammelt, erstattet abonnement ga da «Betalingen feilet»-e-post til en bruker
+      // hvis gjeldende abonnement er helt friskt — nøyaktig samme misvisende e-post
+      // som duplikat-Founders-saken 19. juli, bare via en annen hendelsestype.
+      //
+      // personal_stripe_subscription_id settes kun av Founders-flyten. Er den null,
+      // har vi ikke noe stale-signal og fortsetter som før. Klarte vi ikke å lese
+      // subscription-id fra fakturaen, undertrykker vi heller ikke e-posten — da er
+      // det bedre å varsle enn å tie om en ekte betalingsfeil.
+      const personalSubId = profileForFailed?.personal_stripe_subscription_id ?? null
+      const isCurrentPersonalSub = !personalSubId || !subscriptionId || personalSubId === subscriptionId
 
       // ── Deduplisering av varsel-e-post ──────────────────────────────────────
       // Stripe purrer den samme fakturaen flere ganger (smart retries, typisk 3-4
@@ -492,6 +513,11 @@ export async function POST(request: NextRequest) {
           `[webhook] invoice.payment_failed — e-post hoppet over: purring #${attemptCount} ` +
           `på faktura ${invoice.id}, varsel allerede sendt ved første forsøk`
         )
+      } else if (profileForFailed && !isCurrentPersonalSub) {
+        console.log(
+          `[webhook] invoice.payment_failed — e-post hoppet over for profile ` +
+          `${profileForFailed.id}: stale sub ${subscriptionId}, gjeldende er ${personalSubId}`
+        )
       } else if (profileForFailed && await hasActiveOrgPremium(profileForFailed.id)) {
         console.log(
           `[webhook] paymentFailedEmail hoppet over — bruker ${profileForFailed.id} ` +
@@ -503,13 +529,6 @@ export async function POST(request: NextRequest) {
         // Når trialen konverterer til 'active', forsøker Stripe å fakturere uten kort →
         // invoice.payment_failed. Det er ikke en «ekte» betalingsfeil for en bruker som
         // aldri ble bedt om kort — da sender vi en vennlig «prøveperioden er over»-e-post.
-
-        // subscription-id ligger på ulike felt før/etter dahlia-API-endringen — prøv begge.
-        const inv = invoice as unknown as {
-          subscription?: string | null
-          parent?: { subscription_details?: { subscription?: string | null } | null } | null
-        }
-        const subscriptionId = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null
 
         // Best-effort: hent subscription-objektet for kontekst/logging (status).
         let subStatus = 'ukjent'
