@@ -200,6 +200,7 @@ export default function FoundersPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [foundersData, setFoundersData] = useState<FoundersCount | null>(null)
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(null)
 
   // Hent live founders-data
   useEffect(() => {
@@ -207,6 +208,14 @@ export default function FoundersPage() {
       .then(r => r.json())
       .then(setFoundersData)
       .catch(() => {/* bruk null — vis fallback-tekst */})
+  }, [])
+
+  // Hent aktiv quiz — brukes til "allerede Premium"-lenken under
+  useEffect(() => {
+    fetch('/api/quiz/active')
+      .then(r => r.json())
+      .then(d => setActiveQuizId(d.id ?? null))
+      .catch(() => {/* fallback til forsiden */})
   }, [])
 
   async function runActivate(accessToken: string) {
@@ -385,12 +394,12 @@ export default function FoundersPage() {
                 Du har allerede Premium — takk!
               </div>
               <a
-                href="/"
+                href={activeQuizId ? `/quiz/${activeQuizId}` : '/'}
                 style={s.btnSecondary}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.35)'; e.currentTarget.style.color = '#c9a84c' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38'; e.currentTarget.style.color = '#e8e4dd' }}
               >
-                ← Tilbake til forsiden
+                {activeQuizId ? 'Spill quizen →' : '← Tilbake til forsiden'}
               </a>
             </>
           ) : (
