@@ -39,6 +39,7 @@ const STYLES = `
 
   .pkg-name { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--hint); margin-bottom: 6px; }
   .pkg-name-featured { color: var(--gold); }
+  .pkg-audience { font-size: 12px; color: #e8e4dd; margin-bottom: 10px; line-height: 1.3; }
   .pkg-price { font-family: 'Libre Baskerville', serif; font-size: 28px; font-weight: 700; color: var(--white); line-height: 1; margin-bottom: 2px; }
   .pkg-price span { font-size: 13px; font-weight: 400; color: var(--hint); font-family: 'Instrument Sans', sans-serif; }
   .pkg-contact-headline { font-family: 'Libre Baskerville', serif; font-size: 17px; font-weight: 700; color: var(--white); line-height: 1.3; margin-bottom: 8px; }
@@ -145,6 +146,7 @@ export default function BedriftPage() {
 
           <div className="pkg">
             <div className="pkg-name">Starter</div>
+            <div className="pkg-audience">Små team, opptil 25 ansatte</div>
             <div className="pkg-price">499 <span>kr/mnd</span></div>
             <div className="pkg-desc">Én quiz i uken. Perfekt inngang.</div>
             <div className="pkg-divider"></div>
@@ -162,6 +164,7 @@ export default function BedriftPage() {
           <div className="pkg pkg-featured">
             <div className="pkg-badge">Mest populær</div>
             <div className="pkg-name pkg-name-featured">Standard</div>
+            <div className="pkg-audience">Mellomstore team, opptil 50 ansatte</div>
             <div className="pkg-price">899 <span>kr/mnd</span></div>
             <div className="pkg-desc">Full oversikt over engasjement, deltakelse og intern konkurranse.</div>
             <div className="pkg-divider"></div>

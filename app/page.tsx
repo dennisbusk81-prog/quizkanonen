@@ -39,7 +39,7 @@ function formatNextQuiz(iso: string) {
   const day = d.toLocaleDateString('nb-NO', { day: 'numeric', timeZone: 'Europe/Oslo' }).replace(/\.$/, '')
   const month = d.toLocaleDateString('nb-NO', { month: 'long', timeZone: 'Europe/Oslo' })
   const time = d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo', hour12: false })
-  return `${weekday} ${day}. ${month} kl. ${time}`
+  return `${weekday} ${day}. ${month} kl. ${time} (norsk tid)`
 }
 
 function truncateName(name: string, max = 20): string {
@@ -1122,6 +1122,59 @@ const SHARED_CSS = `
     .qk-interlude-cards { flex-direction: column; }
   }
 
+  /* ── Visuell forhåndsvisning — fiktivt eksempel, sekundær kortstil, IKKE gull
+     (respekterer to-gule-regel: "Spill ukens quiz"/"Se topplisten" er allerede
+     det ene gule elementet på denne skjermen) ── */
+  .qk-preview {
+    max-width: 680px;
+    margin: 0 auto 28px;
+    padding: 0 24px;
+  }
+
+  .qk-preview-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #7a7873;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .qk-preview-cards {
+    display: flex;
+    gap: 12px;
+  }
+
+  .qk-preview-card {
+    flex: 1;
+    background: #21242e;
+    border: 1px solid #2a2d38;
+    border-radius: 16px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+
+  .qk-preview-card-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #7a7873;
+    margin-bottom: 12px;
+  }
+
+  .qk-preview-card-text {
+    font-size: 12px;
+    color: #e8e4dd;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .qk-preview-cards { flex-direction: column; }
+  }
+
   /* ── Desktop ── */
   @media (min-width: 769px) {
     .qk-hero-title    { font-size: 52px; }
@@ -1735,10 +1788,10 @@ export default async function Home() {
         {/* ── Hero ── */}
         <section className="qk-hero">
           <h1 className="qk-hero-title">
-            Fredagsquizen som du <em>følger med over tid.</em>
+            Én ny quiz. De samme rivalene. <em>Hver fredag.</em>
           </h1>
           <p className="qk-hero-subtitle">
-            Slå de samme menneskene hver fredag. Kan du klatre på topplisten?
+            Svar på 15 spørsmål, se hvor du ligger og klatre på topplisten gjennom sesongen.
           </p>
           <div className="qk-hero-actions">
             {activeQuiz && (
@@ -1751,13 +1804,13 @@ export default async function Home() {
             </Link>
           </div>
           <div className="qk-hero-status">
-            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Gratis innlogging med Google</span></span>
+            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google, e-post eller passord</span></span>
             <span style={{ color: '#7a7873' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
           <div className="qk-steps">
             {([
-              { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12. Svar raskt — tid teller.' },
+              { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12 (norsk tid). Svar raskt — tid teller.' },
               { n: '2', title: 'Se plasseringen', desc: 'Se nøyaktig hvor du havner blant alle deltakerne.' },
               { n: '3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatr.' },
             ] as const).map(({ n, title, desc }) => (
@@ -1800,6 +1853,46 @@ export default async function Home() {
                 <p className="qk-interlude-card-text">{text}</p>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── Visuell forhåndsvisning — fiktivt eksempel, kun for gjester ── */}
+        <div className="qk-preview">
+          <p className="qk-preview-eyebrow">Eksempel — slik ser sesongen ut</p>
+          <div className="qk-preview-cards">
+            <div className="qk-preview-card">
+              <p className="qk-preview-card-label">Plassering</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#7a7873' }}>18.</span>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M1 6H15M15 6L10 1M15 6L10 11" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff' }}>11.</span>
+              </div>
+              <p className="qk-preview-card-text">Du klatret fra 18. til 11. plass</p>
+            </div>
+
+            <div className="qk-preview-card">
+              <p className="qk-preview-card-label">Rival</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: '#2a2d38', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#e8e4dd',
+                }}>M</div>
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff' }}>Maria</span>
+              </div>
+              <p className="qk-preview-card-text">120 poeng foran deg denne sesongen</p>
+            </div>
+
+            <div className="qk-preview-card">
+              <p className="qk-preview-card-label">Sesongutvikling</p>
+              <svg width="100%" height="40" viewBox="0 0 160 40" style={{ display: 'block', margin: '0 auto' }} preserveAspectRatio="xMidYMid meet">
+                <polyline points="4,32 42,26 80,20 118,12 156,4" fill="none" stroke="#e8e4dd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="156" cy="4" r="3" fill="#ffffff" />
+              </svg>
+              <p className="qk-preview-card-text">Poengene bygger seg opp uke for uke</p>
+            </div>
           </div>
         </div>
 

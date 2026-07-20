@@ -2115,27 +2115,41 @@ export default function QuizPage() {
         const now = new Date()
         const beforeOrgOpen = orgQuizOpensAt && new Date(orgQuizOpensAt) > now
         const afterOrgClose = orgQuizClosesAt && new Date(orgQuizClosesAt) < now
+        // Eksplisitt Europe/Oslo — uten dette leser toLocaleTimeString besøkerens
+        // EGEN nettleser-tidssone, som er tvetydig for alle utenfor Norge.
+        const osloTime = (iso: string) =>
+          new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' })
         if (beforeOrgOpen) {
-          const t = new Date(orgQuizOpensAt!).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          const t = osloTime(orgQuizOpensAt!)
           return (
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
-              Quizen åpner kl. {t} for {orgName ?? 'din bedrift'}.
+              Quizen åpner kl. {t} (norsk tid) for {orgName ?? 'din bedrift'}.
             </div>
           )
         }
         if (afterOrgClose) {
-          const t = new Date(orgQuizClosesAt!).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          const t = osloTime(orgQuizClosesAt!)
           return (
             <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
-              Fristen for {orgName ?? 'din bedrift'} gikk ut kl. {t}. Sesong-poeng gjelder ikke for sene innleveringer.
+              Fristen for {orgName ?? 'din bedrift'} gikk ut kl. {t} (norsk tid). Sesong-poeng gjelder ikke for sene innleveringer.
             </div>
           )
         }
         if (orgQuizClosesAt) {
-          const t = new Date(orgQuizClosesAt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' })
+          const t = osloTime(orgQuizClosesAt)
           return (
             <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
-              Frist for {orgName ?? 'din bedrift'}: kl. {t}
+              Frist for {orgName ?? 'din bedrift'}: kl. {t} (norsk tid)
+            </div>
+          )
+        }
+        // Ingen org-spesifikk frist — vis quizens ordinære (offentlige) stengetid,
+        // som tidligere ikke ble kommunisert noe sted på start-skjermen.
+        if (quiz?.closes_at) {
+          const t = osloTime(quiz.closes_at)
+          return (
+            <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+              Quizen stenger kl. {t} (norsk tid)
             </div>
           )
         }

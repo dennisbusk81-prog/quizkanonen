@@ -187,13 +187,19 @@ const css = `
   }
 `
 
+// Denne siden er en server-komponent (force-dynamic). new Date(iso).getHours()
+// leser SERVERENS lokale tidssone, ikke Oslo — på Vercel er serverklokka UTC,
+// så uten eksplisitt konvertering ville "Stenger fredag ... kl. X" vist feil
+// klokkeslett i produksjon (1-2 timer bak, avhengig av sommer-/vintertid).
+// Samme mønster som formatNextQuiz i app/page.tsx og nowOslo i quiz/[id]/page.tsx.
 function formatNorDate(iso: string): string {
   const d = new Date(iso)
+  const oslo = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
   const days = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag']
   const months = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.']
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${days[d.getDay()]} ${d.getDate()}. ${months[d.getMonth()]} kl. ${hh}.${mm}`
+  const hh = String(oslo.getHours()).padStart(2, '0')
+  const mm = String(oslo.getMinutes()).padStart(2, '0')
+  return `${days[oslo.getDay()]} ${oslo.getDate()}. ${months[oslo.getMonth()]} kl. ${hh}.${mm} (norsk tid)`
 }
 
 type QuizStatus = 'åpen' | 'kommende' | 'stengt'
