@@ -172,6 +172,7 @@ const STYLES = `
     margin-bottom: 8px;
   }
   .adm-stat-link { font-size: 11px; color: var(--gold); }
+  .adm-stat-breakdown { font-size: 10px; color: var(--hint); line-height: 1.5; margin: -2px 0 8px; }
 
   /* Next quiz row */
   .adm-nq {
@@ -336,13 +337,21 @@ function nextFridayNoon(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-type Stats = { quizzes: number; players: number; active30d: number; premium: number }
+type Stats = { quizzes: number; players: number; active30d: number; premium: number; premiumBySource: Record<string, number> }
+
+const PREMIUM_SOURCE_LABELS: Record<string, string> = {
+  founders: 'Founders',
+  org: 'bedrift',
+  personal: 'betalende',
+  code: 'kode',
+  ukjent: 'ukjent kilde',
+}
 type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string; opens_at: string | null; closes_at: string | null }
 type ResetModal = null | 'all' | 'test'
 
 export default function AdminHome() {
   const router = useRouter()
-  const [stats, setStats] = useState<Stats>({ quizzes: 0, players: 0, active30d: 0, premium: 0 })
+  const [stats, setStats] = useState<Stats>({ quizzes: 0, players: 0, active30d: 0, premium: 0, premiumBySource: {} })
   const [recentQuizzes, setRecentQuizzes] = useState<QuizRow[]>([])
   const [nextQuizValue, setNextQuizValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -375,7 +384,7 @@ export default function AdminHome() {
       ])
       if (statsRes.ok) {
         const data = await statsRes.json()
-        setStats({ quizzes: data.quizzes ?? 0, players: data.players ?? 0, active30d: data.active30d ?? 0, premium: data.premium ?? 0 })
+        setStats({ quizzes: data.quizzes ?? 0, players: data.players ?? 0, active30d: data.active30d ?? 0, premium: data.premium ?? 0, premiumBySource: data.premiumBySource ?? {} })
       }
       if (quizzesRes.ok) {
         const all: QuizRow[] = await quizzesRes.json()
@@ -552,6 +561,14 @@ export default function AdminHome() {
           <Link href="/admin/codes" className="adm-stat">
             <div className="adm-stat-value">{stats.premium}</div>
             <div className="adm-stat-label">Premium-brukere</div>
+            {Object.keys(stats.premiumBySource).length > 0 && (
+              <div className="adm-stat-breakdown">
+                {Object.entries(stats.premiumBySource)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([source, count]) => `${count} ${PREMIUM_SOURCE_LABELS[source] ?? source}`)
+                  .join(' · ')}
+              </div>
+            )}
             <div className="adm-stat-link">Se mer →</div>
           </Link>
         </div>
