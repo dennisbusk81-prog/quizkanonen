@@ -528,11 +528,13 @@ export default function AdminCodes() {
                     <div className="ac-usage-bar-fill" style={{ width: `${usagePct}%` }} />
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleCode(code.id, code.is_active)}
-                  className={`ac-toggle-btn ${code.is_active ? 'deactivate' : 'activate'}`}>
-                  {code.is_active ? 'Deaktiver' : 'Aktiver'}
-                </button>
+                {!expired && (
+                  <button
+                    onClick={() => toggleCode(code.id, code.is_active)}
+                    className={`ac-toggle-btn ${code.is_active ? 'deactivate' : 'activate'}`}>
+                    {code.is_active ? 'Deaktiver' : 'Aktiver'}
+                  </button>
+                )}
               </div>
             )
           })}
