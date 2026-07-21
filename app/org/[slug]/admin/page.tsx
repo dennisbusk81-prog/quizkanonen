@@ -533,8 +533,9 @@ export default function OrgAdminPage() {
     }
   }
 
-  const removeMember = async (membershipId: string) => {
+  const removeMember = async (membershipId: string, displayName: string) => {
     if (!session) return
+    if (!confirm(`Er du sikker på at du vil fjerne ${displayName} fra bedriften? Dette kan ikke angres.`)) return
     setRemovingId(membershipId)
     try {
       await fetch(`/api/org/members/${membershipId}/remove`, {
@@ -1369,9 +1370,9 @@ export default function OrgAdminPage() {
                           </button>
                         ) : null}
                         <button
-                          onClick={() => removeMember(member.id)}
+                          onClick={() => removeMember(member.id, member.nickname?.trim() || member.display_name)}
                           disabled={removingId === member.id}
-                          style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
                         >
                           {removingId === member.id ? '…' : 'Fjern'}
                         </button>
@@ -1379,7 +1380,15 @@ export default function OrgAdminPage() {
                           <button
                             onClick={() => handleExclude(member.user_id, activity.isExcluded)}
                             disabled={excludingId === member.user_id}
-                            style={{ fontSize: 11, fontWeight: 600, color: activity.isExcluded ? '#c9a84c' : '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === member.user_id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                            style={{
+                              fontSize: 11, fontWeight: 600,
+                              color: activity.isExcluded ? '#c9a84c' : '#fb923c',
+                              background: 'transparent',
+                              border: activity.isExcluded ? '0.5px solid #2a2d38' : '0.5px solid rgba(251,146,60,0.35)',
+                              borderRadius: 6, padding: '4px 10px',
+                              cursor: excludingId === member.user_id ? 'not-allowed' : 'pointer',
+                              fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+                            }}
                           >
                             {excludingId === member.user_id ? '…' : activity.isExcluded ? 'Vis igjen' : 'Ekskluder'}
                           </button>
