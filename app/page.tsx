@@ -1854,7 +1854,7 @@ export default async function Home() {
                 <p className="qk-step-desc">{desc}</p>
                 {n === '3' && (
                   <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: 6, lineHeight: 1.5 }}>
-                    Sesongen nullstilles hver måned — ny sjanse for alle.
+                    Månedslisten starter på nytt hver måned — kvartal, år og all-time fortsetter å bygge seg opp.
                   </p>
                 )}
               </div>
@@ -2134,7 +2134,7 @@ export default async function Home() {
           <div className="qk-narrow-wrap">
           <div className="qk-founders">
             <p className="qk-founders-eyebrow">Founders Access</p>
-            <h2 className="qk-founders-title">Prøv Premium gratis i én måned</h2>
+            <h2 className="qk-founders-title">Prøv Premium gratis til 15. august</h2>
             <p className="qk-founders-sub">Ingen kortinfo. Ingen automatisk trekk. Vi minner deg på e-post før perioden utløper.</p>
             {foundersSettingsResult && (
               <p style={{

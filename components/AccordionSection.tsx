@@ -18,7 +18,7 @@ const items = [
   {
     title: 'Gratis eller Premium?',
     teaser: 'Gratis å spille — logg inn med Google, e-post eller passord.',
-    content: 'Det er gratis å spille — du logger inn med Google, e-post eller passord på ett sekund, og huskes på topplisten. Premium (kr 49/mnd) gir deg nøyaktig plassering, quizhistorikk, statistikk, private ligaer og mer. Prøv Premium gratis i én måned — ingen kortinfo nødvendig.',
+    content: 'Det er gratis å spille — du logger inn med Google, e-post eller passord på ett sekund, og huskes på topplisten. Premium (kr 49/mnd) gir deg nøyaktig plassering, quizhistorikk, statistikk, private ligaer og mer. Prøv Premium gratis til 15. august — ingen kortinfo nødvendig.',
     link: null,
   },
 ]

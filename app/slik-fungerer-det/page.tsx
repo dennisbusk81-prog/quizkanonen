@@ -86,7 +86,7 @@ const pointsScale = [
   { label: '2. plass', pts: '10' },
   { label: '3. plass', pts: '8' },
   { label: '4.–10. plass', pts: '7–1' },
-  { label: '11. plass +', pts: '1' },
+  { label: '11. plass og lavere', pts: '1' },
 ]
 
 export default function SlikFungererDetPage() {
