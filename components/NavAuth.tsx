@@ -7,27 +7,31 @@ import { signOut } from '@/lib/auth'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import type React from 'react'
 
-// FORRIGE FORSØK (nå reversert): nav-hide-mobile ble fjernet fra Sesongtoppliste
-// og For bedrifter, med horisontal scroll (overflow-x:auto) på .qk-nav-actions
-// som sikkerhetsnett siden raden regnemessig er bredere enn tilgjengelig plass
-// på en 375px-skjerm. Det viste seg å ha to problemer i praksis: (1) å sette
-// overflow-x uten overflow-y gjør at nettleseren automatisk setter
-// overflow-y: auto også (CSS-spec, ikke en bug) — det klippet avatar-
-// dropdownens absolutt-posisjonerte panel, som strekker seg langt under
-// navigasjonslinjens 54px, og gjorde den umulig å åpne på mobil; (2) scroll er
-// uansett dårlig oppdagbarhet — nøyaktig det brukeren opplevde med
-// Sesongtoppliste.
+// Konsekvent mønster på tvers av gjest/innlogget: hamburger (☰) betyr alltid
+// "naviger nettstedet" — samme ikon, samme posisjon, samme betydning uansett
+// innloggingsstatus. Identitetsknappen ved siden av betyr alltid "din konto"
+// ("Logg inn" for gjest, avatar-pillen for innlogget). Innlogget bruker har i
+// tillegg den eksisterende konto-dropdownen (Min profil, Mine ligaer,
+// abonnement, Logg ut) — rent kontoinnhold, ingen navigasjonslenker der
+// lenger, siden de nå hører hjemme i hamburgeren sammen med gjeste-varianten.
 //
-// Løsning nå: en egen hamburger-meny for mobil (kun gjest — innlogget bruker
-// får de samme lenkene lagt til i den eksisterende, allerede fungerende
-// avatar-dropdownen i stedet for enda en separat meny). Ingen overflow noe
-// sted i .qk-nav-actions lenger, så dropdown-klipping-bugen er strukturelt
-// umulig å gjenskape.
+// (Tidligere forsøk brukte overflow-x:auto på .qk-nav-actions som
+// sikkerhetsnett for smale skjermer — det satte utilsiktet overflow-y: auto
+// også (CSS-spec-oppførsel) og klippet avatar-dropdownens panel. Ingen
+// overflow noe sted i .qk-nav-actions nå, så den bug-klassen er strukturelt
+// umulig å gjenskape.)
+//
+// .qk-mobile-only-inline brukes til å bytte "Spill ukens quiz →" til det
+// kortere "Spill nå →" (samme tekst som forsidens quiz-kort) kun på mobil —
+// gir nok plass til hamburger + Logg inn + knappen samtidig i verste fall.
 const NAV_MOBILE_CSS = `
   .qk-nav-hamburger-btn { display: none; }
+  .qk-mobile-only-inline { display: none; }
   @media (max-width: 639px) {
     .nav-hide-mobile { display: none !important; }
     .qk-nav-hamburger-btn { display: inline-flex !important; }
+    .qk-mobile-only-inline { display: inline !important; }
+    .qk-desktop-only-inline { display: none !important; }
   }
 `
 
@@ -53,6 +57,11 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
+  // Hamburger (navigasjon) er en egen meny fra konto-dropdownen over — for
+  // innlogget bruker kan begge være i DOM-en samtidig, så de trenger uavhengig
+  // state/ref. For gjest finnes kun hamburgeren.
+  const [hamburgerOpen, setHamburgerOpen] = useState(false)
+  const hamburgerRef = useRef<HTMLDivElement>(null)
 
   async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
     try {
@@ -172,6 +181,15 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [dropdownOpen])
 
+  useEffect(() => {
+    if (!hamburgerOpen) return
+    function onMouseDown(e: MouseEvent) {
+      if (!hamburgerRef.current?.contains(e.target as Node)) setHamburgerOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [hamburgerOpen])
+
   if (!sessionResolved) return null
 
   const navLink: React.CSSProperties = {
@@ -194,14 +212,13 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
-        <a href="/login" style={{ ...navLink, color: '#e8e4dd' }} className="nav-hide-mobile">Logg inn</a>
 
-        {/* Hamburger-meny — kun mobil (gjest). Egen inngang til Sesongtoppliste,
-            For bedrifter og Logg inn siden de er skjult i topplinjen under 640px. */}
-        <div ref={dropdownRef} style={{ position: 'relative' }}>
+        {/* Hamburger — "naviger nettstedet". Egen inngang til Sesongtoppliste
+            og For bedrifter siden de er skjult i topplinjen under 640px. */}
+        <div ref={hamburgerRef} style={{ position: 'relative' }}>
           <button
             className="qk-nav-hamburger-btn"
-            onClick={() => setDropdownOpen(o => !o)}
+            onClick={() => setHamburgerOpen(o => !o)}
             aria-label="Meny"
             style={{
               alignItems: 'center', justifyContent: 'center',
@@ -214,7 +231,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               <path d="M1 1H15M1 6H15M1 11H15" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
-          {dropdownOpen && (
+          {hamburgerOpen && (
             <div style={{
               position: 'absolute', top: 'calc(100% + 6px)', right: 0,
               background: '#21242e', border: '0.5px solid #2a2d38',
@@ -222,27 +239,26 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
               zIndex: 9000,
             }}>
-              <a href="/toppliste" onClick={() => setDropdownOpen(false)} style={menuItem}
+              <a href="/toppliste" onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 Sesongtoppliste
               </a>
-              <a href="/bedrift" onClick={() => setDropdownOpen(false)} style={menuItem}
+              <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 For bedrifter
               </a>
-              <a href="/login" onClick={() => setDropdownOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Logg inn
-              </a>
             </div>
           )}
         </div>
+
+        {/* Identitetsknapp — "din konto". Samme posisjon som avatar-pillen
+            for innlogget bruker (se under), alltid synlig, aldri gjemt i
+            hamburgeren. */}
+        <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
 
         {quizId && (
           <Link
@@ -256,7 +272,8 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               transition: 'border-color 0.15s, color 0.15s',
             }}
           >
-            Spill ukens quiz →
+            <span className="qk-desktop-only-inline">Spill ukens quiz →</span>
+            <span className="qk-mobile-only-inline">Spill nå →</span>
           </Link>
         )}
       </>
@@ -302,9 +319,71 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >For bedrifter</a>
 
-      {/* Avatar pill + dropdown — på mobil er dette også eneste vei til
-          Sesongtoppliste/For bedrifter/Bedriftspanel (skjult i topplinjen
-          under 640px), se ekstra punkter i dropdown-panelet under. */}
+      {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
+          hos gjest. Eneste vei til Sesongtoppliste/For bedrifter/Min bedrift/
+          Bedriftspanel på mobil (skjult i topplinjen under 640px). Disse er
+          derfor IKKE lenger duplisert i konto-dropdownen under — den
+          inneholder nå kun kontoinnhold (profil, ligaer, abonnement, logg ut). */}
+      <div ref={hamburgerRef} style={{ position: 'relative' }}>
+        <button
+          className="qk-nav-hamburger-btn"
+          onClick={() => setHamburgerOpen(o => !o)}
+          aria-label="Meny"
+          style={{
+            alignItems: 'center', justifyContent: 'center',
+            width: 34, height: 34, background: 'transparent',
+            border: '1px solid #2a2d38', borderRadius: 10,
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+            <path d="M1 1H15M1 6H15M1 11H15" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+        {hamburgerOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+            background: '#21242e', border: '0.5px solid #2a2d38',
+            borderRadius: 12, padding: 6, minWidth: 170,
+            boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+            zIndex: 9000,
+          }}>
+            {!globalHidden && (
+              <a href="/toppliste" onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Sesongtoppliste
+              </a>
+            )}
+            <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              For bedrifter
+            </a>
+            {myOrgs.length > 0 && (
+              <a href={`/org/${myOrgs[0].orgSlug}`} onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Min bedrift
+              </a>
+            )}
+            {myOrgs.some(o => o.isAdmin) && (
+              <a href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`} onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Bedriftspanel
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Identitetsknapp — "din konto", samme posisjon som "Logg inn" hos
+          gjest. Dropdownen under inneholder nå kun kontoinnhold. */}
       <div ref={dropdownRef} style={{ position: 'relative' }}>
         <button
           onClick={() => setDropdownOpen(o => !o)}
@@ -367,48 +446,6 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Mine ligaer
             </a>
-            {myOrgs.length > 0 && (
-              <a
-                href={`/org/${myOrgs[0].orgSlug}`}
-                onClick={() => setDropdownOpen(false)}
-                style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Min bedrift
-              </a>
-            )}
-            {myOrgs.some(o => o.isAdmin) && (
-              <a
-                href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`}
-                onClick={() => setDropdownOpen(false)}
-                style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Bedriftspanel
-              </a>
-            )}
-            <a
-              href="/bedrift"
-              onClick={() => setDropdownOpen(false)}
-              style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              For bedrifter
-            </a>
-            {!globalHidden && (
-              <a
-                href="/toppliste"
-                onClick={() => setDropdownOpen(false)}
-                style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Sesong-topplisten →
-              </a>
-            )}
             {isPremium && (
               <a
                 href="/historikk"
