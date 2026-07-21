@@ -764,6 +764,17 @@ const SHARED_CSS = `
     padding: 0 24px;
   }
 
+  /* ── Bredde-wrapper for seksjoner uten egen max-width (kommende/denne
+     uken/ingen-quiz-kortet, varsle meg, forrige uke, Founders Access) —
+     matcher 680px/24px-mønsteret til qk-interlude/qk-preview/
+     qk-founder-story/qk-biz/qk-acc-wrap. Legges UTENPÅ elementets
+     eksisterende bakgrunn/border/padding — ingen indre spacing endres. ── */
+  .qk-narrow-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
   /* ── Grunnleggerhistorie — sekundær kort-stil, IKKE gull (to-gule-regel) ── */
   .qk-founder-story {
     max-width: 680px;
@@ -1920,6 +1931,7 @@ export default async function Home() {
         </div>
 
         {/* ── Quiz-kort ── */}
+        <div className="qk-narrow-wrap">
         {activeQuiz ? (
           <div className="qk-card">
             <p className="qk-card-eyebrow">Denne uken</p>
@@ -1990,9 +2002,11 @@ export default async function Home() {
             )}
           </div>
         )}
+        </div>
 
         {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz */}
         {!user && !activeQuiz && (
+          <div className="qk-narrow-wrap">
           <div id="varsle-meg" style={{
             background: '#21242e',
             border: '1px solid #2a2d38',
@@ -2015,10 +2029,12 @@ export default async function Home() {
             </p>
             <NotifyForm />
           </div>
+          </div>
         )}
 
         {/* ── Forrige uke — topp 3 ── */}
         {lastQuizTop3.length > 0 && lastQuiz && (
+          <div className="qk-narrow-wrap">
           <div style={{
             background: '#21242e',
             border: '1px solid #2a2d38',
@@ -2071,6 +2087,7 @@ export default async function Home() {
               Se full toppliste →
             </Link>
           </div>
+          </div>
         )}
 
         {/* ── Org-kort (kun for bedriftsmedlemmer) ── */}
@@ -2114,6 +2131,7 @@ export default async function Home() {
 
         {/* ── Founders ── */}
         {FOUNDERS_ACTIVE && (
+          <div className="qk-narrow-wrap">
           <div className="qk-founders">
             <p className="qk-founders-eyebrow">Founders Access</p>
             <h2 className="qk-founders-title">Prøv Premium gratis i én måned</h2>
@@ -2131,6 +2149,7 @@ export default async function Home() {
               </p>
             )}
             <Link href="/founders" className="qk-founders-btn">Aktiver gratis tilgang →</Link>
+          </div>
           </div>
         )}
 
