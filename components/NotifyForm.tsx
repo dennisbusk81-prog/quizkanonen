@@ -37,6 +37,7 @@ export default function NotifyForm() {
   }
 
   return (
+    <div>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
       <input
         type="email"
@@ -80,6 +81,10 @@ export default function NotifyForm() {
       >
         {loading ? 'Sender…' : 'Varsle meg'}
       </button>
+    </div>
+    <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, textAlign: 'center' }}>
+      Ett varsel når quizen åpner. Ingen reklame. Meld deg av når som helst.
+    </p>
     </div>
   )
 }

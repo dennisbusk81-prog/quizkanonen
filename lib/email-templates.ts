@@ -1609,6 +1609,9 @@ export function reEngagementEmail(firstName?: string, unsubscribeUrl?: string): 
 
               <!-- Body text -->
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Vi la merke til at det er en stund siden du spilte sist.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Du mangler fra listen.
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
@@ -1907,7 +1910,7 @@ export function orgCloseReminderEmail(orgName: string, closesAt: string, quizTit
               </table>
               <p style="margin:0;font-size:12px;color:#7a7873;text-align:center;line-height:1.6;">
                 Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.<br/>
-                <a href="https://quizkanonen.no/innstillinger" style="color:#7a7873;">Endre varslingsinnstillinger</a>
+                <a href="https://quizkanonen.no/profil" style="color:#7a7873;">Endre varslingsinnstillinger</a>
               </p>
             </td>
           </tr>

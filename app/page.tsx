@@ -1586,7 +1586,11 @@ export default async function Home() {
 
           {/* Ukens fakta — quiz insights (only when last quiz is closed) */}
           {pageInsights && (
-            <div style={{ marginTop: 16, marginBottom: 4, textAlign: 'center' }}>
+            <div style={{
+              marginTop: 16, marginBottom: 4, textAlign: 'center',
+              background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
+              padding: '20px 24px',
+            }}>
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
                 Ukens fakta
               </p>
