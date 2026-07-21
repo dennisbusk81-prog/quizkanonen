@@ -716,7 +716,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
             <div style={s.userCard}>
               <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
-                Du er på plass <strong style={{ color: '#e8e4dd' }}>#{ue.rank}</strong> — men du trenger Premium for å se fullstendig statistikk.
+                Du er utenfor topp 10. Med Premium ser du din nøyaktige plassering og full statistikk.
               </p>
               <Link href="/founders" style={s.btnOutline}>Oppgrader til Premium</Link>
             </div>

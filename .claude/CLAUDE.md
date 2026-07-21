@@ -152,7 +152,7 @@ Disk IO-bug vokse ukjent i flere uker før den ble funnet.
 | Feature | Gratis | Innlogget | Premium |
 |---|---|---|---|
 | Spille quiz | ✓ | ✓ | ✓ |
-| Nøyaktig plassering | — | ✓ | ✓ |
+| Nøyaktig plassering | — | — | ✓ |
 | Historikk og statistikk | — | — | ✓ |
 | Private ligaer | — | — | ✓ |
 | Sesong-leaderboard (egen plass) | — | — | ✓ |

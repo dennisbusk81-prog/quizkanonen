@@ -1811,7 +1811,7 @@ export default async function Home() {
           <div className="qk-steps">
             {([
               { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12 (norsk tid). Svar raskt — tid teller.' },
-              { n: '2', title: 'Se plasseringen', desc: 'Se nøyaktig hvor du havner blant alle deltakerne.' },
+              { n: '2', title: 'Se plasseringen', desc: 'Se score og svartid. Med Premium: nøyaktig plassering og full toppliste.' },
               { n: '3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatr.' },
             ] as const).map(({ n, title, desc }) => (
               <div key={n} className="qk-step">
@@ -1837,7 +1837,7 @@ export default async function Home() {
             {([
               {
                 title: 'Se plasseringen din live',
-                text: 'Mellom hvert spørsmål ser du nøyaktig hvor du ligger — ikke bare til slutt.',
+                text: 'Mellom hvert spørsmål ser du hvordan du ligger an.',
               },
               {
                 title: 'Jag en rival',

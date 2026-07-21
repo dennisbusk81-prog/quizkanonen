@@ -6,7 +6,7 @@ const items = [
   {
     title: 'Slik fungerer quizen',
     teaser: 'Svar raskt, klatre på topplisten.',
-    content: 'Ny quiz hver fredag med 15 spørsmål. Du har begrenset tid per spørsmål — jo raskere du svarer riktig, desto høyere plassering. Etter quizen ser du nøyaktig score og rangering blant alle deltakerne.',
+    content: 'Ny quiz hver fredag med 15 spørsmål. Du har begrenset tid per spørsmål — jo raskere du svarer riktig, desto høyere plassering. Etter quizen ser du score og svartid. Med Premium får du nøyaktig plassering og full toppliste.',
     link: null,
   },
   {
