@@ -212,9 +212,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
+        <a href="/liga" style={navLink} className="nav-hide-mobile"
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+        >Ligaer</a>
 
-        {/* Hamburger — "naviger nettstedet". Egen inngang til Sesongtoppliste
-            og For bedrifter siden de er skjult i topplinjen under 640px. */}
+        {/* Hamburger — "naviger nettstedet". Egen inngang til Sesongtoppliste,
+            For bedrifter og Ligaer siden de er skjult i topplinjen under 640px,
+            samt Slik fungerer det/Quizer som kun finnes her. */}
         <div ref={hamburgerRef} style={{ position: 'relative' }}>
           <button
             className="qk-nav-hamburger-btn"
@@ -250,6 +255,24 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 For bedrifter
+              </a>
+              <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Ligaer
+              </a>
+              <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Slik fungerer det
+              </a>
+              <a href="/quizer" onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                Quizer
               </a>
             </div>
           )}
@@ -318,12 +341,18 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >For bedrifter</a>
+      <a href="/liga" style={navLink} className="nav-hide-mobile"
+        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+      >Ligaer</a>
 
       {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
-          hos gjest. Eneste vei til Sesongtoppliste/For bedrifter/Min bedrift/
-          Bedriftspanel på mobil (skjult i topplinjen under 640px). Disse er
-          derfor IKKE lenger duplisert i konto-dropdownen under — den
-          inneholder nå kun kontoinnhold (profil, ligaer, abonnement, logg ut). */}
+          hos gjest. Eneste vei til Sesongtoppliste/For bedrifter/Ligaer/Min
+          bedrift/Bedriftspanel på mobil (skjult i topplinjen under 640px),
+          samt Slik fungerer det/Quizer som kun finnes her. Kontodropdownen
+          under inneholder fortsatt kun kontoinnhold (profil, ligaer,
+          abonnement, logg ut) — "Mine ligaer" der er en bevisst duplisering
+          med samme presedens som Min bedrift/For bedrifter. */}
       <div ref={hamburgerRef} style={{ position: 'relative' }}>
         <button
           className="qk-nav-hamburger-btn"
@@ -362,6 +391,12 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               For bedrifter
             </a>
+            <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Ligaer
+            </a>
             {myOrgs.length > 0 && (
               <a href={`/org/${myOrgs[0].orgSlug}`} onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
@@ -378,6 +413,18 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Bedriftspanel
               </a>
             )}
+            <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Slik fungerer det
+            </a>
+            <a href="/quizer" onClick={() => setHamburgerOpen(false)} style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Quizer
+            </a>
           </div>
         )}
       </div>
