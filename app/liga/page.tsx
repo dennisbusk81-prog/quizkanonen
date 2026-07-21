@@ -66,7 +66,7 @@ const s = {
   ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
-type LoadState = 'loading' | 'ready' | 'error'
+type LoadState = 'loading' | 'ready' | 'error' | 'guest'
 
 export default function MineLigaerPage() {
   const router = useRouter()
@@ -98,7 +98,7 @@ export default function MineLigaerPage() {
         session = data.session
       }
       if (cancelled) return
-      if (!session) { router.replace('/login?next=/liga'); return }
+      if (!session) { setLoadState('guest'); return }
 
       setAccessToken(session.access_token)
 
@@ -167,7 +167,27 @@ export default function MineLigaerPage() {
   if (loadState === 'error') return (
     <>
       <style>{FONT_IMPORT}</style>
-      <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
+      <div style={s.centered}>
+        <div style={{ textAlign: 'center' as const }}>
+          <p style={s.spinner}>Vi klarte ikke å hente ligaene.</p>
+          <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+            <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+          </p>
+        </div>
+      </div>
+    </>
+  )
+
+  if (loadState === 'guest') return (
+    <>
+      <style>{FONT_IMPORT}</style>
+      <div style={s.centered}>
+        <div style={{ ...s.empty, maxWidth: 420 }}>
+          <div style={s.emptyTitle}>Logg inn for å se ligaene dine</div>
+          <p style={s.emptySub}>Logg inn med Google, e-post eller passord for å se og opprette ligaer.</p>
+          <Link href="/login?next=/liga" style={{ ...s.ctaLink, marginTop: 16, display: 'inline-block' }}>Logg inn</Link>
+        </div>
+      </div>
     </>
   )
 
@@ -277,7 +297,9 @@ export default function MineLigaerPage() {
             <div style={s.empty}>
               <div style={s.emptyTitle}>Du er ikke med i noen ligaer ennå</div>
               <p style={s.emptySub}>
-                Bruk en invitasjonslenke fra en venn for å bli med, eller oppgrader til Premium for å opprette din egen liga.
+                {isPremium
+                  ? 'Opprett en ny liga over, eller bruk en invitasjonslenke fra en venn for å bli med.'
+                  : 'Bruk en invitasjonslenke fra en venn for å bli med, eller oppgrader til Premium for å opprette din egen liga.'}
               </p>
             </div>
           ) : (
