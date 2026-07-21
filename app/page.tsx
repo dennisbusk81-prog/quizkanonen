@@ -42,6 +42,30 @@ function formatNextQuiz(iso: string) {
   return `${weekday} ${day}. ${month} kl. ${time} (norsk tid)`
 }
 
+// Dager/timer igjen til neste fredag kl. 12 (Oslo-tid) — for "ingen aktiv
+// quiz"-meldinger og hero-fallback. Ren datokalkulasjon, ingen DB-avhengighet,
+// regnes per forespørsel (ikke live-tikkende, men presist nok til sidelasting).
+function getFridayCountdown(now: Date): { label: string; daysUntil: number; hoursUntil: number } {
+  const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
+  const day = oslo.getDay()
+  const hour = oslo.getHours()
+  let daysUntil = (5 - day + 7) % 7
+  if (daysUntil === 0 && hour >= 12) daysUntil = 7
+  const friday = new Date(now)
+  friday.setDate(now.getDate() + daysUntil)
+  const label = friday.toLocaleDateString('nb-NO', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Oslo',
+  }) + ' kl. 12:00'
+  const hoursUntil = daysUntil === 0 ? Math.max(1, 12 - hour) : 0
+  return { label, daysUntil, hoursUntil }
+}
+
+function formatCountdown(daysUntil: number, hoursUntil: number): string {
+  return daysUntil > 0
+    ? `om ${daysUntil} ${daysUntil === 1 ? 'dag' : 'dager'}`
+    : `om ${hoursUntil} ${hoursUntil === 1 ? 'time' : 'timer'}`
+}
+
 function truncateName(name: string, max = 20): string {
   if (name.length <= max) return name
   return name.slice(0, max) + '…'
@@ -1191,6 +1215,8 @@ export default async function Home() {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+  // Delt av begge grener (innlogget/gjest) under — "ingen aktiv quiz"-tekst + hero-fallback.
+  const fridayCountdown = getFridayCountdown(now)
 
   // Grunnleggerhistorie-tall — delt, ikke-personalisert, brukes i begge
   // grenene under (innlogget/gjest). Cachet (1t), så ett kall her koster
@@ -1526,7 +1552,9 @@ export default async function Home() {
           ) : (
             <div className="qk-empty">
               <p className="qk-empty-title">Ingen quiz planlagt akkurat nå</p>
-              <p className="qk-empty-sub">Kom tilbake snart.</p>
+              <p className="qk-empty-sub">
+                Neste fredagsquiz kommer snart. Ny quiz åpner fredag kl. 12 — {formatCountdown(fridayCountdown.daysUntil, fridayCountdown.hoursUntil)}.
+              </p>
               {(lastClosedQuizId || singleOrgToplistHref) && (
                 <div className="qk-card-actions" style={{ marginTop: 16 }}>
                   <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
@@ -1752,20 +1780,6 @@ export default async function Home() {
   const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
   const lastQuizTop3 = shared.lastQuizTop3
 
-  // Next Friday at 12:00 (Oslo time) — for fallback card
-  const nextFridayLabel = (() => {
-    const oslo = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
-    const day = oslo.getDay()
-    const hour = oslo.getHours()
-    let daysUntil = (5 - day + 7) % 7
-    if (daysUntil === 0 && hour >= 12) daysUntil = 7
-    const friday = new Date(now)
-    friday.setDate(now.getDate() + daysUntil)
-    return friday.toLocaleDateString('nb-NO', {
-      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Oslo',
-    }) + ' kl. 12:00'
-  })()
-
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -1794,10 +1808,18 @@ export default async function Home() {
             Svar på 15 spørsmål, se hvor du ligger og klatre på topplisten gjennom sesongen.
           </p>
           <div className="qk-hero-actions">
-            {activeQuiz && (
+            {activeQuiz ? (
               <Link href={`/login?next=/quiz/${activeQuiz.id}`} className="qk-btn-primary">
                 Spill ukens quiz
               </Link>
+            ) : lastQuiz ? (
+              <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-primary">
+                Se resultatene
+              </Link>
+            ) : (
+              <a href="#varsle-meg" className="qk-btn-primary">
+                Varsle meg
+              </a>
             )}
             <Link href="/slik-fungerer-det" className="qk-btn-outline-dark">
               Slik fungerer det →
@@ -1946,7 +1968,7 @@ export default async function Home() {
               Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
             </p>
             <div className="qk-card-actions">
-              <Link href="/login" className="qk-btn-outline-gold" style={{ background: 'transparent', backgroundColor: 'transparent' }}>
+              <Link href="/login" className="qk-btn-outline-dark">
                 Få påminnelse på e-post →
               </Link>
             </div>
@@ -1956,11 +1978,11 @@ export default async function Home() {
             <p className="qk-card-eyebrow">Ingen quiz planlagt</p>
             <h2 className="qk-title">Fredagsquizen</h2>
             <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 20, lineHeight: 1.5 }}>
-              Ingen quiz planlagt akkurat nå — kom tilbake snart.
+              Neste fredagsquiz kommer snart. Ny quiz åpner fredag kl. 12 — {formatCountdown(fridayCountdown.daysUntil, fridayCountdown.hoursUntil)}.
             </p>
             {lastQuiz && (
               <div className="qk-card-actions">
-                <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-primary">
+                <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-outline-dark">
                   Se topplisten
                 </Link>
               </div>
@@ -1970,7 +1992,7 @@ export default async function Home() {
 
         {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz */}
         {!user && !activeQuiz && (
-          <div style={{
+          <div id="varsle-meg" style={{
             background: '#21242e',
             border: '1px solid #2a2d38',
             borderRadius: 16,
