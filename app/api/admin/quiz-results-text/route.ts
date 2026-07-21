@@ -252,5 +252,12 @@ export async function POST(request: NextRequest) {
   lines.push('')
   lines.push(aiOutro)
 
+  // Fast, korrekt lenke for returnerende spillere. Bevisst en STABIL linje (ikke
+  // AI-generert) så den alltid er med og alltid peker til forsiden — der en
+  // innlogget spiller lander med aktiv sesjon og kan spille direkte. /founders
+  // er forbeholdt ny-bruker-kampanjer.
+  lines.push('')
+  lines.push('Bli med igjen neste fredag: quizkanonen.no')
+
   return NextResponse.json({ text: lines.join('\n') })
 }
