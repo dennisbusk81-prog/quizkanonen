@@ -49,7 +49,6 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
   const [notice, setNotice] = useState<Notice>(null)
   const [sent, setSent] = useState<Sent>(null)
   const [loading, setLoading] = useState(false)
-  const [showFallback, setShowFallback] = useState(false)
   const [linkError, setLinkError] = useState('')
 
   // Les ?error= én gang, vis forklaringen, og fjern parameteren fra URL-en så en
@@ -73,7 +72,7 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
   }
 
   const switchMode = (m: Mode) => {
-    setMode(m); setNotice(null); setShowFallback(false)
+    setMode(m); setNotice(null)
   }
 
   // ── Hvorfor feilet passordinnloggingen? ───────────────────────────────────
@@ -101,7 +100,6 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       // feilmelding, ikke en ny konto.
       if (!data.exists) {
         setMode('signup')
-        setShowFallback(false)
         setNotice({
           text: 'Vi fant ingen konto med denne e-posten. Vil du opprette en? Passordet du skrev inn blir passordet ditt.',
         })
@@ -363,30 +361,18 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
           <p className="qk-auth-hint">Velg et passord på minst 8 tegn.</p>
         ) : (
           <p className="qk-auth-forgot">
+            {/* Ekte glemt-passord (resetPasswordForEmail → /sett-passord). Bevisst
+                adskilt fra magic link-valget under, som er en egen, likestilt måte
+                å logge inn på — ikke noe man «leter etter når man har glemt noe». */}
             <button
               type="button"
               className="qk-auth-link"
-              onClick={() => setShowFallback(v => !v)}
+              onClick={handleSetPassword}
+              disabled={loading}
             >
-              Glemt passord, eller ikke satt et ennå?
+              Glemt passord?
             </button>
           </p>
-        )}
-
-        {/* Fallback-panel: e-postlenker. Bevisst plassert bak et klikk — de er
-            redningsveier, ikke likestilte hovedvalg. */}
-        {showFallback && !isSignup && (
-          <div className="qk-auth-fallback">
-            <button type="button" className="qk-auth-btn-solid" onClick={handleSetPassword} disabled={loading}>
-              {loading ? 'Sender...' : 'Send meg en lenke for å velge passord'}
-            </button>
-            <button type="button" className="qk-auth-btn-solid" onClick={handleMagicLink} disabled={loading}>
-              {loading ? 'Sender...' : 'Send meg en innloggingslenke'}
-            </button>
-            <p className="qk-auth-hint qk-auth-hint-last">
-              Begge lenkene sendes til e-posten du skrev inn over.
-            </p>
-          </div>
         )}
 
         <button type="submit" disabled={loading || !canSubmit} className="qk-auth-btn-primary">
@@ -407,6 +393,23 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         </svg>
         Fortsett med Google
       </button>
+
+      {/* VALG 3 — magic link, likestilt tredje innloggingsmåte (ikke lenger gjemt
+          bak «Glemt passord?»). Bruker samme signInWithOtp-funksjon som før. */}
+      {!isSignup && (
+        <>
+          <button type="button" className="qk-auth-magiclink" onClick={handleMagicLink} disabled={loading}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="2" y="4" width="16" height="12" rx="2" stroke="#e8e4dd" strokeWidth="1.5" />
+              <path d="M3 5.5L10 10.5L17 5.5" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {loading ? 'Sender...' : 'Få tilsendt innloggingslenke på e-post'}
+          </button>
+          <p className="qk-auth-hint qk-auth-magiclink-hint">
+            Lenken sendes til e-posten du skrev inn over.
+          </p>
+        </>
+      )}
 
       <p className="qk-auth-switch">
         {isSignup ? (
@@ -483,19 +486,11 @@ const STYLES = `
     margin: 0 0 16px;
     line-height: 1.5;
   }
-  .qk-auth-hint-last { margin-bottom: 0; }
 
   .qk-auth-forgot {
     text-align: right;
     font-size: 13px;
     margin: 0 0 16px;
-  }
-
-  .qk-auth-fallback {
-    border: 1px solid #2a2d38;
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 16px;
   }
 
   .qk-auth-error {
@@ -543,25 +538,6 @@ const STYLES = `
   .qk-auth-btn-primary:hover { opacity: 0.88; }
   .qk-auth-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  /* Solid nøytral knapp — den transparente outline-varianten blir nesten usynlig
-     mot kortets egen border for enkelte brukere. */
-  .qk-auth-btn-solid {
-    width: 100%;
-    background: #2a2d38;
-    color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid rgba(232,228,221,0.16);
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-    margin-bottom: 10px;
-  }
-  .qk-auth-btn-solid:hover { background: #323540; border-color: rgba(232,228,221,0.28); }
-  .qk-auth-btn-solid:disabled { opacity: 0.4; cursor: not-allowed; }
-
   .qk-auth-separator {
     display: flex;
     align-items: center;
@@ -597,6 +573,32 @@ const STYLES = `
     transition: background 0.15s, transform 0.12s;
   }
   .qk-auth-google:hover { background: #f0f0f0; transform: translateY(-1px); }
+
+  /* VALG 3 — magic link. Samme form som Google-knappen (full bredde, ikon + tekst
+     sentrert), men nøytral farge. Kun ETT gult element per skjerm, så «Logg inn»
+     forblir det eneste gule — Google er hvit, magic link er nøytral. */
+  .qk-auth-magiclink {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: #2a2d38;
+    color: #e8e4dd;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 13px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(232,228,221,0.16);
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .qk-auth-magiclink:hover { background: #323540; border-color: rgba(232,228,221,0.28); }
+  .qk-auth-magiclink:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .qk-auth-magiclink-hint { text-align: center; margin-top: 8px; margin-bottom: 0; }
 
   .qk-auth-switch {
     text-align: center;
