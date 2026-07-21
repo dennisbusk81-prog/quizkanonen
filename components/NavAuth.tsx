@@ -7,9 +7,27 @@ import { signOut } from '@/lib/auth'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import type React from 'react'
 
+// nav-hide-mobile brukes fortsatt for Min bedrift/Bedriftspanel (urørt).
+// Sesongtoppliste og For bedrifter var tidligere skjult under 640px med
+// samme klasse, uten noen erstatning — gjester på mobil hadde ingen vei til
+// dem i det hele tatt. De har nå fått klassen fjernet (se JSX under), og
+// .qk-nav-actions scroller horisontalt på smale skjermer i stedet for å
+// overflowe eller klippes: raden (logo + alle synlige lenker + evt.
+// "Spill ukens quiz"-pillen) er regnemessig bredere enn tilgjengelig plass
+// på en 375px-skjerm selv uten pillen. min-width: 0 er nødvendig for at
+// flex-elementet skal få lov til å krympe under innholdets naturlige
+// bredde — uten den ville .qk-nav-actions bare presset hele
+// navigasjonslinjen bredere i stedet for å scrolle internt.
 const NAV_MOBILE_CSS = `
   @media (max-width: 639px) {
     .nav-hide-mobile { display: none !important; }
+    .qk-nav-actions {
+      min-width: 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .qk-nav-actions::-webkit-scrollbar { display: none; }
   }
 `
 
@@ -171,8 +189,8 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     return (
       <>
         <style>{NAV_MOBILE_CSS}</style>
-        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>
-        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
+        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Sesongtoppliste</a>
+        <a href="/bedrift" style={navLink}
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
@@ -205,7 +223,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     <>
       <style>{NAV_MOBILE_CSS}</style>
       <a href="/" style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' as const }}>Hjem</a>
-      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>}
+      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste">Sesongtoppliste</a>}
       {/* Min bedrift — for all org members */}
       {myOrgs.length > 0 && (
         <a
@@ -230,7 +248,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           Bedriftspanel
         </a>
       )}
-      <a href="/bedrift" style={navLink} className="nav-hide-mobile"
+      <a href="/bedrift" style={navLink}
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >For bedrifter</a>
