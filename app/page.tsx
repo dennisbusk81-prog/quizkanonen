@@ -759,8 +759,9 @@ const SHARED_CSS = `
 
   /* ── Accordion wrapper ── */
   .qk-acc-wrap {
-    margin-top: 36px;
-    margin-bottom: 36px;
+    max-width: 680px;
+    margin: 36px auto;
+    padding: 0 24px;
   }
 
   /* ── Grunnleggerhistorie — sekundær kort-stil, IKKE gull (to-gule-regel) ── */
@@ -2081,7 +2082,7 @@ export default async function Home() {
             <p className="qk-founder-story-eyebrow">Laget av en quizmaster</p>
             <h2 className="qk-founder-story-title">Over 20 års erfaring — hvert spørsmål skrives og kvalitetssikres før det havner i quizen.</h2>
             <p className="qk-founder-story-body">
-              Dennis har laget og ledet quiz i over 20 år, digitalt og live, i Norge og Spania. Quizkanonen er bygget slik han selv ville ønsket det.
+              Quizkanonen er laget av en quizmaster med over 20 års erfaring — digitalt og live, i Norge og Spania. Bygget slik vedkommende selv ville ønsket det.
             </p>
             <div className="qk-founder-story-stats">
               <div>
