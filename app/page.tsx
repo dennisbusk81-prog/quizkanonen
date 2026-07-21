@@ -1621,7 +1621,7 @@ export default async function Home() {
             {isPremium && userPoints === 0 && (
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
-                  ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
+                  ? 'Du har spilt denne måneden — resultatet blir endelig når quizen stenger'
                   : 'Du har ikke spilt denne måneden ennå'}
               </p>
             )}
@@ -1635,7 +1635,7 @@ export default async function Home() {
             {!isPremium && userPoints === 0 && (
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
-                  ? 'Du har spilt denne måneden — poeng oppdateres når quizen stenger'
+                  ? 'Du har spilt denne måneden — resultatet blir endelig når quizen stenger'
                   : 'Du er ikke i gang denne måneden ennå — bli med på fredag!'}
               </p>
             )}
@@ -1668,6 +1668,9 @@ export default async function Home() {
                 <rect x="16" y="3" width="4" height="17" rx="1"/>
               </svg>
               <span className="qkp-shortcut-label">Sesongtoppliste</span>
+              {isPremium && userPoints > 0 && (
+                <span style={{ fontSize: 12, color: '#7a7873', marginTop: -4 }}>{userRank}. plass — {userPoints} poeng</span>
+              )}
               <span className="qkp-shortcut-arrow">→</span>
             </Link>
 

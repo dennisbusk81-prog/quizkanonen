@@ -694,6 +694,38 @@ export default function ProfilPage() {
             )}
           </div>
 
+          {/* Statistikk — alltid synlig. Plassert rett etter identitet/status,
+              før redigeringsskjemaet: stolthet først, skjema etterpå. */}
+          <div style={{ ...s.card, marginBottom: 10 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 6,
+              marginBottom: 12,
+            }}>
+              {[
+                { val: isPremium && stats ? String(stats.total_attempts) : '—', lbl: 'Quizer spilt' },
+                { val: isPremium && stats ? `${stats.avg_score_pct}%` : '—', lbl: 'Snitt score' },
+                { val: isPremium && stats ? (stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—') : '—', lbl: 'Beste plassering' },
+                { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
+              ].map(({ val, lbl }) => (
+                <div key={lbl} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
+                    {val}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
+                    {lbl}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {isPremium ? (
+              <Link href="/historikk" style={s.btnOutlineGold}>Se full historikk →</Link>
+            ) : (
+              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
+            )}
+          </div>
+
           {/* 2-kolonne grid: Visningsnavn (venstre) + Din bedrift (høyre) */}
           <div style={isMobile ? {
             display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 10,
@@ -860,37 +892,6 @@ export default function ProfilPage() {
               })}
             </div>
           )}
-
-          {/* Statistikk — alltid synlig */}
-          <div style={{ ...s.card, marginBottom: 10 }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 6,
-              marginBottom: 12,
-            }}>
-              {[
-                { val: isPremium && stats ? String(stats.total_attempts) : '—', lbl: 'Quizer spilt' },
-                { val: isPremium && stats ? `${stats.avg_score_pct}%` : '—', lbl: 'Snitt score' },
-                { val: isPremium && stats ? (stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—') : '—', lbl: 'Beste plassering' },
-                { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
-              ].map(({ val, lbl }) => (
-                <div key={lbl} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
-                    {val}
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
-                    {lbl}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {isPremium ? (
-              <Link href="/historikk" style={s.btnOutlineGold}>Se full historikk →</Link>
-            ) : (
-              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
-            )}
-          </div>
 
           {/* E-postvarsler */}
           <div style={{ ...s.card, marginBottom: 10 }}>

@@ -1007,6 +1007,13 @@ export default function LeaderboardPage() {
                     </div>
                   )}
 
+                  {/* Prosentil — utledet fra rank/totalCount som allerede er lastet over, ingen nytt kall */}
+                  {rank != null && totalCount > 1 && (
+                    <p style={{ fontSize: 12, color: '#7a7873' }}>
+                      Bedre enn {Math.round(((totalCount - rank) / (totalCount - 1)) * 100)}% av deltakerne
+                    </p>
+                  )}
+
                 </div>
               </div>
             )
