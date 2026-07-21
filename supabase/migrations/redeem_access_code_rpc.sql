@@ -1,3 +1,7 @@
+-- UTDATERT (20. juli 2026): denne funksjonen er overstyrt av
+-- 20260720000001_access_code_duration.sql. Ikke kjør denne filen på
+-- nytt — den skriver til stripe_period_end, som ikke lenger brukes.
+
 -- FIX 2 + FIX 3: Atomic access code redemption
 --
 -- Run this in Supabase SQL Editor before deploying the updated codes/redeem route.
