@@ -1,4 +1,5 @@
 ﻿import { supabaseAdmin } from '@/lib/supabase-admin'
+import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -251,9 +252,8 @@ export default async function QuizerPage() {
   return (
     <>
       <style>{css}</style>
+      <SiteNav />
       <div className="qz-page">
-        <Link href="/" className="qz-back">← Tilbake til forsiden</Link>
-
         <header className="qz-header">
           <p className="qz-eyebrow">Quizkanonen</p>
           <h1 className="qz-title">Alle quizer</h1>

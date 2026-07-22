@@ -7,6 +7,7 @@ import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import SiteNav from '@/components/SiteNav'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
 type PlayerInfo = { name: string; ageConfirmed: boolean }
@@ -1963,6 +1964,7 @@ export default function QuizPage() {
       : null
     return (
       <><style>{styles}</style>
+      <SiteNav />
       <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
         <span className="qk-result-icon">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -2041,6 +2043,7 @@ export default function QuizPage() {
   // REGISTRERING
   if (phase === 'register') return (
     <><style>{styles}</style>
+    <SiteNav />
     <div className="qk-shell"><div className="qk-box">
       <div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
@@ -2484,6 +2487,7 @@ export default function QuizPage() {
 
   return (
     <><style>{styles}</style>
+    <SiteNav />
     <div className="qk-shell qk-shell--result"><div className="qk-box"><div className="qk-panel qk-panel--result" style={{textAlign:'center'}}>
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>

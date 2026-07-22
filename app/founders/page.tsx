@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
+import SiteNav from '@/components/SiteNav'
 import type { Session } from '@supabase/supabase-js'
 
 type FoundersCount = {
@@ -324,11 +325,10 @@ export default function FoundersPage() {
         : `Start ${daysFree} dager gratis →`
 
   return (
-    <div style={s.page}>
+    <>
+      <SiteNav />
+      <div style={s.page}>
       <div style={s.inner}>
-        <a href="/" style={{ color: '#e8e4dd', fontSize: 14, textDecoration: 'none', display: 'inline-block', marginBottom: 24 }}>
-          ← Tilbake til forsiden
-        </a>
         <p style={s.eyebrow}>Den ukentlige quizen</p>
         <h1 style={s.logo}>
           Quiz<em style={s.logoEm}>kanonen</em>
@@ -436,5 +436,6 @@ export default function FoundersPage() {
         description="Logg inn for å aktivere din gratis Founders-måned — ingen kortinfo nødvendig."
       />
     </div>
+    </>
   )
 }

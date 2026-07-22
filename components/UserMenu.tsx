@@ -179,8 +179,14 @@ export default function UserMenu() {
   }, [dropdownOpen])
 
   if (!mounted || !sessionResolved) return null
+  // Disse sidene har nå SiteNav (se components/SiteNav.tsx) med sin egen
+  // konto-meny (NavAuth) — samme sett som BackNav.tsx sin ekvivalente liste,
+  // holdt synkronisert bevisst (de to var tidligere usynkroniserte).
+  // '/login' lagt til her: eneste side der denne globale widgeten tidligere
+  // vistes uten grunn (BackNav ekskluderte den, UserMenu gjorde ikke).
   if (
     pathname === '/' ||
+    pathname === '/login' ||
     pathname.startsWith('/liga') ||
     pathname.startsWith('/leaderboard') ||
     pathname.startsWith('/toppliste') ||

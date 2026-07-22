@@ -1,7 +1,7 @@
 ﻿import { createSupabaseServer } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
-import NavAuth from '@/components/NavAuth'
+import SiteNav from '@/components/SiteNav'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import RivalryCard from '@/components/RivalryCard'
@@ -1447,14 +1447,7 @@ export default async function Home() {
         <style>{SHARED_CSS}</style>
         <PendingActionRedirect />
 
-        <nav className="qk-nav">
-          <div className="qk-nav-inner">
-            <Link href="/" className="qk-nav-logo">Quiz<em>kanonen</em></Link>
-            <div className="qk-nav-actions">
-              <NavAuth quizId={quiz?.id} />
-            </div>
-          </div>
-        </nav>
+        <SiteNav quizId={quiz?.id} />
 
         <div className="qk-page">
 
@@ -1805,14 +1798,7 @@ export default async function Home() {
 
       <PendingActionRedirect />
 
-      <nav className="qk-nav">
-        <div className="qk-nav-inner">
-          <Link href="/" className="qk-nav-logo">Quiz<em>kanonen</em></Link>
-          <div className="qk-nav-actions">
-            <NavAuth quizId={activeQuiz?.id} />
-          </div>
-        </div>
-      </nav>
+      <SiteNav quizId={activeQuiz?.id} />
 
       <WelcomeBanner />
 

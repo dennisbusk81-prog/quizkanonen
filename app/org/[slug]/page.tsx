@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
+import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import { isOrgLocked } from '@/lib/org-access'
@@ -91,7 +91,6 @@ export default function OrgLeaderboardPage() {
     return (
       <>
         <style>{FONT}</style>
-        <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>
@@ -107,7 +106,6 @@ export default function OrgLeaderboardPage() {
     return (
       <>
         <style>{FONT}</style>
-        <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Noe gikk galt. Prøv igjen.</p>
         </div>
@@ -126,24 +124,7 @@ export default function OrgLeaderboardPage() {
     <>
       <style>{FONT}</style>
 
-      {/* Sticky nav */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(26,28,35,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid #2a2d38' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
-            ← Hjem
-          </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}>
-              Nasjonal toppliste →
-            </Link>
-            {org?.isAdmin && (
-              <Link href={`/org/${slug}/admin`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none', flexShrink: 0 }}>
-                Admin-panel →
-              </Link>
-            )}
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' }}>

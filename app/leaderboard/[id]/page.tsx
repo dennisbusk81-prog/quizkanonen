@@ -6,6 +6,7 @@ import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import { getSessionIdentity } from '@/lib/session-identity'
 import AuthModal from '@/components/AuthModal'
+import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -962,13 +963,11 @@ export default function LeaderboardPage() {
     <>
       <style>{podiumStyles}</style>
       <AuthModal open={showModal} onClose={() => setShowModal(false)} />
+      <SiteNav variant={orgSlug ? 'org' : 'default'} orgSlug={orgSlug ?? undefined} quizId={quiz?.id} />
       <div style={s.wrap}>
         <div style={s.page}>
 
           <header style={s.header}>
-            {orgSlug && (
-              <Link href={`/org/${orgSlug}`} style={s.back}>← Tilbake til bedriften</Link>
-            )}
             <p style={s.eyebrow}>{orgContext?.orgName ?? 'Quizkanonen'}</p>
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
+import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
@@ -474,6 +475,7 @@ export default function HistorikkPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
+        <SiteNav />
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 48, maxWidth: 520, margin: '0 auto' }}>
@@ -499,6 +501,7 @@ export default function HistorikkPage() {
     <ErrorBoundary>
     <>
       <style>{FONT_IMPORT}</style>
+      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
 

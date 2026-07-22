@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { PlayerStats } from '@/lib/history'
+import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -673,6 +674,7 @@ export default function ProfilPage() {
   return (
     <>
       <style>{FONT_IMPORT}</style>
+      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
           {/* Avatar + identity */}

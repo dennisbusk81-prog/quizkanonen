@@ -13,16 +13,27 @@ const EXCLUDED_EXACT = new Set([
   '/premium/success',
   '/bedrift/success',
   '/slik-fungerer-det',
+  // Egen /bedrift-marketingside har nå SiteNav — kun eksakt match, IKKE prefiks,
+  // så /bedrift/registrer og /bedrift/success (utenfor SiteNav-utrullingen) er uendret.
+  '/bedrift',
 ])
 
 export default function BackNav() {
   const pathname = usePathname()
 
+  // Disse prefiksene har nå SiteNav (se components/SiteNav.tsx) — samme sett
+  // sider som i UserMenu.tsx sin ekvivalente liste under, holdt synkronisert
+  // bevisst (de to var tidligere usynkroniserte, som ga inkonsekvent nav).
   const hidden =
     EXCLUDED_EXACT.has(pathname) ||
     pathname.startsWith('/admin') ||
     pathname.startsWith('/liga') ||
-    pathname.startsWith('/org')
+    pathname.startsWith('/org') ||
+    pathname.startsWith('/quiz') ||
+    pathname.startsWith('/leaderboard') ||
+    pathname.startsWith('/toppliste') ||
+    pathname.startsWith('/profil') ||
+    pathname.startsWith('/historikk')
 
   if (hidden) return null
 

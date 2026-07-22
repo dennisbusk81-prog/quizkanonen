@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import SiteNav from '@/components/SiteNav'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import { isOrgLocked } from '@/lib/org-access'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -939,35 +940,13 @@ export default function OrgAdminPage() {
   // Toppliste: activityData sorted by totalPoints desc
   const sortedByPoints = [...(activityData ?? [])].sort((a, b) => b.totalPoints - a.totalPoints)
 
-  // Nav: current user display name
-  const currentMember = data?.members.find(m => m.user_id === data?.currentUserId)
-  const navName = currentMember?.display_name ?? session?.user?.email?.split('@')[0] ?? ''
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
       <style>{CSS}</style>
 
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(26,28,35,0.95)',
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        borderBottom: '1px solid #2a2d38',
-      }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href={`/org/${slug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            ← Tilbake
-          </Link>
-          <a href="/" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700, color: '#ffffff', textDecoration: 'none' }}>
-            Quiz<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>kanonen</em>
-          </a>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {navName && <span style={{ fontSize: 13, color: '#e8e4dd' }}>{navName.split(' ')[0]}</span>}
-            {navName && <Avatar name={navName} size={28} />}
-          </div>
-        </div>
-      </nav>
+      <SiteNav variant="org-admin" orgSlug={slug} orgName={data?.org.name} />
 
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
         <div className="oa-page">

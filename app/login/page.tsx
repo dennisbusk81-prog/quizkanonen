@@ -1,6 +1,6 @@
 'use client'
-import Link from 'next/link'
 import AuthForm from '@/components/AuthForm'
+import SiteNav from '@/components/SiteNav'
 
 // Kun rammen: panel, overskrift og tilbake-lenke. Selve innloggingen bor i
 // AuthForm, som deles med AuthModal (toppnav m.fl.). Legg endringer i
@@ -90,6 +90,7 @@ export default function LoginPage() {
   return (
     <>
       <style>{STYLES}</style>
+      <SiteNav />
       <div className="login-screen">
         <div className="login-panel">
           <p className="login-eyebrow">Quizkanonen</p>
@@ -98,8 +99,6 @@ export default function LoginPage() {
           <div className="login-rule" />
 
           <AuthForm variant="page" />
-
-          <Link href="/" className="login-back">← Tilbake til forsiden</Link>
         </div>
       </div>
     </>

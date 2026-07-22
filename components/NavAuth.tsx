@@ -208,14 +208,18 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       <>
         <style>{NAV_MOBILE_CSS}</style>
         <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>
-        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >For bedrifter</a>
         <a href="/liga" style={navLink} className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >Ligaer</a>
+        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+        >For bedrifter</a>
+        <a href="/slik-fungerer-det" style={navLink} className="nav-hide-mobile"
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+        >Slik fungerer det</a>
 
         {/* Hamburger — "naviger nettstedet". Egen inngang til Sesongtoppliste,
             For bedrifter og Ligaer siden de er skjult i topplinjen under 640px,
@@ -311,10 +315,29 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   return (
     <>
       <style>{NAV_MOBILE_CSS}</style>
-      <a href="/" style={{ fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' as const }}>Hjem</a>
+      {quizId && (
+        <Link
+          href={`/quiz/${quizId}`}
+          className="nav-hide-mobile"
+          style={{
+            fontSize: 13, fontWeight: 600,
+            color: '#e8e4dd', background: 'transparent',
+            textDecoration: 'none', padding: '6px 14px',
+            borderRadius: 10, border: '1px solid #7a7873',
+            whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
+            transition: 'border-color 0.15s, color 0.15s',
+          }}
+        >
+          Spill
+        </Link>
+      )}
       {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>}
-      {/* Min bedrift — for all org members */}
-      {myOrgs.length > 0 && (
+      <a href="/liga" style={navLink} className="nav-hide-mobile"
+        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+      >Ligaer</a>
+      {/* Min bedrift — for org-medlemmer. "For bedrifter" vises kun uten org-medlemskap (gjensidig utelukkende). */}
+      {myOrgs.length > 0 ? (
         <a
           href={`/org/${myOrgs[0].orgSlug}`}
           style={navLink}
@@ -324,6 +347,11 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         >
           Min bedrift
         </a>
+      ) : (
+        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
+          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
+          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
+        >For bedrifter</a>
       )}
       {/* Bedriftspanel — only for org admins */}
       {myOrgs.some(o => o.isAdmin) && (
@@ -337,14 +365,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           Bedriftspanel
         </a>
       )}
-      <a href="/bedrift" style={navLink} className="nav-hide-mobile"
+      <a href="/slik-fungerer-det" style={navLink} className="nav-hide-mobile"
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-      >For bedrifter</a>
-      <a href="/liga" style={navLink} className="nav-hide-mobile"
-        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-      >Ligaer</a>
+      >Slik fungerer det</a>
 
       {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
           hos gjest. Eneste vei til Sesongtoppliste/For bedrifter/Ligaer/Min
@@ -385,24 +409,25 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Sesongtoppliste
               </a>
             )}
-            <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              For bedrifter
-            </a>
             <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
               onMouseEnter={e => e.currentTarget.style.background = '#262930'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >
               Ligaer
             </a>
-            {myOrgs.length > 0 && (
+            {myOrgs.length > 0 ? (
               <a href={`/org/${myOrgs[0].orgSlug}`} onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 Min bedrift
+              </a>
+            ) : (
+              <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
+                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                For bedrifter
               </a>
             )}
             {myOrgs.some(o => o.isAdmin) && (
