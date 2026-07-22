@@ -50,10 +50,18 @@ export async function GET(request: NextRequest, { params }: Params) {
       .from('organization_members')
       .select('user_id')
       .eq('organization_id', orgId),
+    // Siste quiz = nyeste weekly-quiz som faktisk HAR minst ett forsøk, sortert
+    // på closes_at — identisk kriterium som bedrifts-topplisten (toppliste-ruten,
+    // last_quiz-modus). Tidligere valgte denne sist OPPRETTEDE quiz (created_at),
+    // som pekte på neste ukes ferdig-opprettede quiz med 0 forsøk og ga
+    // "Ingen har spilt ennå" selv når resultater fantes på topplisten.
+    // attempts!inner + limit(1, referencedTable) gjør joinen til et rent EXISTS.
     supabaseAdmin
       .from('quizzes')
-      .select('id, title')
-      .order('created_at', { ascending: false })
+      .select('id, title, attempts!inner(id)')
+      .eq('quiz_type', 'weekly')
+      .order('closes_at', { ascending: false })
+      .limit(1, { referencedTable: 'attempts' })
       .limit(1)
       .maybeSingle(),
   ])
