@@ -40,7 +40,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // /api/* er bevisst ekskludert: ingen API-rute leser cookie-sesjonen
+  // (ingen route.ts bruker createSupabaseServer), så ingen trenger middleware
+  // sin token-refresh. Alle sensitive API-ruter reverifiserer selv — via
+  // supabaseAdmin.auth.getUser(token) på Bearer-token, verifyAdminRequest, eller
+  // CRON_SECRET. Å la getUser() kjøre her påla derfor kun en overflødig GoTrue-
+  // round-trip på hver av de 118 API-rutene (varme stier: premium-status,
+  // my-orgs, quiz submit/questions/standings), uten noen sikkerhetsverdi.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
