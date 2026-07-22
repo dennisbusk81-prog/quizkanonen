@@ -1619,11 +1619,15 @@ export default function OrgAdminPage() {
                           </span>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
-                            {entry.correctAnswers}
-                          </span>
-                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>riktige</span>
-                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 8 }}>{formatTime(entry.totalTimeMs)}</span>
+                          <div>
+                            <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
+                              {entry.correctAnswers}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>riktige</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
+                            {formatTime(entry.totalTimeMs)}
+                          </div>
                         </div>
                       </div>
                     )
