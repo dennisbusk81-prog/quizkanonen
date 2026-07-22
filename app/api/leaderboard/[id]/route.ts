@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts } from '@/lib/ranking'
+import { resolveOrgMembership } from '@/lib/org-membership'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -82,6 +83,7 @@ export async function GET(
 
   const { searchParams } = new URL(request.url)
   const isTeam = searchParams.get('is_team') === 'true'
+  const orgSlug = searchParams.get('org')?.trim() || null
 
   const pageParamRaw = searchParams.get('page')
   const searchRaw = (searchParams.get('search') ?? '').trim()
@@ -103,6 +105,16 @@ export async function GET(
     userId = authData.user?.id ?? null
   }
 
+  // ── Org-scoping (valgfritt) ──────────────────────────────────────────────────
+  // Når ?org=<slug> er satt: krev at innlogget bruker er medlem av org-en, og
+  // begrens rangeringen til org-medlemmene. Uten param: nasjonal sti, uendret.
+  let orgMemberIds: string[] | null = null
+  if (orgSlug) {
+    const gate = await resolveOrgMembership(orgSlug, token)
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
+    orgMemberIds = gate.memberIds
+  }
+
   // Gjest-estimat ("et sted mellom X og Y") — kun for uinnloggede med lagret score
   const myCorrectRaw = searchParams.get('my_correct')
   const myTimeRaw = searchParams.get('my_time')
@@ -121,8 +133,15 @@ export async function GET(
     .eq('is_team', isTeam)
     .limit(5000)
 
-  const ranked = rankQuizAttempts((allRowsRaw ?? []) as RawRow[], {
-    includeGuests: true,
+  // I org-modus: behold kun forsøk fra org-medlemmer (gjester droppes). Rank
+  // regnes automatisk om relativt til org-undersettet av den delte helperen.
+  const memberIdSet = orgMemberIds ? new Set(orgMemberIds) : null
+  const scopedRows = memberIdSet
+    ? ((allRowsRaw ?? []) as RawRow[]).filter(r => r.user_id != null && memberIdSet.has(r.user_id))
+    : ((allRowsRaw ?? []) as RawRow[])
+
+  const ranked = rankQuizAttempts(scopedRows, {
+    includeGuests: orgMemberIds ? false : true,
     requireSubmitted: true,
   })
   const totalAll = ranked.length

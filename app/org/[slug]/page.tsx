@@ -163,7 +163,7 @@ export default function OrgLeaderboardPage() {
           </div>
 
           {/* Sesong-toppliste scopet til bedriften */}
-          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
+          {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} orgSlug={slug} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
 
         </div>
       </div>

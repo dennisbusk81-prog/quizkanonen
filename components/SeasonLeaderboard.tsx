@@ -306,11 +306,13 @@ interface Props {
   scopeId?: string | null
   loginHref?: string
   globalLeagueDisabled?: boolean
+  /** Org-slug — settes kun i org-modus. Brukes til å org-scope quiz-toppliste-lenker. */
+  orgSlug?: string
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste', globalLeagueDisabled }: Props) {
+export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste', globalLeagueDisabled, orgSlug }: Props) {
   const scopeInfix = scope === 'league' ? ' i ligaen' : scope === 'organization' ? ' i bedriften' : ''
   const notPlayedSuffix = scope !== 'global' ? ' Bli med de andre!' : ''
 
@@ -798,7 +800,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               {!entry.winner && <div style={{ fontSize: 12, color: '#e8e4dd', marginTop: 4 }}>Ingen innloggede spillere</div>}
             </div>
             {entry.quizId && (
-              <a href={`/leaderboard/${entry.quizId}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}>
+              <a
+                href={scope === 'organization' && orgSlug
+                  ? `/leaderboard/${entry.quizId}?org=${encodeURIComponent(orgSlug)}`
+                  : `/leaderboard/${entry.quizId}`}
+                style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}
+              >
                 Se toppliste →
               </a>
             )}

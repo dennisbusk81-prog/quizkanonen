@@ -1,6 +1,6 @@
 ﻿'use client'
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
@@ -148,6 +148,10 @@ const BROWSE_PAGE_SIZE = 20
 export default function LeaderboardPage() {
   const params = useParams()
   const quizId = params.id as string
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  // Org-modus: ?org=<slug> scoper visningen til én bedrift. null = nasjonal (uendret).
+  const orgSlug = searchParams.get('org')?.trim() || null
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
@@ -207,11 +211,25 @@ export default function LeaderboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
+        // Org-modus: hoved-lista er medlemskaps-gatet server-side, så den må
+        // sendes med auth-token. Org-visning er alltid innlogget (man kommer fra
+        // bedriftssiden). Nasjonal modus: uendret, anonymt kall som før.
+        let authHeader: Record<string, string> = {}
+        if (orgSlug) {
+          const sess = await getSession()
+          if (!sess?.access_token) {
+            router.push(`/login?next=${encodeURIComponent(`/leaderboard/${quizId}?org=${orgSlug}`)}`)
+            return
+          }
+          authHeader = { Authorization: `Bearer ${sess.access_token}` }
+        }
+        const orgQS = orgSlug ? `&org=${encodeURIComponent(orgSlug)}` : ''
+
         // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
         // med JS-fallback). Erstatter tidligere nedlasting av opptil 2000 rader.
         const [{ data: quizData, error: e1 }, soloRes] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}`, { headers: authHeader }).then(r => r.ok ? r.json() : null),
         ])
         if (e1) throw e1
         setQuiz(quizData)
@@ -246,7 +264,10 @@ export default function LeaderboardPage() {
         // Forrige quiz' rangering for "pil opp"-merket — server-side fordi
         // attempts.user_id ikke lenger er lesbar med anon-nøkkelen.
         try {
-          const prevRes = await fetch(`/api/leaderboard/${quizId}/prev-rank`)
+          const prevRes = await fetch(
+            `/api/leaderboard/${quizId}/prev-rank${orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : ''}`,
+            { headers: authHeader },
+          )
           if (prevRes.ok) {
             const { prevRanks } = await prevRes.json() as { prevRanks: Record<string, number> }
             if (prevRanks && Object.keys(prevRanks).length > 0) {
@@ -262,7 +283,8 @@ export default function LeaderboardPage() {
       }
     }
     fetchData()
-  }, [quizId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizId, orgSlug])
 
   useEffect(() => {
     try {
@@ -300,7 +322,7 @@ export default function LeaderboardPage() {
 
       // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
       try {
-        const soloMe = await fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null)
+        const soloMe = await fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1${orgSlug ? `&org=${encodeURIComponent(orgSlug)}` : ''}`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null)
         if (soloMe?.userEntry) setServerUserSolo({ ...entryToAttempt(soloMe.userEntry, quizId), rank: soloMe.userEntry.rank, isTied: false })
         if (typeof soloMe?.totalCount === 'number') setSoloTotal(soloMe.totalCount)
       } catch { /* ikke kritisk */ }
@@ -374,7 +396,8 @@ export default function LeaderboardPage() {
       } catch { /* ikke kritisk */ }
     }
     setAuthLoading(false)
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug])
 
   useEffect(() => {
     loadSession()
@@ -469,13 +492,14 @@ export default function LeaderboardPage() {
     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
     let url = `/api/leaderboard/${quizId}?is_team=false&page=${browsePage}`
     if (browseSearch) url += `&search=${encodeURIComponent(browseSearch)}`
+    if (orgSlug) url += `&org=${encodeURIComponent(orgSlug)}`
     fetch(url, { headers })
       .then(r => r.ok ? r.json() : null)
       .then(j => { if (!cancelled) setBrowseData(j ? { entries: j.entries ?? [], totalCount: j.totalCount ?? 0, userRank: j.userRank ?? null } : null) })
       .catch(() => { if (!cancelled) setBrowseData(null) })
       .finally(() => { if (!cancelled) setBrowseLoading(false) })
     return () => { cancelled = true }
-  }, [browseMode, activeTab, browsePage, browseSearch, quizId, session])
+  }, [browseMode, activeTab, browsePage, browseSearch, quizId, session, orgSlug])
 
   // Activate podium animation when quiz is closed and data is loaded
   useEffect(() => {
@@ -566,7 +590,8 @@ export default function LeaderboardPage() {
   // Beregn attempts og brukerens rad FØR hasPlayed/isHidden — hasPlayed trenger userAttempt
   const soloAttempts = rankAttempts(attempts)
   const friendAttempts = rankAttempts(attempts.filter(a => friendNames.has(a.player_name)))
-  const showVennerTab = !!session && friendAttempts.length > 0
+  // Org-modus skjuler de globale/liga-elementene — org-opplevelsen holdes adskilt.
+  const showVennerTab = !orgSlug && !!session && friendAttempts.length > 0
   const totalCount = soloTotal
 
   const currentUserId = session?.user?.id ?? null
@@ -915,6 +940,10 @@ export default function LeaderboardPage() {
 
   const isClosed = quiz ? new Date(quiz.closes_at) < new Date() : false
 
+  // Org-kontekst: matcher slug-en mot brukerens org-medlemskap (allerede lastet
+  // i loadSession). Gir org-navn til header uten ekstra kall.
+  const orgContext = orgSlug ? userOrgs.find(o => o.orgSlug === orgSlug) ?? null : null
+
   return (
     <>
       <style>{podiumStyles}</style>
@@ -923,9 +952,17 @@ export default function LeaderboardPage() {
         <div style={s.page}>
 
           <header style={s.header}>
-            <p style={s.eyebrow}>Quizkanonen</p>
+            {orgSlug && (
+              <Link href={`/org/${orgSlug}`} style={s.back}>← Tilbake til bedriften</Link>
+            )}
+            <p style={s.eyebrow}>{orgContext?.orgName ?? 'Quizkanonen'}</p>
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>
+            {orgSlug && (
+              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 8 }}>
+                Resultater blant kollegene dine
+              </p>
+            )}
             <div style={s.rule} />
           </header>
 
@@ -1255,8 +1292,8 @@ export default function LeaderboardPage() {
             </>
           )}
 
-          {/* Liga CTA for innloggede uten ligaer */}
-          {!authLoading && session && !hasLeagues && (
+          {/* Liga CTA for innloggede uten ligaer — skjult i org-modus */}
+          {!authLoading && session && !hasLeagues && !orgSlug && (
             <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>
               Vil du konkurrere mot vennene dine?{' '}
               <Link href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</Link>
@@ -1343,14 +1380,21 @@ export default function LeaderboardPage() {
                   Se din quizhistorikk →
                 </Link>
               )}
-              <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                Se sesong-topplisten →
-              </Link>
+              {/* Org-modus: lenk til bedriftstopplisten i stedet for den nasjonale */}
+              {orgSlug ? (
+                <Link href={`/org/${orgSlug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                  Se bedriftstopplisten →
+                </Link>
+              ) : (
+                <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                  Se sesong-topplisten →
+                </Link>
+              )}
             </div>
           </div>
 
-          {/* Kontekstuell navigasjon — kun for innloggede */}
-          {!authLoading && session && (userOrgs.length > 0) && (
+          {/* Kontekstuell navigasjon — kun for innloggede, skjult i org-modus */}
+          {!authLoading && session && !orgSlug && (userOrgs.length > 0) && (
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
                 Se også
