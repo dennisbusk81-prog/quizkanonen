@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import { isOrgLocked } from '@/lib/org-access'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -469,11 +470,17 @@ export default function OrgAdminPage() {
       .finally(() => setLoading(false))
   }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadInsights, loadQuizLeaderboard, loadWeeklySummary])
 
+  // Stabil identitet — se lib/session-identity.ts. Unngår at loadData() (som
+  // nuller activityData/quizData til null før refetch) kjører på nytt bare
+  // fordi Supabase fyrer TOKEN_REFRESHED ved fane-fokus, uten at brukeren
+  // faktisk har endret seg. session leses fortsatt friskt inne i effekten.
+  const sessionIdentity = getSessionIdentity(session)
   useEffect(() => {
     if (session === undefined) return
     if (!session) { router.push(`/login?next=/org/${slug}/admin`); return }
     loadData(session)
-  }, [session, slug, router, loadData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionIdentity, slug, router, loadData])
 
   useEffect(() => {
     if (!data || !session) return

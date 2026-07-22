@@ -4,6 +4,7 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
+import { getSessionIdentity } from '@/lib/session-identity'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
@@ -184,6 +185,11 @@ export default function LeaderboardPage() {
   const [challengeCopied, setChallengeCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stabil identitet for siste kjørte loadSession() — se lib/session-identity.ts.
+  // Sentinel-verdi sikrer at aller første sammenligning alltid avviker, slik at
+  // mount-oppførselen er uendret; kun SENERE samme-bruker-events (typisk
+  // TOKEN_REFRESHED ved fane-fokus) hopper over den tunge loadSession()-kaskaden.
+  const lastSessionIdentityRef = useRef<string>('__not_loaded_yet__')
 
   type AnswerDistQuestion = {
     questionId: string
@@ -297,6 +303,7 @@ export default function LeaderboardPage() {
     setAuthLoading(true)
     const sess = await getSession()
     setSession(sess)
+    lastSessionIdentityRef.current = getSessionIdentity(sess)
     if (sess?.user) {
       // Hent profildata (display_name, avatar) client-side
       const { data: prof, error: profError } = await supabase
@@ -401,7 +408,9 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     loadSession()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      const newIdentity = getSessionIdentity(newSession)
+      if (newIdentity === lastSessionIdentityRef.current) return
       loadSession()
     })
     return () => subscription.unsubscribe()
