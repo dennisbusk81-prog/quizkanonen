@@ -187,6 +187,7 @@ export default function UserMenu() {
   if (
     pathname === '/' ||
     pathname === '/login' ||
+    pathname === '/slik-fungerer-det' ||
     pathname.startsWith('/liga') ||
     pathname.startsWith('/leaderboard') ||
     pathname.startsWith('/toppliste') ||

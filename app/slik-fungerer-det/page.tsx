@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import SiteNav from '@/components/SiteNav'
 
 export const metadata = {
   title: 'Slik fungerer det — Quizkanonen',
@@ -91,10 +92,11 @@ const pointsScale = [
 
 export default function SlikFungererDetPage() {
   return (
-    <div style={s.wrap}>
+    <>
+      <SiteNav />
+      <div style={s.wrap}>
       <div style={s.page}>
         <header style={s.header}>
-          <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
           <p style={s.eyebrow}>Quizkanonen</p>
           <h1 style={s.title}>Slik fungerer det</h1>
         </header>
@@ -244,5 +246,6 @@ export default function SlikFungererDetPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
