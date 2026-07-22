@@ -663,26 +663,29 @@ export default function LeaderboardPage() {
             )}
           </div>
           {(() => {
-            // Alltid nøyaktig to linjer per rad — uniform høyde uavhengig av nickname.
-            //  Med nickname:  linje 1 = nickname, linje 2 = display_name · ⏱ tid
-            //  Uten nickname: linje 1 = display_name, linje 2 = ⏱ tid
+            // Tiden vises i score-blokken (sammen med riktige), ikke under navnet.
+            // Andrelinjen under navnet bærer kun medlemsnr og/eller display_name
+            // (når kallenavn brukes); den utelates helt når ingen av delene finnes.
             const hasNick = !!shownNickname?.trim()
             const memberNo = attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number
               ? memberInfoMap.get(attempt.user_id)?.member_number ?? null
               : null
-            const timeStr = `⏱ ${formatTime(attempt.total_time_ms)}`
             const line1 = hasNick ? shownNickname!.trim() : shownName
+            const subParts = [
+              memberNo != null ? '#' + String(memberNo).padStart(3, '0') : null,
+              hasNick ? shownName : null,
+            ].filter(Boolean) as string[]
             return (
               <div style={s.nameBlock}>
                 <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
                   {line1}
                   {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
                 </p>
-                <p style={{ ...s.nameSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {memberNo != null && <span style={{ color: '#7a7873' }}>{'#' + String(memberNo).padStart(3, '0')} · </span>}
-                  {hasNick && <span style={{ color: '#7a7873' }}>{shownName} · </span>}
-                  {timeStr}
-                </p>
+                {subParts.length > 0 && (
+                  <p style={{ ...s.nameSub, color: '#7a7873', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {subParts.join(' · ')}
+                  </p>
+                )}
               </div>
             )
           })()}
@@ -883,10 +886,12 @@ export default function LeaderboardPage() {
             {line1}
             {!e.userId && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
           </p>
-          <p style={{ ...s.nameSub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {hasNick && <span style={{ color: '#7a7873' }}>{shownName} · </span>}
-            ⏱ {formatTime(e.totalTimeMs)}
-          </p>
+          {/* Tiden vises i score-blokken; andrelinjen viser kun display_name ved kallenavn */}
+          {hasNick && (
+            <p style={{ ...s.nameSub, color: '#7a7873', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {shownName}
+            </p>
+          )}
         </div>
         <div style={s.scoreBlock}>
           <p style={s.score}>{e.correctAnswers}/{e.totalQuestions}</p>

@@ -665,16 +665,21 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 2 }}
               secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif" }}
             />
-            <div style={s.nameSub}>
-              {isLastQuiz
-                ? formatTime(entry.fastestMs ?? 0)
-                : `${entry.quizCount} ${entry.quizCount === 1 ? 'quiz' : 'quizer'}`
-              }
-            </div>
+            {/* For Siste quiz vises tiden i score-blokken (sammen med RIKTIGE), ikke her */}
+            {!isLastQuiz && (
+              <div style={s.nameSub}>
+                {`${entry.quizCount} ${entry.quizCount === 1 ? 'quiz' : 'quizer'}`}
+              </div>
+            )}
           </div>
           <div style={s.pointsBlock}>
             <div style={s.points}>{entry.points}</div>
             <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
+            {isLastQuiz && (
+              <div style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
+                {formatTime(entry.fastestMs ?? 0)}
+              </div>
+            )}
           </div>
           {renderChallengeButton(entry)}
         </div>
