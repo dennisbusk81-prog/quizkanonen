@@ -306,102 +306,132 @@ export default function LeaderboardPage() {
     setSession(sess)
     lastSessionIdentityRef.current = getSessionIdentity(sess)
     if (sess?.user) {
-      // Hent profildata (display_name, avatar) client-side
-      const { data: prof, error: profError } = await supabase
-        .from('profiles')
-        .select('display_name, avatar_url')
-        .eq('id', sess.user.id)
-        .maybeSingle()
-      if (profError) console.error('[leaderboard] profile fetch error:', profError.code, profError.message)
-      setProfile(prof)
-      setDisplayName(prof?.display_name ?? sess.user.email?.split('@')[0] ?? null)
-      setAvatarUrl(prof?.avatar_url ?? null)
+      const user = sess.user
+      const accessToken = sess.access_token
 
-      // Hent premium-status server-side (service role — omgår RLS)
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${sess.access_token}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          setIsPremiumOverride(premData.isPremium === true)
-        }
-      } catch (err) { console.error('[leaderboard] premium-status fetch feilet:', err) }
+      // Seks uavhengige kall — ingen av dem trenger resultatet fra de andre,
+      // kun accessToken/user.id (allerede kjent her). Kjøres parallelt via
+      // Promise.allSettled i stedet for sekvensielt: et mislykket kall skal
+      // ikke blokkere de andre fra å vise sitt resultat, og brukeren skal ikke
+      // se profilbar → premium-merke → plassering → osv. dukke opp én og én.
 
-      // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
-      try {
-        const soloMe = await fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1${orgSlug ? `&org=${encodeURIComponent(orgSlug)}` : ''}`, { headers: { Authorization: `Bearer ${sess.access_token}` } }).then(r => r.ok ? r.json() : null)
-        if (soloMe?.userEntry) setServerUserSolo({ ...entryToAttempt(soloMe.userEntry, quizId), rank: soloMe.userEntry.rank, isTied: false })
-        if (typeof soloMe?.totalCount === 'number') setSoloTotal(soloMe.totalCount)
-      } catch { /* ikke kritisk */ }
+      const loadProfile = async () => {
+        // Hent profildata (display_name, avatar) client-side
+        const { data: prof, error: profError } = await supabase
+          .from('profiles')
+          .select('display_name, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (profError) console.error('[leaderboard] profile fetch error:', profError.code, profError.message)
+        setProfile(prof)
+        setDisplayName(prof?.display_name ?? user.email?.split('@')[0] ?? null)
+        setAvatarUrl(prof?.avatar_url ?? null)
+      }
 
-      // Hent ligamedlemmer for "Blant venner"-fane
-      try {
-        const leaguesRes = await fetch('/api/leagues', {
-          headers: { Authorization: `Bearer ${sess.access_token}` },
-        })
-        if (leaguesRes.ok) {
-          const leaguesJson = await leaguesRes.json()
-          const leagues: { id: string }[] = leaguesJson.leagues ?? []
-          setHasLeagues(leagues.length > 0)
-          const memberResponses = await Promise.all(
-            leagues.map(l =>
-              fetch(`/api/leagues/${l.id}`, {
-                headers: { Authorization: `Bearer ${sess.access_token}` },
-              }).then(r => r.ok ? r.json() : null)
+      const loadPremiumStatus = async () => {
+        // Hent premium-status server-side (service role — omgår RLS)
+        try {
+          const premRes = await fetch('/api/profile/premium-status', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (premRes.ok) {
+            const premData = await premRes.json()
+            setIsPremiumOverride(premData.isPremium === true)
+          }
+        } catch (err) { console.error('[leaderboard] premium-status fetch feilet:', err) }
+      }
+
+      const loadSoloPlacement = async () => {
+        // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
+        try {
+          const soloMe = await fetch(`/api/leaderboard/${quizId}?is_team=false&limit=1${orgSlug ? `&org=${encodeURIComponent(orgSlug)}` : ''}`, { headers: { Authorization: `Bearer ${accessToken}` } }).then(r => r.ok ? r.json() : null)
+          if (soloMe?.userEntry) setServerUserSolo({ ...entryToAttempt(soloMe.userEntry, quizId), rank: soloMe.userEntry.rank, isTied: false })
+          if (typeof soloMe?.totalCount === 'number') setSoloTotal(soloMe.totalCount)
+        } catch { /* ikke kritisk */ }
+      }
+
+      const loadLeagueFriends = async () => {
+        // Hent ligamedlemmer for "Blant venner"-fane
+        try {
+          const leaguesRes = await fetch('/api/leagues', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (leaguesRes.ok) {
+            const leaguesJson = await leaguesRes.json()
+            const leagues: { id: string }[] = leaguesJson.leagues ?? []
+            setHasLeagues(leagues.length > 0)
+            const memberResponses = await Promise.all(
+              leagues.map(l =>
+                fetch(`/api/leagues/${l.id}`, {
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                }).then(r => r.ok ? r.json() : null)
+              )
             )
-          )
-          const userIds = new Set<string>()
-          for (const res of memberResponses) {
-            for (const m of (res?.members ?? []) as { user_id: string }[]) {
-              userIds.add(m.user_id)
+            const userIds = new Set<string>()
+            for (const res of memberResponses) {
+              for (const m of (res?.members ?? []) as { user_id: string }[]) {
+                userIds.add(m.user_id)
+              }
+            }
+            if (userIds.size > 0) {
+              const { data: friendProfiles } = await supabaseData
+                .from('profiles')
+                .select('display_name')
+                .in('id', [...userIds])
+              setFriendNames(new Set(
+                (friendProfiles ?? [])
+                  .map((p: { display_name: string | null }) => p.display_name)
+                  .filter((n): n is string => !!n)
+              ))
             }
           }
-          if (userIds.size > 0) {
-            const { data: friendProfiles } = await supabaseData
-              .from('profiles')
-              .select('display_name')
-              .in('id', [...userIds])
-            setFriendNames(new Set(
-              (friendProfiles ?? [])
-                .map((p: { display_name: string | null }) => p.display_name)
-                .filter((n): n is string => !!n)
+        } catch { /* ikke kritisk */ }
+      }
+
+      const loadOrgMembership = async () => {
+        // Hent org-medlemskap for kontekstuell navigasjon nederst på siden
+        try {
+          const orgsRes = await fetch('/api/org/my-orgs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: accessToken }),
+          }).then(r => r.ok ? r.json() : { orgs: [] }).catch(() => ({ orgs: [] }))
+          const orgs: { orgSlug: string; orgName: string }[] = (orgsRes.orgs ?? []).map((o: { orgSlug: string; orgName: string }) => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
+          setUserOrgs(orgs)
+        } catch { /* ikke kritisk */ }
+      }
+
+      const loadDuelStatus = async () => {
+        // Hent duell-status for "Utfordre"-knapp i leaderboard-rader
+        try {
+          const rivalRes = await fetch('/api/rivalries/my', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+          if (rivalRes.ok) {
+            const rivalJson = await rivalRes.json()
+            const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = rivalJson.rivalries ?? []
+            // Only non-expired active/pending duels are "engagements" that block new challenges.
+            // Fix 4: declined duels must not block — challenger is free to start a new duel.
+            const engagedRows = rows.filter(r => !r.isExpired && r.status !== 'declined')
+            setActiveDuelExists(engagedRows.length > 0)
+            // Build a Set of ALL opponent IDs in active engagements (both challenger and rival sides)
+            setDuelInvolvedSet(new Set(engagedRows.map(r => r.opponentId)))
+            // Still track outgoing-pending separately to show "Sendt" label
+            setChallengeSentSet(new Set(
+              engagedRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
             ))
           }
-        }
-      } catch { /* ikke kritisk */ }
+        } catch { /* ikke kritisk */ }
+      }
 
-      // Hent org-medlemskap for kontekstuell navigasjon nederst på siden
-      try {
-        const orgsRes = await fetch('/api/org/my-orgs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: sess.access_token }),
-        }).then(r => r.ok ? r.json() : { orgs: [] }).catch(() => ({ orgs: [] }))
-        const orgs: { orgSlug: string; orgName: string }[] = (orgsRes.orgs ?? []).map((o: { orgSlug: string; orgName: string }) => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
-        setUserOrgs(orgs)
-      } catch { /* ikke kritisk */ }
-
-      // Hent duell-status for "Utfordre"-knapp i leaderboard-rader
-      try {
-        const rivalRes = await fetch('/api/rivalries/my', {
-          headers: { Authorization: `Bearer ${sess.access_token}` },
-        })
-        if (rivalRes.ok) {
-          const rivalJson = await rivalRes.json()
-          const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = rivalJson.rivalries ?? []
-          // Only non-expired active/pending duels are "engagements" that block new challenges.
-          // Fix 4: declined duels must not block — challenger is free to start a new duel.
-          const engagedRows = rows.filter(r => !r.isExpired && r.status !== 'declined')
-          setActiveDuelExists(engagedRows.length > 0)
-          // Build a Set of ALL opponent IDs in active engagements (both challenger and rival sides)
-          setDuelInvolvedSet(new Set(engagedRows.map(r => r.opponentId)))
-          // Still track outgoing-pending separately to show "Sendt" label
-          setChallengeSentSet(new Set(
-            engagedRows.filter(r => r.status === 'pending' && r.isChallenger).map(r => r.opponentId)
-          ))
-        }
-      } catch { /* ikke kritisk */ }
+      await Promise.allSettled([
+        loadProfile(),
+        loadPremiumStatus(),
+        loadSoloPlacement(),
+        loadLeagueFriends(),
+        loadOrgMembership(),
+        loadDuelStatus(),
+      ])
     }
     setAuthLoading(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
