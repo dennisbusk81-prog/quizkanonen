@@ -46,6 +46,21 @@ export async function DELETE(request: NextRequest) {
   await supabaseAdmin.from('season_scores').delete().eq('user_id', user.id)
   await supabaseAdmin.from('organization_members').delete().eq('user_id', user.id)
 
+  // Quiz-historikk: attempts har INGEN FK til auth.users, så deleteUser rører den
+  // ikke. Uten dette ble all spillehistorikk (attempts + attempt_answers) stående
+  // for alltid med en user_id som pekte på en slettet bruker — brudd på GDPR
+  // art. 17. attempt_answers.attempt_id → attempts.id, så barna slettes FØR
+  // foreldrene (samme rekkefølge som admin sin quiz-reset).
+  const { data: userAttempts } = await supabaseAdmin
+    .from('attempts')
+    .select('id')
+    .eq('user_id', user.id)
+  const attemptIds = (userAttempts ?? []).map(a => a.id)
+  if (attemptIds.length > 0) {
+    await supabaseAdmin.from('attempt_answers').delete().in('attempt_id', attemptIds)
+    await supabaseAdmin.from('attempts').delete().eq('user_id', user.id)
+  }
+
   // Delete user — RLS CASCADE removes the profiles row automatically
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
   if (deleteError) {
