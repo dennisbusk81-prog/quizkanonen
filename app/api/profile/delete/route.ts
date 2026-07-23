@@ -21,23 +21,64 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
   }
 
-  // Cancel any active Stripe subscriptions — non-fatal if it fails
+  // ── Kanseller ikke-terminale Stripe-abonnement FØR kontoen slettes ──────────
+  // BLOKKERENDE: feiler kanselleringen genuint, avbrytes HELE slettingen før
+  // noen DB-rader røres — vi skal aldri etterlate et betalende abonnement uten
+  // en konto tilknyttet (samme prinsipp som org-slettingen). "Finnes ikke /
+  // allerede kansellert" (resource_missing) regnes som suksess (idempotent), så
+  // en bruker aldri låses ute fra å slette pga. et abonnement i terminal tilstand.
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, personal_stripe_subscription_id')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.stripe_customer_id) {
-    try {
-      const subscriptions = await stripe.subscriptions.list({
+  // Samme ikke-terminale sett som org-slettingen kansellerer.
+  const CANCELLABLE = ['trialing', 'active', 'past_due', 'unpaid']
+  const isBenignStripeError = (err: unknown) =>
+    err instanceof Stripe.errors.StripeInvalidRequestError &&
+    (err.code === 'resource_missing' ||
+      /no such subscription|cannot be canceled|already canceled/i.test(err.message))
+
+  try {
+    if (profile?.stripe_customer_id) {
+      // Primærsti: finn alle ikke-terminale abonnementer på kunden og kanseller.
+      const existing = await stripe.subscriptions.list({
         customer: profile.stripe_customer_id,
-        status: 'active',
+        status: 'all',
+        limit: 100,
       })
-      await Promise.all(subscriptions.data.map(sub => stripe.subscriptions.cancel(sub.id)))
-    } catch (err) {
-      console.error('[profile/delete] Stripe cancellation failed for', user.id, err)
+      for (const sub of existing.data.filter(s => CANCELLABLE.includes(s.status))) {
+        try {
+          await stripe.subscriptions.cancel(sub.id)
+        } catch (err) {
+          if (!isBenignStripeError(err)) throw err
+        }
+      }
+    } else if (profile?.personal_stripe_subscription_id) {
+      // Fallback: ingen customer-id, men en kjent personlig subscription-id.
+      // Hent for å sjekke status; kanseller kun hvis fortsatt ikke-terminal.
+      let sub: Stripe.Subscription | null = null
+      try {
+        sub = await stripe.subscriptions.retrieve(profile.personal_stripe_subscription_id)
+      } catch (err) {
+        if (!isBenignStripeError(err)) throw err // resource_missing → allerede borte
+      }
+      if (sub && CANCELLABLE.includes(sub.status)) {
+        try {
+          await stripe.subscriptions.cancel(sub.id)
+        } catch (err) {
+          if (!isBenignStripeError(err)) throw err
+        }
+      }
     }
+  } catch (err) {
+    // Genuin kanselleringsfeil → STOPP. Ingen DB-rader er rørt ennå.
+    console.error('[profile/delete] Stripe cancellation failed for', user.id, err)
+    return NextResponse.json(
+      { error: 'Kunne ikke kansellere abonnementet. Ingen data ble slettet. Prøv igjen, eller kontakt support.' },
+      { status: 500 },
+    )
   }
 
   // Explicit cascade — remove user data from tables without FK cascade to auth.users
