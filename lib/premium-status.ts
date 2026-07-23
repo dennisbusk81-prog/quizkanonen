@@ -25,14 +25,24 @@ export function hydratePremiumStatus(userId: string): boolean {
   }
 }
 
-// Henter premium-status. Returnerer:
-//   true/false → definitivt svar fra serveren (og oppdaterer sessionStorage)
-//   null       → ukjent (behold forrige verdi hos kalleren)
-export async function fetchPremiumStatus(
+// Full premium-status-form fra serveren. Speiler responsen fra
+// /api/profile/premium-status (isPremium + premiumSource + hasStripeCustomer).
+export interface PremiumStatusFull {
+  isPremium: boolean
+  hasStripeCustomer: boolean
+  premiumSource: string | null
+}
+
+// Henter full premium-status. Returnerer:
+//   objekt → definitivt svar fra serveren (og oppdaterer sessionStorage for isPremium)
+//   null   → ukjent (behold forrige verdi hos kalleren)
+// Samme retry/backoff + asymmetriske sessionStorage-semantikk som før: kun en
+// bekreftet isPremium===true caches; ikke-ok/nettverksfeil nedgraderer aldri.
+export async function fetchPremiumStatusFull(
   accessToken: string,
   userId: string,
   opts: { retries?: number } = {},
-): Promise<boolean | null> {
+): Promise<PremiumStatusFull | null> {
   const retries = opts.retries ?? 2
   let delay = 400
 
@@ -49,7 +59,11 @@ export async function fetchPremiumStatus(
             if (isP) sessionStorage.setItem(key(userId), 'true')
             else sessionStorage.removeItem(key(userId))
           } catch { /* sessionStorage utilgjengelig — ikke kritisk */ }
-          return isP
+          return {
+            isPremium: isP,
+            hasStripeCustomer: data.hasStripeCustomer === true,
+            premiumSource: typeof data.premiumSource === 'string' ? data.premiumSource : null,
+          }
         }
         // ok, men uventet form → behandle som ukjent og prøv igjen
       }
@@ -63,4 +77,16 @@ export async function fetchPremiumStatus(
     }
   }
   return null
+}
+
+// Bakoverkompatibel boolean-variant. Returnerer:
+//   true/false → definitivt svar fra serveren
+//   null       → ukjent (behold forrige verdi hos kalleren)
+export async function fetchPremiumStatus(
+  accessToken: string,
+  userId: string,
+  opts: { retries?: number } = {},
+): Promise<boolean | null> {
+  const full = await fetchPremiumStatusFull(accessToken, userId, opts)
+  return full === null ? null : full.isPremium
 }

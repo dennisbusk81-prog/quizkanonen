@@ -7,6 +7,7 @@ import { getSession, signOut } from '@/lib/auth'
 import { getSessionIdentity } from '@/lib/session-identity'
 import AuthModal from '@/components/AuthModal'
 import SiteNav from '@/components/SiteNav'
+import { useProfile } from '@/components/ProfileProvider'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -162,7 +163,8 @@ export default function LeaderboardPage() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null } | null>(null)
-  const [isPremiumOverride, setIsPremiumOverride] = useState(false)
+  // Premium + org-medlemskap fra delt context (ProfileProvider).
+  const { isPremium, myOrgs, refreshProfile } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
@@ -180,7 +182,7 @@ export default function LeaderboardPage() {
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
-  const [userOrgs, setUserOrgs] = useState<{ orgSlug: string; orgName: string }[]>([])
+  const userOrgs = myOrgs.map(o => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
   const [fetchError, setFetchError] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [challengeCopied, setChallengeCopied] = useState(false)
@@ -328,19 +330,6 @@ export default function LeaderboardPage() {
         setAvatarUrl(prof?.avatar_url ?? null)
       }
 
-      const loadPremiumStatus = async () => {
-        // Hent premium-status server-side (service role — omgår RLS)
-        try {
-          const premRes = await fetch('/api/profile/premium-status', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-          if (premRes.ok) {
-            const premData = await premRes.json()
-            setIsPremiumOverride(premData.isPremium === true)
-          }
-        } catch (err) { console.error('[leaderboard] premium-status fetch feilet:', err) }
-      }
-
       const loadSoloPlacement = async () => {
         // Hent brukerens eksakte plassering server-side (også om utenfor topp 50)
         try {
@@ -388,19 +377,6 @@ export default function LeaderboardPage() {
         } catch { /* ikke kritisk */ }
       }
 
-      const loadOrgMembership = async () => {
-        // Hent org-medlemskap for kontekstuell navigasjon nederst på siden
-        try {
-          const orgsRes = await fetch('/api/org/my-orgs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ access_token: accessToken }),
-          }).then(r => r.ok ? r.json() : { orgs: [] }).catch(() => ({ orgs: [] }))
-          const orgs: { orgSlug: string; orgName: string }[] = (orgsRes.orgs ?? []).map((o: { orgSlug: string; orgName: string }) => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
-          setUserOrgs(orgs)
-        } catch { /* ikke kritisk */ }
-      }
-
       const loadDuelStatus = async () => {
         // Hent duell-status for "Utfordre"-knapp i leaderboard-rader
         try {
@@ -426,10 +402,8 @@ export default function LeaderboardPage() {
 
       await Promise.allSettled([
         loadProfile(),
-        loadPremiumStatus(),
         loadSoloPlacement(),
         loadLeagueFriends(),
-        loadOrgMembership(),
         loadDuelStatus(),
       ])
     }
@@ -448,25 +422,17 @@ export default function LeaderboardPage() {
   }, [loadSession])
 
   // Re-sjekk premium-status når siden blir synlig igjen (håndterer fanebytte
-  // og Next.js router-cache som gjenbruker gammel React-tilstand etter navigasjon)
+  // og Next.js router-cache som gjenbruker gammel React-tilstand etter navigasjon).
+  // Bevisst resjekk — rutes nå gjennom context sin refreshProfile() (tvungen
+  // fersk server-sjekk, null-safe, nedgraderer aldri). Samme oppførsel som før.
   useEffect(() => {
-    const handleVisible = async () => {
+    const handleVisible = () => {
       if (document.visibilityState !== 'visible') return
-      const sess = await getSession()
-      if (!sess?.access_token) return
-      try {
-        const res = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${sess.access_token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setIsPremiumOverride(data.isPremium === true)
-        }
-      } catch (err) { console.error('[leaderboard] visibilitychange premium-status feilet:', err) }
+      refreshProfile()
     }
     document.addEventListener('visibilitychange', handleVisible)
     return () => document.removeEventListener('visibilitychange', handleVisible)
-  }, [])
+  }, [refreshProfile])
 
   // Fix 3: clean up challengeError timer on unmount to prevent state update on unmounted component
   useEffect(() => {
@@ -593,8 +559,6 @@ export default function LeaderboardPage() {
     }
     setChallengeLoadingId(null)
   }
-
-  const isPremium = isPremiumOverride
 
   const isOpen = (q: Quiz) => {
     const now = new Date()

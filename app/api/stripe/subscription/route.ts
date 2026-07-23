@@ -3,8 +3,13 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET(request: NextRequest) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   try {
+    // Instansieres inne i try: en manglende/ugyldig STRIPE_SECRET_KEY får
+    // Stripe-konstruktøren til å kaste. Utenfor try ga det en rå 500 (uhåndtert);
+    // her fanges det av catch-en nedenfor og gir en pen, logget respons i stedet.
+    // Gjelder også produksjon hvis nøkkelen noen gang skulle mangle.
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+
     const token = request.headers.get('authorization')?.replace('Bearer ', '')
     if (!token) {
       return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })

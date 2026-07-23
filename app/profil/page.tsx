@@ -8,6 +8,7 @@ import type { PlayerStats } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
+import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
 
@@ -81,8 +82,8 @@ export default function ProfilPage() {
   const [savingNickname, setSavingNickname] = useState(false)
   const [nicknameError, setNicknameError] = useState<string | null>(null)
   const [nicknameSuccess, setNicknameSuccess] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
-  const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
+  // Premium fra delt context (ingen egne premium-status-fetches lenger).
+  const { isPremium, hasStripeCustomer, myOrgs, refreshProfile } = useProfile()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarColor, setAvatarColor] = useState<string | null>(null)
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
@@ -159,37 +160,34 @@ export default function ProfilPage() {
         setEmailReengagement(profile.email_reengagement ?? true)
         setEmailDuelNotifications(profile.email_duel_notifications ?? true)
       }
-      // Premium: hent server-side for å omgå RLS
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          setIsPremium(premData.isPremium === true)
-          setHasStripeCustomer(premData.hasStripeCustomer === true)
-        }
-      } catch { /* fallback: not premium */ }
     })
   }, [])
 
-  // Hent org-tilknytning via onAuthStateChange (samme mønster som OrgCard)
+  // Org-tilknytning kommer fra delt context. Vi speiler den inn i lokal state
+  // slik at opt-out-toggelen (handleToggleGlobalLeague) fortsatt kan mutere den
+  // optimistisk uten å røre context.
+  useEffect(() => { setOrgs(myOrgs) }, [myOrgs])
+
+  // Stats er premium-only. Hent når (og bare når) context bekrefter premium —
+  // reaktivt, så vi unngår stale-closure der isPremium ennå ikke er lastet når
+  // loadProfile kjører.
   useEffect(() => {
+    if (!isPremium) { setStats(null); return }
     let cancelled = false
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
-      if (!session?.access_token || cancelled) return
-      fetch('/api/org/my-orgs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: session.access_token }),
-      })
-        .then(r => r.json())
-        .then(d => { if (!cancelled) setOrgs(d.orgs ?? []) })
-        .catch(() => {})
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (cancelled || !session?.access_token) return
+      try {
+        const res = await fetch('/api/historikk', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!cancelled && res.ok) {
+          const json = await res.json()
+          setStats(json.stats ?? null)
+        }
+      } catch { /* stats are optional */ }
     })
-    return () => { cancelled = true; subscription.unsubscribe() }
-  }, [])
+    return () => { cancelled = true }
+  }, [isPremium])
 
   useEffect(() => {
     let cancelled = false
@@ -230,19 +228,7 @@ export default function ProfilPage() {
       setNickname(profile?.nickname ?? '')
       setEditNickname(profile?.nickname ?? '')
 
-      // Premium: hent server-side for å omgå RLS
-      let premium = false
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          premium = premData.isPremium === true
-          setHasStripeCustomer(premData.hasStripeCustomer === true)
-        }
-      } catch { /* fallback: not premium */ }
-      setIsPremium(premium)
+      // Premium/hasStripeCustomer kommer nå fra delt context (ProfileProvider).
       setAvatarUrl(avatarUrlFromMeta)
       setAvatarColor(profile?.avatar_color ?? null)
       setShowMemberNumber(profile?.show_member_number ?? false)
@@ -268,17 +254,7 @@ export default function ProfilPage() {
         setMemberSince(`${day}. ${month} ${year}`)
       }
 
-      if (premium) {
-        try {
-          const res = await fetch('/api/historikk', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-          if (!cancelled && res.ok) {
-            const json = await res.json()
-            setStats(json.stats ?? null)
-          }
-        } catch { /* stats are optional */ }
-      }
+      // Stats (premium-only) hentes i egen effekt gated på isPremium fra context.
 
       if (!cancelled) setLoadState('ready')
     }
@@ -508,7 +484,8 @@ export default function ProfilPage() {
       } else {
         setCodeSuccess('Kode aktivert! Du har nå Premium.')
         setCodeInput('')
-        setIsPremium(true)
+        // Tvungen fersk server-bekreftelse av ny premium-status (via context).
+        await refreshProfile()
         setTimeout(() => setCodeSuccess(null), 3000)
       }
     } catch {

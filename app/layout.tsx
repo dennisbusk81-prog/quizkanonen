@@ -8,6 +8,7 @@ import UserMenu from "@/components/UserMenu";
 import UserMenuErrorBoundary from "@/components/UserMenuErrorBoundary";
 import BackNav from "@/components/BackNav";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ProfileProvider from "@/components/ProfileProvider";
 import Link from "next/link";
 
 const geistSans = Geist({
@@ -47,6 +48,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="min-h-full flex flex-col">
+        <ProfileProvider>
         <UserMenuErrorBoundary>
           <UserMenu />
         </UserMenuErrorBoundary>
@@ -56,6 +58,7 @@ export default function RootLayout({
         <NameRequiredModal />
         <ServiceWorkerRegistration />
         <ConsentBanner />
+        </ProfileProvider>
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
             <span>© 2026 Quizkanonen</span>

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import { useProfile } from '@/components/ProfileProvider'
 import type React from 'react'
 
 // Konsekvent mønster på tvers av gjest/innlogget: hamburger (☰) betyr alltid
@@ -45,93 +46,22 @@ const menuItem: React.CSSProperties = {
 }
 
 export default function NavAuth({ quizId }: { quizId?: string }) {
-  const [sessionResolved, setSessionResolved] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [displayName, setDisplayName] = useState<string | null>(null)
-  const [isPremium, setIsPremium] = useState(false)
-  const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
-  const [profileLoaded, setProfileLoaded] = useState(false)
+  // All profil-/premium-/org-tilstand kommer nå fra delt context (ProfileProvider).
+  const { userId, displayName, isPremium, hasStripeCustomer, myOrgs, loading, resolved } = useProfile()
+  const isLoggedIn = userId !== null
+  const sessionResolved = resolved
+  const profileLoaded = !loading
+
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
   const [signOutError, setSignOutError] = useState<string | null>(null)
-  const [myOrgs, setMyOrgs] = useState<{ orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
   // Hamburger (navigasjon) er en egen meny fra konto-dropdownen over — for
   // innlogget bruker kan begge være i DOM-en samtidig, så de trenger uavhengig
   // state/ref. For gjest finnes kun hamburgeren.
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
   const hamburgerRef = useRef<HTMLDivElement>(null)
-
-  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .maybeSingle()
-      setDisplayName(data?.display_name ?? null)
-    } catch { /* keep fallback */ }
-    // Premium: hent server-side for å omgå RLS
-    if (accessToken) {
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          setIsPremium(premData.isPremium === true)
-          setHasStripeCustomer(premData.hasStripeCustomer === true)
-        }
-      } catch { /* fallback: not premium */ }
-    }
-    setProfileLoaded(true)
-  }
-
-  async function fetchMyOrgs(accessToken: string) {
-    try {
-      const res = await fetch('/api/org/my-orgs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken }),
-      })
-      const json = res.ok ? await res.json() : { orgs: [] }
-      setMyOrgs(json.orgs ?? [])
-    } catch { /* ignore */ }
-  }
-
-  useEffect(() => {
-    const timeout = setTimeout(() => setSessionResolved(true), 3000)
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'INITIAL_SESSION') {
-        clearTimeout(timeout)
-        if (session?.user) {
-          setIsLoggedIn(true)
-          loadProfile(session.user.id, session.user.email, session.access_token)
-          if (session.access_token) fetchMyOrgs(session.access_token)
-        } else {
-          setIsLoggedIn(false)
-          setProfileLoaded(true)
-        }
-        setSessionResolved(true)
-      } else if (event === 'SIGNED_IN') {
-        if (session?.user) {
-          setIsLoggedIn(true)
-          loadProfile(session.user.id, session.user.email, session.access_token)
-          if (session.access_token) fetchMyOrgs(session.access_token)
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setIsLoggedIn(false)
-        setDisplayName(null)
-        setIsPremium(false)
-        setMyOrgs([])
-        setProfileLoaded(true)
-      }
-    })
-
-    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
-  }, [])
 
   async function handlePortal() {
     if (portalLoading) return

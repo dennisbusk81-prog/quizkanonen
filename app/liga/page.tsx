@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
+import { useProfile } from '@/components/ProfileProvider'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -73,7 +74,7 @@ export default function MineLigaerPage() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [slowLoad, setSlowLoad] = useState(false)
   const [leagues, setLeagues] = useState<League[]>([])
-  const [isPremium, setIsPremium] = useState(false)
+  const { isPremium } = useProfile()
   const [accessToken, setAccessToken] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
@@ -102,17 +103,12 @@ export default function MineLigaerPage() {
 
       setAccessToken(session.access_token)
 
-      const [premRes, leaguesRes] = await Promise.all([
-        fetch('/api/profile/premium-status', { headers: { Authorization: `Bearer ${session.access_token}` } }),
-        fetch('/api/leagues', { headers: { Authorization: `Bearer ${session.access_token}` } }),
-      ])
+      // Premium kommer fra delt context — her henter vi kun ligaene.
+      const leaguesRes = await fetch('/api/leagues', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
 
       if (cancelled) return
-
-      if (premRes.ok) {
-        const premData = await premRes.json()
-        setIsPremium(premData.isPremium === true)
-      }
 
       if (!leaguesRes.ok) { setLoadState('error'); return }
       const json = await leaguesRes.json()

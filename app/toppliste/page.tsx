@@ -5,38 +5,27 @@ import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { supabase } from '@/lib/supabase'
+import { useProfile } from '@/components/ProfileProvider'
 
 function ExpiredPremiumBanner() {
-  const [show, setShow] = useState(false)
+  // Premium fra delt context (ingen egen premium-status-fetch lenger).
+  const { isPremium, userId, loading } = useProfile()
+  const [hasScores, setHasScores] = useState(false)
 
   useEffect(() => {
+    if (!userId) { setHasScores(false); return }
     let cancelled = false
-    async function check() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const [profileRes, scoresRes] = await Promise.all([
-        fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }),
-        supabase
-          .from('season_scores')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', session.user.id)
-          .eq('scope_type', 'global'),
-      ])
-
-      if (cancelled) return
-      const profile = profileRes.ok ? await profileRes.json() : null
-      const isPremium = profile?.isPremium === true
-      const hasScores = (scoresRes.count ?? 0) > 0
-      if (!isPremium && hasScores) setShow(true)
-    }
-    check()
+    supabase
+      .from('season_scores')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('scope_type', 'global')
+      .then(({ count }) => { if (!cancelled) setHasScores((count ?? 0) > 0) })
     return () => { cancelled = true }
-  }, [])
+  }, [userId])
 
-  if (!show) return null
+  // Vis kun når premium er avklart (unngå flash før context er lastet).
+  if (loading || isPremium || !hasScores) return null
   return (
     <div style={{
       background: '#21242e',

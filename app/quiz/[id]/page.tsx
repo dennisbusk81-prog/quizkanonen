@@ -8,6 +8,7 @@ import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import SiteNav from '@/components/SiteNav'
+import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
 type PlayerInfo = { name: string; ageConfirmed: boolean }
@@ -775,7 +776,10 @@ export default function QuizPage() {
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
   const [orgBox, setOrgBox] = useState<{ orgName: string; orgSlug: string; userRank: number | null } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
+  // Premium vises via delt context (ProfileProvider). refreshProfile() brukes
+  // til de to bevisste resjekkene (quiz-start + innsending) der founders kan ha
+  // aktivert midt i økta.
+  const { isPremium, refreshProfile } = useProfile()
   const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
@@ -872,13 +876,12 @@ export default function QuizPage() {
       }
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-      // Premium (Sak 2): hydrer optimistisk fra sessionStorage (kun true), og
-      // bekreft deretter mot serveren. Kun et definitivt server-svar endrer
-      // status — mislykkede kall nedgraderer aldri en betalende bruker.
+      // Premium-VISNING styres nå av delt context (ProfileProvider), som selv
+      // hydrerer fra sessionStorage og bekrefter mot serveren. Her henter vi kun
+      // et definitivt server-svar for å avgjøre om founders-CTA skal
+      // forhåndslastes (isP under) — samme kilde/utfall som før.
       const hydrated = hydratePremiumStatus(session.user.id)
-      if (hydrated) setIsPremium(true)
       const serverPremium = await fetchPremiumStatus(session.access_token, session.user.id)
-      if (serverPremium !== null) setIsPremium(serverPremium)
       const isP = serverPremium !== null ? serverPremium : hydrated
       // Hent founders-data for CTA — cache 5 min i sessionStorage
       if (!isP) {
@@ -1313,11 +1316,11 @@ export default function QuizPage() {
           })
           .catch(() => {})
 
-        // Re-sjekk premium-status ved quiz-start — founders kan ha aktivert
-        // etter at quiz-siden mountet. Kun et definitivt server-svar endrer
-        // status (nedgraderer aldri på feil).
-        fetchPremiumStatus(accessToken, session!.user.id)
-          .then(p => { if (p !== null) setIsPremium(p) })
+        // Bevisst resjekk ved quiz-start — founders kan ha aktivert etter at
+        // quiz-siden mountet. Rutes gjennom context sin refreshProfile()
+        // (tvungen fersk server-sjekk, null-safe). Fire-and-forget: IKKE await —
+        // blokkerer ikke quiz-starten.
+        refreshProfile()
       }
       fetch(`/api/quiz/percentile?quizId=${quizId}`)
         .then(r => r.ok ? r.json() : [])
@@ -1692,13 +1695,14 @@ export default function QuizPage() {
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
       localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: finalTimeMs }))
-      // Re-sjekk premium-status parallelt med snapshot-fetchen — founders-aktivering
-      // kan ha skjedd etter quiz-start, og isPremium-tilstanden er da utdatert
+      // finishSess brukes også av fallback-leaderboard-fetchen lenger nede.
       const { data: { session: finishSess } } = await supabase.auth.getSession()
-      if (finishSess?.access_token) {
-        fetchPremiumStatus(finishSess.access_token, finishSess.user.id)
-          .then(p => { if (p !== null) setIsPremium(p) })
-      }
+      // Bevisst resjekk parallelt med snapshot-fetchen — founders-aktivering kan
+      // ha skjedd etter quiz-start. Rutes gjennom context sin refreshProfile()
+      // (tvungen fersk server-sjekk, null-safe). Fire-and-forget: IKKE await —
+      // blokkerer ikke innsendings-/resultatflyten (samme non-blocking oppførsel
+      // som det tidligere fetchPremiumStatus(...).then(...)-mønsteret).
+      refreshProfile()
       // Hent topp-3 OG plassering fra ETT felles endepunkt (samme rangerte liste,
       // samme øyeblikk) — så "Topp 3" og "Din plassering" aldri kan divergere.
       // attemptId sikrer at spilleren selv er med i lista (rebuild om nødvendig).

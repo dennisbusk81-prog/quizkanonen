@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
 import SiteNav from '@/components/SiteNav'
+import { useProfile } from '@/components/ProfileProvider'
 import type { Session } from '@supabase/supabase-js'
 
 type FoundersCount = {
@@ -196,7 +197,8 @@ const s = {
 export default function FoundersPage() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null>(null)
-  const [isPremium, setIsPremium] = useState(false)
+  // Premium fra delt context (ingen egen premium-status-fetch lenger).
+  const { isPremium } = useProfile()
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -255,26 +257,16 @@ export default function FoundersPage() {
   }, [])
 
   useEffect(() => {
+    // Premium håndteres nå av ProfileProvider. Her beholder vi kun session-
+    // sporingen og den founders-spesifikke pending-checkout-logikken.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      if (s?.user) {
-        if (s.access_token) {
-          fetch('/api/profile/premium-status', {
-            headers: { Authorization: `Bearer ${s.access_token}` },
-          })
-            .then(r => r.ok ? r.json() : { isPremium: false })
-            .then(data => setIsPremium(data.isPremium === true))
-            .catch(() => { /* fallback: not premium */ })
+      if (s?.user && event === 'SIGNED_IN') {
+        const pending = localStorage.getItem('qk_pending_action')
+        if (pending === 'founders_checkout' && s.access_token) {
+          localStorage.removeItem('qk_pending_action')
+          runActivate(s.access_token)
         }
-        if (event === 'SIGNED_IN') {
-          const pending = localStorage.getItem('qk_pending_action')
-          if (pending === 'founders_checkout' && s.access_token) {
-            localStorage.removeItem('qk_pending_action')
-            runActivate(s.access_token)
-          }
-        }
-      } else {
-        setIsPremium(false)
       }
     })
     return () => subscription.unsubscribe()

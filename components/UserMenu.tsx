@@ -5,70 +5,24 @@ import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import { getAvatarInitial } from '@/lib/avatar-initial'
-import type { Session } from '@supabase/supabase-js'
+import { useProfile } from '@/components/ProfileProvider'
 
 export default function UserMenu() {
   const pathname = usePathname()
-  const [session, setSession] = useState<Session | null>(null)
-  const [displayName, setDisplayName] = useState<string | null>(null)
-  const [isPremium, setIsPremium] = useState(false)
-  const [premiumSource, setPremiumSource] = useState<string | null>(null)
-  const [hasStripeCustomer, setHasStripeCustomer] = useState(false)
+  // Profil-/premium-/org-tilstand fra delt context (ProfileProvider).
+  const { userId, displayName, isPremium, hasStripeCustomer, myOrgs, loading, resolved } = useProfile()
+  const isLoggedIn = userId !== null
+  const profileLoaded = !loading
+  // Admin-orgs utledes fra myOrgs (my-orgs er supersett av my-admin-orgs).
+  const adminOrgs = myOrgs.filter(o => o.isAdmin).map(o => ({ orgName: o.orgName, orgSlug: o.orgSlug }))
+
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [sessionResolved, setSessionResolved] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
-  const [profileLoaded, setProfileLoaded] = useState(false)
-  const [adminOrgs, setAdminOrgs] = useState<{ orgName: string; orgSlug: string }[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  async function loadProfile(userId: string, fallbackEmail: string | undefined, accessToken?: string) {
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', userId)
-        .maybeSingle()
-      setDisplayName(data?.display_name ?? fallbackEmail?.split('@')[0] ?? null)
-    } catch {
-      // keep email fallback already set
-    }
-
-    // Token resolution (needed for both premium check and adminOrgs)
-    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
-
-    // Premium: hent server-side for å omgå RLS
-    if (token) {
-      try {
-        const premRes = await fetch('/api/profile/premium-status', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (premRes.ok) {
-          const premData = await premRes.json()
-          setIsPremium(premData.isPremium === true)
-          setPremiumSource(premData.premiumSource ?? null)
-          setHasStripeCustomer(premData.hasStripeCustomer === true)
-        }
-      } catch { /* fallback: not premium */ }
-    }
-
-    setProfileLoaded(true)
-
-    // Load org admin memberships via API (uses service role — bypasses RLS)
-    if (!token) return
-    try {
-      const res = await fetch('/api/org/my-admin-orgs', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const json = res.ok ? await res.json() : { orgs: [] }
-      setAdminOrgs(json.orgs ?? [])
-    } catch (err) {
-      console.error('[UserMenu] adminOrgs fetch error:', err)
-    }
-  }
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -137,32 +91,6 @@ export default function UserMenu() {
     }
   }
 
-  useEffect(() => {
-    // Fallback: unblock after 3s if INITIAL_SESSION never fires
-    const timeout = setTimeout(() => setSessionResolved(true), 3000)
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s)
-      if (event === 'INITIAL_SESSION') {
-        clearTimeout(timeout)
-        if (s?.user) {
-          // Set email as immediate name, then load real profile in background
-          setDisplayName(s.user.email?.split('@')[0] ?? null)
-          loadProfile(s.user.id, s.user.email, s.access_token)
-        }
-        setSessionResolved(true)
-      } else if (event === 'SIGNED_OUT') {
-        setDisplayName(null)
-        setIsPremium(false)
-        setAdminOrgs([])
-      } else if (s?.user) {
-        loadProfile(s.user.id, s.user.email, s.access_token)
-      }
-    })
-
-    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
-  }, [])
-
   // Nullstill portalError når dropdown lukkes
   useEffect(() => {
     if (!dropdownOpen) setPortalError(null)
@@ -178,7 +106,7 @@ export default function UserMenu() {
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [dropdownOpen])
 
-  if (!mounted || !sessionResolved) return null
+  if (!mounted || !resolved) return null
   // Disse sidene har nå SiteNav (se components/SiteNav.tsx) med sin egen
   // konto-meny (NavAuth) — samme sett som BackNav.tsx sin ekvivalente liste,
   // holdt synkronisert bevisst (de to var tidligere usynkroniserte).
@@ -205,7 +133,7 @@ export default function UserMenu() {
   return (
     <>
       <div style={{ position: 'fixed', top: 14, right: 18, zIndex: 8000 }}>
-        {session ? (
+        {isLoggedIn ? (
           <div ref={dropdownRef} style={{ position: 'relative' }}>
 
             {/* Avatar pill */}
@@ -429,7 +357,7 @@ export default function UserMenu() {
                 )}
                 <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
                 <button
-                  onClick={async () => { setDropdownOpen(false); setSession(null); setDisplayName(null); setIsPremium(false); await signOut() }}
+                  onClick={async () => { setDropdownOpen(false); await signOut() }}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none', border: 'none',
