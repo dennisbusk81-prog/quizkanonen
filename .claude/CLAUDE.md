@@ -1,5 +1,5 @@
 # Quizkanonen — Claude Code kontekst
-Sist oppdatert: 20. juli 2026
+Sist oppdatert: 23. juli 2026
 
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
@@ -10,7 +10,9 @@ Nordisk marked. Budsjett nær null i startfasen.
 
 ## TEKNISK STACK — IKKE ENDRE
 - **Frontend + backend:** Next.js (App Router, TypeScript) — aldri Pages Router
-- **Database + auth:** Supabase (PostgreSQL, RLS aktivert)
+- **Database + auth:** Supabase (PostgreSQL, RLS aktivert) — databasen ligger i
+  **eu-west-1 (Irland)**. Ikke forveksle med Vercel-hostingen, som kjører i
+  Frankfurt (fra1) — det er to ulike regioner hos to ulike leverandører.
 - **Hosting:** Vercel (auto-deploy fra GitHub)
 - **Betaling:** Stripe — **LIVE MODE** siden ~23. juni 2026. Ekte kort, ekte penger.
   Ikke bytt tilbake til test-modus, og ikke rør live-nøklene, uten eksplisitt beskjed.
@@ -72,6 +74,37 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 - `lib/supabase-admin.ts` er server-only (service role)
 - Admin-auth: se egen seksjon under (rate-limitet + signert token, ikke lenger
   klartekst-passord i sessionStorage — endret 19. juli)
+- `lib/session-identity.ts` (`getSessionIdentity()`, fra 22. juli 2026): gir en
+  stabil identitet (`'unchecked' | 'anon' | userId`) å sammenligne mot i stedet
+  for hele Supabase-session-objektet, som skifter referanse ved hver
+  `TOKEN_REFRESHED`. Brukt i `app/leaderboard/[id]/page.tsx` og
+  `app/org/[slug]/admin/page.tsx` for å unngå en flash/re-last-bug ved
+  fane-fokus.
+
+### ProfileProvider (delt profil-/premium-/org-context)
+- `components/ProfileProvider.tsx` sitter i `app/layout.tsx` (root layout) og
+  wrapper hele appen. Eksponeres via `useProfile()`.
+- Sentraliserer `userId`, `displayName`, `isPremium`, `hasStripeCustomer`,
+  `premiumSource` og `myOrgs` bak ÉN delt `onAuthStateChange`-subscription,
+  i stedet for at hver side/komponent lyttet og hentet separat.
+- Erstattet en tidligere tilstand med 5–14 duplikate kall til
+  `/api/profile/premium-status` per sideinnlasting (én dedupe-vakt per
+  bruker-id i stedet).
+- `refreshProfile()` tvinger en fersk server-sjekk og oppdaterer contexten
+  null-safe (nedgraderer aldri på transient feil). Dette er ruten for de
+  bevisste re-sjekk-punktene på quiz-siden (quiz-start/-innsending) og
+  leaderboard-siden (fane-fokus) — disse re-sjekkene skal IKKE fjernes eller
+  endres, kun rutes gjennom `refreshProfile()` i stedet for egne kall.
+- `myOrgs` fra denne contexten er nå bekreftet supersett av
+  `/api/org/my-admin-orgs` (admin-orgs utledes med et `.filter(o => o.isAdmin)`
+  i `UserMenu.tsx` i stedet for et eget kall). `my-admin-orgs`-ruten kalles
+  ikke lenger fra klienten og skal ikke nevnes som et aktivt endepunkt.
+
+### Navigasjon
+- Én delt komponent, `components/SiteNav.tsx`, brukes på tvers av alle sider
+  — ikke flere separate nav-implementasjoner. `components/NavAuth.tsx` er et
+  internt underelement av `SiteNav.tsx`, ikke en egen side-nav.
+- `/slik-fungerer-det` manglet tidligere nav helt — lagt til 23. juli 2026.
 
 ### Passordinnlogging (fullt bygget og verifisert 18. juli 2026)
 - **Identifier-first-flyt** på `/login`: bruker skriver e-post først, siden
@@ -168,7 +201,7 @@ Premium: kr 49/mnd. Stripe i **live mode** siden ~23. juni 2026.
 
 ## FORSIDE — STRUKTUR (app/page.tsx)
 Rekkefølge ovenfra:
-1. Nav (NavAuth.tsx) — "Toppliste" synlig på desktop, skjult på mobil
+1. Nav (SiteNav.tsx) — "Toppliste" synlig på desktop, skjult på mobil
 2. Hero — tittel, undertittel, gul knapp, statuslinje
 3. Sitat-linje — kursiv, #7a7873
 4. Fakta-ikoner — tre SVG (kalender, person, stjerne)
@@ -198,6 +231,15 @@ Månedlig leaderboard i quiz-kortet:
   `charge.refunded`
 - Idempotens: `stripe_events`-tabellen stempler behandlede event-id-er
   (aktivert 19. juli 2026 — se Sikkerhet-seksjonen)
+- **Robusthetsmønster, ikke ennå gjennomført alle steder (23. juli 2026):**
+  i `app/api/stripe/subscription/route.ts` er `new Stripe(...)` flyttet inn i
+  try-blokken, slik at en manglende/ugyldig `STRIPE_SECRET_KEY` gir en ren,
+  logget JSON-feilrespons i stedet for en rå uhåndtert 500. De fleste andre
+  Stripe-rutene (`checkout`, `webhook`, `verify-session`, `portal`,
+  `org-portal`, `org-checkout`, `founders-activate`, `profile/delete`,
+  `admin/users/[id]`) instansierer fortsatt Stripe som første linje i
+  handleren, UTENFOR try — samme sårbarhet er ikke rettet der. Vurder samme
+  mønster ved neste gjennomgang av disse rutene.
 
 ---
 

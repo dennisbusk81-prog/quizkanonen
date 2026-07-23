@@ -86,13 +86,13 @@
               ['Enhets-ID / played_log', 'Til quiz-arrangør nullstiller quizen', 'Supabase (EU)'],
               ['Kallenavn på leaderboard', 'Til quiz slettes', 'Supabase (EU)'],
             ]} headers={['Datatype', 'Lagringstid', 'Sted']} />
-            <P>Alle data lagres på servere i EU (Supabase, Frankfurt). Vi bruker ikke tjenester som overfører data til land utenfor EØS uten tilstrekkelig beskyttelsesnivå.</P>
+            <P>Data lagres i Supabase-databasen i EU (Irland, eu-west-1). Selve nettsiden kjører på Vercels serverinfrastruktur i Frankfurt, men lagrer ikke persistente data der. Vi bruker ikke tjenester som overfører data til land utenfor EØS uten tilstrekkelig beskyttelsesnivå.</P>
           </Section>
 
           <Section title="6. Underleverandører (databehandlere)">
             <Table rows={[
-              ['Supabase Inc.', 'Database og lagring', 'EU (Frankfurt)', 'DPA inngått'],
-              ['Vercel Inc.', 'Webhosting', 'EU-region tilgjengelig', 'DPA inngått'],
+              ['Supabase Inc.', 'Database og lagring', 'EU (Irland, eu-west-1)', 'DPA inngått'],
+              ['Vercel Inc.', 'Webhosting', 'Frankfurt (fra1)', 'DPA inngått'],
             ]} headers={['Leverandør', 'Tjeneste', 'Datasentre', 'Avtale']} />
           </Section>
 
