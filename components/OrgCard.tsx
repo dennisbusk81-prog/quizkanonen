@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useProfile } from '@/components/ProfileProvider'
 
-type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean }
 type Top3Entry = { displayName: string; totalPoints: number }
 type Placement = { rank: number | null; total: number; quizTitle: string }
 
@@ -14,38 +14,40 @@ function truncateName(name: string) {
 }
 
 export default function OrgCard() {
-  const [org, setOrg] = useState<OrgEntry | null>(null)
+  // Org-data kommer nå fra den delte ProfileProvider-contexten (ett /api/org/my-orgs
+  // -kall per sesjon) i stedet for et eget onAuthStateChange+fetch her. myOrgs er []
+  // helt til ProfileProvider er ferdig, så org forblir null — samme "vis ingenting"
+  // til data er klar som før, ingen ny tom-tilstand introdusert.
+  const { myOrgs } = useProfile()
+  const org = myOrgs[0] ?? null
+
   const [top3, setTop3] = useState<Top3Entry[]>([])
   const [placement, setPlacement] = useState<Placement | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
+    if (!org) return
     let cancelled = false
 
-    async function load(accessToken: string) {
-      const orgsRes = await fetch('/api/org/my-orgs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken }),
-      }).then(r => r.json()).catch(() => ({ orgs: [] }))
+    async function load(orgSlug: string) {
+      // season-summary/my-placement er egne, urørte endepunkter — trenger fortsatt
+      // et ferskt access-token, hentet lokalt (ingen nettverkskall til my-orgs).
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      if (!accessToken || cancelled) return
 
-      const orgs: OrgEntry[] = orgsRes.orgs ?? []
-      if (orgs.length === 0 || cancelled) return
-
-      const first = orgs[0]
       const [summaryRes, placementRes] = await Promise.all([
-        fetch(`/api/org/${first.orgSlug}/season-summary`, {
+        fetch(`/api/org/${orgSlug}/season-summary`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ access_token: accessToken }),
         }).then(r => r.json()).catch(() => ({ top3: [] })),
-        fetch(`/api/org/${first.orgSlug}/my-placement`, {
+        fetch(`/api/org/${orgSlug}/my-placement`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }).then(r => r.ok ? r.json() : null).catch(() => null),
       ])
 
       if (cancelled) return
-      setOrg(first)
       setTop3(summaryRes.top3 ?? [])
 
       // Brukerens plassering i siste quiz med org-aktivitet — diskret linje.
@@ -58,14 +60,9 @@ export default function OrgCard() {
       setLoaded(true)
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
-      if (!session?.access_token) return
-      load(session.access_token)
-    })
-
-    return () => { cancelled = true; subscription.unsubscribe() }
-  }, [])
+    load(org.orgSlug)
+    return () => { cancelled = true }
+  }, [org?.orgSlug])
 
   if (!loaded || !org) return null
 

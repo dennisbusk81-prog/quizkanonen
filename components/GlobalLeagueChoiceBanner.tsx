@@ -2,15 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-
-type OrgEntry = {
-  orgId: string
-  orgName: string
-  orgSlug: string
-  isAdmin: boolean
-  allowGlobalLeague: boolean
-  globalLeagueOptOut: boolean | null
-}
+import { useProfile } from '@/components/ProfileProvider'
 
 // Vises kun når brukeren tilhører minst én org med allow_global_league=true
 // OG ikke har besvart valget (global_league_opt_out === null) for den orgen.
@@ -18,32 +10,30 @@ type OrgEntry = {
 const SESSION_DISMISS_KEY = 'qk_global_league_banner_dismissed'
 
 export default function GlobalLeagueChoiceBanner() {
-  const [org, setOrg] = useState<OrgEntry | null>(null)
+  // Org-data kommer nå fra den delte ProfileProvider-contexten (ett /api/org/my-orgs
+  // -kall per sesjon) i stedet for et eget onAuthStateChange+fetch her.
+  const { myOrgs } = useProfile()
+  const org = myOrgs.find(o => o.allowGlobalLeague && o.globalLeagueOptOut === null) ?? null
+
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [hidden, setHidden] = useState(false)
+  // choose()-suksess kan ikke lenger nulle ut "org" (den er avledet av context,
+  // ikke lokal state) — en egen answered-flagg gir samme "skjul umiddelbart
+  // etter svar"-oppførsel som før.
+  const [answered, setAnswered] = useState(false)
 
+  // Trenger fortsatt et ferskt access-token for choose()-kallet mot
+  // league-preference — hentes lokalt kun når det faktisk finnes et ubesvart
+  // valg å vise, ikke et nettverkskall til my-orgs.
   useEffect(() => {
+    if (!org) return
     let cancelled = false
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return
-      if (!session?.access_token || cancelled) return
-      setAccessToken(session.access_token)
-      fetch('/api/org/my-orgs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: session.access_token }),
-      })
-        .then(r => r.json())
-        .then((d: { orgs?: OrgEntry[] }) => {
-          if (cancelled) return
-          const pending = (d.orgs ?? []).find(o => o.allowGlobalLeague && o.globalLeagueOptOut === null)
-          if (pending) setOrg(pending)
-        })
-        .catch(() => {})
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) setAccessToken(session?.access_token ?? null)
     })
-    return () => { cancelled = true; subscription.unsubscribe() }
-  }, [])
+    return () => { cancelled = true }
+  }, [org?.orgId])
 
   // Avvist denne sesjonen — vis igjen ved neste innlogging
   useEffect(() => {
@@ -60,7 +50,7 @@ export default function GlobalLeagueChoiceBanner() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ opt_out: optOut }),
       })
-      if (res.ok) setOrg(null) // besvart — banneret vises ikke igjen
+      if (res.ok) setAnswered(true) // besvart — banneret vises ikke igjen
     } catch {
       /* lar banneret stå slik at brukeren kan prøve igjen */
     } finally {
@@ -73,7 +63,7 @@ export default function GlobalLeagueChoiceBanner() {
     setHidden(true)
   }
 
-  if (!org || hidden) return null
+  if (!org || hidden || answered) return null
 
   return (
     <div style={{
