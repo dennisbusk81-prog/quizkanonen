@@ -49,15 +49,31 @@
           </Section>
 
           <Section title="2. Hva vi samler inn">
-            <P>Vi samler inn minimalt med opplysninger for å gi deg en god quizopplevelse:</P>
+            <P>Hvilke opplysninger vi samler inn avhenger av om du spiller som gjest eller har en konto hos oss.</P>
+
+            <P><strong style={{ color: '#e8e4dd' }}>Hvis du spiller uten å logge inn:</strong></P>
             <Table rows={[
-              ['Kallenavn / lagnavn', 'Du skriver inn selv ved quiz-start', 'Vises på leaderboard'],
-              ['Enhets-ID (device ID)', 'Genereres automatisk i nettleseren din', 'Hindrer dobbeltspilling'],
+              ['Kallenavn', 'Du skriver inn selv ved quiz-start', 'Vises på leaderboard'],
+              ['Enhets-ID (device ID)', 'Genereres automatisk i nettleseren din', 'Hindrer dobbeltspilling på samme quiz'],
               ['Quizsvar og resultater', 'Registreres automatisk under spilling', 'Leaderboard og statistikk'],
               ['Svartider', 'Registreres automatisk under spilling', 'Rangeringslogikk'],
-              ['Tidspunkt for gjennomspilling', 'Registreres automatisk', 'Administrasjon og statistikk'],
             ]} />
-            <P>Vi samler <strong style={{ color: '#e8e4dd' }}>ikke inn</strong> navn, e-postadresse, telefonnummer, betalingsinformasjon eller andre identifiserbare personopplysninger i den gratis versjonen av tjenesten.</P>
+
+            <P><strong style={{ color: '#e8e4dd' }}>Hvis du oppretter konto (innlogging via Google, e-post/passord, eller magisk lenke):</strong></P>
+            <Table rows={[
+              ['E-postadresse', 'Fra innloggingsmetoden din', 'Identifikasjon, innlogging, varsler'],
+              ['Visningsnavn', 'Du skriver inn selv', 'Vises på leaderboard og i historikk'],
+              ['Innloggingsmetode', 'Registreres ved opprettelse', 'Sikker autentisering'],
+              ['Spillhistorikk', 'Alle dine quizforsøk, svar og resultater', 'Historikk- og statistikkfunksjoner (Premium)'],
+            ]} />
+
+            <P><strong style={{ color: '#e8e4dd' }}>Hvis du kjøper Premium-abonnement (B2C) eller er del av en bedriftskonto (B2B):</strong></P>
+            <Table rows={[
+              ['Betalingsidentitet (kunde-/abonnements-ID hos Stripe)', 'Opprettes ved kjøp', 'Administrere abonnementet ditt'],
+              ['Bedriftstilknytning (hvis relevant)', 'Ved medlemskap i en bedriftskonto', 'Bedriftens interne leaderboard'],
+            ]} />
+
+            <P>Vi lagrer <strong style={{ color: '#e8e4dd' }}>aldri</strong> kortnummer eller annen betalingsinformasjon selv — dette håndteres av vår betalingspartner Stripe (se punkt 6).</P>
           </Section>
 
           <Section title="3. Rettslig grunnlag">
@@ -82,17 +98,22 @@
 
           <Section title="5. Lagring og sletting">
             <Table rows={[
-              ['Quizresultater og svar', 'Til quiz-arrangør sletter quizen', 'Supabase (EU)'],
-              ['Enhets-ID / played_log', 'Til quiz-arrangør nullstiller quizen', 'Supabase (EU)'],
-              ['Kallenavn på leaderboard', 'Til quiz slettes', 'Supabase (EU)'],
+              ['Gjeste-quizresultater og svar', 'Til quiz-arrangør nullstiller quizen', 'Supabase (EU)'],
+              ['Innlogget brukers spillhistorikk', 'Til du sletter kontoen din', 'Supabase (EU)'],
+              ['Konto- og profilopplysninger', 'Til du sletter kontoen din', 'Supabase (EU)'],
+              ['Betalingsidentitet (Stripe-kunde-ID)', 'Til abonnementet kanselleres', 'Stripe (se punkt 6)'],
             ]} headers={['Datatype', 'Lagringstid', 'Sted']} />
-            <P>Data lagres i Supabase-databasen i EU (Irland, eu-west-1). Selve nettsiden kjører på Vercels serverinfrastruktur i Frankfurt, men lagrer ikke persistente data der. Vi bruker ikke tjenester som overfører data til land utenfor EØS uten tilstrekkelig beskyttelsesnivå.</P>
+            <P>Når du sletter kontoen din, sletter vi automatisk og permanent all din spillhistorikk (quizforsøk og svar), profilopplysningene dine, og kansellerer eventuelt aktivt abonnement. Dette skjer umiddelbart når du bruker &quot;Slett konto&quot;-funksjonen på profilsiden din.</P>
+            <P>Data lagres i Supabase-databasen i EU (Irland, eu-west-1). Selve nettsiden kjører på Vercels serverinfrastruktur i Frankfurt (fra1), men lagrer ikke persistente data der. Vi bruker ikke tjenester som overfører data til land utenfor EØS uten tilstrekkelig beskyttelsesnivå.</P>
           </Section>
 
           <Section title="6. Underleverandører (databehandlere)">
             <Table rows={[
               ['Supabase Inc.', 'Database og lagring', 'EU (Irland, eu-west-1)', 'DPA inngått'],
               ['Vercel Inc.', 'Webhosting', 'Frankfurt (fra1)', 'DPA inngått'],
+              ['Stripe Inc.', 'Betalingsbehandling', 'EU/USA (Stripe Data Processing Agreement)', 'DPA inngått'],
+              ['Resend', 'Utsendelse av transaksjonell e-post', 'EU', 'DPA inngått'],
+              ['Google LLC', 'Innlogging (OAuth)', 'Global (Google Cloud)', 'Standard kontraktsvilkår'],
             ]} headers={['Leverandør', 'Tjeneste', 'Datasentre', 'Avtale']} />
           </Section>
 
