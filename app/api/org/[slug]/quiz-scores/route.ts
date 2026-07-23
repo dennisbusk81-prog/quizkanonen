@@ -100,9 +100,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       : Promise.resolve({ data: [] as LeaderRow[] }),
     supabaseAdmin
       .from('attempts')
-      .select('user_id, created_at')
+      .select('user_id, completed_at')
       .in('user_id', memberIds)
-      .gte('created_at', oneYearAgo.toISOString())
+      .gte('completed_at', oneYearAgo.toISOString())
       .eq('is_team', false)
       .not('user_id', 'is', null),
   ])
@@ -133,10 +133,10 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   // ── Ukestreaks: siste 12 måneders forsøk per medlem ──────────────────────────
   const byUser = new Map<string, string[]>()
-  for (const a of (streaksRes.data ?? []) as { user_id: string; created_at: string }[]) {
+  for (const a of (streaksRes.data ?? []) as { user_id: string; completed_at: string }[]) {
     if (!a.user_id) continue
     const arr = byUser.get(a.user_id) ?? []
-    arr.push(a.created_at)
+    arr.push(a.completed_at)
     byUser.set(a.user_id, arr)
   }
   const streaks: Record<string, number> = {}

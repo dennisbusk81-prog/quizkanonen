@@ -108,6 +108,11 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 `organization_invites`, `leagues`, `league_members`, `ranking_snapshots`,
 `season_scores`, `admin_actions`, `excluded_members`
 
+profiles-tabellen har IKKE avatar_url, member_number-relaterte bilde-URLer,
+eller lignende bildefelt — kun avatar_color (fargevalg for initial-sirkel).
+Ingen bildeopplasting er bygget eller planlagt. Bekreftet empirisk mot prod
+24. juli 2026 (400 42703 column does not exist).
+
 ### Sesong-leaderboard-arkitektur
 - `season_scores`: scope_type IN ('global', 'league', 'organization')
 - Global: scope_type='global', scope_id=NULL

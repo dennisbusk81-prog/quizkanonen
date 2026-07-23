@@ -48,11 +48,11 @@ export async function GET(request: NextRequest) {
   // Fetch opponent profiles
   const { data: profiles } = await supabaseAdmin
     .from('profiles')
-    .select('id, display_name, nickname, avatar_url')
+    .select('id, display_name, nickname')
     .in('id', uniqueOpponentIds)
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; display_name: string | null; nickname: string | null; avatar_url: string | null }) => [p.id, p])
+    (profiles ?? []).map((p: { id: string; display_name: string | null; nickname: string | null }) => [p.id, p])
   )
 
   // Fallback: for opponents whose profile row is missing or has no display_name,
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         authUser.email?.split('@')[0] ??
         null
       const existing = profileMap.get(id)
-      profileMap.set(id, { id, display_name: name, nickname: existing?.nickname ?? null, avatar_url: existing?.avatar_url ?? null })
+      profileMap.set(id, { id, display_name: name, nickname: existing?.nickname ?? null })
     }
   }
 
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
         isExpired,
         opponentId,
         opponentName:   opponentProfile?.nickname?.trim() || opponentProfile?.display_name || null,
-        opponentAvatar: opponentProfile?.avatar_url ?? null,
+        opponentAvatar: null,
         myPoints:       pointsMap.get(user.id) ?? 0,
         opponentPoints: pointsMap.get(opponentId) ?? 0,
         isUnseen:       isIncoming && r.status === 'pending' && !r.seen_at,

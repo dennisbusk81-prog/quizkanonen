@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-type ProfileRow = { id: string; display_name: string | null; nickname: string | null; avatar_url: string | null }
+type ProfileRow = { id: string; display_name: string | null; nickname: string | null }
 
 function getGroupKey(closesAt: string, period: string): string {
   const d = new Date(closesAt)
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
     // Profiloppslag
     const { data: profiles } = winnerUserIds.length > 0
-      ? await supabaseAdmin.from('profiles').select('id, display_name, nickname, avatar_url').in('id', winnerUserIds)
+      ? await supabaseAdmin.from('profiles').select('id, display_name, nickname').in('id', winnerUserIds)
       : { data: [] }
 
     const profileMap = new Map<string, ProfileRow>()
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
         winner: w && profile ? {
           displayName: profile.display_name ?? 'Spiller',
           nickname: profile.nickname ?? null,
-          avatarUrl: profile.avatar_url ?? null,
+          avatarUrl: null,
           score: correctAnswers ?? w.points,
           scoreLabel: correctAnswers !== null ? 'riktige' : 'poeng',
         } : null,
@@ -199,7 +199,7 @@ export async function GET(request: NextRequest) {
   // Profiloppslag
   const uniqueIds = [...new Set(allWinnerIds)]
   const { data: profiles } = uniqueIds.length > 0
-    ? await supabaseAdmin.from('profiles').select('id, display_name, nickname, avatar_url').in('id', uniqueIds)
+    ? await supabaseAdmin.from('profiles').select('id, display_name, nickname').in('id', uniqueIds)
     : { data: [] }
 
   const profileMap = new Map<string, ProfileRow>()
@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
       winner: w && profile ? {
         displayName: profile.display_name ?? 'Spiller',
         nickname: profile.nickname ?? null,
-        avatarUrl: profile.avatar_url ?? null,
+        avatarUrl: null,
         score: w.points,
         scoreLabel: 'poeng',
       } : null,

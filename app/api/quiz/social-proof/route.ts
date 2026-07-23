@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
       .eq('quiz_id', quizId)
       .eq('is_team', false)
 
-    if (quiz.opens_at)  attemptsQuery = attemptsQuery.gte('created_at', quiz.opens_at)
-    if (quiz.closes_at) attemptsQuery = attemptsQuery.lte('created_at', quiz.closes_at)
+    if (quiz.opens_at)  attemptsQuery = attemptsQuery.gte('completed_at', quiz.opens_at)
+    if (quiz.closes_at) attemptsQuery = attemptsQuery.lte('completed_at', quiz.closes_at)
 
     const { data: attempts, error: attemptsError } = await attemptsQuery
 

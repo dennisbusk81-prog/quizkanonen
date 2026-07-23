@@ -162,7 +162,7 @@ export default function LeaderboardPage() {
   const [showModal, setShowModal] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [profile, setProfile] = useState<{ display_name: string | null, avatar_url: string | null } | null>(null)
+  const [profile, setProfile] = useState<{ display_name: string | null } | null>(null)
   // Premium + org-medlemskap fra delt context (ProfileProvider).
   const { isPremium, myOrgs, refreshProfile } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
@@ -252,11 +252,11 @@ export default function LeaderboardPage() {
           const map = new Map<string, { member_number: number | null, show_member_number: boolean, avatar_url: string | null, display_name: string | null, nickname: string | null }>()
           const { data: memberProfiles } = await supabaseData
             .from('profiles')
-            .select('id, member_number, show_member_number, avatar_url, display_name, nickname')
+            .select('id, member_number, show_member_number, display_name, nickname')
             .in('id', userIds)
           if (memberProfiles) {
-            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, avatar_url: string | null, display_name: string | null, nickname: string | null }[]) {
-              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: p.avatar_url ?? null, display_name: p.display_name ?? null, nickname: p.nickname ?? null })
+            for (const p of memberProfiles as { id: string, member_number: number | null, show_member_number: boolean | null, display_name: string | null, nickname: string | null }[]) {
+              map.set(p.id, { member_number: p.member_number ?? null, show_member_number: p.show_member_number ?? false, avatar_url: null, display_name: p.display_name ?? null, nickname: p.nickname ?? null })
             }
           }
           // Overlay kallenavn fra server-API (omgår evt. kolonne-grants på profiles
@@ -321,13 +321,13 @@ export default function LeaderboardPage() {
         // Hent profildata (display_name, avatar) client-side
         const { data: prof, error: profError } = await supabase
           .from('profiles')
-          .select('display_name, avatar_url')
+          .select('display_name')
           .eq('id', user.id)
           .maybeSingle()
         if (profError) console.error('[leaderboard] profile fetch error:', profError.code, profError.message)
         setProfile(prof)
         setDisplayName(prof?.display_name ?? user.email?.split('@')[0] ?? null)
-        setAvatarUrl(prof?.avatar_url ?? null)
+        setAvatarUrl(null)
       }
 
       const loadSoloPlacement = async () => {
