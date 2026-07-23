@@ -1,0 +1,38 @@
+-- ============================================================
+-- FIX (del 2): dropp den skjulte, selvrefererende SELECT-policyen
+-- "members can view league_members" på league_members.
+--
+-- Bakgrunn: 20260723000000 erstattet policyen `league_members_select_comembers`
+-- med en trygg variant (kaller SECURITY DEFINER-funksjonen is_league_member).
+-- Men klient-lesing (anon/authenticated) ga FORTSATT 42P17. Introspeksjon
+-- (pg_policy) 23. juli 2026 avslørte en ANDRE SELECT-policy på samme tabell,
+-- opprettet direkte i Supabase-dashbordet (aldri i migrasjoner):
+--
+--   "members can view league_members"
+--   USING ( EXISTS (SELECT 1 FROM league_members lm
+--                   WHERE lm.league_id = league_members.league_id
+--                     AND lm.user_id  = auth.uid()) )
+--
+-- Den self-joiner league_members → uendelig rekursjon. Siden policyer OR-es,
+-- evalueres den i tillegg til den trygge → rekursjonen består. Verifisert at
+-- H1 (funksjon omgår ikke RLS) IKKE gjelder: league_members er eid av postgres,
+-- force_rls=false, og is_league_member er security definer med search_path=''.
+--
+-- Fiksen: dropp duplikatet. Den gjenværende policyen
+-- `league_members_select_comembers` (is_league_member(league_id)) gir NØYAKTIG
+-- samme tilgang ("medlem kan se rader i ligaer den tilhører"), så ingen
+-- funksjonalitet tapes.
+--
+-- MERK: Kjøres manuelt i Supabase SQL Editor. Ikke-destruktiv for data,
+-- idempotent. VIKTIG — verifiser denne gangen mot ANON/authenticated-stien
+-- (nettleser eller anon-nøkkel), IKKE med SELECT count(*) som postgres:
+-- postgres omgår RLS og tester derfor aldri den feilende stien.
+-- ============================================================
+
+DROP POLICY IF EXISTS "members can view league_members" ON public.league_members;
+
+-- Etter kjøring skal ETT SELECT-policy stå igjen på league_members:
+--   SELECT polname, pg_get_expr(polqual, polrelid) AS using_expr
+--   FROM   pg_policy
+--   WHERE  polrelid = 'public.league_members'::regclass;
+-- Forventet: kun league_members_select_comembers → is_league_member(league_id)
