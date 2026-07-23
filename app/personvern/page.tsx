@@ -13,7 +13,7 @@
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
+          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: 23. juli 2026</span>
         </div>
       </div>
 
