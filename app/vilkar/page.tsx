@@ -55,14 +55,14 @@
             <P>Quizkanonen er en digital quiz-plattform der du kan:</P>
             <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Delta i ukentlige quizer gratis</li>
-              <li style={{ marginBottom: '0.5rem' }}>Konkurrere mot andre spillere og lag på leaderboard</li>
+              <li style={{ marginBottom: '0.5rem' }}>Konkurrere mot andre spillere på leaderboard</li>
               <li>Få tilgang til utvidet innhold og funksjoner som premiumbruker</li>
             </ul>
             <P>Vi forbeholder oss retten til å endre, legge til eller fjerne funksjoner uten varsel, så lenge kjernetjenesten opprettholdes.</P>
           </Section>
 
           <Section title="4. Gratis tilgang">
-            <P>Den ukentlige quizen er gratis tilgjengelig for alle. Ingen registrering er nødvendig. Du oppgir et kallenavn eller lagnavn før du starter — dette vises på leaderboard.</P>
+            <P>Den ukentlige quizen er gratis tilgjengelig for alle. Ingen registrering er nødvendig. Du oppgir et kallenavn før du starter — dette vises på leaderboard.</P>
             <P>For å hindre dobbeltspilling lagrer vi en enhets-ID i nettleseren din. Du kan kun fullføre samme quiz én gang per enhet. Forsøk på å omgå dette (f.eks. ved å slette nettleserdata og spille igjen) er i strid med rettferdig spill og disse vilkårene.</P>
           </Section>
 
