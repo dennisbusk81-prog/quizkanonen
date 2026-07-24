@@ -49,8 +49,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ orgs: [] })
   }
 
-  // PostgREST-embed for en many-to-one-relasjon typer seg som array (samme
-  // mønster som season-summary-ruten bruker for profiles(display_name)).
+  // PostgREST-embed for denne many-to-one-relasjonen (organization_id er FK
+  // på organization_members-siden) er ETT objekt, ikke et array — verifisert
+  // empirisk mot prod 25. juli (season-summary-rutens profiles(display_name)
+  // er IKKE et gyldig mønster å kopiere her, den relasjonen typer seg
+  // annerledes).
   type Row = {
     organization_id: string
     role: string
@@ -58,12 +61,12 @@ export async function POST(request: NextRequest) {
     organizations: {
       id: string; name: string; slug: string
       allow_global_league: boolean | null; subscription_status: string | null
-    }[] | null
+    } | null
   }
 
   const result: OrgResult[] = ((memberships ?? []) as unknown as Row[])
     .map(m => {
-      const org = m.organizations?.[0]
+      const org = m.organizations
       if (!org) return null
       return {
         orgId:              org.id,
