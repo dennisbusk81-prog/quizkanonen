@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
 const STYLES = `
@@ -434,14 +433,15 @@ export default function AdminHome() {
   }
 
   async function fetchNextQuiz() {
-    const { data, error } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'next_quiz_at')
-      .single()
-    if (error && error.code !== 'PGRST116') console.error('fetchNextQuiz feilet:', error)
-    if (data?.value) {
-      const d = new Date(data.value)
+    const r = await adminFetch('/api/admin/next-quiz')
+    if (!r.ok) {
+      console.error('fetchNextQuiz feilet:', r.status)
+      setNextQuizValue(nextFridayNoon())
+      return
+    }
+    const { nextQuizAt } = await r.json()
+    if (nextQuizAt) {
+      const d = new Date(nextQuizAt)
       // If the stored date is in the past, show next Friday noon as default instead
       if (d <= new Date()) {
         setNextQuizValue(nextFridayNoon())
@@ -458,12 +458,13 @@ export default function AdminHome() {
     if (!nextQuizValue) return
     setSaving(true)
     const isoValue = new Date(nextQuizValue).toISOString()
-    const { error } = await supabase
-      .from('site_settings')
-      .upsert({ key: 'next_quiz_at', value: isoValue, updated_at: new Date().toISOString() })
-    setFeedback(error
-      ? { type: 'error', msg: 'Kunne ikke lagre' }
-      : { type: 'success', msg: 'Lagret!' }
+    const r = await adminFetch('/api/admin/next-quiz', {
+      method: 'PATCH',
+      body: JSON.stringify({ nextQuizAt: isoValue }),
+    })
+    setFeedback(r.ok
+      ? { type: 'success', msg: 'Lagret!' }
+      : { type: 'error', msg: 'Kunne ikke lagre' }
     )
     setSaving(false)
     setTimeout(() => setFeedback(null), 3000)
