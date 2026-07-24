@@ -21,6 +21,28 @@ type Props = {
   prioritySlot?: 'top' | 'default'
 }
 
+// RivalryCard mountes bevisst to ganger på forsiden (prioritySlot="top" og
+// "default" — kun én av dem viser innhold, avgjort av innkommende-utfordring-
+// status). Begge instansenes useEffect fyrer i samme React-commit ved
+// mount, så dette modul-nivå in-flight-vaktet gjør at kun ÉN faktisk
+// fetch('/api/rivalries/my') går ut — instans nr. 2 gjenbruker samme promise
+// i stedet for å starte et eget kall. Nullstilles når kallet er ferdig, så
+// senere navigasjoner tilbake til forsiden starter et friskt kall som normalt.
+let inFlightRivalries: Promise<RivalryRow[]> | null = null
+
+async function fetchRivalriesShared(accessToken: string): Promise<RivalryRow[]> {
+  if (!inFlightRivalries) {
+    inFlightRivalries = fetch('/api/rivalries/my', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(res => (res.ok ? res.json() : { rivalries: [] }))
+      .then(json => (json.rivalries ?? []) as RivalryRow[])
+      .catch(() => [])
+      .finally(() => { inFlightRivalries = null })
+  }
+  return inFlightRivalries
+}
+
 export default function RivalryCard({ prioritySlot }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,25 +55,19 @@ export default function RivalryCard({ prioritySlot }: Props) {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setLoading(false); return }
     try {
-      const res = await fetch('/api/rivalries/my', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (res.ok) {
-        const json = await res.json()
-        const rows: RivalryRow[] = json.rivalries ?? []
-        setRivalries(rows)
-        // Mark unseen incoming challenges as seen
-        const unseen = rows.find(r => r.isUnseen && !r.isChallenger && r.status === 'pending')
-        if (unseen) {
-          fetch(`/api/rivalries/${unseen.id}`, {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ action: 'seen' }),
-          }).catch(() => {/* non-critical */})
-        }
+      const rows = await fetchRivalriesShared(session.access_token)
+      setRivalries(rows)
+      // Mark unseen incoming challenges as seen
+      const unseen = rows.find(r => r.isUnseen && !r.isChallenger && r.status === 'pending')
+      if (unseen) {
+        fetch(`/api/rivalries/${unseen.id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'seen' }),
+        }).catch(() => {/* non-critical */})
       }
     } catch { /* non-critical */ }
     setLoading(false)

@@ -8,6 +8,7 @@ import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import { isOrgLocked } from '@/lib/org-access'
+import { useProfile } from '@/components/ProfileProvider'
 import type { Session } from '@supabase/supabase-js'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
@@ -23,7 +24,7 @@ type OrgInfo = {
   allowGlobalLeague:  boolean
 }
 
-type LoadState = 'loading' | 'ready' | 'notfound' | 'error'
+type LoadState = 'loading' | 'ready' | 'notfound'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -31,9 +32,12 @@ export default function OrgLeaderboardPage() {
   const { slug } = useParams<{ slug: string }>()
   const router   = useRouter()
 
+  // Org-data kommer nå fra den delte ProfileProvider-contexten (ett
+  // /api/org/my-orgs-kall per sesjon) i stedet for et eget kall her — speiler
+  // migreringen gjort i components/OrgCard.tsx (commit df99071).
+  const { myOrgs, loading: profileLoading, resolved: profileResolved } = useProfile()
+
   const [session,   setSession]   = useState<Session | null | undefined>(undefined)
-  const [org,       setOrg]       = useState<OrgInfo | null>(null)
-  const [loadState, setLoadState] = useState<LoadState>('loading')
   const [slowLoad, setSlowLoad] = useState(false)
 
   useEffect(() => {
@@ -50,21 +54,13 @@ export default function OrgLeaderboardPage() {
   useEffect(() => {
     if (session === undefined) return
     if (!session) { router.push(`/login?next=/org/${slug}`); return }
-
-    fetch('/api/org/my-orgs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: session.access_token }),
-    })
-      .then(r => r.ok ? r.json() : { orgs: [] })
-      .then(json => {
-        const found = (json.orgs ?? []).find((o: OrgInfo) => o.orgSlug === slug)
-        if (!found) { setLoadState('notfound'); return }
-        setOrg(found)
-        setLoadState('ready')
-      })
-      .catch(() => setLoadState('error'))
   }, [session, slug, router])
+
+  const org: OrgInfo | null = myOrgs.find(o => o.orgSlug === slug) ?? null
+  const loadState: LoadState =
+    session === undefined || !session || profileLoading || !profileResolved
+      ? 'loading'
+      : org ? 'ready' : 'notfound'
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
@@ -97,17 +93,6 @@ export default function OrgLeaderboardPage() {
             <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24 }}>Du er ikke medlem av denne bedriften.</p>
             <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Forsiden</Link>
           </div>
-        </div>
-      </>
-    )
-  }
-
-  if (loadState === 'error') {
-    return (
-      <>
-        <style>{FONT}</style>
-        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Noe gikk galt. Prøv igjen.</p>
         </div>
       </>
     )

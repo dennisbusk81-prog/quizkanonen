@@ -49,6 +49,70 @@ async function getLastQuizAttempts(quizId: string): Promise<LastQuizRow[]> {
   return rows
 }
 
+// ── Korttids-cache for liga/org-medlemskap og global-liga-restriksjoner ─────
+// Samme rotårsak som attempts-cachen over: liga-/org-medlemskap endres kun
+// ved en admin-handling, ikke per sidelast, men ble tidligere spurt ferskt
+// på hver eneste last_quiz-forespørsel. Samme TTL/mønster, gjenbrukt her.
+const memberSetCache = new Map<string, { ids: Set<string>; expires: number }>()
+
+async function getMemberSet(scope: 'league' | 'organization', scopeId: string): Promise<Set<string>> {
+  const key = `${scope}:${scopeId}`
+  const now = Date.now()
+  const cached = memberSetCache.get(key)
+  if (cached && cached.expires > now) return cached.ids
+
+  const { data } = scope === 'league'
+    ? await supabaseAdmin.from('league_members').select('user_id').eq('league_id', scopeId)
+    : await supabaseAdmin.from('organization_members').select('user_id').eq('organization_id', scopeId)
+  const ids = new Set((data ?? []).map((m: { user_id: string }) => m.user_id))
+
+  if (memberSetCache.size > 100) {
+    for (const [k, v] of memberSetCache) if (v.expires <= now) memberSetCache.delete(k)
+  }
+  memberSetCache.set(key, { ids, expires: now + LAST_QUIZ_CACHE_TTL_MS })
+  return ids
+}
+
+// Nøkkel = quiz-id, ikke bruker-settet — attemptUserIds er selv utledet fra
+// den 30s-cachede attempts-listen over, så den er stabil innenfor samme
+// cache-vindu og trenger ikke være del av nøkkelen.
+const globallyBlockedSetCache = new Map<string, { ids: Set<string>; expires: number }>()
+
+async function getGloballyBlockedSet(quizId: string, attemptUserIds: string[]): Promise<Set<string>> {
+  const now = Date.now()
+  const cached = globallyBlockedSetCache.get(quizId)
+  if (cached && cached.expires > now) return cached.ids
+
+  const blocked = new Set<string>()
+  if (attemptUserIds.length > 0) {
+    const { data: orgMems } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id, organization_id, global_league_opt_out')
+      .in('user_id', attemptUserIds)
+    if (orgMems && orgMems.length > 0) {
+      type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
+      const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
+      const { data: restrictedOrgs } = await supabaseAdmin
+        .from('organizations')
+        .select('id')
+        .in('id', orgIds)
+        .eq('allow_global_league', false)
+      const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
+      for (const m of orgMems as Mem[]) {
+        if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
+          blocked.add(m.user_id)
+        }
+      }
+    }
+  }
+
+  if (globallyBlockedSetCache.size > 50) {
+    for (const [k, v] of globallyBlockedSetCache) if (v.expires <= now) globallyBlockedSetCache.delete(k)
+  }
+  globallyBlockedSetCache.set(quizId, { ids: blocked, expires: now + LAST_QUIZ_CACHE_TTL_MS })
+  return blocked
+}
+
 // ── Period helpers ────────────────────────────────────────────────────────────
 
 function getPeriodStart(period: string): string {
@@ -159,49 +223,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
-    // For league/org scopes: filter attempts to members only
+    // For league/org scopes: filter attempts to members only. 30s-cachet —
+    // se getMemberSet over.
     let memberSet: Set<string> | null = null
     if (scope === 'league' && scopeId) {
-      const { data: leagueMembers } = await supabaseAdmin
-        .from('league_members')
-        .select('user_id')
-        .eq('league_id', scopeId)
-      memberSet = new Set((leagueMembers ?? []).map((m: { user_id: string }) => m.user_id))
+      memberSet = await getMemberSet('league', scopeId)
     } else if (scope === 'organization' && scopeId) {
-      const { data: orgMembers } = await supabaseAdmin
-        .from('organization_members')
-        .select('user_id')
-        .eq('organization_id', scopeId)
-      memberSet = new Set((orgMembers ?? []).map((m: { user_id: string }) => m.user_id))
+      memberSet = await getMemberSet('organization', scopeId)
     }
 
     // Global scope: ekskluder brukere i orger med allow_global_league=false.
     // Belt-and-suspenders mot cronen — primærfiksen er at disse radene aldri skrives.
-    const globallyBlockedSet = new Set<string>()
-    if (scope === 'global') {
-      const attemptUserIds = [...new Set((rawAttempts as Array<{ user_id: string }>).map(a => a.user_id).filter(Boolean))]
-      if (attemptUserIds.length > 0) {
-        const { data: orgMems } = await supabaseAdmin
-          .from('organization_members')
-          .select('user_id, organization_id, global_league_opt_out')
-          .in('user_id', attemptUserIds)
-        if (orgMems && orgMems.length > 0) {
-          type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
-          const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
-          const { data: restrictedOrgs } = await supabaseAdmin
-            .from('organizations')
-            .select('id')
-            .in('id', orgIds)
-            .eq('allow_global_league', false)
-          const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-          for (const m of orgMems as Mem[]) {
-            if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
-              globallyBlockedSet.add(m.user_id)
-            }
-          }
-        }
-      }
-    }
+    // 30s-cachet per quiz-id — se getGloballyBlockedSet over.
+    const globallyBlockedSet = scope === 'global'
+      ? await getGloballyBlockedSet(
+          latestQuiz.id,
+          [...new Set((rawAttempts as Array<{ user_id: string }>).map(a => a.user_id).filter(Boolean))],
+        )
+      : new Set<string>()
 
     // Scope-/eksklusjons-filtrering før rangering (helperen kjenner ikke
     // excluded_members eller liga/org-medlemskap).

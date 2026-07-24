@@ -778,8 +778,9 @@ export default function QuizPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   // Premium vises via delt context (ProfileProvider). refreshProfile() brukes
   // til de to bevisste resjekkene (quiz-start + innsending) der founders kan ha
-  // aktivert midt i økta.
-  const { isPremium, refreshProfile } = useProfile()
+  // aktivert midt i økta. myOrgs brukes til season-summary-boksen under —
+  // unngår et eget POST /api/org/my-orgs-kall (speiler OrgCard.tsx, df99071).
+  const { isPremium, refreshProfile, myOrgs } = useProfile()
   const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
@@ -1046,18 +1047,11 @@ export default function QuizPage() {
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
+    const first = myOrgs[0]
+    if (!first) return
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.access_token) return
       try {
-        const orgsRes = await fetch('/api/org/my-orgs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ access_token: session.access_token }),
-        })
-        if (!orgsRes.ok) return
-        const { orgs } = await orgsRes.json()
-        if (!orgs || orgs.length === 0) return
-        const first = orgs[0]
         const summaryRes = await fetch(`/api/org/${first.orgSlug}/season-summary`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1068,7 +1062,7 @@ export default function QuizPage() {
         setOrgBox({ orgName: first.orgName, orgSlug: first.orgSlug, userRank: summary.userRank ?? null })
       } catch { /* ikke kritisk */ }
     })
-  }, [phase, isLoggedIn])
+  }, [phase, isLoggedIn, myOrgs])
 
   useEffect(() => {
     return () => {

@@ -23,12 +23,22 @@ export async function GET(request: NextRequest) {
 
   // Fetch active/pending rivalries (any month — needed to detect expired ones for UI)
   // Fix 4: also fetch declined from this month so challenger can see the rejection
-  const { data: rivalries, error } = await supabaseAdmin
-    .from('rivalries')
-    .select('id, challenger_id, rival_id, status, created_at, seen_at')
-    .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
-    .in('status', ['active', 'pending', 'declined'])
-    .order('created_at', { ascending: false })
+  // monthQuizzes hentes i samme bølge — den trenger kun user.id/månedsgrenser,
+  // ikke rivalries-resultatet, og ble tidligere kjørt sekvensielt lenger ned.
+  const [{ data: rivalries, error }, { data: monthQuizzes }] = await Promise.all([
+    supabaseAdmin
+      .from('rivalries')
+      .select('id, challenger_id, rival_id, status, created_at, seen_at')
+      .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
+      .in('status', ['active', 'pending', 'declined'])
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('quizzes')
+      .select('id')
+      .gte('closes_at', monthStart)
+      .lt('closes_at', monthEnd)
+      .lte('closes_at', now.toISOString()),
+  ])
 
   if (error) {
     console.error('[rivalries/my GET] error:', error.message)
@@ -56,19 +66,26 @@ export async function GET(request: NextRequest) {
   )
 
   // Fallback: for opponents whose profile row is missing or has no display_name,
-  // fetch name from auth.users metadata (e.g. Google full_name)
+  // fetch name from auth.users metadata (e.g. Google full_name). Parallellisert
+  // — hvert kall er et eget GoTrue-admin-oppslag, ikke en enkel DB-select, så
+  // sekvensiell await i løkke var trolig den treigste enkeltdelen av ruten.
   const missingIds = uniqueOpponentIds.filter(id => !profileMap.get(id)?.display_name)
-  for (const id of missingIds) {
-    const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(id)
-    if (authUser) {
-      const name =
-        (authUser.user_metadata?.full_name as string | undefined) ??
-        (authUser.user_metadata?.name as string | undefined) ??
-        authUser.email?.split('@')[0] ??
-        null
-      const existing = profileMap.get(id)
-      profileMap.set(id, { id, display_name: name, nickname: existing?.nickname ?? null })
-    }
+  if (missingIds.length > 0) {
+    const authUsers = await Promise.all(
+      missingIds.map(id => supabaseAdmin.auth.admin.getUserById(id))
+    )
+    missingIds.forEach((id, i) => {
+      const authUser = authUsers[i].data.user
+      if (authUser) {
+        const name =
+          (authUser.user_metadata?.full_name as string | undefined) ??
+          (authUser.user_metadata?.name as string | undefined) ??
+          authUser.email?.split('@')[0] ??
+          null
+        const existing = profileMap.get(id)
+        profileMap.set(id, { id, display_name: name, nickname: existing?.nickname ?? null })
+      }
+    })
   }
 
   // Duell-stilling beregnes direkte fra attempts (ikke season_scores), slik at
@@ -80,13 +97,6 @@ export async function GET(request: NextRequest) {
   const involvedSet = new Set(allUserIds)
   const pointsMap = new Map<string, number>()
 
-  // Quizer som har stengt inneværende måned — samme datasett season_scores dekker
-  const { data: monthQuizzes } = await supabaseAdmin
-    .from('quizzes')
-    .select('id')
-    .gte('closes_at', monthStart)
-    .lt('closes_at', monthEnd)
-    .lte('closes_at', now.toISOString())
   const quizIds = (monthQuizzes ?? []).map((q: { id: string }) => q.id)
 
   if (quizIds.length > 0) {
