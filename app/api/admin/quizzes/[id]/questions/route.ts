@@ -13,7 +13,13 @@ export async function GET(
     { data: questions, error: e2 },
   ] = await Promise.all([
     supabaseAdmin.from('quizzes').select('*').eq('id', id).single(),
-    supabaseAdmin.from('questions').select('*').eq('quiz_id', id).order('order_index'),
+    // .order('id') som sekundærsortering: ved duplikate order_index-verdier
+    // (har forekommet — se scripts/inspect-order-index-9.mjs, og samme
+    // tiebreaker i app/api/quiz/[id]/questions/route.ts) er radrekkefølgen fra
+    // Postgres ikke garantert stabil mellom kall. Uten dette kunne editorens
+    // questionDbIds-array (bygget posisjonelt fra denne responsen) bli feil
+    // koblet til lokale spørsmål-indekser mellom to kall.
+    supabaseAdmin.from('questions').select('*').eq('quiz_id', id).order('order_index').order('id'),
   ])
   const err = e1 ?? e2
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })

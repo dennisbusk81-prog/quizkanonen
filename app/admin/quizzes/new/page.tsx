@@ -203,6 +203,8 @@ const STYLES = `
     transition: border-color 0.15s, color 0.15s;
   }
   .nq-manual-save-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .nq-manual-save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .nq-manual-save-btn:disabled:hover { border-color: #2a2d38; color: #e8e4dd; }
 
   /* Collapsible metadata panel */
   .nq-meta-panel {
@@ -526,6 +528,8 @@ const STYLES = `
     white-space: nowrap;
   }
   .nq-nav-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .nq-nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .nq-nav-btn:disabled:hover { border-color: var(--border); color: var(--body); }
 
   .nq-nav-btn--gold {
     background: var(--gold);
@@ -740,6 +744,13 @@ function QuizEditorInner() {
   const quizTypeRef      = useRef(quizType)
   const titleRef         = useRef(title)
   const activeIdxRef     = useRef(activeIdx)
+  // Re-entry-guard for saveQuestion — samme mønster som startingRef i
+  // app/quiz/[id]/page.tsx. Uten denne kunne to overlappende kall for SAMME
+  // indeks (dobbeltklikk på "Lagre", eller "Lagre" etterfulgt av rask
+  // "Neste"/piltast før første kall rakk å sette dbId) begge lese dbId som
+  // undefined og poste hver sin rad — to identiske spørsmål i databasen.
+  const savingIndexRef   = useRef<Set<number>>(new Set())
+  const [savingIdx, setSavingIdx] = useState<number | null>(null)
 
   useEffect(() => { questionsRef.current = questions },         [questions])
   useEffect(() => { shuffleAllRef.current = shuffleAll },       [shuffleAll])
@@ -913,8 +924,16 @@ function QuizEditorInner() {
     const qId = quizIdRef.current
     if (!qId) return // quiz not created yet — will be batched on createQuiz
 
+    // Re-entry-guard: avvis et nytt kall for SAMME indeks mens forrige
+    // lagring for den fortsatt pågår. Uten denne kunne to overlappende kall
+    // (dobbeltklikk på "Lagre", eller "Lagre" + rask "Neste"/piltast) begge
+    // lese dbId som undefined og POSTe hver sin rad for samme spørsmål.
+    if (savingIndexRef.current.has(idx)) return
+    savingIndexRef.current.add(idx)
+    setSavingIdx(idx)
+
     const q = questionsRef.current[idx]
-    if (!q) return
+    if (!q) { savingIndexRef.current.delete(idx); setSavingIdx(null); return }
 
     const body = {
       question_text:      q.text.trim(),
@@ -951,6 +970,9 @@ function QuizEditorInner() {
       showSaved()
     } catch {
       setSaveStatus('error')
+    } finally {
+      savingIndexRef.current.delete(idx)
+      setSavingIdx(curr => (curr === idx ? null : curr))
     }
   }, [refreshQuestionIds])
 
@@ -1041,6 +1063,11 @@ function QuizEditorInner() {
 
   const goTo = useCallback((newIdx: number) => {
     if (newIdx < 0 || newIdx >= questionsRef.current.length) return
+    // Blokker navigasjon mens aktivt spørsmål fortsatt lagres — å navigere nå
+    // ville selv trigget et nytt saveQuestion-kall for samme indeks, som
+    // savingIndexRef-guarden uansett ville avvist, men vi vil ikke at
+    // brukeren skal oppleve at "Neste" tilsynelatende ikke gjør noe.
+    if (savingIndexRef.current.has(activeIdxRef.current)) return
     saveQuestion(activeIdxRef.current) // fire-and-forget
     setActiveIdx(newIdx)
     activeIdxRef.current = newIdx
@@ -1048,6 +1075,7 @@ function QuizEditorInner() {
 
   // Add a new empty question and navigate to it
   const addQuestion = useCallback(() => {
+    if (savingIndexRef.current.has(activeIdxRef.current)) return
     const newIdx = questionsRef.current.length
     const updated = [...questionsRef.current, emptyQ()]
     questionsRef.current = updated         // update ref immediately for stable callbacks
@@ -1061,6 +1089,7 @@ function QuizEditorInner() {
   // (dir=1). Bytter posisjon lokalt og lagrer ny order_index for de to radene.
   const moveQuestion = useCallback(async (dir: -1 | 1) => {
     const i = activeIdxRef.current
+    if (savingIndexRef.current.has(i)) return
     const target = i + dir
     const list = questionsRef.current
     if (target < 0 || target >= list.length) return
@@ -1447,9 +1476,10 @@ function QuizEditorInner() {
               <button
                 type="button"
                 onClick={async () => { if (quizIdRef.current) updateQuizMeta(); await saveQuestion(activeIdx) }}
+                disabled={savingIdx === activeIdx}
                 className="nq-manual-save-btn"
               >
-                Lagre
+                {savingIdx === activeIdx ? 'Lagrer…' : 'Lagre'}
               </button>
             </div>
           </div>
@@ -1591,7 +1621,7 @@ function QuizEditorInner() {
             type="button"
             className="nq-reorder-btn"
             onClick={() => moveQuestion(-1)}
-            disabled={activeIdx === 0}
+            disabled={activeIdx === 0 || savingIdx === activeIdx}
             title="Flytt spørsmålet frem"
             aria-label="Flytt spørsmålet frem"
           >
@@ -1622,7 +1652,7 @@ function QuizEditorInner() {
             type="button"
             className="nq-reorder-btn"
             onClick={() => moveQuestion(1)}
-            disabled={isLast}
+            disabled={isLast || savingIdx === activeIdx}
             title="Flytt spørsmålet bakover"
             aria-label="Flytt spørsmålet bakover"
           >
@@ -1787,17 +1817,19 @@ function QuizEditorInner() {
             <button
               type="button"
               onClick={() => goTo(activeIdx - 1)}
+              disabled={savingIdx === activeIdx}
               className="nq-nav-btn"
               style={activeIdx === 0 ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
             >
               ← Forrige
             </button>
             <span style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', flex: 1, whiteSpace: 'nowrap', padding: '0 4px' }}>
-              Spørsmål {activeIdx + 1} av {total}
+              {savingIdx === activeIdx ? 'Lagrer…' : `Spørsmål ${activeIdx + 1} av ${total}`}
             </span>
             <button
               type="button"
               onClick={() => goTo(activeIdx + 1)}
+              disabled={savingIdx === activeIdx}
               className="nq-nav-btn"
               style={isLast ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
             >
@@ -1812,7 +1844,7 @@ function QuizEditorInner() {
             </div>
           )}
           <div className="nq-q-nav-row2">
-            <button type="button" onClick={addQuestion} className="nq-nav-btn">
+            <button type="button" onClick={addQuestion} disabled={savingIdx === activeIdx} className="nq-nav-btn">
               + Legg til
             </button>
             <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
