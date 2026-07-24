@@ -443,7 +443,7 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (prevRankMap.size === 0 || attempts.length === 0) return
-    const currentRanked = rankAttempts(attempts.filter(a => !a.is_team))
+    const currentRanked = rankAttempts(attempts)
     let best: { name: string; improvement: number } | null = null
     for (const a of currentRanked) {
       const prevRank = prevRankMap.get(a.user_id ?? a.player_name)
@@ -701,7 +701,7 @@ export default function LeaderboardPage() {
             </p>
           </div>
           {/* H2H Duell er gratis — Utfordre vises for alle innloggede, på alle rader unntatt egen */}
-          {!isUser && currentUserId && !attempt.is_team && attempt.user_id && (() => {
+          {!isUser && currentUserId && attempt.user_id && (() => {
             // Fix 4: hide for all users already involved in any duel with me (both sides)
             const involved = duelInvolvedSet.has(attempt.user_id)
             const sent     = challengeSentSet.has(attempt.user_id)
