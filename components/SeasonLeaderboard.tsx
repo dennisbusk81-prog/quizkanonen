@@ -363,15 +363,21 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const challengeErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pendingChallenge, setPendingChallenge]     = useState<{ id: string; name: string } | null>(null)
 
+  // Dedupe-vakt (samme prinsipp som AuthListener.tsx): getSession() OG
+  // onAuthStateChange(INITIAL_SESSION) leverer begge samme sesjon ved mount,
+  // som uten vakt dobbelt-trigget /api/rivalries/my (avhenger av hele
+  // session-objektet, som er en ny referanse hver gang). Sammenligner på
+  // access_token i stedet for en ren "kun første gang"-ref, slik at et ekte
+  // senere TOKEN_REFRESHED fortsatt slipper gjennom — session.access_token
+  // brukes aktivt i etterfølgende autentiserte kall (utfordring, historikk,
+  // paginering) og må ikke fryses/bli foreldet.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s)
+    const applySession = (s: Session | null) => {
+      setSession(prev => (prev?.access_token === s?.access_token ? prev : s))
       setSessionChecked(true)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s)
-      setSessionChecked(true)
-    })
+    }
+    supabase.auth.getSession().then(({ data: { session: s } }) => applySession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => applySession(s))
     return () => subscription.unsubscribe()
   }, [])
 
