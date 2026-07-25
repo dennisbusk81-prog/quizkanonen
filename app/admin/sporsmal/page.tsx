@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -170,6 +170,8 @@ export default function SporsmalPage() {
   const [copying,   setCopying]   = useState<string | null>(null)
   const [copyDone,  setCopyDone]  = useState<string | null>(null)
   const [targetMap, setTargetMap] = useState<Record<string, string>>({})
+  // Synkron sperre PER MÅLQUIZ — se samme begrunnelse i app/admin/classics/page.tsx.
+  const copyInFlightRef = useRef<Set<string>>(new Set())
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
@@ -237,6 +239,10 @@ export default function SporsmalPage() {
   async function copyToQuiz(questionId: string) {
     const targetQuizId = targetMap[questionId]
     if (!targetQuizId) return
+    // Synkron sperre og claim FØR alt annet — se copyInFlightRef sin begrunnelse
+    // i app/admin/classics/page.tsx.
+    if (copyInFlightRef.current.has(targetQuizId)) return
+    copyInFlightRef.current.add(targetQuizId)
     setCopying(questionId)
     try {
       const res = await adminFetch('/api/admin/classics/copy', {
@@ -248,6 +254,7 @@ export default function SporsmalPage() {
         setTimeout(() => setCopyDone(null), 2500)
       }
     } finally {
+      copyInFlightRef.current.delete(targetQuizId)
       setCopying(null)
     }
   }

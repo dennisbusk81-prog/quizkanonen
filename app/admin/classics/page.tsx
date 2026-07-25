@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
@@ -104,6 +104,13 @@ export default function ClassicsPage() {
   const [copying,   setCopying]   = useState<string | null>(null)
   const [copyDone,  setCopyDone]  = useState<string | null>(null)
   const [targetMap, setTargetMap] = useState<Record<string, string>>({})
+  // Synkron sperre PER MÅLQUIZ, ikke per spørsmål (copying-state over er scopet
+  // per spørsmål og hindret derfor ikke to raske klikk på ULIKE spørsmål begge
+  // rettet mot SAMME quiz). To slike samtidige POST-kall til
+  // /api/admin/classics/copy kunne begge lese samme fersk COUNT og beregne
+  // identisk order_index — rotårsaken bak kolliderende spørsmålsrekkefølger på
+  // Fredagsquiz 26.06.2026 og 07.08.2026.
+  const copyInFlightRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace('/admin/login'); return }
@@ -125,6 +132,10 @@ export default function ClassicsPage() {
   async function copyToQuiz(questionId: string) {
     const targetQuizId = targetMap[questionId]
     if (!targetQuizId) return
+    // Synkron sperre og claim FØR alt annet — se copyInFlightRef sin begrunnelse
+    // over. Et andre klikk på et ANNET spørsmål mot SAMME quiz avbrytes her.
+    if (copyInFlightRef.current.has(targetQuizId)) return
+    copyInFlightRef.current.add(targetQuizId)
     setCopying(questionId)
     try {
       const res = await adminFetch('/api/admin/classics/copy', {
@@ -136,6 +147,7 @@ export default function ClassicsPage() {
         setTimeout(() => setCopyDone(null), 2500)
       }
     } finally {
+      copyInFlightRef.current.delete(targetQuizId)
       setCopying(null)
     }
   }

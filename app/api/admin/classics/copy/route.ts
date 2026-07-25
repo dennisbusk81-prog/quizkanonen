@@ -19,33 +19,43 @@ export async function POST(request: NextRequest) {
 
   if (srcErr || !src) return NextResponse.json({ error: 'Spørsmål ikke funnet' }, { status: 404 })
 
-  const { count } = await supabaseAdmin
-    .from('questions')
-    .select('id', { count: 'exact', head: true })
-    .eq('quiz_id', target_quiz_id)
-
   const now = new Date().toISOString()
   const { usage_count: srcUsageCount, ...srcFields } = src
 
-  // Gjenbruk oppretter en HELT NY rad (ingen slektskap/FK til kilden) — så
-  // usage_count telles på to steder: kilden får +1 (den er nå gjenbrukt igjen),
-  // og den nye raden starter på 1 (dens egen første bruk, i målquizen).
-  const [{ error: insErr }, { error: srcUpdateErr }] = await Promise.all([
-    supabaseAdmin.from('questions').insert({
+  // order_index beregnes fra en fersk COUNT — ikke atomisk. To samtidige kall
+  // mot SAMME quiz kan begge lese samme telling FØR noen av innsettingene har
+  // committet, og dermed forsøke å bruke identisk order_index. UI-en (de tre
+  // admin-sidene som kaller denne ruten) har nå en synkron sperre som hindrer
+  // dette fra samme nettleser-fane, men to faner/enheter kan fortsatt kollidere.
+  // Reforsøker derfor ÉN gang med en fersk telling hvis innsettingen feiler på
+  // UNIQUE(quiz_id, order_index) (23505) — se migrasjonen for den constraint-en.
+  async function insertWithFreshOrderIndex() {
+    const { count } = await supabaseAdmin
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('quiz_id', target_quiz_id)
+
+    return supabaseAdmin.from('questions').insert({
       ...srcFields,
       quiz_id: target_quiz_id,
       order_index: (count ?? 0) + 1,
       is_classic: false,
       usage_count: 1,
       last_used_at: now,
-    }),
-    supabaseAdmin.from('questions').update({
-      usage_count: (srcUsageCount ?? 0) + 1,
-      last_used_at: now,
-    }).eq('id', question_id),
-  ])
+    })
+  }
 
+  let { error: insErr } = await insertWithFreshOrderIndex()
+  if (insErr?.code === '23505') {
+    ({ error: insErr } = await insertWithFreshOrderIndex())
+  }
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
+
+  const { error: srcUpdateErr } = await supabaseAdmin.from('questions').update({
+    usage_count: (srcUsageCount ?? 0) + 1,
+    last_used_at: now,
+  }).eq('id', question_id)
+
   if (srcUpdateErr) return NextResponse.json({ error: srcUpdateErr.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

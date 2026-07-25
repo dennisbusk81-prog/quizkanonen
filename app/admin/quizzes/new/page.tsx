@@ -833,6 +833,14 @@ function QuizEditorInner() {
   const [bankAddingId, setBankAddingId] = useState<string | null>(null)
   const [bankAddedId, setBankAddedId]   = useState<string | null>(null)
   const [bankError, setBankError]       = useState<string | null>(null)
+  // Synkron sperre mot samtidige legg-til-fra-bank-kall. bankAddingId er scopet
+  // per SPØRSMÅL, ikke globalt, så et raskt klikk på et ANNET spørsmål mens ett
+  // allerede var underveis stoppet ikke det andre kallet — begge endte som
+  // samtidige POST /api/admin/classics/copy mot SAMME quiz. Den ruten beregner
+  // order_index fra en fersk COUNT, og to samtidige kall kunne lese samme
+  // telling og produsere duplikat order_index (rotårsaken bak de kolliderende
+  // spørsmålsrekkefølgene på Fredagsquiz 26.06.2026 og 07.08.2026).
+  const bankCopyInFlightRef = useRef(false)
 
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
@@ -1333,35 +1341,45 @@ function QuizEditorInner() {
   // Legger valgt spørsmål inn i quizen som redigeres. Oppretter quizen først
   // (som ved vanlig title-blur) hvis den ikke finnes ennå.
   const addFromBank = useCallback(async (questionId: string) => {
+    // Synkron sperre og claim FØR alt annet — se bankCopyInFlightRef sin
+    // begrunnelse over. Et andre klikk (på et annet spørsmål) mens ett
+    // allerede er underveis avbrytes her, i stedet for å sende et samtidig
+    // POST-kall som kunne kollidert på order_index.
+    if (bankCopyInFlightRef.current) return
+    bankCopyInFlightRef.current = true
     setBankError(null)
-    let qId = quizIdRef.current
-    if (!qId || qId === 'creating') {
-      if (!titleRef.current.trim()) {
-        setBankError('Skriv en quiztittel først.')
-        return
-      }
-      qId = await createQuiz()
-      if (!qId) { setBankError('Kunne ikke opprette quizen — prøv igjen.'); return }
-    }
-    setBankAddingId(questionId)
     try {
-      const res = await adminFetch('/api/admin/classics/copy', {
-        method: 'POST',
-        body: JSON.stringify({ question_id: questionId, target_quiz_id: qId }),
-      })
-      if (!res.ok) { setBankError('Kunne ikke legge til spørsmålet — prøv igjen.'); return }
-      const newLength = await refreshQuestionsFull(qId)
-      setBankAddedId(questionId)
-      setTimeout(() => setBankAddedId(null), 2000)
-      if (newLength) {
-        const newIdx = newLength - 1
-        setActiveIdx(newIdx)
-        activeIdxRef.current = newIdx
+      let qId = quizIdRef.current
+      if (!qId || qId === 'creating') {
+        if (!titleRef.current.trim()) {
+          setBankError('Skriv en quiztittel først.')
+          return
+        }
+        qId = await createQuiz()
+        if (!qId) { setBankError('Kunne ikke opprette quizen — prøv igjen.'); return }
+      }
+      setBankAddingId(questionId)
+      try {
+        const res = await adminFetch('/api/admin/classics/copy', {
+          method: 'POST',
+          body: JSON.stringify({ question_id: questionId, target_quiz_id: qId }),
+        })
+        if (!res.ok) { setBankError('Kunne ikke legge til spørsmålet — prøv igjen.'); return }
+        const newLength = await refreshQuestionsFull(qId)
+        setBankAddedId(questionId)
+        setTimeout(() => setBankAddedId(null), 2000)
+        if (newLength) {
+          const newIdx = newLength - 1
+          setActiveIdx(newIdx)
+          activeIdxRef.current = newIdx
+        }
+      } finally {
+        setBankAddingId(null)
       }
     } catch {
       setBankError('Uventet feil — prøv igjen.')
     } finally {
-      setBankAddingId(null)
+      bankCopyInFlightRef.current = false
     }
   }, [createQuiz, refreshQuestionsFull])
 
