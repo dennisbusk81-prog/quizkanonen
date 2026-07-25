@@ -14,6 +14,24 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 type PlayerInfo = { name: string; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
 
+// Legger til/erstatter svaret for record.questionId i stedet for å alltid appende.
+// Uten dette kunne et gjenopptatt spørsmål (side lastet på nytt midt i quizen,
+// resumeData.index peker på det SISTE besvarte spørsmålet — se startQuiz) få to
+// rader for samme spørsmål hvis brukeren svarte på det igjen: den gamle
+// gjenopptatte raden OG den nye ville begge blitt sendt til submit, som satte inn
+// begge i attempt_answers uten deduplisering. Siste svar for et spørsmål vinner.
+function withAnswer(prev: AnswerRecord[], record: AnswerRecord): AnswerRecord[] {
+  return [...prev.filter(a => a.questionId !== record.questionId), record]
+}
+
+// Siste sikkerhetsnett rett før innsending: selv om withAnswer over hindrer nye
+// duplikater i klient-state, dedupliserer vi payloaden også — samme prinsipp
+// (siste svar for et spørsmål vinner), i tilfelle answers noensinne populeres fra
+// et annet sted enn handleAnswer/handleTimeout (f.eks. en fremtidig kodeendring).
+function dedupeAnswers(list: AnswerRecord[]): AnswerRecord[] {
+  return [...new Map(list.map(a => [a.questionId, a])).values()]
+}
+
 function getDeviceId(): string {
   if (typeof window === 'undefined') return ''
   let id = localStorage.getItem('qk_device_id')
@@ -1145,11 +1163,17 @@ export default function QuizPage() {
     const question = questions[currentIndex]
     const timeMs = getTimeLimit(question) * 1000
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: null, isCorrect: false, timeMs }
-    const newAnswers = [...answers, record]
-    setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
-    setAnswered(true); saveProgress(currentIndex, newAnswers, totalTimeMs + timeMs)
+    const newAnswers = withAnswer(answers, record)
+    // Summert fra newAnswers, ikke inkrementert fra forrige totalTimeMs: hvis dette
+    // spørsmålet allerede hadde et svar (gjenopptatt midt i quiz, se withAnswer),
+    // ville et inkrement lagt den nye tiden OPPÅ den gamle i stedet for å erstatte
+    // den — total_time_ms er tiebreaker på topplista og må reflektere nøyaktig én
+    // tid per spørsmål.
+    const newTime = newAnswers.reduce((sum, a) => sum + a.timeMs, 0)
+    setAnswers(newAnswers); setTotalTimeMs(newTime)
+    setAnswered(true); saveProgress(currentIndex, newAnswers, newTime)
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
-  }, [questions, currentIndex, getTimeLimit, answers, totalTimeMs, saveProgress])
+  }, [questions, currentIndex, getTimeLimit, answers, saveProgress])
 
   // `answeredSoFar` sendes med slik at serveren kan skalere delsummen opp til
   // samme skala som de ferdige forsøkene den rangeres mot (Del 1+2). Under
@@ -1370,12 +1394,13 @@ export default function QuizPage() {
 
     // REACT STATE ETTERPÅ — re-render skjer etter animasjon er startet
     const record: AnswerRecord = { questionId: question.id, selectedAnswer: answer, isCorrect, timeMs }
-    const newAnswers = [...answers, record]
-    const newTime = totalTimeMs + timeMs
-    // Funksjonell oppdatering, samme mønster som handleTimeout. Fjerner den siste
-    // rekkefølge-avhengigheten mot en samtidig timeout — total_time_ms er
-    // tiebreaker på topplista og må ikke kunne bli feil.
-    setAnswers(newAnswers); setTotalTimeMs(prev => prev + timeMs)
+    const newAnswers = withAnswer(answers, record)
+    // Summert fra newAnswers, ikke inkrementert fra forrige totalTimeMs — se
+    // samme begrunnelse i handleTimeout. Reflekterer nøyaktig én tid per
+    // spørsmål selv om dette spørsmålet allerede hadde et svar fra før
+    // (gjenopptatt midt i quiz).
+    const newTime = newAnswers.reduce((sum, a) => sum + a.timeMs, 0)
+    setAnswers(newAnswers); setTotalTimeMs(newTime)
     setSelectedAnswer(answer); setAnswered(true)
     saveProgress(currentIndex, newAnswers, newTime)
     if (quiz?.show_live_placement) {
@@ -1675,11 +1700,15 @@ export default function QuizPage() {
 
   const finishQuiz = async () => {
     const deviceId = getDeviceId()
+    // Siste sikkerhetsnett: dedupliser på questionId rett før bruk, selv om
+    // withAnswer over allerede skal ha forhindret duplikater i selve
+    // answers-state. Se dedupeAnswers.
+    const finalAnswers = dedupeAnswers(answers)
     // Klient-beregning brukes kun som fallback hvis submit-ruten ikke svarer.
     // Server-ruten er fasit: den slår opp riktige svar og beregner score selv.
-    let correct = answers.filter(a => a.isCorrect).length
-    let streak = calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
-    let finalTimeMs = totalTimeMs
+    let correct = finalAnswers.filter(a => a.isCorrect).length
+    let streak = calculateStreak(finalAnswers.map(a => ({ is_correct: a.isCorrect })))
+    let finalTimeMs = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
     try {
       if (attemptId) {
         const { data: { session } } = await supabase.auth.getSession()
@@ -1693,7 +1722,7 @@ export default function QuizPage() {
           body: JSON.stringify({
             attemptId,
             deviceId,
-            answers: answers.map(ans => ({
+            answers: finalAnswers.map(ans => ({
               questionId: ans.questionId,
               selectedAnswer: ans.selectedAnswer,
               timeMs: ans.timeMs,
