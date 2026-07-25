@@ -168,7 +168,10 @@ export async function POST(
   const totalTimeMs = scored.reduce((sum, s) => sum + s.timeMs, 0)
 
   // ── 5. Skriv: attempts-UPDATE, attempt_answers-INSERT, played_log ───────────
-  const { error: updErr } = await supabaseAdmin
+  // .select() gjør at PostgREST returnerer de faktisk oppdaterte radene, slik at
+  // vi kan se om `.is('submitted_at', null)`-vakten slo til. Uten den kunne vi
+  // ikke skille "oppdaterte raden" fra "traff ingen rad" — begge gir error: null.
+  const { data: updatedRows, error: updErr } = await supabaseAdmin
     .from('attempts')
     .update({
       correct_answers: correctAnswers,
@@ -178,9 +181,42 @@ export async function POST(
     })
     .eq('id', attemptId)
     .is('submitted_at', null) // siste forsvar mot race: kun hvis ikke alt levert
+    .select('id')
 
   if (updErr) {
     return NextResponse.json({ error: 'Kunne ikke lagre resultatet' }, { status: 500 })
+  }
+
+  // NULL RADER OPPDATERT = en annen samtidig forespørsel rakk å levere først.
+  // Sjekken øverst i handleren (submitted_at !== null) er en les-så-skriv og
+  // dermed ikke atomisk: to forespørsler kan begge lese submitted_at = null og
+  // begge slippe forbi. UPDATE-en er atomisk og bare ÉN av dem vinner, men før
+  // denne vakten fortsatte begge ned til INSERT-en under — og da fikk forsøket
+  // to sett attempt_answers-rader. Vi må returnere her, ikke bare hoppe over
+  // INSERT-en, så vi heller ikke skriver played_log en ekstra gang.
+  //
+  // Vinneren har allerede lagret nøyaktig samme score (samme svar, samme fasit),
+  // så vi leser den ferdige raden og returnerer den i stedet for en feil —
+  // spilleren skal se resultatet sitt, ikke en feilmelding, for en race
+  // hen ikke kan gjøre noe med.
+  if (!updatedRows || updatedRows.length === 0) {
+    console.warn('[submit] samtidig innsending — INSERT hoppet over:', { attemptId, quizId })
+    const { data: winner } = await supabaseAdmin
+      .from('attempts')
+      .select('correct_answers, total_time_ms, correct_streak')
+      .eq('id', attemptId)
+      .maybeSingle()
+
+    if (!winner) {
+      return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 409 })
+    }
+    return NextResponse.json({
+      correctAnswers: winner.correct_answers ?? 0,
+      totalTimeMs: winner.total_time_ms ?? 0,
+      correctStreak: winner.correct_streak ?? 0,
+      answersWarning: false,
+      alreadySubmitted: true,
+    })
   }
 
   let answersWarning = false
