@@ -47,10 +47,13 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   // Logg handlingen
   try {
-    await supabaseAdmin.from('admin_actions').insert({
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
       user_id: user.id, action_type: 'season_reset_all', scope_type: 'league', scope_id: id,
     })
-  } catch { /* ignore */ }
+    if (logErr) console.error('[reset-season/league] admin_actions-logging feilet', id, logErr)
+  } catch (err) {
+    console.error('[reset-season/league] admin_actions-logging kastet', id, err)
+  }
 
   return NextResponse.json({ ok: true })
 }

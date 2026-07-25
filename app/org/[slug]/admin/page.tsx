@@ -201,6 +201,7 @@ export default function OrgAdminPage() {
 
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [removeMemberError, setRemoveMemberError] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
@@ -545,12 +546,20 @@ export default function OrgAdminPage() {
     if (!session) return
     if (!confirm(`Er du sikker på at du vil fjerne ${displayName} fra bedriften? Dette kan ikke angres.`)) return
     setRemovingId(membershipId)
+    setRemoveMemberError(null)
     try {
-      await fetch(`/api/org/members/${membershipId}/remove`, {
+      const res = await fetch(`/api/org/members/${membershipId}/remove`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setRemoveMemberError(json?.error ?? 'Kunne ikke fjerne medlemmet. Prøv igjen.')
+        return
+      }
       loadData(session)
+    } catch {
+      setRemoveMemberError('Kunne ikke fjerne medlemmet. Prøv igjen.')
     } finally {
       setRemovingId(null)
     }
@@ -1386,6 +1395,9 @@ export default function OrgAdminPage() {
               })
             )}
 
+            {removeMemberError && (
+              <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{removeMemberError}</p>
+            )}
             {adminActionError && (
               <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{adminActionError}</p>
             )}

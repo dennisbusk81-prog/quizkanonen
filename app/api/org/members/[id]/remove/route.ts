@@ -61,22 +61,41 @@ export async function POST(
     .eq('id', membership.organization_id)
     .maybeSingle()
 
-  // Remove from org
-  await supabaseAdmin
+  // Remove from org. Sjekker både error og match-count: en .eq('id', ...) som
+  // treffer 0 rader (raden allerede fjernet av en samtidig forespørsel) er ikke
+  // en feil, men skal heller ikke late som om NOE ble fjernet her — uten dette
+  // fortsatte koden til å sende «du er fjernet»-e-post uansett resultat.
+  const { data: removedRows, error: removeErr } = await supabaseAdmin
     .from('organization_members')
     .delete()
     .eq('id', membershipId)
+    .select('id')
+
+  if (removeErr || !removedRows || removedRows.length === 0) {
+    console.error(
+      `[remove-member] fjerning feilet — membership=${membershipId} org=${membership.organization_id}:`,
+      removeErr?.message ?? 'matchet 0 rader'
+    )
+    return NextResponse.json({ error: 'Kunne ikke fjerne medlemmet. Prøv igjen.' }, { status: 500 })
+  }
 
   // Grace period: brukere som har Premium gjennom orgen (uten eget Stripe-
   // abonnement) beholder Premium i 7 dager. premium_status holdes true; cron-
   // jobben /api/cron/expire-grace-periods slår den av når grace utløper.
   // Brukere med eget abonnement røres ikke — de beholder sin egen Premium.
+  //
+  // Ikke-blokkerende med vilje: medlemmet er allerede fjernet fra orgen over,
+  // så en feil her er ikke grunn til å late som om selve fjerningen mislyktes —
+  // men den skal ikke lenger passere helt stille.
   let graceUntil: string | null = null
   if (profile?.premium_status === true && !profile?.personal_stripe_subscription_id) {
     graceUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    await supabaseAdmin.from('profiles')
+    const { error: graceErr } = await supabaseAdmin.from('profiles')
       .update({ org_premium_grace_until: graceUntil })
       .eq('id', membership.user_id)
+    if (graceErr) {
+      console.error(`[remove-member] grace-period-oppdatering feilet — user=${membership.user_id}:`, graceErr.message)
+    }
   }
 
   // Send removal email (fire-and-forget)

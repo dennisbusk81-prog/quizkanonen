@@ -61,12 +61,15 @@ export async function POST(
 
   // 4. Logg handlingen
   try {
-    await supabaseAdmin.from('admin_actions').insert({
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
       action_type: 'remove_attempt',
       scope_type: 'quiz',
       scope_id: quizId,
     })
-  } catch { /* ikke kritisk */ }
+    if (logErr) console.error('[remove-attempt] admin_actions-logging feilet', quizId, logErr)
+  } catch (err) {
+    console.error('[remove-attempt] admin_actions-logging kastet', quizId, err)
+  }
 
   return NextResponse.json({ ok: true })
 }

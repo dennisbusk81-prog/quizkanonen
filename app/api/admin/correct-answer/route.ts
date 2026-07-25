@@ -228,12 +228,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await supabaseAdmin.from('admin_actions').insert({
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
       action_type: 'correct_answer',
       scope_type: 'quiz',
       scope_id: question.quiz_id,
     })
-  } catch { /* ikke kritisk */ }
+    if (logErr) console.error('[correct-answer] admin_actions-logging feilet', question.quiz_id, logErr)
+  } catch (err) {
+    console.error('[correct-answer] admin_actions-logging kastet', question.quiz_id, err)
+  }
 
   // `updated` er nå antall FAKTISK skrevne svarrader, ikke antall forsøkte.
   // Ved delvis feil får admin et eget felt å reagere på i stedet for en

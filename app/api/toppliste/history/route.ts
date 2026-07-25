@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { fetchAllRows } from '@/lib/paginate'
 
 type ProfileRow = { id: string; display_name: string | null; nickname: string | null }
 
@@ -132,14 +133,6 @@ export async function GET(request: NextRequest) {
   // Hent alle rader FØR inneværende periode
   type ScoreRow = { user_id: string; points: number; closes_at: string }
 
-  let scoresQuery = supabaseAdmin
-    .from('season_scores')
-    .select('user_id, points, closes_at')
-    .eq('scope_type', scope)
-
-  if (scopeId) scoresQuery = scoresQuery.eq('scope_id', scopeId)
-  else         scoresQuery = scoresQuery.is('scope_id', null)
-
   // Øvre grense: closes_at < start of current period
   const now = new Date()
   let cutoff: string
@@ -152,11 +145,23 @@ export async function GET(request: NextRequest) {
     cutoff = new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString()
   }
 
-  scoresQuery = scoresQuery.lt('closes_at', cutoff)
+  // Paginert full henting — uten dette kutter PostgREST stille ved 1000 rader
+  // (ingen ORDER BY satt), og en tabell som vokser med én rad per bruker per
+  // quiz per scope passerer det innen rimelig tid. Vinneren for eldre
+  // måneder/kvartaler/år ble da beregnet over en vilkårlig delmengde uten
+  // varsel — samme feilklasse fetchAllRows allerede løser andre steder
+  // (admin/correct-answer). Filtrene bygges på nytt for hver side i
+  // buildQuery, siden Supabase-js sine query-buildere ikke kan klones.
+  const scores = await fetchAllRows<ScoreRow>((from, to) => {
+    let q = supabaseAdmin
+      .from('season_scores')
+      .select('user_id, points, closes_at')
+      .eq('scope_type', scope)
+    q = scopeId ? q.eq('scope_id', scopeId) : q.is('scope_id', null)
+    return q.lt('closes_at', cutoff).range(from, to)
+  })
 
-  const { data: scores } = await scoresQuery
-
-  if (!scores || scores.length === 0) {
+  if (scores.length === 0) {
     return NextResponse.json({ entries: [] }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
   }
 
@@ -164,7 +169,7 @@ export async function GET(request: NextRequest) {
   type PeriodGroup = Map<string, { points: number; quizCount: number }>
   const byPeriod = new Map<string, PeriodGroup>()
 
-  for (const row of scores as ScoreRow[]) {
+  for (const row of scores) {
     const key = getGroupKey(row.closes_at, period)
     if (key === currentKey) continue // ekstra sjekk
     if (!byPeriod.has(key)) byPeriod.set(key, new Map())

@@ -52,12 +52,15 @@ export async function POST(request: NextRequest) {
 
   // Logg handlingen (ignorer feil hvis tabellen ikke finnes ennå)
   try {
-    await supabaseAdmin.from('admin_actions').insert({
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
       action_type: `season_reset_${scope}`,
       scope_type: 'global',
       scope_id: null,
     })
-  } catch { /* ignore */ }
+    if (logErr) console.error('[season-scores/reset] admin_actions-logging feilet', scope, logErr)
+  } catch (err) {
+    console.error('[season-scores/reset] admin_actions-logging kastet', scope, err)
+  }
 
   return NextResponse.json({ ok: true, scope })
 }
