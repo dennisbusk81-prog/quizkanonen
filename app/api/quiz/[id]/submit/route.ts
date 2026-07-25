@@ -245,6 +245,27 @@ export async function POST(
     if (logErr) console.error('[submit] played_log insert feilet:', logErr.message)
   }
 
+  // profiles.last_seen_at — kartlegging 25. juli viste at denne kolonnen i
+  // praksis ALDRI ble oppdatert etter selve innloggingen: Supabase fornyer
+  // sesjonen stille i bakgrunnen (refresh-token) uten å treffe /auth/callback
+  // eller /api/auth/bekreft på nytt, så "Sist aktiv" viste stille brukerens
+  // FØRSTE innloggingstidspunkt uansett hvor mange quizer hen spilte senere
+  // (121 av 127 spillere hadde et nyere quiz-forsøk enn last_seen_at). Samme
+  // kolonne leses av "Aktive 30 dager" på /admin og re-engagement-cronen —
+  // begge blir riktigere av at den nå oppdateres oftere, uten at noe av dem
+  // er endret her.
+  //
+  // Kun innloggede (gjester har ingen profiles-rad). Fail-soft som
+  // played_log over: en feilet oppdatering skal ALDRI kunne forsinke eller
+  // blokkere scoringen — den er allerede lagret uansett utfall her.
+  if (attempt.user_id) {
+    const { error: seenErr } = await supabaseAdmin
+      .from('profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', attempt.user_id)
+    if (seenErr) console.error('[submit] last_seen_at update feilet:', seenErr.message)
+  }
+
   // ── 6. Returner server-beregnet score til resultatskjermen ──────────────────
   return NextResponse.json({ correctAnswers, totalTimeMs, correctStreak, answersWarning })
 }
