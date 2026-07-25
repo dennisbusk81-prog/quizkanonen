@@ -3,12 +3,24 @@ import { revalidateTag } from 'next/cache'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
-import { calculateStreak } from '@/lib/ranking'
 import { resyncSeasonScoresForQuiz } from '@/lib/resync-season-scores'
+import {
+  parseAnswerKey,
+  readStoredKey,
+  answerKeyColumns,
+  gradeAnswerRows,
+  planAttemptTotals,
+} from '@/lib/answer-key-correction'
 
 // Ruten oppdaterer alle svarrader og alle berørte forsøk, og rekalkulerer
 // deretter season_scores for quizen. Alt synkront (se under) — standardgrensen
 // er for knapp for en quiz med mange spillere.
+//
+// DETTE ER DEN ENESTE KODESTIEN som skal endre fasiten på et spørsmål som alt
+// er spilt. Den vanlige PATCH-ruten (quizzes/[id]/questions/[qid]) hadde fram
+// til nå en egen, udokumentert regradering som hverken oppdaterte attempts
+// eller season_scores — den er fjernet, og PATCH låser nå fasitendringer på
+// spilte spørsmål og henviser hit. Se lib/answer-key-correction.ts.
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
@@ -16,21 +28,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 401 })
   }
 
-  let body: { questionId?: string; newCorrectAnswer?: string }
+  let body: { questionId?: string; newCorrectAnswer?: string; newCorrectAnswers?: string[] }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
 
-  const { questionId, newCorrectAnswer } = body
+  const { questionId } = body
 
-  if (!questionId || !newCorrectAnswer || !['A', 'B', 'C', 'D'].includes(newCorrectAnswer)) {
+  if (!questionId) {
+    return NextResponse.json({ error: 'Mangler påkrevde felt' }, { status: 400 })
+  }
+
+  // `newCorrectAnswers` (array) er den nye formen. `newCorrectAnswer` (én
+  // bokstav) beholdes som alias slik at en klient som ikke er oppdatert ennå
+  // ikke brekker — rekkefølgen på deploy front/back spiller dermed ingen rolle.
+  const requestedKey = body.newCorrectAnswers ?? body.newCorrectAnswer
+  if (requestedKey === undefined) {
     return NextResponse.json({ error: 'Mangler påkrevde felt' }, { status: 400 })
   }
 
   // Fetch the question
   const { data: question, error: qErr } = await supabaseAdmin
     .from('questions')
-    .select('id, question_text, quiz_id')
+    .select('id, question_text, quiz_id, correct_answer, correct_answers')
     .eq('id', questionId)
     .single()
 
@@ -38,11 +58,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Spørsmål ikke funnet' }, { status: 404 })
   }
 
-  // Update correct_answer on the question
-  await supabaseAdmin
+  // num_options avgjør hvilke bokstaver som i det hele tatt finnes på quizen —
+  // uten denne kunne fasiten settes til D på en quiz med tre alternativer, og
+  // spørsmålet ville blitt umulig å svare riktig på.
+  const { data: quiz } = await supabaseAdmin
+    .from('quizzes')
+    .select('num_options')
+    .eq('id', question.quiz_id)
+    .maybeSingle()
+
+  const parsed = parseAnswerKey(requestedKey, quiz?.num_options ?? 4)
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 })
+  }
+  const keys = parsed.keys
+  const previousKey = readStoredKey(question)
+
+  // Skriv fasiten. correct_answers settes til NULL når det bare er ett riktig
+  // svar — samme form som «Spørsmål»-siden skriver ved opprettelse, slik at det
+  // ikke finnes to representasjoner av samme fasit i tabellen.
+  const { error: keyErr } = await supabaseAdmin
     .from('questions')
-    .update({ correct_answer: newCorrectAnswer })
+    .update(answerKeyColumns(keys))
     .eq('id', questionId)
+
+  if (keyErr) {
+    return NextResponse.json({ error: `Kunne ikke lagre fasiten: ${keyErr.message}` }, { status: 500 })
+  }
 
   // Fetch all attempt_answers for this question — paginert full henting.
   // Bundet til antall forsøk på quizen (ett svar per forsøk per spørsmål),
@@ -57,16 +99,25 @@ export async function POST(request: NextRequest) {
   )
 
   if (answers.length === 0) {
-    return NextResponse.json({ updated: 0, question: question.question_text })
+    return NextResponse.json({
+      updated: 0,
+      question: question.question_text,
+      correctAnswers: keys,
+      previousCorrectAnswers: previousKey,
+    })
   }
 
-  // Update is_correct for each answer
+  // Update is_correct for each answer. Regraderingen skjer i JS (ikke som to
+  // brede UPDATE-er med .eq/.neq mot selected_answer): .neq matcher ALDRI
+  // NULL-rader i Postgres, så timeout-svar ville blitt hoppet over. Her får de
+  // eksplisitt is_correct = false, og flere riktige svar håndteres av includes.
+  const regraded = gradeAnswerRows(answers, keys)
   await Promise.all(
-    answers.map(a =>
+    regraded.map(r =>
       supabaseAdmin
         .from('attempt_answers')
-        .update({ is_correct: a.selected_answer === newCorrectAnswer })
-        .eq('id', a.id)
+        .update({ is_correct: r.is_correct })
+        .eq('id', r.id)
     )
   )
 
@@ -95,30 +146,15 @@ export async function POST(request: NextRequest) {
       .in('attempt_id', attemptIds)
       .range(from, to)
   )
-  const rowsByAttempt = new Map<string, Array<{ question_id: string; is_correct: boolean }>>()
-  for (const r of allRows) {
-    const list = rowsByAttempt.get(r.attempt_id) ?? []
-    list.push({ question_id: r.question_id, is_correct: r.is_correct })
-    rowsByAttempt.set(r.attempt_id, list)
-  }
+  // Nye totaler per forsøk. Tellingen og streak-beregningen ligger i
+  // lib/answer-key-correction.ts (ren funksjon, dekket av tester) — se
+  // kommentaren der for hvorfor duplikate rader telles rått og hvorfor streaken
+  // MÅ regnes over order_index-rekkefølgen.
+  const totals = planAttemptTotals(allRows, quizQuestions.map(q => q.id))
 
   await Promise.all(
     attemptIds.map(async (attemptId) => {
-      const rows = rowsByAttempt.get(attemptId) ?? []
-
-      // correct_answers telles over RÅ rader, nøyaktig som den tidligere
-      // COUNT-spørringen gjorde. Bevisst uendret her: noen få forsøk har
-      // duplikate svarrader, og å bytte til distinkt telling ville endret
-      // lagrede poengsummer — og dermed plasseringer — som en utilsiktet
-      // bieffekt av en fasitretting. Duplikatene håndteres som egen sak.
-      const correct = rows.filter(r => r.is_correct).length
-
-      // correct_streak ble tidligere ALDRI oppdatert her, så en fasitretting
-      // etterlot en utdatert streak-verdi på hvert berørte forsøk.
-      const gradeByQuestion = new Map(rows.map(r => [r.question_id, r.is_correct]))
-      const correctStreak = calculateStreak(
-        quizQuestions.map(q => ({ is_correct: gradeByQuestion.get(q.id) === true }))
-      )
+      const t = totals.get(attemptId) ?? { correctAnswers: 0, correctStreak: 0 }
 
       // MERK: attempts har ingen 'score'-kolonne — har aldri hatt (bekreftet
       // i migrasjonen 20260401000002: "correct_answers is the score column").
@@ -129,7 +165,7 @@ export async function POST(request: NextRequest) {
       // gang faktisk lagret av denne ruten.
       await supabaseAdmin
         .from('attempts')
-        .update({ correct_answers: correct, correct_streak: correctStreak })
+        .update({ correct_answers: t.correctAnswers, correct_streak: t.correctStreak })
         .eq('id', attemptId)
     })
   )
@@ -172,6 +208,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     updated: answers.length,
     question: question.question_text,
+    correctAnswers: keys,
+    previousCorrectAnswers: previousKey,
     seasonScores: {
       checked: seasonScores.checked,
       updated: seasonScores.updated,

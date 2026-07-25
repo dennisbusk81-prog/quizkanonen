@@ -4,7 +4,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz, Question } from '@/lib/supabase'
+import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
+import { readStoredKey, sameAnswerKey as sameKeys } from '@/lib/answer-key-correction'
 import Link from 'next/link'
+
+// Fasiten som liste, uansett om raden bruker correct_answers-arrayet eller den
+// gamle enkelt-kolonnen. Samme fallback som scoringen i submit-ruten.
+const effectiveKeys = (q: Pick<Question, 'correct_answer' | 'correct_answers'>): string[] =>
+  readStoredKey(q)
 
 const CATEGORIES = [
   'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
@@ -211,28 +218,8 @@ const STYLES = `
 
   .qq-correct-text { font-size: 10px; color: var(--green); font-weight: 600; }
 
-  /* Correct answer selector */
-  .qq-answer-btns { display: flex; gap: 6px; }
-
-  .qq-answer-btn {
-    flex: 1;
-    padding: 8px 4px;
-    border-radius: var(--radius-btn);
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--muted);
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .qq-answer-btn.active {
-    background: var(--green-bg);
-    border-color: var(--green-bdr);
-    color: var(--green);
-  }
+  /* Valget av riktig(e) svar ligger nå i components/CorrectAnswerToggle.tsx,
+     delt med «Rediger»-siden — .qq-answer-btn* er derfor fjernet herfra. */
 
   /* Form actions */
   .qq-form-actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -445,9 +432,13 @@ export default function QuizQuestions() {
 
   // Rett svar
   const [correctingId, setCorrectingId] = useState<string | null>(null)
-  const [correctPick, setCorrectPick] = useState('A')
+  const [correctPick, setCorrectPick] = useState<string[]>(['A'])
   const [correctLoading, setCorrectLoading] = useState(false)
   const [correctResults, setCorrectResults] = useState<Record<string, number>>({})
+  // Antall registrerte besvarelser på spørsmålet som rettes. null = ikke hentet
+  // ennå. Styrer teksten i bekreftelsen ("påvirker leaderboard for X spillere")
+  // og skiller en spilt quiz fra en quiz under bygging.
+  const [correctAnsweredCount, setCorrectAnsweredCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
@@ -623,12 +614,30 @@ export default function QuizQuestions() {
     }
   }
 
+  // Åpner «Rett svar»-panelet og henter hvor mange som har svart, slik at
+  // bekreftelsen kan si nøyaktig hvor mange spillere endringen påvirker.
+  async function openCorrectPanel(q: Question) {
+    setCorrectingId(q.id)
+    setCorrectPick(effectiveKeys(q))
+    setCorrectAnsweredCount(null)
+    setCorrectResults(r => { const n = { ...r }; delete n[q.id]; return n })
+    try {
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions/${q.id}`)
+      if (res.ok) {
+        const json = await res.json()
+        setCorrectAnsweredCount(json.answeredCount ?? 0)
+      }
+    } catch {
+      // Ikke kritisk — panelet fungerer uten tallet, teksten blir bare vagere.
+    }
+  }
+
   async function applyCorrectAnswer(questionId: string) {
     setCorrectLoading(true)
     try {
       const res = await adminFetch('/api/admin/correct-answer', {
         method: 'POST',
-        body: JSON.stringify({ questionId, newCorrectAnswer: correctPick }),
+        body: JSON.stringify({ questionId, newCorrectAnswers: correctPick }),
       })
       const json = await res.json()
       if (!res.ok) { showFeedback('error', json.error ?? 'Noe gikk galt') }
@@ -649,14 +658,10 @@ export default function QuizQuestions() {
   ) {
     const upd = (key: string, val: string) => setForm({ ...form, [key]: val })
 
-    const toggleCorrectAnswer = (opt: string) => {
-      const current = form.correct_answers.length > 0 ? form.correct_answers : [form.correct_answer]
-      const next = current.includes(opt) ? current.filter(o => o !== opt) : [...current, opt]
-      if (next.length === 0) return // minst ett svar må være valgt
-      setForm({ ...form, correct_answers: next, correct_answer: next[0] })
-    }
-
     const effectiveCorrectAnswers = form.correct_answers.length > 0 ? form.correct_answers : [form.correct_answer]
+
+    const setCorrectAnswers = (next: string[]) =>
+      setForm({ ...form, correct_answers: next, correct_answer: next[0] })
 
     return (
       <div className="qq-form-card">
@@ -674,9 +679,13 @@ export default function QuizQuestions() {
             const isCorrect = effectiveCorrectAnswers.includes(opt)
             return (
               <div key={opt}>
-                <div className="qq-opt-label">
+                <div
+                  className="qq-opt-label"
+                  onClick={() => setCorrectAnswers(toggleAnswerKey(effectiveCorrectAnswers, opt))}
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
                   <span className={`qq-opt-dot ${isCorrect ? 'correct' : ''}`}>{opt}</span>
-                  <label className="qq-label" style={{ margin: 0 }}>
+                  <label className="qq-label" style={{ margin: 0, cursor: 'pointer' }}>
                     Alternativ {opt}
                   </label>
                   {isCorrect && <span className="qq-correct-text">✓ riktig</span>}
@@ -690,22 +699,11 @@ export default function QuizQuestions() {
 
         <div className="qq-field">
           <label className="qq-label">Riktig svar — velg ett eller flere</label>
-          <div className="qq-answer-btns">
-            {options.map(opt => {
-              const isCorrect = effectiveCorrectAnswers.includes(opt)
-              return (
-                <button key={opt} onClick={() => toggleCorrectAnswer(opt)}
-                  className={`qq-answer-btn ${isCorrect ? 'active' : ''}`}>
-                  {opt}
-                </button>
-              )
-            })}
-          </div>
-          {effectiveCorrectAnswers.length > 1 && (
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, fontFamily: "'Instrument Sans', sans-serif" }}>
-              Valgt: {effectiveCorrectAnswers.join(', ')} — {effectiveCorrectAnswers.length} riktige svar
-            </p>
-          )}
+          <CorrectAnswerToggle
+            options={options}
+            value={effectiveCorrectAnswers}
+            onChange={setCorrectAnswers}
+          />
         </div>
 
         <div className="qq-field qq-grid-2">
@@ -856,7 +854,10 @@ export default function QuizQuestions() {
                         {options.map(opt => {
                           const val = q[optionKeys[opt]] as string
                           if (!val) return null
-                          const isCorrect = q.correct_answer === opt
+                          // Effektiv fasit, ikke bare correct_answer: uten dette
+                          // fikk kun det FØRSTE riktige alternativet ✓ på et
+                          // spørsmål med flere riktige svar.
+                          const isCorrect = effectiveKeys(q).includes(opt)
                           return (
                             <p key={opt} className={`qq-q-opt ${isCorrect ? 'correct' : ''}`}>
                               <strong>{opt}</strong>{val}{isCorrect && ' ✓'}
@@ -884,40 +885,38 @@ export default function QuizQuestions() {
                       </div>
 
                       {/* Rett svar — inline panel */}
-                      {correctingId === q.id && (
+                      {correctingId === q.id && (() => {
+                        const unchanged = sameKeys(correctPick, effectiveKeys(q))
+                        const blocked = correctLoading || unchanged
+                        return (
                         <div style={{ marginTop: 12, padding: '14px 16px', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10 }}>
-                          <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Endre riktig svar til:</p>
-                          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                            {options.map(opt => (
-                              <button
-                                key={opt}
-                                onClick={() => setCorrectPick(opt)}
-                                style={{
-                                  flex: 1, padding: '7px 4px', borderRadius: 8,
-                                  border: `1px solid ${correctPick === opt ? 'rgba(74,222,128,0.3)' : '#2a2d38'}`,
-                                  background: correctPick === opt ? 'rgba(74,222,128,0.1)' : '#1a1c23',
-                                  color: correctPick === opt ? '#4ade80' : '#7a7873',
-                                  fontFamily: "'Instrument Sans', sans-serif",
-                                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                                }}
-                              >
-                                {opt}
-                              </button>
-                            ))}
+                          <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Riktig svar — velg ett eller flere:</p>
+                          <div style={{ marginBottom: 12 }}>
+                            <CorrectAnswerToggle
+                              options={options}
+                              value={correctPick}
+                              onChange={setCorrectPick}
+                              size="sm"
+                              disabled={correctLoading}
+                            />
                           </div>
                           <p style={{ fontSize: 11, color: '#7a7873', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
-                            Dette vil oppdatere alle eksisterende besvarelser og endre leaderboard. Er du sikker?
+                            {correctAnsweredCount === null
+                              ? 'Henter antall besvarelser…'
+                              : correctAnsweredCount === 0
+                                ? 'Ingen har svart på dette spørsmålet ennå — endringen påvirker ingen poeng.'
+                                : `Dette påvirker leaderboard for ${correctAnsweredCount} ${correctAnsweredCount === 1 ? 'spiller' : 'spillere'}. Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?`}
                           </p>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button
                               onClick={() => applyCorrectAnswer(q.id)}
-                              disabled={correctLoading || correctPick === q.correct_answer}
+                              disabled={blocked}
                               style={{
                                 fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
-                                border: `1px solid ${correctLoading || correctPick === q.correct_answer ? '#2a2d38' : '#e8e4dd'}`,
+                                border: `1px solid ${blocked ? '#2a2d38' : '#e8e4dd'}`,
                                 background: 'transparent',
-                                color: correctLoading || correctPick === q.correct_answer ? '#7a7873' : '#e8e4dd',
-                                cursor: correctLoading || correctPick === q.correct_answer ? 'not-allowed' : 'pointer',
+                                color: blocked ? '#7a7873' : '#e8e4dd',
+                                cursor: blocked ? 'not-allowed' : 'pointer',
                                 fontFamily: "'Instrument Sans', sans-serif",
                               }}
                             >
@@ -931,7 +930,8 @@ export default function QuizQuestions() {
                             </button>
                           </div>
                         </div>
-                      )}
+                        )
+                      })()}
 
                       {/* Rett svar — resultat */}
                       {correctResults[q.id] !== undefined && (
@@ -947,7 +947,7 @@ export default function QuizQuestions() {
                       <button
                         onClick={() => {
                           if (correctingId === q.id) { setCorrectingId(null) }
-                          else { setCorrectingId(q.id); setCorrectPick(q.correct_answer); setCorrectResults(r => { const n = { ...r }; delete n[q.id]; return n }) }
+                          else { openCorrectPanel(q) }
                         }}
                         style={{ fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent', color: '#e8e4dd', textDecoration: 'underline', textDecorationColor: 'rgba(232,228,221,0.3)', whiteSpace: 'nowrap' }}
                       >

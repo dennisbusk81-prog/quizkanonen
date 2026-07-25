@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
+import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
+import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -18,7 +20,18 @@ const CATEGORIES = [
 type QState = {
   text: string
   optionA: string; optionB: string; optionC: string; optionD: string
-  correctAnswer: string
+  /**
+   * Riktig(e) svar. Denne siden hadde tidligere kun `correctAnswer: string` og
+   * leste ikke engang questions.correct_answers — et spørsmål med to riktige
+   * svar så ut som om det hadde ett, og en lagring herfra regraderte
+   * besvarelsene som om det bare var ett. Nå er dette eneste kilde: første
+   * element blir correct_answer, resten correct_answers.
+   *
+   * For et lagret spørsmål er verdien den fasiten som ligger i databasen —
+   * en endring på et SPILT spørsmål går ikke rett hit, men gjennom
+   * «Rett svar»-panelet (se keyPanel-tilstanden under).
+   */
+  correctAnswers: string[]
   timeLimit: number
   category: string
   explanation: string
@@ -34,6 +47,7 @@ type DbQuestion = {
   option_c: string | null
   option_d: string | null
   correct_answer: string | null
+  correct_answers: string[] | null
   time_limit_seconds: number | null
   shuffle_options: boolean | null
   category: string | null
@@ -57,8 +71,14 @@ type BankQuestion = {
 
 const emptyQ = (): QState => ({
   text: '', optionA: '', optionB: '', optionC: '', optionD: '',
-  correctAnswer: 'A', timeLimit: 10, category: '', explanation: '',
+  correctAnswers: ['A'], timeLimit: 10, category: '', explanation: '',
 })
+
+/** Fasiten fra en lagret rad, med samme fallback som scoringen i submit-ruten. */
+const keysFromDb = (q: { correct_answer: string | null; correct_answers: string[] | null }): string[] => {
+  const keys = readStoredKey(q)
+  return keys.length > 0 ? keys : ['A']
+}
 
 const isComplete = (q: QState) =>
   q.text.trim().length > 0 && q.optionA.trim().length > 0 && q.optionB.trim().length > 0
@@ -808,6 +828,21 @@ function QuizEditorInner() {
   const saveTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
   const metaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Fasit på spilte spørsmål ───────────────────────────────────────────────
+  // Antall registrerte besvarelser per spørsmåls-id (DB-id). Hentes for det
+  // ALLTID SYNLIGE spørsmålet, ikke for hele quizen: siden viser ett spørsmål
+  // av gangen, så det holder med ett oppslag per spørsmål admin faktisk åpner.
+  //
+  // Er tallet > 0 skal en fasitendring ikke autolagres — den går gjennom
+  // «Rett svar»-panelet under, som bekrefter og kaller /api/admin/correct-answer
+  // (regraderer besvarelser, poeng, streak og sesongpoeng). Tekstredigering
+  // autolagres som før, uavhengig av dette.
+  const [answeredCounts, setAnsweredCounts] = useState<Record<string, number>>({})
+  const [keyPanel, setKeyPanel] = useState<{ idx: number; pending: string[] } | null>(null)
+  const [keyPanelLoading, setKeyPanelLoading] = useState(false)
+  const [keyPanelResult, setKeyPanelResult] = useState<string | null>(null)
+  const [keyPanelError, setKeyPanelError] = useState<string | null>(null)
+
   // AI suggest (per-question)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError]     = useState<string | null>(null)
@@ -940,7 +975,7 @@ function QuizEditorInner() {
             optionB:       q.option_b ?? '',
             optionC:       q.option_c ?? '',
             optionD:       q.option_d ?? '',
-            correctAnswer: q.correct_answer ?? 'A',
+            correctAnswers: keysFromDb(q),
             timeLimit:     q.time_limit_seconds ?? 10,
             category:      q.category ?? '',
             explanation:   q.explanation ?? '',
@@ -1042,7 +1077,7 @@ function QuizEditorInner() {
       optionB:       q.option_b ?? '',
       optionC:       q.option_c ?? '',
       optionD:       q.option_d ?? '',
-      correctAnswer: q.correct_answer ?? 'A',
+      correctAnswers: keysFromDb(q),
       timeLimit:     q.time_limit_seconds ?? 10,
       category:      q.category ?? '',
       explanation:   q.explanation ?? '',
@@ -1077,7 +1112,8 @@ function QuizEditorInner() {
       option_b:           q.optionB.trim(),
       option_c:           q.optionC.trim() || null,
       option_d:           q.optionD.trim() || null,
-      correct_answer:     q.correctAnswer,
+      correct_answer:     q.correctAnswers[0],
+      correct_answers:    q.correctAnswers.length > 1 ? q.correctAnswers : null,
       time_limit_seconds: q.timeLimit,
       shuffle_options:    shuffleAllRef.current,
       category:           q.category || null,
@@ -1093,6 +1129,40 @@ function QuizEditorInner() {
           method: 'PATCH',
           body: JSON.stringify(body),
         })
+
+        // 409 = fasiten er endret på et spørsmål som alt er spilt. Skal normalt
+        // ikke skje: UI-et henter answeredCount for det aktive spørsmålet og
+        // ruter fasitendringer til «Rett svar»-panelet før det kommer hit.
+        // Backstop for de tilfellene tallet var utdatert (f.eks. noen leverte
+        // mens admin redigerte). Vi lagrer teksten på nytt med UENDRET fasit,
+        // slik at admin ikke mister arbeid, og åpner panelet på stedet.
+        if (res.status === 409) {
+          const conflict = await res.json().catch(() => null)
+          const currentKey: string[] = conflict?.currentAnswers ?? []
+          const attempted = questionsRef.current[idx]?.correctAnswers ?? currentKey
+
+          if (currentKey.length > 0) {
+            await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                ...body,
+                correct_answer: currentKey[0],
+                correct_answers: currentKey.length > 1 ? currentKey : null,
+              }),
+            })
+            setQuestions(qs => {
+              const upd = qs.map((item, i) => i === idx ? { ...item, correctAnswers: currentKey } : item)
+              questionsRef.current = upd
+              return upd
+            })
+          }
+
+          setAnsweredCounts(prev => ({ ...prev, [dbId]: conflict?.answeredCount ?? 1 }))
+          setKeyPanel({ idx, pending: attempted })
+          showSaved()
+          return
+        }
+
         if (!res.ok) { setSaveStatus('error'); return }
       } else {
         // New question — POST, then refresh IDs
@@ -1422,7 +1492,9 @@ function QuizEditorInner() {
         return
       }
       const data = await res.json()
-      const correctLetter = q.correctAnswer as 'A' | 'B' | 'C' | 'D'
+      // AI-forslaget fyller ÉN riktig og tre gale tekster. Ved flere riktige
+      // svar er det primærsvaret (første element) som får den riktige teksten.
+      const correctLetter = q.correctAnswers[0] as 'A' | 'B' | 'C' | 'D'
       const fieldMap = { A: 'optionA', B: 'optionB', C: 'optionC', D: 'optionD' } as const
       const correctField = fieldMap[correctLetter]
       const wrongFields = (['optionA', 'optionB', 'optionC', 'optionD'] as const).filter(f => f !== correctField)
@@ -1477,7 +1549,7 @@ function QuizEditorInner() {
                 optionB:       data.wrongAnswers?.[0] ?? item.optionB,
                 optionC:       data.wrongAnswers?.[1] ?? item.optionC,
                 optionD:       data.wrongAnswers?.[2] ?? item.optionD,
-                correctAnswer: 'A',
+                correctAnswers: ['A'],
                 explanation:   data.explanation      ?? item.explanation,
               }
             : item
@@ -1517,7 +1589,7 @@ function QuizEditorInner() {
         optionB:       item.wrongAnswers?.[0]    ?? '',
         optionC:       item.wrongAnswers?.[1]    ?? '',
         optionD:       item.wrongAnswers?.[2]    ?? '',
-        correctAnswer: 'A',
+        correctAnswers: ['A'],
         timeLimit:     10,
         category:      '',
         explanation:   item.explanation          ?? '',
@@ -1542,7 +1614,8 @@ function QuizEditorInner() {
             option_b:           q.optionB.trim(),
             option_c:           q.optionC.trim() || null,
             option_d:           q.optionD.trim() || null,
-            correct_answer:     q.correctAnswer,
+            correct_answer:     q.correctAnswers[0],
+            correct_answers:    q.correctAnswers.length > 1 ? q.correctAnswers : null,
             time_limit_seconds: q.timeLimit,
             shuffle_options:    shuffleAllRef.current,
             category:           q.category || null,
@@ -1592,6 +1665,89 @@ function QuizEditorInner() {
       questionsRef.current = updated
       return updated
     })
+
+  // ── Fasit: velg, og bekreft når spørsmålet alt er spilt ─────────────────────
+
+  const activeDbId = questionDbIds[activeIdx]
+  const activeAnsweredCount = activeDbId ? (answeredCounts[activeDbId] ?? 0) : 0
+
+  // Hent antall besvarelser for spørsmålet admin ser på nå. Ett oppslag per
+  // spørsmål, cachet i answeredCounts.
+  useEffect(() => {
+    const qId = quizId
+    if (!qId || !activeDbId || answeredCounts[activeDbId] !== undefined) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${activeDbId}`)
+        if (!res.ok || cancelled) return
+        const json = await res.json()
+        setAnsweredCounts(prev => ({ ...prev, [activeDbId]: json.answeredCount ?? 0 }))
+      } catch {
+        // Ikke kritisk: uten tallet oppfører siden seg som før, og PATCH-ens
+        // 409 fanger fasitendringen som backstop.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [quizId, activeDbId, answeredCounts])
+
+  // Lukk bekreftelses-panelet hvis admin bytter spørsmål.
+  useEffect(() => {
+    setKeyPanel(p => (p && p.idx !== activeIdx ? null : p))
+    setKeyPanelError(null)
+    setKeyPanelResult(null)
+  }, [activeIdx])
+
+  /**
+   * Klikk på et svaralternativ. På et spørsmål ingen har svart på endres
+   * fasiten direkte og autolagres som ethvert annet felt. Er spørsmålet spilt,
+   * åpnes bekreftelsen i stedet — på SAMME side, uten navigering — og den
+   * lagrede fasiten står urørt til admin bekrefter.
+   */
+  const pickCorrectAnswer = (letter: string) => {
+    const q = questionsRef.current[activeIdx]
+    if (!q) return
+
+    if (activeAnsweredCount === 0) {
+      updateQ({ correctAnswers: toggleAnswerKey(q.correctAnswers, letter) })
+      return
+    }
+
+    setKeyPanelError(null)
+    setKeyPanelResult(null)
+    setKeyPanel(prev => ({
+      idx: activeIdx,
+      pending: toggleAnswerKey(prev?.idx === activeIdx ? prev.pending : q.correctAnswers, letter),
+    }))
+  }
+
+  /** Bekreftet fasitretting — går via den ene ruten som regraderer alt. */
+  const applyCorrectAnswer = async () => {
+    const panel = keyPanel
+    const dbId = questionDbIds[activeIdx]
+    if (!panel || !dbId) return
+
+    setKeyPanelLoading(true)
+    setKeyPanelError(null)
+    try {
+      const res = await adminFetch('/api/admin/correct-answer', {
+        method: 'POST',
+        body: JSON.stringify({ questionId: dbId, newCorrectAnswers: panel.pending }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        setKeyPanelError(json?.error ?? 'Kunne ikke rette fasiten — prøv igjen')
+        return
+      }
+      updateQ({ correctAnswers: panel.pending })
+      setKeyPanel(null)
+      setKeyPanelResult(`Fasit rettet — ${json?.updated ?? 0} besvarelse(r) oppdatert`)
+    } catch {
+      setKeyPanelError('Kunne ikke rette fasiten — prøv igjen')
+    } finally {
+      setKeyPanelLoading(false)
+    }
+  }
 
   const clampTime = (val: string) => Math.min(60, Math.max(5, parseInt(val) || 10))
 
@@ -1890,12 +2046,16 @@ function QuizEditorInner() {
               { letter: 'C', field: 'optionC' as const, placeholder: 'Svaralternativ C (valgfritt)' },
               { letter: 'D', field: 'optionD' as const, placeholder: 'Svaralternativ D (valgfritt)' },
             ]).map(({ letter, field, placeholder }) => {
-              const isCorrect = q.correctAnswer === letter
+              // Viser den PENDING fasiten mens bekreftelsen er åpen, slik at
+              // admin ser hva hen er i ferd med å bekrefte. Den lagrede fasiten
+              // er fortsatt uendret i databasen fram til «Bekreft endring».
+              const shown = keyPanel?.idx === activeIdx ? keyPanel.pending : q.correctAnswers
+              const isCorrect = shown.includes(letter)
               return (
                 <div key={letter}>
                   <div
                     className="nq-option-header"
-                    onClick={() => updateQ({ correctAnswer: letter })}
+                    onClick={() => pickCorrectAnswer(letter)}
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                   >
                     <div style={{
@@ -1924,6 +2084,90 @@ function QuizEditorInner() {
               )
             })}
           </div>
+
+          {/* ── Riktig svar — samme velger som «Spørsmål»-siden ── */}
+          <div style={{ marginTop: 14 }}>
+            <label className="nq-label">Riktig svar — velg ett eller flere</label>
+            <div style={{ marginTop: 6 }}>
+              <CorrectAnswerToggle
+                options={['A', 'B', 'C', 'D']}
+                value={keyPanel?.idx === activeIdx ? keyPanel.pending : q.correctAnswers}
+                onChange={next => {
+                  // Toggle-komponenten leverer hele det nye settet. Ruter det
+                  // gjennom samme vakt som klikk i rutenettet, ved å finne
+                  // bokstaven som ble endret.
+                  const shown = keyPanel?.idx === activeIdx ? keyPanel.pending : q.correctAnswers
+                  const changed = next.find(l => !shown.includes(l)) ?? shown.find(l => !next.includes(l))
+                  if (changed) pickCorrectAnswer(changed)
+                }}
+                disabled={keyPanelLoading}
+              />
+            </div>
+          </div>
+
+          {/* ── «Rett svar»: inline bekreftelse på spilte spørsmål ──
+              Vises kun når admin faktisk har endret fasiten på et spørsmål som
+              alt har besvarelser. Alt skjer her på siden — ingen navigering, og
+              tekstredigering rundt fortsetter å autolagre som normalt. */}
+          {keyPanel?.idx === activeIdx && !sameAnswerKey(keyPanel.pending, q.correctAnswers) && (
+            <div style={{
+              marginTop: 12, padding: '14px 16px', background: '#1a1c23',
+              border: '1px solid rgba(201,168,76,0.22)', borderRadius: 10,
+            }}>
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 6, fontFamily: "'Instrument Sans', sans-serif", fontWeight: 600 }}>
+                Endre fasit fra {q.correctAnswers.join(', ')} til {keyPanel.pending.join(', ')}?
+              </p>
+              <p style={{ fontSize: 11, color: '#7a7873', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                Dette påvirker leaderboard for {activeAnsweredCount} {activeAnsweredCount === 1 ? 'spiller' : 'spillere'}.
+                Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?
+              </p>
+              {keyPanelError && (
+                <p style={{ fontSize: 11, color: '#c94c4c', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>
+                  {keyPanelError}
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={applyCorrectAnswer}
+                  disabled={keyPanelLoading}
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
+                    border: `1px solid ${keyPanelLoading ? '#2a2d38' : '#e8e4dd'}`,
+                    background: 'transparent',
+                    color: keyPanelLoading ? '#7a7873' : '#e8e4dd',
+                    cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                  }}
+                >
+                  {keyPanelLoading ? 'Oppdaterer…' : 'Bekreft endring'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setKeyPanel(null); setKeyPanelError(null) }}
+                  disabled={keyPanelLoading}
+                  style={{
+                    fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38',
+                    background: 'transparent', color: '#7a7873',
+                    cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Instrument Sans', sans-serif",
+                  }}
+                >
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          )}
+
+          {keyPanelResult && (
+            <p style={{
+              fontSize: 11, color: '#4ade80', marginTop: 10, background: 'rgba(74,222,128,0.08)',
+              border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px',
+              display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif",
+            }}>
+              {keyPanelResult}
+            </p>
+          )}
 
           {/* Time + Category */}
           <div className="nq-q-meta">
