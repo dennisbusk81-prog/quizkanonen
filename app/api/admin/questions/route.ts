@@ -2,6 +2,26 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 
+const PAGE_SIZE = 1000
+
+// PostgREST returnerer maks 1000 rader per kall uten paginering — henter i
+// batcher til en batch kommer tilbake mindre enn PAGE_SIZE.
+async function fetchAllAnswerStats(): Promise<{ question_id: string; is_correct: boolean }[]> {
+  const rows: { question_id: string; is_correct: boolean }[] = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await supabaseAdmin
+      .from('attempt_answers')
+      .select('question_id, is_correct')
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return rows
+}
+
 // Hele spørsmålsbanken — ALLE spørsmål noensinne lagret i en quiz, ikke kun
 // dem merket is_classic (det er /api/admin/classics, som filtrerer på det
 // flagget og forblir urørt/ubrukt av denne siden). Filtrering på "kun
@@ -24,10 +44,39 @@ export async function GET(request: NextRequest) {
 
   const quizTitleMap = Object.fromEntries((quizData ?? []).map(q => [q.id, q.title]))
 
-  const questions = (data ?? []).map(q => ({
-    ...q,
-    quiz_title: quizTitleMap[q.quiz_id] ?? null,
-  }))
+  // Treffprosent telles på tvers av ALLE forekomster av samme spørsmålstekst
+  // — hver gjenbruk via spørsmålsbanken lager en ny rad (ny id) uten
+  // slektskap til kilden (se app/api/admin/classics/copy/route.ts), så én
+  // enkelt question_id ville gitt et kunstig lavt/upresist tallgrunnlag for
+  // spørsmål som er brukt flere ganger. question_text er eneste tilgjengelige
+  // kobling mellom "samme" spørsmål på tvers av rader.
+  let answerStats: { question_id: string; is_correct: boolean }[] = []
+  try {
+    answerStats = await fetchAllAnswerStats()
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Kunne ikke hente svarstatistikk' }, { status: 500 })
+  }
+
+  const idToText = new Map((data ?? []).map(q => [q.id, q.question_text]))
+  const textStats = new Map<string, { correct: number; total: number }>()
+  for (const a of answerStats) {
+    const text = idToText.get(a.question_id)
+    if (!text) continue
+    const s = textStats.get(text) ?? { correct: 0, total: 0 }
+    s.total += 1
+    if (a.is_correct) s.correct += 1
+    textStats.set(text, s)
+  }
+
+  const questions = (data ?? []).map(q => {
+    const s = textStats.get(q.question_text)
+    return {
+      ...q,
+      quiz_title: quizTitleMap[q.quiz_id] ?? null,
+      hit_rate: s && s.total > 0 ? Math.round((s.correct / s.total) * 100) : null,
+      answer_count: s?.total ?? 0,
+    }
+  })
 
   return NextResponse.json({ questions })
 }

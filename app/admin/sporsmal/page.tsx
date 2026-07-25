@@ -22,10 +22,14 @@ type BankQuestion = {
   usage_count: number | null
   last_used_at: string | null
   created_at: string | null
+  hit_rate: number | null
+  answer_count: number | null
 }
 
 type QuizOption = { id: string; title: string }
-type SortKey = 'last_used' | 'most_used' | 'least_used' | 'newest'
+type SortKey = 'last_used' | 'most_used' | 'least_used' | 'newest' | 'alphabetical' | 'hit_rate_asc'
+
+const PAGE_SIZE = 40
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -64,7 +68,7 @@ const STYLES = `
   .sb-search::placeholder { color: var(--muted); }
   .sb-search:focus { border-color: rgba(201,168,76,0.4); }
 
-  .sb-sort {
+  .sb-sort, .sb-cat-select {
     background: var(--card); border: 1px solid var(--border); border-radius: var(--rbtn);
     padding: 12px 14px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; color: var(--body);
     outline: none; cursor: pointer;
@@ -75,18 +79,36 @@ const STYLES = `
     cursor: pointer; user-select: none; white-space: nowrap;
   }
 
+  /* ── Kompakt rad ── */
+  .sb-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 16px; margin-bottom: 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .sb-row:hover { border-color: rgba(201,168,76,0.25); }
+  .sb-row-chevron {
+    flex-shrink: 0; color: var(--muted); transition: transform 0.15s; display: flex;
+  }
+  .sb-row-chevron.open { transform: rotate(90deg); }
+  .sb-row-text {
+    flex: 1; min-width: 0; font-size: 14px; color: var(--white); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sb-row-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: nowrap; }
+
   .sb-card {
     background: var(--card); border: 1px solid var(--border); border-radius: var(--rcard);
-    padding: 20px; margin-bottom: 12px;
+    border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;
+    padding: 20px; margin-top: -8px; margin-bottom: 8px;
   }
-  .sb-q-text { font-size: 15px; color: var(--white); font-weight: 600; margin-bottom: 12px; line-height: 1.4; }
   .sb-opts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
   .sb-opt { font-size: 13px; color: var(--body); }
   .sb-opt.correct { color: var(--green); font-weight: 600; }
   .sb-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
   .sb-tag {
     font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-    border-radius: 20px; padding: 2px 8px;
+    border-radius: 20px; padding: 2px 8px; white-space: nowrap;
   }
   .sb-tag-gold { color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.18); }
   .sb-tag-muted { color: var(--muted); background: var(--bg); border: 1px solid var(--border); }
@@ -112,15 +134,28 @@ const STYLES = `
   .sb-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
   .sb-count { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 
+  .sb-load-more-row { display: flex; justify-content: center; margin-top: 16px; }
+  .sb-btn-load-more {
+    background: transparent; border: 1px solid var(--border); border-radius: var(--rbtn);
+    padding: 10px 28px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 600;
+    color: var(--body); cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .sb-btn-load-more:hover { border-color: rgba(201,168,76,0.4); color: var(--white); }
+
   @media (max-width: 520px) {
     .sb-controls { flex-direction: column; align-items: stretch; }
+    .sb-row-text { white-space: normal; }
   }
 `
 
-function formatDate(iso: string | null): string {
-  if (!iso) return 'Aldri brukt'
-  const d = new Date(iso)
-  return `Sist brukt: ${d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+function formatShortDate(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function hitRateLabel(q: BankQuestion): string {
+  if (!q.answer_count) return 'Ingen data'
+  return `${q.hit_rate}% riktig`
 }
 
 export default function SporsmalPage() {
@@ -130,10 +165,13 @@ export default function SporsmalPage() {
   const [loading,   setLoading]   = useState(true)
   const [search,    setSearch]    = useState('')
   const [sortKey,   setSortKey]   = useState<SortKey>('last_used')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [classicOnly, setClassicOnly] = useState(false)
   const [copying,   setCopying]   = useState<string | null>(null)
   const [copyDone,  setCopyDone]  = useState<string | null>(null)
   const [targetMap, setTargetMap] = useState<Record<string, string>>({})
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace('/admin/login'); return }
@@ -146,9 +184,19 @@ export default function SporsmalPage() {
     }).finally(() => setLoading(false))
   }, [router])
 
+  const categories = useMemo(
+    () => [...new Set(questions.map(q => q.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'nb')),
+    [questions]
+  )
+
+  // Reset paginering når filter/søk/sortering endres, så man ikke blir
+  // stående midt i en avkuttet liste med feil resultater synlige.
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [search, sortKey, categoryFilter, classicOnly])
+
   const filtered = useMemo(() => {
     let list = questions
     if (classicOnly) list = list.filter(q => q.is_classic)
+    if (categoryFilter) list = list.filter(q => q.category === categoryFilter)
     if (search) {
       const s = search.toLowerCase()
       list = list.filter(q => q.question_text.toLowerCase().includes(s) || (q.category ?? '').toLowerCase().includes(s))
@@ -164,12 +212,27 @@ export default function SporsmalPage() {
       case 'newest':
         sorted.sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
         break
+      case 'alphabetical':
+        sorted.sort((a, b) => a.question_text.localeCompare(b.question_text, 'nb'))
+        break
+      case 'hit_rate_asc':
+        // Spørsmål uten svardata er ikke "vanskelige" — de er ukjente, så de
+        // sorteres bakerst i stedet for å blandes inn blant lave treffprosenter.
+        sorted.sort((a, b) => {
+          if (!a.answer_count && !b.answer_count) return 0
+          if (!a.answer_count) return 1
+          if (!b.answer_count) return -1
+          return (a.hit_rate ?? 0) - (b.hit_rate ?? 0)
+        })
+        break
       case 'last_used':
       default:
         sorted.sort((a, b) => new Date(b.last_used_at ?? 0).getTime() - new Date(a.last_used_at ?? 0).getTime())
     }
     return sorted
-  }, [questions, search, sortKey, classicOnly])
+  }, [questions, search, sortKey, classicOnly, categoryFilter])
+
+  const visible = filtered.slice(0, visibleCount)
 
   async function copyToQuiz(questionId: string) {
     const targetQuizId = targetMap[questionId]
@@ -224,11 +287,17 @@ export default function SporsmalPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
+          <select className="sb-cat-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+            <option value="">Alle kategorier</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
           <select className="sb-sort" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}>
             <option value="last_used">Sist brukt</option>
             <option value="most_used">Mest brukt</option>
             <option value="least_used">Minst brukt</option>
             <option value="newest">Nyeste</option>
+            <option value="alphabetical">Alfabetisk</option>
+            <option value="hit_rate_asc">Treffprosent (lavest først)</option>
           </select>
           <label className="sb-classic-toggle">
             <input type="checkbox" checked={classicOnly} onChange={e => setClassicOnly(e.target.checked)} />
@@ -237,63 +306,98 @@ export default function SporsmalPage() {
         </div>
 
         {filtered.length > 0 && (
-          <p className="sb-count">{filtered.length} spørsmål{search || classicOnly ? ' funnet' : ''}</p>
+          <p className="sb-count">
+            {filtered.length} spørsmål{search || classicOnly || categoryFilter ? ' funnet' : ''}
+            {visible.length < filtered.length ? ` — viser ${visible.length}` : ''}
+          </p>
         )}
 
         {filtered.length === 0 ? (
           <div className="sb-empty">
-            {search || classicOnly ? 'Ingen spørsmål matcher filteret.' : 'Ingen spørsmål ennå.'}
+            {search || classicOnly || categoryFilter ? 'Ingen spørsmål matcher filteret.' : 'Ingen spørsmål ennå.'}
           </div>
         ) : (
-          filtered.map(q => {
-            const correctKeys = q.correct_answers && q.correct_answers.length > 0 ? q.correct_answers : [q.correct_answer]
-            const opts = (['A', 'B', 'C', 'D'] as const).filter(o => q[optMap[o]])
-            return (
-              <div key={q.id} className="sb-card">
-                <p className="sb-q-text">{q.question_text}</p>
-
-                <div className="sb-opts">
-                  {opts.map(o => (
-                    <p key={o} className={`sb-opt ${correctKeys.includes(o) ? 'correct' : ''}`}>
-                      <strong>{o}: </strong>{q[optMap[o]]}{correctKeys.includes(o) ? ' ✓' : ''}
-                    </p>
-                  ))}
-                </div>
-
-                <div className="sb-meta">
-                  {q.category && <span className="sb-tag sb-tag-gold">{q.category}</span>}
-                  {q.is_classic && <span className="sb-tag sb-tag-gold">Klassiker</span>}
-                  <span className="sb-tag sb-tag-muted">Brukt {q.usage_count ?? 0} {(q.usage_count ?? 0) === 1 ? 'gang' : 'ganger'}</span>
-                  <span className="sb-tag sb-tag-muted">{formatDate(q.last_used_at)}</span>
-                </div>
-
-                {q.explanation && <p className="sb-explanation">{q.explanation}</p>}
-
-                <div className="sb-footer">
-                  <p className="sb-quiz-name">Fra: {q.quiz_title ?? q.quiz_id}</p>
-                  <div className="sb-copy-row" style={{ marginLeft: 'auto' }}>
-                    <select
-                      className="sb-select"
-                      value={targetMap[q.id] ?? ''}
-                      onChange={e => setTargetMap(prev => ({ ...prev, [q.id]: e.target.value }))}
-                    >
-                      <option value="">Velg quiz…</option>
-                      {quizzes.map(qz => (
-                        <option key={qz.id} value={qz.id}>{qz.title}</option>
-                      ))}
-                    </select>
-                    <button
-                      className={`sb-btn-copy ${copyDone === q.id ? 'done' : ''}`}
-                      disabled={!targetMap[q.id] || copying === q.id}
-                      onClick={() => copyToQuiz(q.id)}
-                    >
-                      {copyDone === q.id ? 'Lagt til!' : copying === q.id ? 'Kopierer…' : 'Legg til i quiz'}
-                    </button>
+          <>
+            {visible.map(q => {
+              const correctKeys = q.correct_answers && q.correct_answers.length > 0 ? q.correct_answers : [q.correct_answer]
+              const opts = (['A', 'B', 'C', 'D'] as const).filter(o => q[optMap[o]])
+              const isOpen = expandedId === q.id
+              return (
+                <div key={q.id}>
+                  <div
+                    className="sb-row"
+                    onClick={() => setExpandedId(isOpen ? null : q.id)}
+                  >
+                    <span className={`sb-row-chevron${isOpen ? ' open' : ''}`}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 6 15 12 9 18" />
+                      </svg>
+                    </span>
+                    <span className="sb-row-text">{q.question_text}</span>
+                    <div className="sb-row-badges">
+                      {q.category && <span className="sb-tag sb-tag-gold">{q.category}</span>}
+                      <span className="sb-tag sb-tag-muted">{q.usage_count ?? 0}x</span>
+                      <span className="sb-tag sb-tag-muted">{hitRateLabel(q)}</span>
+                      <span className="sb-tag sb-tag-muted">{formatShortDate(q.last_used_at)}</span>
+                    </div>
                   </div>
+
+                  {isOpen && (
+                    <div className="sb-card">
+                      <div className="sb-opts">
+                        {opts.map(o => (
+                          <p key={o} className={`sb-opt ${correctKeys.includes(o) ? 'correct' : ''}`}>
+                            <strong>{o}: </strong>{q[optMap[o]]}{correctKeys.includes(o) ? ' ✓' : ''}
+                          </p>
+                        ))}
+                      </div>
+
+                      <div className="sb-meta">
+                        {q.is_classic && <span className="sb-tag sb-tag-gold">Klassiker</span>}
+                        <span className="sb-tag sb-tag-muted">Brukt {q.usage_count ?? 0} {(q.usage_count ?? 0) === 1 ? 'gang' : 'ganger'}</span>
+                        <span className="sb-tag sb-tag-muted">
+                          {q.answer_count ? `${q.hit_rate}% riktig (${q.answer_count} svar)` : 'Ingen svardata ennå'}
+                        </span>
+                      </div>
+
+                      {q.explanation && <p className="sb-explanation">{q.explanation}</p>}
+
+                      <div className="sb-footer">
+                        <p className="sb-quiz-name">Fra: {q.quiz_title ?? q.quiz_id}</p>
+                        <div className="sb-copy-row" style={{ marginLeft: 'auto' }}>
+                          <select
+                            className="sb-select"
+                            value={targetMap[q.id] ?? ''}
+                            onChange={e => setTargetMap(prev => ({ ...prev, [q.id]: e.target.value }))}
+                          >
+                            <option value="">Velg quiz…</option>
+                            {quizzes.map(qz => (
+                              <option key={qz.id} value={qz.id}>{qz.title}</option>
+                            ))}
+                          </select>
+                          <button
+                            className={`sb-btn-copy ${copyDone === q.id ? 'done' : ''}`}
+                            disabled={!targetMap[q.id] || copying === q.id}
+                            onClick={() => copyToQuiz(q.id)}
+                          >
+                            {copyDone === q.id ? 'Lagt til!' : copying === q.id ? 'Kopierer…' : 'Legg til i quiz'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              )
+            })}
+
+            {visible.length < filtered.length && (
+              <div className="sb-load-more-row">
+                <button className="sb-btn-load-more" onClick={() => setVisibleCount(c => c + PAGE_SIZE)}>
+                  Last flere ({filtered.length - visible.length} igjen)
+                </button>
               </div>
-            )
-          })
+            )}
+          </>
         )}
 
       </div>
