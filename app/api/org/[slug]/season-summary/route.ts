@@ -32,10 +32,13 @@ async function getSummary(token: string, slug: string) {
     .gte('closes_at', monthStart)
     .lt('closes_at', monthEnd)
 
-  type Row = { user_id: string; points: number; profiles: { display_name: string | null }[] | null }
+  // PostgREST-embed for denne many-to-one-relasjonen (user_id er FK på
+  // season_scores-siden) er ETT objekt, ikke et array — verifisert empirisk
+  // mot prod 25. juli (samme bugklasse som my-orgs-regresjonen 24. juli).
+  type Row = { user_id: string; points: number; profiles: { display_name: string | null } | null }
   const byUser = new Map<string, { displayName: string; totalPoints: number }>()
   for (const row of ((rows as unknown) as Row[] ?? [])) {
-    const name = row.profiles?.[0]?.display_name
+    const name = row.profiles?.display_name
     if (!name) continue
     const ex = byUser.get(row.user_id)
     if (ex) ex.totalPoints += row.points

@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
 
   // PostgREST-embed for denne many-to-one-relasjonen (organization_id er FK
   // på organization_members-siden) er ETT objekt, ikke et array — verifisert
-  // empirisk mot prod 25. juli (season-summary-rutens profiles(display_name)
-  // er IKKE et gyldig mønster å kopiere her, den relasjonen typer seg
-  // annerledes).
+  // empirisk mot prod 25. juli. Samme mønster gjelder season-summary-rutens
+  // profiles(display_name)-embed (også many-to-one via FK); den hadde
+  // samme bugklasse (antok array) og ble rettet 25. juli.
   type Row = {
     organization_id: string
     role: string
