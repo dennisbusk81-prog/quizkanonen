@@ -5,7 +5,7 @@ import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
-import QuizInterlude from '@/components/QuizInterlude'
+import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
@@ -1151,31 +1151,41 @@ export default function QuizPage() {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
   }, [questions, currentIndex, getTimeLimit, answers, totalTimeMs, saveProgress])
 
-  const fetchLiveRank = useCallback(async (correctSoFar: number, timeSoFar: number) => {
+  // `answeredSoFar` sendes med slik at serveren kan skalere delsummen opp til
+  // samme skala som de ferdige forsøkene den rangeres mot (Del 1+2). Under
+  // MIN_ANSWERED_FOR_PLACEMENT hopper vi over kallet helt — anslaget ville
+  // uansett ikke blitt vist (Del 3), så det er en request spart per spiller.
+  const fetchLiveRank = useCallback(async (
+    correctSoFar: number,
+    timeSoFar: number,
+    answeredSoFar: number
+  ) => {
     if (!quiz?.show_live_placement) return
+    if (answeredSoFar < MIN_ANSWERED_FOR_PLACEMENT) { setLiveRank(null); return }
     try {
       const res = await fetch(
-        `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}`
+        `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`
       )
       if (!res.ok) return
       const data: { rank: number } = await res.json()
       setLiveRank(data.rank)
     } catch { /* ikke kritisk */ }
-  }, [quiz, quizId, currentIndex])
+  }, [quiz, quizId, currentIndex, totalQuestions])
 
   const fetchRankingSnapshot = useCallback(async (
     questionIndex: number,
     correctSoFar: number,
-    timeSoFar: number
+    timeSoFar: number,
+    answeredSoFar: number
   ): Promise<{ rank: number; total: number; low: number; high: number } | null> => {
     try {
       const res = await fetch(
-        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}`
+        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`
       )
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
-  }, [quizId])
+  }, [quizId, totalQuestions])
 
   // Del 5: premium-stien. /api/quiz/live-ranking returnerer nå BÅDE low/high og
   // userRank/above/below fra samme snapshot og samme computePlacement, så ett
@@ -1183,7 +1193,8 @@ export default function QuizPage() {
   // identiske med det fetchRankingSnapshot ville gitt.
   const fetchLiveRankingFull = useCallback(async (
     correctSoFar: number,
-    timeSoFar: number
+    timeSoFar: number,
+    answeredSoFar: number
   ): Promise<{
     totalPlayers: number
     userRank: number
@@ -1197,12 +1208,14 @@ export default function QuizPage() {
         quiz_id: quizId,
         current_correct: String(correctSoFar),
         current_time_ms: String(timeSoFar),
+        answered: String(answeredSoFar),
+        total: String(totalQuestions),
       })
       const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`)
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
-  }, [quizId])
+  }, [quizId, totalQuestions])
 
   const startQuiz = async () => {
     const effectiveName = loggedInDisplayName ?? nameInput.trim()
@@ -1366,7 +1379,7 @@ export default function QuizPage() {
     setSelectedAnswer(answer); setAnswered(true)
     saveProgress(currentIndex, newAnswers, newTime)
     if (quiz?.show_live_placement) {
-      await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime)
+      await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime, newAnswers.length)
     }
   }
 
@@ -1570,14 +1583,20 @@ export default function QuizPage() {
     }
     const qLeft = totalQuestions - nextIndex
     const correctSoFar = answers.filter(a => a.isCorrect).length
+    // answers inneholder alltid spørsmålet som nettopp ble besvart, så lengden
+    // ER antall besvarte spørsmål. Grunnlaget serveren skalerer delsummen med.
+    const answeredSoFar = answers.length
 
     // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil.
     // Del 5: premium henter alt i ETT kall (spenn + plassering + naboer);
     // ikke-premium trenger kun spennet og bruker den lettere ruten som før.
+    // Del 3: under terskelen hopper vi over kallet — mellomskjermen viser da
+    // «Beregner posisjon…» i stedet for et anslag bygget på ett–to svar.
     let low: number | null = null
     let high: number | null = null
-    if (isLoggedIn && isPremium) {
-      const lr = await fetchLiveRankingFull(correctSoFar, totalTimeMs)
+    const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
+    if (isLoggedIn && isPremium && placementReady) {
+      const lr = await fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar)
       if (lr && lr.totalPlayers > 1) {
         low = lr.low
         high = lr.high
@@ -1585,8 +1604,10 @@ export default function QuizPage() {
       setInterLiveRanking(lr
         ? { totalPlayers: lr.totalPlayers, userRank: lr.userRank, above: lr.above, below: lr.below }
         : null)
-    } else if (isLoggedIn) {
-      const result = await fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs)
+    } else if (isLoggedIn && isPremium) {
+      setInterLiveRanking(null)
+    } else if (isLoggedIn && placementReady) {
+      const result = await fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar)
       if (result && result.total > 1) {
         low = result.low
         high = result.high
@@ -2310,6 +2331,7 @@ export default function QuizPage() {
             percentileData={percentileData}
             rankingSnapshot={rankingSnapshot ?? undefined}
             isPremium={isPremium}
+            isLoggedIn={isLoggedIn}
             liveRanking={interLiveRanking ?? undefined}
             onNext={handleInterludeNext}
           />

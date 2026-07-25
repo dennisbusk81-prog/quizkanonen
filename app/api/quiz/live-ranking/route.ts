@@ -12,6 +12,13 @@ export async function GET(request: NextRequest) {
   // (snapshoten er uavhengig av spørsmålsindeks — se lib/ranking-snapshot.ts).
   const currentCorrect = parseInt(searchParams.get('current_correct')  ?? '0', 10)
   const currentTime    = parseInt(searchParams.get('current_time_ms')  ?? '0', 10)
+  // Del 1+2 — besvarte spørsmål så langt + quizens lengde, så computePlacement
+  // kan skalere delsummen opp til samme skala som de ferdige forsøkene den
+  // sammenlignes mot. Valgfrie: mangler de, er oppførselen uendret.
+  const answeredRaw = parseInt(searchParams.get('answered') ?? '', 10)
+  const totalRaw    = parseInt(searchParams.get('total')    ?? '', 10)
+  const answered       = Number.isFinite(answeredRaw) ? answeredRaw : null
+  const totalQuestions = Number.isFinite(totalRaw)    ? totalRaw    : null
 
   if (!quizId) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
@@ -53,6 +60,8 @@ export async function GET(request: NextRequest) {
     correct: currentCorrect,
     time: isNaN(currentTime) ? 0 : currentTime,
     playerInPool: false,
+    answered,
+    totalQuestions,
   })
 
   // low/high er additivt (Del 5): computePlacement beregnet dem allerede, ruten

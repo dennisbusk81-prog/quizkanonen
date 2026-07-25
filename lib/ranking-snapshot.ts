@@ -143,6 +143,12 @@ type PlaceOpts = {
   //   true  → spilleren KAN være i poolen (resultatskjerm) → total =
   //           max(ferdige, rang) unngår både dobbelttelling og umulige tall.
   playerInPool: boolean
+  // Del 1+2 (25. juli 2026) — hvor mange spørsmål spilleren har besvart så
+  // langt, og hvor mange quizen har totalt. Kun oppgitt av live-flatene under
+  // spill; utelatt (eller <= 0) skrur projeksjonen helt av, slik at
+  // /standings og resultatskjermen er bit-for-bit uendret.
+  answered?: number | null
+  totalQuestions?: number | null
 }
 
 export function computePlacement(snapshot: SnapshotEntry[], opts: PlaceOpts): Placement {
@@ -169,13 +175,42 @@ export function computePlacement(snapshot: SnapshotEntry[], opts: PlaceOpts): Pl
   // Plasser via de samme primærnøklene som rankQuizAttempts (flest riktige,
   // deretter raskest tid). Ingen egen andre-rangeringsfunksjon — dette bare
   // finner hvor den delvise spilleren ville falt inn i den ferdige lista.
+  //
+  // Del 1+2 (25. juli 2026) — SKALER FØRST, SAMMENLIGN SÅ.
+  // Poolen inneholder kun leverte forsøk, der correct_answers og total_time_ms
+  // gjelder HELE quizen. En spiller midt i quizen har bare delsummer, så en rå
+  // sammenligning stiller et halvt løp mot en rekke fulle løp: spilleren
+  // fremstår systematisk dårligst helt til de siste spørsmålene, uansett hvor
+  // godt de faktisk gjør det. (Rapportert av en spiller 24. juli 2026; feilen
+  // har ligget der siden funksjonen ble bygget 5. april.)
+  //
+  // Fiks: projiser delsummene opp til full quiz-lengde ut fra tempoet så langt,
+  // så begge sider av sammenligningen er på samme skala:
+  //   projiserte riktige = (riktige så langt / besvarte) × antall spørsmål
+  //   projisert tid      = (tid så langt     / besvarte) × antall spørsmål
+  // Begge avrundes til heltall, slik at projeksjonen lander i en poengbøtte som
+  // faktisk finnes i poolen — da virker tid-tiebreakeren innenfor bøtta på
+  // nøyaktig samme måte som den gjør for ferdige spillere.
+  //
+  // Projeksjonen slår KUN inn når kalleren både sier at spilleren ikke er i
+  // poolen OG oppgir hvor mange spørsmål som er besvart. Uten de feltene er
+  // tallene allerede fullverdige (resultatskjerm, /standings) og brukes rått.
+  const answered = opts.answered ?? 0
+  const totalQ = opts.totalQuestions ?? 0
+  const project =
+    !opts.playerInPool && answered > 0 && totalQ > 0 && answered <= totalQ
+  const scale = project ? totalQ / answered : 1
+
+  const cmpCorrect = project ? Math.round(opts.correct * scale) : opts.correct
+  const cmpTime = project && opts.time > 0 ? Math.round(opts.time * scale) : opts.time
+
   const strictlyBetter = snapshot.filter(e =>
-    e.correct_answers > opts.correct ||
-    (e.correct_answers === opts.correct && opts.time > 0 && e.total_time_ms < opts.time),
+    e.correct_answers > cmpCorrect ||
+    (e.correct_answers === cmpCorrect && cmpTime > 0 && e.total_time_ms < cmpTime),
   )
   const strictlyWorse = snapshot.filter(e =>
-    e.correct_answers < opts.correct ||
-    (e.correct_answers === opts.correct && opts.time > 0 && e.total_time_ms > opts.time),
+    e.correct_answers < cmpCorrect ||
+    (e.correct_answers === cmpCorrect && cmpTime > 0 && e.total_time_ms > cmpTime),
   )
 
   const rank = strictlyBetter.length + 1

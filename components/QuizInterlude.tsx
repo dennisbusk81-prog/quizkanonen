@@ -4,6 +4,14 @@ import { useMemo } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
+// Del 3 (25. juli 2026) — plassering og prosentil hviler nå på et anslag av
+// sluttresultatet, skalert opp fra tempoet så langt (se computePlacement i
+// lib/ranking-snapshot.ts). Med bare ett eller to besvarte spørsmål er ett svar
+// 50–100 % av datagrunnlaget, og anslaget spretter mellom ytterpunktene. Vi
+// venter derfor til det finnes nok å regne på. Delt med app/quiz/[id]/page.tsx,
+// som hopper over selve kallet under samme terskel.
+export const MIN_ANSWERED_FOR_PLACEMENT = 3
+
 interface RivalData {
   name: string
   avatarColor: string
@@ -45,6 +53,9 @@ interface QuizInterludeProps {
   percentileData: PercentileEntry[]
   rankingSnapshot?: RankingSnapshot
   isPremium?: boolean
+  // Kun innloggede får plassering i det hele tatt. Gjester skal derfor heller
+  // ikke se «Beregner posisjon…» — for dem kommer det aldri et tall.
+  isLoggedIn?: boolean
   // Del 5: hentes nå av page.tsx (goToNext) i SAMME kall som gir low/high, og
   // sendes ned hit. Tidligere gjorde denne komponenten sitt eget fetch mot
   // /api/quiz/live-ranking — et andre kall mot nøyaktig samme snapshot, per
@@ -96,12 +107,17 @@ export default function QuizInterlude({
   percentileData,
   rankingSnapshot,
   isPremium,
+  isLoggedIn,
   liveRanking,
   onNext,
 }: QuizInterludeProps) {
   // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
   const percentileEntry = percentileData.find(p => p.score === score)
   const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
+
+  // questionIndex er 0-basert indeks for spørsmålet som nettopp ble besvart.
+  const answeredSoFar = questionIndex + 1
+  const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
 
   const msgState: QuizMessageState = {
     streak,
@@ -182,8 +198,24 @@ export default function QuizInterlude({
           </p>
         )}
 
+        {/* Del 3 — for tidlig til et meningsfylt anslag. Nøytral tilstand, slik at
+            plasseringen ikke bare forsvinner og dukker opp igjen uforklart. */}
+        {isLoggedIn && !placementReady && (
+          <div style={{ marginBottom: 18 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
+              textTransform: 'uppercase', color: '#7a7873', marginBottom: 6,
+            }}>
+              Din plassering
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd' }}>
+              Beregner posisjon…
+            </p>
+          </div>
+        )}
+
         {/* Live ranking — gratis ser estimert spenn, Premium ser eksakt plassering */}
-        {!isPremium && low !== null && high !== null && (
+        {placementReady && !isPremium && low !== null && high !== null && (
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
@@ -201,7 +233,7 @@ export default function QuizInterlude({
         )}
 
         {/* Premium: eksakt plassering som hovedelement, mini-leaderboard som støtte */}
-        {isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
+        {placementReady && isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
@@ -229,6 +261,13 @@ export default function QuizInterlude({
               )}
               <p style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, margin: 0 }}>
                 #{liveRanking.userRank} Du · {score} riktige
+              </p>
+              {/* Del 4 — nabo-radene viser SLUTTsummer, din egen viser en delsum.
+                  Uten denne linja ser tallet ditt ut som en regnefeil når det står
+                  mellom to høyere tall. Mindre og dempet, så det ikke leses som
+                  enda en spillerrad. */}
+              <p style={{ fontSize: 11, color: '#7a7873', margin: 0, lineHeight: 1.4 }}>
+                {answeredSoFar} av {totalQuestions} spørsmål så langt
               </p>
               {liveRanking.below && (
                 <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
@@ -273,8 +312,9 @@ export default function QuizInterlude({
           return null
         })()}
 
-        {/* Percentile hint — only when above median */}
-        {scoreIsAboveMedian && percentileEntry && (
+        {/* Percentile hint — only when above median, og først når det finnes nok
+            besvarte spørsmål til at tallet betyr noe (Del 3) */}
+        {placementReady && scoreIsAboveMedian && percentileEntry && (
           <p style={{
             fontSize: 12, color: '#7a7873', marginBottom: 16,
           }}>

@@ -18,6 +18,15 @@ export async function GET(
     return NextResponse.json({ error: 'Ugyldig input' }, { status: 400 })
   }
 
+  // Del 1+2 — besvarte spørsmål så langt + quizens lengde, så computePlacement
+  // kan skalere delsummen opp til samme skala som de ferdige forsøkene den
+  // sammenlignes mot. Bevisst VALGFRIE: mangler de (gammel fane midt i en quiz
+  // under deploy), faller ruten tilbake til uendret oppførsel i stedet for 400.
+  const answeredRaw = parseInt(searchParams.get('answered') ?? '', 10)
+  const totalRaw    = parseInt(searchParams.get('total')    ?? '', 10)
+  const answered       = Number.isFinite(answeredRaw) ? answeredRaw : null
+  const totalQuestions = Number.isFinite(totalRaw)    ? totalRaw    : null
+
   try {
     // Delt, kortlevd snapshot (samme som premium live-ranking leser).
     const snapshot = await getOrBuildSnapshot(quizId)
@@ -31,7 +40,9 @@ export async function GET(
     // Under spill: spilleren har ikke levert ennå og er ikke i den ferdige
     // poolen → playerInPool: false (total = ferdige + 1). Resultatskjermen bruker
     // /standings, ikke denne ruten. computePlacement garanterer rang <= total.
-    const { rank, total, low, high } = computePlacement(snapshot, { correct, time, playerInPool: false })
+    const { rank, total, low, high } = computePlacement(snapshot, {
+      correct, time, playerInPool: false, answered, totalQuestions,
+    })
 
     return NextResponse.json({ rank, total, low, high })
   } catch (err) {
