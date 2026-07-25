@@ -10,7 +10,10 @@ import { verifyAttemptToken } from '@/lib/attempt-token'
 // selv — klienten kan ikke lenger sette vilkårlige score-verdier. Erstatter den
 // gamle klient-UPDATE-en på attempts (app/quiz/[id]/page.tsx finishQuiz).
 
-type IncomingAnswer = { questionId: string; selectedAnswer: string; timeMs: number }
+// selectedAnswer er null når spilleren lot tiden løpe ut på spørsmålet
+// (klienten sender { selectedAnswer: null, timeMs: <full tidsgrense> }).
+// Et timeout-svar er et FEIL svar som skal lagres, ikke et fravær av svar.
+type IncomingAnswer = { questionId: string; selectedAnswer: string | null; timeMs: number }
 
 type QuestionRow = {
   id: string
@@ -51,11 +54,17 @@ export async function POST(
     return NextResponse.json({ error: 'Mangler svar' }, { status: 400 })
   }
 
+  // MERK: selectedAnswer må godta BÅDE string og null. Fram til 25. juli 2026 sto
+  // det `typeof selectedAnswer === 'string'` her, og siden `typeof null === 'object'`
+  // ble hvert eneste timeout-svar stille forkastet før innsetting i attempt_answers.
+  // Spørsmålet forsvant da helt fra dataene i stedet for å telle som feil, noe som
+  // lot correct_streak fortsette ubrutt over det manglende spørsmålet.
   const answers: IncomingAnswer[] = (body.answers as unknown[])
     .filter((a): a is IncomingAnswer =>
       !!a && typeof a === 'object' &&
       typeof (a as IncomingAnswer).questionId === 'string' &&
-      typeof (a as IncomingAnswer).selectedAnswer === 'string' &&
+      (typeof (a as IncomingAnswer).selectedAnswer === 'string' ||
+        (a as IncomingAnswer).selectedAnswer === null) &&
       typeof (a as IncomingAnswer).timeMs === 'number',
     )
 
@@ -130,15 +139,21 @@ export async function POST(
   )
 
   // ── 3+4. Beregn is_correct, score, streak og clampet tid — server-side ──────
-  type Scored = { questionId: string; selectedAnswer: string; isCorrect: boolean; timeMs: number }
+  type Scored = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
   const scored: Scored[] = []
   for (const a of answers) {
     const q = qMap.get(a.questionId)
     if (!q) continue // ukjent spørsmål — telles ikke
 
-    const isCorrect = q.correct_answers && q.correct_answers.length > 0
-      ? q.correct_answers.includes(a.selectedAnswer)
-      : a.selectedAnswer === q.correct_answer
+    // Timeout (selectedAnswer === null) er ALLTID feil, og må sjekkes eksplisitt
+    // først: uten denne vakten ville `a.selectedAnswer === q.correct_answer` bli
+    // true for et spørsmål der correct_answer også er null (null === null), og et
+    // ubesvart spørsmål ville blitt scoret som riktig.
+    const isCorrect = a.selectedAnswer === null
+      ? false
+      : q.correct_answers && q.correct_answers.length > 0
+        ? q.correct_answers.includes(a.selectedAnswer)
+        : a.selectedAnswer === q.correct_answer
 
     // Clamp tid til [0, time_limit*1000] — hindrer urealistisk lave/negative tider
     const limitMs = (q.time_limit_seconds ?? quizTimeLimit) * 1000
