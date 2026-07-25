@@ -42,7 +42,11 @@ async function getUserEmail(stripe: Stripe, customerId: string): Promise<string 
     if (!customer.deleted && (customer as Stripe.Customer).email) {
       return (customer as Stripe.Customer).email
     }
-  } catch {}
+  } catch (err) {
+    // Fail-soft med vilje (kalleren faller tilbake til å ikke sende e-post) —
+    // men et forbigående Stripe-API-problem skal ikke passere helt sporløst.
+    console.error(`[webhook] getUserEmail feilet for customer ${customerId}:`, err)
+  }
   return null
 }
 

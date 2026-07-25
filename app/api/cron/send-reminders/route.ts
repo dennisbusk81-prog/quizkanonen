@@ -142,10 +142,14 @@ export async function GET(request: NextRequest) {
 
   if (activeQuiz) {
     // Find orgs with org_quiz_closes_at set, not already reminded for this quiz
-    const { data: orgsWithCloseTime } = await supabaseAdmin
+    const { data: orgsWithCloseTime, error: orgsError } = await supabaseAdmin
       .from('organizations')
       .select('id, name, org_quiz_closes_at, org_close_reminder_quiz_id')
       .not('org_quiz_closes_at', 'is', null)
+
+    if (orgsError) {
+      console.error('[cron/send-reminders] orgs lookup error:', orgsError.message)
+    }
 
     const quizDate = activeQuiz.closes_at.slice(0, 10) // YYYY-MM-DD
 
@@ -167,21 +171,29 @@ export async function GET(request: NextRequest) {
       waitUntil(
         (async () => {
           // Get org member user IDs
-          const { data: memberRows } = await supabaseAdmin
+          const { data: memberRows, error: memberError } = await supabaseAdmin
             .from('organization_members')
             .select('user_id')
             .eq('organization_id', orgId)
 
+          if (memberError) {
+            console.error('[cron/send-reminders] org members lookup error:', memberError.message)
+            return
+          }
           if (!memberRows || memberRows.length === 0) return
           const memberUserIds = new Set(memberRows.map(m => m.user_id))
 
           // Find members who have email_reminders enabled
-          const { data: subscribedProfiles } = await supabaseAdmin
+          const { data: subscribedProfiles, error: subsError } = await supabaseAdmin
             .from('profiles')
             .select('id')
             .eq('email_reminders', true)
             .in('id', [...memberUserIds])
 
+          if (subsError) {
+            console.error('[cron/send-reminders] org subscribed profiles error:', subsError.message)
+            return
+          }
           if (!subscribedProfiles || subscribedProfiles.length === 0) return
           const subscribedIds = new Set(subscribedProfiles.map(p => p.id))
 
@@ -189,7 +201,11 @@ export async function GET(request: NextRequest) {
           const emailsByUserId = new Map<string, string>()
           let page = 1
           while (true) {
-            const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+            const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+            if (listError) {
+              console.error('[cron/send-reminders] org listUsers error (page', page, '):', listError.message)
+              break
+            }
             const users = authData?.users ?? []
             for (const u of users) {
               if (u.email && subscribedIds.has(u.id)) emailsByUserId.set(u.id, u.email)
@@ -212,10 +228,13 @@ export async function GET(request: NextRequest) {
           }
 
           if (sent > 0) {
-            await supabaseAdmin
+            const { error: markError } = await supabaseAdmin
               .from('organizations')
               .update({ org_close_reminder_quiz_id: activeQuiz.id })
               .eq('id', orgId)
+            if (markError) {
+              console.error('[cron/send-reminders] failed to set org_close_reminder_quiz_id:', markError.message)
+            }
           }
 
           console.log(`[cron/send-reminders] org close reminder: org="${orgName}" sent=${sent}`)

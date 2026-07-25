@@ -61,6 +61,10 @@ export async function computeWeeklySummary(orgId: string): Promise<WeeklySummary
     .eq('is_team', false)
     .in('user_id', memberIds)
     .not('user_id', 'is', null)
+    // Samme filter som percentile-ruten (commit 859e529, 25. juli): uten dette
+    // teller en påbegynt, aldri innsendt quiz med i «X ansatte deltok»-tallet i
+    // den ukentlige B2B-e-posten — kunstig oppblåst sosialt-bevis-tall.
+    .not('submitted_at', 'is', null)
 
   if (!attempts || attempts.length === 0) return null
 
