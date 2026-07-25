@@ -22,6 +22,20 @@ export async function GET(request: NextRequest) {
   const monthStart = thisMonthStart.toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
+  // Fast svarvindu for UBESVARTE (pending) forespørsler — kartlegging 25. juli
+  // viste at kalendermåned-grensen ga et vilkårlig tidsvindu (noen timer til
+  // nesten en måned, avhengig av hvilken dag i måneden forespørselen ble
+  // sendt), og at en utløpt-men-aldri-besvart rad ble feilaktig merket som om
+  // duellen var fullført normalt.
+  //
+  // Gjelder KUN pending — status='active' bruker fortsatt kalendermåned-
+  // grensen under (se isExpired-beregningen), fordi poengene for en akseptert
+  // duell telles per kalendermåned og duellen skal forbli synlig som pågående
+  // helt til måneden er over. Et flatt 14-dagersvindu på ALLE statuser ville
+  // latt en duell akseptert tidlig i måneden forsvinne fra hovedkortet
+  // midtveis, mens poengsummen fortsatt telte.
+  const PENDING_REPLY_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+
   // Fetch active/pending rivalries (any month — needed to detect expired ones for UI)
   // Fix 4: also fetch declined from this month so challenger can see the rejection
   // monthQuizzes hentes i samme bølge — den trenger kun user.id/månedsgrenser,
@@ -136,13 +150,26 @@ export async function GET(request: NextRequest) {
     .map(r => {
       const opponentId = r.challenger_id === user.id ? r.rival_id : r.challenger_id
       const opponentProfile = profileMap.get(opponentId)
-      const isExpired = new Date(r.created_at) < thisMonthStart
+      const createdAt = new Date(r.created_at)
+      const isExpired = r.status === 'pending'
+        ? now.getTime() - createdAt.getTime() > PENDING_REPLY_WINDOW_MS
+        : createdAt < thisMonthStart
       const isIncoming = r.challenger_id !== user.id
+
+      // Kun meningsfullt for ubesvarte forespørsler — brukes til å vise en
+      // diskret "X dager igjen"-tekst på det innkommende kortet når fristen
+      // nærmer seg. null for alt annet (aktive/avslåtte dueller har ikke et
+      // svarvindu i denne betydningen).
+      const daysLeftToReply = r.status === 'pending'
+        ? Math.max(0, Math.ceil((createdAt.getTime() + PENDING_REPLY_WINDOW_MS - now.getTime()) / (24 * 60 * 60 * 1000)))
+        : null
+
       return {
         id:             r.id,
         status:         r.status as 'active' | 'pending' | 'declined',
         isChallenger:   r.challenger_id === user.id,
         isExpired,
+        daysLeftToReply,
         opponentId,
         opponentName:   opponentProfile?.nickname?.trim() || opponentProfile?.display_name || null,
         opponentAvatar: null,

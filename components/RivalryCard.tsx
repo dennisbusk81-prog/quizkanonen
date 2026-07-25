@@ -9,6 +9,9 @@ type RivalryRow = {
   status: 'active' | 'pending' | 'declined'
   isChallenger: boolean
   isExpired: boolean
+  // Kun satt (ikke-null) for status='pending' — dager til det faste
+  // 14-dagers svarvinduet går ut. Se app/api/rivalries/my/route.ts.
+  daysLeftToReply: number | null
   opponentId: string
   opponentName: string | null
   opponentAvatar: string | null
@@ -140,6 +143,12 @@ export default function RivalryCard({ prioritySlot }: Props) {
 
   const opponentName = (r: RivalryRow) => r.opponentName ?? 'Ukjent'
 
+  // Diskret nedtellingstekst — kun når fristen faktisk nærmer seg (≤5 dager
+  // av det faste 14-dagers svarvinduet). Ingen tekst vises resten av vinduet,
+  // for ikke å legge unødig tidspress på en helt fersk forespørsel.
+  const daysLeftLabel = (days: number) =>
+    days <= 0 ? 'Utløper i dag' : days === 1 ? '1 dag igjen å svare' : `${days} dager igjen å svare`
+
   // Shared inline error element (Fix 2)
   const errorEl = actionError ? (
     <p style={{ fontSize: 13, color: '#E24B4A', marginTop: 10 }}>
@@ -164,7 +173,19 @@ export default function RivalryCard({ prioritySlot }: Props) {
       {historyOpen && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {historicalDuels.map(r => {
-            const statusLabel = r.isExpired ? 'Avsluttet' : r.status === 'declined' ? (r.isChallenger ? 'Avslått' : 'Avslåtte') : r.status
+            // En utløpt PENDING-rad ble aldri besvart — "Avsluttet" antyder
+            // feilaktig at duellen ble spilt og fullført normalt. Kun denne
+            // ene kombinasjonen (isExpired && pending) får den presise
+            // teksten; en utløpt AKTIV duell (kalendermåneden er over) er
+            // fortsatt reelt avsluttet og skal fortsatt vise "Avsluttet".
+            const expiredUnanswered = r.isExpired && r.status === 'pending'
+            const statusLabel = expiredUnanswered
+              ? 'Utløpt uten svar'
+              : r.isExpired
+                ? 'Avsluttet'
+                : r.status === 'declined'
+                  ? (r.isChallenger ? 'Avslått' : 'Avslåtte')
+                  : r.status
             return (
               <div key={r.id} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
@@ -173,11 +194,16 @@ export default function RivalryCard({ prioritySlot }: Props) {
                   </p>
                   <p style={{ fontSize: 11, color: '#7a7873' }}>{statusLabel}</p>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#7a7873' }}>
-                    {r.myPoints} – {r.opponentPoints}
-                  </p>
-                </div>
+                {/* Ingen duell ble faktisk spilt her — et tallpar ("X – Y")
+                    ville sett ut som en ekte sluttscore og motsagt teksten
+                    ved siden av. */}
+                {!expiredUnanswered && (
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#7a7873' }}>
+                      {r.myPoints} – {r.opponentPoints}
+                    </p>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -340,6 +366,11 @@ export default function RivalryCard({ prioritySlot }: Props) {
             {actionLoading === incoming.id + 'decline' ? 'Avslår...' : 'Avslå'}
           </button>
         </div>
+        {incoming.daysLeftToReply !== null && incoming.daysLeftToReply <= 5 && (
+          <p style={{ fontSize: 11, color: '#7a7873', marginTop: 10 }}>
+            {daysLeftLabel(incoming.daysLeftToReply)}
+          </p>
+        )}
         {errorEl}
       </div>
     )
