@@ -78,7 +78,6 @@ export async function POST(request: NextRequest) {
       .order('order_index', { ascending: true })
       .range(from, to)
   )
-  const totalQuestions = quizQuestions.length
 
   // Alle svarrader for de berørte forsøkene, hentet i ÉN paginert spørring i
   // stedet for én COUNT-spørring per forsøk (den gamle løsningen gjorde N kall).
@@ -106,8 +105,6 @@ export async function POST(request: NextRequest) {
       // lagrede poengsummer — og dermed plasseringer — som en utilsiktet
       // bieffekt av en fasitretting. Duplikatene håndteres som egen sak.
       const correct = rows.filter(r => r.is_correct).length
-      const total = totalQuestions || 1
-      const score = Math.round((correct / total) * 100)
 
       // correct_streak ble tidligere ALDRI oppdatert her, så en fasitretting
       // etterlot en utdatert streak-verdi på hvert berørte forsøk.
@@ -116,9 +113,16 @@ export async function POST(request: NextRequest) {
         quizQuestions.map(q => ({ is_correct: gradeByQuestion.get(q.id) === true }))
       )
 
+      // MERK: attempts har ingen 'score'-kolonne — har aldri hatt (bekreftet
+      // i migrasjonen 20260401000002: "correct_answers is the score column").
+      // Update-kallet skrev tidligere ["correct_answers", "score", ...] i ett
+      // og samme kall; siden Postgres avviser en UPDATE med en ukjent kolonne
+      // i sin helhet (PGRST204), feilet HELE denne skrivingen stille hver
+      // eneste gang — verken correct_answers eller correct_streak ble noen
+      // gang faktisk lagret av denne ruten.
       await supabaseAdmin
         .from('attempts')
-        .update({ correct_answers: correct, score, correct_streak: correctStreak })
+        .update({ correct_answers: correct, correct_streak: correctStreak })
         .eq('id', attemptId)
     })
   )
