@@ -11,11 +11,18 @@ export async function GET(request: NextRequest) {
     })
   }
 
+  // Kun fullførte forsøk i fordelingen — samme ferdig-definisjon som
+  // getOrBuildSnapshot() i lib/ranking-snapshot.ts (submitted_at IS NOT NULL).
+  // Uten dette filteret dro pågående forsøk (correct_answers ennå ikke satt,
+  // dvs. 0) fordelingen nedover, slik at "Du er bedre enn X% av deltakerne"
+  // ble for snill under åpen quiz. Funnet 25. juli 2026 ved siden av
+  // live-plassering-fiksen (motsatt retning av den bugen).
   const { data: attempts } = await supabaseAdmin
     .from('attempts')
     .select('correct_answers, total_questions')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
+    .not('submitted_at', 'is', null)
 
   if (!attempts || attempts.length === 0) {
     return NextResponse.json([], {
