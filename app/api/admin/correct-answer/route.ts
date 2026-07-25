@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
 import { calculateStreak } from '@/lib/ranking'
+import { resyncSeasonScoresForQuiz } from '@/lib/resync-season-scores'
+
+// Ruten oppdaterer alle svarrader og alle berørte forsøk, og rekalkulerer
+// deretter season_scores for quizen. Alt synkront (se under) — standardgrensen
+// er for knapp for en quiz med mange spillere.
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) {
@@ -127,5 +134,49 @@ export async function POST(request: NextRequest) {
     })
   )
 
-  return NextResponse.json({ updated: answers.length, question: question.question_text })
+  // ── season_scores ──────────────────────────────────────────────────────────
+  // En fasitretting flytter plasseringer, og season_scores er et øyeblikksbilde
+  // som ingenting ellers re-trigger. Uten dette steget måtte sesong-topplisten
+  // rettes manuelt etterpå med et frittstående skript.
+  //
+  // SYNKRONT, ikke waitUntil, av tre grunner:
+  //   1. Rekkefølge: rangeringen MÅ leses etter at attempts over er skrevet.
+  //      I samme request er det gratis garantert, og to rettinger på samme quiz
+  //      rett etter hverandre kan ikke race mot hverandre.
+  //   2. Synlighet: en bakgrunnsjobb som feiler gir bare en logglinje. Nøyaktig
+  //      den feilklassen (stille skrivefeil) er grunnen til at denne ruten aldri
+  //      lagret noe i det hele tatt før i dag. Nå ligger resultatet i responsen.
+  //   3. Kostnad: dette er strengt mindre arbeid enn svarrad- og forsøks-
+  //      oppdateringene ruten allerede gjør synkront.
+  //
+  // Kun quizen fasiten tilhører er berørt — hver quiz rangeres isolert. Måned/
+  // kvartal/år er ikke egne rader, men SUM over season_scores i RPC-en, så de
+  // følger automatisk når points endres.
+  const seasonScores = await resyncSeasonScoresForQuiz(question.quiz_id)
+
+  // Forsidens topp 3 leses gjennom unstable_cache (60s). Cronen purger den hvert
+  // minutt uansett, men når en admin nettopp har rettet en fasit skal effekten
+  // være synlig med én gang.
+  if (seasonScores.updated > 0) {
+    revalidateTag('home-shared-data', { expire: 0 })
+  }
+
+  try {
+    await supabaseAdmin.from('admin_actions').insert({
+      action_type: 'correct_answer',
+      scope_type: 'quiz',
+      scope_id: question.quiz_id,
+    })
+  } catch { /* ikke kritisk */ }
+
+  return NextResponse.json({
+    updated: answers.length,
+    question: question.question_text,
+    seasonScores: {
+      checked: seasonScores.checked,
+      updated: seasonScores.updated,
+      unresolvable: seasonScores.unresolvable,
+      error: seasonScores.error,
+    },
+  })
 }
