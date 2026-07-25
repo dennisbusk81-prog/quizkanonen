@@ -1,4 +1,7 @@
-import { Attempt } from './supabase'
+// `import type` (ikke `import`): Attempt er kun en type. Med et vanlig import
+// forsøker Node å hente et navngitt runtime-eksport som ikke finnes når
+// lib/ranking.ts kjøres direkte under `node --test` (se scripts/ts-node-resolve.mjs).
+import type { Attempt } from './supabase'
 
 export type RankedAttempt = Attempt & {
   rank: number
