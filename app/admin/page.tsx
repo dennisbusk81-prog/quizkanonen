@@ -536,6 +536,7 @@ export default function AdminHome() {
         {/* Quick actions */}
         <div className="adm-actions">
           <Link href="/admin/quizzes/new" className="adm-btn-primary">+ Lag ny quiz</Link>
+          <Link href="/admin/dashboard" className="adm-btn-outline">Dashboard →</Link>
           <Link href="/admin/users" className="adm-btn-outline">Brukere →</Link>
           <Link href="/admin/retention" className="adm-btn-outline">Retention →</Link>
           <Link href="/admin/codes" className="adm-btn-outline">Verdikoder →</Link>
@@ -559,7 +560,11 @@ export default function AdminHome() {
             <div className="adm-stat-label">Quizer totalt</div>
             <div className="adm-stat-link">Se mer →</div>
           </Link>
-          <Link href="/admin/codes" className="adm-stat">
+          {/* Lenker til /admin/users, ikke /admin/codes. Kortet pekte tidligere
+              på verdikode-siden — en kopi-lim-feil fra nabokortene. /admin/users
+              viser Premium-badge per bruker og et totaltall, og er dermed den
+              faktiske "se mer"-destinasjonen for dette tallet. */}
+          <Link href="/admin/users" className="adm-stat">
             <div className="adm-stat-value">{stats.premium}</div>
             <div className="adm-stat-label">Premium-brukere</div>
             {Object.keys(stats.premiumBySource).length > 0 && (
