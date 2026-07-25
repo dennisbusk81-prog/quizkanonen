@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
+import { calculateStreak } from '@/lib/ranking'
 
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) {
@@ -65,27 +66,59 @@ export async function POST(request: NextRequest) {
   // Recalculate scores for all affected attempts
   const attemptIds = [...new Set(answers.map(a => a.attempt_id))]
 
-  // Get total questions count for this quiz
-  const { count: totalQuestions } = await supabaseAdmin
-    .from('questions')
-    .select('*', { count: 'exact', head: true })
-    .eq('quiz_id', question.quiz_id)
+  // Spørsmålene i quizen, i spillerekkefølge. correct_streak må beregnes over
+  // hele rekken i order_index-rekkefølge — ikke over radene slik de tilfeldigvis
+  // ligger i attempt_answers. (attempts.question_order er NULL for alle rader i
+  // prod, så order_index ER den faktiske rekkefølgen spilleren så spørsmålene i.)
+  const quizQuestions = await fetchAllRows<{ id: string; order_index: number }>((from, to) =>
+    supabaseAdmin
+      .from('questions')
+      .select('id, order_index')
+      .eq('quiz_id', question.quiz_id)
+      .order('order_index', { ascending: true })
+      .range(from, to)
+  )
+  const totalQuestions = quizQuestions.length
+
+  // Alle svarrader for de berørte forsøkene, hentet i ÉN paginert spørring i
+  // stedet for én COUNT-spørring per forsøk (den gamle løsningen gjorde N kall).
+  const allRows = await fetchAllRows<{ attempt_id: string; question_id: string; is_correct: boolean }>((from, to) =>
+    supabaseAdmin
+      .from('attempt_answers')
+      .select('attempt_id, question_id, is_correct')
+      .in('attempt_id', attemptIds)
+      .range(from, to)
+  )
+  const rowsByAttempt = new Map<string, Array<{ question_id: string; is_correct: boolean }>>()
+  for (const r of allRows) {
+    const list = rowsByAttempt.get(r.attempt_id) ?? []
+    list.push({ question_id: r.question_id, is_correct: r.is_correct })
+    rowsByAttempt.set(r.attempt_id, list)
+  }
 
   await Promise.all(
     attemptIds.map(async (attemptId) => {
-      const { count: correctCount } = await supabaseAdmin
-        .from('attempt_answers')
-        .select('*', { count: 'exact', head: true })
-        .eq('attempt_id', attemptId)
-        .eq('is_correct', true)
+      const rows = rowsByAttempt.get(attemptId) ?? []
 
-      const total = totalQuestions ?? 1
-      const correct = correctCount ?? 0
+      // correct_answers telles over RÅ rader, nøyaktig som den tidligere
+      // COUNT-spørringen gjorde. Bevisst uendret her: noen få forsøk har
+      // duplikate svarrader, og å bytte til distinkt telling ville endret
+      // lagrede poengsummer — og dermed plasseringer — som en utilsiktet
+      // bieffekt av en fasitretting. Duplikatene håndteres som egen sak.
+      const correct = rows.filter(r => r.is_correct).length
+      const total = totalQuestions || 1
       const score = Math.round((correct / total) * 100)
+
+      // correct_streak ble tidligere ALDRI oppdatert her, så en fasitretting
+      // etterlot en utdatert streak-verdi på hvert berørte forsøk.
+      const gradeByQuestion = new Map(rows.map(r => [r.question_id, r.is_correct]))
+      const correctStreak = calculateStreak(
+        quizQuestions.map(q => ({ is_correct: gradeByQuestion.get(q.id) === true }))
+      )
 
       await supabaseAdmin
         .from('attempts')
-        .update({ correct_answers: correct, score })
+        .update({ correct_answers: correct, score, correct_streak: correctStreak })
         .eq('id', attemptId)
     })
   )
