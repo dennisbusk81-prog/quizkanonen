@@ -69,11 +69,27 @@ const STYLES = `
     font-size: 14px;
     color: var(--white);
     outline: none;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     transition: border-color 0.15s;
   }
   .adm-search::placeholder { color: var(--hint); }
   .adm-search:focus { border-color: rgba(201,168,76,0.4); }
+
+  .adm-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  .adm-select {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 12px;
+    color: var(--body);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .adm-select:focus { border-color: rgba(201,168,76,0.4); }
 
   .adm-count {
     font-size: 11px; color: var(--hint);
@@ -90,8 +106,9 @@ const STYLES = `
     align-items: center;
     gap: 14px;
     transition: border-color 0.12s;
+    text-decoration: none;
   }
-  .adm-user-row:hover { border-color: rgba(201,168,76,0.2); }
+  .adm-user-row:hover { border-color: rgba(201,168,76,0.3); }
 
   .adm-user-avatar {
     width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
@@ -120,6 +137,7 @@ const STYLES = `
   .adm-user-date {
     font-size: 11px; color: var(--hint); white-space: nowrap;
   }
+  .adm-user-arrow { font-size: 13px; color: var(--hint); flex-shrink: 0; }
 
   .adm-loading {
     min-height: 100vh; background: var(--bg);
@@ -129,24 +147,6 @@ const STYLES = `
     font-family: 'Libre Baskerville', serif;
     font-size: 18px; color: var(--hint); font-style: italic;
   }
-
-  .adm-btn-suspend {
-    font-size: 11px; font-weight: 600; padding: 4px 10px;
-    border-radius: 6px; border: 0.5px solid var(--border);
-    background: transparent; color: var(--hint); cursor: pointer;
-    white-space: nowrap; font-family: 'Instrument Sans', sans-serif;
-    transition: border-color 0.12s, color 0.12s;
-  }
-  .adm-btn-suspend:hover { border-color: rgba(201,168,76,0.4); color: var(--gold); }
-
-  .adm-btn-delete {
-    font-size: 11px; font-weight: 600; padding: 4px 10px;
-    border-radius: 6px; border: 0.5px solid rgba(201,76,76,0.3);
-    background: transparent; color: #c94c4c; cursor: pointer;
-    white-space: nowrap; font-family: 'Instrument Sans', sans-serif;
-    transition: border-color 0.12s;
-  }
-  .adm-btn-delete:hover { border-color: rgba(201,76,76,0.6); }
 
   .adm-badge-suspended {
     font-size: 10px; font-weight: 600;
@@ -167,9 +167,12 @@ type UserRow = {
   email: string | null
   google_name: string | null
   created_at: string | null
+  last_seen_at: string | null
   quiz_count: number
   is_premium: boolean
+  premium_source: string | null
   suspended_until: string | null
+  has_org_membership: boolean
 }
 
 function fmtDate(iso: string | null): string {
@@ -182,7 +185,15 @@ function initial(name: string | null, email: string | null): string {
   return getAvatarInitial(name ?? email)
 }
 
-type ConfirmAction = { type: 'suspend' | 'delete'; userId: string; name: string }
+function isSuspended(u: UserRow): boolean {
+  return !!u.suspended_until && new Date(u.suspended_until) > new Date()
+}
+
+type PremiumFilter = 'all' | 'premium' | 'free'
+type SourceFilter = 'all' | 'founders' | 'org' | 'personal' | 'code'
+type StatusFilter = 'all' | 'active' | 'suspended'
+type AffiliationFilter = 'all' | 'org' | 'b2c'
+type SortKey = 'newest' | 'oldest' | 'last_active_desc' | 'last_active_asc' | 'most_quizzes' | 'fewest_quizzes' | 'name'
 
 export default function AdminUsersPage() {
   const router = useRouter()
@@ -194,9 +205,12 @@ export default function AdminUsersPage() {
   const [loadError, setLoadError] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [query, setQuery] = useState('')
-  const [confirm, setConfirm] = useState<ConfirmAction | null>(null)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
+
+  const [premiumFilter, setPremiumFilter] = useState<PremiumFilter>('all')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [affiliationFilter, setAffiliationFilter] = useState<AffiliationFilter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('newest')
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
@@ -248,38 +262,66 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function handleConfirm() {
-    if (!confirm || actionLoading) return
-    setActionLoading(true)
-    setActionError(null)
-    try {
-      if (confirm.type === 'suspend') {
-        const res = await adminFetch(`/api/admin/users/${confirm.userId}/suspend`, { method: 'PATCH' })
-        if (!res.ok) { setActionError('Karantene feilet'); setActionLoading(false); return }
-        const json = await res.json()
-        setUsers(prev => prev.map(u => u.id === confirm.userId ? { ...u, suspended_until: json.suspended_until } : u))
-      } else {
-        const res = await adminFetch(`/api/admin/users/${confirm.userId}`, { method: 'DELETE' })
-        if (!res.ok) { setActionError('Sletting feilet'); setActionLoading(false); return }
-        setUsers(prev => prev.filter(u => u.id !== confirm.userId))
-      }
-      setConfirm(null)
-    } catch {
-      setActionError('Noe gikk galt')
-    }
-    setActionLoading(false)
-  }
+  // "Kun gratis" gjør premium-kilde-filteret meningsløst — skjul det i stedet
+  // for å la et valgt kilde-filter stille undertrykke ALLE resultater.
+  useEffect(() => {
+    if (premiumFilter === 'free' && sourceFilter !== 'all') setSourceFilter('all')
+  }, [premiumFilter, sourceFilter])
 
+  // Filtrering + sortering — client-side. 144 brukere i dag; trygt og raskest
+  // å bygge slik. Server-side sortering/filtrering bør vurderes hvis
+  // brukerbasen vokser til et sted i tusentalls.
   const filtered = useMemo(() => {
-    if (!query.trim()) return users
-    const q = query.toLowerCase()
-    return users.filter(u =>
-      (u.display_name ?? '').toLowerCase().includes(q) ||
-      (u.nickname ?? '').toLowerCase().includes(q) ||
-      (u.email ?? '').toLowerCase().includes(q) ||
-      (u.google_name ?? '').toLowerCase().includes(q)
-    )
-  }, [users, query])
+    let list = users
+
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      list = list.filter(u =>
+        (u.display_name ?? '').toLowerCase().includes(q) ||
+        (u.nickname ?? '').toLowerCase().includes(q) ||
+        (u.email ?? '').toLowerCase().includes(q) ||
+        (u.google_name ?? '').toLowerCase().includes(q)
+      )
+    }
+
+    if (premiumFilter === 'premium') list = list.filter(u => u.is_premium)
+    else if (premiumFilter === 'free') list = list.filter(u => !u.is_premium)
+
+    if (sourceFilter !== 'all') list = list.filter(u => u.premium_source === sourceFilter)
+
+    if (statusFilter === 'active') list = list.filter(u => !isSuspended(u))
+    else if (statusFilter === 'suspended') list = list.filter(u => isSuspended(u))
+
+    if (affiliationFilter === 'org') list = list.filter(u => u.has_org_membership)
+    else if (affiliationFilter === 'b2c') list = list.filter(u => !u.has_org_membership)
+
+    const sorted = [...list]
+    const byDate = (iso: string | null) => iso ? new Date(iso).getTime() : 0
+    switch (sortKey) {
+      case 'newest':
+        sorted.sort((a, b) => byDate(b.created_at) - byDate(a.created_at)); break
+      case 'oldest':
+        sorted.sort((a, b) => byDate(a.created_at) - byDate(b.created_at)); break
+      case 'last_active_desc':
+        sorted.sort((a, b) => byDate(b.last_seen_at) - byDate(a.last_seen_at)); break
+      case 'last_active_asc':
+        sorted.sort((a, b) => byDate(a.last_seen_at) - byDate(b.last_seen_at)); break
+      case 'most_quizzes':
+        sorted.sort((a, b) => b.quiz_count - a.quiz_count); break
+      case 'fewest_quizzes':
+        sorted.sort((a, b) => a.quiz_count - b.quiz_count); break
+      case 'name':
+        sorted.sort((a, b) => {
+          const an = (a.nickname?.trim() || a.display_name || '').toLowerCase()
+          const bn = (b.nickname?.trim() || b.display_name || '').toLowerCase()
+          return an.localeCompare(bn, 'nb-NO')
+        }); break
+    }
+    return sorted
+  }, [users, query, premiumFilter, sourceFilter, statusFilter, affiliationFilter, sortKey])
+
+  const filteredPremiumCount = useMemo(() => filtered.filter(u => u.is_premium).length, [filtered])
+  const filtersActive = premiumFilter !== 'all' || sourceFilter !== 'all' || statusFilter !== 'all' || affiliationFilter !== 'all'
 
   if (loading) return (
     <>
@@ -346,15 +388,56 @@ export default function AdminUsersPage() {
           className="adm-search"
         />
 
+        <div className="adm-filters">
+          <select className="adm-select" value={premiumFilter} onChange={e => setPremiumFilter(e.target.value as PremiumFilter)}>
+            <option value="all">Alle (Premium)</option>
+            <option value="premium">Kun Premium</option>
+            <option value="free">Kun gratis</option>
+          </select>
+
+          {premiumFilter !== 'free' && (
+            <select className="adm-select" value={sourceFilter} onChange={e => setSourceFilter(e.target.value as SourceFilter)}>
+              <option value="all">Alle kilder</option>
+              <option value="founders">Founders</option>
+              <option value="org">Bedrift</option>
+              <option value="personal">Personlig</option>
+              <option value="code">Kode</option>
+            </select>
+          )}
+
+          <select className="adm-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}>
+            <option value="all">Alle (status)</option>
+            <option value="active">Aktive</option>
+            <option value="suspended">Karantene</option>
+          </select>
+
+          <select className="adm-select" value={affiliationFilter} onChange={e => setAffiliationFilter(e.target.value as AffiliationFilter)}>
+            <option value="all">Alle (tilhørighet)</option>
+            <option value="org">Kun org-medlemmer</option>
+            <option value="b2c">Kun rene B2C</option>
+          </select>
+
+          <select className="adm-select" value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)} style={{ marginLeft: 'auto' }}>
+            <option value="newest">Nyeste registrert</option>
+            <option value="oldest">Eldste registrert</option>
+            <option value="last_active_desc">Sist aktiv (nyest)</option>
+            <option value="last_active_asc">Sist aktiv (eldst)</option>
+            <option value="most_quizzes">Flest quizer spilt</option>
+            <option value="fewest_quizzes">Færrest quizer spilt</option>
+            <option value="name">Navn A-Å</option>
+          </select>
+        </div>
+
         <p className="adm-count">
           {filtered.length} av {users.length} brukere
-          {users.filter(u => u.is_premium).length > 0 && (
-            <> · {users.filter(u => u.is_premium).length} Premium</>
+          {filteredPremiumCount > 0 && <> · {filteredPremiumCount} Premium</>}
+          {filtersActive && filtered.length !== users.length && (
+            <> · <span style={{ color: '#c9a84c' }}>filtrert</span></>
           )}
         </p>
 
         {filtered.map(u => (
-          <div key={u.id} className="adm-user-row">
+          <Link key={u.id} href={`/admin/users/${u.id}`} className="adm-user-row">
             <div className="adm-user-avatar">
               {initial(u.display_name, u.email)}
             </div>
@@ -371,7 +454,7 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="adm-user-right">
-              {u.suspended_until && new Date(u.suspended_until) > new Date() && (
+              {isSuspended(u) && (
                 <span className="adm-badge-suspended">Karantene</span>
               )}
               {u.is_premium && (
@@ -381,71 +464,20 @@ export default function AdminUsersPage() {
                 {u.quiz_count} {u.quiz_count === 1 ? 'quiz' : 'quizer'}
               </span>
               <span className="adm-user-date">{fmtDate(u.created_at)}</span>
-              {!(u.suspended_until && new Date(u.suspended_until) > new Date()) && (
-                <button
-                  className="adm-btn-suspend"
-                  onClick={() => setConfirm({ type: 'suspend', userId: u.id, name: u.display_name ?? u.email ?? u.id })}
-                >
-                  Karantene
-                </button>
-              )}
-              <button
-                className="adm-btn-delete"
-                onClick={() => setConfirm({ type: 'delete', userId: u.id, name: u.display_name ?? u.email ?? u.id })}
-              >
-                Slett
-              </button>
+              <span className="adm-user-arrow">→</span>
             </div>
-          </div>
+          </Link>
         ))}
 
         {filtered.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--hint)', textAlign: 'center', marginTop: 40 }}>
-            Ingen brukere matcher søket.
+            Ingen brukere matcher søket/filtrene.
           </p>
         )}
         </>
         )}
 
       </div>
-
-      {/* Bekreftelsesmodal */}
-      {confirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 380, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
-              {confirm.type === 'suspend' ? 'Sett i karantene?' : 'Slett bruker?'}
-            </p>
-            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
-              <strong style={{ color: '#e8e4dd' }}>{confirm.name}</strong>
-            </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 }}>
-              {confirm.type === 'suspend'
-                ? 'Brukeren kan ikke starte quiz og vises ikke på leaderboard i 30 dager.'
-                : 'Er du sikker? Dette kan ikke angres. All data slettes permanent.'}
-            </p>
-            {actionError && (
-              <p style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{actionError}</p>
-            )}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={handleConfirm}
-                disabled={actionLoading}
-                style={{ flex: 1, background: confirm.type === 'delete' ? '#c94c4c' : '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: actionLoading ? 'default' : 'pointer', opacity: actionLoading ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
-              >
-                {actionLoading ? 'Venter…' : confirm.type === 'suspend' ? 'Sett i karantene' : 'Slett bruker'}
-              </button>
-              <button
-                onClick={() => { setConfirm(null); setActionError(null) }}
-                disabled={actionLoading}
-                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
-              >
-                Avbryt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

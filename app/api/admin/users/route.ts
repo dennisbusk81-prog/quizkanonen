@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   // 1. All profiles, newest first
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
-    .select('id, display_name, nickname, premium_status, created_at, suspended_until')
+    .select('id, display_name, nickname, premium_status, premium_source, created_at, last_seen_at, suspended_until')
     .order('created_at', { ascending: false })
 
   if (profilesError) {
@@ -58,10 +58,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 4. Build auth map keyed by user id
+  // 4. Org-medlemskap — kun HVILKE user_id-er som er medlem noe sted, for
+  // "Tilhørighet"-filteret på /admin/users. Paginert av samme grunn som
+  // attempts over.
+  let orgMembers: { user_id: string }[] = []
+  try {
+    orgMembers = await fetchAllRows<{ user_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('organization_members')
+        .select('user_id')
+        .range(from, to)
+    )
+  } catch (e) {
+    console.error('organization_members fetch failed:', e)
+  }
+  const orgMemberIds = new Set(orgMembers.map(m => m.user_id))
+
+  // 5. Build auth map keyed by user id
   const authMap = new Map(authUsers.map(u => [u.id, u]))
 
-  // 5. Merge
+  // 6. Merge
   const users = (profiles ?? []).map(p => {
     const au = authMap.get(p.id)
     const meta = au?.user_metadata ?? {}
@@ -72,9 +88,12 @@ export async function GET(request: NextRequest) {
       email: au?.email ?? null,
       google_name: (meta.full_name ?? meta.name ?? null) as string | null,
       created_at: p.created_at ?? null,
+      last_seen_at: p.last_seen_at ?? null,
       quiz_count: attemptCountMap.get(p.id) ?? 0,
       is_premium: p.premium_status === true,
+      premium_source: p.premium_source ?? null,
       suspended_until: p.suspended_until ?? null,
+      has_org_membership: orgMemberIds.has(p.id),
     }
   })
 

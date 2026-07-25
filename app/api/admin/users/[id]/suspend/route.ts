@@ -22,5 +22,13 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  try {
+    await supabaseAdmin.from('admin_actions').insert({
+      action_type: 'suspend_user',
+      scope_type: 'user',
+      scope_id: id,
+    })
+  } catch { /* ikke kritisk */ }
+
   return NextResponse.json({ ok: true, suspended_until: suspendedUntil })
 }
