@@ -1097,8 +1097,10 @@ export default function ProfilPage() {
             </div>
           )}
 
-          {/* Verdikode */}
-          <div style={{ marginBottom: 10, paddingTop: 4 }}>
+          {/* Verdikode — diskret plassert rett over Slett konto (lav-prioritets
+              kontohandlinger), tettere avstand så de leses som én bunn-klynge
+              i stedet for en egen seksjon med egen luft. */}
+          <div style={{ marginBottom: 4, paddingTop: 4 }}>
             {!showRedeem ? (
               <button
                 onClick={() => setShowRedeem(true)}
@@ -1136,7 +1138,7 @@ export default function ProfilPage() {
           </div>
 
           {/* Slett konto */}
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+          <div style={{ marginTop: 8, paddingTop: 14, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
             {deleteError && (
               <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{deleteError}</p>
             )}
