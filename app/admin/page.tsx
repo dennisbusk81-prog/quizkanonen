@@ -550,7 +550,12 @@ export default function AdminHome() {
             <div className="adm-stat-label">Registrerte spillere</div>
             <div className="adm-stat-link">Se mer →</div>
           </Link>
-          <Link href="/admin/quizzes" className="adm-stat">
+          {/* Peker til /admin/users, ikke /admin/quizzes. Kortet viser antall
+              AKTIVE SPILLERE (stats.active30d), så "se mer" skal gå til
+              spilleroversikten — samme mønster som Registrerte spillere-kortet
+              over. Kopi-lim-feil fra nabokortet (Quizer totalt), funnet ved
+              full lenke-revisjon 26. juli 2026. */}
+          <Link href="/admin/users" className="adm-stat">
             <div className="adm-stat-value">{stats.active30d}</div>
             <div className="adm-stat-label">Aktive 30 dager</div>
             <div className="adm-stat-link">Se mer →</div>
