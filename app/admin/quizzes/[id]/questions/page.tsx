@@ -434,7 +434,7 @@ export default function QuizQuestions() {
   const [correctingId, setCorrectingId] = useState<string | null>(null)
   const [correctPick, setCorrectPick] = useState<string[]>(['A'])
   const [correctLoading, setCorrectLoading] = useState(false)
-  const [correctResults, setCorrectResults] = useState<Record<string, number>>({})
+  const [correctResults, setCorrectResults] = useState<Record<string, { updated: number; failed: number }>>({})
   // Antall registrerte besvarelser på spørsmålet som rettes. null = ikke hentet
   // ennå. Styrer teksten i bekreftelsen ("påvirker leaderboard for X spillere")
   // og skiller en spilt quiz fra en quiz under bygging.
@@ -641,7 +641,15 @@ export default function QuizQuestions() {
       })
       const json = await res.json()
       if (!res.ok) { showFeedback('error', json.error ?? 'Noe gikk galt') }
-      else { setCorrectResults(r => ({ ...r, [questionId]: json.updated })); setCorrectingId(null); fetchData() }
+      else {
+        // writeFailures er kun med i responsen når noen skrivinger faktisk
+        // feilet. Uten dette ville en delvis retting sett identisk ut med en
+        // komplett — og noen spilleres poeng stått urettet uten at du så det.
+        const failed = (json.writeFailures?.answers ?? 0) + (json.writeFailures?.attempts ?? 0)
+        setCorrectResults(r => ({ ...r, [questionId]: { updated: json.updated, failed } }))
+        setCorrectingId(null)
+        fetchData()
+      }
     } catch {
       showFeedback('error', 'Noe gikk galt.')
     } finally {
@@ -935,9 +943,15 @@ export default function QuizQuestions() {
 
                       {/* Rett svar — resultat */}
                       {correctResults[q.id] !== undefined && (
-                        <p style={{ fontSize: 11, color: '#4ade80', marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
-                          Rettet — {correctResults[q.id]} besvarelser oppdatert
-                        </p>
+                        correctResults[q.id].failed > 0 ? (
+                          <p style={{ fontSize: 11, color: '#f87171', marginTop: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
+                            Delvis rettet — {correctResults[q.id].updated} oppdatert, {correctResults[q.id].failed} feilet. Kjør rettingen på nytt.
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: 11, color: '#4ade80', marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
+                            Rettet — {correctResults[q.id].updated} besvarelser oppdatert
+                          </p>
+                        )
                       )}
                     </div>
 

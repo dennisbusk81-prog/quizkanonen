@@ -181,19 +181,98 @@ export async function POST(request: NextRequest) {
     const periodEnd = new Date(endEpoch * 1000).toISOString()
 
     // 6. Lagre Stripe-felt på org (subscription_status forblir 'trialing')
-    await supabaseAdmin.from('organizations').update({
+    //
+    //    KRITISK, og grunnen til retry + full tilbakerulling under: webhooken
+    //    finner org-en via `.eq('stripe_customer_id', ...)`. Uten denne
+    //    skrivingen er organisasjonen usynlig for ALLE framtidige Stripe-
+    //    hendelser — den ville stått 'trialing' i det uendelige, aldri blitt
+    //    låst ved trial-slutt og aldri konvertert til betalende. Stille tapt
+    //    inntekt, uten noe spor av at det skjedde.
+    const orgStripeLink = {
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       stripe_period_end: periodEnd,
       subscription_status: 'trialing',
-    }).eq('id', org.id)
+    }
+    const writeOrgLink = () =>
+      supabaseAdmin.from('organizations').update(orgStripeLink).eq('id', org.id)
+
+    let linkErr = (await writeOrgLink()).error
+    if (linkErr) {
+      console.error(`[org-trial] Stripe-kobling feilet, prøver på nytt — org=${org.id}:`, linkErr.message)
+      linkErr = (await writeOrgLink()).error
+    }
+
+    if (linkErr) {
+      console.error(
+        `[org-trial] KRITISK: kunne ikke koble Stripe til org — ruller tilbake. ` +
+        `org=${org.id} customer=${customer.id} subscription=${subscription.id}:`,
+        linkErr.message
+      )
+
+      // Tilbakerulling i motsatt rekkefølge av opprettelsen. Org-raden MÅ bort:
+      // per-bruker-vakten øverst i ruten teller orger med status 'trialing'/
+      // 'active', så en gjenglemt rad ville avvist brukerens neste forsøk med
+      // 409 «Du har allerede en aktiv organisasjon» — permanent utestengt fra å
+      // opprette sin egen org. Speiler promo-kode-tilbakerullingen i steg 1b.
+      try {
+        await stripe.subscriptions.cancel(subscription.id)
+      } catch (cancelErr) {
+        console.error(
+          `[org-trial] kunne ikke kansellere abonnement ${subscription.id} under tilbakerulling ` +
+          `(må ryddes manuelt i Stripe):`,
+          cancelErr
+        )
+      }
+
+      // Frigi promo-koden FØR org-raden slettes (used_by_org_id har
+      // ON DELETE SET NULL, men used_at ville blitt stående og brent koden).
+      if (trialCodeId) {
+        const { error: releaseErr } = await supabaseAdmin
+          .from('org_trial_codes')
+          .update({ used_at: null, used_by_org_id: null })
+          .eq('id', trialCodeId)
+        if (releaseErr) {
+          console.error(`[org-trial] kunne ikke frigi promo-kode ${trialCodeId}:`, releaseErr.message)
+        }
+      }
+
+      // Eksplisitt opprydding i riktig rekkefølge. organization_invites ligger
+      // ikke i migrasjonssporet, så cascade-oppførselen kan ikke verifiseres fra
+      // kildekontroll — vi rydder derfor selv i stedet for å anta.
+      await supabaseAdmin.from('organization_invites').delete().eq('organization_id', org.id)
+      await supabaseAdmin.from('organization_members').delete().eq('organization_id', org.id)
+      const { error: delErr } = await supabaseAdmin.from('organizations').delete().eq('id', org.id)
+      if (delErr) {
+        console.error(
+          `[org-trial] KRITISK: kunne ikke slette org ${org.id} under tilbakerulling — ` +
+          `brukeren er nå blokkert av 409-vakten til raden fjernes manuelt:`,
+          delErr.message
+        )
+      }
+
+      return NextResponse.json({ error: 'Kunne ikke fullføre opprettelsen. Prøv igjen.' }, { status: 500 })
+    }
 
     // 7. Aktiver premium for admin (eneste medlem så langt). Ansatte får premium
     //    når de blir med via invitasjonslenken (join-ruten setter premium_status).
-    await supabaseAdmin.from('profiles').update({
+    //
+    //    Ingen tilbakerulling her, i motsetning til steg 6: org-en er komplett og
+    //    korrekt koblet til Stripe, og webhookens medlems-synk setter
+    //    premium_status ved neste subscription.updated. Å slette en fungerende
+    //    org for et flagg som selv-heler ville vært verre enn å logge det.
+    const { error: premiumErr } = await supabaseAdmin.from('profiles').update({
       premium_status: true,
       premium_source: 'org',
     }).eq('id', user.id)
+
+    if (premiumErr) {
+      console.error(
+        `[org-trial] premium-aktivering feilet for org-admin — user=${user.id} org=${org.id} ` +
+        `(selv-heler ved neste subscription.updated fra webhooken):`,
+        premiumErr.message
+      )
+    }
 
     // 8. Send trial-bekreftelse til admin — fire-and-forget
     if (user.email) {

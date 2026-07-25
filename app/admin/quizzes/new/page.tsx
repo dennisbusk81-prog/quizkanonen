@@ -840,7 +840,7 @@ function QuizEditorInner() {
   const [answeredCounts, setAnsweredCounts] = useState<Record<string, number>>({})
   const [keyPanel, setKeyPanel] = useState<{ idx: number; pending: string[] } | null>(null)
   const [keyPanelLoading, setKeyPanelLoading] = useState(false)
-  const [keyPanelResult, setKeyPanelResult] = useState<string | null>(null)
+  const [keyPanelResult, setKeyPanelResult] = useState<{ text: string; failed: boolean } | null>(null)
   const [keyPanelError, setKeyPanelError] = useState<string | null>(null)
 
   // AI suggest (per-question)
@@ -1741,7 +1741,14 @@ function QuizEditorInner() {
       }
       updateQ({ correctAnswers: panel.pending })
       setKeyPanel(null)
-      setKeyPanelResult(`Fasit rettet — ${json?.updated ?? 0} besvarelse(r) oppdatert`)
+      // writeFailures er kun med når noen skrivinger faktisk feilet — uten dette
+      // ville en delvis retting sett ut som en komplett.
+      const failed = (json?.writeFailures?.answers ?? 0) + (json?.writeFailures?.attempts ?? 0)
+      setKeyPanelResult(
+        failed > 0
+          ? { text: `Delvis rettet — ${json?.updated ?? 0} oppdatert, ${failed} feilet. Kjør rettingen på nytt.`, failed: true }
+          : { text: `Fasit rettet — ${json?.updated ?? 0} besvarelse(r) oppdatert`, failed: false }
+      )
     } catch {
       setKeyPanelError('Kunne ikke rette fasiten — prøv igjen')
     } finally {
@@ -2161,11 +2168,15 @@ function QuizEditorInner() {
 
           {keyPanelResult && (
             <p style={{
-              fontSize: 11, color: '#4ade80', marginTop: 10, background: 'rgba(74,222,128,0.08)',
-              border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px',
+              fontSize: 11,
+              color: keyPanelResult.failed ? '#f87171' : '#4ade80',
+              marginTop: 10,
+              background: keyPanelResult.failed ? 'rgba(248,113,113,0.08)' : 'rgba(74,222,128,0.08)',
+              border: `1px solid ${keyPanelResult.failed ? 'rgba(248,113,113,0.18)' : 'rgba(74,222,128,0.18)'}`,
+              borderRadius: 6, padding: '4px 10px',
               display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif",
             }}>
-              {keyPanelResult}
+              {keyPanelResult.text}
             </p>
           )}
 

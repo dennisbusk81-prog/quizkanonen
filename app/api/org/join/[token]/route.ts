@@ -97,32 +97,25 @@ export async function POST(
     return NextResponse.json({ error: 'Du er allerede medlem av en organisasjon.' }, { status: 409 })
   }
 
-  // Premium transition
+  // Premium-overgang: LES det personlige abonnementet nå, men kanseller det
+  // ikke ennå.
+  //
+  // REKKEFØLGEN ER SIKKERHETSKRITISK. Fram til 26. juli kansellerte ruten det
+  // betalte abonnementet her — altså FØR medlems-innsettingen og premium-
+  // oppdateringen under, som begge var ubevoktet. Feilet en av dem, satt
+  // brukeren igjen uten abonnement OG uten organisasjon, med en 200-respons som
+  // sa at innmeldingen gikk bra. Kansellering er ugjenkallelig, så den skjer nå
+  // sist: først når begge skrivingene er BEKREFTET.
   const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('premium_status, premium_source, stripe_customer_id')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.premium_status === true && profile?.premium_source === 'personal' && profile?.stripe_customer_id) {
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
-      const subs = await stripe.subscriptions.list({
-        customer: profile.stripe_customer_id,
-        status: 'active',
-        limit: 1,
-      })
-      if (subs.data.length > 0) {
-        const sub = subs.data[0]
-        await supabaseAdmin.from('profiles').update({
-          personal_stripe_subscription_id: sub.id,
-        }).eq('id', user.id)
-        await stripe.subscriptions.cancel(sub.id)
-      }
-    } catch (err) {
-      console.error('Failed to cancel personal subscription:', err)
-    }
-  }
+  const personalCustomerId =
+    profile?.premium_status === true && profile?.premium_source === 'personal'
+      ? profile.stripe_customer_id
+      : null
 
   // Atomically increment use_count only if it has not changed since we read it
   // (and is still under max_uses). If another concurrent request already used
@@ -141,19 +134,115 @@ export async function POST(
     return NextResponse.json({ error: 'Invitasjonslenken er full' }, { status: 409 })
   }
 
+  // Frigir invitasjonsplassen igjen hvis noe under feiler. CAS-vakt: rører kun
+  // raden dersom ingen andre har endret use_count i mellomtiden. Uten dette
+  // ville hvert mislykket forsøk brent en plass permanent, og en invitasjon med
+  // max_uses kunne blitt «full» uten at én eneste ansatt kom inn.
+  const releaseInviteSeat = async () => {
+    const { error } = await supabaseAdmin
+      .from('organization_invites')
+      .update({ use_count: invite.use_count })
+      .eq('id', invite.id)
+      .eq('use_count', invite.use_count + 1)
+    if (error) {
+      console.error(`[org-join] kunne ikke frigi invitasjonsplass invite=${invite.id}:`, error.message)
+    }
+  }
+
   // Add to org only after the atomic increment succeeded
-  await supabaseAdmin.from('organization_members').insert({
+  const { error: memberErr } = await supabaseAdmin.from('organization_members').insert({
     organization_id: invite.organization_id,
     user_id: user.id,
     role: 'member',
     invite_token_id: invite.id,
   })
 
+  if (memberErr) {
+    // 23505 = unique (user_id, organization_id). En samtidig forespørsel rakk
+    // først; brukeren ER medlem. Ikke en feil for brukeren — men plassen skal
+    // ikke telles to ganger, og abonnementet er allerede håndtert av det andre
+    // kallet, så vi kansellerer ingenting her.
+    if (memberErr.code === '23505') {
+      await releaseInviteSeat()
+      return NextResponse.json({ slug: org.slug })
+    }
+    console.error(
+      `[org-join] medlems-insert feilet — user=${user.id} org=${invite.organization_id} invite=${invite.id}:`,
+      memberErr.message
+    )
+    await releaseInviteSeat()
+    return NextResponse.json({ error: 'Kunne ikke fullføre innmeldingen. Prøv igjen.' }, { status: 500 })
+  }
+
   // Activate premium via org
-  await supabaseAdmin.from('profiles').update({
+  const { error: premiumErr } = await supabaseAdmin.from('profiles').update({
     premium_status: true,
     premium_source: 'org',
   }).eq('id', user.id)
+
+  if (premiumErr) {
+    // Rull tilbake medlemskapet slik at et nytt forsøk starter fra en ren
+    // tilstand. Uten dette ville retry-en truffet «allerede medlem»-grenen over
+    // og returnert suksess, mens brukeren satt uten premium for alltid.
+    console.error(
+      `[org-join] premium-update feilet — user=${user.id} org=${invite.organization_id}, ruller tilbake medlemskap:`,
+      premiumErr.message
+    )
+    const { error: undoErr } = await supabaseAdmin
+      .from('organization_members')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('organization_id', invite.organization_id)
+    if (undoErr) {
+      console.error(
+        `[org-join] KRITISK: kunne ikke rulle tilbake medlemskap — user=${user.id} org=${invite.organization_id}:`,
+        undoErr.message
+      )
+    }
+    await releaseInviteSeat()
+    return NextResponse.json({ error: 'Kunne ikke fullføre innmeldingen. Prøv igjen.' }, { status: 500 })
+  }
+
+  // ── Først NÅ er det trygt å kansellere det personlige abonnementet ─────────
+  // Begge skrivingene over er bekreftet. Feiler kanselleringen her, står
+  // brukeren igjen med org-premium OG et aktivt personlig abonnement. Det er et
+  // bevisst valgt, ufarlig overlapp: brukeren mister ingen tilgang, og det kan
+  // ryddes manuelt i Stripe. Den gamle rekkefølgen kunne til sammenligning
+  // etterlate brukeren uten noen av delene.
+  if (personalCustomerId) {
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+      const subs = await stripe.subscriptions.list({
+        customer: personalCustomerId,
+        status: 'active',
+        limit: 1,
+      })
+      if (subs.data.length > 0) {
+        const sub = subs.data[0]
+        const { error: subIdErr } = await supabaseAdmin.from('profiles').update({
+          personal_stripe_subscription_id: sub.id,
+        }).eq('id', user.id)
+        if (subIdErr) {
+          // Kun en breadcrumb for senere reaktivering — ikke verdt å avbryte
+          // innmeldingen for, men må kunne finnes igjen i loggen.
+          console.error(
+            `[org-join] kunne ikke lagre personal_stripe_subscription_id — user=${user.id} sub=${sub.id}:`,
+            subIdErr.message
+          )
+        }
+        await stripe.subscriptions.cancel(sub.id)
+      }
+    } catch (err) {
+      // PENGER: brukeren betaler fortsatt kr 49/mnd for et personlig abonnement
+      // som nå er overflødig. Må kanselleres manuelt i Stripe.
+      console.error(
+        `[org-join] KRITISK: kunne ikke kansellere personlig abonnement — user=${user.id} ` +
+        `customer=${personalCustomerId} org=${invite.organization_id}. ` +
+        `Brukeren har org-premium og BETALER FORTSATT personlig:`,
+        err
+      )
+    }
+  }
 
   return NextResponse.json({ slug: org.slug })
 }
