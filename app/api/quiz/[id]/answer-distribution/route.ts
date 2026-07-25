@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { getOptionCountsByQuestions } from '@/lib/attempt-answer-stats'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,25 +41,16 @@ export async function GET(
     return NextResponse.json({ questions: [] })
   }
 
-  // Fetch all answers for this quiz
-  const { data: answers } = await supabaseAdmin
-    .from('attempt_answers')
-    .select('question_id, selected_answer')
-    .in('question_id', questions.map(q => q.id))
+  // Fetch answer counts per question per option
+  const optionCounts = await getOptionCountsByQuestions(questions.map(q => q.id))
 
-  // Count answers per question per option
   const opts = ['A', 'B', 'C', 'D'].slice(0, numOptions)
   type CountMap = Record<string, number>
   const countsByQuestion = new Map<string, CountMap>()
   for (const q of questions) {
-    countsByQuestion.set(q.id, Object.fromEntries(opts.map(o => [o, 0])))
-  }
-
-  for (const a of (answers ?? []) as { question_id: string; selected_answer: string | null }[]) {
-    const counts = countsByQuestion.get(a.question_id)
-    if (counts && a.selected_answer && counts[a.selected_answer] !== undefined) {
-      counts[a.selected_answer]++
-    }
+    const perQ = optionCounts.get(q.id)
+    const counts = Object.fromEntries(opts.map(o => [o, perQ?.get(o) ?? 0]))
+    countsByQuestion.set(q.id, counts)
   }
 
   const result = questions.map(q => {

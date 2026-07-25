@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
+import { fetchAllRows } from '@/lib/paginate'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,12 +46,17 @@ export async function GET(request: NextRequest) {
 
   waitUntil(
     (async () => {
-      // Fetch all subscribers (notify everyone for this quiz, dedup done above)
-      const { data: subscribers } = await supabaseAdmin
-        .from('quiz_notifications')
-        .select('id, email')
+      // Fetch all subscribers (notify everyone for this quiz, dedup done above).
+      // Paginert full henting — ellers ville abonnenter over rad 1000 stille
+      // aldri fått denne (eller noen fremtidig) quiz-åpnet-e-post.
+      const subscribers = await fetchAllRows<{ id: string; email: string }>((from, to) =>
+        supabaseAdmin
+          .from('quiz_notifications')
+          .select('id, email')
+          .range(from, to)
+      )
 
-      if (!subscribers || subscribers.length === 0) {
+      if (subscribers.length === 0) {
         console.log('[cron/notify-subscribers] no subscribers to notify')
         return
       }

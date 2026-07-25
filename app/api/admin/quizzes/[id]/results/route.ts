@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot } from '@/lib/ranking-snapshot'
+import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 
 // ── Admin resultatoversikt ────────────────────────────────────────────────────
 // Samler alt Dennis trenger etter en fredagsquiz på ÉN plass: full rangert liste,
@@ -121,18 +122,7 @@ export async function GET(
 
   const attemptIds = snapshot.map(e => e.id)
   if (attemptIds.length > 0 && questions && questions.length > 0) {
-    const { data: answers } = await supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct')
-      .in('attempt_id', attemptIds)
-
-    const agg = new Map<string, { total: number; correct: number }>()
-    for (const a of (answers ?? []) as { question_id: string; is_correct: boolean }[]) {
-      const s = agg.get(a.question_id) ?? { total: 0, correct: 0 }
-      s.total++
-      if (a.is_correct) s.correct++
-      agg.set(a.question_id, s)
-    }
+    const agg = await getQuestionStatsByAttempts(attemptIds)
 
     for (const q of questions as { id: string; question_text: string; order_index: number }[]) {
       const s = agg.get(q.id) ?? { total: 0, correct: 0 }

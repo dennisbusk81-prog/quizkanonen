@@ -6,6 +6,7 @@ import {
   rankSeasonAttempts,
   type SeasonAttempt,
 } from '@/lib/season-points'
+import { fetchAllRows } from '@/lib/paginate'
 
 // GET /api/rivalries/my — returns active + pending rivalries, plus declined from this month
 export async function GET(request: NextRequest) {
@@ -100,13 +101,18 @@ export async function GET(request: NextRequest) {
   const quizIds = (monthQuizzes ?? []).map((q: { id: string }) => q.id)
 
   if (quizIds.length > 0) {
-    const { data: monthAttempts } = await supabaseAdmin
-      .from('attempts')
-      .select('user_id, quiz_id, correct_answers, total_time_ms, correct_streak')
-      .in('quiz_id', quizIds)
-      .eq('is_team', false)
-      .not('user_id', 'is', null)
-      .not('submitted_at', 'is', null)
+    // Naturlig begrenset til én måneds volum, men uten eksplisitt grense
+    // kutter PostgREST stille ved 1000 rader — paginert full henting i stedet.
+    const monthAttempts = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('user_id, quiz_id, correct_answers, total_time_ms, correct_streak')
+        .in('quiz_id', quizIds)
+        .eq('is_team', false)
+        .not('user_id', 'is', null)
+        .not('submitted_at', 'is', null)
+        .range(from, to)
+    )
 
     // Grupper per quiz, rangér globalt (alle spillere), tildel poeng til de
     // involverte brukerne. Rangering må skje mot HELE feltet, ikke kun de to

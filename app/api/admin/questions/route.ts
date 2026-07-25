@@ -1,26 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
-
-const PAGE_SIZE = 1000
-
-// PostgREST returnerer maks 1000 rader per kall uten paginering — henter i
-// batcher til en batch kommer tilbake mindre enn PAGE_SIZE.
-async function fetchAllAnswerStats(): Promise<{ question_id: string; is_correct: boolean }[]> {
-  const rows: { question_id: string; is_correct: boolean }[] = []
-  let from = 0
-  for (;;) {
-    const { data, error } = await supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct')
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw error
-    rows.push(...(data ?? []))
-    if (!data || data.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
-  return rows
-}
+import { fetchAllRows } from '@/lib/paginate'
 
 // Hele spørsmålsbanken — ALLE spørsmål noensinne lagret i en quiz, ikke kun
 // dem merket is_classic (det er /api/admin/classics, som filtrerer på det
@@ -52,7 +33,12 @@ export async function GET(request: NextRequest) {
   // kobling mellom "samme" spørsmål på tvers av rader.
   let answerStats: { question_id: string; is_correct: boolean }[] = []
   try {
-    answerStats = await fetchAllAnswerStats()
+    answerStats = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from('attempt_answers')
+        .select('question_id, is_correct')
+        .range(from, to)
+    )
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Kunne ikke hente svarstatistikk' }, { status: 500 })
   }

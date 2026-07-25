@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import webpush from 'web-push'
+import { fetchAllRows } from '@/lib/paginate'
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -32,16 +33,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sent: 0, reason: 'quiz opened too long ago' })
   }
 
-  const { data: subscriptions, error: subError } = await supabaseAdmin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-
-  if (subError) {
-    console.error('[cron/send-push] fetch subscriptions:', subError.message)
-    return NextResponse.json({ error: subError.message }, { status: 500 })
+  // Paginert full henting — ellers ville abonnenter over rad 1000 stille
+  // aldri fått push-varsling om at ukens quiz er åpen.
+  let subscriptions: { endpoint: string; p256dh: string; auth: string }[]
+  try {
+    subscriptions = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .range(from, to)
+    )
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Kunne ikke hente push-abonnenter'
+    console.error('[cron/send-push] fetch subscriptions:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 
-  if (!subscriptions || subscriptions.length === 0) {
+  if (subscriptions.length === 0) {
     await supabaseAdmin.from('quizzes').update({ push_sent_at: now }).eq('id', quiz.id)
     return NextResponse.json({ sent: 0, reason: 'no subscriptions' })
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -65,23 +66,11 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'For lite data' }, { status: 404 })
   }
 
-  // All answers for those attempts
-  const { data: answers } = await supabaseAdmin
-    .from('attempt_answers')
-    .select('question_id, is_correct')
-    .in('attempt_id', attemptIds)
+  // Aggregated stats for those attempts
+  const statsMap = await getQuestionStatsByAttempts(attemptIds)
 
-  if (!answers || answers.length === 0) {
+  if (statsMap.size === 0) {
     return NextResponse.json({ error: 'Ingen svar' }, { status: 404 })
-  }
-
-  // Aggregate per question
-  const statsMap = new Map<string, { total: number; correct: number }>()
-  for (const a of answers as { question_id: string; is_correct: boolean }[]) {
-    const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
-    s.total++
-    if (a.is_correct) s.correct++
-    statsMap.set(a.question_id, s)
   }
 
   // Filter questions with >= 2 answers, sort by correctPct desc

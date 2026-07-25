@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
+import { fetchAllRows } from '@/lib/paginate'
 
 type AttemptRaw = {
   id: string
@@ -47,11 +48,24 @@ export async function GET(
   let answers: unknown[] = []
   const ids = (attempts ?? []).map((a: { id: string }) => a.id)
   if (ids.length > 0) {
-    const { data: answerData, error: e4 } = await supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
-      .in('attempt_id', ids)
-    if (e4) return NextResponse.json({ error: e4.message }, { status: 500 })
+    // Trenger hver enkelt rad (selected_answer + time_ms per spiller for
+    // "hvem svarte hva"-visningen på analytics-siden) — kan ikke aggregeres
+    // bort, derfor paginert full henting i stedet for RPC-aggregering.
+    // attempt_answers kan lett passere PostgREST sin stille 1000-rads-grense
+    // for én quiz (bekreftet: 1437 rader på 75 forsøk for den mest spilte
+    // quizen 26. juli 2026).
+    let answerData: { question_id: string; is_correct: boolean; selected_answer: string | null; time_ms: number; attempt_id: string }[]
+    try {
+      answerData = await fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from('attempt_answers')
+          .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
+          .in('attempt_id', ids)
+          .range(from, to)
+      )
+    } catch (e4) {
+      return NextResponse.json({ error: e4 instanceof Error ? e4.message : 'Kunne ikke hente svar' }, { status: 500 })
+    }
     const attemptPlayerMap: Record<string, string> = {}
     const attemptNickMap: Record<string, string | null> = {}
     for (const a of (attempts ?? [])) {

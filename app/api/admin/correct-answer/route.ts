@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { fetchAllRows } from '@/lib/paginate'
 
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) {
@@ -35,13 +36,19 @@ export async function POST(request: NextRequest) {
     .update({ correct_answer: newCorrectAnswer })
     .eq('id', questionId)
 
-  // Fetch all attempt_answers for this question
-  const { data: answers } = await supabaseAdmin
-    .from('attempt_answers')
-    .select('id, attempt_id, selected_answer')
-    .eq('question_id', questionId)
+  // Fetch all attempt_answers for this question — paginert full henting.
+  // Bundet til antall forsøk på quizen (ett svar per forsøk per spørsmål),
+  // men uten eksplisitt grense kutter PostgREST stille ved 1000 rader —
+  // ville latt noen spilleres poeng stå urettet uten varsel.
+  const answers = await fetchAllRows<{ id: string; attempt_id: string; selected_answer: string | null }>((from, to) =>
+    supabaseAdmin
+      .from('attempt_answers')
+      .select('id, attempt_id, selected_answer')
+      .eq('question_id', questionId)
+      .range(from, to)
+  )
 
-  if (!answers || answers.length === 0) {
+  if (answers.length === 0) {
     return NextResponse.json({ updated: 0, question: question.question_text })
   }
 

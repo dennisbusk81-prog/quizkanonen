@@ -1,5 +1,6 @@
 ﻿import { createSupabaseServer } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getQuestionStatsByAttempts, countActivePlayersSince } from '@/lib/attempt-answer-stats'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
 import SiteNav from '@/components/SiteNav'
 import OrgCard from '@/components/OrgCard'
@@ -289,19 +290,8 @@ async function computePageInsights(): Promise<PageInsights | null> {
     const attemptIds = ((attemptRows ?? []) as { id: string }[]).map(a => a.id)
     if (attemptIds.length < 3) return null
 
-    const { data: answerRows } = await supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct')
-      .in('attempt_id', attemptIds)
-
-    if (!answerRows || answerRows.length === 0) return null
-    const statsMap = new Map<string, { total: number; correct: number }>()
-    for (const a of answerRows as { question_id: string; is_correct: boolean }[]) {
-      const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
-      s.total++
-      if (a.is_correct) s.correct++
-      statsMap.set(a.question_id, s)
-    }
+    const statsMap = await getQuestionStatsByAttempts(attemptIds)
+    if (statsMap.size === 0) return null
     const qualified = [...statsMap.entries()]
       .filter(([, s]) => s.total >= 3)
       .map(([qId, s]) => ({ questionId: qId, correctPct: Math.round((s.correct / s.total) * 100) }))
@@ -351,22 +341,15 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
   const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = new Date().toISOString()
 
-  const [{ count: quizzesCompleted }, { data: activeRows }] = await Promise.all([
+  const [{ count: quizzesCompleted }, activePlayers] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select('id', { count: 'exact', head: true })
       .eq('is_test', false)
       .not('closes_at', 'is', null)
       .lt('closes_at', nowIso),
-    supabaseAdmin
-      .from('attempts')
-      .select('user_id')
-      .eq('is_team', false)
-      .not('user_id', 'is', null)
-      .gte('completed_at', twelveWeeksAgo),
+    countActivePlayersSince(twelveWeeksAgo),
   ])
-
-  const activePlayers = new Set(((activeRows ?? []) as { user_id: string }[]).map(r => r.user_id)).size
 
   return {
     quizzesCompleted: quizzesCompleted ?? 0,

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
+import { fetchAllRows } from '@/lib/paginate'
 
 export type RetentionRow = {
   quizId: string
@@ -23,18 +24,27 @@ export async function GET(request: NextRequest) {
 
   if (quizErr) return NextResponse.json({ error: quizErr.message }, { status: 500 })
 
-  // Kun innloggede, fullførte attempts.
-  const { data: attempts, error: attErr } = await supabaseAdmin
-    .from('attempts')
-    .select('quiz_id, user_id')
-    .not('user_id', 'is', null)
-    .not('submitted_at', 'is', null)
-
-  if (attErr) return NextResponse.json({ error: attErr.message }, { status: 500 })
+  // Kun innloggede, fullførte attempts. Denne listen vokser monotont over
+  // hele historikken (nullstilles aldri) og passerte PostgREST sin stille
+  // 1000-rads-grense innen rekkevidde — derfor paginert full henting i
+  // stedet for ett enkelt .select().
+  let attempts: { quiz_id: string; user_id: string }[]
+  try {
+    attempts = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('quiz_id, user_id')
+        .not('user_id', 'is', null)
+        .not('submitted_at', 'is', null)
+        .range(from, to)
+    )
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Kunne ikke hente forsøk' }, { status: 500 })
+  }
 
   // quiz_id → sett av unike user_id som fullførte.
   const playersByQuiz = new Map<string, Set<string>>()
-  for (const a of attempts ?? []) {
+  for (const a of attempts) {
     if (!a.quiz_id || !a.user_id) continue
     let set = playersByQuiz.get(a.quiz_id)
     if (!set) { set = new Set(); playersByQuiz.set(a.quiz_id, set) }

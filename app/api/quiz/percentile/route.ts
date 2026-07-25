@@ -17,12 +17,16 @@ export async function GET(request: NextRequest) {
   // dvs. 0) fordelingen nedover, slik at "Du er bedre enn X% av deltakerne"
   // ble for snill under åpen quiz. Funnet 25. juli 2026 ved siden av
   // live-plassering-fiksen (motsatt retning av den bugen).
+  // Bundet til antall solo-forsøk på ÉN quiz — samme størrelsesorden som
+  // /api/leaderboard/[id] sin begrunnelse for .limit(5000): generøs margin
+  // uten å risikere en stille avkutting midt i en populær quiz.
   const { data: attempts } = await supabaseAdmin
     .from('attempts')
     .select('correct_answers, total_questions')
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('submitted_at', 'is', null)
+    .limit(5000)
 
   if (!attempts || attempts.length === 0) {
     return NextResponse.json([], {

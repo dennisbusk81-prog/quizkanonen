@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000)
@@ -110,20 +111,9 @@ export async function POST(request: NextRequest) {
   let hardestPct: number | null = null
 
   if (attemptIds.length >= 2) {
-    const { data: answers } = await supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct')
-      .in('attempt_id', attemptIds)
+    const statsMap = await getQuestionStatsByAttempts(attemptIds)
 
-    if (answers && answers.length > 0) {
-      const statsMap = new Map<string, { total: number; correct: number }>()
-      for (const a of answers as { question_id: string; is_correct: boolean }[]) {
-        const s = statsMap.get(a.question_id) ?? { total: 0, correct: 0 }
-        s.total++
-        if (a.is_correct) s.correct++
-        statsMap.set(a.question_id, s)
-      }
-
+    if (statsMap.size > 0) {
       const qualified = [...statsMap.entries()]
         .filter(([, s]) => s.total >= 2)
         .map(([qId, s]) => ({ questionId: qId, pct: Math.round((s.correct / s.total) * 100) }))

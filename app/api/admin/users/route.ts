@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
+import { fetchAllRows } from '@/lib/paginate'
 
 export async function GET(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -33,14 +34,25 @@ export async function GET(request: NextRequest) {
     listPage++
   }
 
-  // 3. Attempt counts per user (single query, aggregate in JS)
-  const { data: attempts } = await supabaseAdmin
-    .from('attempts')
-    .select('user_id')
-    .not('user_id', 'is', null)
+  // 3. Attempt counts per user — paginert full henting (samme mønster som
+  // auth.admin.listUsers()-løkken over: én enkelt .select() her kutter
+  // stille ved 1000 rader uten feilmelding). Feiler "myk" som listUsers over
+  // — attempt_count er en tilleggsstatistikk, ikke kritisk for siden.
+  let attempts: { user_id: string }[] = []
+  try {
+    attempts = await fetchAllRows<{ user_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('user_id')
+        .not('user_id', 'is', null)
+        .range(from, to)
+    )
+  } catch (e) {
+    console.error('attempts fetch failed:', e)
+  }
 
   const attemptCountMap = new Map<string, number>()
-  for (const a of attempts ?? []) {
+  for (const a of attempts) {
     if (a.user_id) {
       attemptCountMap.set(a.user_id, (attemptCountMap.get(a.user_id) ?? 0) + 1)
     }
