@@ -33,7 +33,15 @@ export async function POST(
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body = await request.json()
-  const { error } = await supabaseAdmin.from('questions').insert({ ...body, quiz_id: id })
+  // Ny rad = ny bruk av spørsmålet. usage_count/last_used_at settes alltid
+  // server-side her (aldri klientstyrt) — PATCH (vanlig autolagring) rører
+  // dem aldri, kun denne INSERT-veien.
+  const { error } = await supabaseAdmin.from('questions').insert({
+    ...body,
+    quiz_id: id,
+    usage_count: 1,
+    last_used_at: new Date().toISOString(),
+  })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

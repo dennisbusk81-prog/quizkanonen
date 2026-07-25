@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
 
   if (quizError) return NextResponse.json({ error: quizError.message }, { status: 500 })
 
+  const nowIso = now.toISOString()
   const rows = questions.map((q, i) => {
     let timeSec: number | null = null
     if (q.time_limit_seconds !== null) {
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
       shuffle_options: q.shuffle_options,
       category: q.category || null,
       order_index: i + 1,
+      usage_count: 1,
+      last_used_at: nowIso,
     }
   })
 

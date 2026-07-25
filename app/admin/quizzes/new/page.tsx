@@ -41,6 +41,18 @@ type DbQuestion = {
   order_index: number
 }
 
+type BankQuestion = {
+  id: string
+  question_text: string
+  option_a: string
+  option_b: string
+  option_c: string | null
+  option_d: string | null
+  category: string | null
+  usage_count: number | null
+  quiz_title: string | null
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const emptyQ = (): QState => ({
@@ -664,6 +676,85 @@ const STYLES = `
   }
   .nq-modal-delete:hover { background: #d65a5a; }
 
+  /* ── Spørsmålsbank-modal ── */
+  .nq-bank-modal {
+    max-width: 620px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .nq-bank-search {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--rbtn);
+    padding: 11px 14px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 14px;
+    color: var(--white);
+    outline: none;
+    margin-bottom: 14px;
+    transition: border-color 0.15s;
+    flex-shrink: 0;
+  }
+  .nq-bank-search::placeholder { color: var(--muted); }
+  .nq-bank-search:focus { border-color: var(--gold); }
+  .nq-bank-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+  }
+  .nq-bank-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .nq-bank-item-text {
+    font-size: 14px;
+    color: var(--white);
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+  .nq-bank-item-meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .nq-bank-item-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--body);
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .nq-bank-item-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .nq-bank-item-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .nq-bank-item-btn.done { color: var(--green); border-color: rgba(74,222,128,0.3); }
+  .nq-bank-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .nq-bank-error {
+    font-size: 12px;
+    color: #f87171;
+    margin-bottom: 10px;
+  }
+
   /* ── Responsive ── */
   @media (max-width: 540px) {
     .nq-datetime-row { grid-template-columns: 1fr; }
@@ -732,6 +823,16 @@ function QuizEditorInner() {
   // Slett spørsmål (bekreftelsesmodal + feilmelding)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteError, setDeleteError]         = useState<string | null>(null)
+
+  // Spørsmålsbank-modal ("Hent fra spørsmålsbank")
+  const [bankOpen, setBankOpen]         = useState(false)
+  const [bankLoaded, setBankLoaded]     = useState(false)
+  const [bankLoading, setBankLoading]   = useState(false)
+  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([])
+  const [bankSearch, setBankSearch]     = useState('')
+  const [bankAddingId, setBankAddingId] = useState<string | null>(null)
+  const [bankAddedId, setBankAddedId]   = useState<string | null>(null)
+  const [bankError, setBankError]       = useState<string | null>(null)
 
   // Refs for stable callbacks
   const questionsRef     = useRef(questions)
@@ -917,6 +1018,33 @@ function QuizEditorInner() {
       setQuestionDbIds(ids)
       questionDbIdsRef.current = ids
     }
+  }, [])
+
+  // Full reload av spørsmålslisten fra DB — brukes etter at et spørsmål er
+  // hentet inn fra spørsmålsbanken (serveren har allerede lagret raden, så
+  // lokal state må hentes på nytt for å vise faktisk innhold, ikke bare id-en).
+  const refreshQuestionsFull = useCallback(async (qId: string) => {
+    const qRes = await adminFetch(`/api/admin/quizzes/${qId}/questions`)
+    if (!qRes.ok) return
+    const qData = await qRes.json()
+    const qRows = ((qData.questions ?? []) as DbQuestion[]).slice().sort((a, b) => a.order_index - b.order_index)
+    const qs: QState[] = qRows.map(q => ({
+      text:          q.question_text ?? '',
+      optionA:       q.option_a ?? '',
+      optionB:       q.option_b ?? '',
+      optionC:       q.option_c ?? '',
+      optionD:       q.option_d ?? '',
+      correctAnswer: q.correct_answer ?? 'A',
+      timeLimit:     q.time_limit_seconds ?? 10,
+      category:      q.category ?? '',
+      explanation:   q.explanation ?? '',
+    }))
+    const dbIds = qRows.map(q => q.id)
+    questionsRef.current = qs
+    setQuestions(qs)
+    setQuestionDbIds(dbIds)
+    questionDbIdsRef.current = dbIds
+    return qs.length
   }, [])
 
   // Save a single question — PATCH if exists in DB, POST if new
@@ -1186,6 +1314,62 @@ function QuizEditorInner() {
       showSaved()
     }
   }, [])
+
+  // ── Spørsmålsbank ────────────────────────────────────────────────────────────
+
+  const openBank = useCallback(() => {
+    setBankOpen(true)
+    setBankError(null)
+    if (!bankLoaded) {
+      setBankLoading(true)
+      adminFetch('/api/admin/questions')
+        .then(r => r.json())
+        .then(data => { setBankQuestions(data.questions ?? []); setBankLoaded(true) })
+        .catch(() => setBankError('Kunne ikke laste spørsmålsbanken.'))
+        .finally(() => setBankLoading(false))
+    }
+  }, [bankLoaded])
+
+  // Legger valgt spørsmål inn i quizen som redigeres. Oppretter quizen først
+  // (som ved vanlig title-blur) hvis den ikke finnes ennå.
+  const addFromBank = useCallback(async (questionId: string) => {
+    setBankError(null)
+    let qId = quizIdRef.current
+    if (!qId || qId === 'creating') {
+      if (!titleRef.current.trim()) {
+        setBankError('Skriv en quiztittel først.')
+        return
+      }
+      qId = await createQuiz()
+      if (!qId) { setBankError('Kunne ikke opprette quizen — prøv igjen.'); return }
+    }
+    setBankAddingId(questionId)
+    try {
+      const res = await adminFetch('/api/admin/classics/copy', {
+        method: 'POST',
+        body: JSON.stringify({ question_id: questionId, target_quiz_id: qId }),
+      })
+      if (!res.ok) { setBankError('Kunne ikke legge til spørsmålet — prøv igjen.'); return }
+      const newLength = await refreshQuestionsFull(qId)
+      setBankAddedId(questionId)
+      setTimeout(() => setBankAddedId(null), 2000)
+      if (newLength) {
+        const newIdx = newLength - 1
+        setActiveIdx(newIdx)
+        activeIdxRef.current = newIdx
+      }
+    } catch {
+      setBankError('Uventet feil — prøv igjen.')
+    } finally {
+      setBankAddingId(null)
+    }
+  }, [createQuiz, refreshQuestionsFull])
+
+  const filteredBankQuestions = bankQuestions.filter(q => {
+    if (!bankSearch) return true
+    const s = bankSearch.toLowerCase()
+    return q.question_text.toLowerCase().includes(s) || (q.category ?? '').toLowerCase().includes(s)
+  })
 
   // Keyboard shortcuts: arrow keys when no input is focused
   useEffect(() => {
@@ -1847,6 +2031,9 @@ function QuizEditorInner() {
             <button type="button" onClick={addQuestion} disabled={savingIdx === activeIdx} className="nq-nav-btn">
               + Legg til
             </button>
+            <button type="button" onClick={openBank} disabled={savingIdx === activeIdx} className="nq-nav-btn">
+              Hent fra spørsmålsbank
+            </button>
             <button type="button" onClick={handleFinish} className="nq-nav-btn nq-nav-btn--gold">
               {isEditMode ? 'Lagre og avslutt →' : 'Lagre og publiser →'}
             </button>
@@ -1866,6 +2053,59 @@ function QuizEditorInner() {
                 </button>
                 <button type="button" className="nq-modal-delete" onClick={deleteQuestion}>
                   Slett
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Spørsmålsbank-modal ── */}
+        {bankOpen && (
+          <div className="nq-modal-overlay" onClick={() => setBankOpen(false)}>
+            <div className="nq-modal nq-bank-modal" onClick={e => e.stopPropagation()}>
+              <h3 className="nq-modal-title">Hent fra spørsmålsbanken</h3>
+              <input
+                type="text"
+                value={bankSearch}
+                onChange={e => setBankSearch(e.target.value)}
+                placeholder="Søk på spørsmål eller kategori…"
+                className="nq-bank-search"
+                autoFocus
+              />
+              {bankError && <p className="nq-bank-error">{bankError}</p>}
+              {bankLoading ? (
+                <p className="nq-bank-empty">Laster…</p>
+              ) : filteredBankQuestions.length === 0 ? (
+                <p className="nq-bank-empty">
+                  {bankSearch ? 'Ingen spørsmål matcher søket.' : 'Ingen spørsmål i banken ennå.'}
+                </p>
+              ) : (
+                <div className="nq-bank-list">
+                  {filteredBankQuestions.map(bq => (
+                    <div key={bq.id} className="nq-bank-item">
+                      <div style={{ minWidth: 0 }}>
+                        <p className="nq-bank-item-text">{bq.question_text}</p>
+                        <p className="nq-bank-item-meta">
+                          {bq.category ? `${bq.category} · ` : ''}
+                          Brukt {bq.usage_count ?? 0} {(bq.usage_count ?? 0) === 1 ? 'gang' : 'ganger'}
+                          {bq.quiz_title ? ` · Fra: ${bq.quiz_title}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className={`nq-bank-item-btn${bankAddedId === bq.id ? ' done' : ''}`}
+                        disabled={bankAddingId === bq.id}
+                        onClick={() => addFromBank(bq.id)}
+                      >
+                        {bankAddedId === bq.id ? 'Lagt til!' : bankAddingId === bq.id ? 'Legger til…' : 'Legg til'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="nq-modal-actions" style={{ marginTop: 16 }}>
+                <button type="button" className="nq-modal-cancel" onClick={() => setBankOpen(false)}>
+                  Lukk
                 </button>
               </div>
             </div>
