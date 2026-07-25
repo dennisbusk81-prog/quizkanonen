@@ -153,6 +153,36 @@ Ingen bildeopplasting er bygget eller planlagt. Bekreftet empirisk mot prod
 - `SeasonLeaderboard.tsx` er delt komponent — brukes av /toppliste, /liga/[slug], /org/[slug]
 - Forsiden viser månedens globale topp 3 fra season_scores (ikke fra attempts)
 
+### Fasit-endring — ÉN kodesti (etablert 25. juli 2026)
+**Kun `/api/admin/correct-answer` kan endre fasiten på et spørsmål som
+allerede har besvarelser.** Ingen annen kodesti — hverken PATCH på
+`questions/[qid]`, en annen API-rute, eller direkte skriving mot databasen —
+skal noensinne regradere `attempt_answers` eller oppdatere `season_scores`
+som følge av en fasitendring.
+
+- Ruten regraderer svarrader, rekalkulerer `attempts.correct_answers` og
+  `correct_streak`, og synkroniserer `season_scores` — alt synkront, i samme
+  forespørsel. Deler den er avhengig av: `lib/answer-key-correction.ts`
+  (ren logikk, testdekket) og `lib/resync-season-scores.ts` (I/O)
+- Fasiten er to kolonner som alltid skrives sammen:
+  `{ correct_answer: <første>, correct_answers: <array hvis >1, ellers NULL> }`.
+  Scoringen i `submit` faller tilbake på enkelt-kolonnen når arrayet er tomt —
+  ikke skriv én av dem alene
+- PATCH på `questions/[qid]` skiller tre tilfeller via `decideAnswerKeyPatch`:
+  uendret fasit → fasit-kolonnene droppes (vanlig redigering går uendret
+  gjennom, også på en spilt quiz); ingen svarrader → skrives direkte (quiz
+  under bygging er upåvirket); endret + spilt → `409 answer_key_locked`
+- Admin-UI-et henter antall besvarelser på forhånd og viser en inline
+  bekreftelse på stedet. 409-en er en backstop for andre kallere, ikke
+  normalflyten
+
+Bakgrunn: fram til 25. juli hadde PATCH-ruten sin egen, udokumenterte
+regradering. Den så kun på `correct_answer` (én bokstav), så en ordinær
+lagring — f.eks. en rettet skrivefeil i spørsmålsteksten — kollapset
+multi-svar stille og satte riktige svar til feil, uten å røre `attempts`
+eller `season_scores`. Regelen over finnes for at den feilklassen ikke skal
+kunne oppstå på nytt gjennom en ny inngang.
+
 ### ranking_snapshots-arkitektur (endret 19. juli 2026)
 - Cache for live-plassering under spilling, delt av `/api/quiz/[id]/standings`,
   `/api/quiz/[id]/ranking-snapshot` og `/api/quiz/live-ranking` via den felles
