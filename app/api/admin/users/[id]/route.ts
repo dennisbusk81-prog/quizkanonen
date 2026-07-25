@@ -240,11 +240,57 @@ export async function DELETE(
     }
   }
 
-  // Cascade delete related data
-  await supabaseAdmin.from('rivalries').delete().or(`challenger_id.eq.${id},rival_id.eq.${id}`)
-  await supabaseAdmin.from('league_members').delete().eq('user_id', id)
-  await supabaseAdmin.from('season_scores').delete().eq('user_id', id)
-  await supabaseAdmin.from('organization_members').delete().eq('user_id', id)
+  // Quiz-historikk: attempts har ingen FK til auth.users, så deleteUser rører
+  // den ikke. Fram til nå slettet admin-ruten IKKE attempt_answers/attempts i
+  // det hele tatt (i motsetning til profile/delete, som en bruker bruker for å
+  // slette sin egen konto) — brukerens spillehistorikk ble stående for alltid
+  // med en user_id som pekte på en slettet auth-bruker, samme GDPR art. 17-brudd
+  // som profile/delete sin kommentar advarer mot. Hentes før cascade-løkken slik
+  // at attempt_answers/attempts kan tas med som ordinære steg, barn før foreldre.
+  const { data: userAttempts, error: attemptsFetchErr } = await supabaseAdmin
+    .from('attempts')
+    .select('id')
+    .eq('user_id', id)
+  if (attemptsFetchErr) {
+    console.error('[admin/users DELETE] kunne ikke hente forsøk for cascade', id, attemptsFetchErr)
+    return NextResponse.json({ error: 'Sletting feilet (attempts-oppslag). Prøv igjen.' }, { status: 500 })
+  }
+  const attemptIds = (userAttempts ?? []).map(a => a.id)
+
+  // Cascade delete related data. Sekvensiell for-løkke, ikke ubevoktede await-
+  // kall: en skriving som feiler skal stoppe HELE slettingen før deleteUser
+  // kalles, ikke bare passere stille — ellers slettes kontoen likevel med data
+  // stående igjen. Samme steg-array + feilsjekk-mønster som profile/delete og
+  // app/api/org/[slug]/delete/route.ts.
+  const cascadeSteps: { table: string; run: () => PromiseLike<{ error: { message: string } | null }> }[] = [
+    { table: 'rivalries', run: () => supabaseAdmin.from('rivalries').delete()
+        .or(`challenger_id.eq.${id},rival_id.eq.${id}`) },
+    { table: 'league_members', run: () => supabaseAdmin.from('league_members').delete()
+        .eq('user_id', id) },
+    { table: 'season_scores', run: () => supabaseAdmin.from('season_scores').delete()
+        .eq('user_id', id) },
+    { table: 'organization_members', run: () => supabaseAdmin.from('organization_members').delete()
+        .eq('user_id', id) },
+    ...(attemptIds.length > 0
+      ? [
+          { table: 'attempt_answers', run: () => supabaseAdmin.from('attempt_answers').delete()
+              .in('attempt_id', attemptIds) },
+          { table: 'attempts', run: () => supabaseAdmin.from('attempts').delete()
+              .eq('user_id', id) },
+        ]
+      : []),
+  ]
+
+  for (const step of cascadeSteps) {
+    const { error: stepErr } = await step.run()
+    if (stepErr) {
+      console.error(`[admin/users DELETE] sletting feilet på steg "${step.table}"`, id, stepErr)
+      return NextResponse.json(
+        { error: `Sletting feilet (${step.table}). Prøv igjen.` },
+        { status: 500 },
+      )
+    }
+  }
 
   const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
   if (error) {
@@ -256,12 +302,15 @@ export async function DELETE(
   // profiles, så det er trygt at raden den peker på ikke lenger finnes.
   // Loggen er et historisk sportelegg, ikke en referanse som må holde.
   try {
-    await supabaseAdmin.from('admin_actions').insert({
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
       action_type: 'delete_user',
       scope_type: 'user',
       scope_id: id,
     })
-  } catch { /* ikke kritisk */ }
+    if (logErr) console.error('[admin/users DELETE] admin_actions-logging feilet', id, logErr)
+  } catch (err) {
+    console.error('[admin/users DELETE] admin_actions-logging kastet', id, err)
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -81,25 +81,58 @@ export async function DELETE(request: NextRequest) {
     )
   }
 
-  // Explicit cascade — remove user data from tables without FK cascade to auth.users
-  await supabaseAdmin.from('rivalries').delete().or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
-  await supabaseAdmin.from('league_members').delete().eq('user_id', user.id)
-  await supabaseAdmin.from('season_scores').delete().eq('user_id', user.id)
-  await supabaseAdmin.from('organization_members').delete().eq('user_id', user.id)
-
   // Quiz-historikk: attempts har INGEN FK til auth.users, så deleteUser rører den
   // ikke. Uten dette ble all spillehistorikk (attempts + attempt_answers) stående
   // for alltid med en user_id som pekte på en slettet bruker — brudd på GDPR
-  // art. 17. attempt_answers.attempt_id → attempts.id, så barna slettes FØR
-  // foreldrene (samme rekkefølge som admin sin quiz-reset).
-  const { data: userAttempts } = await supabaseAdmin
+  // art. 17. Hentes før cascade-løkken slik at attempt_answers/attempts kan tas
+  // med som ordinære steg i samme sekvens, i riktig rekkefølge (barn før foreldre).
+  const { data: userAttempts, error: attemptsFetchErr } = await supabaseAdmin
     .from('attempts')
     .select('id')
     .eq('user_id', user.id)
+  if (attemptsFetchErr) {
+    console.error('[profile-delete] kunne ikke hente forsøk for cascade', user.id, attemptsFetchErr)
+    return NextResponse.json(
+      { error: 'Sletting feilet (attempts-oppslag). Prøv igjen, eller kontakt support.' },
+      { status: 500 },
+    )
+  }
   const attemptIds = (userAttempts ?? []).map(a => a.id)
-  if (attemptIds.length > 0) {
-    await supabaseAdmin.from('attempt_answers').delete().in('attempt_id', attemptIds)
-    await supabaseAdmin.from('attempts').delete().eq('user_id', user.id)
+
+  // Explicit cascade — remove user data from tables without FK cascade to
+  // auth.users. Sekvensiell for-løkke, ikke Promise.all: en skriving som
+  // feiler skal stoppe HELE slettingen før deleteUser kalles, ikke bare logges
+  // og ignoreres — ellers slettes kontoen likevel med data stående igjen, som
+  // er nøyaktig GDPR-bruddet dette steget finnes for å forhindre. Samme
+  // steg-array + feilsjekk-mønster som app/api/org/[slug]/delete/route.ts.
+  const steps: { table: string; run: () => PromiseLike<{ error: { message: string } | null }> }[] = [
+    { table: 'rivalries', run: () => supabaseAdmin.from('rivalries').delete()
+        .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`) },
+    { table: 'league_members', run: () => supabaseAdmin.from('league_members').delete()
+        .eq('user_id', user.id) },
+    { table: 'season_scores', run: () => supabaseAdmin.from('season_scores').delete()
+        .eq('user_id', user.id) },
+    { table: 'organization_members', run: () => supabaseAdmin.from('organization_members').delete()
+        .eq('user_id', user.id) },
+    ...(attemptIds.length > 0
+      ? [
+          { table: 'attempt_answers', run: () => supabaseAdmin.from('attempt_answers').delete()
+              .in('attempt_id', attemptIds) },
+          { table: 'attempts', run: () => supabaseAdmin.from('attempts').delete()
+              .eq('user_id', user.id) },
+        ]
+      : []),
+  ]
+
+  for (const step of steps) {
+    const { error } = await step.run()
+    if (error) {
+      console.error(`[profile-delete] sletting feilet på steg "${step.table}"`, user.id, error)
+      return NextResponse.json(
+        { error: `Sletting feilet (${step.table}). Prøv igjen, eller kontakt support.` },
+        { status: 500 },
+      )
+    }
   }
 
   // Delete user — RLS CASCADE removes the profiles row automatically
