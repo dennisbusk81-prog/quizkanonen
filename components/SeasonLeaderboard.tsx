@@ -7,6 +7,7 @@ import type { Session } from '@supabase/supabase-js'
 import SkeletonCard from '@/components/SkeletonCard'
 import PlayerName from '@/components/PlayerName'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -68,7 +69,6 @@ const EXTRA_STYLES = `
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Period = 'last_quiz' | 'month' | 'quarter' | 'year' | 'alltime'
-type BadgeKind = 'krone' | 'flamme' | 'lyn' | 'medalje'
 
 type Entry = {
   rank: number
@@ -231,22 +231,6 @@ function assignBadges(entries: Entry[]): Map<string, BadgeKind> {
   return badges
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
-  const bg = '#c9a84c'
-  const iconSize = Math.round(size * 0.65)
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none">
-        {badge === 'krone'   && <path d="M2 8L4 3L8 6L12 3L14 8H2Z" fill="#1a1c23"/>}
-        {badge === 'flamme'  && <path d="M8 2C8 2 12 5 12 8.5C12 11 10 13 8 14C6 13 4 11 4 8.5C4 5 8 2 8 2Z" fill="white"/>}
-        {badge === 'lyn'     && <path d="M10 2L5 9H9L6 14L13 6H9L10 2Z" fill="white"/>}
-        {badge === 'medalje' && <circle cx="8" cy="8" r="4" fill="white"/>}
-      </svg>
-    </div>
-  )
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

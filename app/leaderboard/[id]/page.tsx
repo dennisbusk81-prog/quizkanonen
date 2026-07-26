@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
-import { rankAttempts, getMedal, RankedAttempt } from '@/lib/ranking'
+import { rankAttempts, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import { getSessionIdentity } from '@/lib/session-identity'
 import AuthModal from '@/components/AuthModal'
@@ -11,6 +11,8 @@ import { useProfile } from '@/components/ProfileProvider'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
+import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -52,25 +54,6 @@ const s = {
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
   sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
-  row:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowGold:      { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowHighlight: { background: '#252836', border: '1px solid #c9a84c', borderRadius: 20, padding: '16px 20px', minHeight: 72, display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  goldStripe:   { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
-
-  rankCell: { width: 32, textAlign: 'center' as const, flexShrink: 0 },
-  medal:    { fontSize: 22, lineHeight: '1', display: 'block' },
-  rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#7a7873', display: 'block' },
-  rankTied: { fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: '#c9a84c', display: 'block' },
-
-  nameBlock: { flex: 1, minWidth: 0 },
-  name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
-  nameSub:   { fontSize: 12, color: '#7a7873' },
-
-  scoreBlock: { textAlign: 'right' as const, flexShrink: 0, width: 64 },
-  score:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 3, whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' as const },
-  scoreSub:   { fontSize: 11, color: '#7a7873' },
-  tiedLabel:  { color: '#c9a84c', marginLeft: 4 },
-
   profileBar: { background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '14px 20px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 },
   avatar:     { width: 34, height: 34, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c9a84c', overflow: 'hidden' as const },
 
@@ -82,8 +65,6 @@ const s = {
   btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
   btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
   btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
-
-  separator: { textAlign: 'center' as const, fontSize: 11, color: '#7a7873', letterSpacing: '0.1em', textTransform: 'uppercase' as const, margin: '12px 0 8px', fontWeight: 600 },
 
   tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 16 },
   tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
@@ -97,23 +78,6 @@ const s = {
   btnLink:   { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', border: '1px solid #2a2d38', borderRadius: 10, textDecoration: 'none' },
 }
 
-type BadgeKind = 'krone' | 'pil' | 'flamme' | 'lyn' | 'medalje'
-
-function BadgeCircle({ badge, size = 18 }: { badge: BadgeKind; size?: number }) {
-  const bg = '#c9a84c'
-  const iconSize = Math.round(size * 0.65)
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none">
-        {badge === 'krone'   && <path d="M2 8L4 3L8 6L12 3L14 8H2Z" fill="#1a1c23"/>}
-        {badge === 'pil'     && <path d="M8 3L13 10H3L8 3Z" fill="white"/>}
-        {badge === 'flamme'  && <path d="M8 2C8 2 12 5 12 8.5C12 11 10 13 8 14C6 13 4 11 4 8.5C4 5 8 2 8 2Z" fill="white"/>}
-        {badge === 'lyn'     && <path d="M10 2L5 9H9L6 14L13 6H9L10 2Z" fill="white"/>}
-        {badge === 'medalje' && <circle cx="8" cy="8" r="4" fill="white"/>}
-      </svg>
-    </div>
-  )
-}
 
 // Felles entry-form fra /api/leaderboard/[id]
 type LbEntry = {
@@ -182,6 +146,13 @@ export default function LeaderboardPage() {
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
+  // Trykk-på-rad åpner denne i stedet for å kalle handleChallenge direkte —
+  // se ResultsTable sin onRowClick. Ingen mellomsteg-meny: kuttet fra
+  // opprinnelig brief siden «Inviter til liga» (det andre menyvalget) viste
+  // seg ikke byggbart (ingen mekanisme for å rette en invitasjon mot en
+  // navngitt bruker finnes noe sted i kodebasen) — med kun duell igjen ville
+  // en meny med ett valg vært en unødvendig ekstra tapp.
+  const [pendingChallenge, setPendingChallenge] = useState<{ id: string; name: string } | null>(null)
   const userOrgs = myOrgs.map(o => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
   const [fetchError, setFetchError] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -441,6 +412,21 @@ export default function LeaderboardPage() {
     }
   }, [])
 
+  // Utfordre-bekreftelse: Escape lukker, siden bak scroller ikke mens åpen.
+  // Denne siden har mye høyere trafikk enn SeasonLeaderboard sin tilsvarende
+  // modal (som mangler begge deler) — lagt til her fra dag én.
+  useEffect(() => {
+    if (!pendingChallenge) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPendingChallenge(null) }
+    window.addEventListener('keydown', handleKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [pendingChallenge])
+
   useEffect(() => {
     if (prevRankMap.size === 0 || attempts.length === 0) return
     const currentRanked = rankAttempts(attempts)
@@ -622,16 +608,19 @@ export default function LeaderboardPage() {
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
     : null
 
-  const renderRow = (attempt: RankedAttempt, isUser: boolean, extraClass?: string, showLiveNote?: boolean) => {
-    const isFirst = attempt.rank === 1 && !attempt.isTied
-    const rowStyle = isUser ? s.rowHighlight : isFirst ? s.rowGold : s.row
-
-    const avatarUrl = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.avatar_url ?? null) : null
+  // Ren mapper — erstatter den tidligere renderRow (som rendret et kort-format
+  // <div> direkte). All logikk under er UENDRET fra originalen (merke-utregning,
+  // navn/kallenavn/medlemsnr-sammenslåing, klikkbarhets-gating); kun repakket
+  // som objektfelt for ResultsTable i stedet for JSX. Avatar er droppet (se
+  // designbeslutning 26. juli); merket flyttes inn i Navn-cellen via
+  // ResultsTable sin `badge`-støtte i stedet for å ligge på et avatar-hjørne.
+  const attemptToRow = (attempt: RankedAttempt, isUser: boolean, showLiveNote: boolean, rowClassName?: string): ResultsTableRow => {
     const shownName = attempt.user_id
       ? (memberInfoMap.get(attempt.user_id)?.display_name ?? attempt.player_name)
       : attempt.player_name
     const shownNickname = attempt.user_id ? (memberInfoMap.get(attempt.user_id)?.nickname ?? null) : null
-    const initial = getAvatarInitial(shownNickname?.trim() || shownName)
+    const hasNick = !!shownNickname?.trim()
+    const line1 = hasNick ? shownNickname!.trim() : shownName
 
     let badge: BadgeKind | null = null
     if (attempt.rank === 1) badge = 'krone'
@@ -640,125 +629,60 @@ export default function LeaderboardPage() {
     else if (attempt.player_name === fastestSoloName) badge = 'lyn'
     else if (attempt.rank <= 3) badge = 'medalje'
 
-    return (
-      <Fragment key={attempt.id}>
-        <div id={isUser ? 'user-row' : undefined} style={rowStyle} className={extraClass}>
-          {isFirst && <div style={s.goldStripe} />}
-          <div style={s.rankCell}>
-            {attempt.isTied
-              ? <span style={s.rankTied}>{attempt.rank}=</span>
-              : attempt.rank <= 3
-                ? <span style={s.medal}>{getMedal(attempt.rank)}</span>
-                : <span style={s.rankNum}>{attempt.rank}</span>
-            }
-          </div>
-          <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
-            ) : (
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>
-                {initial}
-              </div>
-            )}
-            {badge && (
-              <div style={{ position: 'absolute', bottom: -1, right: -1, border: '2px solid #1a1c23', borderRadius: '50%' }}>
-                <BadgeCircle badge={badge} />
-              </div>
-            )}
-          </div>
-          {(() => {
-            // Tiden vises i score-blokken (sammen med riktige), ikke under navnet.
-            // Andrelinjen under navnet bærer kun medlemsnr og/eller display_name
-            // (når kallenavn brukes); den utelates helt når ingen av delene finnes.
-            const hasNick = !!shownNickname?.trim()
-            const memberNo = attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number
-              ? memberInfoMap.get(attempt.user_id)?.member_number ?? null
-              : null
-            const line1 = hasNick ? shownNickname!.trim() : shownName
-            const subParts = [
-              memberNo != null ? '#' + String(memberNo).padStart(3, '0') : null,
-              hasNick ? shownName : null,
-            ].filter(Boolean) as string[]
-            return (
-              <div style={s.nameBlock}>
-                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
-                  {line1}
-                  {!attempt.user_id && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
-                </p>
-                {subParts.length > 0 && (
-                  <p style={{ ...s.nameSub, color: '#7a7873', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {subParts.join(' · ')}
-                  </p>
-                )}
-              </div>
-            )
-          })()}
-          <div style={s.scoreBlock}>
-            <p style={s.score}>{attempt.correct_answers}/{attempt.total_questions}</p>
-            <p style={s.scoreSub}>
-              {formatTime(attempt.total_time_ms)}
-              {attempt.isTied && <span style={s.tiedLabel}>delt</span>}
-            </p>
-          </div>
-          {/* H2H Duell er gratis — Utfordre vises for alle innloggede, på alle rader unntatt egen */}
-          {!isUser && currentUserId && attempt.user_id && (() => {
-            // Fix 4: hide for all users already involved in any duel with me (both sides)
-            const involved = duelInvolvedSet.has(attempt.user_id)
-            const sent     = challengeSentSet.has(attempt.user_id)
-            const isLoading = challengeLoadingId === attempt.user_id
-            if (involved && sent) {
-              // Outgoing pending: show "Sendt"
-              return (
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.06em', flexShrink: 0 }}>
-                  Sendt
-                </span>
-              )
-            }
-            if (involved) {
-              // Already in a duel relationship (incoming/active) — hide button silently
-              return null
-            }
-            if (activeDuelExists) {
-              // Has a different active duel — block all other challenges
-              return null
-            }
-            return (
-              <button
-                onClick={() => handleChallenge(attempt.user_id!)}
-                disabled={isLoading}
-                style={{
-                  background: 'none',
-                  border: '1px solid rgba(201,168,76,0.35)',
-                  color: '#c9a84c',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                  cursor: isLoading ? 'default' : 'pointer',
-                  fontFamily: "'Instrument Sans', sans-serif",
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                  opacity: isLoading ? 0.6 : 1,
-                }}
-              >
-                {isLoading ? '…' : 'Utfordre'}
-              </button>
-            )
-          })()}
-        </div>
-        {/* Fix 5: inline feilmelding under raden i 3 sekunder */}
-        {attempt.user_id && challengeError?.rivalId === attempt.user_id && (
-          <p style={{ fontSize: 13, color: '#E24B4A', margin: '-4px 0 8px 20px' }}>
-            {challengeError.message}
-          </p>
-        )}
-        {showLiveNote && (
-          <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', margin: '-4px 0 8px' }}>
-            {soloTotal} spillere har spilt så langt — oppdateres gjennom dagen
-          </p>
-        )}
-      </Fragment>
-    )
+    const memberNo = attempt.user_id && memberInfoMap.get(attempt.user_id)?.show_member_number
+      ? memberInfoMap.get(attempt.user_id)?.member_number ?? null
+      : null
+    const secondaryParts = [
+      memberNo != null ? '#' + String(memberNo).padStart(3, '0') : null,
+      hasNick ? shownName : null,
+    ].filter(Boolean) as string[]
+
+    // H2H Duell er gratis for alle innloggede, på alle rader unntatt egen —
+    // uendret regel fra originalen.
+    let clickable = false
+    let trailingLabel: string | null = null
+    if (!isUser && currentUserId && attempt.user_id) {
+      const involved = duelInvolvedSet.has(attempt.user_id)
+      const sent = challengeSentSet.has(attempt.user_id)
+      const isLoading = challengeLoadingId === attempt.user_id
+      if (involved && sent) {
+        trailingLabel = 'Sendt'
+      } else if (!involved && !activeDuelExists) {
+        // Klikkbar kun mens ingen forespørsel for NETTOPP denne mottakeren er
+        // underveis — hindrer dobbel-innsending hvis raden rekker å bli
+        // trykkbar igjen i vinduet mellom modal-lukk og at
+        // challengeSentSet/duelInvolvedSet faktisk oppdateres.
+        clickable = !isLoading
+      }
+      // involved uten sent, eller activeDuelExists: skjules stille (uendret
+      // fra originalens `return null`) — verken chevron eller merkelapp.
+    }
+
+    return {
+      key: attempt.user_id ?? attempt.id,
+      rank: attempt.rank,
+      // Gjester har verken kallenavn eller medlemsnr (ingen konto), så
+      // secondaryParts er alltid tom for dem — "(guest)" flettes derfor rett
+      // inn på navnelinja i stedet for å kreve et eget felt for én sjelden,
+      // ikke-klikkbar radtype.
+      name: attempt.user_id ? line1 : `${line1} (guest)`,
+      secondary: secondaryParts.length > 0 ? secondaryParts.join(' · ') : null,
+      correctAnswers: attempt.correct_answers,
+      totalTimeMs: attempt.total_time_ms,
+      highlight: isUser,
+      tied: attempt.isTied,
+      badge,
+      clickable,
+      trailingLabel,
+      ariaLabel: clickable ? `Utfordre ${line1} til duell` : null,
+      note: (attempt.user_id && challengeError?.rivalId === attempt.user_id)
+        ? { text: challengeError.message, tone: 'error' }
+        : showLiveNote
+          ? { text: `${soloTotal} spillere har spilt så langt — oppdateres gjennom dagen`, tone: 'muted' }
+          : null,
+      separatorLabel: null,
+      rowClassName,
+    }
   }
 
   const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void, isPodium = false) => {
@@ -778,6 +702,19 @@ export default function LeaderboardPage() {
       return 'podium-rest'
     }
 
+    const rows: ResultsTableRow[] = visible.map(attempt => {
+      const isUserRow = isPremium && (currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName)
+      return attemptToRow(attempt, isUserRow, isUserRow && !isClosed, podiumClass(attempt.rank))
+    })
+    // «Din plassering»: brukerens egen rad føyes til SAMME tabell (ikke en
+    // andre tabell-instans) med en separator-etikett rett over — matcher
+    // hvordan org-admin allerede fremhever «meg» via highlight, kombinert med
+    // en synlig divider ResultsTable rendrer som en egen full-bredde rad.
+    if (userOutsideVisible && isPremium) {
+      const placementRow = attemptToRow(userInSection, true, !isClosed)
+      rows.push({ ...placementRow, separatorLabel: '— Din plassering —' })
+    }
+
     return (
       <div key={label}>
         <div style={s.sectionHeader}>
@@ -785,16 +722,12 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{ranked.length}</span>
         </div>
-        {visible.map(attempt => {
-          const isUserRow = isPremium && (currentUserId ? attempt.user_id === currentUserId : attempt.player_name === displayName)
-          return renderRow(attempt, isUserRow, podiumClass(attempt.rank), isUserRow && !isClosed)
-        })}
-        {userOutsideVisible && isPremium && (
-          <>
-            <p style={s.separator}>— Din plassering —</p>
-            {renderRow(userInSection, true, undefined, !isClosed)}
-          </>
-        )}
+        <ResultsTable
+          rows={rows}
+          totalQuestions={ranked[0]?.total_questions}
+          formatTime={formatTime}
+          onRowClick={row => setPendingChallenge({ id: row.key, name: row.name })}
+        />
         {remaining > 0 && (
           <button style={s.btnMore} onClick={onShowMore}>
             Vis {Math.min(10, remaining)} til
@@ -866,43 +799,26 @@ export default function LeaderboardPage() {
     )
   }
 
-  function renderBrowseRow(e: LbEntry) {
+  // Premium søk/paginering hadde aldri merker eller utfordre-knapp — uendret
+  // her, kun repakket som ResultsTableRow. Ingen ny funksjonalitet lagt til
+  // (kun formatet konverteres, se plan).
+  function browseEntryToRow(e: LbEntry): ResultsTableRow {
     const isSelf = currentUserId != null && e.userId === currentUserId
-    const rowStyle = isSelf ? s.rowHighlight : s.row
     const shownName = e.userId ? (memberInfoMap.get(e.userId)?.display_name ?? e.playerName) : e.playerName
     const shownNickname = e.userId ? (e.nickname ?? memberInfoMap.get(e.userId)?.nickname ?? null) : null
     const hasNick = !!shownNickname?.trim()
-    const initial = ((hasNick ? shownNickname!.trim() : shownName)?.[0] ?? '?').toUpperCase()
-    const avatarUrl = e.userId ? (memberInfoMap.get(e.userId)?.avatar_url ?? null) : null
     const line1 = hasNick ? shownNickname!.trim() : shownName
-    return (
-      <div key={e.id} id={isSelf ? 'user-row' : undefined} style={rowStyle}>
-        {isSelf && <div style={s.goldStripe} />}
-        <div style={s.rankCell}><span style={s.rankNum}>{e.rank}</span></div>
-        <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
-          {avatarUrl
-            ? <img src={avatarUrl} alt="" style={{ borderRadius: '50%', objectFit: 'cover', width: 40, height: 40, display: 'block' }} />
-            : <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(201,168,76,0.10)', border: '1.5px solid rgba(201,168,76,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' }}>{initial}</div>
-          }
-        </div>
-        <div style={s.nameBlock}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 2 }}>
-            {line1}
-            {!e.userId && <span style={{ fontSize: 12, color: '#7a7873', fontWeight: 400, marginLeft: 6 }}>(guest)</span>}
-          </p>
-          {/* Tiden vises i score-blokken; andrelinjen viser kun display_name ved kallenavn */}
-          {hasNick && (
-            <p style={{ ...s.nameSub, color: '#7a7873', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {shownName}
-            </p>
-          )}
-        </div>
-        <div style={s.scoreBlock}>
-          <p style={s.score}>{e.correctAnswers}/{e.totalQuestions}</p>
-          <p style={s.scoreSub}>{formatTime(e.totalTimeMs)}</p>
-        </div>
-      </div>
-    )
+    return {
+      key: e.id,
+      rank: e.rank,
+      name: e.userId ? line1 : `${line1} (guest)`,
+      secondary: hasNick ? shownName : null,
+      correctAnswers: e.correctAnswers,
+      totalTimeMs: e.totalTimeMs,
+      highlight: isSelf,
+      badge: null,
+      clickable: false,
+    }
   }
 
   function renderBrowseList() {
@@ -920,7 +836,11 @@ export default function LeaderboardPage() {
           <div style={s.sectionLine} />
           <span style={s.sectionCount}>{browseData?.totalCount ?? entries.length}</span>
         </div>
-        {entries.map(renderBrowseRow)}
+        <ResultsTable
+          rows={entries.map(browseEntryToRow)}
+          totalQuestions={entries[0]?.totalQuestions}
+          formatTime={formatTime}
+        />
       </>
     )
   }
@@ -957,6 +877,49 @@ export default function LeaderboardPage() {
     <>
       <style>{podiumStyles}</style>
       <AuthModal open={showModal} onClose={() => setShowModal(false)} />
+      {/* Utfordre-bekreftelse — trigges av trykk på en klikkbar rad. Stil
+          kopiert fra components/SeasonLeaderboard.tsx sin tilsvarende modal,
+          pluss dialog-rolle/Escape/scroll-lock som manglet der (berettiget
+          her: langt høyere trafikk enn den siden). */}
+      {pendingChallenge && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}
+          onClick={() => setPendingChallenge(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="qk-challenge-title"
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 360, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}
+          >
+            <p id="qk-challenge-title" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+              Utfordre {pendingChallenge.name}?
+            </p>
+            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 24 }}>
+              Du sender en H2H-duell-utfordring. Motstanderen kan godta eller avslå.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={async () => {
+                  const id = pendingChallenge.id
+                  setPendingChallenge(null)
+                  await handleChallenge(id)
+                }}
+                style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+              >
+                Send utfordring
+              </button>
+              <button
+                onClick={() => setPendingChallenge(null)}
+                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <SiteNav variant={orgSlug ? 'org' : 'default'} orgSlug={orgSlug ?? undefined} quizId={quiz?.id} />
       <div style={s.wrap}>
         <div style={s.page}>
@@ -1263,6 +1226,15 @@ export default function LeaderboardPage() {
                   </button>
                 )}
               </div>
+
+              {/* Hint for trykk-på-rad-mønsteret — vises kun for innloggede,
+                  siden det er nøyaktig samme betingelse utfordre-funksjonen
+                  alltid har krevd. Vist én gang, ikke duplisert i begge faner. */}
+              {session && (
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-8px 0 14px' }}>
+                  Trykk på en deltaker for å utfordre til duell.
+                </p>
+              )}
 
               {activeTab === 'alle' && (
                 <>
