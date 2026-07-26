@@ -15,6 +15,17 @@ type Code = {
   used_count: number
   is_active: boolean
   created_at: string
+  // Eldre rader (opprettet før 26. juli 2026) mangler feltet — de var alle
+  // brede koder, så null behandles som 'shared'.
+  code_type: 'shared' | 'personal' | null
+}
+
+// Standard utløpsdato for en ny delt kode: 90 dager fram i tid. Delte koder MÅ
+// ha en frist (serveren avviser dem uten), så feltet forhåndsutfylles i stedet
+// for å stå tomt og stoppe lagringen.
+function defaultValidUntil(): string {
+  const d = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+  return d.toISOString().slice(0, 10)
 }
 
 const STYLES = `
@@ -283,9 +294,14 @@ export default function AdminCodes() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
-  const [codeType, setCodeType] = useState<'campaign' | 'personal'>('campaign')
-  const [form, setForm] = useState({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' })
+  const [codeType, setCodeType] = useState<'shared' | 'personal'>('shared')
+  const [form, setForm] = useState({ code: '', description: '', duration_days: '60', valid_until_date: defaultValidUntil(), max_uses: '100' })
   const [mounted, setMounted] = useState(false)
+  // Nyopprettet privat kode vises én gang her — den genereres på serveren og
+  // står ellers bare i tabellen.
+  const [generated, setGenerated] = useState<string | null>(null)
+
+  const emptyForm = () => ({ code: '', description: '', duration_days: '60', valid_until_date: defaultValidUntil(), max_uses: '100' })
 
   useEffect(() => {
     setMounted(true)
@@ -313,14 +329,22 @@ export default function AdminCodes() {
   }
 
   async function saveCode() {
-    if (!form.code.trim() || !form.description.trim()) {
-      showFeedback('error', 'Fyll inn kode og beskrivelse.')
+    if (!form.description.trim()) {
+      showFeedback('error', 'Fyll inn beskrivelse.')
       return
     }
+    // Privat kode genereres på serveren — da finnes den aldri som fritekst noen
+    // har valgt. Delt kode må ha et kodeord, og må ha bruksgrenser (serveren
+    // håndhever det samme).
+    if (codeType === 'shared') {
+      if (!form.code.trim()) { showFeedback('error', 'Delte koder trenger et kodeord.'); return }
+      if (!form.valid_until_date) { showFeedback('error', 'Delte koder må ha en utløpsdato.'); return }
+      if (!(parseInt(form.max_uses) > 0)) { showFeedback('error', 'Delte koder må ha et maks antall innløsninger.'); return }
+    }
     setSaving(true)
+    setGenerated(null)
     try {
-      // Innløsningsfristen er valgfri. Tom = koden virker til den deaktiveres
-      // eller maks antall brukere er nådd. Datoen tolkes til og med hele dagen.
+      // Datoen tolkes til og med hele dagen.
       const validUntil = form.valid_until_date
         ? new Date(`${form.valid_until_date}T23:59:59`).toISOString()
         : null
@@ -329,21 +353,22 @@ export default function AdminCodes() {
       const res = await adminFetch('/api/admin/codes', {
         method: 'POST',
         body: JSON.stringify({
-          code: form.code.trim().toUpperCase(),
+          code_type: codeType,
+          code: codeType === 'shared' ? form.code.trim().toUpperCase() : undefined,
           description: form.description.trim(),
           valid_until: validUntil,
           duration_days: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
-          max_uses: parseInt(form.max_uses) || 100,
-          used_count: 0,
-          is_active: true,
+          max_uses: codeType === 'shared' ? parseInt(form.max_uses) : 1,
         }),
       })
+      const d = await res.json()
       if (!res.ok) {
-        const d = await res.json()
-        showFeedback('error', 'Feil ved lagring: ' + d.error)
+        showFeedback('error', d.error ?? 'Feil ved lagring.')
       } else {
-        showFeedback('success', 'Kode opprettet: ' + form.code.toUpperCase())
-        setForm({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' })
+        const saved = d.code?.code ?? form.code.toUpperCase()
+        if (codeType === 'personal') setGenerated(saved)
+        showFeedback('success', 'Kode opprettet: ' + saved)
+        setForm(emptyForm())
         setShowForm(false)
         fetchCodes()
       }
@@ -391,7 +416,7 @@ export default function AdminCodes() {
             <Link href="/admin" className="ac-back">← Admin</Link>
             <h1 className="ac-title">Verdi<em>koder</em></h1>
           </div>
-          <button onClick={() => { setShowForm(!showForm); setCodeType('campaign'); setForm({ code: '', description: '', duration_days: '60', valid_until_date: '', max_uses: '100' }) }} className="ac-btn-add">
+          <button onClick={() => { setShowForm(!showForm); setCodeType('shared'); setGenerated(null); setForm(emptyForm()) }} className="ac-btn-add">
             {showForm ? '✕ Avbryt' : '+ Ny kode'}
           </button>
         </header>
@@ -413,18 +438,19 @@ export default function AdminCodes() {
               <label className="ac-label">Kodetype</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 {([
-                  { value: 'campaign', label: 'Kampanjekode', sub: '60 dager Premium · 100 brukere' },
-                  { value: 'personal', label: 'Engangskode til én person', sub: '365 dager Premium · 1 bruker' },
+                  { value: 'shared', label: 'Delt kode', sub: 'Mange kan bruke · krever grense og frist' },
+                  { value: 'personal', label: 'Privat kode', sub: 'Én mottaker · genereres tilfeldig' },
                 ] as const).map(opt => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => {
                       setCodeType(opt.value)
+                      setGenerated(null)
                       if (opt.value === 'personal') {
-                        setForm(f => ({ ...f, duration_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
+                        setForm(f => ({ ...f, code: '', duration_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
                       } else {
-                        setForm(f => ({ ...f, duration_days: '60', max_uses: '100' }))
+                        setForm(f => ({ ...f, duration_days: '60', max_uses: '100', valid_until_date: f.valid_until_date || defaultValidUntil() }))
                       }
                     }}
                     style={{
@@ -448,13 +474,34 @@ export default function AdminCodes() {
               </div>
             </div>
 
-            <div className="ac-field">
-              <label className="ac-label">Kode</label>
-              <input type="text" value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                placeholder="F.eks. BETATEST"
-                className="ac-input ac-mono" />
-            </div>
+            {codeType === 'shared' ? (
+              <div className="ac-field">
+                <label className="ac-label">Kodeord</label>
+                <input type="text" value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                  placeholder="F.eks. FREDAGSQUIZ"
+                  className="ac-input ac-mono" />
+                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                  Skal kunne deles åpent og huskes. Det er grensen og fristen under
+                  som beskytter koden — ikke at den er vanskelig å gjette.
+                </p>
+              </div>
+            ) : (
+              <div className="ac-field">
+                <label className="ac-label">Kode</label>
+                <p style={{
+                  background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10,
+                  padding: '11px 14px', fontFamily: "'Courier New', monospace",
+                  fontSize: 14, letterSpacing: '0.08em', color: '#7a7873',
+                }}>
+                  Genereres automatisk
+                </p>
+                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                  En privat kode skal ikke kunne gjettes av utenforstående, og
+                  settes derfor tilfeldig av serveren. Du får se den når den er lagret.
+                </p>
+              </div>
+            )}
 
             <div className="ac-field">
               <label className="ac-label">Beskrivelse</label>
@@ -477,27 +524,48 @@ export default function AdminCodes() {
                 </p>
               </div>
               <div>
-                <label className="ac-label">Maks brukere</label>
+                <label className="ac-label">Maks innløsninger</label>
                 <input type="number" value={form.max_uses}
                   onChange={e => setForm(f => ({ ...f, max_uses: e.target.value }))}
-                  className="ac-input" />
+                  disabled={codeType === 'personal'}
+                  className="ac-input"
+                  style={codeType === 'personal' ? { opacity: 0.45, cursor: 'not-allowed' } : undefined} />
+                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                  {codeType === 'personal'
+                    ? 'Låst til 1 — en privat kode har én mottaker.'
+                    : 'Hver konto kan bruke koden én gang. Taket gjelder totalt.'}
+                </p>
               </div>
             </div>
 
             <div className="ac-field">
-              <label className="ac-label">Koden kan brukes til og med</label>
+              <label className="ac-label">
+                Koden kan brukes til og med{codeType === 'shared' ? ' (påkrevd)' : ''}
+              </label>
               <input type="date" value={form.valid_until_date}
                 onChange={e => setForm(f => ({ ...f, valid_until_date: e.target.value }))}
                 className="ac-input" />
               <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
                 Siste dag koden kan løses inn. Påvirker ikke hvor lenge Premium varer.<br />
-                Tom = ingen frist; koden virker til den deaktiveres eller er brukt opp.
+                {codeType === 'shared'
+                  ? 'En delt kode ligger ute for alltid — fristen er det som gjør at den ikke gjør det.'
+                  : 'Tom = ingen frist; koden virker til den deaktiveres eller er brukt opp.'}
               </p>
             </div>
 
             <button onClick={saveCode} disabled={saving} className="ac-btn-save">
               {saving ? 'Lagrer...' : 'Lagre kode'}
             </button>
+          </div>
+        )}
+
+        {generated && (
+          <div className="ac-form" style={{ borderColor: 'rgba(201,168,76,0.4)' }}>
+            <p className="ac-form-title">Privat kode opprettet</p>
+            <p className="ac-code-value" style={{ fontSize: 20 }}>{generated}</p>
+            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, lineHeight: 1.6 }}>
+              Send denne til mottakeren. Den står også i listen under.
+            </p>
           </div>
         )}
 
@@ -515,6 +583,9 @@ export default function AdminCodes() {
                 <div className="ac-code-left">
                   <div className="ac-code-top">
                     <span className="ac-code-value">{code.code}</span>
+                    <span className="ac-badge off">
+                      {code.code_type === 'personal' ? 'Privat' : 'Delt'}
+                    </span>
                     {!code.is_active && <span className="ac-badge off">Deaktivert</span>}
                     {expired && <span className="ac-badge expired">Utløpt</span>}
                   </div>

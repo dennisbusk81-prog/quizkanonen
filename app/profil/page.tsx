@@ -69,6 +69,41 @@ function formatMemberNumber(n: number): string {
 }
 
 type LoadState = 'loading' | 'ready' | 'error'
+
+// Svaret fra /api/codes/redeem. Kode-perioden stables oppå eksisterende dekning,
+// og et løpende abonnement pauses for perioden — begge deler må fram i teksten.
+type RedeemResult = {
+  startsAt?: string
+  expiresAt?: string | null
+  pausedSubscription?: boolean
+  resumesAt?: string | null
+}
+
+const longDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
+
+function buildCodeSuccessMessage(data: RedeemResult): string {
+  const startsLater = !!data.startsAt && new Date(data.startsAt).getTime() > Date.now() + 60_000
+  const parts: string[] = []
+
+  parts.push(
+    startsLater
+      ? `Kode aktivert! Premium-perioden legges til etter den du har nå, og varer fra ${longDate(data.startsAt!)}`
+      : 'Kode aktivert! Du har nå Premium',
+  )
+  parts[0] += data.expiresAt ? ` til ${longDate(data.expiresAt)}.` : ' på ubestemt tid.'
+
+  if (data.pausedSubscription) {
+    parts.push(
+      data.resumesAt
+        ? `Abonnementet ditt er satt på pause — du blir ikke trukket, og vanlig fakturering starter igjen ${longDate(data.resumesAt)}.`
+        : 'Abonnementet ditt er satt på pause — du blir ikke trukket mens koden gjelder.',
+    )
+    parts.push('Vi har sendt deg en e-post med detaljene.')
+  }
+
+  return parts.join(' ')
+}
 type OrgEntry = { orgId: string; orgName: string; orgSlug: string; isAdmin: boolean; allowGlobalLeague: boolean; globalLeagueOptOut: boolean | null }
 
 export default function ProfilPage() {
@@ -482,11 +517,17 @@ export default function ProfilPage() {
         setCodeError(data.error ?? 'Noe gikk galt. Prøv igjen.')
         setTimeout(() => setCodeError(null), 3000)
       } else {
-        setCodeSuccess('Kode aktivert! Du har nå Premium.')
+        // Meldingen skal si nøyaktig hva som skjedde. Har brukeren et løpende
+        // abonnement, er det viktigste ikke at Premium er aktivert — det hadde
+        // de allerede — men at abonnementet er satt på pause og når trekket
+        // starter igjen. Det skal ingen oppdage først på kontoutskriften.
+        setCodeSuccess(buildCodeSuccessMessage(data))
         setCodeInput('')
         // Tvungen fersk server-bekreftelse av ny premium-status (via context).
         await refreshProfile()
-        setTimeout(() => setCodeSuccess(null), 3000)
+        // Pause-meldingen er lengre og viktigere enn den gamle bekreftelsen —
+        // den får stå til brukeren har rukket å lese den.
+        setTimeout(() => setCodeSuccess(null), data.pausedSubscription ? 12000 : 4000)
       }
     } catch {
       setCodeError('Noe gikk galt. Prøv igjen.')

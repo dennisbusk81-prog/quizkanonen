@@ -87,6 +87,14 @@ export async function POST(
   // Ikke-blokkerende med vilje: medlemmet er allerede fjernet fra orgen over,
   // så en feil her er ikke grunn til å late som om selve fjerningen mislyktes —
   // men den skal ikke lenger passere helt stille.
+  //
+  // Om personal_stripe_subscription_id (26. juli 2026): kolonnen ble tidligere
+  // kun satt av Founders-flyten, så en betalende B2C-kunde så ut som om de ikke
+  // hadde eget abonnement og fikk en unødvendig grace-periode. Webhooken lagrer
+  // den nå ved checkout, og — viktigere — /api/cron/expire-grace-periods
+  // rekalkulerer mot alle kilder i stedet for å slå av Premium blindt. Et
+  // overflødig grace-stempel er derfor ufarlig: det kan ikke lenger føre til at
+  // noen mister Premium de faktisk betaler for.
   let graceUntil: string | null = null
   if (profile?.premium_status === true && !profile?.personal_stripe_subscription_id) {
     graceUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()

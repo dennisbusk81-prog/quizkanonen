@@ -1,18 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
-import { randomBytes } from 'crypto'
+import { generateAccessCode } from '@/lib/access-code'
 
 const VALID_PACKAGES = ['starter', 'standard', 'pro'] as const
-
-// Lesbar 8-tegns kode uten lett forvekslelige tegn (0/O, 1/I/L).
-function randomCode(): string {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-  const bytes = randomBytes(8)
-  let out = ''
-  for (let i = 0; i < 8; i++) out += alphabet[bytes[i] % alphabet.length]
-  return out
-}
 
 // POST /api/admin/org-trial-codes/generate — opprett en ny engangskode for B2B-trial.
 // Body: { package, trial_days, note?, code? }. Genererer kode hvis ingen oppgis.
@@ -35,9 +26,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Tillat egendefinert kode (f.eks. PILOT-ELKJOP), ellers generér en.
+  // Generatoren deles med verdikodene (lib/access-code.ts) — samme
+  // menneskevennlige alfabet, men uten modulo-skjevheten den lokale
+  // 8-tegns-varianten her hadde.
   const code = body.code?.trim()
     ? body.code.trim().toUpperCase()
-    : randomCode()
+    : generateAccessCode(8)
 
   const { data, error } = await supabaseAdmin
     .from('org_trial_codes')

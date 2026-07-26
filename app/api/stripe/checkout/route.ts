@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { getCodeCoverage } from '@/lib/premium-state-io'
 
 const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
 
@@ -41,11 +42,40 @@ export async function POST(request: NextRequest) {
     const resolvedPriceId = process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
     const mode = 'subscription'
 
+    // ── Rad E: kunden har en aktiv verdikode og kjøper abonnement ──────────────
+    // Kjøp er tillatt — men kunden skal ikke belastes for en periode de samtidig
+    // får gratis. Pause duger ikke her: første faktura trekkes ved selve
+    // checkout. Riktig mekanisme er trial_end på abonnementet, som utsetter
+    // første faktura til koden løper ut.
+    const codeCoverage = await getCodeCoverage(userId)
+    let trialEnd: number | undefined
+
+    if (codeCoverage) {
+      if (!codeCoverage.expiresAt) {
+        // Permanent kode: et abonnement ville aldri kunne faktureres uten å
+        // kollidere med gratis-perioden. Å ta betalt her ville vært nøyaktig det
+        // vi skal unngå.
+        return NextResponse.json(
+          { error: 'Du har allerede Premium på ubestemt tid via en verdikode. Du trenger ikke abonnement.' },
+          { status: 409 },
+        )
+      }
+
+      const endsAtMs = new Date(codeCoverage.expiresAt).getTime()
+      // Stripe krever at trial_end ligger minst 48 timer fram i tid. Har koden
+      // mindre enn det igjen, starter abonnementet normalt — differansen er
+      // under to døgn, og alternativet ville vært å avvise kjøpet.
+      if (endsAtMs - Date.now() >= 48 * 60 * 60 * 1000) {
+        trialEnd = Math.floor(endsAtMs / 1000)
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode,
       line_items: [{ price: resolvedPriceId, quantity: 1 }],
       customer_email: email ?? undefined,
       metadata: { userId },
+      ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium`,
     })

@@ -2,8 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail } from '@/lib/email-templates'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
+import { syncPremiumCache } from '@/lib/premium-state-io'
+
+// ── Nedgradering skal ALLTID rekalkuleres, aldri antas ───────────────────────
+// Fram til 26. juli satte hver av disse grenene `premium_status: false` direkte.
+// Det var riktig så lenge en bruker bare kunne ha én kilde til Premium — men en
+// bruker kan reelt ha flere samtidig. Konkret eksempel: en Founders-trial som
+// utløper mens en stablet verdikode fortsatt gjelder. Stripe flipper
+// abonnementet til past_due, og den gamle koden slo av Premium midt i en gyldig
+// kode-periode.
+//
+// syncPremiumCache() utleder tilstanden fra ALLE kildene (kode, org, levende
+// Stripe-abonnement) og skriver cache-feltene deretter. Den slår aldri av
+// Premium for en bruker som fortsatt er dekket av noe annet.
+async function recomputePremium(userIds: string[], context: string, stripe?: Stripe): Promise<void> {
+  for (const id of userIds) {
+    try {
+      await syncPremiumCache(id, stripe)
+    } catch (err) {
+      console.error(`[webhook] premium-rekalkulering feilet (${context}) user=${id}:`, err)
+    }
+  }
+}
 
 // Kaster ved feil på en kritisk DB-skriving slik at den ytre try/catch-en sletter
 // idempotens-stemplet og returnerer 500 → Stripe retry-er hele hendelsen. Bruk KUN
@@ -237,12 +259,22 @@ export async function POST(request: NextRequest) {
 
       // Bruk upsert — oppretter profiles-rad hvis den mangler (f.eks. bruker betalte
       // før navn-modal ble fullført), ellers oppdaterer eksisterende rad som normalt.
+      // personal_stripe_subscription_id lagres nå ALLTID, ikke bare av
+      // Founders-flyten. Fire kodesteder bruker kolonnen som «har ikke eget
+      // abonnement»-vakt (begge utløps-cron-ene og begge org-grace-stedene), og
+      // for en vanlig betalende B2C-kunde var den NULL — så vakten beskyttet
+      // Founders-brukere og tok feil om alle andre.
+      const checkoutSubId = typeof session.subscription === 'string'
+        ? session.subscription
+        : (session.subscription as Stripe.Subscription | null)?.id ?? null
+
       const { error: profileUpsertError } = await supabaseAdmin.from('profiles').upsert({
         id: userId,
         premium_status: true,
         premium_since: new Date().toISOString(),
         stripe_customer_id: session.customer as string ?? null,
         premium_source: 'personal',
+        ...(checkoutSubId ? { personal_stripe_subscription_id: checkoutSubId } : {}),
       }, { onConflict: 'id' })
 
       assertCriticalWrite(profileUpsertError, `checkout B2C premium-upsert userId=${userId}`)
@@ -356,11 +388,9 @@ export async function POST(request: NextRequest) {
 
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
-        const { error: memberLockError } = await supabaseAdmin.from('profiles').update({
-          premium_status: false,
-          premium_source: null,
-        }).in('id', memberIds)
-        assertCriticalWrite(memberLockError, `sub.deleted medlems-premium-fjerning org=${org.id}`)
+        // Rekalkuler i stedet for å slå av blindt: et medlem kan ha egen
+        // verdikode eller eget abonnement som fortsatt dekker dem.
+        await recomputePremium(memberIds, `sub.deleted org=${org.id}`, stripe)
       }
 
       // Send kanselleringsvarsel til org-admin — fire-and-forget
@@ -414,10 +444,13 @@ export async function POST(request: NextRequest) {
           `${subscriptionId}, gjeldende er annerledes`
         )
       } else if (profileId) {
+        // Abonnements-id-en ryddes, men Premium rekalkuleres — brukeren kan ha
+        // en aktiv verdikode eller org-dekning som overlever kanselleringen.
         const { error: b2cDeleteError } = await supabaseAdmin.from('profiles')
-          .update({ premium_status: false, premium_source: null, personal_stripe_subscription_id: null })
+          .update({ personal_stripe_subscription_id: null })
           .eq('id', profileId)
-        assertCriticalWrite(b2cDeleteError, `sub.deleted B2C premium-fjerning profile=${profileId}`)
+        assertCriticalWrite(b2cDeleteError, `sub.deleted B2C rydding profile=${profileId}`)
+        await recomputePremium([profileId], `sub.deleted B2C profile=${profileId}`, stripe)
       } else {
         console.error(`[webhook] subscription.deleted: no profile found for customer=${customerId}, sub=${subscriptionId}`)
       }
@@ -595,6 +628,27 @@ export async function POST(request: NextRequest) {
     const subscription = event.data.object as Stripe.Subscription
     const customerId = subscription.customer as string
 
+    // ── Abonnementet har gjenopptatt fakturering etter en kode-pause ──────────
+    // Stripe fjerner pause_collection av seg selv ved resumes_at. Vi kjenner
+    // igjen nøyaktig det øyeblikket på previous_attributes: pause var satt, nå
+    // er den borte. Kunden fikk beskjed da pausen ble satt, og skal få beskjed
+    // når trekket starter igjen — ingen skal oppdage det først på kontoutskriften.
+    const previous = event.data.previous_attributes as { pause_collection?: unknown } | undefined
+    const wasPaused = previous !== undefined && 'pause_collection' in previous && !!previous.pause_collection
+    if (wasPaused && !subscription.pause_collection) {
+      getUserEmail(stripe, customerId)
+        .then(email => {
+          if (email) {
+            return sendEmail({
+              to: email,
+              subject: 'Abonnementet ditt er i gang igjen — Quizkanonen',
+              html: subscriptionResumedEmail(),
+            })
+          }
+        })
+        .catch(err => console.error('[webhook] subscriptionResumedEmail failed:', err))
+    }
+
     const { data: org } = await supabaseAdmin
       .from('organizations')
       .select('id')
@@ -637,10 +691,9 @@ export async function POST(request: NextRequest) {
         const memberIds = (members ?? []).map(m => m.user_id)
         if (memberIds.length > 0) {
           if (nextStatus === 'locked') {
-            const { error: memberLockErr } = await supabaseAdmin.from('profiles')
-              .update({ premium_status: false, premium_source: null })
-              .in('id', memberIds)
-            assertCriticalWrite(memberLockErr, `sub.updated medlems-premium-fjerning org=${org.id}`)
+            // Rekalkuler per medlem: org-dekningen faller bort, men en egen
+            // verdikode eller et eget abonnement skal ikke ryke med den.
+            await recomputePremium(memberIds, `sub.updated locked org=${org.id}`, stripe)
           } else {
             const { error: memberActivateErr } = await supabaseAdmin.from('profiles')
               .update({ premium_status: true, premium_source: 'org' })
@@ -701,9 +754,10 @@ export async function POST(request: NextRequest) {
           )
         } else if (profileId) {
           const { error: b2cCancelError } = await supabaseAdmin.from('profiles')
-            .update({ premium_status: false, personal_stripe_subscription_id: null })
+            .update({ personal_stripe_subscription_id: null })
             .eq('id', profileId)
-          assertCriticalWrite(b2cCancelError, `sub.updated B2C premium-fjerning profile=${profileId}`)
+          assertCriticalWrite(b2cCancelError, `sub.updated B2C rydding profile=${profileId}`)
+          await recomputePremium([profileId], `sub.updated canceled profile=${profileId}`, stripe)
         } else {
           console.error(`[webhook] subscription.updated canceled: no profile found for customer=${customerId}, sub=${subscriptionId}`)
         }
@@ -741,10 +795,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (profile) {
+      // premium_since nullstilles, men selve Premium-flagget rekalkuleres: en
+      // refusjon av abonnementet fjerner ikke en aktiv verdikode eller
+      // org-dekning. Dette var også vinduet der en refundert kunde med levende
+      // abonnement kunne løse inn en kode og deretter miste alt.
       const { error: refundError } = await supabaseAdmin.from('profiles')
-        .update({ premium_status: false, premium_since: null })
+        .update({ premium_since: null })
         .eq('id', profile.id)
-      assertCriticalWrite(refundError, `charge.refunded premium-fjerning profile=${profile.id}`)
+      assertCriticalWrite(refundError, `charge.refunded rydding profile=${profile.id}`)
+      await recomputePremium([profile.id], `charge.refunded profile=${profile.id}`, stripe)
     } else {
       console.error(`[webhook] charge.refunded: no profile found for customer=${customerId}, charge=${charge.id}`)
     }

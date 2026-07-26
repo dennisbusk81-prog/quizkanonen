@@ -2018,3 +2018,119 @@ export function duelInviteEmail(challengerNameRaw: string, unsubscribeUrl?: stri
 </body>
 </html>`
 }
+
+// ── Verdikode-aktivering ─────────────────────────────────────────────────────
+// To varianter: med og uten pauset abonnement. Den pausede varianten er ikke en
+// høflighetsmelding — den er selve beskjeden om at kunden IKKE blir trukket i
+// perioden, og at faktureringen starter igjen av seg selv etterpå.
+
+function codeEmailShell(title: string, bodyRows: string): string {
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+${bodyRows}
+              <table cellpadding="0" cellspacing="0" style="margin-top:28px;">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/profil"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se profilen din &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+function codeHeading(text: string): string {
+  return `              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                ${text}
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>`
+}
+
+function codePeriodLine(startsAt: string, expiresAt: string | null): string {
+  const startsNow = new Date(startsAt).getTime() <= Date.now() + 60_000
+  const from = startsNow ? 'fra nå' : `fra ${formatTrialEndDate(startsAt)}`
+  const to = expiresAt ? ` til ${formatTrialEndDate(expiresAt)}` : ' på ubestemt tid'
+  return `${from}${to}`
+}
+
+export function codeActivatedEmail(startsAt: string, expiresAt: string | null): string {
+  return codeEmailShell('Premium er aktivert — Quizkanonen', `${codeHeading('Premium er aktivert')}
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Koden er registrert, og du har Premium ${codePeriodLine(startsAt, expiresAt)}.
+              </p>
+              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Det betyr n&oslash;yaktig plassering p&aring; leaderboardet, full sesong-toppliste,
+                historikk og statistikk &mdash; og private ligaer med venner.
+              </p>`)
+}
+
+export function codeActivatedPausedEmail(
+  startsAt: string,
+  expiresAt: string | null,
+  resumesAt: string | null,
+): string {
+  const resumeLine = resumesAt
+    ? `Abonnementet ditt er satt p&aring; <strong style="color:#ffffff;">pause</strong> i hele denne perioden.
+                Du blir <strong style="color:#ffffff;">ikke trukket</strong> for den, og vanlig fakturering
+                starter av seg selv igjen ${formatTrialEndDate(resumesAt)}.`
+    : `Abonnementet ditt er satt p&aring; <strong style="color:#ffffff;">pause</strong> inntil videre.
+                Du blir <strong style="color:#ffffff;">ikke trukket</strong> mens koden gjelder.`
+
+  return codeEmailShell('Koden er aktivert — abonnementet er satt på pause', `${codeHeading('Koden er aktivert')}
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Du har Premium ${codePeriodLine(startsAt, expiresAt)}.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                ${resumeLine}
+              </p>
+              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Du trenger ikke gj&oslash;re noe. Abonnementet er ikke sagt opp, og tilgangen din
+                er uavbrutt hele veien.
+              </p>`)
+}
+
+export function subscriptionResumedEmail(): string {
+  return codeEmailShell('Abonnementet ditt er i gang igjen', `${codeHeading('Abonnementet er i gang igjen')}
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Premium-perioden fra verdikoden er over, og abonnementet ditt har gjenopptatt
+                vanlig fakturering. Du beholder tilgangen uten avbrudd.
+              </p>
+              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Vil du endre eller avslutte abonnementet, gj&oslash;r du det n&aring;r som helst fra profilen din.
+              </p>`)
+}

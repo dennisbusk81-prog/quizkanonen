@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { gracePeriodEndedEmail } from '@/lib/email-templates'
+import { syncPremiumCache } from '@/lib/premium-state-io'
 
 // GET /api/cron/expire-grace-periods — kjøres daglig.
 // Avslutter Premium for brukere der org-grace-perioden har utløpt. Beskyttet med
@@ -16,12 +17,14 @@ export async function GET(request: NextRequest) {
 
   const nowIso = new Date().toISOString()
 
-  // Profiler der grace har utløpt, fortsatt markert Premium, og uten eget abonnement
+  // Profiler der grace har utløpt og som fortsatt er markert Premium.
+  // `personal_stripe_subscription_id IS NULL` er FJERNET som vakt: kolonnen ble
+  // kun satt av Founders-flyten, så en vanlig betalende B2C-kunde passerte den.
+  // Hver kandidat rekalkuleres mot alle kilder under i stedet.
   const { data: profiles, error } = await supabaseAdmin
     .from('profiles')
     .select('id')
     .eq('premium_status', true)
-    .is('personal_stripe_subscription_id', null)
     .not('org_premium_grace_until', 'is', null)
     .lt('org_premium_grace_until', nowIso)
 
@@ -36,10 +39,12 @@ export async function GET(request: NextRequest) {
 
   const ids = profiles.map(p => p.id)
 
-  // Slå av Premium og nullstill grace-stempelet
+  // Nullstill grace-stempelet, og rekalkuler Premium per bruker i stedet for å
+  // slå det av blindt: en verdikode eller et eget abonnement skal overleve at
+  // org-grace-perioden løper ut.
   const { error: updateError } = await supabaseAdmin
     .from('profiles')
-    .update({ premium_status: false, premium_source: null, org_premium_grace_until: null })
+    .update({ org_premium_grace_until: null })
     .in('id', ids)
 
   if (updateError) {
@@ -47,11 +52,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
-  // Send avslutnings-e-post (fire-and-forget per bruker)
+  const lostPremium: string[] = []
+  let keptViaOtherSource = 0
+  for (const id of ids) {
+    try {
+      const state = await syncPremiumCache(id)
+      if (state.isPremium) keptViaOtherSource++
+      else lostPremium.push(id)
+    } catch (err) {
+      console.error('[cron/expire-grace-periods] hoppet over', id, '— kunne ikke avgjøre tilstand:', err)
+    }
+  }
+
+  // Send avslutnings-e-post (fire-and-forget per bruker) — kun til dem som
+  // faktisk mistet tilgangen.
   const html = gracePeriodEndedEmail()
   const subject = 'Premium-tilgangen din er avsluttet'
   let sent = 0
-  for (const id of ids) {
+  for (const id of lostPremium) {
     try {
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(id)
       if (user?.email) {
@@ -63,5 +81,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ expired: ids.length, sent })
+  return NextResponse.json({ expired: lostPremium.length, keptViaOtherSource, sent })
 }
