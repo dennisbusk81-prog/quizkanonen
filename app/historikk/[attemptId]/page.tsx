@@ -122,7 +122,7 @@ function WrongCard({ a, num }: { a: AttemptAnswerDetail; num: number }) {
         ) : (
           <div style={{ ...s.ansWrong, color: '#7a7873' }}>— Svarte ikke</div>
         )}
-        <div style={s.ansGold}>Riktig: {a.correct_answer_text || a.correct_answer}</div>
+        <div style={s.ansGold}>Riktig: {a.correct_answer_texts.join(' / ')}</div>
       </div>
       <div style={s.wrongTime}>{formatTime(a.time_ms)}</div>
     </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { getOptionCountsByQuestions } from '@/lib/attempt-answer-stats'
+import { readStoredKey } from '@/lib/answer-key-correction'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,7 @@ export async function GET(
   // Fetch questions
   const { data: questions } = await supabaseAdmin
     .from('questions')
-    .select('id, question_text, correct_answer, option_a, option_b, option_c, option_d, order_index')
+    .select('id, question_text, correct_answer, correct_answers, option_a, option_b, option_c, option_d, order_index')
     .eq('quiz_id', quizId)
     .order('order_index')
 
@@ -66,7 +67,10 @@ export async function GET(
     return {
       questionId: q.id,
       questionText: q.question_text,
-      correctAnswer: q.correct_answer,
+      // readStoredKey(): correct_answers[] vinner når den har innhold, ellers
+      // faller den tilbake på correct_answer — samme mønster som scoringen i
+      // submit/route.ts og fasitrettingen i admin/correct-answer/route.ts.
+      correctAnswers: readStoredKey(q),
       totalAnswers: total,
       distribution,
     }

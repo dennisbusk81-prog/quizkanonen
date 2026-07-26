@@ -197,7 +197,7 @@ export default function LeaderboardPage() {
   type AnswerDistQuestion = {
     questionId: string
     questionText: string
-    correctAnswer: string
+    correctAnswers: string[]
     totalAnswers: number
     distribution: { option: string; label: string; count: number; percent: number }[]
   }
@@ -1349,7 +1349,7 @@ export default function LeaderboardPage() {
                           </p>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {q.distribution.map(d => {
-                              const isCorrect = d.option === q.correctAnswer
+                              const isCorrect = q.correctAnswers.includes(d.option)
                               return (
                                 <div key={d.option}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>

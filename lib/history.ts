@@ -1,5 +1,6 @@
 // Server-only — never import this in 'use client' components.
 import { supabaseAdmin } from './supabase-admin'
+import { readStoredKey } from './answer-key-correction'
 
 // ─── Exported types ──────────────────────────────────────────────────────────
 
@@ -43,8 +44,8 @@ export type AttemptAnswerDetail = {
   selected_answer: string | null       // letter code: 'A' | 'B' | 'C' | 'D' | null
   selected_answer_text: string | null  // option text, null if no answer given
   is_correct: boolean
-  correct_answer: string               // letter code: 'A' | 'B' | 'C' | 'D'
-  correct_answer_text: string          // option text for the correct answer
+  correct_answers: string[]            // letter code(s), one per correct option
+  correct_answer_texts: string[]       // option text(s), same order as correct_answers
   time_ms: number
 }
 
@@ -206,6 +207,7 @@ type QuestionRow = {
   id: string
   question_text: string
   correct_answer: string
+  correct_answers: string[] | null
   option_a: string
   option_b: string
   option_c: string | null
@@ -415,7 +417,7 @@ export async function getAttemptDetail(
       .eq('attempt_id', attemptId),
     supabaseAdmin
       .from('questions')
-      .select('id, question_text, correct_answer, option_a, option_b, option_c, option_d')
+      .select('id, question_text, correct_answer, correct_answers, option_a, option_b, option_c, option_d')
       .eq('quiz_id', attempt.quiz_id),
   ])
 
@@ -439,15 +441,18 @@ export async function getAttemptDetail(
   const mappedAnswers: AttemptAnswerDetail[] = (answers ?? []).map((a) => {
     const q = questionMap.get(a.question_id) ?? null
     const selectedLetter = (a.selected_answer as string | null) ?? null
-    const correctLetter = q?.correct_answer ?? ''
+    // readStoredKey() er samme fallback som scoringen i submit/route.ts og
+    // spillskjermen i app/quiz/[id]/page.tsx bruker: correct_answers[] vinner
+    // når den har innhold, ellers faller den tilbake på enkelt-kolonnen.
+    const correctLetters = q ? readStoredKey(q) : []
     return {
       question_id: a.question_id,
       question_text: q?.question_text ?? '',
       selected_answer: selectedLetter,
       selected_answer_text: q ? getOptionText(q, selectedLetter) : null,
       is_correct: a.is_correct as boolean,
-      correct_answer: correctLetter,
-      correct_answer_text: q ? (getOptionText(q, correctLetter) ?? correctLetter) : correctLetter,
+      correct_answers: correctLetters,
+      correct_answer_texts: correctLetters.map((l) => (q ? getOptionText(q, l) ?? l : l)),
       time_ms: a.time_ms as number,
     }
   })
