@@ -422,6 +422,11 @@ export default function QuizQuestions() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<QuestionForm>(emptyForm())
   const [saving, setSaving] = useState(false)
+  // Sperrer ▲/▼-knappene mens en flytting er underveis, slik at rask,
+  // utålmodig klikking under omsortering ikke stabler opp mange samtidige
+  // PATCH-kall (funnet i loggdiagnose 26. juli: 48 samtidige kall på 9
+  // sekunder, kunne presse Supabase sin tilkoblingspool til 504-timeout).
+  const [isMoving, setIsMoving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   // "Bland svaralternativer" er en quiz-innstilling (samme for alle spørsmål).
@@ -593,10 +598,12 @@ export default function QuizQuestions() {
   }
 
   async function moveQuestion(id: string, direction: 'up' | 'down') {
+    if (isMoving) return
     const idx = questions.findIndex(q => q.id === id)
     if (direction === 'up' && idx === 0) return
     if (direction === 'down' && idx === questions.length - 1) return
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    setIsMoving(true)
     try {
       await Promise.all([
         adminFetch(`/api/admin/quizzes/${quizId}/questions/${questions[idx].id}`, {
@@ -608,9 +615,11 @@ export default function QuizQuestions() {
           body: JSON.stringify({ order_index: questions[idx].order_index }),
         }),
       ])
-      fetchData()
+      await fetchData()
     } catch {
       showFeedback('error', 'Kunne ikke flytte spørsmålet.')
+    } finally {
+      setIsMoving(false)
     }
   }
 
@@ -851,9 +860,9 @@ export default function QuizQuestions() {
                 ) : (
                   <div className="qq-question">
                     <div className="qq-sort">
-                      <button onClick={() => moveQuestion(q.id, 'up')} disabled={idx === 0} className="qq-sort-btn">▲</button>
+                      <button onClick={() => moveQuestion(q.id, 'up')} disabled={idx === 0 || isMoving} className="qq-sort-btn">▲</button>
                       <span className="qq-sort-num">{idx + 1}</span>
-                      <button onClick={() => moveQuestion(q.id, 'down')} disabled={idx === questions.length - 1} className="qq-sort-btn">▼</button>
+                      <button onClick={() => moveQuestion(q.id, 'down')} disabled={idx === questions.length - 1 || isMoving} className="qq-sort-btn">▼</button>
                     </div>
 
                     <div className="qq-q-body">
