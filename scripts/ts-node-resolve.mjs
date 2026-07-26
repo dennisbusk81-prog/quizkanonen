@@ -15,9 +15,21 @@ import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 
+// `server-only` er ikke en installert pakke — Next.js løser den selv under
+// bygging. Under `node --test` finnes den ikke på disk, så et hvilket som helst
+// lib-modul som importerer den (lib/paginate.ts m.fl.) ville feilet med
+// ERR_MODULE_NOT_FOUND før en eneste test fikk kjøre. Den har ingen kjøretids-
+// oppførsel å bevare — den er en ren byggetids-markør — så en tom modul er en
+// korrekt stubb, ikke en forenkling.
+const EMPTY_MODULE = 'data:text/javascript,export {}'
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
     let spec = specifier
+
+    if (spec === 'server-only' || spec === 'client-only') {
+      return { url: EMPTY_MODULE, shortCircuit: true }
+    }
 
     if (spec.startsWith('@/')) {
       spec = pathToFileURL(path.join(ROOT, spec.slice(2))).href

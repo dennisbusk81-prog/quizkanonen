@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabase-admin'
+import { fetchAllRows } from './paginate'
 import { rankQuizAttempts, type RankableAttempt } from './ranking'
 
 // ── ÉN felles rangert liste for LIVE plassering, topp-3 og sluttresultat ─────
@@ -76,20 +77,37 @@ export async function getOrBuildSnapshot(
   // Hent alle LEVERTE solo-forsøk. ÉN ferdig-definisjon: submitted_at IS NOT NULL
   // (den kanoniske innsendingsmarkøren fra submit/route.ts). Erstatter det
   // tidligere total_time_ms>0-proxyet, så populasjonen er identisk med topp-3.
-  const { data: attempts, error } = await supabaseAdmin
-    .from('attempts')
-    .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
-    .eq('quiz_id', quizId)
-    .eq('is_team', false)
-    .not('submitted_at', 'is', null)
-
-  if (error) throw error
+  //
+  // PAGINERT: uten eksplisitt range() kutter PostgREST stille ved 1000 rader.
+  // Denne spørringen gir én rad per spiller som har levert quizen, så taket nås
+  // ved 1000 spillere på én quiz (mest spilte quiz i dag: 71). En avkutting her
+  // ville ikke bare mistet spillere fra lista — den ville gitt feil `total` i
+  // «du er nr. X av Y», feil topp-3, og sendt spillere som FALT UTENFOR de 1000
+  // over i estimat-grenen i computePlacement selv om de faktisk hadde levert.
+  //
+  // .order('id') er nødvendig for at pagineringen skal være korrekt, ikke bare
+  // kosmetikk: uten en stabil sortering kan Postgres returnere radene i ulik
+  // rekkefølge mellom to sider, slik at rader hoppes over eller dubleres. Denne
+  // funksjonen kjører MENS spillere leverer (live plassering under åpen quiz),
+  // altså nettopp under samtidig skriving, der risikoen er reell.
+  // Resultatet er upåvirket: rankQuizAttempts gjør sin egen totalordning med id
+  // som siste tiebreak, så input-rekkefølgen bestemmer ingenting.
+  const attempts = await fetchAllRows<Record<string, unknown>>((from, to) =>
+    supabaseAdmin
+      .from('attempts')
+      .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
+      .eq('quiz_id', quizId)
+      .eq('is_team', false)
+      .not('submitted_at', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
   // Rangér med fasiten (rankQuizAttempts): filtrerer (submitted), dedup'er
   // (beste per spiller; user_id, ellers name:<player_name> for gjester) og gir
   // total ordning uten delte plasseringer. Gjester inkluderes — samme
   // populasjon som topp-3/leaderboard.
-  const ranked = rankQuizAttempts((attempts ?? []) as unknown as RankableAttempt[], {
+  const ranked = rankQuizAttempts(attempts as unknown as RankableAttempt[], {
     includeGuests: true,
     requireSubmitted: true,
   })

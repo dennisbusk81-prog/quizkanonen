@@ -2,6 +2,7 @@
 //   - /api/cron/award-season-points  (poller hvert 5. minutt)
 //   - /api/cron/publish-quiz         (kaller umiddelbart når en quiz stenges)
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import {
   getSeasonPoints as getPoints,
   pickBestSeasonAttempt as pickBestAttempt,
@@ -34,16 +35,32 @@ export async function processQuiz(
   quizId: string,
   closesAt: string
 ): Promise<{ rows: number; error: string | null }> {
-  const { data: rawAttempts, error: attError } = await supabaseAdmin
-    .from('attempts')
-    .select('user_id, correct_answers, total_time_ms, correct_streak')
-    .eq('quiz_id', quizId)
-    .eq('is_team', false)
-    .not('user_id', 'is', null)
+  // PAGINERT: uten eksplisitt range() kutter PostgREST stille ved 1000 rader.
+  // Dette er den ALVORLIGSTE avkuttingen i kodebasen: hver rad her er en
+  // innlogget spiller som skal ha sesongpoeng. Ved >1000 spillere ville de
+  // overskytende ikke bare fått feil poeng — de ville ikke fått NOEN rad i
+  // season_scores, og alle andres rank ville blitt regnet mot en delvis
+  // populasjon. Og fordi upsertScores bruker ignoreDuplicates: true, ville en
+  // ny kjøring ALDRI rettet det opp (se lib/season-resync-plan.ts) — tapet er
+  // permanent. .order('id') gjør sidene deterministiske; rankBestAttempts gjør
+  // sin egen totalordning, så resultatet er uendret.
+  let rawAttempts: RawAttempt[]
+  try {
+    rawAttempts = await fetchAllRows<RawAttempt>((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('user_id, correct_answers, total_time_ms, correct_streak')
+        .eq('quiz_id', quizId)
+        .eq('is_team', false)
+        .not('user_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  } catch (err) {
+    return { rows: 0, error: err instanceof Error ? err.message : String(err) }
+  }
 
-  if (attError) return { rows: 0, error: attError.message }
-
-  if (!rawAttempts || rawAttempts.length === 0) {
+  if (rawAttempts.length === 0) {
     await supabaseAdmin
       .from('quizzes')
       .update({ season_points_awarded: true })
@@ -52,46 +69,68 @@ export async function processQuiz(
   }
 
   const bestByUser = new Map<string, RawAttempt>()
-  for (const a of rawAttempts as RawAttempt[]) {
+  for (const a of rawAttempts) {
     const existing = bestByUser.get(a.user_id)
     bestByUser.set(a.user_id, existing ? pickBestAttempt(existing, a) : a)
   }
 
   const userIds = [...bestByUser.keys()]
 
-  // Brukere blokkeres fra global-rad hvis org har allow_global_league=false
-  // eller memberen selv har global_league_opt_out=true. org-medlemskapet hentes
-  // ÉN gang her og gjenbrukes for organization-scope lenger ned (fjerner tidligere
-  // duplikat-lesing av organization_members).
   type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
   const globallyBlockedUserIds = new Set<string>()
   let orgMemberships: Mem[] = []
-  if (userIds.length > 0) {
-    const { data: orgMems } = await supabaseAdmin
-      .from('organization_members')
-      .select('user_id, organization_id, global_league_opt_out')
-      .in('user_id', userIds)
-    orgMemberships = (orgMems ?? []) as Mem[]
-    if (orgMemberships.length > 0) {
-      const orgIds = [...new Set(orgMemberships.map(m => m.organization_id))]
-      const { data: restrictedOrgs } = await supabaseAdmin
-        .from('organizations')
-        .select('id')
-        .in('id', orgIds)
-        .eq('allow_global_league', false)
-      const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-      for (const m of orgMemberships) {
-        if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
-          globallyBlockedUserIds.add(m.user_id)
-        }
-      }
-    }
-  }
 
   // Del 1: akkumuler ALLE rader (global + liga + org) og gjør ÉN upsert til slutt.
   const allRows: ScoreRow[] = []
 
   try {
+    // ── Org-medlemskap (blokkering fra global + grunnlag for org-scope) ────────
+    // Brukere blokkeres fra global-rad hvis org har allow_global_league=false
+    // eller memberen selv har global_league_opt_out=true. org-medlemskapet hentes
+    // ÉN gang her og gjenbrukes for organization-scope lenger ned (fjerner tidligere
+    // duplikat-lesing av organization_members).
+    //
+    // LIGGER NÅ INNE I try-BLOKKEN. Tidligere sto disse to spørringene utenfor og
+    // destrukturerte kun `data`, aldri `error`. Feilet de, ble `data` null → `?? []`
+    // → funksjonen gikk stille videre: ALLE org-sesongpoeng forsvant, OG
+    // globallyBlockedUserIds ble stående tom, slik at brukere med
+    // global_league_opt_out feilaktig fikk globale poeng. fetchAllRowsChunked
+    // KASTER ved feil, så catch-en nedenfor fanger det og returnerer feilen i
+    // stedet. Det er trygt: cronen setter aldri season_points_awarded ved feil,
+    // så quizen prøves på nytt hvert 5. minutt.
+    //
+    // CHUNKED: .in('user_id', userIds) legger hver id i URL-en. Målt mot prod
+    // sprekker den mellom 380 og 400 id-er — altså FØR 1000-rads-taket. Se
+    // lib/paginate.ts for målingene.
+    if (userIds.length > 0) {
+      orgMemberships = await fetchAllRowsChunked<Mem>(userIds, (chunk, from, to) =>
+        supabaseAdmin
+          .from('organization_members')
+          .select('user_id, organization_id, global_league_opt_out')
+          .in('user_id', chunk)
+          .order('user_id', { ascending: true })
+          .range(from, to)
+      )
+      if (orgMemberships.length > 0) {
+        const orgIds = [...new Set(orgMemberships.map(m => m.organization_id))]
+        const restrictedOrgs = await fetchAllRowsChunked<{ id: string }>(orgIds, (chunk, from, to) =>
+          supabaseAdmin
+            .from('organizations')
+            .select('id')
+            .in('id', chunk)
+            .eq('allow_global_league', false)
+            .order('id', { ascending: true })
+            .range(from, to)
+        )
+        const restrictedOrgIds = new Set(restrictedOrgs.map(o => o.id))
+        for (const m of orgMemberships) {
+          if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
+            globallyBlockedUserIds.add(m.user_id)
+          }
+        }
+      }
+    }
+
     // ── Global scope ───────────────────────────────────────────────────────────
     const globalRanked = rankBestAttempts(bestByUser)
     const globalRows: ScoreRow[] = globalRanked
@@ -109,14 +148,24 @@ export async function processQuiz(
     console.log(`[award-season-points]   global: ${globalRows.length} rader`)
 
     // ── League scope ───────────────────────────────────────────────────────────
-    const { data: leagueMemberships } = await supabaseAdmin
-      .from('league_members')
-      .select('league_id, user_id')
-      .in('user_id', userIds)
+    // Samme to grunner som org-blokken over: chunket fordi .in() sprekker på
+    // URL-lengde rundt 390 id-er, og feil KASTES nå (tidligere ble `error` ikke
+    // destrukturert i det hele tatt, så en feilet spørring fjernet stille alle
+    // liga-sesongpoeng for quizen).
+    const leagueMemberships = userIds.length > 0
+      ? await fetchAllRowsChunked<{ league_id: string; user_id: string }>(userIds, (chunk, from, to) =>
+          supabaseAdmin
+            .from('league_members')
+            .select('league_id, user_id')
+            .in('user_id', chunk)
+            .order('user_id', { ascending: true })
+            .range(from, to)
+        )
+      : []
 
-    if (leagueMemberships && leagueMemberships.length > 0) {
+    if (leagueMemberships.length > 0) {
       const byLeague = new Map<string, string[]>()
-      for (const lm of leagueMemberships as { league_id: string; user_id: string }[]) {
+      for (const lm of leagueMemberships) {
         if (!byLeague.has(lm.league_id)) byLeague.set(lm.league_id, [])
         byLeague.get(lm.league_id)!.push(lm.user_id)
       }
