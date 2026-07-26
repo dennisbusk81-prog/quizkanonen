@@ -170,11 +170,18 @@ export default function LeaderboardPage() {
     questionText: string
     correctAnswers: string[]
     totalAnswers: number
+    correctPct: number
     distribution: { option: string; label: string; count: number; percent: number }[]
   }
-  const [answerDist, setAnswerDist] = useState<AnswerDistQuestion[] | null>(null)
+  // Svarfordeling krever innlogging + Premium (se lib/premium-check.ts og
+  // /api/quiz/[id]/answer-distribution) — API-et returnerer kun de to
+  // letteste + to vanskeligste spørsmålene, ikke alle. `premiumRequired`
+  // skilles fra andre feil slik at UI-et kan vise en CTA i stedet for en
+  // generisk feilmelding.
+  const [answerDist, setAnswerDist] = useState<{ easiest: AnswerDistQuestion[]; hardest: AnswerDistQuestion[] } | null>(null)
   const [answerDistLoading, setAnswerDistLoading] = useState(false)
   const [showAnswerDist, setShowAnswerDist] = useState(false)
+  const [answerDistPremiumRequired, setAnswerDistPremiumRequired] = useState(false)
 
   // Server-side totaler + brukerens eksakte plassering (også utenfor topp 50)
   const [soloTotal, setSoloTotal] = useState(0)
@@ -625,7 +632,7 @@ export default function LeaderboardPage() {
     let badge: BadgeKind | null = null
     if (attempt.rank === 1) badge = 'krone'
     else if (attempt.player_name === mostImprovedName) badge = 'pil'
-    else if ((attempt.correct_streak ?? 0) >= 3) badge = 'flamme'
+    else if ((attempt.correct_streak ?? 0) >= 5) badge = 'flamme'
     else if (attempt.player_name === fastestSoloName) badge = 'lyn'
     else if (attempt.rank <= 3) badge = 'medalje'
 
@@ -1227,11 +1234,29 @@ export default function LeaderboardPage() {
                 )}
               </div>
 
+              {/* Merke-legende — flyttet til toppen 26. juli 2026 (lå tidligere
+                  under listen): brukeren skal forstå symbolene FØR de skummer
+                  radene, ikke etter. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 14 }}>
+                {([
+                  { badge: 'krone', label: 'Leder' },
+                  { badge: 'pil', label: 'Størst fremgang' },
+                  { badge: 'flamme', label: 'Streak 5+' },
+                  { badge: 'lyn', label: 'Raskest' },
+                  { badge: 'medalje', label: 'Topp 3' },
+                ] as { badge: BadgeKind; label: string }[]).map(({ badge, label }) => (
+                  <span key={badge} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#e8e4dd' }}>
+                    <BadgeCircle badge={badge} size={14} />
+                    {label}
+                  </span>
+                ))}
+              </div>
+
               {/* Hint for trykk-på-rad-mønsteret — vises kun for innloggede,
                   siden det er nøyaktig samme betingelse utfordre-funksjonen
                   alltid har krevd. Vist én gang, ikke duplisert i begge faner. */}
               {session && (
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '-8px 0 14px' }}>
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '0 0 14px' }}>
                   Trykk på en deltaker for å utfordre til duell.
                 </p>
               )}
@@ -1251,23 +1276,6 @@ export default function LeaderboardPage() {
                   ? renderSection(friendAttempts, 'Blant venner', visibleVennerCount, () => setVisibleVennerCount(c => c + 10))
                   : <p style={s.tabEmpty}>Ingen ligavenner har spilt denne quizen ennå</p>
               )}
-
-
-              {/* Badge legend */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 20, paddingTop: 16, borderTop: '1px solid #2a2d38' }}>
-                {([
-                  { badge: 'krone', label: 'Leder' },
-                  { badge: 'pil', label: 'Størst fremgang' },
-                  { badge: 'flamme', label: 'Streak 3+' },
-                  { badge: 'lyn', label: 'Raskest' },
-                  { badge: 'medalje', label: 'Topp 3' },
-                ] as { badge: BadgeKind; label: string }[]).map(({ badge, label }) => (
-                  <span key={badge} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#e8e4dd' }}>
-                    <BadgeCircle badge={badge} size={14} />
-                    {label}
-                  </span>
-                ))}
-              </div>
             </>
           )}
 
@@ -1279,70 +1287,100 @@ export default function LeaderboardPage() {
             </p>
           )}
 
-          {/* Svarfordeling — kun etter at quiz er stengt */}
+          {/* Svarfordeling — kun etter at quiz er stengt, kun innlogget Premium.
+              Var tidligere helt åpen (fasit + prosent for ALLE spørsmål,
+              synlig for anonyme besøkende) — strammet inn 26. juli 2026. */}
           {isClosed && (
             <div style={{ marginTop: 32 }}>
               <div style={s.sectionHeader}>
                 <span style={s.sectionText}>Svarfordeling</span>
                 <div style={s.sectionLine} />
-                <button
-                  onClick={async () => {
-                    if (!showAnswerDist && !answerDist) {
-                      setAnswerDistLoading(true)
-                      try {
-                        const res = await fetch(`/api/quiz/${quizId}/answer-distribution`)
-                        if (res.ok) {
-                          const d = await res.json()
-                          setAnswerDist(d.questions ?? [])
+                {session && isPremium && (
+                  <button
+                    onClick={async () => {
+                      if (!showAnswerDist && !answerDist && !answerDistPremiumRequired) {
+                        setAnswerDistLoading(true)
+                        try {
+                          const res = await fetch(`/api/quiz/${quizId}/answer-distribution`, {
+                            headers: { Authorization: `Bearer ${session.access_token}` },
+                          })
+                          if (res.ok) {
+                            const d = await res.json()
+                            setAnswerDist({ easiest: d.easiest ?? [], hardest: d.hardest ?? [] })
+                          } else if (res.status === 403) {
+                            setAnswerDistPremiumRequired(true)
+                          }
+                        } catch { /* stille */ } finally {
+                          setAnswerDistLoading(false)
                         }
-                      } catch { /* stille */ } finally {
-                        setAnswerDistLoading(false)
                       }
-                    }
-                    setShowAnswerDist(v => !v)
-                  }}
-                  style={{ background: 'none', border: '1px solid #2a2d38', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
-                >
-                  {showAnswerDist ? 'Skjul' : 'Vis'}
-                </button>
+                      setShowAnswerDist(v => !v)
+                    }}
+                    style={{ background: 'none', border: '1px solid #2a2d38', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                  >
+                    {showAnswerDist ? 'Skjul' : 'Vis'}
+                  </button>
+                )}
               </div>
 
-              {showAnswerDist && (
+              {!session ? (
+                <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', padding: '16px 0' }}>
+                  <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Logg inn</a> for å se svarfordeling.
+                </p>
+              ) : !isPremium ? (
+                <div style={s.card}>
+                  <p style={s.cardTitle}>Se svarfordelingen for ukens letteste og vanskeligste spørsmål</p>
+                  <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                    <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Bli Premium</a>
+                  </p>
+                </div>
+              ) : showAnswerDist && (
                 answerDistLoading
                   ? <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
-                  : answerDist && answerDist.length > 0
-                    ? answerDist.map((q, qi) => (
-                        <div key={q.questionId} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 22px', marginBottom: 10 }}>
-                          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
-                            Spørsmål {qi + 1}
-                          </p>
-                          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 16, lineHeight: 1.4 }}>
-                            {q.questionText}
-                          </p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {q.distribution.map(d => {
-                              const isCorrect = q.correctAnswers.includes(d.option)
-                              return (
-                                <div key={d.option}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', width: 14, flexShrink: 0 }}>{d.option}</span>
-                                    <span style={{ fontSize: 13, color: isCorrect ? '#e8e4dd' : '#7a7873', flex: 1, lineHeight: 1.3 }}>{d.label}</span>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', flexShrink: 0 }}>{d.percent}%</span>
-                                  </div>
-                                  <div style={{ height: 6, background: '#2a2d38', borderRadius: 3, overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', width: `${d.percent}%`, background: isCorrect ? '#c9a84c' : '#3a3d48', borderRadius: 3, transition: 'width 0.4s ease' }} />
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                          {q.totalAnswers > 0 && (
-                            <p style={{ fontSize: 11, color: '#7a7873', marginTop: 12, textAlign: 'right' }}>
-                              {q.totalAnswers} svar
+                  : answerDist && (answerDist.easiest.length > 0 || answerDist.hardest.length > 0)
+                    ? (['easiest', 'hardest'] as const).map(group => {
+                        const list = answerDist[group]
+                        if (list.length === 0) return null
+                        return (
+                          <div key={group} style={{ marginBottom: 18 }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                              {group === 'easiest' ? 'To letteste' : 'To vanskeligste'}
                             </p>
-                          )}
-                        </div>
-                      ))
+                            {list.map(q => (
+                              <div key={q.questionId} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 22px', marginBottom: 10 }}>
+                                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 4, lineHeight: 1.4 }}>
+                                  {q.questionText}
+                                </p>
+                                <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 12 }}>
+                                  {q.correctPct}% svarte riktig
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  {q.distribution.map(d => {
+                                    const isCorrect = q.correctAnswers.includes(d.option)
+                                    return (
+                                      <div key={d.option}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', width: 14, flexShrink: 0 }}>{d.option}</span>
+                                          <span style={{ fontSize: 13, color: isCorrect ? '#e8e4dd' : '#7a7873', flex: 1, lineHeight: 1.3 }}>{d.label}</span>
+                                          <span style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', flexShrink: 0 }}>{d.percent}%</span>
+                                        </div>
+                                        <div style={{ height: 6, background: '#2a2d38', borderRadius: 3, overflow: 'hidden' }}>
+                                          <div style={{ height: '100%', width: `${d.percent}%`, background: isCorrect ? '#c9a84c' : '#3a3d48', borderRadius: 3, transition: 'width 0.4s ease' }} />
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {q.totalAnswers > 0 && (
+                                  <p style={{ fontSize: 11, color: '#7a7873', marginTop: 12, textAlign: 'right' }}>
+                                    {q.totalAnswers} svar
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })
                     : <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>Ingen svardata tilgjengelig.</p>
               )}
             </div>

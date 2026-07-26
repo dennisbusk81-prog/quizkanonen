@@ -3,6 +3,7 @@ import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot } from '@/lib/ranking-snapshot'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
+import { selectEasiestAndHardest } from '@/lib/question-difficulty'
 
 // ── Admin resultatoversikt ────────────────────────────────────────────────────
 // Samler alt Dennis trenger etter en fredagsquiz på ÉN plass: full rangert liste,
@@ -136,14 +137,14 @@ export async function GET(
       })
     }
 
-    // Letteste/vanskeligste — kun blant spørsmål med nok svar (>= 2), samme
-    // terskel som «ukens fakta»-logikken (quiz-insights).
-    const qualified = questionStats.filter(s => s.total >= 2)
-    if (qualified.length >= 1) {
-      const sorted = [...qualified].sort((a, b) => b.correct_pct - a.correct_pct)
-      easiest = sorted[0]
-      if (sorted.length >= 2) hardest = sorted[sorted.length - 1]
-    }
+    // Letteste/vanskeligste — delt logikk med leaderboard/[id] sin Premium-
+    // svarfordeling (lib/question-difficulty.ts). count=1 her er bit-for-bit
+    // identisk med den forrige inline-versjonen (verifisert i
+    // lib/question-difficulty.test.ts) — samme terskel (≥2 svar) som «ukens
+    // fakta»-logikken (quiz-insights).
+    const picked = selectEasiestAndHardest(questionStats, 1)
+    easiest = picked.easiest[0] ?? null
+    hardest = picked.hardest[0] ?? null
   }
 
   return NextResponse.json({

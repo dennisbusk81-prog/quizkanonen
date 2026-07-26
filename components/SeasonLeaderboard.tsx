@@ -8,6 +8,7 @@ import SkeletonCard from '@/components/SkeletonCard'
 import PlayerName from '@/components/PlayerName'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
+import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -721,6 +722,51 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     )
   }
 
+  // Ren mapper for «Siste quiz»-fanen — konvertert til tabellformat 26. juli
+  // 2026, samme mønster som app/leaderboard/[id]/page.tsx og org-admin.
+  // Kun brukt når isLastQuiz: periode-visningene (måned/kvartal/år/all-time)
+  // beholder renderRow/kort-formatet over, fordi ResultsTable sine faste
+  // kolonner («Riktige» / «Tid») ikke passer semantisk der — periode-poeng er
+  // akkumulert over mange quizer, uten noe tid-begrep, og quizCount (antall
+  // quizer spilt) er den relevante andrelinjen i stedet. Avatar droppet (som
+  // i de to andre konverteringene); merket flyttes inn i Navn-cellen.
+  function entryToRow(entry: Entry): ResultsTableRow {
+    const badge = badges.get(entry.userId) ?? null
+    const isSelf = entry.userId === currentUserId
+    const nick = entry.nickname?.trim()
+    const hasNick = !!nick
+
+    let clickable = false
+    let trailingLabel: string | null = null
+    if (session && !isSelf) {
+      const involved = duelInvolvedSet.has(entry.userId)
+      const sent = challengeSentSet.has(entry.userId)
+      const isLoading = challengeLoadingId === entry.userId
+      if (involved && sent) {
+        trailingLabel = 'Duell sendt!'
+      } else if (!involved && !activeDuelExists) {
+        clickable = !isLoading
+      }
+    }
+
+    return {
+      key: entry.userId,
+      rank: entry.rank,
+      name: hasNick ? nick! : entry.displayName,
+      secondary: hasNick ? entry.displayName : null,
+      correctAnswers: entry.points,
+      totalTimeMs: entry.fastestMs ?? 0,
+      highlight: isSelf,
+      badge,
+      clickable,
+      trailingLabel,
+      ariaLabel: clickable ? `Utfordre ${entry.displayName} til duell` : null,
+      note: challengeError?.rivalId === entry.userId
+        ? { text: challengeError.message, tone: 'error' }
+        : null,
+    }
+  }
+
   function renderUserSection() {
     if (!sessionChecked) return null
     if (!session) {
@@ -1071,6 +1117,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             </div>
           )
         })()
+      ) : isLastQuiz ? (
+        <ResultsTable
+          rows={(data?.entries ?? []).map(entryToRow)}
+          formatTime={formatTime}
+          onRowClick={row => setPendingChallenge({ id: row.key, name: row.name })}
+        />
       ) : (
         data?.entries.map(entry => renderRow(entry))
       )}
