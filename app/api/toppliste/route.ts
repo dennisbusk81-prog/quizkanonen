@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
+import { fetchAllRows } from '@/lib/paginate'
+import {
+  deriveBlockedFromScores,
+  deriveBlockedFromLiveStatus,
+  type OrgMembership,
+} from '@/lib/global-league-visibility'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -78,30 +84,85 @@ async function getMemberSet(scope: 'league' | 'organization', scopeId: string): 
 // cache-vindu og trenger ikke være del av nøkkelen.
 const globallyBlockedSetCache = new Map<string, { ids: Set<string>; expires: number }>()
 
-async function getGloballyBlockedSet(quizId: string, attemptUserIds: string[]): Promise<Set<string>> {
+/**
+ * Hvilke brukere som IKKE skal vises på den globale «Siste quiz»-fanen.
+ *
+ * HISTORIKKEN STÅR SOM DEN VAR. Periodevisningene (måned/kvartal/år/all-time)
+ * leser season_scores og filtrerer aldri på dagens opt-out-status — en bruker
+ * som meldte seg ut ETTER en quiz beholder plasseringen sin i den quizen.
+ * Denne fanen leste tidligere organization_members LIVE og gjenbrukte dagens
+ * status på en historisk quiz, slik at en utmelding med tilbakevirkende kraft
+ * fjernet brukeren fra en quiz hen lovlig deltok i. Det var den eneste
+ * visningen i toppliste-ruten som oppførte seg slik.
+ *
+ * Kilden til «som det var» finnes allerede: award-season-points skriver KUN
+ * global-rader for brukere som ikke var blokkert på skrivetidspunktet
+ * (lib/award-season-points.ts — `.filter(({ userId }) => !globallyBlockedUserIds.has(userId))`).
+ * For en ferdigbehandlet quiz er derfor «har attempt, men ingen global
+ * season_scores-rad» nøyaktig lik «var blokkert da quizen ble gjort opp».
+ * Begge sidene starter fra samme attempts-populasjon (is_team=false,
+ * user_id not null) — award filtrerer ikke på submitted_at, så et ulevert
+ * forsøk kan ikke gi et falskt «blokkert».
+ *
+ * Er quizen IKKE gjort opp ennå (season_points_awarded=false — den er fortsatt
+ * åpen, eller cronen har ikke rukket den), finnes ingen historisk fasit. Da er
+ * dagens status per definisjon også datidens, og vi faller tilbake til det
+ * live oppslaget. Ingen tilbakevirkende kraft er mulig i det vinduet.
+ */
+async function getGloballyBlockedSet(
+  quizId: string,
+  attemptUserIds: string[],
+  seasonPointsAwarded: boolean
+): Promise<Set<string>> {
   const now = Date.now()
   const cached = globallyBlockedSetCache.get(quizId)
   if (cached && cached.expires > now) return cached.ids
 
   const blocked = new Set<string>()
-  if (attemptUserIds.length > 0) {
+
+  if (seasonPointsAwarded) {
+    // Historisk fasit: hvem fikk faktisk en global-rad for denne quizen.
+    // Paginert — season_scores kan passere 1000 rader for én quiz, og
+    // PostgREST kutter da stille (se lib/paginate.ts). Filtrerer på quiz_id
+    // framfor .in('user_id', …) slik at URL-lengdegrensen ved ~390 id-er
+    // aldri blir relevant.
+    let scored: { user_id: string }[]
+    try {
+      scored = await fetchAllRows<{ user_id: string }>((from, to) =>
+        supabaseAdmin
+          .from('season_scores')
+          .select('user_id')
+          .eq('quiz_id', quizId)
+          .eq('scope_type', 'global')
+          .is('scope_id', null)
+          .order('user_id', { ascending: true })
+          .range(from, to)
+      )
+    } catch {
+      // Cach ikke ved feil — returner tomt (ingen blokkering) framfor å
+      // skjule spillere på feil grunnlag i 30 sekunder.
+      return blocked
+    }
+    for (const uid of deriveBlockedFromScores(attemptUserIds, scored.map(r => r.user_id))) {
+      blocked.add(uid)
+    }
+  } else if (attemptUserIds.length > 0) {
+    // Quizen er ikke gjort opp ennå — dagens status ER datidens status.
     const { data: orgMems } = await supabaseAdmin
       .from('organization_members')
       .select('user_id, organization_id, global_league_opt_out')
       .in('user_id', attemptUserIds)
     if (orgMems && orgMems.length > 0) {
-      type Mem = { user_id: string; organization_id: string; global_league_opt_out: boolean | null }
-      const orgIds = [...new Set((orgMems as Mem[]).map(m => m.organization_id))]
+      const mems = orgMems as OrgMembership[]
+      const orgIds = [...new Set(mems.map(m => m.organization_id))]
       const { data: restrictedOrgs } = await supabaseAdmin
         .from('organizations')
         .select('id')
         .in('id', orgIds)
         .eq('allow_global_league', false)
       const restrictedOrgIds = new Set(((restrictedOrgs ?? []) as { id: string }[]).map(o => o.id))
-      for (const m of orgMems as Mem[]) {
-        if (restrictedOrgIds.has(m.organization_id) || m.global_league_opt_out === true) {
-          blocked.add(m.user_id)
-        }
+      for (const uid of deriveBlockedFromLiveStatus(mems, restrictedOrgIds)) {
+        blocked.add(uid)
       }
     }
   }
@@ -204,7 +265,7 @@ export async function GET(request: NextRequest) {
     // hvilken quiz som velges — er uendret.
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
-      .select('id, title, closes_at, attempts!inner(id)')
+      .select('id, title, closes_at, season_points_awarded, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1, { referencedTable: 'attempts' })
@@ -232,13 +293,16 @@ export async function GET(request: NextRequest) {
       memberSet = await getMemberSet('organization', scopeId)
     }
 
-    // Global scope: ekskluder brukere i orger med allow_global_league=false.
-    // Belt-and-suspenders mot cronen — primærfiksen er at disse radene aldri skrives.
-    // 30s-cachet per quiz-id — se getGloballyBlockedSet over.
+    // Global scope: ekskluder brukere som var blokkert fra global liga da denne
+    // quizen ble gjort opp (org med allow_global_league=false, eller egen
+    // global_league_opt_out). Leses fra season_scores når quizen er ferdig
+    // behandlet, slik at en senere utmelding ikke omskriver historikken —
+    // samme prinsipp som periodevisningene. 30s-cachet per quiz-id.
     const globallyBlockedSet = scope === 'global'
       ? await getGloballyBlockedSet(
           latestQuiz.id,
           [...new Set((rawAttempts as Array<{ user_id: string }>).map(a => a.user_id).filter(Boolean))],
+          latestQuiz.season_points_awarded === true,
         )
       : new Set<string>()
 
