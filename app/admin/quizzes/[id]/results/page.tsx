@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
+import ResultsTable from '@/components/ResultsTable'
 import Link from 'next/link'
 
 type PlayerRow = {
@@ -199,38 +200,10 @@ const STYLES = `
   .res-mid-row.is-median .res-mid-name { font-size: 19px; }
   .res-mid-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
 
-  /* Table */
-  .res-table-wrap {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    overflow: hidden;
-  }
-  .res-table { width: 100%; border-collapse: collapse; }
-  .res-table th {
-    text-align: left;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: var(--muted);
-    padding: 14px 16px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .res-table td {
-    padding: 11px 16px;
-    font-size: 13px;
-    color: var(--body);
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-  .res-table tr:last-child td { border-bottom: none; }
-  .res-table tr.is-median td { background: var(--gold-bg); }
-  .res-rank { color: var(--muted); font-size: 12px; width: 34px; }
-  .res-rank.medal { color: var(--gold); font-weight: 700; }
-  .res-name { font-weight: 500; color: var(--white); }
-  .res-nick { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
-  .res-num { text-align: right; white-space: nowrap; }
+  /* Selve resultattabellen bor nå i components/ResultsTable.tsx (delt med
+     org/[slug]/admin) og har med seg sin egen CSS. Reglene som lå her er
+     fjernet sammen med markupen. .res-section* og .res-mid-row.is-median
+     brukes fortsatt av de andre seksjonene og står igjen. */
 
   /* Question stats */
   .res-q {
@@ -470,46 +443,25 @@ export default function QuizResults() {
               </>
             )}
 
-            {/* Full resultatliste */}
-            <div className="res-section">
-              <span className="res-section-text">Sluttresultat · {data.total} deltakere</span>
-              <div className="res-section-line" />
-            </div>
-
-            <div className="res-table-wrap">
-              <table className="res-table">
-                <thead>
-                  <tr>
-                    <th className="res-rank">#</th>
-                    <th>Navn</th>
-                    <th className="res-num">Riktige</th>
-                    <th className="res-num">Tid</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.players.map(p => {
-                    const isMedian = data.median?.attemptId === p.attemptId
-                    return (
-                      <tr key={p.attemptId} className={isMedian ? 'is-median' : ''}>
-                        <td className={`res-rank ${p.rank <= 3 ? 'medal' : ''}`}>{p.rank}</td>
-                        <td>
-                          {p.nickname?.trim() ? (
-                            <>
-                              <span className="res-name">{p.nickname.trim()}</span>
-                              <span className="res-nick">{p.name}</span>
-                            </>
-                          ) : (
-                            <span className="res-name">{p.name}</span>
-                          )}
-                        </td>
-                        <td className="res-num">{p.correct_answers}{totalQuestions > 0 ? ` / ${totalQuestions}` : ''}</td>
-                        <td className="res-num">{formatTime(p.total_time_ms)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {/* Full resultatliste — delt komponent med org/[slug]/admin, slik at
+                de to tabellene ikke kan drive fra hverandre. */}
+            <ResultsTable
+              title={`Sluttresultat · ${data.total} deltakere`}
+              totalQuestions={totalQuestions}
+              formatTime={formatTime}
+              rows={data.players.map(p => {
+                const nick = p.nickname?.trim()
+                return {
+                  key: p.attemptId,
+                  rank: p.rank,
+                  name: nick || p.name,
+                  secondary: nick ? p.name : null,
+                  correctAnswers: p.correct_answers,
+                  totalTimeMs: p.total_time_ms,
+                  highlight: data.median?.attemptId === p.attemptId,
+                }
+              })}
+            />
 
             {/* Spørsmålsstatistikk */}
             {data.questionStats.length > 0 && (

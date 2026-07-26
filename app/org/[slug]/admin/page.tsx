@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
+import ResultsTable from '@/components/ResultsTable'
 import { isOrgLocked } from '@/lib/org-access'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { getSessionIdentity } from '@/lib/session-identity'
@@ -1590,46 +1591,23 @@ export default function OrgAdminPage() {
                     </button>
                   </div>
                 ) : (
-                  quizData.map((entry, idx) => {
-                    const rank = idx + 1
-                    const rankColor = rank === 1 ? 'oa-rank-gold' : rank === 2 ? 'oa-rank-silver' : rank === 3 ? 'oa-rank-bronze' : undefined
-                    const isMe = entry.userId === data?.currentUserId
-                    return (
-                      <div
-                        key={entry.userId}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '11px 18px',
-                          borderBottom: idx < quizData.length - 1 ? '1px solid rgba(42,45,56,0.6)' : 'none',
-                          background: isMe ? 'rgba(201,168,76,0.04)' : 'transparent',
-                        }}
-                      >
-                        <span
-                          className={rankColor}
-                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
-                        >
-                          {rank}
-                        </span>
-                        <Avatar name={entry.displayName} size={30} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: isMe ? '#c9a84c' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: 200 }}>
-                            {entry.displayName}
-                          </span>
-                        </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div>
-                            <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
-                              {entry.correctAnswers}
-                            </span>
-                            <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>riktige</span>
-                          </div>
-                          <div style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
-                            {formatTime(entry.totalTimeMs)}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
+                  /* Samme tabell som Dennis bruker på /admin/quizzes/[id]/results,
+                     via den delte ResultsTable-komponenten — men scopet til kun
+                     denne bedriftens medlemmer (quiz-scores-ruten filtrerer på
+                     organization_members). embedded: fane-boksen rundt har
+                     allerede bakgrunn, ramme og avrunding. */
+                  <ResultsTable
+                    embedded
+                    formatTime={formatTime}
+                    rows={quizData.map((entry, idx) => ({
+                      key: entry.userId,
+                      rank: idx + 1,
+                      name: entry.displayName,
+                      correctAnswers: entry.correctAnswers,
+                      totalTimeMs: entry.totalTimeMs,
+                      highlight: entry.userId === data?.currentUserId,
+                    }))}
+                  />
                 )}
               </>
             ) : (
