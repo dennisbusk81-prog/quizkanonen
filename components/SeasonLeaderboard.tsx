@@ -34,6 +34,35 @@ const EXTRA_STYLES = `
     transition: background 150ms ease;
   }
   .tp-accordion-btn:hover { background: #262930; }
+
+  /* ── Smal skjerm: «Utfordre» flyttes til egen linje ──────────────────────
+     Raden er flex, og navnefeltet er det ENESTE elementet med minWidth:0 —
+     alt annet er flexShrink:0. Med duell-knappen inne på linjen ble navnet
+     derfor presset ned til ~26px på 360px (målt), altså ett-to tegn før
+     ellipsis. Knappen legges på egen linje under navnet i stedet.
+
+     460px er der knappen slutter å gjøre skade: der har navnet ~126px igjen
+     med knappen inline, som holder til et rimelig langt navn. Under det
+     wrapper vi. flex-wrap/flex-basis settes kun her (aldri inline), så
+     inline-stilene til radene forblir uendret på bredere skjermer. */
+  @media (max-width: 460px) {
+    .tp-row { flex-wrap: wrap; }
+    .tp-challenge {
+      flex-basis: 100%;
+      /* Linjer opp under navnet: rangering 28 + gap 14 + avatar 40 + gap 14 */
+      margin-left: 96px;
+      margin-top: 8px;
+      text-align: left;
+      /* max-width MÅ være relativ, ikke max-content. Med max-content blir den
+         hypotetiske størrelsen ~70px, og da får knappen plass på linjen igjen
+         — wrappen uteblir (målt). Med calc(100% - 96px) er ytre størrelse
+         inkl. margin alltid nøyaktig 100% av linjen, så den wrapper uansett
+         skjermbredde i dette vinduet. Uten den overflyter knappen raden
+         (100% + 96px margin) og klippes av radens overflow:hidden. */
+      max-width: calc(100% - 96px);
+      box-sizing: border-box;
+    }
+  }
 `
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -249,7 +278,12 @@ const s = {
   name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
   nameSub:   { fontSize: 11, color: '#e8e4dd' },
 
-  pointsBlock: { textAlign: 'right' as const, flexShrink: 0 },
+  // Fast bredde (samme mønster som scoreBlock i app/leaderboard/[id]/page.tsx).
+  // Uten den vokste blokken med innholdet — «RIKTIGE» er bredere enn «POENG»,
+  // og tidslinjen under kom i tillegg — så navnefeltet, som er det eneste
+  // flex-elementet med minWidth:0, var det eneste som ga etter. 64px rommer
+  // både «RIKTIGE», firesifrede sesongpoeng og tiden («123.4s»).
+  pointsBlock: { textAlign: 'right' as const, flexShrink: 0, width: 64 },
   points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
   pointsSub:   { fontSize: 10, color: '#7a7873', letterSpacing: '0.04em' },
 
@@ -618,13 +652,17 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // ── Row renderers ─────────────────────────────────────────────────────────
 
   function renderChallengeButton(entry: Entry) {
-    // Vises kun for innloggede Premium-brukere
-    if (!session || !data?.userIsPremium) return null
+    // H2H Duell er gratis for alle innloggede — ingen Premium-krav. Samme
+    // regel som app/leaderboard/[id]/page.tsx og POST /api/rivalries, som
+    // aldri har sjekket premium. Denne komponenten hadde en ekstra
+    // userIsPremium-sjekk her, så samme knapp var gratis på quiz-
+    // leaderboardet og premium-låst på sesong-topplisten.
+    if (!session) return null
     // Ikke på egen rad — raden er allerede fremhevet med gull-border (rowSelf)
     if (entry.userId === currentUserId) return null
     // Bekreftelse hvis nettopp sendt / allerede utgående pending
     if (challengeSentSet.has(entry.userId)) {
-      return <span style={s.challengeSent}>Duell sendt!</span>
+      return <span className="tp-challenge" style={s.challengeSent}>Duell sendt!</span>
     }
     // Allerede i en duell-relasjon (innkommende/aktiv) — skjul i stillhet
     if (duelInvolvedSet.has(entry.userId)) return null
@@ -633,6 +671,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const isLoading = challengeLoadingId === entry.userId
     return (
       <button
+        className="tp-challenge"
         onClick={() => setPendingChallenge({ id: entry.userId, name: entry.displayName })}
         disabled={isLoading}
         style={{ ...s.challengeBtn, cursor: isLoading ? 'default' : 'pointer', opacity: isLoading ? 0.6 : 1 }}
@@ -653,7 +692,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
     return (
       <React.Fragment key={entry.userId}>
-        <div style={rowStyle}>
+        <div className="tp-row" style={rowStyle}>
           {isFirst && <div style={s.goldStripe} />}
           {isSelf && !isFirst && <div style={s.goldStripe} />}
           <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
