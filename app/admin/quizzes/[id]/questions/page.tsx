@@ -605,16 +605,25 @@ export default function QuizQuestions() {
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
     setIsMoving(true)
     try {
-      await Promise.all([
-        adminFetch(`/api/admin/quizzes/${quizId}/questions/${questions[idx].id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ order_index: questions[swapIdx].order_index }),
+      // Ett atomisk bytte i databasen, ikke to separate PATCH-kall. To kall der
+      // hver satte én rad til den andres nåværende verdi kunne aldri lykkes
+      // under UNIQUE (quiz_id, order_index) — den første traff alltid en
+      // opptatt verdi. Se questions/reorder-ruten og RPC-en den kaller.
+      const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({
+          questionA: questions[idx].id,
+          questionB: questions[swapIdx].id,
         }),
-        adminFetch(`/api/admin/quizzes/${quizId}/questions/${questions[swapIdx].id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ order_index: questions[idx].order_index }),
-        }),
-      ])
+      })
+      // Den gamle koden sjekket ALDRI res.ok. Da byttet sluttet å virke, feilet
+      // det derfor helt stille: admin så ingen feilmelding, bare en liste som
+      // ikke flyttet seg.
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({} as { error?: string }))
+        showFeedback('error', 'Kunne ikke flytte spørsmålet: ' + (d.error ?? `HTTP ${res.status}`))
+        return
+      }
       await fetchData()
     } catch {
       showFeedback('error', 'Kunne ikke flytte spørsmålet.')
