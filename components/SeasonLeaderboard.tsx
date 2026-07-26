@@ -1160,7 +1160,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       <div style={{ marginTop: 24, padding: '0 2px' }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 10 }}>Hva betyr badgene?</div>
         <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
-        <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst aktiv streak (minst 3 uker)</span></div>
+        <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst streak, minst 3 uker på rad (deltatt teller, uansett resultat)</span></div>
         <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>
         <div style={{ ...s.legendRow, marginBottom: 0 }}><BadgeCircle badge="medalje" size={20} /><span>Medalje — topp 3 denne perioden</span></div>
       </div>
