@@ -752,7 +752,8 @@ export default function OrgAdminPage() {
     const rawEmails = emailInviteText.split(/[\n,]+/).map(e => e.trim()).filter(Boolean)
     if (rawEmails.length === 0) { setEmailInviteError('Ingen e-postadresser oppgitt.'); return }
     const inviteUrl = `${window.location.origin}/bli-med/${activeInvite.token}`
-    const senderName = data.members.find(m => m.user_id === data.currentUserId)?.display_name ?? 'En kollega'
+    // Avsendernavnet sendes ikke lenger med: ruten henter det selv fra profilen,
+    // slik at ingen kan skrive vilkårlig tekst inn i en e-post fra oss.
     setEmailInviteSending(true)
     setEmailInviteResult(null)
     setEmailInviteError(null)
@@ -760,7 +761,7 @@ export default function OrgAdminPage() {
       const res = await fetch(`/api/org/${data.org.id}/send-invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ emails: rawEmails, inviteUrl, senderName }),
+        body: JSON.stringify({ emails: rawEmails, inviteUrl }),
       })
       const json = await res.json()
       if (!res.ok) { setEmailInviteError(json.error ?? 'Noe gikk galt'); return }

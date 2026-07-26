@@ -328,6 +328,43 @@ Status per 20. juli 2026, etter to runder sikkerhetsgjennomgang og retting:
 - **Webhook-idempotens:** `stripe_events`-tabellen (stempler behandlede
   Stripe event-id-er) opprettet og aktivert 19. juli. Var tidligere fraværende,
   så idempotens-sjekken i webhooken feilet stille og gjorde ingenting.
+- **E-post-relé og HTML-injeksjon i e-post (26. juli):** en angriper kunne
+  registrere gratis konto → opprette org med gratis trial uten kort → bli
+  org-admin automatisk → sende 50 e-poster per kall til vilkårlige adresser fra
+  ekte `hei@quizkanonen.no`, med angriper-skrevet HTML limt rått inn i malen.
+  Tre innstramminger:
+  - **Escaping ved sinket.** `lib/html-escape.ts` (`escapeHtml`) brukes INNE i
+    `lib/email-templates.ts`, ikke hos kallerne — da kan ingen framtidig kaller
+    glemme det. Alle brukerstyrte felt escapes: `senderName`, `orgName`,
+    `firstName`, `challengerName`, `quizTitle` og spillernavnene i
+    `weeklyReportEmail`. Nye maler skal følge samme mønster: ta parameteren som
+    `xRaw` og lag en escapet lokal variabel øverst i funksjonen. URL-er vi
+    bygger selv (invitasjons- og avmeldingslenker) escapes bevisst IKKE — `&`
+    mellom query-parametere skal stå urørt.
+    Merk at `attempts.player_name` er fritekst ≤100 tegn uten tegnsett-
+    validering, og når profilen mangler `display_name` er det den som havner i
+    ukesrapporten (`lib/weekly-report.ts`) — ikke bare det validerte
+    profilnavnet.
+  - **Sendekvote per org** — `lib/invite-quota.ts` (ren, testdekket).
+    `etablert` = aktivt abonnement ELLER (org eldre enn 7 dager OG ≥5
+    medlemmer) → 50 per kall, 200 per døgn (uendret oppførsel).
+    `ny` = alt annet → 15 per kall, 40 per døgn.
+    **Gate ALDRI på `subscription_status` alene:** Elkjøp Nordic står som
+    `trialing` i prod, så en «må være aktiv/betalende»-regel ville rammet den
+    ene ekte bedriftskunden. Alder + faktiske medlemmer er signalene som er
+    dyre for en angriper og gratis for en ekte bedrift.
+    Døgnforbruket telles i `admin_actions`
+    (`action_type='org_invite_email'`, `scope_type='organization'`) — ingen
+    migrasjon, og i motsetning til `lib/rate-limit.ts` (modul-lokal Map, lever
+    per serverless-instans) overlever tellingen kalde starter. Avsendernavnet
+    utledes server-side fra profilen; body-feltet `senderName` ignoreres.
+  - **`validateOrgName` (`lib/org-name.ts`)** håndheves i BEGGE
+    org-opprettelsesrutene (`org-checkout` og `org-founders-activate`):
+    2–60 tegn, bokstaver/tall/mellomrom og vanlig firmanavn-tegnsetting.
+    Hindrer at markup i det hele tatt kommer inn i `organizations.name`.
+
+  Selve Founders-/trial-forretningslogikken er uendret — gratis prøve uten kort
+  fungerer som før for legitime bedrifter.
 - **Fortsatt åpent:** bot-/spam-beskyttelse (CAPTCHA e.l.) er ikke
   implementert — kun planlagt.
 

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { orgTrialEmail } from '@/lib/email-templates'
+import { validateOrgName } from '@/lib/org-name'
 import { randomBytes } from 'crypto'
 
 // B2B-trial: oppretter en organisasjon med gratis prøveperiode uten kortkrav.
@@ -49,9 +50,11 @@ export async function POST(request: NextRequest) {
   }
 
   const { organizationName, trialCode } = body
-  if (!organizationName?.trim()) {
-    return NextResponse.json({ error: 'Mangler organisasjonsnavn' }, { status: 400 })
+  const nameCheck = validateOrgName(organizationName)
+  if (!nameCheck.ok) {
+    return NextResponse.json({ error: nameCheck.error }, { status: 400 })
   }
+  const orgName = nameCheck.value
 
   // Promo-kode (admin-initiert pilot) overstyrer plan og trial-lengde. Uten kode
   // brukes valgt plan fra body og trial-lengde fra site_settings.
@@ -99,7 +102,7 @@ export async function POST(request: NextRequest) {
     const slug = randomBytes(4).toString('hex')
     const { data: org, error: orgErr } = await supabaseAdmin
       .from('organizations')
-      .insert({ name: organizationName.trim(), slug, plan, created_by: user.id, subscription_status: 'trialing' })
+      .insert({ name: orgName, slug, plan, created_by: user.id, subscription_status: 'trialing' })
       .select('id, slug')
       .single()
 
@@ -278,8 +281,8 @@ export async function POST(request: NextRequest) {
     if (user.email) {
       sendEmail({
         to: user.email,
-        subject: `Prøveperioden er i gang — ${organizationName.trim()}`,
-        html: orgTrialEmail(organizationName.trim(), org.slug, periodEnd),
+        subject: `Prøveperioden er i gang — ${orgName}`,
+        html: orgTrialEmail(orgName, org.slug, periodEnd),
       }).catch(err => console.error('[org-trial] orgTrialEmail failed:', err))
     }
 

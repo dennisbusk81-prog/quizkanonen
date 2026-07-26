@@ -46,6 +46,18 @@ registerHooks({
       return nextResolve(spec, context)
     }
 
-    return nextResolve(specifier, context)
+    // Bare specifiers uten filendelse: Next.js sine egne inngangspunkter
+    // (`next/server`) er filer på disk uten `exports`-felt i package.json, så
+    // ESM-resolveren finner dem ikke. Node foreslår selv `next/server.js` —
+    // vi prøver den varianten før vi gir opp. Gjelder kun rute-tester som
+    // importerer ekte App Router-handlere.
+    try {
+      return nextResolve(specifier, context)
+    } catch (err) {
+      if (err?.code === 'ERR_MODULE_NOT_FOUND' && !path.extname(spec)) {
+        return nextResolve(`${spec}.js`, context)
+      }
+      throw err
+    }
   },
 })

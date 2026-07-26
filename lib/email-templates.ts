@@ -1,4 +1,16 @@
-﻿const UNSUBSCRIBE_ROW = `
+﻿import { escapeHtml } from './html-escape'
+
+// ── Brukerstyrt tekst i malene ───────────────────────────────────────────────
+// Alt som interpoleres inn i disse template-strengene blir markup. Flere av
+// verdiene er brukerstyrte (org-navn, avsendernavn, spillernavn), så de kjøres
+// gjennom escapeHtml() HER, i selve malen — ikke hos kalleren. Da kan ingen
+// framtidig kaller glemme det.
+//
+// URL-er vi bygger selv (invitasjons- og avmeldingslenker) escapes bevisst
+// ikke: de er allerede validert/signert server-side, og `&` mellom
+// query-parametere skal stå urørt.
+
+const UNSUBSCRIBE_ROW = `
           <tr>
             <td align="center" style="padding-top:12px;">
               <p style="margin:0;font-size:11px;color:#7a7873;line-height:1.7;text-align:center;">
@@ -122,7 +134,9 @@ export function trialEndingEmail(daysLeft: number): string {
 </html>`
 }
 
-export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: string, isTrial?: boolean): string {
+export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string, orgSlug: string, isTrial?: boolean): string {
+  const firstName = escapeHtml(firstNameRaw)
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -213,7 +227,8 @@ export function orgWelcomeEmail(firstName: string, orgName: string, orgSlug: str
 </html>`
 }
 
-export function welcomeFreeEmail(firstName: string): string {
+export function welcomeFreeEmail(firstNameRaw: string): string {
+  const firstName = escapeHtml(firstNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -300,7 +315,8 @@ export function welcomeFreeEmail(firstName: string): string {
 </html>`
 }
 
-export function orgRemovedEmail(orgName: string, graceUntil?: string | null): string {
+export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null): string {
+  const orgName = escapeHtml(orgNameRaw)
   const premiumBlock = graceUntil
     ? `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Hadde du Premium gjennom bedriften, beholder du tilgangen i 7 dager — frem til ${formatNorwegianDate(graceUntil)}.
@@ -550,7 +566,9 @@ export function gracePeriodEndedEmail(): string {
 </html>`
 }
 
-export function orgInviteEmail(senderName: string, orgName: string, inviteUrl: string): string {
+export function orgInviteEmail(senderNameRaw: string, orgNameRaw: string, inviteUrl: string): string {
+  const senderName = escapeHtml(senderNameRaw)
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -771,7 +789,8 @@ export function trialEndedNoCardEmail(): string {
 </html>`
 }
 
-export function orgPaymentFailedEmail(orgName: string, orgSlug: string): string {
+export function orgPaymentFailedEmail(orgNameRaw: string, orgSlug: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -927,7 +946,8 @@ export function foundersWelcomeEmail(trialEnd?: number | null): string {
 </html>`
 }
 
-export function orgPurchaseEmail(orgName: string, orgSlug: string): string {
+export function orgPurchaseEmail(orgNameRaw: string, orgSlug: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -1013,7 +1033,8 @@ function formatTrialEndDate(isoString: string): string {
   return d.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
 }
 
-export function orgTrialEmail(orgName: string, orgSlug: string, trialEndIso: string): string {
+export function orgTrialEmail(orgNameRaw: string, orgSlug: string, trialEndIso: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   const endDate = formatTrialEndDate(trialEndIso)
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1107,7 +1128,8 @@ export function orgTrialEmail(orgName: string, orgSlug: string, trialEndIso: str
 </html>`
 }
 
-export function orgTrialEndingEmail(orgName: string, orgSlug: string, trialEndIso: string): string {
+export function orgTrialEndingEmail(orgNameRaw: string, orgSlug: string, trialEndIso: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   const endDate = formatTrialEndDate(trialEndIso)
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1179,7 +1201,8 @@ export function orgTrialEndingEmail(orgName: string, orgSlug: string, trialEndIs
 </html>`
 }
 
-export function orgCancelledEmail(orgName: string): string {
+export function orgCancelledEmail(orgNameRaw: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -1255,7 +1278,8 @@ export function orgCancelledEmail(orgName: string): string {
 </html>`
 }
 
-export function orgRenewalEmail(orgName: string, orgSlug: string): string {
+export function orgRenewalEmail(orgNameRaw: string, orgSlug: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -1569,8 +1593,8 @@ export function premiumCancelledEmail(): string {
 </html>`
 }
 
-export function reEngagementEmail(firstName?: string, unsubscribeUrl?: string): string {
-  const greeting = firstName ? `Hei, ${firstName}!` : 'Hei!'
+export function reEngagementEmail(firstNameRaw?: string, unsubscribeUrl?: string): string {
+  const greeting = firstNameRaw ? `Hei, ${escapeHtml(firstNameRaw)}!` : 'Hei!'
 
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1660,24 +1684,25 @@ type WeeklyReportData = {
 }
 
 export function weeklyReportEmail(data: WeeklyReportData): string {
-  const { orgName, winner, top3, participantCount, shareText } = data
+  const { winner, top3, participantCount, shareText } = data
+
+  // Spillernavnene her kan komme fra attempts.player_name (fritekst ved
+  // quiz-start), ikke bare fra den validerte profilen — se lib/weekly-report.ts.
+  const orgName = escapeHtml(data.orgName)
+  const winnerName = escapeHtml(winner?.displayName)
 
   const medals = ['🥇', '🥈', '🥉']
   const top3Rows = top3.map((e, i) => `
                 <tr>
                   <td style="padding:8px 0;font-size:15px;color:#e0e0e0;border-bottom:${i < top3.length - 1 ? '1px solid #2a2d38' : 'none'};">
                     <span style="display:inline-block;width:28px;">${medals[i] ?? `${i + 1}.`}</span>
-                    <strong style="color:#ffffff;">${e.displayName}</strong>
+                    <strong style="color:#ffffff;">${escapeHtml(e.displayName)}</strong>
                     <span style="color:#c9a84c;float:right;font-weight:600;">${e.correct}/${e.total}</span>
                   </td>
                 </tr>`).join('')
 
-  // shareText har emoji og linjeskift — escape < og > og bytt \n til <br>.
-  const shareHtml = shareText
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br />')
+  // shareText har emoji og linjeskift — escape markup og bytt \n til <br>.
+  const shareHtml = escapeHtml(shareText).replace(/\n/g, '<br />')
 
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1714,7 +1739,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
 
               <p style="margin:0 0 20px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 ${winner
-                  ? `Ukens vinner i <strong style="color:#ffffff;">${orgName}</strong> er <strong style="color:#ffffff;">${winner.displayName}</strong> med <strong style="color:#c9a84c;">${winner.correct}/${winner.total}</strong> riktige.`
+                  ? `Ukens vinner i <strong style="color:#ffffff;">${orgName}</strong> er <strong style="color:#ffffff;">${winnerName}</strong> med <strong style="color:#c9a84c;">${winner.correct}/${winner.total}</strong> riktige.`
                   : `Ukens quiz i <strong style="color:#ffffff;">${orgName}</strong> er avgjort.`}
               </p>
 
@@ -1776,7 +1801,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
 }
 
 export function quizReminderEmail(quizId: string, closesAt?: string | null, quizTitle?: string, unsubscribeUrl?: string): string {
-  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
+  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${escapeHtml(quizTitle)}</p>` : ''
   const closesLine = closesAt
     ? `<p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Du har til <strong style="color:#ffffff;">${formatNorwegianDate(closesAt)}</strong> på deg.
@@ -1862,9 +1887,10 @@ export function quizReminderEmail(quizId: string, closesAt?: string | null, quiz
 </html>`
 }
 
-export function orgCloseReminderEmail(orgName: string, closesAt: string, quizTitle?: string): string {
+export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quizTitle?: string): string {
+  const orgName = escapeHtml(orgNameRaw)
   const timeStr = new Date(closesAt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' })
-  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${quizTitle}</p>` : ''
+  const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${escapeHtml(quizTitle)}</p>` : ''
 
   return `<!DOCTYPE html>
 <html lang="no">
@@ -1922,7 +1948,8 @@ export function orgCloseReminderEmail(orgName: string, closesAt: string, quizTit
 </html>`
 }
 
-export function duelInviteEmail(challengerName: string, unsubscribeUrl?: string): string {
+export function duelInviteEmail(challengerNameRaw: string, unsubscribeUrl?: string): string {
+  const challengerName = escapeHtml(challengerNameRaw)
   return `<!DOCTYPE html>
 <html lang="no">
 <head>

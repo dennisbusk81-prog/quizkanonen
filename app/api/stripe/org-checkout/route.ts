@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { randomBytes } from 'crypto'
+import { validateOrgName } from '@/lib/org-name'
 
 const PLAN_PRICES: Record<string, string | undefined> = {
   starter:  process.env.STRIPE_ORG_STARTER_PRICE_ID,
@@ -97,9 +98,14 @@ export async function POST(request: NextRequest) {
   }
 
   const { organizationName, plan } = body
-  if (!organizationName?.trim() || !plan) {
+  if (!plan) {
     return NextResponse.json({ error: 'Mangler organisasjonsnavn eller plan' }, { status: 400 })
   }
+  const nameCheck = validateOrgName(organizationName)
+  if (!nameCheck.ok) {
+    return NextResponse.json({ error: nameCheck.error }, { status: 400 })
+  }
+  const orgName = nameCheck.value
 
   const priceId = PLAN_PRICES[plan]
   if (!priceId) return NextResponse.json({ error: 'Ugyldig plan' }, { status: 400 })
@@ -113,7 +119,7 @@ export async function POST(request: NextRequest) {
     // stripe_subscription_id IS NULL.
     const { data: org, error: orgErr } = await supabaseAdmin
       .from('organizations')
-      .insert({ name: organizationName.trim(), slug, plan, created_by: user.id })
+      .insert({ name: orgName, slug, plan, created_by: user.id })
       .select('id, slug')
       .single()
 

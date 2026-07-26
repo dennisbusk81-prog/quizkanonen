@@ -231,6 +231,7 @@ export default function BedriftRegistrerPage() {
               onChange={e => setOrgName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               placeholder="Acme AS"
+              maxLength={60}
               autoFocus
               style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
             />
