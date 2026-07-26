@@ -106,17 +106,25 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
   internt underelement av `SiteNav.tsx`, ikke en egen side-nav.
 - `/slik-fungerer-det` manglet tidligere nav helt — lagt til 23. juli 2026.
 
-### Passordinnlogging (fullt bygget og verifisert 18. juli 2026)
-- **Identifier-first-flyt** på `/login`: bruker skriver e-post først, siden
-  viser deretter kun de innloggingsmetodene som faktisk er relevante for den
-  kontoen (passord og/eller Google) — ikke et statisk skjema med alle metoder
+### Innlogging — delt AuthForm-komponent (identifier-first erstattet 20. juli 2026)
+- `components/AuthForm.tsx` er DET ene innloggingsskjemaet — brukt av BÅDE
+  `/login` (`variant="page"`) og `AuthModal.tsx` (`variant="modal"`, toppnav
+  m.fl.). Ikke to separate flyter lenger. E-post, passord og Google vises alle
+  samtidig fra start; magic link er en tredje, likestilt synlig knapp under
+  Google-knappen (ikke lenger gjemt bak «Glemt passord?»)
+- Erstatter det tidligere identifier-first-mønsteret (bruker skrev e-post
+  først, siden avslørte deretter kun de metodene som gjaldt akkurat den
+  kontoen). Det mønsteret gjorde også at modalen ikke hadde passordfelt i det
+  hele tatt — en bruker som hadde satt passord kunne ikke bruke det fra
+  toppnavigasjonen, kun fra `/login`
+- `POST /api/auth/check-email` finnes fortsatt, men har byttet rolle: styrer
+  ikke lenger hva som vises FØR et forsøk, kun HVORFOR en passordinnlogging
+  feilet i ettertid (feil passord vs. en Google-/magic link-konto som aldri
+  har hatt passord — `diagnoseLoginFailure()` i `AuthForm.tsx`), samt
+  duplikat-sperren ved signup (`pre-signup`/`post-signup`-fasene, uendret siden
+  før 20. juli)
 - `profiles.has_password` (boolean) — settes til `true` når en bruker har satt
   passord, enten ved passord-signup eller senere fra profilsiden
-- `POST /api/auth/check-email` — rate-limitet oppslag som returnerer
-  `{ exists, hasPassword, hasGoogle }` for en gitt e-post. Brukes av
-  identifier-first-flyten på `/login`, og av selve signup-stien for å hindre
-  duplikate kontoer (appen kobler `profiles` på `auth.users.id`, ikke e-post,
-  og stoler ikke blindt på Supabase sin automatiske identitetskobling)
 - `components/PasswordInput.tsx` — passordfelt med vis/skjul-ikon, delt av
   signup, innlogging og passord-bytte
 - `/sett-passord` — side for å sette passord første gang (etter passord-signup)
@@ -154,6 +162,10 @@ Ingen bildeopplasting er bygget eller planlagt. Bekreftet empirisk mot prod
 - Forsiden viser månedens globale topp 3 fra season_scores (ikke fra attempts)
 
 ### Fasit-endring — ÉN kodesti (etablert 25. juli 2026)
+**Invariant:** Kun `app/api/admin/correct-answer/route.ts` kan endre fasit
+(`is_correct`) på et spørsmål som allerede er spilt (har `attempt_answers`-
+rader). Ingen annen kodesti skal noensinne regradere `is_correct` stille.
+
 **Kun `/api/admin/correct-answer` kan endre fasiten på et spørsmål som
 allerede har besvarelser.** Ingen annen kodesti — hverken PATCH på
 `questions/[qid]`, en annen API-rute, eller direkte skriving mot databasen —
