@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
 
-// FIX 12 — removed `export const revalidate = 30`; caching is set via response headers instead
-
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const { searchParams } = new URL(request.url)
@@ -32,9 +30,6 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // FIX 12 — max-age=0 so browsers revalidate every time; s-maxage=10 lets CDN/edge cache briefly
-  const HEADERS = { 'Cache-Control': 'public, s-maxage=10, max-age=0' }
-
   // Sak 1B — les den SAMME kortlevde snapshoten som ikke-premium-spennet, slik
   // at premium-eksakt og ikke-premium-spenn er internt konsistente per definisjon
   // (samme ferdig-pool, samme rang-definisjon, gjester inkludert).
@@ -43,13 +38,12 @@ export async function GET(request: NextRequest) {
     snapshot = await getOrBuildSnapshot(quizId)
   } catch (err) {
     console.error('[live-ranking] snapshot feilet:', err)
-    return NextResponse.json({ totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null }, { headers: HEADERS })
+    return NextResponse.json({ totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null })
   }
 
   if (snapshot.length === 0) {
     return NextResponse.json(
-      { totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null },
-      { headers: HEADERS }
+      { totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null }
     )
   }
 
@@ -78,7 +72,6 @@ export async function GET(request: NextRequest) {
       high,
       above,
       below,
-    },
-    { headers: HEADERS }
+    }
   )
 }

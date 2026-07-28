@@ -30,7 +30,7 @@ export async function POST(
   if (!quizId) return NextResponse.json({ error: 'Mangler quiz-id' }, { status: 400 })
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`submit:${ip}`, 10, 600_000).success) {
+  if (!rateLimit(`submit:${ip}`, 20, 600_000).success) {
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
