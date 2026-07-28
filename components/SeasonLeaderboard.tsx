@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
@@ -10,6 +10,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
+import { formatQuizCount, shouldShowPeriodPlacementRow } from '@/lib/season-period-table'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -37,35 +38,6 @@ const EXTRA_STYLES = `
     transition: background 150ms ease;
   }
   .tp-accordion-btn:hover { background: #262930; }
-
-  /* ── Smal skjerm: «Utfordre» flyttes til egen linje ──────────────────────
-     Raden er flex, og navnefeltet er det ENESTE elementet med minWidth:0 —
-     alt annet er flexShrink:0. Med duell-knappen inne på linjen ble navnet
-     derfor presset ned til ~26px på 360px (målt), altså ett-to tegn før
-     ellipsis. Knappen legges på egen linje under navnet i stedet.
-
-     460px er der knappen slutter å gjøre skade: der har navnet ~126px igjen
-     med knappen inline, som holder til et rimelig langt navn. Under det
-     wrapper vi. flex-wrap/flex-basis settes kun her (aldri inline), så
-     inline-stilene til radene forblir uendret på bredere skjermer. */
-  @media (max-width: 460px) {
-    .tp-row { flex-wrap: wrap; }
-    .tp-challenge {
-      flex-basis: 100%;
-      /* Linjer opp under navnet: rangering 28 + gap 14 + avatar 40 + gap 14 */
-      margin-left: 96px;
-      margin-top: 8px;
-      text-align: left;
-      /* max-width MÅ være relativ, ikke max-content. Med max-content blir den
-         hypotetiske størrelsen ~70px, og da får knappen plass på linjen igjen
-         — wrappen uteblir (målt). Med calc(100% - 96px) er ytre størrelse
-         inkl. margin alltid nøyaktig 100% av linjen, så den wrapper uansett
-         skjermbredde i dette vinduet. Uten den overflyter knappen raden
-         (100% + 96px margin) og klippes av radens overflow:hidden. */
-      max-width: calc(100% - 96px);
-      box-sizing: border-box;
-    }
-  }
 `
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -247,18 +219,8 @@ const s = {
   countdown: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
   quizLabel: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
 
-  row:        { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowGold:    { background: 'linear-gradient(135deg, rgba(201,168,76,0.07) 0%, #21242e 60%)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  rowSelf:    { background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, position: 'relative' as const, overflow: 'hidden' as const },
-  goldStripe: { position: 'absolute' as const, left: 0, top: 0, bottom: 0, width: 3, background: '#c9a84c', borderRadius: '3px 0 0 3px' },
-
   rankCell: { width: 28, textAlign: 'center' as const, flexShrink: 0 },
   rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#7a7873', display: 'block' },
-
-  avatarWrap: { position: 'relative' as const, width: 40, height: 40, flexShrink: 0 },
-  avatarImg:  { width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' as const, display: 'block' },
-  avatarInit: { width: 40, height: 40, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c' },
-  badgePos:   { position: 'absolute' as const, bottom: -1, right: -1, border: '2px solid #1a1c23', borderRadius: '50%' },
 
   nameBlock: { flex: 1, minWidth: 0 },
   name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
@@ -272,9 +234,6 @@ const s = {
   pointsBlock: { textAlign: 'right' as const, flexShrink: 0, width: 64 },
   points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
   pointsSub:   { fontSize: 10, color: '#7a7873', letterSpacing: '0.04em' },
-
-  challengeBtn:  { background: 'transparent', border: '1px solid #2a2d38', color: '#e8e4dd', fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 8, fontFamily: "'Instrument Sans', sans-serif", flexShrink: 0, whiteSpace: 'nowrap' as const },
-  challengeSent: { fontSize: 11, fontWeight: 600, color: '#e8e4dd', letterSpacing: '0.04em', flexShrink: 0, whiteSpace: 'nowrap' as const },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
@@ -637,100 +596,15 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   // ── Row renderers ─────────────────────────────────────────────────────────
 
-  function renderChallengeButton(entry: Entry) {
-    // H2H Duell er gratis for alle innloggede — ingen Premium-krav. Samme
-    // regel som app/leaderboard/[id]/page.tsx og POST /api/rivalries, som
-    // aldri har sjekket premium. Denne komponenten hadde en ekstra
-    // userIsPremium-sjekk her, så samme knapp var gratis på quiz-
-    // leaderboardet og premium-låst på sesong-topplisten.
-    if (!session) return null
-    // Ikke på egen rad — raden er allerede fremhevet med gull-border (rowSelf)
-    if (entry.userId === currentUserId) return null
-    // Bekreftelse hvis nettopp sendt / allerede utgående pending
-    if (challengeSentSet.has(entry.userId)) {
-      return <span className="tp-challenge" style={s.challengeSent}>Duell sendt!</span>
-    }
-    // Allerede i en duell-relasjon (innkommende/aktiv) — skjul i stillhet
-    if (duelInvolvedSet.has(entry.userId)) return null
-    // Har en annen aktiv/ventende duell denne måneden — blokker alle andre
-    if (activeDuelExists) return null
-    const isLoading = challengeLoadingId === entry.userId
-    return (
-      <button
-        className="tp-challenge"
-        onClick={() => setPendingChallenge({ id: entry.userId, name: entry.displayName })}
-        disabled={isLoading}
-        style={{ ...s.challengeBtn, cursor: isLoading ? 'default' : 'pointer', opacity: isLoading ? 0.6 : 1 }}
-      >
-        {isLoading ? '…' : 'Utfordre'}
-      </button>
-    )
-  }
-
-  function renderRow(entry: Entry) {
-    const isFirst = entry.rank === 1
-    const badge   = badges.get(entry.userId)
-    const initial = getAvatarInitial(entry.displayName)
-    const showError = challengeError?.rivalId === entry.userId
-    // Fremhev alltid egen rad med gull-border (indikerer "dette er deg" uten ekstra element)
-    const isSelf  = entry.userId === currentUserId
-    const rowStyle = isFirst ? s.rowGold : isSelf ? s.rowSelf : s.row
-
-    return (
-      <React.Fragment key={entry.userId}>
-        <div className="tp-row" style={rowStyle}>
-          {isFirst && <div style={s.goldStripe} />}
-          {isSelf && !isFirst && <div style={s.goldStripe} />}
-          <div style={s.rankCell}><span style={s.rankNum}>#{entry.rank}</span></div>
-          <div style={s.avatarWrap}>
-            {entry.avatarUrl
-              ? <img src={entry.avatarUrl} alt="" style={s.avatarImg} referrerPolicy="no-referrer" />
-              : <div style={s.avatarInit}>{initial}</div>
-            }
-            {badge && <div style={s.badgePos}><BadgeCircle badge={badge} size={18} /></div>}
-          </div>
-          <div style={s.nameBlock}>
-            <PlayerName
-              nickname={entry.nickname}
-              displayName={entry.displayName}
-              primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 2 }}
-              secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif" }}
-            />
-            {/* For Siste quiz vises tiden i score-blokken (sammen med RIKTIGE), ikke her */}
-            {!isLastQuiz && (
-              <div style={s.nameSub}>
-                {`${entry.quizCount} ${entry.quizCount === 1 ? 'quiz' : 'quizer'}`}
-              </div>
-            )}
-          </div>
-          <div style={s.pointsBlock}>
-            <div style={s.points}>{entry.points}</div>
-            <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
-            {isLastQuiz && (
-              <div style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
-                {formatTime(entry.fastestMs ?? 0)}
-              </div>
-            )}
-          </div>
-          {renderChallengeButton(entry)}
-        </div>
-        {showError && (
-          <p style={{ fontSize: 13, color: '#E24B4A', margin: '-4px 0 8px 20px' }}>
-            {challengeError!.message}
-          </p>
-        )}
-      </React.Fragment>
-    )
-  }
-
-  // Ren mapper for «Siste quiz»-fanen — konvertert til tabellformat 26. juli
-  // 2026, samme mønster som app/leaderboard/[id]/page.tsx og org-admin.
-  // Kun brukt når isLastQuiz: periode-visningene (måned/kvartal/år/all-time)
-  // beholder renderRow/kort-formatet over, fordi ResultsTable sine faste
-  // kolonner («Riktige» / «Tid») ikke passer semantisk der — periode-poeng er
-  // akkumulert over mange quizer, uten noe tid-begrep, og quizCount (antall
-  // quizer spilt) er den relevante andrelinjen i stedet. Avatar droppet (som
-  // i de to andre konverteringene); merket flyttes inn i Navn-cellen.
+  // Ren mapper for ALLE faner — Siste quiz konvertert til tabellformat
+  // 26. juli 2026, periode-visningene (måned/kvartal/år/all-time) fulgte
+  // 28. juli 2026 (forslag 2/«Kompakt» fra periode-tabell-final-spec).
+  // Samme mønster som app/leaderboard/[id]/page.tsx og org-admin.
+  // Forskjellen mellom de to formene er kun hvilke ResultsTable-props
+  // kalles med (se rows-JSX under) — «Riktige»/«Tid» for Siste quiz,
+  // «Poeng»/skjult tidskolonne for periode-visninger, hvor quizCount i
+  // stedet vises som metricSubLabel under poengtallet. Avatar droppet (som
+  // i de andre konverteringene); merket flyttes inn i Navn-cellen.
   function entryToRow(entry: Entry): ResultsTableRow {
     const badge = badges.get(entry.userId) ?? null
     const isSelf = entry.userId === currentUserId
@@ -751,6 +625,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       secondary: hasNick ? entry.displayName : null,
       correctAnswers: entry.points,
       totalTimeMs: entry.fastestMs ?? 0,
+      metricSubLabel: isLastQuiz ? null : formatQuizCount(entry.quizCount),
       highlight: isSelf,
       badge,
       clickable,
@@ -761,6 +636,36 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         ? { text: challengeError.message, tone: 'error' }
         : null,
     }
+  }
+
+  // «Din plassering» hos periode-visninger: brukerens egen rad føyes til
+  // SAMME tabell (ikke et eget kort) med en separator rett over — mønster
+  // fra app/leaderboard/[id]/page.tsx sin renderSection(). Kun periode-
+  // visninger: Siste quiz sin userEntry (fra API-et) mangler fastestMs, så
+  // Tid-kolonnen der ikke kan fylles ut korrekt — se renderUserSection(),
+  // som derfor beholder det gamle kortet for akkurat den ene grenen.
+  function buildRows(): ResultsTableRow[] {
+    const rows = (data?.entries ?? []).map(entryToRow)
+    if (!shouldShowPeriodPlacementRow({
+      isLastQuiz, userVisible, userEntryRank: data?.userEntry?.rank ?? null,
+      isPremium: data?.userIsPremium === true, scope,
+    })) return rows
+
+    const ue = data!.userEntry!
+    const nick = ue.nickname?.trim()
+    const hasNick = !!nick
+    rows.push({
+      key: 'user-placement',
+      rank: ue.rank,
+      name: hasNick ? nick! : ue.displayName,
+      secondary: hasNick ? ue.displayName : null,
+      correctAnswers: ue.points,
+      totalTimeMs: 0,
+      metricSubLabel: formatQuizCount(ue.quizCount),
+      highlight: true,
+      separatorLabel: '— Din plassering —',
+    })
+    return rows
   }
 
   function renderUserSection() {
@@ -801,6 +706,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           </>
         )
       }
+      // Periode-visninger (måned/kvartal/år/all-time): denne raden vises nå
+      // INNE i tabellen via buildRows()/shouldShowPeriodPlacementRow, ikke
+      // som eget kort. Kun Siste quiz beholder kortet her — userEntry
+      // mangler fastestMs, så Tid-kolonnen ikke kan fylles ut korrekt uten
+      // en API-endring (se lib/season-period-table.ts).
+      if (!isLastQuiz) return null
       return (
         <>
           <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
@@ -1113,14 +1024,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             </div>
           )
         })()
-      ) : isLastQuiz ? (
+      ) : (
         <ResultsTable
-          rows={(data?.entries ?? []).map(entryToRow)}
+          rows={buildRows()}
           formatTime={formatTime}
+          correctLabel={isLastQuiz ? undefined : 'Poeng'}
+          showTimeColumn={isLastQuiz}
           onRowClick={row => setPendingChallenge({ id: row.key, name: row.name })}
         />
-      ) : (
-        data?.entries.map(entry => renderRow(entry))
       )}
 
       {/* Sidenavigasjon (Premium) */}

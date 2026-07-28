@@ -33,11 +33,19 @@ export type ResultsTableRow = {
   secondary?: string | null
   correctAnswers: number
   totalTimeMs: number
+  /**
+   * Liten grå undertekst UNDER tallet i tredje kolonne (f.eks. «4 quizer»
+   * på periode-topplistene, 28. juli 2026). Egen plassering — ikke i
+   * navnecellens `secondary` — fordi den ellers ville kollidert med
+   * kallenavn-avsløring der (se components/SeasonLeaderboard.tsx sin
+   * entryToRow).
+   */
+  metricSubLabel?: string | null
   /** Uthevet rad (median hos admin, «meg» hos org-admin/leaderboard). */
   highlight?: boolean
   /** Delt rangering — rangeringstallet får «=»-suffiks, Tid får en «delt»-tag. */
   tied?: boolean
-  /** Lite ikon foran navnet (krone/pil/flamme/lyn/medalje). */
+  /** Lite ikon etter navnet (krone/pil/flamme/lyn/medalje). */
   badge?: BadgeKind | null
   /**
    * Gjør raden klikkbar: viser en liten chevron ved navnets høyre kant og gir
@@ -87,6 +95,14 @@ type Props = {
    * hverandre.
    */
   embedded?: boolean
+  /** Overskrift på tredje kolonne. Default «Riktige» — periode-topplistene
+   *  (SeasonLeaderboard) setter «Poeng», siden `correctAnswers` der bærer
+   *  akkumulert poengsum, ikke antall riktige svar på én quiz. */
+  correctLabel?: string
+  /** Vis fjerde kolonne (Tid). Default true. Periode-topplistene har ikke
+   *  noe tid-begrep og setter denne til false — 3 kolonner i stedet for 4,
+   *  se periode-tabell-final-spec (28. juli 2026). */
+  showTimeColumn?: boolean
   /** Fyres kun for rader med `clickable === true`. */
   onRowClick?: (row: ResultsTableRow) => void
 }
@@ -156,6 +172,7 @@ const STYLES = `
      text-align. */
   .qkrt-table th.qkrt-num, .qkrt-table td.qkrt-num { text-align: right; white-space: nowrap; }
   .qkrt-tied { color: #c9a84c; margin-left: 4px; }
+  .qkrt-metric-sub { display: block; font-size: 10px; color: #7a7873; margin-top: 1px; }
 
   /* Navn-cellens indre layout: badge + navn til venstre, chevron/trailing-
      label dyttet til høyre kant — chevronen får IKKE egen kolonne (hver
@@ -186,9 +203,10 @@ const STYLES = `
   }
 `
 
-export default function ResultsTable({ rows, totalQuestions, title, formatTime, embedded, onRowClick }: Props) {
+export default function ResultsTable({ rows, totalQuestions, title, formatTime, embedded, correctLabel, showTimeColumn = true, onRowClick }: Props) {
   const fmt = formatTime ?? defaultFormatTime
   const showTotal = typeof totalQuestions === 'number' && totalQuestions > 0
+  const colSpan = showTimeColumn ? 4 : 3
 
   return (
     <>
@@ -208,8 +226,8 @@ export default function ResultsTable({ rows, totalQuestions, title, formatTime, 
               <tr>
                 <th className="qkrt-rank">#</th>
                 <th>Navn</th>
-                <th className="qkrt-num">Riktige</th>
-                <th className="qkrt-num">Tid</th>
+                <th className="qkrt-num">{correctLabel ?? 'Riktige'}</th>
+                {showTimeColumn && <th className="qkrt-num">Tid</th>}
               </tr>
             </thead>
             <tbody>
@@ -236,8 +254,8 @@ export default function ResultsTable({ rows, totalQuestions, title, formatTime, 
                     <td>
                       <div className="qkrt-name-cell">
                         <div className="qkrt-name-main">
-                          {r.badge && <BadgeCircle badge={r.badge} size={16} />}
                           <span className="qkrt-name">{r.name}</span>
+                          {r.badge && <BadgeCircle badge={r.badge} size={16} />}
                           {r.secondary ? <span className="qkrt-nick">{r.secondary}</span> : null}
                         </div>
                         {r.trailingLabel
@@ -257,23 +275,26 @@ export default function ResultsTable({ rows, totalQuestions, title, formatTime, 
                     </td>
                     <td className="qkrt-num">
                       {r.correctAnswers}{showTotal ? ` / ${totalQuestions}` : ''}
+                      {r.metricSubLabel ? <span className="qkrt-metric-sub">{r.metricSubLabel}</span> : null}
                     </td>
-                    <td className="qkrt-num">
-                      {fmt(r.totalTimeMs)}
-                      {r.tied && <span className="qkrt-tied">delt</span>}
-                    </td>
+                    {showTimeColumn && (
+                      <td className="qkrt-num">
+                        {fmt(r.totalTimeMs)}
+                        {r.tied && <span className="qkrt-tied">delt</span>}
+                      </td>
+                    )}
                   </tr>
                 )
 
                 const sepRow = r.separatorLabel ? (
                   <tr key={`${r.key}-sep`} className="qkrt-sep-row">
-                    <td colSpan={4}><div className="qkrt-inline-sep">{r.separatorLabel}</div></td>
+                    <td colSpan={colSpan}><div className="qkrt-inline-sep">{r.separatorLabel}</div></td>
                   </tr>
                 ) : null
 
                 const noteRow = r.note ? (
                   <tr key={`${r.key}-note`} className="qkrt-note-row">
-                    <td colSpan={4}>
+                    <td colSpan={colSpan}>
                       <p className={r.note.tone === 'error' ? 'qkrt-note-error' : 'qkrt-note-muted'}>{r.note.text}</p>
                     </td>
                   </tr>
