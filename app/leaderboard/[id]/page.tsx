@@ -14,6 +14,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
+import { computeDuelAffordance } from '@/lib/duel-affordance'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -616,6 +617,13 @@ export default function LeaderboardPage() {
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
     : null
 
+  // Delt mellom attemptToRow (klassisk topp-50-visning) og browseEntryToRow
+  // (Premium søk/paginering) — se lib/duel-affordance.ts. Kartleggingen
+  // 28. juli viste at browse-modus aldri fikk denne logikken da
+  // tabellformatet ble innført 26. juli, så "Utfordre" manglet helt for
+  // rader utenfor topp 50 (paginert visning).
+  const duelState = { currentUserId, duelInvolvedIds: duelInvolvedSet, challengeSentIds: challengeSentSet, activeDuelExists, challengeLoadingId }
+
   // Ren mapper — erstatter den tidligere renderRow (som rendret et kort-format
   // <div> direkte). All logikk under er UENDRET fra originalen (merke-utregning,
   // navn/kallenavn/medlemsnr-sammenslåing, klikkbarhets-gating); kun repakket
@@ -654,24 +662,8 @@ export default function LeaderboardPage() {
     const isSelf = currentUserId
       ? attempt.user_id === currentUserId
       : !!displayName && attempt.player_name === displayName
-    let clickable = false
-    let trailingLabel: string | null = null
-    if (!isSelf && currentUserId && attempt.user_id) {
-      const involved = duelInvolvedSet.has(attempt.user_id)
-      const sent = challengeSentSet.has(attempt.user_id)
-      const isLoading = challengeLoadingId === attempt.user_id
-      if (involved && sent) {
-        trailingLabel = 'Sendt'
-      } else if (!involved && !activeDuelExists) {
-        // Klikkbar kun mens ingen forespørsel for NETTOPP denne mottakeren er
-        // underveis — hindrer dobbel-innsending hvis raden rekker å bli
-        // trykkbar igjen i vinduet mellom modal-lukk og at
-        // challengeSentSet/duelInvolvedSet faktisk oppdateres.
-        clickable = !isLoading
-      }
-      // involved uten sent, eller activeDuelExists: skjules stille (uendret
-      // fra originalens `return null`) — verken chevron eller merkelapp.
-    }
+    const { clickable, alreadySent } = computeDuelAffordance(attempt.user_id, isSelf, duelState)
+    const trailingLabel = alreadySent ? 'Sendt' : null
 
     return {
       key: attempt.user_id ?? attempt.id,
@@ -815,17 +807,25 @@ export default function LeaderboardPage() {
     )
   }
 
-  // Premium søk/paginering hadde aldri merker eller utfordre-knapp — uendret
-  // her, kun repakket som ResultsTableRow. Ingen ny funksjonalitet lagt til
-  // (kun formatet konverteres, se plan).
+  // Premium søk/paginering manglet merker fra dag én (uendret, bevisst) —
+  // MEN manglet også utfordre-knappen ved en glipp: da tabellformatet ble
+  // innført 26. juli fikk denne mapperen aldri computeDuelAffordance-kallet
+  // som attemptToRow har, så "Utfordre" forsvant for alle rader utenfor
+  // topp 50 (funnet 28. juli via paginering til rad 61-71). Rettet ved å
+  // gjenbruke samme delte logikk som attemptToRow, i stedet for en tredje
+  // kopi av betingelsene.
   function browseEntryToRow(e: LbEntry): ResultsTableRow {
     const isSelf = currentUserId != null && e.userId === currentUserId
     const shownName = e.userId ? (memberInfoMap.get(e.userId)?.display_name ?? e.playerName) : e.playerName
     const shownNickname = e.userId ? (e.nickname ?? memberInfoMap.get(e.userId)?.nickname ?? null) : null
     const hasNick = !!shownNickname?.trim()
     const line1 = hasNick ? shownNickname!.trim() : shownName
+    const { clickable, alreadySent } = computeDuelAffordance(e.userId, isSelf, duelState)
+    const trailingLabel = alreadySent ? 'Sendt' : null
     return {
-      key: e.id,
+      // user_id foretrekkes (matcher attemptToRow) — pendingChallenge.id
+      // sendes videre som rival_id og må være en bruker-id, ikke attempt-id.
+      key: e.userId ?? e.id,
       rank: e.rank,
       name: e.userId ? line1 : `${line1} (guest)`,
       secondary: hasNick ? shownName : null,
@@ -833,7 +833,13 @@ export default function LeaderboardPage() {
       totalTimeMs: e.totalTimeMs,
       highlight: isSelf,
       badge: null,
-      clickable: false,
+      clickable,
+      trailingLabel,
+      clickHint: clickable ? 'Utfordre' : null,
+      ariaLabel: clickable ? `Utfordre ${line1} til duell` : null,
+      note: (e.userId && challengeError?.rivalId === e.userId)
+        ? { text: challengeError.message, tone: 'error' }
+        : null,
     }
   }
 
@@ -856,6 +862,7 @@ export default function LeaderboardPage() {
           rows={entries.map(browseEntryToRow)}
           totalQuestions={entries[0]?.totalQuestions}
           formatTime={formatTime}
+          onRowClick={row => setPendingChallenge({ id: row.key, name: row.name })}
         />
       </>
     )

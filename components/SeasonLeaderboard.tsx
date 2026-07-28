@@ -9,6 +9,7 @@ import PlayerName from '@/components/PlayerName'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
+import { computeDuelAffordance } from '@/lib/duel-affordance'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -736,18 +737,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const nick = entry.nickname?.trim()
     const hasNick = !!nick
 
-    let clickable = false
-    let trailingLabel: string | null = null
-    if (session && !isSelf) {
-      const involved = duelInvolvedSet.has(entry.userId)
-      const sent = challengeSentSet.has(entry.userId)
-      const isLoading = challengeLoadingId === entry.userId
-      if (involved && sent) {
-        trailingLabel = 'Duell sendt!'
-      } else if (!involved && !activeDuelExists) {
-        clickable = !isLoading
-      }
-    }
+    // Delt med app/leaderboard/[id]/page.tsx sin attemptToRow/browseEntryToRow
+    // — se lib/duel-affordance.ts.
+    const { clickable, alreadySent } = computeDuelAffordance(entry.userId, isSelf, {
+      currentUserId, duelInvolvedIds: duelInvolvedSet, challengeSentIds: challengeSentSet, activeDuelExists, challengeLoadingId,
+    })
+    const trailingLabel = alreadySent ? 'Duell sendt!' : null
 
     return {
       key: entry.userId,
@@ -760,6 +755,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       badge,
       clickable,
       trailingLabel,
+      clickHint: clickable ? 'Utfordre' : null,
       ariaLabel: clickable ? `Utfordre ${entry.displayName} til duell` : null,
       note: challengeError?.rivalId === entry.userId
         ? { text: challengeError.message, tone: 'error' }
