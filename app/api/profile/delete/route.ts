@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { planLeagueOwnership } from '@/lib/account-deletion'
 
 export async function DELETE(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
@@ -99,6 +100,66 @@ export async function DELETE(request: NextRequest) {
   }
   const attemptIds = (userAttempts ?? []).map(a => a.id)
 
+  // ── Ligaer brukeren EIER — løses FØR noe slettes ────────────────────────────
+  // leagues.owner_id har ON DELETE CASCADE mot profiles.id. Uten dette steget
+  // river databasen hele ligaen når profilen forsvinner, og alle de andre
+  // medlemmene mister den uten forvarsel. Rekkefølgen er avgjørende: kaskaden
+  // utløses av deleteUser helt til slutt, så eierskapet må være flyttet før da.
+  //
+  // Leses her, skrives som ordinære steg i sekvensen under, slik at de får
+  // nøyaktig samme feilhåndtering som resten (én feil stopper HELE slettingen).
+  const { data: ownedLeagues, error: ownedErr } = await supabaseAdmin
+    .from('leagues')
+    .select('id')
+    .eq('owner_id', user.id)
+  if (ownedErr) {
+    console.error('[profile-delete] kunne ikke hente eide ligaer', user.id, ownedErr)
+    return NextResponse.json(
+      { error: 'Sletting feilet (liga-oppslag). Prøv igjen, eller kontakt support.' },
+      { status: 500 },
+    )
+  }
+
+  const leagueSteps: { table: string; run: () => PromiseLike<{ error: { message: string } | null }> }[] = []
+  for (const league of ownedLeagues ?? []) {
+    const { data: members, error: memberErr } = await supabaseAdmin
+      .from('league_members')
+      .select('user_id, joined_at')
+      .eq('league_id', league.id)
+    if (memberErr) {
+      console.error('[profile-delete] kunne ikke hente ligamedlemmer', league.id, memberErr)
+      return NextResponse.json(
+        { error: 'Sletting feilet (liga-medlemmer). Prøv igjen, eller kontakt support.' },
+        { status: 500 },
+      )
+    }
+
+    const plan = planLeagueOwnership(league.id, members ?? [], user.id)
+    if (plan.action === 'transfer') {
+      leagueSteps.push({
+        table: `leagues:overfør(${plan.leagueId})`,
+        run: () => supabaseAdmin.from('leagues')
+          .update({ owner_id: plan.newOwnerId })
+          .eq('id', plan.leagueId)
+          // Vakt mot kappløp: overfør kun hvis raden fortsatt er vår.
+          .eq('owner_id', user.id),
+      })
+    } else {
+      // Eneste medlem — ligaen har ingen fremtid uten brukeren. Slettes
+      // eksplisitt her i stedet for å overlates til kaskaden, slik at
+      // scope-rader ryddes med (season_scores for brukeren tas av steget under).
+      leagueSteps.push({
+        table: `excluded_members:liga(${plan.leagueId})`,
+        run: () => supabaseAdmin.from('excluded_members').delete()
+          .eq('scope_type', 'league').eq('scope_id', plan.leagueId),
+      })
+      leagueSteps.push({
+        table: `leagues:slett(${plan.leagueId})`,
+        run: () => supabaseAdmin.from('leagues').delete().eq('id', plan.leagueId),
+      })
+    }
+  }
+
   // Explicit cascade — remove user data from tables without FK cascade to
   // auth.users. Sekvensiell for-løkke, ikke Promise.all: en skriving som
   // feiler skal stoppe HELE slettingen før deleteUser kalles, ikke bare logges
@@ -106,6 +167,26 @@ export async function DELETE(request: NextRequest) {
   // er nøyaktig GDPR-bruddet dette steget finnes for å forhindre. Samme
   // steg-array + feilsjekk-mønster som app/api/org/[slug]/delete/route.ts.
   const steps: { table: string; run: () => PromiseLike<{ error: { message: string } | null }> }[] = [
+    // Liga-eierskap først: ligaen må ha fått ny eier (eller være slettet) før
+    // brukerens egen medlemsrad forsvinner under.
+    ...leagueSteps,
+    // ── organizations / organization_invites: NO ACTION, ikke CASCADE ─────────
+    // Databasen NEKTER å slette en profilrad disse fortsatt peker på, så uten
+    // disse to stegene feiler deleteUser permanent for enhver som har opprettet
+    // en organisasjon — retten til sletting blir umulig å innfri.
+    //
+    // Nulles, ikke slettes: created_by er ren proveniens (hvem opprettet raden),
+    // ikke en rettighet. Selve admin-tilgangen ligger i organization_members.role
+    // og er upåvirket. Å SLETTE radene i stedet ville tatt ned hele
+    // organisasjonen — inkludert en betalende kunde — fordi én ansatt sluttet,
+    // og ville brutt en aktiv invitasjonslenke som resten av bedriften bruker.
+    //
+    // Begge kolonnene er verifisert nullbare i prod (ikke i PostgREST sin
+    // `required`-liste), så dette krever INGEN migrasjon.
+    { table: 'organizations.created_by', run: () => supabaseAdmin.from('organizations')
+        .update({ created_by: null }).eq('created_by', user.id) },
+    { table: 'organization_invites.created_by', run: () => supabaseAdmin.from('organization_invites')
+        .update({ created_by: null }).eq('created_by', user.id) },
     { table: 'rivalries', run: () => supabaseAdmin.from('rivalries').delete()
         .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`) },
     { table: 'league_members', run: () => supabaseAdmin.from('league_members').delete()
