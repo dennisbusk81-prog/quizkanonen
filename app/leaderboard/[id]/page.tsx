@@ -13,6 +13,7 @@ import SkeletonCard from '@/components/SkeletonCard'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
+import DuelChallengeModal from '@/components/DuelChallengeModal'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -646,9 +647,16 @@ export default function LeaderboardPage() {
 
     // H2H Duell er gratis for alle innloggede, på alle rader unntatt egen —
     // uendret regel fra originalen.
+    // isSelf beregnes UAVHENGIG av `isUser` (som er premium-gatet, kun brukt
+    // til highlight-styling) — uten dette fikk en free-bruker hvis egen rad
+    // havnet i topp-N sin egen rad markert klikkbar, fordi isUser da alltid
+    // var false og dermed aldri traff eksklusjonen under.
+    const isSelf = currentUserId
+      ? attempt.user_id === currentUserId
+      : !!displayName && attempt.player_name === displayName
     let clickable = false
     let trailingLabel: string | null = null
-    if (!isUser && currentUserId && attempt.user_id) {
+    if (!isSelf && currentUserId && attempt.user_id) {
       const involved = duelInvolvedSet.has(attempt.user_id)
       const sent = challengeSentSet.has(attempt.user_id)
       const isLoading = challengeLoadingId === attempt.user_id
@@ -681,6 +689,7 @@ export default function LeaderboardPage() {
       badge,
       clickable,
       trailingLabel,
+      clickHint: clickable ? 'Utfordre' : null,
       ariaLabel: clickable ? `Utfordre ${line1} til duell` : null,
       note: (attempt.user_id && challengeError?.rivalId === attempt.user_id)
         ? { text: challengeError.message, tone: 'error' }
@@ -884,49 +893,15 @@ export default function LeaderboardPage() {
     <>
       <style>{podiumStyles}</style>
       <AuthModal open={showModal} onClose={() => setShowModal(false)} />
-      {/* Utfordre-bekreftelse — trigges av trykk på en klikkbar rad. Stil
-          kopiert fra components/SeasonLeaderboard.tsx sin tilsvarende modal,
-          pluss dialog-rolle/Escape/scroll-lock som manglet der (berettiget
-          her: langt høyere trafikk enn den siden). */}
-      {pendingChallenge && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}
-          onClick={() => setPendingChallenge(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="qk-challenge-title"
-            onClick={e => e.stopPropagation()}
-            style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 360, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}
-          >
-            <p id="qk-challenge-title" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
-              Utfordre {pendingChallenge.name}?
-            </p>
-            <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 24 }}>
-              Du sender en H2H-duell-utfordring. Motstanderen kan godta eller avslå.
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={async () => {
-                  const id = pendingChallenge.id
-                  setPendingChallenge(null)
-                  await handleChallenge(id)
-                }}
-                style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
-              >
-                Send utfordring
-              </button>
-              <button
-                onClick={() => setPendingChallenge(null)}
-                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
-              >
-                Avbryt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Utfordre-bekreftelse — trigges av trykk på en klikkbar rad. Delt
+          komponent (components/DuelChallengeModal.tsx) med duell-forslagene
+          på quiz-resultatskjermen, slik at begge inngangene til H2H Duell
+          bruker nøyaktig samme bekreftelsesflyt. */}
+      <DuelChallengeModal
+        pending={pendingChallenge}
+        onCancel={() => setPendingChallenge(null)}
+        onConfirm={id => { setPendingChallenge(null); handleChallenge(id) }}
+      />
       <SiteNav variant={orgSlug ? 'org' : 'default'} orgSlug={orgSlug ?? undefined} quizId={quiz?.id} />
       <div style={s.wrap}>
         <div style={s.page}>

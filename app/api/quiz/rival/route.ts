@@ -8,6 +8,57 @@ function avatarColor(seed: string): string {
   return palette[h % palette.length]
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Kandidater å foreslå å utfordre på quiz-resultatskjermen — bevisst ANDRE
+// spillere enn rival-en (poenget er å oppdage nye folk, ikke gjenta rivalen).
+// Gjenbruker samme attempts+profiles-mønster som findRival/buildRankingSnapshot
+// i denne filen i stedet for en ny, tyngre spørring. Eksisterende duell-
+// motstandere ekskluderes klient-side (samme datakilde/mønster som
+// leaderboard/[id] allerede bruker via /api/rivalries/my) — denne funksjonen
+// vet ikke noe om brukerens rivalries.
+async function buildSuggestions(quizId: string, excludeUserId: string) {
+  const { data: attempts } = await supabaseAdmin
+    .from('attempts')
+    .select('user_id, correct_answers')
+    .eq('quiz_id', quizId)
+    .eq('is_team', false)
+    .not('user_id', 'is', null)
+    .neq('user_id', excludeUserId)
+    .limit(60)
+
+  const seen = new Set<string>()
+  const unique: { user_id: string; correct_answers: number }[] = []
+  for (const a of attempts ?? []) {
+    if (!a.user_id || seen.has(a.user_id)) continue
+    seen.add(a.user_id)
+    unique.push({ user_id: a.user_id, correct_answers: a.correct_answers ?? 0 })
+  }
+  if (unique.length === 0) return []
+
+  const picked = shuffle(unique).slice(0, 3)
+  const { data: profiles } = await supabaseAdmin
+    .from('profiles')
+    .select('id, display_name, nickname')
+    .in('id', picked.map(u => u.user_id))
+  const profileMap = new Map(
+    (profiles ?? []).map((p: { id: string; display_name: string | null; nickname: string | null }) => [p.id, p])
+  )
+
+  return picked.map(u => {
+    const p = profileMap.get(u.user_id)
+    const name = p?.nickname?.trim() || p?.display_name || 'Ukjent'
+    return { userId: u.user_id, name, avatarColor: avatarColor(u.user_id), score: u.correct_answers }
+  })
+}
+
 async function buildRankingSnapshot(quizId: string) {
   const [{ data: top11 }, { count: totalCount }] = await Promise.all([
     supabaseAdmin
@@ -142,20 +193,24 @@ export async function GET(request: NextRequest) {
   const rivalRow = await findRival(quizId, userId)
 
   if (!rivalRow) {
-    const rankingSnapshot = await buildRankingSnapshot(quizId)
+    const [rankingSnapshot, suggestions] = await Promise.all([
+      buildRankingSnapshot(quizId),
+      buildSuggestions(quizId, userId),
+    ])
     return NextResponse.json(
-      { rival: null, rankingSnapshot },
+      { rival: null, rankingSnapshot, suggestions },
       { headers: { 'Cache-Control': 'private, max-age=60' } }
     )
   }
 
-  const [profileResult, rankingSnapshot] = await Promise.all([
+  const [profileResult, rankingSnapshot, suggestions] = await Promise.all([
     supabaseAdmin
       .from('profiles')
       .select('display_name, nickname')
       .eq('id', rivalRow.user_id)
       .maybeSingle(),
     buildRankingSnapshot(quizId),
+    buildSuggestions(quizId, userId),
   ])
 
   // Kallenavn vises i stedet for ekte navn hvis satt (rival vises i løpende tekst)
@@ -167,6 +222,7 @@ export async function GET(request: NextRequest) {
     {
       rival: { name: rivalName, avatarColor: avatarColor(rivalRow.user_id), score: rivalRow.correct_answers },
       rankingSnapshot,
+      suggestions,
     },
     { headers: { 'Cache-Control': 'private, max-age=60' } }
   )

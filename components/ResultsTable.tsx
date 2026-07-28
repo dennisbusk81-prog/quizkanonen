@@ -51,6 +51,14 @@ export type ResultsTableRow = {
    * denne er satt, komponenten håndhever det ikke selv).
    */
   trailingLabel?: string | null
+  /**
+   * Liten hint-tekst vist FORAN chevronen på klikkbare rader (f.eks.
+   * «Utfordre») — gjør det tydelig HVA klikket gjør, ikke bare at raden er
+   * klikkbar generelt. Kun relevant når `clickable` er true og
+   * `trailingLabel` ikke er satt. Domene-agnostisk med hensikt, som
+   * `ariaLabel` — kalleren bestemmer ordlyden.
+   */
+  clickHint?: string | null
   /** A11y-tekst for klikkbare rader. Domene-agnostisk med hensikt — ingen
    *  hardkodet "duell"-tekst inne i selve tabellen; kalleren bestemmer ordlyden. */
   ariaLabel?: string | null
@@ -138,7 +146,15 @@ const STYLES = `
   .qkrt-rank.medal { color: #c9a84c; font-weight: 700; }
   .qkrt-name { font-weight: 500; color: #ffffff; white-space: nowrap; }
   .qkrt-nick { font-size: 11px; color: #7a7873; display: block; margin-top: 1px; white-space: nowrap; }
-  .qkrt-num { text-align: right; white-space: nowrap; }
+  /* Selektoren må matche/slå .qkrt-table th sin spesifisitet (klasse+element),
+     ellers taper høyrejusteringen for th.qkrt-num mot .qkrt-table th sin
+     text-align: left — nøyaktig det som gjorde at RIKTIGE/TID-headerne sto
+     venstrejustert mens tallene under sto høyrejustert i samme kolonnebredde.
+     td.qkrt-num trengte ikke dette (ingen konkurrerende td-regel på
+     text-align), men begge er skrevet ut likt for symmetri og for å unngå at
+     samme feil oppstår igjen hvis .qkrt-table td noensinne får en egen
+     text-align. */
+  .qkrt-table th.qkrt-num, .qkrt-table td.qkrt-num { text-align: right; white-space: nowrap; }
   .qkrt-tied { color: #c9a84c; margin-left: 4px; }
 
   /* Navn-cellens indre layout: badge + navn til venstre, chevron/trailing-
@@ -149,6 +165,8 @@ const STYLES = `
   .qkrt-name-main { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .qkrt-chevron { flex-shrink: 0; color: #7a7873; }
   .qkrt-trailing-label { flex-shrink: 0; font-size: 11px; font-weight: 600; color: #c9a84c; letter-spacing: 0.06em; white-space: nowrap; }
+  .qkrt-click-hint-wrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .qkrt-click-hint { font-size: 11px; color: #7a7873; white-space: nowrap; }
   .qkrt-table tr.is-clickable { cursor: pointer; }
   .qkrt-table tr.is-clickable:hover td,
   .qkrt-table tr.is-clickable:focus-visible td { background: rgba(255,255,255,0.03); }
@@ -226,9 +244,12 @@ export default function ResultsTable({ rows, totalQuestions, title, formatTime, 
                           ? <span className="qkrt-trailing-label">{r.trailingLabel}</span>
                           : r.clickable
                             ? (
-                              <svg className="qkrt-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="9 6 15 12 9 18" />
-                              </svg>
+                              <span className="qkrt-click-hint-wrap">
+                                {r.clickHint && <span className="qkrt-click-hint">{r.clickHint}</span>}
+                                <svg className="qkrt-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="9 6 15 12 9 18" />
+                                </svg>
+                              </span>
                             )
                             : null
                         }

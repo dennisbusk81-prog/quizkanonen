@@ -10,6 +10,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import DuelChallengeModal from '@/components/DuelChallengeModal'
 
 type PlayerInfo = { name: string; ageConfirmed: boolean }
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
@@ -829,6 +830,22 @@ export default function QuizPage() {
   const [shuffledDisplayOrder, setShuffledDisplayOrder] = useState<string[]>(['A', 'B', 'C', 'D'])
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
   const [rankingSnapshot, setRankingSnapshot] = useState<{ top10MinCorrect: number; leaderName: string; leaderCorrect: number; totalPlayers: number } | null>(null)
+  // Duell-forslag på resultatskjermen — «oppdag noen nye å utfordre», IKKE
+  // rivalen (som allerede vises i eget kort). Hentet sammen med rivalData ved
+  // quiz-start (samme /api/quiz/rival-kall, se startQuiz), klar til bruk når
+  // 'finished' vises uten en ekstra runde-tripp.
+  const [duelSuggestions, setDuelSuggestions] = useState<{ userId: string; name: string; avatarColor: string; score: number }[]>([])
+  // Duell-status — samme datakilde/mønster som app/leaderboard/[id]/page.tsx
+  // sin loadDuelStatus(): activeDuelExists speiler regelen «kun én aktiv/
+  // ventende duell per måned» i /api/rivalries (POST), duelInvolvedSet er
+  // motstandere brukeren allerede er engasjert med og derfor ikke skal
+  // foreslås på nytt.
+  const [activeDuelExists, setActiveDuelExists] = useState(false)
+  const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
+  const [pendingChallenge, setPendingChallenge] = useState<{ id: string; name: string } | null>(null)
+  const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
+  const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
+  const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
   const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number; nickname?: string | null }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
@@ -1059,6 +1076,26 @@ export default function QuizPage() {
         } else {
           setLigaBox({ type: 'multi' })
         }
+      } catch { /* ikke kritisk */ }
+    })
+  }, [phase, isLoggedIn])
+
+  useEffect(() => {
+    if (phase !== 'finished' || !isLoggedIn) return
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.access_token) return
+      try {
+        const res = await fetch('/api/rivalries/my', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok) return
+        const json = await res.json()
+        const rows: { status: string; isChallenger: boolean; opponentId: string; isExpired: boolean }[] = json.rivalries ?? []
+        // Samme regel som leaderboard/[id]: kun ikke-utløpte, ikke-avslåtte
+        // rader teller som et engasjement som blokkerer nye utfordringer.
+        const engagedRows = rows.filter(r => !r.isExpired && r.status !== 'declined')
+        setActiveDuelExists(engagedRows.length > 0)
+        setDuelInvolvedSet(new Set(engagedRows.map(r => r.opponentId)))
       } catch { /* ikke kritisk */ }
     })
   }, [phase, isLoggedIn])
@@ -1340,10 +1377,11 @@ export default function QuizPage() {
         fetch(`/api/quiz/rival?quizId=${quizId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
-          .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null })
+          .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null, suggestions: [] })
           .then(j => {
             if (j.rival) setRivalData(j.rival)
             if (j.rankingSnapshot) setRankingSnapshot(j.rankingSnapshot)
+            if (Array.isArray(j.suggestions)) setDuelSuggestions(j.suggestions)
           })
           .catch(() => {})
 
@@ -1851,6 +1889,40 @@ export default function QuizPage() {
   }
 
   const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
+
+  // Samme utfordre-kall som app/leaderboard/[id]/page.tsx sin handleChallenge —
+  // duplisert her fordi de to sidene har ulik lokal state å oppdatere etterpå,
+  // men POST-et og feilhåndteringen er identiske. Trigges av DuelChallengeModal
+  // (samme bekreftelsesflyt som leaderboardet).
+  const handleChallenge = async (rivalId: string) => {
+    setChallengeLoadingId(rivalId)
+    setChallengeError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { setChallengeLoadingId(null); return }
+      const res = await fetch('/api/rivalries', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rival_id: rivalId }),
+      })
+      if (res.ok) {
+        setChallengeSentSet(prev => new Set([...prev, rivalId]))
+        setDuelInvolvedSet(prev => new Set([...prev, rivalId]))
+        setActiveDuelExists(true)
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setChallengeError({ rivalId, message: json.error ?? 'Noe gikk galt.' })
+        setTimeout(() => setChallengeError(null), 3000)
+      }
+    } catch {
+      setChallengeError({ rivalId, message: 'Noe gikk galt.' })
+      setTimeout(() => setChallengeError(null), 3000)
+    }
+    setChallengeLoadingId(null)
+  }
 
   const generateAndShareCard = async () => {
     if (cardShareState === 'loading') return
@@ -2573,6 +2645,11 @@ export default function QuizPage() {
 
   return (
     <><style>{styles}</style>
+    <DuelChallengeModal
+      pending={pendingChallenge}
+      onCancel={() => setPendingChallenge(null)}
+      onConfirm={id => { setPendingChallenge(null); handleChallenge(id) }}
+    />
     <SiteNav />
     <div className="qk-shell qk-shell--result"><div className="qk-box"><div className="qk-panel qk-panel--result" style={{textAlign:'center'}}>
       <p className="qk-eyebrow" style={{textAlign:'center'}}>Bra jobbet, {playerInfo.name.split(' ')[0]}!</p>
@@ -2793,6 +2870,83 @@ export default function QuizPage() {
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, margin: 0 }}>
               {outcomeText}
             </p>
+          </div>
+        )
+      })()}
+
+      {/* ── Utfordre noen andre — nye motstandere fra samme quiz, IKKE rivalen
+          over (poenget er å oppdage nye folk). Skjult helt hvis brukeren
+          allerede har en aktiv/ventende duell denne måneden (samme regel
+          som /api/rivalries POST håndhever) — å vise «Utfordre»-knapper som
+          uansett ville feilet med 409 ville bare vært forvirrende. ── */}
+      {isLoggedIn && !activeDuelExists && (() => {
+        const visible = duelSuggestions.filter(c => !duelInvolvedSet.has(c.userId))
+        if (visible.length === 0) return null
+        return (
+          <div className="qk-rsec" style={{
+            background: '#21242e',
+            border: '0.5px solid #2a2d38',
+            borderRadius: 16,
+            padding: '14px 16px',
+            textAlign: 'left',
+            marginBottom: 14,
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
+              textTransform: 'uppercase' as const, color: '#7a7873',
+              display: 'block', marginBottom: 10,
+            }}>
+              Utfordre noen andre
+            </span>
+            {visible.map((c, i) => {
+              const sent = challengeSentSet.has(c.userId)
+              const loading = challengeLoadingId === c.userId
+              const err = challengeError?.rivalId === c.userId ? challengeError.message : null
+              const rowClickable = !sent && !loading
+              return (
+                <div key={c.userId}>
+                  <div
+                    role={rowClickable ? 'button' : undefined}
+                    tabIndex={rowClickable ? 0 : undefined}
+                    aria-label={rowClickable ? `Utfordre ${c.name} til duell` : undefined}
+                    onClick={rowClickable ? () => setPendingChallenge({ id: c.userId, name: c.name }) : undefined}
+                    onKeyDown={rowClickable ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPendingChallenge({ id: c.userId, name: c.name }) }
+                    } : undefined}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                      padding: '8px 0',
+                      borderTop: i > 0 ? '1px solid #2a2d38' : 'none',
+                      cursor: rowClickable ? 'pointer' : 'default',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: c.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
+                        {getAvatarInitial(c.name)}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</p>
+                        <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>{c.score} riktige</p>
+                      </div>
+                    </div>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                      {sent
+                        ? <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.06em' }}>Sendt</span>
+                        : (
+                          <>
+                            <span style={{ fontSize: 11, color: '#7a7873' }}>Utfordre</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="9 6 15 12 9 18" />
+                            </svg>
+                          </>
+                        )
+                      }
+                    </span>
+                  </div>
+                  {err && <p style={{ fontSize: 12, color: '#E24B4A', margin: '2px 0 0' }}>{err}</p>}
+                </div>
+              )
+            })}
           </div>
         )
       })()}
