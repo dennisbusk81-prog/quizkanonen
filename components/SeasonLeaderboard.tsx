@@ -5,12 +5,11 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import SkeletonCard from '@/components/SkeletonCard'
-import PlayerName from '@/components/PlayerName'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
-import { formatQuizCount, shouldShowPeriodPlacementRow } from '@/lib/season-period-table'
+import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -63,6 +62,8 @@ type UserEntry = {
   avatarUrl: string | null
   points: number
   quizCount: number
+  /** Kun satt for Siste quiz (fra 28. juli 2026) — periode-visninger har ikke tid-begrep. */
+  fastestMs?: number | null
 }
 
 type ApiResponse = {
@@ -219,28 +220,13 @@ const s = {
   countdown: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
   quizLabel: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
 
-  rankCell: { width: 28, textAlign: 'center' as const, flexShrink: 0 },
-  rankNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#7a7873', display: 'block' },
-
-  nameBlock: { flex: 1, minWidth: 0 },
-  name:      { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
-  nameSub:   { fontSize: 11, color: '#e8e4dd' },
-
-  // Fast bredde (samme mønster som scoreBlock i app/leaderboard/[id]/page.tsx).
-  // Uten den vokste blokken med innholdet — «RIKTIGE» er bredere enn «POENG»,
-  // og tidslinjen under kom i tillegg — så navnefeltet, som er det eneste
-  // flex-elementet med minWidth:0, var det eneste som ga etter. 64px rommer
-  // både «RIKTIGE», firesifrede sesongpoeng og tiden («123.4s»).
-  pointsBlock: { textAlign: 'right' as const, flexShrink: 0, width: 64 },
-  points:      { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: '1', marginBottom: 2 },
-  pointsSub:   { fontSize: 10, color: '#7a7873', letterSpacing: '0.04em' },
+  name: { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
-  userCard:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
-  userCardGold: { background: 'rgba(201,168,76,0.04)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
+  userCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
 
   ctaText:    { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14 },
   btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
@@ -638,33 +624,19 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     }
   }
 
-  // «Din plassering» hos periode-visninger: brukerens egen rad føyes til
-  // SAMME tabell (ikke et eget kort) med en separator rett over — mønster
-  // fra app/leaderboard/[id]/page.tsx sin renderSection(). Kun periode-
-  // visninger: Siste quiz sin userEntry (fra API-et) mangler fastestMs, så
-  // Tid-kolonnen der ikke kan fylles ut korrekt — se renderUserSection(),
-  // som derfor beholder det gamle kortet for akkurat den ene grenen.
+  // «Din plassering»: brukerens egen rad føyes til SAMME tabell (ikke et
+  // eget kort) med en separator rett over — mønster fra
+  // app/leaderboard/[id]/page.tsx sin renderSection(). Gjelder nå ALLE
+  // faner (Siste quiz fikk fastestMs på userEntry fra API-et 28. juli 2026,
+  // se app/api/toppliste/route.ts sin last_quiz-gren).
   function buildRows(): ResultsTableRow[] {
     const rows = (data?.entries ?? []).map(entryToRow)
-    if (!shouldShowPeriodPlacementRow({
-      isLastQuiz, userVisible, userEntryRank: data?.userEntry?.rank ?? null,
+    if (!shouldShowPlacementRow({
+      userVisible, userEntryRank: data?.userEntry?.rank ?? null,
       isPremium: data?.userIsPremium === true, scope,
     })) return rows
 
-    const ue = data!.userEntry!
-    const nick = ue.nickname?.trim()
-    const hasNick = !!nick
-    rows.push({
-      key: 'user-placement',
-      rank: ue.rank,
-      name: hasNick ? nick! : ue.displayName,
-      secondary: hasNick ? ue.displayName : null,
-      correctAnswers: ue.points,
-      totalTimeMs: 0,
-      metricSubLabel: formatQuizCount(ue.quizCount),
-      highlight: true,
-      separatorLabel: '— Din plassering —',
-    })
+    rows.push(buildPlacementRow(data!.userEntry!, isLastQuiz))
     return rows
   }
 
@@ -692,7 +664,6 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     if (ue && ue.rank <= 10) return null
 
     if (ue && ue.rank > 10) {
-      const initial = getAvatarInitial(ue.displayName)
       if (!data.userIsPremium && scope !== 'organization') {
         return (
           <>
@@ -706,41 +677,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           </>
         )
       }
-      // Periode-visninger (måned/kvartal/år/all-time): denne raden vises nå
-      // INNE i tabellen via buildRows()/shouldShowPeriodPlacementRow, ikke
-      // som eget kort. Kun Siste quiz beholder kortet her — userEntry
-      // mangler fastestMs, så Tid-kolonnen ikke kan fylles ut korrekt uten
-      // en API-endring (se lib/season-period-table.ts).
-      if (!isLastQuiz) return null
-      return (
-        <>
-          <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
-          <div style={s.userCardGold}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={s.rankCell}><span style={{ ...s.rankNum, color: '#c9a84c' }}>#{ue.rank}</span></div>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' }}>
-                {ue.avatarUrl
-                  ? <img src={ue.avatarUrl} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
-                  : initial
-                }
-              </div>
-              <div style={s.nameBlock}>
-                <PlayerName
-                  nickname={ue.nickname}
-                  displayName={ue.displayName}
-                  primaryStyle={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 2 }}
-                  secondaryStyle={{ fontFamily: "'Instrument Sans', sans-serif" }}
-                />
-                <div style={s.nameSub}>{isLastQuiz ? `${ue.points} riktige` : `${ue.quizCount} ${ue.quizCount === 1 ? 'quiz' : 'quizer'}`}</div>
-              </div>
-              <div style={s.pointsBlock}>
-                <div style={s.points}>{ue.points}</div>
-                <div style={s.pointsSub}>{isLastQuiz ? 'RIKTIGE' : 'POENG'}</div>
-              </div>
-            </div>
-          </div>
-        </>
-      )
+      // Denne raden vises nå INNE i tabellen via buildRows()/
+      // shouldShowPlacementRow (alle faner, siden 28. juli 2026), ikke
+      // som eget kort — se lib/season-period-table.ts.
+      return null
     }
 
     const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()

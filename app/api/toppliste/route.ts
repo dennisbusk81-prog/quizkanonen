@@ -369,6 +369,12 @@ export async function GET(request: NextRequest) {
           avatarUrl: null,
           points: userInRanked.correct_answers,
           quizCount: 1,
+          // Samme felt/verdi som entries-mappingen over bruker for andre
+          // spillere (a.total_time_ms) — withRanks er allerede den fulle,
+          // rangerte listen (ikke bare siden), så ingen ny spørring trengs.
+          // Lagt til 28. juli 2026 slik at «Din plassering» kan vises som
+          // tabellrad med korrekt Tid-kolonne også for Siste quiz.
+          fastestMs: userInRanked.total_time_ms,
         }
       }
     }
