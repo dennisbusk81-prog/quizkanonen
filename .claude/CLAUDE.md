@@ -1,5 +1,5 @@
 # Quizkanonen — Claude Code kontekst
-Sist oppdatert: 23. juli 2026
+Sist oppdatert: 26. juli 2026
 
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
@@ -63,6 +63,30 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 - Ingen Tailwind
 - Ingen emoji i UI — SVG der nødvendig (unntak: medalje-emoji på leaderboard)
 - Ingen hardkodede farger utenfor systemet ovenfor
+
+### Tabellformat for én-quiz-resultater (ResultsTable)
+`components/ResultsTable.tsx` er standardvisningen for lister der hver rad er
+**én brukers resultat på én quiz**: kolonner `#/Navn/Riktige/Tid`, gull på topp
+3. Brukt av admin/results, org-admin, `leaderboard/[id]` og SeasonLeaderboard
+sin "Siste quiz"-fane (etablert gjennom `3f5a518`, `40cd3fe`, `195ed8c`,
+20.–26. juli 2026).
+
+Periodevisningene (måned/kvartal/år/all-time i `SeasonLeaderboard.tsx`)
+beholder BEVISST det gamle kort-/radformatet — ikke fordi de er
+"enkeltøyeblikk", men fordi kolonnebehovet faktisk er annerledes: poeng er
+akkumulert over mange quizer, det finnes ingen tid-kolonne, og `quizCount`
+— ikke tid — er den relevante andrelinjen. ResultsTable sine faste
+Riktige/Tid-kolonner passer rett og slett ikke der.
+
+**Regelen:** ny visning av person-per-quiz-resultater skal gå via
+ResultsTable, ikke en fjerde kopi av samme tabell. Periodevisninger med
+akkumulerte poeng er det eneste unntaket, og unntaket er begrunnet i
+kolonnebehov — ikke i en generell "liste vs. øyeblikk"-regel.
+
+Merk: Dennis synes forskjellen i praksis kan virke litt rar for en bruker
+som bytter fane (tabell → kort → tabell), og skal hente tilbakemelding fra
+folk på kontoret. Dette er altså en bevisst, begrunnet designbeslutning per
+26. juli 2026 — men ikke hugget i stein. Den kan bli revurdert.
 
 ---
 
@@ -144,10 +168,11 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 
 ### Database-tabeller (eksisterende)
 `quizzes`, `questions`, `attempts` (+ leader_display_name),
-`attempt_answers`, `played_log`, `access_codes`, `admin_users`,
-`site_settings`, `profiles`, `organizations`, `organization_members`,
-`organization_invites`, `leagues`, `league_members`, `ranking_snapshots`,
-`season_scores`, `admin_actions`, `excluded_members`
+`attempt_answers`, `played_log`, `access_codes` (+ `code_type`, 26. juli),
+`access_code_redemptions` (ny 26. juli — se «Verdikoder» under),
+`admin_users`, `site_settings`, `profiles`, `organizations`,
+`organization_members`, `organization_invites`, `leagues`, `league_members`,
+`ranking_snapshots`, `season_scores`, `admin_actions`, `excluded_members`
 
 profiles-tabellen har IKKE avatar_url, member_number-relaterte bilde-URLer,
 eller lignende bildefelt — kun avatar_color (fargevalg for initial-sirkel).
@@ -216,6 +241,75 @@ PUSH-endringer krever eksplisitt godkjenning fra Dennis før de gjøres.
 Bakgrunn: filen sto tidligere under «skal ikke røres uten eksplisitt beskjed»,
 noe som gjorde at en ytelsesgjennomgang filtrerte den bort og lot en reell
 Disk IO-bug vokse ukjent i flere uker før den ble funnet.
+
+### Premium — autoritativ kildemodell (lib/premium-state.ts, 26. juli 2026)
+**Problemet:** Premium kan komme fra fire kilder samtidig — verdikode,
+Founders-trial, personlig Stripe-abonnement, org-medlemskap — men
+`profiles.premium_source` lagret bare ÉN. En bruker kan reelt ha flere
+samtidig. Konsekvensene var konkrete: en kunde kunne bli belastet for en
+periode de samtidig fikk gratis via kode, og en cron kunne slå av Premium
+for en betalende kunde fordi den ikke visste om en annen kilde dekket dem.
+
+**Løsningen:** `lib/premium-state.ts` (ren logikk, mutasjonstestet) +
+`lib/premium-state-io.ts` (I/O) utleder full tilstand fra alle kildene.
+`decidePremiumState()` er beslutningstabellen, rad A–F:
+
+| Rad | Situasjon | Utfall |
+|---|---|---|
+| A | Ingen dekning + kode | Starter nå |
+| B | Founders-trial + kode | Stables på trial-slutt, abonnementet pauses |
+| C | Kode aktiv + ny kode | Avvises med dato |
+| D | Betalt abonnement + kode | Stables etter betalt periode, pauses derfra |
+| E | Kode aktiv + nytt kjøp | Checkout får `subscription_data.trial_end` |
+| F | Org-medlemskap + kode | Avvises, koden bevares, org-navnet hentes |
+
+B og D er bevisst ÉN regel: begge stabler fra slutten av eksisterende
+dekning og pauser innkrevingen fram til kodens slutt — via Stripes
+`pause_collection` (`resumes_at`), **aldri kansellering**.
+
+**Invariant:** `profiles.premium_status`/`premium_source`/`premium_expires_at`
+er kun en CACHE for raske spørringer (skrevet av `syncPremiumCache()`).
+Autoritative beslutninger — innløsning, utløp, pause — skal alltid gå mot
+`decidePremiumState()`, aldri lese cache-feltene direkte og anta. De 6
+stedene som slår AV Premium (4 i `app/api/stripe/webhook/route.ts`, begge
+cron-jobbene `expire-code-premium` og `expire-grace-periods`) rekalkulerer nå
+i stedet for å anta — et fremtidig nedgraderingssted skal følge samme mønster.
+
+Samme prinsipp som «gate aldri på `subscription_status` alene» (se SIKKERHET)
+gjenbrukes her: `LIVE_STRIPE_STATUSES = ['active', 'trialing']` — et
+`trialing`-abonnement (som Elkjøp Nordic reelt står i) regnes som levende
+dekning, ikke som «ikke betalende».
+
+Nye databaseobjekter (migrasjon `20260732000000` + `20260733000000`, begge
+allerede kjørt i prod): tabellen `access_code_redemptions` (én rad per
+konto+kode-innløsning, UNIQUE på `(code_id, user_id)`, autoritativ
+`expires_at` for kode-perioden) og kolonnen `access_codes.code_type`. Se
+også "Verdikoder" under. `profiles.personal_stripe_subscription_id` er en
+eksisterende kolonne som tidligere KUN ble satt av Founders-flyten — brukt
+fire steder (begge cron-ene, begge org-grace-stedene) som om NULL betydde
+«har ikke eget abonnement», noe som var feil for enhver vanlig betalende
+B2C-kunde. Webhooken skriver den nå også ved `checkout.session.completed`;
+eksisterende rader trenger backfill via `scripts/backfill-personal-subscription-id.mjs`
+(dry-run som standard).
+
+### Verdikoder — to sikkerhetsmodeller (lib/access-code.ts, 26. juli 2026)
+En kode ment for bred deling og en kode ment for én mottaker har ulike
+trusselbilder:
+- **Delt kode** (`code_type='shared'`) — f.eks. en belønning til hele
+  Facebook-gruppa. Lesbart kodeord, MEN `max_uses` og `valid_until` er nå
+  OBLIGATORISKE. Gjettbarhet er ikke forsvaret — koden er per definisjon
+  kjent av mange. Bruksgrensene er forsvaret.
+- **Privat kode** (`code_type='personal'`) — f.eks. premie til én
+  konkurransevinner. Alltid generert (aldri fritekst), 12 tegn med
+  forkastningsutvalg (~59,5 bits, unngår modulo-skjevhet), låst til
+  `max_uses=1`.
+- Én innløsning per konto håndheves av en UNIQUE-indeks i databasen
+  (`access_code_redemptions (code_id, user_id)`) — uten den kunne én bruker
+  spise flere plasser på en gruppekode etter hvert som kode-premium utløp.
+- `POST /api/admin/codes` gjorde tidligere `insert(body)` rått (mass
+  assignment). Går nå via `buildAccessCode()` (ren, testdekket) i stedet.
+- `org-trial-codes` gjenbruker samme generator — fjerner en tidligere
+  modulo-skjevhet i en lokal 8-tegns-variant.
 
 ### Miljøvariabler (ligger i Vercel — ikke hardkod)
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
@@ -301,6 +395,16 @@ er alltid greit uten å spørre, kun push krever godkjenning.
 ## SIKKERHET
 Status per 20. juli 2026, etter to runder sikkerhetsgjennomgang og retting:
 
+- **Generell invariant — gate ALDRI på `subscription_status` alene, noe sted
+  i kodebasen:** Elkjøp Nordic står som `trialing` i prod selv om de er en
+  reell, betalende B2B-kunde — en regel som krever `status === 'active'` for
+  å telle som «ekte kunde» rammer den ene bedriftskunden vi faktisk har.
+  Bruk i stedet signaler som er dyre å forfalske (alder på kontoen, faktisk
+  medlemsantall, om noen dekning i det hele tatt er levende). Denne regelen
+  er nå bekreftet nødvendig to uavhengige steder: `lib/invite-quota.ts`
+  (se e-post-relé-avsnittet under) og `lib/premium-state.ts` sin
+  `LIVE_STRIPE_STATUSES = ['active', 'trialing']` (se ARKITEKTUR OG MØNSTRE
+  → «Premium — autoritativ kildemodell»).
 - **Quiz-integritet — signert attempt-token (20. juli):** `/api/quiz/[id]/questions`
   leverte tidligere fasiten til hvem som helst som kjente quiz-id + en attempt-id,
   så et script kunne hente hele fasiten på forhånd (ett kall per index) uten å
@@ -395,6 +499,16 @@ Fullført siden forrige status (15. juni):
 - ~~Webhook-idempotens fraværende~~ — `stripe_events` aktivert 19. juli 2026
 - ~~Fasit hentbar på forhånd via /questions uten å spille~~ — signert
   attempt-token på questions/submit + tidsvalidering, 20. juli 2026
+- ~~Historikk/svarfordeling viste kun ett riktig svar på multi-svar-spørsmål~~
+  — begge bruker nå `readStoredKey()` konsistent, 26. juli 2026
+- ~~«Siste quiz» viste ulik historikk enn periodevisningene ved endret
+  opt-out~~ — utleder nå blokkerte fra `season_scores` for gjorte-opp
+  quizer, 26. juli 2026
+- ~~E-post-relé / HTML-injeksjon via org-invitasjoner~~ — escaping,
+  sendekvote per org, org-navnvalidering, 26. juli 2026
+- ~~Premium kun én kilde av gangen i profiles~~ — autoritativ
+  kildemodell (`lib/premium-state.ts`) + to sikkerhetsmodeller for
+  verdikoder, 26. juli 2026
 
 Gjenstående/pågående:
 1. Forklaringstekst per spørsmål (admin-felt)
