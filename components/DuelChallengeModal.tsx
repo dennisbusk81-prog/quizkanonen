@@ -1,12 +1,20 @@
 'use client'
 
+import { useEffect } from 'react'
+
 /**
- * Utfordre-bekreftelse — delt av leaderboard-radene (app/leaderboard/[id]/page.tsx)
- * og duell-forslagene på quiz-resultatskjermen (app/quiz/[id]/page.tsx), slik at
- * begge inngangene til H2H Duell bruker nøyaktig samme bekreftelsesflyt i stedet
- * for to divergerende modaler. Rent presentasjonskomponent — kalleren eier
- * `pending`-state og selve utfordre-kallet (POST /api/rivalries), siden de to
- * sidene oppdaterer ulik lokal state etterpå.
+ * Utfordre-bekreftelse — delt av ALLE tre inngangene til H2H Duell:
+ * leaderboard-radene (app/leaderboard/[id]/page.tsx), duell-forslagene på
+ * quiz-resultatskjermen (app/quiz/[id]/page.tsx) og toppliste-radene
+ * (components/SeasonLeaderboard.tsx). Kalleren eier `pending`-state og selve
+ * utfordre-kallet (POST /api/rivalries), siden sidene oppdaterer ulik lokal
+ * state etterpå.
+ *
+ * Escape-lukking og scroll-lås ligger HER, ikke hos kalleren (28. juli 2026).
+ * De lå tidligere i en useEffect i leaderboard/[id] alene, så quiz-siden manglet
+ * begge og SeasonLeaderboard hadde i tillegg sin egen inline-modal helt uten
+ * dialog-semantikk (FUNN 1.1). Med oppførselen i komponenten kan ingen ny
+ * kaller gå glipp av den.
  */
 type Props = {
   pending: { id: string; name: string } | null
@@ -15,6 +23,20 @@ type Props = {
 }
 
 export default function DuelChallengeModal({ pending, onCancel, onConfirm }: Props) {
+  const isOpen = pending !== null
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handleKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [isOpen, onCancel])
+
   if (!pending) return null
   return (
     <div

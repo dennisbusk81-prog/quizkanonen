@@ -4,6 +4,8 @@ import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { duelInviteEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { blocksNewDuel } from '@/lib/duel-expiry'
+import { hasExhaustedChallengesToRecipient, SAME_RECIPIENT_WINDOW_MS } from '@/lib/duel-cooldown'
 
 // POST /api/rivalries — send a duel challenge to another user
 export async function POST(request: NextRequest) {
@@ -37,40 +39,65 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Fant ikke motstanderen' }, { status: 400 })
   }
 
-  // Fix 1 — only duels created this calendar month count as "active engagements".
-  // An expired duel from last month (still status=active in DB) must not block new challenges.
   const nowForCheck = new Date()
-  const thisMonthStart = new Date(Date.UTC(nowForCheck.getUTCFullYear(), nowForCheck.getUTCMonth(), 1)).toISOString()
 
-  // Fix 2 — check each party separately so we can give a precise error message
-  const { data: myExisting } = await supabaseAdmin
+  // Blokkeringssjekken bruker den DELTE utløpsregelen (lib/duel-expiry), samme
+  // som /api/rivalries/my og opprydningsjobben. Tidligere hadde denne ruten sin
+  // egen regel — «opprettet denne kalendermåneden» — uavhengig av 14-dagers
+  // svarvinduet. En ubesvart utfordring sendt dag 1–17 forsvant da fra UI-et
+  // etter 14 dager (og mistet «Trekk tilbake»-knappen) mens den fortsatt
+  // blokkerte nye dueller for BEGGE parter ut måneden. Se FUNN 2.2.
+  //
+  // Filtreringen skjer i JS fordi regelen er ulik per status (14 dager for
+  // pending, kalendermåned for active) og ikke lar seg uttrykke som ett
+  // PostgREST-filter. Volumet er en håndfull rader per bruker.
+  const openStatuses = ['pending', 'active']
+
+  const { data: myRows } = await supabaseAdmin
     .from('rivalries')
-    .select('id')
+    .select('id, status, created_at')
     .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
-    .in('status', ['pending', 'active'])
-    .gte('created_at', thisMonthStart)
-    .limit(1)
+    .in('status', openStatuses)
 
-  if (myExisting && myExisting.length > 0) {
+  if ((myRows ?? []).some(r => blocksNewDuel(r, nowForCheck))) {
     return NextResponse.json(
       { error: 'Du har allerede en aktiv eller ventende duell.' },
       { status: 409 }
     )
   }
 
-  const { data: rivalExisting } = await supabaseAdmin
+  const { data: rivalRows } = await supabaseAdmin
     .from('rivalries')
-    .select('id')
+    .select('id, status, created_at')
     .or(`challenger_id.eq.${rivalId},rival_id.eq.${rivalId}`)
-    .in('status', ['pending', 'active'])
-    .gte('created_at', thisMonthStart)
-    .limit(1)
+    .in('status', openStatuses)
 
-  if (rivalExisting && rivalExisting.length > 0) {
+  if ((rivalRows ?? []).some(r => blocksNewDuel(r, nowForCheck))) {
     const name = rivalProfile.display_name ?? 'Motstanderen'
     return NextResponse.json(
       { error: `${name} har allerede en aktiv eller ventende duell.` },
       { status: 409 }
+    )
+  }
+
+  // ── Spam-sperre mot ÉN mottaker (FUNN 3.3) ────────────────────────────────
+  // Uavhengig av IP-rate-limiten over: teller faktiske utfordringer sendt til
+  // denne mottakeren siste døgn, uansett status. En kansellert utfordring har
+  // allerede kostet mottakeren en e-post og teller derfor med — det er nettopp
+  // løkken utfordre → kanseller → utfordre denne sperren finnes for.
+  const cooldownSince = new Date(nowForCheck.getTime() - SAME_RECIPIENT_WINDOW_MS).toISOString()
+  const { data: recentToRival } = await supabaseAdmin
+    .from('rivalries')
+    .select('created_at')
+    .eq('challenger_id', user.id)
+    .eq('rival_id', rivalId)
+    .gte('created_at', cooldownSince)
+
+  if (hasExhaustedChallengesToRecipient((recentToRival ?? []).map(r => r.created_at), nowForCheck)) {
+    const name = rivalProfile.display_name ?? 'denne spilleren'
+    return NextResponse.json(
+      { error: `Du har utfordret ${name} flere ganger det siste døgnet. Prøv igjen senere.` },
+      { status: 429 }
     )
   }
 
@@ -85,12 +112,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
   }
 
-  // Fix 1 — re-check for race condition: if another row now exists for either party,
-  // delete our newly inserted row and return a conflict.
-  // (A DB-level unique constraint is the definitive fix; this is a best-effort guard.)
-  const { data: conflict } = await supabaseAdmin
+  // Re-sjekk mot race condition: dukket det opp en annen rad for en av partene
+  // mens vi satte inn vår, slettes vår igjen og vi svarer 409.
+  // (En unique-constraint på DB-nivå er den endelige fiksen; dette er en
+  // best-effort-vakt.)
+  //
+  // Må bruke SAMME utløpsregel som blokkeringssjekken over. Uten den ville en
+  // gammel, utløpt pending-rad — som blokkeringssjekken nettopp slapp forbi —
+  // slått til her i stedet, slettet den ferske raden og gjeninnført dødlåsen
+  // fra FUNN 2.2 i en verre form (utfordringen ville sett ut til å bli sendt,
+  // for så å forsvinne).
+  const { data: conflictRows } = await supabaseAdmin
     .from('rivalries')
-    .select('id')
+    .select('id, status, created_at')
     .or(
       `and(challenger_id.eq.${user.id},status.in.(pending,active)),` +
       `and(rival_id.eq.${user.id},status.in.(pending,active)),` +
@@ -98,9 +132,10 @@ export async function POST(request: NextRequest) {
       `and(rival_id.eq.${rivalId},status.in.(pending,active))`
     )
     .neq('id', rivalry.id)
-    .limit(1)
 
-  if (conflict && conflict.length > 0) {
+  const conflict = (conflictRows ?? []).filter(r => blocksNewDuel(r, nowForCheck))
+
+  if (conflict.length > 0) {
     await supabaseAdmin.from('rivalries').delete().eq('id', rivalry.id)
     return NextResponse.json(
       { error: 'En av dere fikk akkurat en ny duell. Last siden på nytt og prøv igjen.' },

@@ -421,20 +421,9 @@ export default function LeaderboardPage() {
     }
   }, [])
 
-  // Utfordre-bekreftelse: Escape lukker, siden bak scroller ikke mens åpen.
-  // Denne siden har mye høyere trafikk enn SeasonLeaderboard sin tilsvarende
-  // modal (som mangler begge deler) — lagt til her fra dag én.
-  useEffect(() => {
-    if (!pendingChallenge) return
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPendingChallenge(null) }
-    window.addEventListener('keydown', handleKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = prevOverflow
-    }
-  }, [pendingChallenge])
+  // Escape-lukking og scroll-lås for utfordre-bekreftelsen ligger nå i selve
+  // DuelChallengeModal, slik at alle tre inngangene til duell får dem — ikke
+  // bare denne siden. Den lokale useEffect-en her er derfor fjernet.
 
   useEffect(() => {
     if (prevRankMap.size === 0 || attempts.length === 0) return
