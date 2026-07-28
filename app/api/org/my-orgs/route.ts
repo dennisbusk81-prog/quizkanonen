@@ -9,6 +9,12 @@ type OrgResult = {
 // Org-medlemskap endres kun ved en admin-handling (inviter/fjerner medlem),
 // ikke per sidelast — samme korttids-cache-mønster (per-instans i minne) som
 // last_quiz-cachen i toppliste-ruten. Nøkkel: bruker-id.
+//
+// OM INVALIDERING (vurdert 28. juli 2026): modul-lokal per instans, så
+// revalidateTag når den ikke, og tverr-instans-invalidering ville krevd delt
+// lagring. Opptil 30 s gammel medlemsliste rett etter en medlemskapsendring er
+// bevisst akseptert — se den lengre begrunnelsen ved lastQuizAttemptsCache i
+// app/api/toppliste/route.ts.
 const MY_ORGS_CACHE_TTL_MS = 30_000
 const myOrgsCache = new Map<string, { orgs: OrgResult[]; expires: number }>()
 

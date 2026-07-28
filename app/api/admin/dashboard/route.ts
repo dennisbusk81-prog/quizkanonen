@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchRetentionRows, latestClosedRetention } from '@/lib/retention'
+import { fetchAllRows } from '@/lib/paginate'
 
 // Datagrunnlaget for /admin/dashboard. Ett kall — siden skal vise ett bilde av
 // tilstanden, ikke seks kort som lander til ulik tid.
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       profilesRes,
       premiumRes,
       personalPremiumRes,
-      orgRes,
+      orgRows,
       duelsActiveRes,
       duelsPendingRes,
       weeklyRes,
@@ -93,7 +94,13 @@ export async function GET(request: NextRequest) {
         .eq('premium_status', true)
         .eq('premium_source', 'personal'),
 
-      supabaseAdmin.from('organizations').select('plan, subscription_status'),
+      // MRR telles over ALLE org-rader. Uten paginering kutter PostgREST stille
+      // ved 1000 rader — samme feilklasse som ble rettet i ranking-spørringene
+      // 26. juli. I dag er tallet énsifret, men et tak som gjør MRR-tallet
+      // STILLE feil ved vekst skal ikke ligge og vente i en økonomivisning.
+      fetchAllRows<{ plan: string | null; subscription_status: string }>((from, to) =>
+        supabaseAdmin.from('organizations').select('plan, subscription_status').range(from, to)
+      ),
 
       supabaseAdmin
         .from('rivalries')
@@ -111,7 +118,7 @@ export async function GET(request: NextRequest) {
     ])
 
     // ── Bedrifter og MRR ─────────────────────────────────────────────────────
-    const orgs = (orgRes.data ?? []) as { plan: string | null; subscription_status: string }[]
+    const orgs = orgRows
     const orgsByStatus = { active: 0, trialing: 0, locked: 0 } as Record<string, number>
     let b2bMrr = 0
     const trialingByPlan: Record<string, number> = {}

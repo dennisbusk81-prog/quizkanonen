@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const rivalId = typeof body.rival_id === 'string' ? body.rival_id.trim() : ''
   if (!rivalId) return NextResponse.json({ error: 'Mangler rival_id' }, { status: 400 })
+  // Eksplisitt UUID-validering FØR verdien brukes noe sted. rivalId limes
+  // senere rått inn i .or()-filterstrenger (PostgREST-syntaks), og frem til nå
+  // hvilte sikkerheten på at profiloppslaget under tilfeldigvis feiler for
+  // ikke-UUID-er og returnerer 400 først — altså på rekkefølgen av to
+  // uavhengige kodelinjer. Nå er ugyldig input avvist uansett hva som måtte
+  // flyttes rundt senere. (FUNN 5.5 fra duell-kartleggingen 28. juli 2026.)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rivalId)) {
+    return NextResponse.json({ error: 'Ugyldig rival_id' }, { status: 400 })
+  }
   if (rivalId === user.id) return NextResponse.json({ error: 'Du kan ikke utfordre deg selv' }, { status: 400 })
 
   // H2H Duell er gratis for alle innloggede — ingen Premium-krav.

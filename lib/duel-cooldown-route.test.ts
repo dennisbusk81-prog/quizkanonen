@@ -196,6 +196,22 @@ test('DØDLÅS (FUNN 2.2): utløpt pending blokkerer ikke en ny utfordring', asy
   assert.equal(state.sent.length, 1)
 })
 
+test('ugyldig rival_id avvises FØR noe database-arbeid (FUNN 5.5)', async () => {
+  // Verdier som ikke er UUID-er skal aldri nå .or()-filterstrengene.
+  for (const ond of ["abc", "x'); delete from rivalries; --", 'challenger_id.eq.hacket', '11111111-1111-4111-8111-11111111111Z']) {
+    const request = new Request('https://quizkanonen.no/api/rivalries', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer test-token' },
+      body: JSON.stringify({ rival_id: ond }),
+    })
+    const res = await POST(request as never)
+    assert.equal(res.status, 400, `"${ond}" skulle vært avvist`)
+    assert.match((await res.json()).error, /Ugyldig rival_id/)
+  }
+  assert.equal(state.rows.length, 0, 'ingen rad skal ha blitt opprettet')
+  assert.equal(state.sent.length, 0, 'ingen e-post skal ha gått ut')
+})
+
 test('en LEVENDE pending blokkerer fortsatt', async () => {
   state.rows = [{
     id: 'levende',

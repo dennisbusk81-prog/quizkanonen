@@ -27,6 +27,16 @@ type LastQuizRow = {
   correct_streak: number | null
   submitted_at: string | null
 }
+// OM INVALIDERING (vurdert 28. juli 2026, ikke en glemt TODO): denne cachen
+// (og memberSetCache under) er en modul-lokal Map per serverless-instans.
+// `revalidateTag` når den IKKE — det mønsteret virker kun mot
+// unstable_cache/data-cachen (slik correct-answer purger 'home-shared-data').
+// Å invalidere på tvers av instanser krever delt lagring (Redis e.l.), og å
+// konvertere til unstable_cache ville endret ytelsesprofilen på en sti som
+// nettopp er tunet for fredagstrafikken. En fasitretting eller
+// medlemskapsendring kan derfor gi opptil 30 s utdatert visning her — begge er
+// sjeldne admin-handlinger, og selvkorrigerende innen TTL-en. Bevisst
+// akseptert; ikke re-flagg uten at premissene har endret seg.
 const LAST_QUIZ_CACHE_TTL_MS = 30_000
 const lastQuizAttemptsCache = new Map<string, { rows: LastQuizRow[]; expires: number }>()
 
