@@ -43,10 +43,15 @@ export async function POST(request: NextRequest) {
 
       if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
-      await supabaseAdmin
+      // Samme feilsjekk som den globale grenen over: feiler denne stille,
+      // står flagget igjen som true og poeng-cronen hopper over re-tildeling
+      // etter nullstillingen.
+      const { error: upErr } = await supabaseAdmin
         .from('quizzes')
         .update({ season_points_awarded: false })
         .in('id', ids)
+
+      if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
     }
   }
 
