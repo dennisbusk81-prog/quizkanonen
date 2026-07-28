@@ -1586,57 +1586,94 @@ export default function QuizPage() {
     }
 
     const nextIndex = currentIndex + 1
-    // Hent neste spørsmål (med kun sin egen fasit) før det vises i interlude.
-    // Ved feil: behold fremgang og tilby "Prøv igjen" (kaller goToNext på nytt)
-    // i stedet for å la brukeren bli stående uten vei videre.
-    if (!questions[nextIndex]) {
-      try {
-        const r = await fetchQuestionAt(nextIndex, attemptId, attemptToken)
-        setQuestions(prev => {
-          const copy = [...prev]
-          copy[nextIndex] = r.question
-          return copy
-        })
-        setNextLoadFailed(false)
-      } catch {
-        setNextLoadFailed(true)
-        // Frigi guarden slik at "Prøv igjen"-knappen kan kalle goToNext på nytt.
-        advancingRef.current = false
-        setIsAdvancing(false)
-        return
-      }
-    }
     const qLeft = totalQuestions - nextIndex
     const correctSoFar = answers.filter(a => a.isCorrect).length
     // answers inneholder alltid spørsmålet som nettopp ble besvart, så lengden
     // ER antall besvarte spørsmål. Grunnlaget serveren skalerer delsummen med.
     const answeredSoFar = answers.length
+    const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
+
+    // ── De to nettverkskallene startes SAMTIDIG, ikke i serie ─────────────────
+    // Fram til 28. juli ventet vi ferdig på spørsmålshentingen før rangeringen
+    // i det hele tatt ble sendt. De to deler ingen input: fetchQuestionAt
+    // trenger (nextIndex, attemptId, attemptToken), rangeringskallene trenger
+    // (correctSoFar, totalTimeMs, answeredSoFar) — og alle fem er kjent her,
+    // før noen av kallene går ut. Rangeringen leser heller ingenting fra
+    // spørsmålssvaret; `total` derfra brukes kun ved oppstart (startQuiz), ikke
+    // i denne stien. Serieformen kostet altså full ventetid på begge, 15 ganger
+    // per quiz, uten at rekkefølgen ga noe.
+    //
+    // Vi lager promisene her og venter på dem lenger nede. Ingen av
+    // fetchLiveRankingFull/fetchRankingSnapshot kan rejecte (begge fanger selv
+    // og returnerer null), så kun questionPromise trenger try/catch.
+    const questionPromise = questions[nextIndex]
+      ? null
+      : fetchQuestionAt(nextIndex, attemptId, attemptToken)
 
     // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil.
     // Del 5: premium henter alt i ETT kall (spenn + plassering + naboer);
     // ikke-premium trenger kun spennet og bruker den lettere ruten som før.
     // Del 3: under terskelen hopper vi over kallet — mellomskjermen viser da
     // «Beregner posisjon…» i stedet for et anslag bygget på ett–to svar.
+    const premiumRankingPromise = isLoggedIn && isPremium && placementReady
+      ? fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar)
+      : null
+    const spanRankingPromise = !isPremium && isLoggedIn && placementReady
+      ? fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar)
+      : null
+
+    // ── Vent på ALLE utestående kall før noe vises ────────────────────────────
+    // Bevisst: mellomskjermen skal aldri rendres med halve datagrunnlaget klar.
+    // Vi venter derfor på begge også når spørsmålshentingen feiler — ellers
+    // ville setInterLiveRanking under landet ETTER at «Prøv igjen»-skjermen sto
+    // framme, og blandet seg inn i neste forsøk.
+    let questionFailed = false
+    const [questionResult, premiumRanking, spanRanking] = await Promise.all([
+      questionPromise
+        ? questionPromise.catch(() => { questionFailed = true; return null })
+        : Promise.resolve(null),
+      premiumRankingPromise ?? Promise.resolve(null),
+      spanRankingPromise ?? Promise.resolve(null),
+    ])
+
+    // Ved feil: behold fremgang og tilby "Prøv igjen" (kaller goToNext på nytt)
+    // i stedet for å la brukeren bli stående uten vei videre.
+    if (questionFailed) {
+      setNextLoadFailed(true)
+      // Frigi guarden slik at "Prøv igjen"-knappen kan kalle goToNext på nytt.
+      advancingRef.current = false
+      setIsAdvancing(false)
+      return
+    }
+    if (questionResult) {
+      setQuestions(prev => {
+        const copy = [...prev]
+        copy[nextIndex] = questionResult.question
+        return copy
+      })
+      setNextLoadFailed(false)
+    }
+
     let low: number | null = null
     let high: number | null = null
-    const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
-    if (isLoggedIn && isPremium && placementReady) {
-      const lr = await fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar)
-      if (lr && lr.totalPlayers > 1) {
-        low = lr.low
-        high = lr.high
+    if (premiumRankingPromise) {
+      if (premiumRanking && premiumRanking.totalPlayers > 1) {
+        low = premiumRanking.low
+        high = premiumRanking.high
       }
-      setInterLiveRanking(lr
-        ? { totalPlayers: lr.totalPlayers, userRank: lr.userRank, above: lr.above, below: lr.below }
+      setInterLiveRanking(premiumRanking
+        ? {
+            totalPlayers: premiumRanking.totalPlayers,
+            userRank: premiumRanking.userRank,
+            above: premiumRanking.above,
+            below: premiumRanking.below,
+          }
         : null)
     } else if (isLoggedIn && isPremium) {
       setInterLiveRanking(null)
-    } else if (isLoggedIn && placementReady) {
-      const result = await fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar)
-      if (result && result.total > 1) {
-        low = result.low
-        high = result.high
-      }
+    } else if (spanRanking && spanRanking.total > 1) {
+      low = spanRanking.low
+      high = spanRanking.high
     }
 
     const lastAns = answers[answers.length - 1]
