@@ -5,6 +5,11 @@ import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
+import {
+  LIVE_SUBSCRIPTION_STATUSES,
+  isStaleSubscriptionEvent,
+  shouldSendCancellationEmail,
+} from '@/lib/subscription-lifecycle'
 
 // ── Nedgradering skal ALLTID rekalkuleres, aldri antas ───────────────────────
 // Fram til 26. juli satte hver av disse grenene `premium_status: false` direkte.
@@ -70,6 +75,43 @@ async function getUserEmail(stripe: Stripe, customerId: string): Promise<string 
     console.error(`[webhook] getUserEmail feilet for customer ${customerId}:`, err)
   }
   return null
+}
+
+// Abonnement-id-ene som fortsatt lever hos Stripe for én kunde. Brukes til å
+// løse opp tvetydigheten når profiles.personal_stripe_subscription_id er NULL
+// (se lib/subscription-lifecycle.ts): finnes et ANNET levende abonnement, er
+// den terminale hendelsen vi behandler for et forbigått abonnement.
+//
+// Returnerer null ved feil — kalleren faller da tilbake til oppførselen fra
+// før 28. juli (behandle hendelsen). Å tie om en ekte kansellering fordi et
+// Stripe-oppslag glapp ville vært verre enn en sjelden overflødig e-post.
+async function getLiveSubscriptionIds(stripe: Stripe, customerId: string): Promise<string[] | null> {
+  try {
+    const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 })
+    return subs.data
+      .filter(s => (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(s.status))
+      .map(s => s.id)
+  } catch (err) {
+    console.error(`[webhook] kunne ikke liste abonnement for customer ${customerId}:`, err)
+    return null
+  }
+}
+
+// Har kunden NOEN betalingsmetode registrert? Vi lister faktisk vedheftede
+// metoder framfor å stole på default_payment_method alene — et avvist kort
+// forblir vedheftet (ekte feil ⇒ ≥1 metode), mens en Founders-bruker aldri
+// har lagt inn kort (0 metoder). default_payment_method kan dessuten være
+// null selv når et kort finnes.
+//
+// null = oppslaget feilet. Kallerne behandler det som «har kort» (fail-safe).
+async function customerHasPaymentMethod(stripe: Stripe, customerId: string): Promise<boolean | null> {
+  try {
+    const pms = await stripe.customers.listPaymentMethods(customerId, { limit: 1 })
+    return pms.data.length > 0
+  } catch (err) {
+    console.error('[webhook] kunne ikke hente betalingsmetoder for', customerId, '— behandler som ekte feil:', err)
+    return null
+  }
 }
 
 async function getOrgAdminEmail(organizationId: string): Promise<{ email: string | null; orgName: string | null; orgSlug: string | null }> {
@@ -424,11 +466,20 @@ export async function POST(request: NextRequest) {
         // FIX 3 — speiler isCurrentOrgSub over: en sen deleted-hendelse for et
         // gammelt abonnement (f.eks. erstattet etter en duplikat-opprydding) skal
         // ikke slå av Premium på en profil som nå kjører på et nyere abonnement.
-        // personal_stripe_subscription_id er null for vanlige betalende kunder
-        // (kun Founders-flyten setter den) — da har vi ingen stale-signal og
-        // fortsetter som før.
-        isCurrentPersonalSub = !profileByCustomer.personal_stripe_subscription_id
-          || profileByCustomer.personal_stripe_subscription_id === subscriptionId
+        //
+        // HULL 1 (28. juli 2026): vakten falt tidligere tilbake til «gjeldende»
+        // når feltet var NULL. NULL er tvetydig — det settes også når en
+        // TIDLIGERE terminal hendelse i samme kanselleringssekvens nullet det
+        // (subscription.updated → canceled nuller feltet før deleted ankommer).
+        // Er feltet NULL, spør vi derfor Stripe om kunden har et annet levende
+        // abonnement; har de det, er denne hendelsen for et forbigått abonnement.
+        const storedSubId = profileByCustomer.personal_stripe_subscription_id ?? null
+        const liveSubIds = storedSubId ? null : await getLiveSubscriptionIds(stripe, customerId)
+        isCurrentPersonalSub = !isStaleSubscriptionEvent({
+          storedSubId,
+          eventSubId: subscriptionId,
+          liveSubIds,
+        })
       } else {
         const { data: profileBySub } = await supabaseAdmin
           .from('profiles')
@@ -459,18 +510,37 @@ export async function POST(request: NextRequest) {
       // deaktivering: en stale sub skal ikke gi brukeren en feilaktig
       // "abonnementet er avsluttet"-e-post (dette er nøyaktig hendelsen som
       // skjedde 19. juli for en bruker med duplikat Founders-abonnement).
+      //
+      // HULL 2 (28. juli 2026): e-posten ble tidligere sendt uansett grunn.
+      // En kortløs Founders-trial som bare løp ut fikk dermed «Premium-
+      // abonnementet ditt er avsluttet» om et abonnement de aldri betalte for
+      // — og de hadde allerede fått «Prøveperioden din er over» fra
+      // invoice.payment_failed i samme sekvens. Samme skille som den grenen
+      // allerede gjorde (listPaymentMethods) brukes nå her.
       if (profileId && isCurrentPersonalSub) {
-        getUserEmail(stripe, customerId)
-          .then(email => {
-            if (email) {
-              return sendEmail({
-                to: email,
-                subject: 'Premium-abonnementet ditt er avsluttet — Quizkanonen',
-                html: premiumCancelledEmail(),
-              })
-            }
-          })
-          .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
+        const cancellationReason = subscription.cancellation_details?.reason ?? null
+        const hasPaymentMethod = await customerHasPaymentMethod(stripe, customerId)
+
+        if (!shouldSendCancellationEmail({ cancellationReason, hasPaymentMethod })) {
+          console.log(
+            `[webhook] subscription.deleted → premiumCancelledEmail UNDERTRYKT for profile ` +
+            `${profileId}: ingen betalingsmetode og grunn=${cancellationReason ?? 'ukjent'} ` +
+            `(kortløs trial som løp ut — varslet allerede av invoice.payment_failed). ` +
+            `customer=${customerId} sub=${subscriptionId}`
+          )
+        } else {
+          getUserEmail(stripe, customerId)
+            .then(email => {
+              if (email) {
+                return sendEmail({
+                  to: email,
+                  subject: 'Premium-abonnementet ditt er avsluttet — Quizkanonen',
+                  html: premiumCancelledEmail(),
+                })
+              }
+            })
+            .catch(err => console.error('[webhook] premiumCancelledEmail failed:', err))
+        }
       }
     }
   }
@@ -523,12 +593,23 @@ export async function POST(request: NextRequest) {
       // hvis gjeldende abonnement er helt friskt — nøyaktig samme misvisende e-post
       // som duplikat-Founders-saken 19. juli, bare via en annen hendelsestype.
       //
-      // personal_stripe_subscription_id settes kun av Founders-flyten. Er den null,
-      // har vi ikke noe stale-signal og fortsetter som før. Klarte vi ikke å lese
-      // subscription-id fra fakturaen, undertrykker vi heller ikke e-posten — da er
-      // det bedre å varsle enn å tie om en ekte betalingsfeil.
+      // Klarte vi ikke å lese subscription-id fra fakturaen, undertrykker vi
+      // heller ikke e-posten — da er det bedre å varsle enn å tie om en ekte
+      // betalingsfeil.
+      //
+      // HULL 1 (28. juli 2026): samme NULL-tvetydighet som i
+      // subscription.deleted. Er feltet nullet av en tidligere terminal
+      // hendelse, sa vakten «gjeldende» og slapp gjennom en purring på et
+      // forbigått abonnement. Stripe-oppslaget under skiller de to.
       const personalSubId = profileForFailed?.personal_stripe_subscription_id ?? null
-      const isCurrentPersonalSub = !personalSubId || !subscriptionId || personalSubId === subscriptionId
+      const liveSubIdsForFailed = (profileForFailed && !personalSubId && subscriptionId)
+        ? await getLiveSubscriptionIds(stripe, customerId)
+        : null
+      const isCurrentPersonalSub = !isStaleSubscriptionEvent({
+        storedSubId: personalSubId,
+        eventSubId: subscriptionId,
+        liveSubIds: liveSubIdsForFailed,
+      })
 
       // ── Deduplisering av varsel-e-post ──────────────────────────────────────
       // Stripe purrer den samme fakturaen flere ganger (smart retries, typisk 3-4
@@ -578,18 +659,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Avgjørende signal: har kunden NOEN betalingsmetode registrert? Vi lister
-        // faktisk vedheftede betalingsmetoder i stedet for å stole på default_payment_method
-        // alene — et avvist kort forblir vedheftet (ekte feil ⇒ ≥1 metode), mens en
-        // Founders-bruker aldri har lagt inn kort (0 metoder). default_payment_method kan
-        // dessuten være null selv når et kort finnes, så den er mindre pålitelig her.
-        let hasPaymentMethod = true // fail-safe: ved usikkerhet, behandle som ekte feil
-        try {
-          const pms = await stripe.customers.listPaymentMethods(customerId, { limit: 1 })
-          hasPaymentMethod = pms.data.length > 0
-        } catch (err) {
-          console.error('[webhook] kunne ikke hente betalingsmetoder for', customerId, '— behandler som ekte feil:', err)
-        }
+        // Avgjørende signal: har kunden NOEN betalingsmetode registrert?
+        // Delt helper med subscription.deleted-grenen (samme skille, samme
+        // fail-safe: null ⇒ behandles som ekte feil).
+        const hasPaymentMethod = (await customerHasPaymentMethod(stripe, customerId)) !== false
 
         const email = await getUserEmail(stripe, customerId)
 
@@ -735,9 +808,18 @@ export async function POST(request: NextRequest) {
 
         if (profileByCustomer) {
           profileId = profileByCustomer.id
-          // FIX 3 — samme stale-sub-vern som subscription.deleted over.
-          isCurrentPersonalSub = !profileByCustomer.personal_stripe_subscription_id
-            || profileByCustomer.personal_stripe_subscription_id === subscriptionId
+          // FIX 3 — samme stale-sub-vern som subscription.deleted over, inkludert
+          // HULL 1-fiksen for NULL-tvetydigheten (28. juli 2026). Denne grenen
+          // sender ingen e-post, men nuller feltet og rekalkulerer premium — en
+          // sen canceled-hendelse for et forbigått abonnement skulle ikke gjort
+          // noen av delene.
+          const storedSubId = profileByCustomer.personal_stripe_subscription_id ?? null
+          const liveSubIds = storedSubId ? null : await getLiveSubscriptionIds(stripe, customerId)
+          isCurrentPersonalSub = !isStaleSubscriptionEvent({
+            storedSubId,
+            eventSubId: subscriptionId,
+            liveSubIds,
+          })
         } else {
           const { data: profileBySub } = await supabaseAdmin
             .from('profiles')
