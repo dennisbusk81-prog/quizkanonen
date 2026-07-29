@@ -19,9 +19,24 @@ import {
   PRIVATE_CLOSED_MAX_AGE,
 } from './standings-cache'
 
-const NOW = Date.parse('2026-07-28T12:00:00.000Z')
-const IGAR = '2026-07-27T20:00:00.000Z'
-const IMORGEN = '2026-07-29T20:00:00.000Z'
+// ── Klokka: relativ, ALDRI hardkodet ────────────────────────────────────────
+// Fram til 29. juli 2026 sto disse som faste datoer, med `IMORGEN` satt til
+// 2026-07-29T20:00:00Z. Kl. 20:00 den kvelden gikk konstanten forbi, og de to
+// RUTE-testene nederst begynte å feile permanent: de går gjennom den ekte
+// ruten, som leser systemklokka, så «i morgen» ble plutselig i fortiden og
+// ruten svarte med den lange stengt-cachen i stedet for den korte åpne.
+//
+// De rene testene over var upåvirket — de sender inn `NOW` eksplisitt — så
+// feilen så ut som en flake i én fil, men var en tidsbombe med fast dato.
+//
+// Alle bruk av NOW er relative (før/etter, eller offset-aritmetikk), så det å
+// ankre den til den virkelige klokka endrer ingen assertion sin mening. Én dags
+// margin i hver retning gjør at rute-testene, som bruker Date.now() inne i
+// ruten, aldri kan komme på feil side av grensen.
+const DAY_MS = 24 * 60 * 60 * 1000
+const NOW = Date.now()
+const IGAR = new Date(NOW - DAY_MS).toISOString()
+const IMORGEN = new Date(NOW + DAY_MS).toISOString()
 
 // ── isQuizClosed ─────────────────────────────────────────────────────────────
 
