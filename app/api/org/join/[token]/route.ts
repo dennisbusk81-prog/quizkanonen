@@ -94,7 +94,22 @@ export async function POST(
     if (existing.organization_id === invite.organization_id) {
       return NextResponse.json({ slug: org.slug })
     }
-    return NextResponse.json({ error: 'Du er allerede medlem av en organisasjon.' }, { status: 409 })
+    // Send med navn og slug på orgen brukeren ALLEREDE er i. Uten dette var
+    // 409-en en ren blindvei: «du er allerede medlem av en organisasjon», uten
+    // å si hvilken og uten noen vei videre. Med slugen kan invitasjonssiden
+    // lenke til /org/[slug], der «Forlat organisasjon» nå ligger.
+    const { data: currentOrg } = await supabaseAdmin
+      .from('organizations')
+      .select('name, slug')
+      .eq('id', existing.organization_id)
+      .maybeSingle()
+
+    return NextResponse.json({
+      error: 'Du er allerede medlem av en organisasjon.',
+      code: 'already_in_org',
+      currentOrgName: currentOrg?.name ?? null,
+      currentOrgSlug: currentOrg?.slug ?? null,
+    }, { status: 409 })
   }
 
   // Premium-overgang: LES det personlige abonnementet nå, men kanseller det

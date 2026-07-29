@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
+import LeaveOrgModal from '@/components/LeaveOrgModal'
 import { isOrgLocked } from '@/lib/org-access'
 import { useProfile } from '@/components/ProfileProvider'
 import type { Session } from '@supabase/supabase-js'
@@ -39,6 +40,7 @@ export default function OrgLeaderboardPage() {
 
   const [session,   setSession]   = useState<Session | null | undefined>(undefined)
   const [slowLoad, setSlowLoad] = useState(false)
+  const [leaveModal, setLeaveModal] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -100,7 +102,7 @@ export default function OrgLeaderboardPage() {
 
   // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
   if (org && session && isOrgLocked(org)) {
-    return <OrgLockedScreen orgName={org.orgName} orgId={org.orgId} accessToken={session.access_token} />
+    return <OrgLockedScreen orgName={org.orgName} orgId={org.orgId} orgSlug={slug} accessToken={session.access_token} />
   }
 
   // ── Ready ─────────────────────────────────────────────────────────────────
@@ -131,8 +133,56 @@ export default function OrgLeaderboardPage() {
           {/* Sesong-toppliste scopet til bedriften */}
           {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} orgSlug={slug} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
 
+          {/* Medlemskap — eneste stedet en vanlig ansatt kan melde seg ut selv.
+              Uten dette var en konto låst til én bedrift for alltid: en
+              invitasjon fra en ny arbeidsgiver ga bare «Du er allerede medlem av
+              en organisasjon», uten noen vei videre. */}
+          {org && session && (
+            <div style={{
+              background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
+              padding: '24px 20px', marginTop: 40,
+              display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+            }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 6 }}>
+                  Medlemskap
+                </p>
+                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6 }}>
+                  Du er med i {org.orgName}. Forlater du bedriften, beholder du kontoen,
+                  quizhistorikken og poengene dine — du fortsetter som vanlig bruker.
+                </p>
+              </div>
+              <button
+                onClick={() => setLeaveModal(true)}
+                style={{
+                  padding: '10px 28px', background: 'transparent',
+                  border: '1px solid rgba(248,113,113,0.4)', borderRadius: 10,
+                  fontSize: 13, fontWeight: 600, color: '#f87171',
+                  fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                  transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              >
+                Forlat organisasjon
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
+
+      {/* Siste-admin-sperren håndheves av ruten (409 last_admin) — denne siden
+          kjenner ikke antall administratorer, så modalen viser forklaringen
+          når svaret kommer. */}
+      {leaveModal && org && session && (
+        <LeaveOrgModal
+          orgName={org.orgName}
+          orgSlug={slug}
+          accessToken={session.access_token}
+          onClose={() => setLeaveModal(false)}
+        />
+      )}
     </>
   )
 }

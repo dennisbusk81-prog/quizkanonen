@@ -80,5 +80,22 @@ export async function POST(
     return NextResponse.json({ error: 'Kunne ikke oppdatere rolle' }, { status: 500 })
   }
 
+  // Spor rolleendringen. Hvem som er admin avgjør hvem som kan fakturere,
+  // invitere og avslutte bedriften — og siden en admin nå kan melde seg ut
+  // selv, er «hvem gjorde hvem til admin, og når» det eneste sporet av
+  // hvordan orgen endte opp med de administratorene den har.
+  // Aldri blokkerende, aldri stille — samme form som resten av admin_actions.
+  try {
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
+      user_id: requester.id,
+      action_type: action === 'add' ? 'org_admin_added' : 'org_admin_removed',
+      scope_type: 'organization',
+      scope_id: org.id,
+    })
+    if (logErr) console.error('[set-admin] admin_actions-logging feilet', org.id, logErr.message)
+  } catch (err) {
+    console.error('[set-admin] admin_actions-logging kastet', org.id, err)
+  }
+
   return NextResponse.json({ success: true })
 }

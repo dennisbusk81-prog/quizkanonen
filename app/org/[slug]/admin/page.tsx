@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
+import LeaveOrgModal from '@/components/LeaveOrgModal'
 import ResultsTable from '@/components/ResultsTable'
 import { isOrgLocked } from '@/lib/org-access'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -246,6 +247,8 @@ export default function OrgAdminPage() {
   const [deleteOrgInput, setDeleteOrgInput]       = useState('')
   const [deletingOrg, setDeletingOrg]             = useState(false)
   const [deleteOrgError, setDeleteOrgError]       = useState<string | null>(null)
+
+  const [leaveOrgModal, setLeaveOrgModal]         = useState(false)
 
   const [portalLoading, setPortalLoading]         = useState(false)
   const [portalError, setPortalError]             = useState<string | null>(null)
@@ -911,7 +914,7 @@ export default function OrgAdminPage() {
 
   // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
   if (data && session && isOrgLocked(data.org)) {
-    return <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} accessToken={session.access_token} />
+    return <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} orgSlug={slug} accessToken={session.access_token} />
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -950,6 +953,14 @@ export default function OrgAdminPage() {
 
   // Toppliste: activityData sorted by totalPoints desc
   const sortedByPoints = [...(activityData ?? [])].sort((a, b) => b.totalPoints - a.totalPoints)
+
+  // Forhåndssjekk for «Forlat organisasjon». Kun et hint til UI-et — leave-ruten
+  // håndhever sperren selv (409 last_admin) og er fasiten hvis rollene endrer
+  // seg mens siden står åpen. Samme forhold som answer_key_locked: UI-et spør på
+  // forhånd, 409-en er backstop for enhver annen kaller.
+  const adminCount   = (data?.members ?? []).filter(m => m.role === 'admin').length
+  const myRole       = (data?.members ?? []).find(m => m.user_id === data?.currentUserId)?.role
+  const isLastAdmin  = myRole === 'admin' && adminCount <= 1
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1990,8 +2001,51 @@ export default function OrgAdminPage() {
             </button>
           </div>
 
+          {/* Forlat organisasjon — for admin-en selv, ikke for bedriften */}
+          <div style={{
+            background: 'rgba(201,76,76,0.04)', border: '1px solid rgba(201,76,76,0.15)',
+            borderRadius: 14, padding: '20px 22px', marginTop: 14,
+            display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
+                Forlat organisasjon
+              </p>
+              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+                Melder deg selv ut av {data?.org.name}. Bedriften består — kontoen din,
+                quizhistorikken og poengene dine beholdes.
+                {isLastAdmin && ' Du er eneste administrator, så du må utpeke en ny først.'}
+              </p>
+            </div>
+            <button
+              onClick={() => setLeaveOrgModal(true)}
+              style={{
+                padding: '9px 18px', background: 'transparent',
+                border: '1px solid rgba(248,113,113,0.4)',
+                borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
+                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              Forlat organisasjon
+            </button>
+          </div>
+
         </div>
       </div>
+
+      {/* ── Forlat-organisasjon-modal ──────────────────────────────────────── */}
+      {leaveOrgModal && data && session && (
+        <LeaveOrgModal
+          orgName={data.org.name}
+          orgSlug={slug}
+          accessToken={session.access_token}
+          isLastAdmin={isLastAdmin}
+          onClose={() => setLeaveOrgModal(false)}
+        />
+      )}
 
       {/* ── Season-reset modal ─────────────────────────────────────────────── */}
       {seasonResetModal && (

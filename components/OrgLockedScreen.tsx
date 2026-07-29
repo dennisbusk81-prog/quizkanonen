@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import LeaveOrgModal from '@/components/LeaveOrgModal'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -13,14 +14,18 @@ const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Basker
 export default function OrgLockedScreen({
   orgName,
   orgId,
+  orgSlug,
   accessToken,
 }: {
   orgName: string
   orgId: string
+  /** Utelatt → «Forlat organisasjon» skjules (ruten er slug-basert). */
+  orgSlug?: string
   accessToken: string
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [leaveModal, setLeaveModal] = useState(false)
 
   const reactivate = async () => {
     setLoading(true)
@@ -76,12 +81,44 @@ export default function OrgLockedScreen({
             </div>
           )}
 
+          {/* En låst org sperrer hele siden, så uten denne utveien satt et medlem
+              fast: de kunne verken bruke bedriften eller melde seg ut av den —
+              og en invitasjon fra et nytt sted ble avvist med «du er allerede
+              medlem av en organisasjon». */}
+          {orgSlug && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2d38' }}>
+              <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 12 }}>
+                Skal du ikke være med i {orgName} lenger?
+              </p>
+              <button
+                onClick={() => setLeaveModal(true)}
+                style={{
+                  background: 'transparent', color: '#e8e4dd',
+                  fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                  padding: '10px 28px', borderRadius: 10, border: '1px solid #2a2d38',
+                  cursor: 'pointer',
+                }}
+              >
+                Forlat organisasjon
+              </button>
+            </div>
+          )}
+
           <div style={{ marginTop: 24 }}>
             <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Forsiden</Link>
           </div>
 
         </div>
       </div>
+
+      {leaveModal && orgSlug && (
+        <LeaveOrgModal
+          orgName={orgName}
+          orgSlug={orgSlug}
+          accessToken={accessToken}
+          onClose={() => setLeaveModal(false)}
+        />
+      )}
     </>
   )
 }
