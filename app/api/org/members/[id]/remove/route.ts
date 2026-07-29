@@ -28,7 +28,7 @@ export async function POST(
 
   const guard = await resolveOrgAdminAction(membershipId, user.id)
   if (!guard.ok) {
-    return NextResponse.json({ error: guard.error }, { status: guard.status })
+    return NextResponse.json({ error: guard.error, ...(guard.code ? { code: guard.code } : {}) }, { status: guard.status })
   }
 
   const result = await removeOrgMemberById(membershipId)

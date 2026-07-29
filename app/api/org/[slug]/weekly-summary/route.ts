@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { computeWeeklySummary, buildWeeklyShareText } from '@/lib/weekly-report'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,10 @@ export async function GET(
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
+
+  // Låst org: ukesrapporten er en del av det betalte bedriftspanelet.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   const summary = await computeWeeklySummary(org.id)
   if (!summary) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -31,6 +32,11 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Kun admins kan nullstille sesong-data.' }, { status: 403 })
   }
+
+  // Låst org: en irreversibel sletting av sesongdata skal ikke kunne utføres på
+  // et abonnement som ikke løper.
+  const lock = await requireUnlockedOrg({ id: orgId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Slett season_scores for denne organisasjonen
   const { error: delErr } = await supabaseAdmin

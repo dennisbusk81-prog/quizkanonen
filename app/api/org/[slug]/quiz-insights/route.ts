@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ingen admin-tilgang' }, { status: 403 })
   }
+
+  // Låst org: spørsmålsanalysen er en del av det betalte bedriftspanelet.
+  const lock = await requireUnlockedOrg({ id: orgId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Get org member IDs
   const { data: orgMembers } = await supabaseAdmin

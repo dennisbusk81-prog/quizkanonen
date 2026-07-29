@@ -3,6 +3,11 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { checkMemberCapacity } from '@/lib/org-plan'
+import {
+  requireUnlockedOrg,
+  ORG_LOCKED_CODE,
+  ORG_LOCKED_JOIN_ERROR,
+} from '@/lib/org-lock-guard'
 
 export async function GET(
   _request: NextRequest,
@@ -26,13 +31,18 @@ export async function GET(
     return NextResponse.json({ valid: false, error: 'Invitasjonslenken er full' }, { status: 410 })
   }
 
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('name, slug')
-    .eq('id', invite.organization_id)
-    .single()
+  // Låst org: si fra HER i stedet for å la den ansatte gå gjennom hele flyten
+  // og bli avvist først på siste klikk.
+  const lock = await requireUnlockedOrg({ id: invite.organization_id })
+  if (!lock.ok) {
+    const locked = lock.body.code === ORG_LOCKED_CODE
+    return NextResponse.json(
+      { valid: false, error: locked ? ORG_LOCKED_JOIN_ERROR : lock.body.error },
+      { status: lock.status },
+    )
+  }
 
-  return NextResponse.json({ valid: true, orgName: org?.name, orgSlug: org?.slug })
+  return NextResponse.json({ valid: true, orgName: lock.org.name, orgSlug: lock.org.slug })
 }
 
 export async function POST(
@@ -111,6 +121,29 @@ export async function POST(
       currentOrgName: currentOrg?.name ?? null,
       currentOrgSlug: currentOrg?.slug ?? null,
     }, { status: 409 })
+  }
+
+  // ── Låst org ────────────────────────────────────────────────────────────────
+  // VIKTIGST av lås-sjekkene: innmeldingen lenger ned setter `premium_status`
+  // på den som blir med. Uten denne vakten delte en bedrift som hadde sluttet å
+  // betale fortsatt ut Premium til nye ansatte — direkte inntektstap, og helt
+  // usynlig fordi lås-skjermen kun er en UI-sperre på org-sidene.
+  //
+  // Plassert ETTER «allerede medlem»-grenen over, av samme grunn som
+  // medlemsgrensen: en som re-klikker sin egen invitasjon skal ikke havne i en
+  // blindvei for noe de allerede er innenfor.
+  const lock = await requireUnlockedOrg({ id: invite.organization_id })
+  if (!lock.ok) {
+    const locked = lock.body.code === ORG_LOCKED_CODE
+    if (locked) {
+      console.warn(`[org-join] avvist — org=${invite.organization_id} er låst`)
+    }
+    return NextResponse.json(
+      locked
+        ? { error: ORG_LOCKED_JOIN_ERROR, code: ORG_LOCKED_CODE }
+        : lock.body,
+      { status: lock.status },
+    )
   }
 
   // ── Medlemsgrense for planen ────────────────────────────────────────────────

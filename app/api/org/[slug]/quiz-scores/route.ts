@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -71,6 +72,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (membershipRes.data?.role !== 'admin') {
     return NextResponse.json({ error: 'Kun admins kan se dette.' }, { status: 403 })
   }
+
+  // Låst org: samme gate som 403-en over, og av samme grunn plassert FØR bølge 2
+  // — ingen bedriftsdata skal beregnes eller returneres for en låst org.
+  const lock = await requireUnlockedOrg({ id: orgId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   const memberIds = (orgMembersRes.data ?? []).map(m => m.user_id).filter(Boolean)
   if (memberIds.length === 0) {

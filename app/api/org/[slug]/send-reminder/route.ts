@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { rateLimit } from '@/lib/rate-limit'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(
   request: NextRequest,
@@ -33,6 +34,10 @@ export async function POST(
   if (!membership || membership.role !== 'admin') {
     return NextResponse.json({ error: 'Ingen admin-tilgang' }, { status: 403 })
   }
+
+  // Låst org: e-post fra hei@quizkanonen.no på vegne av en bedrift som ikke betaler.
+  const lock = await requireUnlockedOrg({ id: organizationId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   let body: { userIds?: unknown }
   try { body = await request.json() } catch {

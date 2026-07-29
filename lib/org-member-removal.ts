@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { orgRemovedEmail } from '@/lib/email-templates'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // ── ÉN kodesti for fjerning av et org-medlem ─────────────────────────────────
 //
@@ -21,12 +22,18 @@ import { orgRemovedEmail } from '@/lib/email-templates'
 
 export type OrgAdminActionResult =
   | { ok: true; membership: { id: string; organization_id: string; user_id: string; role: string } }
-  | { ok: false; status: 400 | 403 | 404; error: string }
+  | { ok: false; status: 400 | 403 | 404 | 503; error: string; code?: string }
 
 /**
  * Verifiserer at `actorUserId` har lov til å utføre en admin-handling på
  * medlemsraden `membershipId`. Delt av «fjern nå» og «planlegg fjerning», slik
  * at de to aldri kan komme i utakt om hvem som får gjøre hva.
+ *
+ * Lås-sjekken ligger her, ikke i de tre handlerne: medlemsadministrasjon er én
+ * beslutning uansett hvilken rute som ber om den, og cronen — som IKKE har en
+ * aktør og derfor ikke kaller denne funksjonen — skal fortsatt utføre allerede
+ * planlagte fjerninger. En plan satt mens org-en var aktiv er en beslutning som
+ * er tatt; låsen skal hindre NYE admin-handlinger, ikke fryse gamle.
  */
 export async function resolveOrgAdminAction(
   membershipId: string,
@@ -56,6 +63,11 @@ export async function resolveOrgAdminAction(
 
   if (requesterMembership?.role !== 'admin') {
     return { ok: false, status: 403, error: 'Ingen tilgang' }
+  }
+
+  const lock = await requireUnlockedOrg({ id: membership.organization_id })
+  if (!lock.ok) {
+    return { ok: false, status: lock.status, error: lock.body.error, code: lock.body.code }
   }
 
   return { ok: true, membership }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { orgWelcomeEmail } from '@/lib/email-templates'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
@@ -39,6 +40,11 @@ export async function POST(request: NextRequest) {
   if (!member) {
     return NextResponse.json({ error: 'Ikke medlem' }, { status: 403 })
   }
+
+  // Låst org: velkomst-e-posten hører til innmeldingen, som selv er sperret i
+  // /api/org/join/[token]. Sperret her også, så ingen inngang står igjen åpen.
+  const lock = await requireUnlockedOrg({ id: org.id })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   if (member.welcome_email_sent) {
     return NextResponse.json({ skipped: true, reason: 'Already sent' })

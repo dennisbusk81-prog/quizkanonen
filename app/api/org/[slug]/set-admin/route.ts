@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(
   request: NextRequest,
@@ -40,6 +41,10 @@ export async function POST(
   if (requesterMembership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
+
+  // Låst org: rolleendringer er administrasjon av et abonnement som ikke løper.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Find target user — by userId directly (remove) or by email (add)
   let targetUserId: string

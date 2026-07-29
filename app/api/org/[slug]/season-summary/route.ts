@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireUnlockedOrg, type OrgLockGuard } from '@/lib/org-lock-guard'
 
-async function getSummary(token: string, slug: string) {
+// Lås-avvisningen bæres ut som et eget felt i stedet for `null`, fordi `null`
+// her betyr «ingen tilgang, svar tomt» — og en låst org skal få en tydelig 403
+// med begrunnelse, ikke en tom liste som ser ut som «ingen har spilt ennå».
+type SummaryResult =
+  | { blocked: Extract<OrgLockGuard, { ok: false }> }
+  | { blocked?: undefined; top3: unknown[]; userRank: unknown; orgName: string }
+
+async function getSummary(token: string, slug: string): Promise<SummaryResult | null> {
   const { data: { user } } = await supabaseAdmin.auth.getUser(token)
   if (!user) return null
 
@@ -19,6 +27,11 @@ async function getSummary(token: string, slug: string) {
     .eq('user_id', user.id)
     .maybeSingle()
   if (!mem) return null
+
+  // Låst org: sjekkes ETTER medlemskapet, slik at en utenforstående ikke får
+  // vite om en slug finnes eller hvilken tilstand den står i.
+  const lock = await requireUnlockedOrg({ id: org.id })
+  if (!lock.ok) return { blocked: lock }
 
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
@@ -64,6 +77,9 @@ export async function GET(
   if (!token) return NextResponse.json({ top3: [], userRank: null })
   const { slug } = await params
   const result = await getSummary(token, slug)
+  if (result?.blocked) {
+    return NextResponse.json(result.blocked.body, { status: result.blocked.status })
+  }
   return NextResponse.json(result ?? { top3: [], userRank: null })
 }
 
@@ -76,5 +92,8 @@ export async function POST(
   if (!token) return NextResponse.json({ top3: [], userRank: null })
   const { slug } = await params
   const result = await getSummary(token, slug)
+  if (result?.blocked) {
+    return NextResponse.json(result.blocked.body, { status: result.blocked.status })
+  }
   return NextResponse.json(result ?? { top3: [], userRank: null })
 }

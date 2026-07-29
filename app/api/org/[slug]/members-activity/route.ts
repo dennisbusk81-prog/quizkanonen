@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -44,6 +45,10 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Kun admins kan se dette.' }, { status: 403 })
   }
+
+  // Låst org: aktivitetsdata, inkludert CSV-eksporten, er det betalte produktet.
+  const lock = await requireUnlockedOrg({ id: orgId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Hent alle org-medlemmer
   const { data: orgMembers } = await supabaseAdmin

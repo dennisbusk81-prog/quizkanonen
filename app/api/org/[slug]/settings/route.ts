@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { validateOrgName } from '@/lib/org-name'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function PATCH(
   request: NextRequest,
@@ -38,6 +39,11 @@ export async function PATCH(
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
+
+  // Låst org: bedriftsnavnet står i alle e-poster vi sender på bedriftens vegne,
+  // og quiz-tidene styrer et produkt som ikke lenger betales for.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   let body: { name?: unknown; allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null }
   try { body = await request.json() } catch {

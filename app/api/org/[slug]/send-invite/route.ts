@@ -5,6 +5,7 @@ import { orgInviteEmail } from '@/lib/email-templates'
 import { rateLimit } from '@/lib/rate-limit'
 import { resolveInviteQuota } from '@/lib/invite-quota'
 import { checkMemberCapacity } from '@/lib/org-plan'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -48,6 +49,11 @@ export async function POST(
   if (!membership || membership.role !== 'admin') {
     return NextResponse.json({ error: 'Ingen admin-tilgang' }, { status: 403 })
   }
+
+  // Låst org: 50 e-poster per kall fra hei@quizkanonen.no på vegne av en bedrift
+  // som ikke betaler. Sjekkes før body-parsing og kvote — ingenting skal skje her.
+  const lock = await requireUnlockedOrg({ id: organizationId })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   let body: { emails?: unknown; inviteUrl?: unknown }
   try { body = await request.json() } catch {

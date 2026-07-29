@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { randomBytes } from 'crypto'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
@@ -34,6 +35,10 @@ export async function POST(request: NextRequest) {
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
   }
+
+  // Låst org: nye invitasjonslenker er vekst på et abonnement som ikke løper.
+  const lock = await requireUnlockedOrg({ id: organization_id })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   const token = randomBytes(16).toString('hex')
   const { data: invite, error } = await supabaseAdmin

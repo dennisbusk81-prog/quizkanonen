@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { decidePlanChange, getPlan } from '@/lib/org-plan'
 import { priceIdForPlan } from '@/lib/org-plan-prices'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // POST /api/org/[slug]/change-plan — org-admin bytter plan opp eller ned.
 //
@@ -48,6 +49,12 @@ export async function POST(
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
+
+  // Låst org: planbytte forutsetter et levende abonnement å bytte på. Veien
+  // tilbake går via lås-skjermen → /api/stripe/org-checkout (reactivateOrgId),
+  // som lager en ny checkout — ikke gjennom denne ruten.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   let body: { plan?: unknown }
   try { body = await request.json() } catch {

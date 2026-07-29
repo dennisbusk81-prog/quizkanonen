@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(
   request: NextRequest,
@@ -38,6 +39,12 @@ export async function POST(
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
   }
+
+  // Låst org: invitasjonsadministrasjon hører til det betalte panelet. Denne
+  // handlingen er riktignok reduserende, men den hører til samme flate som
+  // opprettelsen — og admin-UI-et er uansett erstattet av lås-skjermen.
+  const lock = await requireUnlockedOrg({ id: invite.organization_id })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   await supabaseAdmin
     .from('organization_invites')

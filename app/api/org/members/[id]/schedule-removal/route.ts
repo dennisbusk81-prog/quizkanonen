@@ -35,7 +35,12 @@ async function authorize(request: NextRequest, membershipId: string) {
 
   const guard = await resolveOrgAdminAction(membershipId, user.id)
   if (!guard.ok) {
-    return { error: NextResponse.json({ error: guard.error }, { status: guard.status }) } as const
+    return {
+      error: NextResponse.json(
+        { error: guard.error, ...(guard.code ? { code: guard.code } : {}) },
+        { status: guard.status },
+      ),
+    } as const
   }
 
   return { user, membership: guard.membership } as const

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { rankAttempts } from '@/lib/ranking'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function GET(
   request: NextRequest,
@@ -38,6 +39,10 @@ export async function GET(
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+
+  // Låst org: bedrifts-dashbordet er det betalte produktet.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Get all member user_ids
   const { data: members } = await supabaseAdmin

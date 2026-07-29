@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankAttempts } from '@/lib/ranking'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function GET(
   request: NextRequest,
@@ -30,6 +31,10 @@ export async function GET(
     .maybeSingle()
 
   if (!membership) return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+
+  // Låst org: plassering i bedrifts-topplisten er en del av bedriftsproduktet.
+  const lock = await requireUnlockedOrg({ slug })
+  if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   const { data: members } = await supabaseAdmin
     .from('organization_members')
