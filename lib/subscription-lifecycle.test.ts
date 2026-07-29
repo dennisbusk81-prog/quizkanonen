@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   isStaleSubscriptionEvent,
   shouldSendCancellationEmail,
+  decideOrgSubscriptionEvent,
+  needsLiveSubscriptionLookup,
   LIVE_SUBSCRIPTION_STATUSES,
 } from './subscription-lifecycle'
 
@@ -138,4 +140,68 @@ test('payment_disputed uten kort → undertrykk; med kort → send', () => {
   assert.equal(shouldSendCancellationEmail({
     cancellationReason: 'payment_disputed', hasPaymentMethod: true,
   }), true)
+})
+
+// ── Org-grenen i subscription.updated (29. juli 2026) ──────────────────────
+// Reaktiveringsracet: org-checkout kansellerer det gamle abonnementet og
+// oppretter et nytt. Kommer den gamle updated-hendelsen for sent, låste den
+// tidligere en org som nettopp hadde betalt.
+
+const SUB_NEW = 'sub_new'
+
+test('hendelsen gjelder abonnementet org-en peker på → behandles', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_CURRENT, eventSubId: SUB_CURRENT, liveSubIds: null,
+  }), 'process')
+})
+
+test('stale updated fra erstattet abonnement mens det lagrede LEVER → ignoreres', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_NEW, eventSubId: SUB_OLD, liveSubIds: [SUB_NEW],
+  }), 'ignore')
+})
+
+test('lagret abonnement er DØDT → hendelsens abonnement adopteres', () => {
+  // Typisk et abonnement opprettet manuelt i Stripe-dashbordet: ingenting
+  // annet ville noensinne skrevet den nye id-en til organizations.
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_OLD, eventSubId: SUB_NEW, liveSubIds: [SUB_NEW],
+  }), 'adopt')
+})
+
+test('lagret abonnement borte fra Stripe helt → adopteres', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_OLD, eventSubId: SUB_NEW, liveSubIds: [],
+  }), 'adopt')
+})
+
+test('Stripe-oppslaget feilet (null) → behandles (fail-open, som før vakten fantes)', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_OLD, eventSubId: SUB_NEW, liveSubIds: null,
+  }), 'process')
+})
+
+test('org uten lagret abonnements-id → behandles (ingenting å sammenligne mot)', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: null, eventSubId: SUB_NEW, liveSubIds: [SUB_OLD],
+  }), 'process')
+})
+
+test('hendelsen mangler abonnements-id → behandles', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_CURRENT, eventSubId: null, liveSubIds: null,
+  }), 'process')
+})
+
+test('begge lever samtidig (dobbel-abonnement) → den lagrede vinner', () => {
+  assert.equal(decideOrgSubscriptionEvent({
+    storedSubId: SUB_NEW, eventSubId: SUB_OLD, liveSubIds: [SUB_NEW, SUB_OLD],
+  }), 'ignore')
+})
+
+test('Stripe-oppslag kun når id-ene finnes og er ulike', () => {
+  assert.equal(needsLiveSubscriptionLookup(SUB_CURRENT, SUB_CURRENT), false, 'like id-er koster ingen rundtur')
+  assert.equal(needsLiveSubscriptionLookup(SUB_OLD, SUB_NEW), true)
+  assert.equal(needsLiveSubscriptionLookup(null, SUB_NEW), false)
+  assert.equal(needsLiveSubscriptionLookup(SUB_OLD, null), false)
 })

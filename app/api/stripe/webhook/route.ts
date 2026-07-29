@@ -12,6 +12,9 @@ import {
   LIVE_SUBSCRIPTION_STATUSES,
   isStaleSubscriptionEvent,
   shouldSendCancellationEmail,
+  needsLiveSubscriptionLookup,
+  decideOrgSubscriptionEvent,
+  type OrgSubEventVerdict,
 } from '@/lib/subscription-lifecycle'
 
 // ── Nedgradering skal ALLTID rekalkuleres, aldri antas ───────────────────────
@@ -724,11 +727,35 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id, name, slug, subscription_status')
+      .select('id, name, slug, stripe_subscription_id, subscription_status')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
+    // ── Stale-vakt for org-grenen (29. juli 2026) ────────────────────────
+    // Speiler isCurrentOrgSub i subscription.deleted, men med et kryssjekk i
+    // stedet for ren id-likhet — se decideOrgSubscriptionEvent for hvorfor.
+    // Vakten dekker HELE org-grenen, ikke bare låsen: en stale hendelse med
+    // status active/trialing ville ellers skrevet feil stripe_period_end og
+    // feil plan (via price_id-mappingen) fra et forbigått abonnement.
+    let orgVerdict: OrgSubEventVerdict = 'process'
     if (org) {
+      const storedSubId = org.stripe_subscription_id ?? null
+      const liveSubIds = needsLiveSubscriptionLookup(storedSubId, subscription.id)
+        ? await getLiveSubscriptionIds(stripe, customerId)
+        : null
+      orgVerdict = decideOrgSubscriptionEvent({
+        storedSubId,
+        eventSubId: subscription.id,
+        liveSubIds,
+      })
+    }
+
+    if (org && orgVerdict === 'ignore') {
+      console.log(
+        `[webhook] subscription.updated ignorert for org ${org.id} — stale sub ${subscription.id}, ` +
+        `gjeldende er ${org.stripe_subscription_id ?? 'null'} og lever fortsatt hos Stripe`
+      )
+    } else if (org) {
       // B2B: oppdater periode-slutt + speil betalingsstatus til subscription_status.
       // Speiler B2C Founders-håndteringen — vi stoler ikke på Stripe-tilstanden alene,
       // men setter eksplisitt 'active'/'trialing'/'locked' og synker premium for medlemmer.
@@ -766,6 +793,11 @@ export async function POST(request: NextRequest) {
           ...(periodEnd ? { stripe_period_end: periodEnd } : {}),
           ...(nextStatus ? { subscription_status: nextStatus } : {}),
           ...(mappedPlan ? { plan: mappedPlan } : {}),
+          // Adopsjon: det lagrede abonnementet er dødt, og dette er org-ens
+          // reelle gjeldende. Uten denne skrivingen ville pekeren blitt
+          // stående feil, og et framtidig `deleted` for det nye abonnementet
+          // hadde blitt avvist av isCurrentOrgSub-vakten.
+          ...(orgVerdict === 'adopt' ? { stripe_subscription_id: subscription.id } : {}),
         })
         .eq('id', org.id)
       assertCriticalWrite(orgUpdError, `sub.updated org-status org=${org.id}`)

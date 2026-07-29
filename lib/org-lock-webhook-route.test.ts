@@ -38,6 +38,10 @@ const state: {
   orgUpdates: Array<Record<string, unknown>>
   sent: Array<{ to: string; subject: string }>
   errors: string[]
+  /** Abonnement stripe.subscriptions.list skal returnere for kunden. */
+  stripeSubs: Array<{ id: string; status: string }>
+  listThrows: boolean
+  listCalls: number
 } = {
   event: {},
   org: null,
@@ -46,11 +50,24 @@ const state: {
   orgUpdates: [],
   sent: [],
   errors: [],
+  stripeSubs: [],
+  listThrows: false,
+  listCalls: 0,
 }
 
 class MockStripe {
   webhooks = { constructEvent: () => state.event }
-  subscriptions = { list: async () => ({ data: [] }), retrieve: async (id: string) => ({ id, status: 'past_due' }) }
+  subscriptions = {
+    list: async () => {
+      state.listCalls++
+      // `subscriptions` er et instansfelt, ikke på prototypen — et test som
+      // vil simulere et Stripe-utfall MÅ derfor gå via dette flagget. Å bytte
+      // ut MockStripe.prototype.subscriptions gjør ingenting.
+      if (state.listThrows) throw new Error('Stripe nede')
+      return { data: state.stripeSubs }
+    },
+    retrieve: async (id: string) => ({ id, status: 'past_due' }),
+  }
   customers = {
     retrieve: async () => ({ deleted: false, email: 'noen@elkjop.test' }),
     listPaymentMethods: async () => ({ data: [{ id: 'pm_1' }] }),
@@ -172,6 +189,9 @@ beforeEach(() => {
   state.orgUpdates = []
   state.sent = []
   state.errors = []
+  state.stripeSubs = []
+  state.listThrows = false
+  state.listCalls = 0
   console.error = (...args: unknown[]) => { state.errors.push(args.map(String).join(' ')) }
 })
 
@@ -259,5 +279,79 @@ test('deleted varsler både admins og ansatte, hver med sin tekst', async () => 
   assert.equal(
     state.sent.filter(e => e.to === 'ansatt1@elkjop.test').length, 1,
     'ansatte får ansatt-teksten, ikke admin-teksten',
+  )
+})
+
+// ── Stale-vakten i updated-grenen (29. juli 2026) ──────────────────────────
+// Reaktiveringsracet: org-checkout kansellerer det gamle abonnementet før den
+// lager en ny checkout-sesjon. Kommer den gamle updated-hendelsen for sent —
+// Stripe-retry eller ute av rekkefølge — matchet den kun på stripe_customer_id
+// og låste en org som nettopp hadde betalt.
+//
+// MUTASJONSBEVIS (verifisert manuelt):
+//   * Fjernes vakten (orgVerdict alltid 'process'), feiler «sent updated fra
+//     ERSTATTET abonnement …» — orgen låses og hele bedriften får e-post.
+//   * Byttes 'ignore' til å også gjelde når det lagrede abonnementet er dødt,
+//     feiler «adopsjon …».
+//   * Fail-open-grenen (liveSubIds === null → ignore i stedet for process)
+//     feiler «Stripe-oppslaget feilet → behandles som før».
+
+const SUB_ERSTATTET = 'sub_gammelt_kansellert'
+
+test('sent updated fra ERSTATTET abonnement låser IKKE en org som lever videre', async () => {
+  // Org-en kjører på SUB (nytt, aktivt). Den gamle, kansellerte hendelsen
+  // ankommer nå.
+  state.stripeSubs = [{ id: SUB, status: 'active' }]
+  state.event = updatedEvent('canceled')
+  ;(state.event.data as { object: { id: string } }).object.id = SUB_ERSTATTET
+  await call()
+  console.error = originalError
+
+  assert.equal(state.listCalls, 1, 'ulike id-er skal utløse ett Stripe-oppslag')
+  assert.deepEqual(state.orgUpdates, [], 'ingenting skal skrives på org-en')
+  assert.equal(state.sent.length, 0, 'hverken ansatte eller admin skal varsles om en feilaktig lås')
+})
+
+test('ekte updated fra GJELDENDE abonnement låser fortsatt som normalt', async () => {
+  state.event = updatedEvent('past_due')
+  await call()
+  console.error = originalError
+
+  assert.equal(state.listCalls, 0, 'like id-er skal ikke koste en ekstra rundtur')
+  assert.ok(
+    state.orgUpdates.some(u => u.subscription_status === 'locked'),
+    'en ekte forfalt org skal fortsatt låses',
+  )
+  assert.ok(state.sent.length > 0, 'og de berørte skal fortsatt varsles')
+})
+
+test('adopsjon: lagret abonnement er dødt → hendelsen behandles og id-en rettes', async () => {
+  state.org!.stripe_subscription_id = SUB_ERSTATTET
+  state.stripeSubs = [{ id: SUB, status: 'active' }]
+  state.event = updatedEvent('active')
+  await call()
+  console.error = originalError
+
+  const upd = state.orgUpdates.at(-1)
+  assert.equal(upd?.subscription_status, 'active', 'hendelsen skal behandles')
+  assert.equal(upd?.stripe_subscription_id, SUB, 'pekeren skal rettes til det reelle abonnementet')
+})
+
+test('Stripe-oppslaget feilet → behandles som før vakten fantes (fail-open)', async () => {
+  // Lagret id ≠ hendelsens id, så vakten SKAL slå opp — og oppslaget feiler.
+  state.org!.stripe_subscription_id = SUB_ERSTATTET
+  state.listThrows = true
+  state.event = updatedEvent('past_due')
+  await call()
+  console.error = originalError
+
+  assert.equal(state.listCalls, 1, 'oppslaget skal faktisk ha vært forsøkt')
+  assert.ok(
+    state.orgUpdates.some(u => u.subscription_status === 'locked'),
+    'usikkerhet skal ikke gjøre oss stille om en mulig ekte forfallelse',
+  )
+  assert.ok(
+    !state.orgUpdates.some(u => 'stripe_subscription_id' in u),
+    'uten svar fra Stripe skal pekeren stå urørt — vi adopterer ikke i blinde',
   )
 })
