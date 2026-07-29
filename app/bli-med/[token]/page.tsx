@@ -4,15 +4,20 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { signInWithGoogle } from '@/lib/auth'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
+import AuthForm from '@/components/AuthForm'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
-import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import type { Session } from '@supabase/supabase-js'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
 type InviteInfo = { valid: true; orgName: string; orgSlug: string } | { valid: false; error: string }
+
+// Invitasjonen peker på en organisasjon som brukeren allerede er sperret fra å
+// bli med i (medlem av en ANNEN org). Join-ruten sender med navn og slug på den
+// eksisterende orgen, slik at blindveien får en utvei i stedet for bare en rød
+// boks — se «Forlat organisasjon» på /org/[slug].
+type BlockedByOrg = { orgName: string | null; orgSlug: string | null }
 
 export default function BliMedPage() {
   const { token } = useParams<{ token: string }>()
@@ -23,7 +28,7 @@ export default function BliMedPage() {
   const [inviteLoading, setInviteLoading] = useState(true)
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState('')
-  const [alreadyMember, setAlreadyMember] = useState(false)
+  const [alreadyMember, setAlreadyMember] = useState<BlockedByOrg | null>(null)
 
   // Load invite info (public, no auth needed)
   useEffect(() => {
@@ -42,6 +47,19 @@ export default function BliMedPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Fallback hvis OAuth-runden mister ?next=. Settes så snart vi VET at brukeren
+  // er utlogget — ikke lenger bare i Google-knappens onClick, siden innloggingen
+  // nå kan starte fra tre likestilte metoder i AuthForm.
+  //
+  // Merk at nøkkelen bor i localStorage og derfor kun hjelper i SAMME nettleser.
+  // Åpner brukeren en magic link på en annen enhet, er det `next=` i selve
+  // lenken (håndtert server-side av /api/auth/bekreft) som tar dem tilbake hit.
+  useEffect(() => {
+    if (session === null && token) {
+      localStorage.setItem(PENDING_ACTION_KEY, `org_join:${token}`)
+    }
+  }, [session, token])
+
   const handleJoin = async () => {
     if (!session || !token) return
     setJoining(true)
@@ -52,7 +70,11 @@ export default function BliMedPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await res.json()
-      if (res.status === 409) { setAlreadyMember(true); return }
+      if (res.status === 409) {
+        localStorage.removeItem(PENDING_ACTION_KEY)
+        setAlreadyMember({ orgName: data.currentOrgName ?? null, orgSlug: data.currentOrgSlug ?? null })
+        return
+      }
       if (!res.ok) { setJoinError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
       if (data.slug) {
         // Clear pending fallback now that join succeeded
@@ -99,7 +121,7 @@ export default function BliMedPage() {
             <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
               {invite && !invite.valid ? (invite as { valid: false; error: string }).error : 'Invitasjonslenken er ikke gyldig.'}
             </p>
-            <Link href="/" style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none' }}>
+            <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
               ← Tilbake til forsiden
             </Link>
           </div>
@@ -117,55 +139,60 @@ export default function BliMedPage() {
       <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
         <div style={{ maxWidth: 420, width: '100%' }}>
 
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 32px', textAlign: 'center' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 32px' }}>
 
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round"/>
-                <circle cx="9" cy="7" r="4" stroke="#c9a84c" strokeWidth="2"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
+            {/* Invitasjonskontekst — sentrert, uavhengig av innloggingstilstand */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round"/>
+                  <circle cx="9" cy="7" r="4" stroke="#c9a84c" strokeWidth="2"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="#c9a84c" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
+                Invitasjon
+              </p>
+              <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+                Bli med i<br /><em style={{ fontStyle: 'italic', color: '#c9a84c' }}>{orgName}</em>
+              </h1>
+              <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 28, lineHeight: 1.6 }}>
+                Du inviteres til bedriftens quiz-liga. Alle deltakere får Premium-tilgang inkludert.
+              </p>
             </div>
 
-            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
-              Invitasjon
-            </p>
-            <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
-              Bli med i<br /><em style={{ fontStyle: 'italic', color: '#c9a84c' }}>{orgName}</em>
-            </h1>
-            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 28, lineHeight: 1.6 }}>
-              Du inviteres til bedriftens quiz-liga. Alle deltakere får Premium-tilgang inkludert.
-            </p>
-
             {alreadyMember ? (
-              <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13, color: '#f87171', lineHeight: 1.5 }}>
-                Du er allerede medlem av en organisasjon.
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#f87171', lineHeight: 1.5 }}>
+                  {alreadyMember.orgName
+                    ? `Du er allerede medlem av ${alreadyMember.orgName}. En konto kan bare være med i én bedrift om gangen.`
+                    : 'Du er allerede medlem av en organisasjon. En konto kan bare være med i én bedrift om gangen.'}
+                </div>
+                {alreadyMember.orgSlug && (
+                  <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6 }}>
+                    Vil du bytte?{' '}
+                    <Link href={`/org/${alreadyMember.orgSlug}`} style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+                      Forlat {alreadyMember.orgName ?? 'organisasjonen'} først
+                    </Link>
+                    , og åpne denne lenken på nytt.
+                  </p>
+                )}
               </div>
             ) : !session ? (
-              <>
-                <InAppBrowserWarning />
-                <button
-                  onClick={() => {
-                    // Store fallback in case OAuth drops the ?next= param
-                    localStorage.setItem(PENDING_ACTION_KEY, `org_join:${token}`)
-                    signInWithGoogle(`/bli-med/${token}`)
-                  }}
-                  style={{ width: '100%', background: '#ffffff', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                    <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
-                    <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
-                    <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
-                    <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
-                  </svg>
-                  Logg inn med Google
-                </button>
-                <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
-                  Du sendes tilbake til denne siden etter innlogging
+              /* Samme innloggingsskjema som /login og toppnavigasjonen — Google,
+                 passord OG magic link. Tidligere sto det kun en Google-knapp her,
+                 så en ansatt uten Google-konto kom aldri inn i bedriften sin.
+                 next= tar brukeren tilbake hit uansett hvilken metode de velger. */
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+                  Logg inn eller opprett en konto for å bli med.
                 </p>
-              </>
+                <div style={{ height: 1, background: '#2a2d38', marginBottom: 24 }} />
+                <AuthForm next={`/bli-med/${token}`} variant="modal" />
+              </div>
             ) : (
-              <>
+              <div style={{ textAlign: 'center' }}>
                 <button
                   onClick={handleJoin}
                   disabled={joining}
@@ -179,7 +206,7 @@ export default function BliMedPage() {
                     {joinError}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
           </div>

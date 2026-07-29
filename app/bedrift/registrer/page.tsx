@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { signInWithGoogle } from '@/lib/auth'
+import AuthForm from '@/components/AuthForm'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
-import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import type { Session } from '@supabase/supabase-js'
 
 const STORAGE_KEY = 'qk-bedrift-pending'
@@ -84,10 +83,22 @@ export default function BedriftRegistrerPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const saveAndLogin = () => {
+  // Bevar skjemaet over innloggingsrunden. Tidligere ble dette lagret i ett
+  // punkt — Google-knappens onClick. Nå kan innloggingen starte fra tre
+  // likestilte metoder inne i AuthForm, og passord-innlogging navigerer ikke i
+  // det hele tatt, så vi lagrer kontinuerlig mens brukeren er utlogget i stedet
+  // for å hekte lagringen på én bestemt knapp.
+  //
+  // sessionStorage lever per fane. Åpner brukeren en magic link på en ANNEN
+  // enhet, er utkastet borte og de fyller inn navnet på nytt — derfor bærer
+  // også next= med seg valgt plan, så de i det minste lander riktig sted.
+  // `session === null` betyr BEKREFTET utlogget. `undefined` er «vet ikke ennå»
+  // og må ikke skrive: da ville første render overskrevet et lagret utkast med
+  // et tomt skjema før getSession() rekker å svare og gjenopprette det.
+  useEffect(() => {
+    if (session !== null) return
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ orgName, plan, promoCode: validatedCode?.code ?? '' }))
-    signInWithGoogle('/bedrift/registrer')
-  }
+  }, [session, orgName, plan, validatedCode])
 
   const planLabel = (id: string) => PLANS.find(p => p.id === id)?.label ?? id
 
@@ -127,7 +138,10 @@ export default function BedriftRegistrerPage() {
 
   const handleSubmit = async () => {
     if (!orgName.trim()) { setError('Oppgi et bedriftsnavn.'); return }
-    if (!session) { saveAndLogin(); return }
+    // Nås kun via Enter i navnefeltet mens brukeren er utlogget — betalings-
+    // knappene rendres ikke da. Peker på skjemaet under i stedet for å starte
+    // én bestemt innloggingsmetode på brukerens vegne.
+    if (!session) { setError('Logg inn nederst på siden for å fortsette.'); return }
 
     setLoading(true)
     setError('')
@@ -152,7 +166,7 @@ export default function BedriftRegistrerPage() {
 
   const handleTrial = async () => {
     if (!orgName.trim()) { setError('Oppgi et bedriftsnavn.'); return }
-    if (!session) { saveAndLogin(); return }
+    if (!session) { setError('Logg inn nederst på siden for å fortsette.'); return }
 
     setTrialLoading(true)
     setError('')
@@ -344,22 +358,19 @@ export default function BedriftRegistrerPage() {
             <div style={{ height: 1, background: '#2a2d38', margin: '24px 0' }} />
 
             {!session ? (
+              /* Samme innloggingsskjema som /login og toppnavigasjonen — Google,
+                 passord OG magic link. Tidligere sto det kun en Google-knapp her,
+                 så en bedrift uten Google-kontoer kunne ikke registrere seg.
+                 InAppBrowserWarning ligger inne i AuthForm — ikke dupliser den.
+                 next= bærer med seg valgt plan, slik at en magic link åpnet på en
+                 annen enhet i det minste lander på riktig plan. */
               <>
-                <InAppBrowserWarning />
-                <button
-                  onClick={saveAndLogin}
-                  style={{ width: '100%', background: '#ffffff', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                    <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
-                    <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
-                    <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
-                    <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
-                  </svg>
-                  Logg inn med Google for å fortsette
-                </button>
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-                  Skjemaet er lagret — du sendes til betaling etter innlogging
+                <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20, textAlign: 'center' }}>
+                  Logg inn eller opprett en konto for å fortsette.
+                </p>
+                <AuthForm next={`/bedrift/registrer?plan=${plan}`} onSuccess={() => { /* bli på siden — auth-lytteren over avdekker betalingsvalgene */ }} variant="modal" />
+                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+                  Skjemaet er lagret — du kommer tilbake hit etter innlogging
                 </p>
               </>
             ) : validatedCode ? (
