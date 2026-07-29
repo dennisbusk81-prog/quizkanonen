@@ -419,15 +419,37 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
  * feil forklaring på arbeidsgiverens vegne. Premium-setningen er betinget
  * («hadde du»), fordi et medlem kan ha egen dekning via verdikode eller eget
  * abonnement som overlever låsingen.
+ *
+ * `graceUntil` (29. juli 2026): ved en UFRIVILLIG lås — utløpt trial eller
+ * avvist kort — beholder de ansatte Premium i 7 dager, og da er «du har nå
+ * mistet den tilgangen» rett og slett usant. Samme mønster som
+ * `orgRemovedEmail`, som har tatt en valgfri grace-dato siden før. Er den null,
+ * er teksten uendret fra før — det er den bevisste oppsigelsen, der tilgangen
+ * faktisk forsvant i samme øyeblikk.
  */
-export function orgAccessEndedEmail(orgNameRaw: string): string {
+export function orgAccessEndedEmail(orgNameRaw: string, graceUntil?: string | null): string {
   const orgName = escapeHtml(orgNameRaw)
+  const title = graceUntil
+    ? `Tilgangen gjennom ${orgName} avsluttes snart`
+    : `Tilgangen gjennom ${orgName} er avsluttet`
+  const premiumBlock = graceUntil
+    ? `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                <strong style="color:#ffffff;">${orgName}</strong> sin avtale med Quizkanonen er ikke lenger aktiv.
+                Hadde du Premium gjennom bedriften, beholder du den frem til ${formatNorwegianDate(graceUntil)}.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Ordner bedriften opp i mellomtiden, fortsetter alt som f&oslash;r &mdash; da trenger du ikke gj&oslash;re noe.
+              </p>`
+    : `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                <strong style="color:#ffffff;">${orgName}</strong> sin avtale med Quizkanonen er ikke lenger aktiv.
+                Hadde du Premium gjennom bedriften, har du n&aring; mistet den tilgangen.
+              </p>`
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tilgangen gjennom ${orgName} er avsluttet — Quizkanonen</title>
+  <title>${title} — Quizkanonen</title>
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
@@ -451,17 +473,14 @@ export function orgAccessEndedEmail(orgNameRaw: string): string {
 
               <!-- Title -->
               <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
-                Tilgangen gjennom ${orgName} er avsluttet
+                ${title}
               </p>
 
               <!-- Divider -->
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
-              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
-                <strong style="color:#ffffff;">${orgName}</strong> sin avtale med Quizkanonen er ikke lenger aktiv.
-                Hadde du Premium gjennom bedriften, har du n&aring; mistet den tilgangen.
-              </p>
+              ${premiumBlock}
               <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Din personlige profil, quizhistorikk og sesong-poeng er intakt, og du kan
                 fortsatt spille ukens quiz som vanlig.
@@ -497,6 +516,184 @@ export function orgAccessEndedEmail(orgNameRaw: string): string {
             </td>
           </tr>
           ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+/**
+ * Påminnelse til ANSATTE et par dager før lås-grace utløper (29. juli 2026).
+ *
+ * Sendes kun i de to ufrivillige tilfellene — en bevisst oppsigelse gir ingen
+ * grace, og dermed heller ingen påminnelse. Poenget er å gi den ansatte et
+ * reelt valg før tilgangen forsvinner, ikke å mase på arbeidsgiveren deres:
+ * derfor peker den på eget abonnement, ikke på «purre administratoren».
+ */
+export function orgGraceReminderEmail(orgNameRaw: string, graceUntil: string): string {
+  const orgName = escapeHtml(orgNameRaw)
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Premium gjennom ${orgName} utløper snart — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo / header -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Premium-tilgangen din utl&oslash;per snart
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Avtalen <strong style="color:#ffffff;">${orgName}</strong> hadde med Quizkanonen er ikke lenger aktiv.
+                Vi lot Premium-tilgangen din st&aring; en stund til, men den utl&oslash;per
+                ${formatNorwegianDate(graceUntil)}.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Ordner bedriften opp f&oslash;r det, fortsetter alt som f&oslash;r og du trenger ikke gj&oslash;re noe.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vil du beholde Premium uansett? Tegn ditt eget abonnement &mdash; kr 49/mnd,
+                fornyes automatisk til du selv avslutter. Profil, historikk og sesong-poeng
+                f&oslash;lger deg uansett hva du velger.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/premium"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se Premium
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Sp&oslash;rsm&aring;l om selve avtalen? Ta kontakt med den som administrerer Quizkanonen hos dere.<br />
+                Sp&oslash;rsm&aring;l ellers? Svar p&aring; denne e-posten.
+              </p>
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+/**
+ * Admin-versjonen av den samme påminnelsen.
+ *
+ * BEVISST IKKE en dublett av lås-e-posten: `orgAccessLockedEmail` /
+ * `orgCancelledEmail` gikk ut i det øyeblikket orgen ble låst og handlet om at
+ * betalingen stoppet. Denne handler om noe admin ikke er fortalt før — at de
+ * ansatte har hatt tilgangen i mellomtiden, og nøyaktig når den forsvinner.
+ * Det er det siste punktet der admin faktisk kan rekke å gjøre noe.
+ */
+export function orgGraceReminderAdminEmail(orgNameRaw: string, orgSlug: string, graceUntil: string): string {
+  const orgName = escapeHtml(orgNameRaw)
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>De ansatte mister Premium snart — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                De ansatte mister Premium ${formatNorwegianDate(graceUntil)}
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Bedriftstilgangen for <strong style="color:#ffffff;">${orgName}</strong> ble satt p&aring; pause,
+                men vi lot de ansatte beholde Premium en stund til. Den perioden er snart over.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; De ansatte har hatt full tilgang hele tiden</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Alle profiler, historikk og sesong-poeng er intakt uansett</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Ordner betalingen seg f&oslash;r fristen, merker ingen noe som helst</td></tr>
+              </table>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      G&aring; til bedriftssiden
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Stemmer ikke dette? Svar p&aring; denne e-posten, s&aring; ser vi p&aring; det.
+              </p>
+            </td>
+          </tr>
 
         </table>
       </td>

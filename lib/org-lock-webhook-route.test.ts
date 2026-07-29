@@ -42,6 +42,8 @@ const state: {
   stripeSubs: Array<{ id: string; status: string }>
   listThrows: boolean
   listCalls: number
+  /** Rekkefølgen på grace-skriving vs. premium-rekalkulering. */
+  trace: string[]
 } = {
   event: {},
   org: null,
@@ -53,6 +55,7 @@ const state: {
   stripeSubs: [],
   listThrows: false,
   listCalls: 0,
+  trace: [],
 }
 
 class MockStripe {
@@ -75,10 +78,18 @@ class MockStripe {
 }
 mock.module('stripe', { defaultExport: MockStripe })
 
+/**
+ * Lar én test simulere at grace-skrivingen feiler — typisk fordi migrasjon
+ * 20260737000000 ikke er kjørt ennå (42703). Kun grace-skrivingen rammes;
+ * selve låsen skal gå gjennom som normalt.
+ */
+let graceWriteShouldFail = false
+
 function builder(table: string) {
   // Filtrene registreres PER spørring, ikke globalt — flere ulike
   // organization_members-spørringer kjører i samme hendelse.
   const filters: Record<string, unknown> = {}
+  let isGraceUpdate = false
   const b = {
     select() { return b },
     eq(col: string, val: unknown) { filters[`eq:${col}`] = val; return b },
@@ -88,7 +99,14 @@ function builder(table: string) {
     insert() { return Promise.resolve({ error: null }) },
     delete() { return Promise.resolve({ error: null }) },
     update(values: Record<string, unknown>) {
-      if (table === 'organizations') state.orgUpdates.push(values)
+      if (table === 'organizations') {
+        isGraceUpdate = 'member_grace_until' in values
+        if (isGraceUpdate && graceWriteShouldFail) return b
+        state.orgUpdates.push(values)
+        if (isGraceUpdate) {
+          state.trace.push(values.member_grace_until ? 'grace-satt' : 'grace-ryddet')
+        }
+      }
       return b
     },
     maybeSingle() {
@@ -96,6 +114,9 @@ function builder(table: string) {
       return Promise.resolve({ data: null, error: null })
     },
     then(resolve: (v: unknown) => void) {
+      if (isGraceUpdate && graceWriteShouldFail) {
+        return resolve({ data: null, error: { code: '42703', message: 'column "member_grace_until" does not exist' } })
+      }
       if (table === 'organization_members') {
         let rows = state.members
         if (filters['eq:role']) rows = rows.filter(m => m.role === filters['eq:role'])
@@ -131,7 +152,11 @@ mock.module('@/lib/email', {
   },
 })
 
-mock.module('@/lib/premium-state-io', { namedExports: { syncPremiumCache: async () => {} } })
+mock.module('@/lib/premium-state-io', {
+  namedExports: {
+    syncPremiumCache: async () => { state.trace.push('recompute') },
+  },
+})
 mock.module('@/lib/org-premium', { namedExports: { hasActiveOrgPremium: async () => false } })
 
 const { POST } = await import('@/app/api/stripe/webhook/route')
@@ -157,11 +182,18 @@ function updatedEvent(status: string) {
   }
 }
 
-function deletedEvent() {
+function deletedEvent(reason: string | null = 'cancellation_requested') {
   return {
     id: `evt_del_${Math.random()}`,
     type: 'customer.subscription.deleted',
-    data: { object: { id: SUB, customer: CUSTOMER, status: 'canceled', cancellation_details: { reason: 'cancellation_requested' } } },
+    data: {
+      object: {
+        id: SUB,
+        customer: CUSTOMER,
+        status: 'canceled',
+        cancellation_details: { reason },
+      },
+    },
   }
 }
 
@@ -192,8 +224,12 @@ beforeEach(() => {
   state.stripeSubs = []
   state.listThrows = false
   state.listCalls = 0
+  state.trace = []
   console.error = (...args: unknown[]) => { state.errors.push(args.map(String).join(' ')) }
 })
+
+/** Grace-skrivingene på org-raden, i rekkefølge. */
+const graceWrites = () => state.orgUpdates.filter(u => 'member_grace_until' in u)
 
 // ── DEL 1: admin varsles ved past_due/unpaid, ikke bare ved deleted ────────
 
@@ -353,5 +389,169 @@ test('Stripe-oppslaget feilet → behandles som før vakten fantes (fail-open)',
   assert.ok(
     !state.orgUpdates.some(u => 'stripe_subscription_id' in u),
     'uten svar fra Stripe skal pekeren stå urørt — vi adopterer ikke i blinde',
+  )
+})
+
+// ── Grace-periode ved lås, differensiert etter årsak (29. juli 2026) ────────
+//
+// Beslutningen: en trial som løper ut uten kort og en ufrivillig betalingsfeil
+// gir 7 dagers grace til de ansatte; en admin som SELV sier opp gjør det ikke.
+// Den rene logikken er dekket i org-lock-grace.test.ts — her bevises at den
+// ekte webhooken faktisk skriver stempelet, i riktig rekkefølge, og at teksten
+// de ansatte får følger med.
+//
+// MUTASJONSBEVIS (verifisert manuelt):
+//   * Fjernes applyLockGrace-kallet fra deleted-grenen, feiler «trial utløper …».
+//   * Fjernes det fra updated-grenen, feiler «past_due gir grace …».
+//   * Droppes voluntary-sjekken i decideLockGrace (alltid grace), feiler
+//     «BEVISST oppsigelse …» — det er den ene testen som holder Dennis sin
+//     beslutning i hevd.
+//   * Flyttes applyLockGrace til ETTER recomputePremium, feiler
+//     «grace skrives før premium rekalkuleres» — og det ville i prod betydd at
+//     alle mistet Premium likevel, uten at noen test slo ut.
+//   * Fjernes overgangsvakten rundt grace, feiler «forlenges ikke …».
+//   * Fjernes clearLockGrace fra en av reaktiveringsgrenene, feiler den
+//     tilhørende ryddetesten.
+
+test('BEVISST oppsigelse låser fortsatt umiddelbart — ingen grace', async () => {
+  // Dennis sin beslutning, ordrett: admin som kansellerer aktivt i portalen
+  // skal miste tilgangen med én gang, som i dag.
+  state.event = deletedEvent('cancellation_requested')
+  await call()
+  console.error = originalError
+
+  assert.deepEqual(graceWrites(), [], 'ingen grace-kolonner skal skrives i det hele tatt')
+  assert.ok(
+    state.orgUpdates.some(u => u.subscription_status === 'locked'),
+    'orgen skal fortsatt låses umiddelbart',
+  )
+
+  const toAnsatt = state.sent.filter(e => e.to === 'ansatt1@elkjop.test')
+  assert.equal(toAnsatt.length, 1)
+  assert.match(
+    toAnsatt[0].subject,
+    /er avsluttet/,
+    'ansatt-teksten skal si at tilgangen ER borte, ikke at den avsluttes snart',
+  )
+})
+
+test('trial utløper uten kort → grace, selv når Stripe ikke oppgir noen grunn', async () => {
+  // org-founders-activate bruker trial_settings.end_behavior = 'cancel', og
+  // Stripe garanterer ikke cancellation_details.reason for den stien.
+  state.org!.subscription_status = 'trialing'
+  state.event = deletedEvent(null)
+  await call()
+  console.error = originalError
+
+  const writes = graceWrites()
+  assert.equal(writes.length, 1, 'grace skal skrives nøyaktig én gang')
+  assert.equal(writes[0].member_grace_reason, 'trial_expired')
+  assert.ok(
+    typeof writes[0].member_grace_until === 'string'
+      && new Date(writes[0].member_grace_until as string) > new Date(),
+    'grace-datoen skal ligge fram i tid',
+  )
+  assert.equal(writes[0].member_grace_reminded_at, null, 'dedupe-stempelet skal nullstilles')
+})
+
+test('past_due gir grace — de ansatte straffes ikke for et avvist kort', async () => {
+  state.event = updatedEvent('past_due')
+  await call()
+  console.error = originalError
+
+  const writes = graceWrites()
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].member_grace_reason, 'payment_failed')
+})
+
+test('ansatt-e-posten forteller om grace-perioden i stedet for at tilgangen er tapt', async () => {
+  state.event = updatedEvent('past_due')
+  await call()
+  console.error = originalError
+
+  const toAnsatt = state.sent.filter(e => e.to === 'ansatt1@elkjop.test')
+  assert.equal(toAnsatt.length, 1)
+  assert.match(toAnsatt[0].subject, /avsluttes snart/, 'emnet skal varsle, ikke konkludere')
+})
+
+test('grace skrives FØR premium rekalkuleres — ellers virker den ikke i det hele tatt', async () => {
+  // Hele mekanismen hviler på rekkefølgen: recomputePremium leser org-dekningen
+  // på nytt, og en låst org teller kun som dekning hvis grace-stempelet ALLEREDE
+  // står. Byttes rekkefølgen om, mister alle Premium likevel — helt stille.
+  state.event = updatedEvent('past_due')
+  await call()
+  console.error = originalError
+
+  assert.equal(state.trace[0], 'grace-satt', 'grace skal stemples først')
+  assert.ok(state.trace.includes('recompute'), 'og premium skal rekalkuleres etterpå')
+  assert.ok(
+    state.trace.indexOf('grace-satt') < state.trace.indexOf('recompute'),
+    'rekkefølgen er selve mekanismen, ikke en detalj',
+  )
+})
+
+test('grace forlenges ikke av de påfølgende hendelsene i samme låse-sekvens', async () => {
+  // past_due → unpaid → canceled → deleted er ÉN reell låsing. Uten
+  // overgangsvakten ville hver av dem gitt nye 7 dager, og perioden aldri tatt slutt.
+  state.org!.subscription_status = 'locked'
+  state.event = updatedEvent('unpaid')
+  await call()
+  console.error = originalError
+
+  assert.deepEqual(graceWrites(), [], 'en org som allerede er låst har fått sin grace')
+})
+
+test('en betalt checkout rydder grace — bedriften er frisk igjen', async () => {
+  state.event = {
+    id: `evt_co_${Math.random()}`,
+    type: 'checkout.session.completed',
+    data: { object: { id: 'cs_1', customer: CUSTOMER, subscription: SUB, metadata: { type: 'org', organization_id: 'org-elkjop' } } },
+  }
+  await call()
+  console.error = originalError
+
+  const writes = graceWrites()
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].member_grace_until, null, 'stempelet skal nullstilles')
+  assert.equal(writes[0].member_grace_reason, null)
+})
+
+test('en låst org som blir aktiv igjen rydder grace', async () => {
+  state.org!.subscription_status = 'locked'
+  state.event = updatedEvent('active')
+  await call()
+  console.error = originalError
+
+  const writes = graceWrites()
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].member_grace_until, null)
+})
+
+test('en org som ALLEREDE er aktiv koster ingen unødvendig grace-skriving', async () => {
+  state.event = updatedEvent('active')
+  await call()
+  console.error = originalError
+
+  assert.deepEqual(graceWrites(), [], 'ryddingen er gatet på at org-en faktisk sto som låst')
+})
+
+test('en feilet grace-skriving stopper hverken låsen eller varslingen', async () => {
+  // Migrasjonen ikke kjørt ennå (42703), eller en forbigående DB-feil. Da skal
+  // vi falle tilbake til oppførselen fra før grace fantes — ikke kaste en 500
+  // som utløser en evig Stripe-retry på hver eneste lås.
+  graceWriteShouldFail = true
+  state.event = updatedEvent('past_due')
+  const res = await call()
+  graceWriteShouldFail = false
+  console.error = originalError
+
+  assert.equal(res.status, 200, 'hendelsen skal kvitteres, ikke retryes i det uendelige')
+  assert.ok(
+    state.sent.some(e => e.to === 'ansatt1@elkjop.test'),
+    'de ansatte skal fortsatt varsles',
+  )
+  assert.ok(
+    state.errors.some(e => e.includes('kunne IKKE gi lås-grace')),
+    'og feilen skal være synlig i loggen, ikke svelget',
   )
 })

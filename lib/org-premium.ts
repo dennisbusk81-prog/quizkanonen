@@ -5,7 +5,9 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 //
 // Dekning regnes som aktiv hvis:
 //   1. Brukeren er inne i en org-premium grace-periode (org_premium_grace_until frem i tid), eller
-//   2. Brukeren er medlem av minst én organisasjon med subscription_status 'active' eller 'trialing'.
+//   2. Brukeren er medlem av minst én organisasjon med subscription_status 'active' eller 'trialing', eller
+//   3. Brukeren er medlem av en LÅST org som er inne i lås-grace
+//      (organizations.member_grace_until frem i tid — se lib/org-lock-grace.ts).
 //
 // Brukes for å unngå å sende betalingsfeil-/prøveperiode-påminnelse for et personlig
 // abonnement når brukeren uansett beholder tilgang via org — da mister de ingenting
@@ -53,9 +55,57 @@ export async function getOrgCoverage(userId: string): Promise<{
     .in('id', memberOrgIds)
     .in('subscription_status', ['active', 'trialing'])
 
+  // 3. Lås-grace (29. juli 2026). En org som ble låst ufrivillig — utløpt trial
+  //    eller avvist kort — beholder de ansattes Premium i 7 dager. Se
+  //    lib/org-lock-grace.ts for hvorfor de to tilfellene skiller lag fra en
+  //    bevisst oppsigelse.
+  //
+  //    EGEN SPØRRING, ikke en utvidelse av den over, og det er med vilje: går
+  //    denne i stå — typisk fordi migrasjon 20260737000000 ikke er kjørt ennå —
+  //    faller dekningen tilbake til nøyaktig dagens oppførsel i stedet for at
+  //    hele org-dekningen forsvinner for alle medlemmer samtidig. Det er den
+  //    ene feilen vi ikke har råd til her.
+  const lockGraceUntil = await getLockGraceUntil(memberOrgIds)
+
   return {
     orgIds: (orgs ?? []).map(o => o.id),
     orgNames: (orgs ?? []).map(o => o.name).filter(Boolean),
-    graceUntil,
+    // Den lengstlevende grace-perioden gjelder. En bruker kan i prinsippet ha
+    // begge samtidig: fjernet fra én org (profil-grace) mens en annen org de er
+    // medlem av blir låst.
+    graceUntil: laterOf(graceUntil, lockGraceUntil),
   }
+}
+
+/**
+ * Siste tidspunkt en av brukerens låste organisasjoner fortsatt dekker dem.
+ *
+ * Returnerer null både når ingen org har grace og når spørringen feilet — men
+ * en feil logges. Fail-safe mot dagens oppførsel, se merknaden hos kalleren.
+ */
+async function getLockGraceUntil(orgIds: string[]): Promise<string | null> {
+  const nowIso = new Date().toISOString()
+
+  const { data, error } = await supabaseAdmin
+    .from('organizations')
+    .select('member_grace_until')
+    .in('id', orgIds)
+    .eq('subscription_status', 'locked')
+    .gt('member_grace_until', nowIso)
+
+  if (error) {
+    console.error('[org-premium] kunne ikke lese lås-grace:', error.code, error.message)
+    return null
+  }
+
+  return (data ?? []).reduce<string | null>(
+    (latest, row) => laterOf(latest, row.member_grace_until as string | null),
+    null,
+  )
+}
+
+function laterOf(a: string | null, b: string | null): string | null {
+  if (!a) return b
+  if (!b) return a
+  return new Date(a) > new Date(b) ? a : b
 }

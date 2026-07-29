@@ -71,14 +71,79 @@ export function shouldNotifyAdminsOfDunningLock(
  * medlemmer (role !== 'admin'). Admin har allerede sin egen e-post
  * (`orgCancelledEmail`) og skal ikke få begge.
  *
+ * `graceUntil` (29. juli 2026): er låsen UFRIVILLIG — utløpt trial eller avvist
+ * kort — beholder de ansatte Premium i 7 dager, og da må teksten si det. Fram
+ * til nå sa denne e-posten alltid «du har nå mistet den tilgangen», som ville
+ * vært direkte usant i nettopp de to tilfellene. null = bevisst oppsigelse,
+ * uendret tekst.
+ *
  * Kaster ALDRI: kalles fra den betalingskritiske webhooken, og en feilende
  * e-post skal aldri rulle tilbake en låsing eller trigge en Stripe-retry.
  * Alt som går galt logges med `console.error` — ingenting svelges stille.
  */
+/**
+ * E-postadressene til medlemmene i en organisasjon.
+ *
+ * Trukket ut av notifyMembersOfOrgLock 29. juli 2026 fordi
+ * /api/cron/expire-grace-periods trenger nøyaktig samme oppslag for
+ * grace-påminnelsen — og en andre kopi av paginerings-logikken ville før eller
+ * siden kommet i utakt med denne.
+ *
+ * `null` = oppslaget feilet, som er noe annet enn «ingen medlemmer». Kalleren
+ * skal ikke tolke en feil som en tom bedrift.
+ *
+ * `memberCount` returneres ved siden av adressene fordi de to tilfellene er
+ * ulike: en org uten ordinære medlemmer er helt normal, mens medlemmer UTEN
+ * e-postadresse er en feil som skal logges.
+ */
+export async function getOrgMemberEmails(
+  organizationId: string,
+  options: { excludeAdmins?: boolean } = {},
+): Promise<{ memberCount: number; emails: string[] } | null> {
+  let query = supabaseAdmin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', organizationId)
+
+  if (options.excludeAdmins) query = query.neq('role', 'admin')
+
+  const { data: members, error: membersError } = await query
+
+  if (membersError) {
+    console.error(`[org-lock-notify] kunne ikke hente medlemmer org=${organizationId}:`, membersError.message)
+    return null
+  }
+
+  const memberIds = new Set((members ?? []).map(m => m.user_id as string))
+  if (memberIds.size === 0) return { memberCount: 0, emails: [] }
+
+  // Samme mønster som app/api/org/[slug]/send-reminder: én paginert
+  // listUsers framfor N getUserById-kall. En org på 50 medlemmer skal ikke
+  // koste 50 rundturer inne i en webhook.
+  const emails: string[] = []
+  let page = 1
+  while (true) {
+    const { data: authData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+    if (listErr) {
+      console.error(`[org-lock-notify] listUsers feilet org=${organizationId}:`, listErr.message)
+      break
+    }
+    const users = authData?.users ?? []
+    for (const u of users) {
+      if (u.email && memberIds.has(u.id)) emails.push(u.email)
+    }
+    if (users.length < 1000) break
+    page++
+  }
+
+  return { memberCount: memberIds.size, emails }
+}
+
 export async function notifyMembersOfOrgLock(
   organizationId: string,
   orgName: string | null,
   context: string,
+  graceUntil: string | null = null,
 ): Promise<void> {
   try {
     if (!orgName) {
@@ -86,53 +151,30 @@ export async function notifyMembersOfOrgLock(
       return
     }
 
-    const { data: members, error: membersError } = await supabaseAdmin
-      .from('organization_members')
-      .select('user_id')
-      .eq('organization_id', organizationId)
-      .neq('role', 'admin')
+    const lookup = await getOrgMemberEmails(organizationId, { excludeAdmins: true })
+    if (lookup === null) return
 
-    if (membersError) {
-      console.error(`[org-lock-notify] kunne ikke hente medlemmer org=${organizationId}:`, membersError.message)
-      return
-    }
-
-    const memberIds = new Set((members ?? []).map(m => m.user_id as string))
-    if (memberIds.size === 0) return
-
-    // Samme mønster som app/api/org/[slug]/send-reminder: én paginert
-    // listUsers framfor N getUserById-kall. En org på 50 medlemmer skal ikke
-    // koste 50 rundturer inne i en webhook.
-    const emails: string[] = []
-    let page = 1
-    while (true) {
-      const { data: authData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
-      if (listErr) {
-        console.error(`[org-lock-notify] listUsers feilet org=${organizationId}:`, listErr.message)
-        break
-      }
-      const users = authData?.users ?? []
-      for (const u of users) {
-        if (u.email && memberIds.has(u.id)) emails.push(u.email)
-      }
-      if (users.length < 1000) break
-      page++
-    }
-
+    const { memberCount, emails } = lookup
+    if (memberCount === 0) return
     if (emails.length === 0) {
       console.error(
-        `[org-lock-notify] SKIPPED — fant ingen e-postadresser for ${memberIds.size} medlem(mer). ` +
+        `[org-lock-notify] SKIPPED — fant ingen e-postadresser for ${memberCount} medlem(mer). ` +
         `org=${organizationId} (${context})`
       )
       return
     }
 
-    const subject = `Tilgangen gjennom ${orgName} er avsluttet — Quizkanonen`
-    const html = orgAccessEndedEmail(orgName)
+    const subject = graceUntil
+      ? `Tilgangen gjennom ${orgName} avsluttes snart — Quizkanonen`
+      : `Tilgangen gjennom ${orgName} er avsluttet — Quizkanonen`
+    const html = orgAccessEndedEmail(orgName, graceUntil)
 
     const { sent } = await sendEmailToMany(emails, { subject, html }, `org-lock-notify org=${organizationId}`)
 
-    console.log(`[org-lock-notify] varslet ${sent}/${emails.length} ansatte org=${organizationId} (${context})`)
+    console.log(
+      `[org-lock-notify] varslet ${sent}/${emails.length} ansatte org=${organizationId} (${context}) ` +
+      `grace=${graceUntil ?? 'ingen'}`
+    )
   } catch (err) {
     console.error(`[org-lock-notify] uventet feil org=${organizationId} (${context}):`, err)
   }

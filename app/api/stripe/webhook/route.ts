@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgAccessLockedEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
 import { shouldNotifyMembersOfLock, shouldNotifyAdminsOfDunningLock, notifyMembersOfOrgLock } from '@/lib/org-lock-notify'
+import { decideLockGrace, CLEARED_GRACE, type LockGraceDecision } from '@/lib/org-lock-grace'
 import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
@@ -35,6 +36,76 @@ async function recomputePremium(userIds: string[], context: string, stripe?: Str
     } catch (err) {
       console.error(`[webhook] premium-rekalkulering feilet (${context}) user=${id}:`, err)
     }
+  }
+}
+
+// ── Grace-periode ved ufrivillig org-lås (29. juli 2026) ─────────────────────
+// Stempler grace-kolonnene på org-raden FØR medlemmenes premium rekalkuleres.
+// Rekkefølgen er hele mekanismen: `recomputePremium` under leser org-dekningen
+// på nytt via getOrgCoverage(), som teller en låst org med levende grace som
+// dekning — så medlemmene beholder Premium uten at én eneste profilrad røres her.
+//
+// EGEN SKRIVING, bevisst utenfor `assertCriticalWrite`: skrev vi grace i samme
+// UPDATE som selve låsen, ville en manglende kolonne (migrasjon 20260737000000
+// ikke kjørt ennå) gjort HVER lås til en kastet 500 og en evig Stripe-retry.
+// Feiler den her i stedet, faller vi tilbake til oppførselen fra før grace
+// fantes — de ansatte mister tilgangen med én gang, som i dag — og feilen
+// logges høylytt. Det er riktig vei å feile.
+async function applyLockGrace(
+  organizationId: string,
+  decision: LockGraceDecision,
+  context: string,
+): Promise<string | null> {
+  if (!decision.grace) {
+    console.log(
+      `[webhook] INGEN grace — bevisst oppsigelse, ansatte mister tilgangen nå. ` +
+      `org=${organizationId} (${context})`
+    )
+    return null
+  }
+
+  const { error } = await supabaseAdmin.from('organizations')
+    .update({
+      member_grace_until: decision.until,
+      member_grace_reason: decision.reason,
+      // Nullstilles eksplisitt: en org som låses på nytt etter en tidligere
+      // grace skal få sin egen påminnelse, ikke arve et gammelt dedupe-stempel.
+      member_grace_reminded_at: null,
+    })
+    .eq('id', organizationId)
+
+  if (error) {
+    console.error(
+      `[webhook] kunne IKKE gi lås-grace — de ansatte mister tilgangen umiddelbart. ` +
+      `org=${organizationId} (${context}) årsak=${decision.reason}:`,
+      error.code, error.message,
+    )
+    return null
+  }
+
+  console.log(
+    `[webhook] lås-grace til ${decision.until} (${decision.reason}) org=${organizationId} (${context})`
+  )
+  return decision.until
+}
+
+// Rydder grace når org-en blir frisk igjen. Samme ikke-kritiske mønster og
+// samme begrunnelse som applyLockGrace.
+//
+// Coverage-siden tåler et etterlatt stempel i seg selv (getOrgCoverage teller
+// kun grace på orger som FAKTISK står som 'locked'), og påminnelses-cronen
+// filtrerer på det samme. Ryddingen finnes for at kolonnene ikke skal lyve om
+// tilstanden til den som leser dem.
+async function clearLockGrace(organizationId: string, context: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('organizations')
+    .update(CLEARED_GRACE)
+    .eq('id', organizationId)
+
+  if (error) {
+    console.error(
+      `[webhook] kunne ikke rydde lås-grace org=${organizationId} (${context}):`,
+      error.code, error.message,
+    )
   }
 }
 
@@ -244,6 +315,11 @@ export async function POST(request: NextRequest) {
       }).eq('id', organizationId)
       assertCriticalWrite(orgUpdateError, `checkout org-update org=${organizationId}`)
 
+      // Betalingen er i havn — en eventuell lås-grace er ikke lenger sann.
+      // Ubetinget: en fullført org-checkout er en sjelden hendelse, og vi vet
+      // ikke fra denne grenen hva statusen var før.
+      await clearLockGrace(organizationId, 'checkout')
+
       // Activate premium for all current members — single batch update
       const { data: members } = await supabaseAdmin
         .from('organization_members')
@@ -341,6 +417,10 @@ export async function POST(request: NextRequest) {
           .eq('id', orgForInvoice.id)
         assertCriticalWrite(orgRenewError, `invoice-fornyelse org-active org=${orgForInvoice.id}`)
 
+        // Pengene kom inn — samme rydding som ved checkout. Dette er også veien
+        // ut for en org som ble låst på past_due og deretter betalte.
+        await clearLockGrace(orgForInvoice.id, 'invoice.payment_succeeded')
+
         // send fornyelsesbekreftelse til ALLE org-admins
         getOrgAdminEmails(orgForInvoice.id)
           .then(({ emails, orgName, orgSlug }) => {
@@ -410,6 +490,25 @@ export async function POST(request: NextRequest) {
         .eq('id', org.id)
       assertCriticalWrite(orgLockError, `sub.deleted org-lock org=${org.id}`)
 
+      // ── Grace, differensiert etter årsak ────────────────────────────────
+      // Samme overgangsvakt som varslingen under, og det er ikke tilfeldig:
+      // én reell låsing kommer typisk som past_due → unpaid → canceled →
+      // deleted. Uten vakten ville hver av dem forlenget grace med nye 7
+      // dager, og perioden aldri tatt slutt.
+      const isLockTransition = shouldNotifyMembersOfLock(org.subscription_status, 'locked')
+      let graceUntil: string | null = null
+      if (isLockTransition) {
+        graceUntil = await applyLockGrace(
+          org.id,
+          decideLockGrace({
+            previousOrgStatus: org.subscription_status,
+            stripeStatus: subscription.status,
+            cancellationReason: subscription.cancellation_details?.reason ?? null,
+          }),
+          `sub.deleted org=${org.id}`,
+        )
+      }
+
       const { data: members } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
@@ -418,7 +517,8 @@ export async function POST(request: NextRequest) {
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
         // Rekalkuler i stedet for å slå av blindt: et medlem kan ha egen
-        // verdikode eller eget abonnement som fortsatt dekker dem.
+        // verdikode eller eget abonnement som fortsatt dekker dem — og etter
+        // skrivingen over også en levende grace på selve org-en.
         await recomputePremium(memberIds, `sub.deleted org=${org.id}`, stripe)
       }
 
@@ -428,8 +528,8 @@ export async function POST(request: NextRequest) {
       // (listUsers + e-postbatcher), og et serverless-miljø kan fryse
       // instansen straks responsen er sendt. Funksjonen kaster aldri, så den
       // kan ikke velte den betalingskritiske grenen.
-      if (shouldNotifyMembersOfLock(org.subscription_status, 'locked')) {
-        await notifyMembersOfOrgLock(org.id, org.name, 'sub.deleted')
+      if (isLockTransition) {
+        await notifyMembersOfOrgLock(org.id, org.name, 'sub.deleted', graceUntil)
       }
 
       // Send kanselleringsvarsel til ALLE org-admins — fire-and-forget
@@ -802,6 +902,13 @@ export async function POST(request: NextRequest) {
         .eq('id', org.id)
       assertCriticalWrite(orgUpdError, `sub.updated org-status org=${org.id}`)
 
+      // Org-en er frisk igjen. Gatet på at den FAKTISK sto som låst: denne
+      // hendelsestypen fyrer for alt mulig på et aktivt abonnement, og en
+      // ubetinget rydding ville kostet en skriving hver gang uten å endre noe.
+      if (org.subscription_status === 'locked' && (nextStatus === 'active' || nextStatus === 'trialing')) {
+        await clearLockGrace(org.id, `sub.updated ${status}`)
+      }
+
       // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
       if (nextStatus === 'active' || nextStatus === 'trialing' || nextStatus === 'locked') {
         const { data: members } = await supabaseAdmin
@@ -811,15 +918,30 @@ export async function POST(request: NextRequest) {
         const memberIds = (members ?? []).map(m => m.user_id)
         if (memberIds.length > 0) {
           if (nextStatus === 'locked') {
+            // `org.subscription_status` er snapshotet fra SELECT-en over, altså
+            // statusen FØR denne hendelsen skrev 'locked' — så past_due →
+            // unpaid → canceled gir én e-post og ÉN grace-periode, ikke tre.
+            const isLockTransition = shouldNotifyMembersOfLock(org.subscription_status, 'locked')
+            let graceUntil: string | null = null
+            if (isLockTransition) {
+              graceUntil = await applyLockGrace(
+                org.id,
+                decideLockGrace({
+                  previousOrgStatus: org.subscription_status,
+                  stripeStatus: status,
+                  cancellationReason: subscription.cancellation_details?.reason ?? null,
+                }),
+                `sub.updated ${status} org=${org.id}`,
+              )
+            }
+
             // Rekalkuler per medlem: org-dekningen faller bort, men en egen
-            // verdikode eller et eget abonnement skal ikke ryke med den.
+            // verdikode, et eget abonnement — eller grace-stempelet over —
+            // skal ikke ryke med den.
             await recomputePremium(memberIds, `sub.updated locked org=${org.id}`, stripe)
 
-            // Varsle de ansatte. `org.subscription_status` er snapshotet fra
-            // SELECT-en over, altså statusen FØR denne hendelsen skrev 'locked'
-            // — så past_due → unpaid → canceled gir én e-post, ikke tre.
-            if (shouldNotifyMembersOfLock(org.subscription_status, 'locked')) {
-              await notifyMembersOfOrgLock(org.id, org.name, `sub.updated ${status}`)
+            if (isLockTransition) {
+              await notifyMembersOfOrgLock(org.id, org.name, `sub.updated ${status}`, graceUntil)
             }
           } else {
             const { error: memberActivateErr } = await supabaseAdmin.from('profiles')
