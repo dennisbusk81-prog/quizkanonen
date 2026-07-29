@@ -103,6 +103,13 @@ export async function GET(request: NextRequest, { params }: Params) {
           .eq('is_team', false)
           .in('user_id', memberIds)
           .not('user_id', 'is', null)
+          // Et forsøk opprettes ved quiz-START (start-attempt setter
+          // correct_answers: 0, submitted_at: null). Uten dette filteret telte
+          // en som åpnet quizen og lukket fanen som deltaker: hen dukket opp
+          // med 0 riktige i «Siste quiz», og — verre — ble regnet som «har
+          // spilt» av påminnelsesknappen og fikk dermed ingen påminnelse.
+          // Samme filter som lib/weekly-report.ts og percentile-ruten (859e529).
+          .not('submitted_at', 'is', null)
       : Promise.resolve({ data: [] as LeaderRow[] }),
     supabaseAdmin
       .from('attempts')
@@ -110,7 +117,11 @@ export async function GET(request: NextRequest, { params }: Params) {
       .in('user_id', memberIds)
       .gte('completed_at', oneYearAgo.toISOString())
       .eq('is_team', false)
-      .not('user_id', 'is', null),
+      .not('user_id', 'is', null)
+      // Samme grunn som i leaderboard-spørringen over: uten dette holdt en uke
+      // der medlemmet bare ÅPNET quizen streaken i live i medlemslisten
+      // («streak: N uker»), som om hen hadde spilt.
+      .not('submitted_at', 'is', null),
   ])
 
   const nameMap = new Map((profilesRes.data ?? []).map(p => [p.id, p.display_name as string | null]))

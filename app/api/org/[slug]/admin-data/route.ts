@@ -86,17 +86,32 @@ export async function GET(
     .order('created_at', { ascending: false })
 
   // Stats: active members this month
+  //
+  // `.in('user_id', memberIds)` er nytt og nødvendig: season_scores-radene blir
+  // stående når noen slutter i bedriften, så en tidligere ansatt fortsatte å
+  // telle som «aktiv denne måneden» i det uendelige. Med nok utmeldte kunne
+  // activeThisMonth passere memberCount og gi over 100 % både i statistikk-
+  // stripen og i delingsteksten «Deltakelse: X av Y (Z%)».
+  // memberIds er begrenset av planens medlemstak (50 på Standard), altså trygt
+  // under .in()-grensen på ~390 id-er (lib/paginate.ts).
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
-  const { data: activeRows } = await supabaseAdmin
-    .from('season_scores')
-    .select('user_id')
-    .eq('scope_type', 'organization')
-    .eq('scope_id', org.id)
-    .gte('closes_at', monthStart)
-    .lt('closes_at', monthEnd)
-  const activeThisMonth = new Set((activeRows ?? []).map(r => r.user_id)).size
+  let activeThisMonth = 0
+  if (memberIds.length > 0) {
+    const { data: activeRows, error: activeErr } = await supabaseAdmin
+      .from('season_scores')
+      .select('user_id')
+      .eq('scope_type', 'organization')
+      .eq('scope_id', org.id)
+      .in('user_id', memberIds)
+      .gte('closes_at', monthStart)
+      .lt('closes_at', monthEnd)
+    // Fail-soft, men ikke stille: resten av admin-panelet (medlemmer, invitasjoner,
+    // abonnement) er uavhengig av dette tallet og skal ikke falle ned med det.
+    if (activeErr) console.error('[org/admin-data] season_scores-oppslag feilet:', activeErr.message)
+    activeThisMonth = new Set((activeRows ?? []).map(r => r.user_id)).size
+  }
 
   return NextResponse.json({
     org: {

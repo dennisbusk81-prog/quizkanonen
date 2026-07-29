@@ -150,7 +150,7 @@ function Avatar({ name, size = 36 }: { name: string; size?: number }) {
   )
 }
 
-function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue' | 'muted' }) {
+function Tag({ label, color, title }: { label: string; color: 'gold' | 'green' | 'blue' | 'muted'; title?: string }) {
   const map = {
     gold:  { bg: 'rgba(201,168,76,0.12)',  border: 'rgba(201,168,76,0.28)',  text: '#c9a84c' },
     green: { bg: 'rgba(74,222,128,0.10)',  border: 'rgba(74,222,128,0.25)',  text: '#4ade80' },
@@ -159,7 +159,7 @@ function Tag({ label, color }: { label: string; color: 'gold' | 'green' | 'blue'
   }
   const c = map[color]
   return (
-    <span style={{
+    <span title={title} style={{
       display: 'inline-flex', alignItems: 'center',
       fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
       padding: '2px 7px', borderRadius: 999,
@@ -291,7 +291,10 @@ export default function OrgAdminPage() {
   const [adminActionError, setAdminActionError]   = useState<string | null>(null)
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null)
 
-  type MemberActivity = { userId: string; displayName: string; role: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
+  // activeLast30Days styrer AKTIV-merket og er rullerende (levert quiz siste 30
+  // dager). hasPeriodScore følger måned/kvartal/år-fanen og hører til
+  // poeng-kolonnene — de to skal IKKE slås sammen igjen.
+  type MemberActivity = { userId: string; displayName: string; role: string; activeLast30Days: boolean; hasPeriodScore: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
   const [activityPeriod, setActivityPeriod] = useState<'month' | 'quarter' | 'year'>('month')
   const [activityData, setActivityData]     = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
@@ -304,6 +307,10 @@ export default function OrgAdminPage() {
   const [quizData, setQuizData]   = useState<QuizEntry[] | null>(null)
   const [quizTitle, setQuizTitle] = useState<string | null>(null)
   const [quizLoading, setQuizLoading] = useState(false)
+  // Skiller «ingen har spilt» fra «vi vet ikke hvem som har spilt». Uten dette
+  // ble en feilet quiz-scores-henting til en tom liste, og påminnelsesknappen
+  // ville regnet HELE bedriften som inaktiv og sendt e-post til alle.
+  const [quizError, setQuizError] = useState(false)
 
   // Reminder
   const [reminderSending, setReminderSending] = useState(false)
@@ -386,17 +393,19 @@ export default function OrgAdminPage() {
   const loadQuizLeaderboard = useCallback(async (orgId: string, token: string) => {
     setQuizLoading(true)
     setQuizData(null)
+    setQuizError(false)
     try {
       // attempts.user_id er ikke lenger lesbar med klient-nøkkelen — hentes
       // server-side (verifiserer org-admin) via /api/org/[slug]/quiz-scores.
       const res = await fetch(`/api/org/${orgId}/quiz-scores`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) { setQuizData([]); return }
+      if (!res.ok) { setQuizError(true); setQuizData([]); return }
       const json = await res.json() as { quizTitle: string | null; entries: QuizEntry[] }
       if (json.quizTitle) setQuizTitle(json.quizTitle)
       setQuizData(json.entries ?? [])
     } catch {
+      setQuizError(true)
       setQuizData([])
     } finally {
       setQuizLoading(false)
@@ -1036,8 +1045,15 @@ export default function OrgAdminPage() {
 
   const sendReminder = async () => {
     if (!session || !data || reminderSending) return
-    // Inactive = org members whose userId is NOT in the latest quiz results
-    const playedIds = new Set((quizData ?? []).map(e => e.userId))
+    // Mottakerne utledes av hvem som IKKE har levert siste quiz. Er ikke det
+    // kjent, sendes ingenting: alternativet er å mistolke «vet ikke» som
+    // «ingen har spilt» og sende e-post til hele bedriften.
+    if (quizError || quizData === null) {
+      setReminderMsg({ ok: false, text: 'Vet ikke hvem som har spilt ennå — last siden på nytt og prøv igjen.' })
+      setTimeout(() => setReminderMsg(null), 5000)
+      return
+    }
+    const playedIds = new Set(quizData.map(e => e.userId))
     const inactiveIds = data.members.map(m => m.user_id).filter(id => !playedIds.has(id))
     if (inactiveIds.length === 0) {
       setReminderMsg({ ok: false, text: 'Alle medlemmer har allerede spilt.' })
@@ -1180,6 +1196,15 @@ export default function OrgAdminPage() {
 
   // Activity map keyed by userId for quick lookup
   const activityMap    = new Map((activityData ?? []).map(m => [m.userId, m]))
+
+  // Antall som ikke har levert siste quiz — nøyaktig samme utregning som
+  // sendReminder bruker for mottakerlisten, slik at knappeteksten ikke kan
+  // vise et annet tall enn det som faktisk sendes.
+  // null = ikke kjent ennå (laster, eller hentingen feilet).
+  const playedLatestIds = new Set((quizData ?? []).map(e => e.userId))
+  const notPlayedCount = quizData === null || quizError
+    ? null
+    : (data?.members ?? []).filter(m => !playedLatestIds.has(m.user_id)).length
 
   // Filtered members for search
   const q = memberSearch.toLowerCase()
@@ -1559,7 +1584,16 @@ export default function OrgAdminPage() {
                     disabled={reminderSending}
                     style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '6px 14px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
-                    {reminderSending ? 'Sender...' : 'Send påminnelse til inaktive'}
+                    {/* Sa tidligere «Send påminnelse til inaktive». Ordet
+                        «inaktiv» betydde da noe annet enn AKTIV-merket rett
+                        under: admin så 20 grønne merker, trykket, og fikk
+                        «sendt til 18». Teksten sier nå nøyaktig hva knappen
+                        gjør, og tallet er samme utregning som mottakerlisten. */}
+                    {reminderSending
+                      ? 'Sender...'
+                      : notPlayedCount === null
+                        ? 'Minn på ukens quiz'
+                        : `Minn på ukens quiz (${notPlayedCount} har ikke spilt)`}
                   </button>
                 </div>
                 {reminderMsg && (
@@ -1629,7 +1663,9 @@ export default function OrgAdminPage() {
                         </span>
                         {isAdmin && <Tag label="Admin" color="gold" />}
                         {isMe && <Tag label="deg" color="muted" />}
-                        {activity?.hasPlayed && <Tag label="Aktiv" color="green" />}
+                        {activity?.activeLast30Days && (
+                          <Tag label="Aktiv" color="green" title="Har levert minst én quiz de siste 30 dagene" />
+                        )}
                         {member.scheduled_removal_at && (
                           <span style={{
                             display: 'inline-flex', alignItems: 'center',
@@ -1938,12 +1974,26 @@ export default function OrgAdminPage() {
                     {quizTitle ? `Siste quiz — ${quizTitle}` : 'Siste quiz'}
                   </p>
                   <span style={{ fontSize: 12, color: '#7a7873', flexShrink: 0, marginLeft: 8 }}>
-                    {(quizData ?? []).length} deltakere
+                    {quizError ? '—' : `${(quizData ?? []).length} deltakere`}
                   </span>
                 </div>
 
                 {quizLoading ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                ) : quizError ? (
+                  /* «Ingen har spilt ennå» ville vært en ren løgn her — vi vet
+                     ikke om noen har spilt, hentingen feilet. */
+                  <div style={{ padding: '28px 24px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 14, lineHeight: 1.5 }}>
+                      Kunne ikke hente resultatene fra siste quiz.
+                    </p>
+                    <button
+                      onClick={() => { if (data && session) loadQuizLeaderboard(data.org.id, session.access_token) }}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                    >
+                      Prøv igjen
+                    </button>
+                  </div>
                 ) : !quizData || quizData.length === 0 ? (
                   <div style={{ padding: '32px 24px', textAlign: 'center' }}>
                     <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#2a2d38" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 14, display: 'block', margin: '0 auto 14px' }}>
