@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkMemberCapacity } from '@/lib/org-plan'
 
 export async function GET(
   _request: NextRequest,
@@ -71,7 +72,7 @@ export async function POST(
   // Get org slug for redirect
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('slug')
+    .select('slug, name, plan')
     .eq('id', invite.organization_id)
     .maybeSingle()
 
@@ -110,6 +111,45 @@ export async function POST(
       currentOrgName: currentOrg?.name ?? null,
       currentOrgSlug: currentOrg?.slug ?? null,
     }, { status: 409 })
+  }
+
+  // ── Medlemsgrense for planen ────────────────────────────────────────────────
+  // Sjekkes ETTER «allerede medlem»-grenen over, slik at en som re-klikker sin
+  // egen invitasjon aldri blokkeres av en grense de allerede er innenfor.
+  //
+  // Grandfathering: en org som alt ligger over grensen mister ingen — den kan
+  // bare ikke ta inn flere. Ingen kodesti fjerner noen på grunn av en grense.
+  const { count: memberCount, error: memberCountErr } = await supabaseAdmin
+    .from('organization_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', invite.organization_id)
+
+  if (memberCountErr || memberCount == null) {
+    // Feiler lukket: uten et bekreftet medlemstall kan vi ikke vite om det er
+    // plass, og å slippe inn en for mange gir bedriften en plan de ikke betaler
+    // for. En kort forsinkelse for den som blir med er det mindre onde.
+    console.error(
+      `[org-join] kunne ikke telle medlemmer — org=${invite.organization_id}:`,
+      memberCountErr?.message ?? 'count var null',
+    )
+    return NextResponse.json(
+      { error: 'Kunne ikke bekrefte ledig plass akkurat nå. Prøv igjen om litt.' },
+      { status: 503 },
+    )
+  }
+
+  const capacity = checkMemberCapacity(org.plan, memberCount)
+  if (!capacity.ok) {
+    // Den som prøver å bli med kan ikke gjøre noe med dette selv — meldingen
+    // peker derfor på administratoren, ikke på en handling de ikke har.
+    console.warn(
+      `[org-join] avvist på medlemsgrense — org=${invite.organization_id} ` +
+      `plan=${org.plan} medlemmer=${memberCount} grense=${capacity.limit}`,
+    )
+    return NextResponse.json({
+      error: `${org.name ?? 'Bedriften'} har nådd medlemsgrensen i abonnementet sitt. Ta kontakt med administratoren, så kan de oppgradere planen eller frigjøre en plass.`,
+      code: 'member_limit_reached',
+    }, { status: 403 })
   }
 
   // Premium-overgang: LES det personlige abonnementet nå, men kanseller det

@@ -6,18 +6,13 @@ import { sendEmail } from '@/lib/email'
 import { orgTrialEmail } from '@/lib/email-templates'
 import { validateOrgName } from '@/lib/org-name'
 import { randomBytes } from 'crypto'
+import { PLAN_PRICES } from '@/lib/org-plan-prices'
 
 // B2B-trial: oppretter en organisasjon med gratis prøveperiode uten kortkrav.
 // Speiler founders-activate (B2C) for organisasjoner. Trial-lengden leses fra
 // site_settings (org_trial_days). Stripe kansellerer abonnementet automatisk hvis
 // kort ikke er lagt inn ved trial-slutt — da setter webhooket subscription_status
 // til 'locked' og org-sidene sperres til betaling.
-
-const PLAN_PRICES: Record<string, string | undefined> = {
-  starter:  process.env.STRIPE_ORG_STARTER_PRICE_ID,
-  standard: process.env.STRIPE_ORG_STANDARD_PRICE_ID,
-  pro:      process.env.STRIPE_ORG_PRO_PRICE_ID,
-}
 
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })

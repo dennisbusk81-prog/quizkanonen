@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
+import { planFromPriceId } from '@/lib/org-plan-prices'
 import {
   LIVE_SUBSCRIPTION_STATUSES,
   isStaleSubscriptionEvent,
@@ -750,8 +751,23 @@ export async function POST(request: NextRequest) {
       else if (status === 'active') nextStatus = 'active'
       else if (['past_due', 'unpaid', 'canceled', 'incomplete_expired'].includes(status)) nextStatus = 'locked'
 
+      // ── Plan-synk (sikkerhetsnett, 29. juli 2026) ───────────────────────────
+      // `organizations.plan` ble fram til nå KUN skrevet ved opprettelse.
+      // Endret noen prisen på abonnementet et annet sted enn vår egen
+      // change-plan-rute — typisk direkte i Stripe-dashbordet — ble kolonnen
+      // stående feil for alltid. Det ga feil MRR i admin-dashbordet, feil
+      // gating av ukesrapporten (plan === 'standard'), og feil medlemsgrense
+      // for kunden. Ukjente priser gir null og rører ikke kolonnen, slik at en
+      // pris vi ikke kjenner igjen aldri overskriver en plan vi vet er riktig.
+      const subPriceId = subscription.items?.data?.[0]?.price?.id ?? null
+      const mappedPlan = planFromPriceId(subPriceId)
+
       const { error: orgUpdError } = await supabaseAdmin.from('organizations')
-        .update({ ...(periodEnd ? { stripe_period_end: periodEnd } : {}), ...(nextStatus ? { subscription_status: nextStatus } : {}) })
+        .update({
+          ...(periodEnd ? { stripe_period_end: periodEnd } : {}),
+          ...(nextStatus ? { subscription_status: nextStatus } : {}),
+          ...(mappedPlan ? { plan: mappedPlan } : {}),
+        })
         .eq('id', org.id)
       assertCriticalWrite(orgUpdError, `sub.updated org-status org=${org.id}`)
 

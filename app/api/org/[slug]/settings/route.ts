@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { validateOrgName } from '@/lib/org-name'
 
 export async function PATCH(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function PATCH(
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id')
+    .select('id, name')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -38,7 +39,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
   }
 
-  let body: { allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null }
+  let body: { name?: unknown; allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
@@ -47,6 +48,22 @@ export async function PATCH(
   const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
   const update: Record<string, boolean | string | null> = {}
+
+  // Bedriftsnavn. Samme validering som ved opprettelse (org-checkout og
+  // org-founders-activate) — navnet havner i e-poster til både medlemmer og
+  // admin, så tegnsettet skal være like snevert her som der.
+  let previousName: string | null = null
+  if ('name' in body) {
+    const nameCheck = validateOrgName(body.name)
+    if (!nameCheck.ok) {
+      return NextResponse.json({ error: nameCheck.error }, { status: 400 })
+    }
+    if (nameCheck.value !== org.name) {
+      update.name = nameCheck.value
+      previousName = org.name
+    }
+  }
+
   if (typeof body.allow_global_league === 'boolean') update.allow_global_league = body.allow_global_league
   if (typeof body.admin_can_see_answers === 'boolean') update.admin_can_see_answers = body.admin_can_see_answers
   if (typeof body.weekly_report_timing === 'string' && WEEKLY_TIMINGS.includes(body.weekly_report_timing)) {
@@ -70,10 +87,42 @@ export async function PATCH(
   }
 
   if (Object.keys(update).length === 0) {
+    // Et navn som er sendt inn uendret er ikke en feil — da er det ingenting å
+    // gjøre, og admin skal ikke få en rød melding for å ha lagret det samme.
+    if ('name' in body) return NextResponse.json({ ok: true, unchanged: true })
     return NextResponse.json({ error: 'Ingenting å oppdatere' }, { status: 400 })
   }
 
-  await supabaseAdmin.from('organizations').update(update).eq('id', org.id)
+  // Feilsjekk på skrivingen. Denne manglet helt fram til 29. juli 2026: ruten
+  // svarte { ok: true } uansett utfall, så panelet viste «Innstilling lagret»
+  // også når ingenting ble lagret.
+  const { error: updateErr } = await supabaseAdmin
+    .from('organizations')
+    .update(update)
+    .eq('id', org.id)
+
+  if (updateErr) {
+    console.error(`[org-settings] oppdatering feilet — org=${org.id}:`, updateErr.message)
+    return NextResponse.json({ error: 'Kunne ikke lagre. Prøv igjen.' }, { status: 500 })
+  }
+
+  // Navneendring spores med både gammelt og nytt navn. Navnet står i alle
+  // e-poster vi sender på bedriftens vegne, så «hvem endret det, fra hva, når»
+  // er det eneste sporet hvis noen lurer i ettertid.
+  if (previousName !== null) {
+    try {
+      const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
+        user_id: user.id,
+        action_type: 'org_name_changed',
+        scope_type: 'organization',
+        scope_id: org.id,
+        details: { fra: previousName, til: update.name },
+      })
+      if (logErr) console.error('[org-settings] admin_actions-logging feilet', org.id, logErr.message)
+    } catch (err) {
+      console.error('[org-settings] admin_actions-logging kastet', org.id, err)
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

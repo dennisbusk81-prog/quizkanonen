@@ -11,6 +11,7 @@ import ScheduleRemovalModal from '@/components/ScheduleRemovalModal'
 import ResultsTable from '@/components/ResultsTable'
 import { isOrgLocked } from '@/lib/org-access'
 import { formatRemovalDate } from '@/lib/scheduled-removal'
+import { ORG_PLANS, PLAN_ORDER, getPlan, type OrgPlanId } from '@/lib/org-plan'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
@@ -256,6 +257,15 @@ export default function OrgAdminPage() {
 
   // Planlagt fjerning: hvilket medlem modalen gjelder, og feilmelding fra
   // «avbryt plan» (som kjøres uten modal — å avbryte er ufarlig og reversibelt).
+  // Bedriftsnavn (redigerbart) og planbytte
+  const [orgNameInput, setOrgNameInput]   = useState('')
+  const [savingName, setSavingName]       = useState(false)
+  const [nameSaved, setNameSaved]         = useState(false)
+  const [nameError, setNameError]         = useState<string | null>(null)
+  const [changingPlan, setChangingPlan]   = useState<OrgPlanId | null>(null)
+  const [planChangeError, setPlanChangeError] = useState<string | null>(null)
+  const [planChanged, setPlanChanged]     = useState<string | null>(null)
+
   const [scheduleTarget, setScheduleTarget]   = useState<Member | null>(null)
   const [cancellingPlanId, setCancellingPlanId] = useState<string | null>(null)
   const [planError, setPlanError]             = useState<string | null>(null)
@@ -470,6 +480,7 @@ export default function OrgAdminPage() {
         if (d) {
           setData(d)
           setAllowGlobal(d.org.allow_global_league)
+          setOrgNameInput(d.org.name)
           setReportTiming(d.org.weekly_report_timing ?? 'monday_morning')
           setOrgQuizOpensAt(d.org.org_quiz_opens_at ?? '')
           setOrgQuizClosesAt(d.org.org_quiz_closes_at ?? '')
@@ -600,6 +611,58 @@ export default function OrgAdminPage() {
       setPlanError('Kunne ikke avbryte planen. Prøv igjen.')
     } finally {
       setCancellingPlanId(null)
+    }
+  }
+
+  const saveOrgName = async () => {
+    if (!session) return
+    setSavingName(true)
+    setNameSaved(false)
+    setNameError(null)
+    try {
+      const res = await fetch(`/api/org/${slug}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ name: orgNameInput }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNameError(json?.error ?? 'Kunne ikke lagre navnet. Prøv igjen.')
+        return
+      }
+      setNameSaved(true)
+      setTimeout(() => setNameSaved(false), 2500)
+      loadData(session)
+    } catch {
+      setNameError('Kunne ikke lagre navnet. Prøv igjen.')
+    } finally {
+      setSavingName(false)
+    }
+  }
+
+  const changePlan = async (plan: OrgPlanId) => {
+    if (!session || changingPlan) return
+    setChangingPlan(plan)
+    setPlanChangeError(null)
+    setPlanChanged(null)
+    try {
+      const res = await fetch(`/api/org/${slug}/change-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ plan }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPlanChangeError(json?.error ?? 'Kunne ikke bytte plan. Prøv igjen.')
+        return
+      }
+      setPlanChanged(json.warning ?? `Planen er endret til ${json.planLabel ?? plan}.`)
+      setTimeout(() => setPlanChanged(null), 6000)
+      loadData(session)
+    } catch {
+      setPlanChangeError('Kunne ikke bytte plan. Prøv igjen.')
+    } finally {
+      setChangingPlan(null)
     }
   }
 
@@ -962,11 +1025,19 @@ export default function OrgAdminPage() {
   const activePercent  = memberCount > 0 ? Math.round((activeCount / memberCount) * 100) : 0
   const totalQuizzes   = activityData ? activityData.reduce((s, m) => s + m.quizCount, 0) : null
   const currentPlan    = data?.org.plan ?? ''
-  const planName       = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)
-  const upgradeHint    =
-    currentPlan === 'starter'  ? 'Oppgrader til Standard: opptil 25 deltakere + CSV-eksport' :
-    currentPlan === 'standard' ? 'Oppgrader til Pro for prioritert support og avanserte funksjoner.' :
-    null
+  const planMeta       = getPlan(currentPlan)
+  const planName       = planMeta?.label ?? (currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1))
+  const planLimit      = planMeta?.memberLimit ?? null
+  // Teksten sa tidligere «Oppgrader til Standard: opptil 25 deltakere» — 25 er
+  // Starter sin grense, ikke Standard sin (50). Tallene kommer nå fra ORG_PLANS,
+  // så visning og håndheving ikke kan komme i utakt igjen.
+  const upgradeHint    = planLimit !== null
+    ? `${planName} rommer ${planLimit} medlemmer. Bedriften har ${memberCount}.`
+    : null
+  // Planer admin kan bytte til selv. Pro og Enterprise avtales med oss.
+  const switchablePlans = PLAN_ORDER
+    .filter(p => ORG_PLANS[p].selfServe && p !== currentPlan)
+    .map(p => ORG_PLANS[p])
   const renewalDate    = data?.org.stripe_period_end
     ? new Date(data.org.stripe_period_end).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
@@ -1251,23 +1322,6 @@ export default function OrgAdminPage() {
                 >
                   {portalLoading ? 'Laster...' : 'Innstillinger'}
                 </button>
-                {currentPlan !== 'pro' && data?.org.subscription_status !== 'trialing' && (
-                  <Link
-                    href={`/kontakt`}
-                    style={{
-                      display: 'inline-block', padding: '8px 18px',
-                      background: memberCount === 1 ? 'transparent' : '#c9a84c',
-                      border: memberCount === 1 ? '1px solid #2a2d38' : 'none',
-                      borderRadius: 10,
-                      fontSize: 13, fontWeight: 700,
-                      color: memberCount === 1 ? '#e8e4dd' : '#1a1c23',
-                      fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Oppgrader →
-                  </Link>
-                )}
                 </div>
                 {data?.org.subscription_status === 'trialing' && (
                   <button
@@ -1283,6 +1337,52 @@ export default function OrgAdminPage() {
                 )}
               </div>
             </div>
+
+            {/* ── Bytt plan ─────────────────────────────────────────────────
+                Erstatter den tidligere «Oppgrader →»-lenken, som pekte på
+                /kontakt — en side som ikke finnes (404). Nedgradering under
+                medlemstallet blokkeres av ruten med en forklaring som sier
+                nøyaktig hvor mange som må fjernes først. */}
+            {switchablePlans.length > 0 && data?.org.subscription_status !== 'trialing' && (
+              <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: '#e8e4dd', whiteSpace: 'nowrap' }}>Bytt plan</span>
+                  {switchablePlans.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => changePlan(p.id)}
+                      disabled={!!changingPlan}
+                      style={{
+                        padding: '8px 18px', background: 'transparent',
+                        border: '1px solid #2a2d38', borderRadius: 10,
+                        fontSize: 13, fontWeight: 600, color: '#e8e4dd',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        cursor: changingPlan ? 'not-allowed' : 'pointer',
+                        opacity: changingPlan && changingPlan !== p.id ? 0.5 : 1,
+                        whiteSpace: 'nowrap', transition: 'border-color 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!changingPlan) e.currentTarget.style.borderColor = '#c9a84c' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
+                    >
+                      {changingPlan === p.id
+                        ? 'Bytter…'
+                        : `${p.label} — ${p.priceNok} kr/mnd${p.memberLimit !== null ? ` · ${p.memberLimit} medlemmer` : ''}`}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, lineHeight: 1.5 }}>
+                  Endringen slår inn med én gang. Du betaler eller krediteres differansen for resten av perioden.
+                </p>
+                {planChangeError && (
+                  <p style={{ fontSize: 13, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10, padding: '10px 14px', marginTop: 10, lineHeight: 1.5 }}>
+                    {planChangeError}
+                  </p>
+                )}
+                {planChanged && (
+                  <p style={{ fontSize: 13, color: '#4ade80', marginTop: 10 }}>{planChanged}</p>
+                )}
+              </div>
+            )}
 
             {/* Toggle row — inside banner, separated by a subtle divider */}
             <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1344,8 +1444,14 @@ export default function OrgAdminPage() {
                 className="oa-input"
                 style={{ flex: 1, fontSize: 13 }}
               />
-              <span style={{ fontSize: 12, color: '#7a7873', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {memberCount} deltaker{memberCount !== 1 ? 'e' : ''}
+              <span style={{
+                fontSize: 12,
+                color: planLimit !== null && memberCount >= planLimit ? '#f87171' : '#7a7873',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
+                {planLimit !== null
+                  ? `${memberCount} av ${planLimit} plasser`
+                  : `${memberCount} deltaker${memberCount !== 1 ? 'e' : ''}`}
               </span>
             </div>
 
@@ -1926,6 +2032,49 @@ export default function OrgAdminPage() {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              BEDRIFTSNAVN — kunne tidligere ikke endres i det hele tatt
+          ══════════════════════════════════════════════════════════════════ */}
+          <SectionLabel title="Bedriftsnavn" />
+
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
+            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 18 }}>
+              Navnet vises på bedriftstopplisten og i alle e-poster vi sender til de ansatte.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={orgNameInput}
+                onChange={e => { setOrgNameInput(e.target.value); setNameError(null) }}
+                onKeyDown={e => { if (e.key === 'Enter') saveOrgName() }}
+                maxLength={60}
+                className="oa-input"
+                style={{ flex: 1, minWidth: 200, fontSize: 14 }}
+              />
+              <button
+                onClick={saveOrgName}
+                disabled={savingName || !orgNameInput.trim() || orgNameInput.trim() === data?.org.name}
+                style={{
+                  padding: '10px 28px', background: 'transparent',
+                  border: '1px solid #e8e4dd', borderRadius: 10,
+                  fontSize: 13, fontWeight: 600, color: '#e8e4dd',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: savingName || !orgNameInput.trim() || orgNameInput.trim() === data?.org.name ? 'not-allowed' : 'pointer',
+                  opacity: savingName || !orgNameInput.trim() || orgNameInput.trim() === data?.org.name ? 0.5 : 1,
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {savingName ? 'Lagrer…' : 'Lagre navn'}
+              </button>
+            </div>
+            {nameSaved && (
+              <p style={{ fontSize: 13, color: '#4ade80', marginTop: 12 }}>Navnet er lagret</p>
+            )}
+            {nameError && (
+              <p style={{ fontSize: 13, color: '#f87171', marginTop: 12, lineHeight: 1.5 }}>{nameError}</p>
+            )}
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════

@@ -189,7 +189,7 @@ export default function BedriftPage() {
             <div className="pkg-desc" style={{ marginTop: 0 }}>Skreddersydde quizer, dedikert support og fakturering for større bedrifter.</div>
             <div className="pkg-divider"></div>
             <ul className="pkg-features">
-              <li><span className="check">✓</span>Ubegrenset antall ansatte</li>
+              <li><span className="check">✓</span>Ingen øvre grense på antall ansatte</li>
               <li><span className="check">✓</span>Skreddersydde quizer om egen bransje</li>
               <li><span className="check">✓</span>Dedikert support og faktura</li>
             </ul>

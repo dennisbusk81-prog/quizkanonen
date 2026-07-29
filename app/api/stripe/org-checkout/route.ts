@@ -4,12 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { randomBytes } from 'crypto'
 import { validateOrgName } from '@/lib/org-name'
-
-const PLAN_PRICES: Record<string, string | undefined> = {
-  starter:  process.env.STRIPE_ORG_STARTER_PRICE_ID,
-  standard: process.env.STRIPE_ORG_STANDARD_PRICE_ID,
-  pro:      process.env.STRIPE_ORG_PRO_PRICE_ID,
-}
+import { PLAN_PRICES } from '@/lib/org-plan-prices'
 
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })

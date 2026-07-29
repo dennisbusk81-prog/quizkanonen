@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { orgInviteEmail } from '@/lib/email-templates'
 import { rateLimit } from '@/lib/rate-limit'
 import { resolveInviteQuota } from '@/lib/invite-quota'
+import { checkMemberCapacity } from '@/lib/org-plan'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -71,7 +72,7 @@ export async function POST(
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('name, created_at, subscription_status')
+    .select('name, created_at, subscription_status, plan')
     .eq('id', organizationId)
     .maybeSingle()
 
@@ -96,6 +97,22 @@ export async function POST(
     .from('organization_members')
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', organizationId)
+
+  // ── Medlemsgrense for planen ────────────────────────────────────────────────
+  // Full org = ingen vits i å sende invitasjoner som uansett blir avvist ved
+  // join. Vi gater på om orgen ER full, ikke på hvor mange adresser admin
+  // limte inn: inviterer man 30 og 5 blir med, er det ikke en overskridelse.
+  // Den ekte grensen håndheves i join-ruten.
+  const capacity = checkMemberCapacity(org.plan, memberCount ?? 0)
+  if (!capacity.ok) {
+    return NextResponse.json({
+      error:
+        `${capacity.error} Oppgrader planen eller frigjør en plass før du inviterer flere.`,
+      code: 'member_limit_reached',
+      limit: capacity.limit,
+      memberCount: capacity.memberCount,
+    }, { status: 409 })
+  }
 
   const quota = resolveInviteQuota({
     subscriptionStatus: org.subscription_status,
