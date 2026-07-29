@@ -7,8 +7,10 @@ import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import LeaveOrgModal from '@/components/LeaveOrgModal'
+import ScheduleRemovalModal from '@/components/ScheduleRemovalModal'
 import ResultsTable from '@/components/ResultsTable'
 import { isOrgLocked } from '@/lib/org-access'
+import { formatRemovalDate } from '@/lib/scheduled-removal'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
@@ -87,6 +89,8 @@ type Member = {
   joined_at: string
   display_name: string
   nickname?: string | null
+  /** Satt = fjernes automatisk av /api/cron/scheduled-removals på datoen. */
+  scheduled_removal_at?: string | null
 }
 
 type Invite = {
@@ -249,6 +253,12 @@ export default function OrgAdminPage() {
   const [deleteOrgError, setDeleteOrgError]       = useState<string | null>(null)
 
   const [leaveOrgModal, setLeaveOrgModal]         = useState(false)
+
+  // Planlagt fjerning: hvilket medlem modalen gjelder, og feilmelding fra
+  // «avbryt plan» (som kjøres uten modal — å avbryte er ufarlig og reversibelt).
+  const [scheduleTarget, setScheduleTarget]   = useState<Member | null>(null)
+  const [cancellingPlanId, setCancellingPlanId] = useState<string | null>(null)
+  const [planError, setPlanError]             = useState<string | null>(null)
 
   const [portalLoading, setPortalLoading]         = useState(false)
   const [portalError, setPortalError]             = useState<string | null>(null)
@@ -566,6 +576,30 @@ export default function OrgAdminPage() {
       setRemoveMemberError('Kunne ikke fjerne medlemmet. Prøv igjen.')
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  // Avbryt en planlagt fjerning. Ingen bekreftelsesmodal: å avbryte gjør
+  // ingenting uopprettelig — det er å PLANLEGGE som er den farlige retningen.
+  const cancelScheduledRemoval = async (membershipId: string) => {
+    if (!session) return
+    setCancellingPlanId(membershipId)
+    setPlanError(null)
+    try {
+      const res = await fetch(`/api/org/members/${membershipId}/schedule-removal`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setPlanError(json?.error ?? 'Kunne ikke avbryte planen. Prøv igjen.')
+        return
+      }
+      loadData(session)
+    } catch {
+      setPlanError('Kunne ikke avbryte planen. Prøv igjen.')
+    } finally {
+      setCancellingPlanId(null)
     }
   }
 
@@ -958,6 +992,11 @@ export default function OrgAdminPage() {
   // håndhever sperren selv (409 last_admin) og er fasiten hvis rollene endrer
   // seg mens siden står åpen. Samme forhold som answer_key_locked: UI-et spør på
   // forhånd, 409-en er backstop for enhver annen kaller.
+  // Planlagte fjerninger, nærmeste dato først.
+  const scheduledRemovals = (data?.members ?? [])
+    .filter(m => !!m.scheduled_removal_at)
+    .sort((a, b) => (a.scheduled_removal_at ?? '').localeCompare(b.scheduled_removal_at ?? ''))
+
   const adminCount   = (data?.members ?? []).filter(m => m.role === 'admin').length
   const myRole       = (data?.members ?? []).find(m => m.user_id === data?.currentUserId)?.role
   const isLastAdmin  = myRole === 'admin' && adminCount <= 1
@@ -1343,6 +1382,17 @@ export default function OrgAdminPage() {
                         {isAdmin && <Tag label="Admin" color="gold" />}
                         {isMe && <Tag label="deg" color="muted" />}
                         {activity?.hasPlayed && <Tag label="Aktiv" color="green" />}
+                        {member.scheduled_removal_at && (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                            padding: '2px 7px', borderRadius: 999,
+                            background: 'rgba(248,113,113,0.10)', border: '1px solid rgba(248,113,113,0.28)',
+                            color: '#f87171', textTransform: 'uppercase', flexShrink: 0,
+                          }}>
+                            Fjernes {formatRemovalDate(member.scheduled_removal_at)}
+                          </span>
+                        )}
                       </div>
                       <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
                         {member.nickname?.trim() && <>{member.display_name} · </>}
@@ -1377,6 +1427,14 @@ export default function OrgAdminPage() {
                             Gjør admin
                           </button>
                         ) : null}
+                        {!member.scheduled_removal_at && (
+                          <button
+                            onClick={() => setScheduleTarget(member)}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          >
+                            Planlegg
+                          </button>
+                        )}
                         <button
                           onClick={() => removeMember(member.id, member.nickname?.trim() || member.display_name)}
                           disabled={removingId === member.id}
@@ -1540,6 +1598,59 @@ export default function OrgAdminPage() {
             </div>
 
           </div>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              PLANLAGT FJERNING — vises kun når noe faktisk er planlagt
+          ══════════════════════════════════════════════════════════════════ */}
+          {scheduledRemovals.length > 0 && (
+            <>
+              <SectionLabel title="Planlagt fjerning" />
+              <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, overflow: 'hidden' }}>
+                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, padding: '16px 18px', borderBottom: '1px solid #2a2d38' }}>
+                  Disse fjernes automatisk på datoen. Du kan avbryte eller endre dato helt fram til den utløser.
+                </p>
+
+                {scheduledRemovals.map((m, idx) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
+                      borderBottom: idx === scheduledRemovals.length - 1 ? 'none' : '1px solid rgba(42,45,56,0.6)',
+                    }}
+                  >
+                    <Avatar name={m.display_name} size={32} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {m.nickname?.trim() || m.display_name}
+                      </p>
+                      <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
+                        Fjernes {formatRemovalDate(m.scheduled_removal_at!)}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button
+                        onClick={() => setScheduleTarget(m)}
+                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                      >
+                        Endre dato
+                      </button>
+                      <button
+                        onClick={() => cancelScheduledRemoval(m.id)}
+                        disabled={cancellingPlanId === m.id}
+                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: cancellingPlanId === m.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                      >
+                        {cancellingPlanId === m.id ? '…' : 'Avbryt'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {planError && (
+                  <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{planError}</p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════════
               5. TOPPLISTE-SEKSJON
@@ -2035,6 +2146,19 @@ export default function OrgAdminPage() {
 
         </div>
       </div>
+
+      {/* ── Planlegg-fjerning-modal ────────────────────────────────────────── */}
+      {scheduleTarget && data && session && (
+        <ScheduleRemovalModal
+          membershipId={scheduleTarget.id}
+          memberName={scheduleTarget.nickname?.trim() || scheduleTarget.display_name}
+          orgName={data.org.name}
+          accessToken={session.access_token}
+          currentDate={scheduleTarget.scheduled_removal_at ?? null}
+          onClose={() => setScheduleTarget(null)}
+          onSaved={() => { setScheduleTarget(null); setPlanError(null); loadData(session) }}
+        />
+      )}
 
       {/* ── Forlat-organisasjon-modal ──────────────────────────────────────── */}
       {leaveOrgModal && data && session && (

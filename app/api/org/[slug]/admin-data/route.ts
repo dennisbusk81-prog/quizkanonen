@@ -46,7 +46,7 @@ export async function GET(
   // Members with profile names
   const { data: membersRaw } = await supabaseAdmin
     .from('organization_members')
-    .select('id, user_id, role, joined_at')
+    .select('id, user_id, role, joined_at, scheduled_removal_at')
     .eq('organization_id', org.id)
     .order('joined_at', { ascending: true })
 
