@@ -11,7 +11,7 @@
  * overta dette senere.
  */
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendEmail } from '@/lib/email'
+import { sendEmailToMany } from '@/lib/send-email-many'
 import { orgAccessEndedEmail } from '@/lib/email-templates'
 
 /**
@@ -35,6 +35,35 @@ export function shouldNotifyMembersOfLock(
   nextStatus: string | null | undefined,
 ): boolean {
   return nextStatus === 'locked' && previousStatus !== 'locked'
+}
+
+/**
+ * Statuser der Stripe fortsatt driver innkreving — abonnementet er ikke
+ * avsluttet, betalingen har bare ikke gått gjennom.
+ */
+export const DUNNING_LOCK_STATUSES: readonly string[] = ['past_due', 'unpaid']
+
+/**
+ * Skal org-ADMIN varsles om at orgen er låst på grunn av manglende betaling?
+ *
+ * To avgrensninger, begge bevisste:
+ *
+ *  1. Kun `past_due`/`unpaid`. En ekte kansellering (`canceled`,
+ *     `incomplete_expired`) etterfølges alltid av
+ *     `customer.subscription.deleted`, som sender den eksisterende
+ *     `orgCancelledEmail`. Sendte vi noe her også, ville admin fått to
+ *     e-poster for samme hendelse — og den første med feil budskap.
+ *  2. Samme overgangsvakt som for de ansatte: `past_due → unpaid` er to
+ *     hendelser om ett og samme problem, og skal gi én e-post.
+ *
+ * Ren funksjon — testet uten database.
+ */
+export function shouldNotifyAdminsOfDunningLock(
+  previousStatus: string | null | undefined,
+  stripeStatus: string | null | undefined,
+): boolean {
+  if (!stripeStatus || !DUNNING_LOCK_STATUSES.includes(stripeStatus)) return false
+  return previousStatus !== 'locked'
 }
 
 /**
@@ -101,17 +130,7 @@ export async function notifyMembersOfOrgLock(
     const subject = `Tilgangen gjennom ${orgName} er avsluttet — Quizkanonen`
     const html = orgAccessEndedEmail(orgName)
 
-    let sent = 0
-    const BATCH = 20
-    for (let i = 0; i < emails.length; i += BATCH) {
-      const results = await Promise.allSettled(
-        emails.slice(i, i + BATCH).map(email => sendEmail({ to: email, subject, html }))
-      )
-      for (const r of results) {
-        if (r.status === 'fulfilled') sent++
-        else console.error(`[org-lock-notify] sendEmail feilet org=${organizationId}:`, r.reason)
-      }
-    }
+    const { sent } = await sendEmailToMany(emails, { subject, html }, `org-lock-notify org=${organizationId}`)
 
     console.log(`[org-lock-notify] varslet ${sent}/${emails.length} ansatte org=${organizationId} (${context})`)
   } catch (err) {

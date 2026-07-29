@@ -78,7 +78,8 @@ mock.module('@/lib/email', {
   },
 })
 
-const { shouldNotifyMembersOfLock, notifyMembersOfOrgLock } = await import('@/lib/org-lock-notify')
+const { shouldNotifyMembersOfLock, shouldNotifyAdminsOfDunningLock, notifyMembersOfOrgLock } =
+  await import('@/lib/org-lock-notify')
 
 const originalError = console.error
 beforeEach(() => {
@@ -121,6 +122,31 @@ test('overgang til aktiv eller trial varsler aldri', () => {
   assert.equal(shouldNotifyMembersOfLock('locked', null), false)
 })
 
+// ── Admin-varselet ved betalings-lås (DEL 1) ───────────────────────────────
+
+test('past_due og unpaid varsler admin — det gjorde de ikke før', () => {
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'past_due'), true)
+  assert.equal(shouldNotifyAdminsOfDunningLock('trialing', 'past_due'), true)
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'unpaid'), true)
+})
+
+test('canceled og incomplete_expired varsler IKKE her — deleted-grenen sender orgCancelledEmail', () => {
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'canceled'), false)
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'incomplete_expired'), false)
+})
+
+test('past_due → unpaid gir ÉN admin-e-post, ikke to', () => {
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'past_due'), true)
+  // Etter første hendelse står orgen som locked:
+  assert.equal(shouldNotifyAdminsOfDunningLock('locked', 'unpaid'), false)
+})
+
+test('levende statuser varsler aldri', () => {
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', 'active'), false)
+  assert.equal(shouldNotifyAdminsOfDunningLock('locked', 'trialing'), false)
+  assert.equal(shouldNotifyAdminsOfDunningLock('active', null), false)
+})
+
 // ── Utsendingen ────────────────────────────────────────────────────────────
 
 test('admin skal ikke få ansatt-e-posten — kun ordinære medlemmer', async () => {
@@ -147,7 +173,7 @@ test('feil på én e-post stopper ikke de andre — og logges', async () => {
 
   assert.deepEqual(state.sent.map(s => s.to), ['ansatt2@elkjop.test'], 'de øvrige skal fortsatt få e-post')
   assert.ok(
-    state.errors.some(e => e.includes('sendEmail feilet')),
+    state.errors.some(e => e.includes('sending feilet for ansatt1@elkjop.test')),
     'en feilet e-post skal logges, ikke svelges stille',
   )
 })

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendEmail } from '@/lib/email'
 import { orgPurchaseEmail } from '@/lib/email-templates'
+import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 
 // Midlertidig admin-rute for å sende orgPurchaseEmail manuelt i ettertid når
 // webhook-sendingen feilet eller ble hoppet over. Beskyttet med ADMIN_PASSWORD.
@@ -28,31 +28,28 @@ export async function POST(request: NextRequest) {
 
   if (!org) return NextResponse.json({ error: 'Org ikke funnet' }, { status: 404 })
 
-  const { data: adminMember } = await supabaseAdmin
-    .from('organization_members')
-    .select('user_id')
-    .eq('organization_id', org.id)
-    .eq('role', 'admin')
-    .limit(1)
-    .maybeSingle()
-
-  if (!adminMember) return NextResponse.json({ error: 'Ingen admin-medlem funnet for org' }, { status: 404 })
-
-  const { data } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
-  const email = data.user?.email
-  if (!email) return NextResponse.json({ error: 'Admin mangler e-postadresse' }, { status: 400 })
-
-  try {
-    await sendEmail({
-      to: email,
-      subject: `Velkommen til Quizkanonen for bedrifter — ${org.name}`,
-      html: orgPurchaseEmail(org.name, org.slug),
-    })
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[org-resend-purchase] sendEmail feil:', msg, err)
-    return NextResponse.json({ error: `Kunne ikke sende e-post: ${msg}` }, { status: 500 })
+  // Alle admins i orgen — ikke bare én vilkårlig valgt.
+  const { emails } = await getOrgAdminEmails(org.id)
+  if (emails.length === 0) {
+    return NextResponse.json({ error: 'Ingen admin-medlem med e-postadresse funnet for org' }, { status: 404 })
   }
 
-  return NextResponse.json({ sent: true, to: email, org: org.name })
+  const { sent, failed } = await sendToOrgAdmins(
+    emails,
+    {
+      subject: `Velkommen til Quizkanonen for bedrifter — ${org.name}`,
+      html: orgPurchaseEmail(org.name, org.slug),
+    },
+    `org-resend-purchase org=${org.id}`,
+  )
+
+  if (sent === 0) {
+    // Detaljene ligger allerede i [send-email-many]-loggen.
+    return NextResponse.json(
+      { error: `Kunne ikke sende e-post til noen av ${emails.length} admin(er)` },
+      { status: 500 },
+    )
+  }
+
+  return NextResponse.json({ sent, failed, to: emails, org: org.name })
 }

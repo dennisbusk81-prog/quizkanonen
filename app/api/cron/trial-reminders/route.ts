@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { trialEndingEmail, orgTrialEndingEmail } from '@/lib/email-templates'
+import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 
 // Sender påminnelse til org-admin når en B2B-trial nærmer seg slutt (innen 2 døgn)
@@ -29,38 +30,36 @@ async function sendOrgTrialReminders(now: number, dryRun: boolean): Promise<numb
 
   let orgSent = 0
   for (const org of orgs) {
-    // Finn org-admin sin e-post
-    const { data: adminMember } = await supabaseAdmin
-      .from('organization_members')
-      .select('user_id')
-      .eq('organization_id', org.id)
-      .eq('role', 'admin')
-      .limit(1)
-      .maybeSingle()
-    if (!adminMember) continue
-
-    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
-    const email = authData.user?.email
-    if (!email || !org.stripe_period_end) continue
+    // Alle admins i orgen — ikke bare én vilkårlig valgt.
+    const { emails } = await getOrgAdminEmails(org.id)
+    if (emails.length === 0 || !org.stripe_period_end) continue
 
     if (dryRun) {
       orgSent++ // ville sendt
       continue
     }
 
-    try {
-      await sendEmail({
-        to: email,
+    const { sent: okCount } = await sendToOrgAdmins(
+      emails,
+      {
         subject: `Prøveperioden er snart over — ${org.name}`,
         html: orgTrialEndingEmail(org.name, org.slug, org.stripe_period_end),
-      })
-      await supabaseAdmin.from('organizations')
-        .update({ trial_reminder_sent_at: new Date(now).toISOString() })
-        .eq('id', org.id)
-      orgSent++
-    } catch (err) {
-      console.error('[cron/trial-reminders] org reminder failed for', org.slug, err)
+      },
+      `cron/trial-reminders org=${org.id}`,
+    )
+
+    if (okCount === 0) {
+      console.error('[cron/trial-reminders] ingen av', emails.length, 'admin-e-poster gikk gjennom for', org.slug)
+      continue
     }
+
+    const { error: stampErr } = await supabaseAdmin.from('organizations')
+      .update({ trial_reminder_sent_at: new Date(now).toISOString() })
+      .eq('id', org.id)
+    if (stampErr) {
+      console.error('[cron/trial-reminders] stempling feilet for', org.slug, '— kan gi duplikat neste kjøring:', stampErr.message)
+    }
+    orgSent++
   }
   return orgSent
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendEmail } from '@/lib/email'
 import { weeklyReportEmail } from '@/lib/email-templates'
+import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { computeWeeklySummary, buildWeeklyShareText } from '@/lib/weekly-report'
 
 export const dynamic = 'force-dynamic'
@@ -19,20 +19,6 @@ function osloParts(d: Date): { weekday: string; hour: number; dateKey: string } 
     hour: parseInt(get('hour'), 10) % 24,
     dateKey: `${get('year')}-${get('month')}-${get('day')}`,
   }
-}
-
-// E-post til org-admin (samme mønster som Stripe-webhooken).
-async function getOrgAdminEmail(orgId: string): Promise<string | null> {
-  const { data: adminMember } = await supabaseAdmin
-    .from('organization_members')
-    .select('user_id')
-    .eq('organization_id', orgId)
-    .eq('role', 'admin')
-    .limit(1)
-    .maybeSingle()
-  if (!adminMember) return null
-  const { data } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
-  return data.user?.email ?? null
 }
 
 // GET /api/cron/weekly-report — kjøres hvert 15. min via cron-job.org.
@@ -83,8 +69,8 @@ export async function GET(request: NextRequest) {
         if (sentAt && sentAt >= closesAt) continue
       }
 
-      const email = await getOrgAdminEmail(org.id)
-      if (!email) continue
+      const { emails } = await getOrgAdminEmails(org.id)
+      if (emails.length === 0) continue
 
       // Stemple FØR sending: duplikat-e-post er verre enn tapt e-post.
       // Feiler stemplingen, hopper vi over — cron prøver igjen om 15 min.
@@ -100,18 +86,27 @@ export async function GET(request: NextRequest) {
       }
 
       const shareText = buildWeeklyShareText(summary)
-      await sendEmail({
-        to: email,
-        subject: `Ukens quiz-oppsummering — ${org.name}`,
-        from: 'Quizkanonen <support@quizkanonen.no>',
-        html: weeklyReportEmail({
-          orgName: org.name,
-          winner: summary.winner,
-          top3: summary.top3,
-          participantCount: summary.participantCount,
-          shareText,
-        }),
-      })
+      // Alle admins i orgen, ikke bare én vilkårlig valgt.
+      const { sent: okCount } = await sendToOrgAdmins(
+        emails,
+        {
+          subject: `Ukens quiz-oppsummering — ${org.name}`,
+          from: 'Quizkanonen <support@quizkanonen.no>',
+          html: weeklyReportEmail({
+            orgName: org.name,
+            winner: summary.winner,
+            top3: summary.top3,
+            participantCount: summary.participantCount,
+            shareText,
+          }),
+        },
+        `cron/weekly-report org=${org.id}`,
+      )
+
+      if (okCount === 0) {
+        errors.push(`${org.id}: ingen av ${emails.length} admin-e-poster gikk gjennom`)
+        continue
+      }
 
       sent++
     } catch (err) {

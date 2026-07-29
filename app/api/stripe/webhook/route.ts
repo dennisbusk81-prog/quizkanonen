@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
-import { shouldNotifyMembersOfLock, notifyMembersOfOrgLock } from '@/lib/org-lock-notify'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgAccessLockedEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
+import { shouldNotifyMembersOfLock, shouldNotifyAdminsOfDunningLock, notifyMembersOfOrgLock } from '@/lib/org-lock-notify'
+import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
 import { planFromPriceId } from '@/lib/org-plan-prices'
@@ -116,44 +117,23 @@ async function customerHasPaymentMethod(stripe: Stripe, customerId: string): Pro
   }
 }
 
-async function getOrgAdminEmail(organizationId: string): Promise<{ email: string | null; orgName: string | null; orgSlug: string | null }> {
-  const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('name, slug')
-    .eq('id', organizationId)
-    .maybeSingle()
-
-  const { data: adminMember } = await supabaseAdmin
-    .from('organization_members')
-    .select('user_id')
-    .eq('organization_id', organizationId)
-    .eq('role', 'admin')
-    .limit(1)
-    .maybeSingle()
-
-  if (!adminMember) return { email: null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
-
-  const { data } = await supabaseAdmin.auth.admin.getUserById(adminMember.user_id)
-  return { email: data.user?.email ?? null, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
-}
-
 // Sender kjøpsbekreftelse til org-admin. Tåler race condition der admin-medlemsraden
 // ikke er ferdig committet når webhooket ankommer (Dennis sin Elkjøp-betaling 19.6):
 // ett ekstra forsøk etter kort pause. Hopper aldri over stille — manglende felt logges
 // eksplisitt med [webhook] orgPurchaseEmail SKIPPED slik at det er søkbart i Vercel.
 async function sendOrgPurchaseConfirmation(organizationId: string): Promise<void> {
-  let info = await getOrgAdminEmail(organizationId)
+  let info = await getOrgAdminEmails(organizationId)
 
-  if (!info.email) {
+  if (info.emails.length === 0) {
     // Mulig race: org-checkout-skrivingen er ikke committet ennå. Vent og prøv én gang til.
     await new Promise(r => setTimeout(r, 1500))
-    info = await getOrgAdminEmail(organizationId)
+    info = await getOrgAdminEmails(organizationId)
   }
 
-  const { email, orgName, orgSlug } = info
-  if (!email || !orgName || !orgSlug) {
+  const { emails, orgName, orgSlug } = info
+  if (emails.length === 0 || !orgName || !orgSlug) {
     const missing = [
-      !email && 'email',
+      emails.length === 0 && 'email',
       !orgName && 'orgName',
       !orgSlug && 'orgSlug',
     ].filter(Boolean).join(', ')
@@ -164,15 +144,14 @@ async function sendOrgPurchaseConfirmation(organizationId: string): Promise<void
     return
   }
 
-  try {
-    await sendEmail({
-      to: email,
+  await sendToOrgAdmins(
+    emails,
+    {
       subject: `Velkommen til Quizkanonen for bedrifter — ${orgName}`,
       html: orgPurchaseEmail(orgName, orgSlug),
-    })
-  } catch (err) {
-    console.error('[webhook] orgPurchaseEmail failed:', err)
-  }
+    },
+    `webhook orgPurchaseEmail org=${organizationId}`,
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -359,15 +338,18 @@ export async function POST(request: NextRequest) {
           .eq('id', orgForInvoice.id)
         assertCriticalWrite(orgRenewError, `invoice-fornyelse org-active org=${orgForInvoice.id}`)
 
-        // send fornyelsesbekreftelse til org-admin
-        getOrgAdminEmail(orgForInvoice.id)
-          .then(({ email, orgName, orgSlug }) => {
-            if (email && orgName && orgSlug) {
-              return sendEmail({
-                to: email,
-                subject: `Bedriftsabonnementet er fornyet — Quizkanonen`,
-                html: orgRenewalEmail(orgName, orgSlug),
-              })
+        // send fornyelsesbekreftelse til ALLE org-admins
+        getOrgAdminEmails(orgForInvoice.id)
+          .then(({ emails, orgName, orgSlug }) => {
+            if (emails.length > 0 && orgName && orgSlug) {
+              return sendToOrgAdmins(
+                emails,
+                {
+                  subject: `Bedriftsabonnementet er fornyet — Quizkanonen`,
+                  html: orgRenewalEmail(orgName, orgSlug),
+                },
+                `webhook orgRenewalEmail org=${orgForInvoice.id}`,
+              )
             }
           })
           .catch(err => console.error('[webhook] orgRenewalEmail failed:', err))
@@ -447,15 +429,18 @@ export async function POST(request: NextRequest) {
         await notifyMembersOfOrgLock(org.id, org.name, 'sub.deleted')
       }
 
-      // Send kanselleringsvarsel til org-admin — fire-and-forget
-      getOrgAdminEmail(org.id)
-        .then(({ email, orgName }) => {
-          if (email && orgName) {
-            return sendEmail({
-              to: email,
-              subject: `Bedriftsabonnementet er avsluttet — Quizkanonen`,
-              html: orgCancelledEmail(orgName),
-            })
+      // Send kanselleringsvarsel til ALLE org-admins — fire-and-forget
+      getOrgAdminEmails(org.id)
+        .then(({ emails, orgName }) => {
+          if (emails.length > 0 && orgName) {
+            return sendToOrgAdmins(
+              emails,
+              {
+                subject: `Bedriftsabonnementet er avsluttet — Quizkanonen`,
+                html: orgCancelledEmail(orgName),
+              },
+              `webhook orgCancelledEmail org=${org.id}`,
+            )
           }
         })
         .catch(err => console.error('[webhook] orgCancelledEmail failed:', err))
@@ -569,15 +554,18 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (orgForFailed) {
-      // B2B — varsle org-admin
-      getOrgAdminEmail(orgForFailed.id)
-        .then(({ email, orgName, orgSlug }) => {
-          if (email && orgName && orgSlug) {
-            return sendEmail({
-              to: email,
-              subject: 'Betalingen feilet — Quizkanonen for bedrifter',
-              html: orgPaymentFailedEmail(orgName, orgSlug),
-            })
+      // B2B — varsle ALLE org-admins
+      getOrgAdminEmails(orgForFailed.id)
+        .then(({ emails, orgName, orgSlug }) => {
+          if (emails.length > 0 && orgName && orgSlug) {
+            return sendToOrgAdmins(
+              emails,
+              {
+                subject: 'Betalingen feilet — Quizkanonen for bedrifter',
+                html: orgPaymentFailedEmail(orgName, orgSlug),
+              },
+              `webhook orgPaymentFailedEmail org=${orgForFailed.id}`,
+            )
           }
         })
         .catch(err => console.error('[webhook] orgPaymentFailedEmail failed:', err))
@@ -736,7 +724,7 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id, name, subscription_status')
+      .select('id, name, slug, subscription_status')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
@@ -807,6 +795,30 @@ export async function POST(request: NextRequest) {
               .in('id', memberIds)
             assertCriticalWrite(memberActivateErr, `sub.updated medlems-premium-aktivering org=${org.id}`)
           }
+        }
+      }
+
+      // Varsle org-admin(s) om en betalings-lås. Fram til nå fikk admin KUN
+      // beskjed fra subscription.deleted-grenen — en org som ble låst på
+      // past_due/unpaid mistet tilgangen for alle ansatte uten at noen som
+      // kunne rette opp i det ble fortalt at det hadde skjedd.
+      // Teksten er bevisst ikke orgCancelledEmail, se orgAccessLockedEmail.
+      if (shouldNotifyAdminsOfDunningLock(org.subscription_status, status)) {
+        const { emails, orgName, orgSlug } = await getOrgAdminEmails(org.id)
+        if (emails.length > 0 && orgName && orgSlug) {
+          await sendToOrgAdmins(
+            emails,
+            {
+              subject: `Bedriftstilgangen er satt på pause — ${orgName}`,
+              html: orgAccessLockedEmail(orgName, orgSlug),
+            },
+            `webhook orgAccessLockedEmail org=${org.id} status=${status}`,
+          )
+        } else {
+          console.error(
+            `[webhook] orgAccessLockedEmail SKIPPED — ingen admin-mottakere eller manglende org-felt. ` +
+            `org=${org.id}, orgName=${orgName ?? 'null'}, orgSlug=${orgSlug ?? 'null'}`
+          )
         }
       }
     } else {

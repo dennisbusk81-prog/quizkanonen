@@ -1376,6 +1376,102 @@ export function orgCancelledEmail(orgNameRaw: string): string {
 </html>`
 }
 
+/**
+ * Til ORG-ADMIN når orgen låses fra `subscription.updated` — altså
+ * `past_due` eller `unpaid`, der Stripe fortsatt driver innkreving.
+ *
+ * Bevisst IKKE `orgCancelledEmail`: den sier «avsluttet», «ingen
+ * automatiske trekk fremover» og «kan reaktiveres», og alle tre er feil
+ * her — abonnementet lever, det er nettopp trekket som ikke gikk gjennom.
+ * En kansellering går fortsatt via `subscription.deleted` og får den
+ * eksisterende avslutnings-e-posten.
+ *
+ * Kunden har allerede fått `orgPaymentFailedEmail` fra
+ * `invoice.payment_failed`. Det nye her er konsekvensen: de ansatte har
+ * mistet tilgangen.
+ */
+export function orgAccessLockedEmail(orgNameRaw: string, orgSlug: string): string {
+  const orgName = escapeHtml(orgNameRaw)
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bedriftstilgangen er satt på pause — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Bedriftstilgangen er satt p&aring; pause
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vi har ikke f&aring;tt registrert betalingen for <strong style="color:#ffffff;">${orgName}</strong>,
+                og bedriftstilgangen er derfor satt p&aring; pause inntil videre.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; De ansatte har mistet Premium-tilgangen sin</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Alle profiler, historikk og sesong-poeng er intakt</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Tilgangen kommer tilbake av seg selv n&aring;r betalingen g&aring;r gjennom</td></tr>
+              </table>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Oppdater betalingskortet fra bedriftssiden deres, s&aring; ordner resten seg automatisk.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      G&aring; til bedriftssiden
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Stemmer ikke dette? Svar p&aring; denne e-posten, s&aring; ser vi p&aring; det.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 export function orgRenewalEmail(orgNameRaw: string, orgSlug: string): string {
   const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
