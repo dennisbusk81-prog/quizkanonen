@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useProfile } from '@/components/ProfileProvider'
+import { isOrgLocked } from '@/lib/org-access'
 
 type Top3Entry = { displayName: string; totalPoints: number }
 type Placement = { rank: number | null; total: number; quizTitle: string }
@@ -21,12 +22,19 @@ export default function OrgCard() {
   const { myOrgs } = useProfile()
   const org = myOrgs[0] ?? null
 
+  // Låse-tilstanden ligger allerede i myOrgs (my-orgs returnerer
+  // subscriptionStatus, og ruten er et bevisst unntak fra lås-vakten nettopp
+  // for at lås-skjermer skal kunne rendres fra svaret). Vi trenger derfor ikke
+  // lese `code: 'org_locked'` av en 403 for å vite dette — og enda bedre: vi
+  // slipper å fyre to kall vi VET blir avvist.
+  const locked = isOrgLocked(org)
+
   const [top3, setTop3] = useState<Top3Entry[]>([])
   const [placement, setPlacement] = useState<Placement | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    if (!org) return
+    if (!org || locked) return
     let cancelled = false
 
     async function load(orgSlug: string) {
@@ -37,18 +45,33 @@ export default function OrgCard() {
       if (!accessToken || cancelled) return
 
       const [summaryRes, placementRes] = await Promise.all([
+        // r.ok-vakt lagt til: uten den ble en feilrespons ({ error, code })
+        // parset som suksess, `top3` var undefined, og kortet viste en tom
+        // liste som om bedriften ikke hadde poeng ennå.
         fetch(`/api/org/${orgSlug}/season-summary`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ access_token: accessToken }),
-        }).then(r => r.json()).catch(() => ({ top3: [] })),
+        }).then(r => {
+          if (!r.ok) {
+            console.error(`[OrgCard] season-summary feilet: ${r.status}`)
+            return null
+          }
+          return r.json()
+        }).catch(err => { console.error('[OrgCard] season-summary kastet:', err); return null }),
         fetch(`/api/org/${orgSlug}/my-placement`, {
           headers: { Authorization: `Bearer ${accessToken}` },
-        }).then(r => r.ok ? r.json() : null).catch(() => null),
+        }).then(r => {
+          if (!r.ok) {
+            console.error(`[OrgCard] my-placement feilet: ${r.status}`)
+            return null
+          }
+          return r.json()
+        }).catch(err => { console.error('[OrgCard] my-placement kastet:', err); return null }),
       ])
 
       if (cancelled) return
-      setTop3(summaryRes.top3 ?? [])
+      setTop3(summaryRes?.top3 ?? [])
 
       // Brukerens plassering i siste quiz med org-aktivitet — diskret linje.
       // placement=null: ingen quiz-aktivitet ennå → vis ingenting.
@@ -62,9 +85,12 @@ export default function OrgCard() {
 
     load(org.orgSlug)
     return () => { cancelled = true }
-  }, [org?.orgSlug])
+  }, [org?.orgSlug, locked])
 
-  if (!loaded || !org) return null
+  if (!org) return null
+  // En låst org henter ingenting, så `loaded` blir aldri true der — den vakten
+  // gjelder kun den vanlige stien.
+  if (!locked && !loaded) return null
 
   return (
     <div style={{
@@ -83,12 +109,28 @@ export default function OrgCard() {
       <p style={{
         fontFamily: "'Libre Baskerville', serif",
         fontSize: 18, fontWeight: 700, color: '#ffffff',
-        marginBottom: placement ? 4 : 14, letterSpacing: '-0.01em',
+        marginBottom: (placement || locked) ? 4 : 14, letterSpacing: '-0.01em',
       }}>
         {org.orgName}
       </p>
 
-      {placement && (
+      {/* Låst org: én rolig setning i stedet for et tomt felt. Toppliste og
+          plassering er utilgjengelige, og uten forklaring så kortet ut som om
+          bedriften ikke hadde aktivitet.
+
+          Bevisst ingen oppfordring til handling og ingen skyldfordeling: en
+          ansatt kan ikke fornye abonnementet selv, så teksten skal informere
+          og ikke mer. Lenken til bedriftssiden skjules av samme grunn — den
+          fører til en betalingsskjerm de ikke kan bruke. #7a7873 er riktig
+          her: dette er metadata som ikke skal klikkes, samme rolle som
+          «Du spilte ikke ukens quiz» under. */}
+      {locked && (
+        <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 0, lineHeight: 1.5 }}>
+          Bedriften venter på fornyelse
+        </p>
+      )}
+
+      {!locked && placement && (
         placement.rank != null ? (
           <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 14, lineHeight: 1.5 }}>
             Du var {placement.rank} av {placement.total} i {placement.quizTitle}
@@ -100,6 +142,7 @@ export default function OrgCard() {
         )
       )}
 
+      {!locked && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
         {top3.map((entry, i) => (
           <div key={i} style={{
@@ -116,12 +159,15 @@ export default function OrgCard() {
           </div>
         ))}
       </div>
+      )}
 
-      <a href={`/org/${org.orgSlug}`} style={{
-        fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
-      }}>
-        Se bedriftens toppliste →
-      </a>
+      {!locked && (
+        <a href={`/org/${org.orgSlug}`} style={{
+          fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
+        }}>
+          Se bedriftens toppliste →
+        </a>
+      )}
     </div>
   )
 }

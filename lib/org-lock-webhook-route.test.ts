@@ -44,6 +44,8 @@ const state: {
   listCalls: number
   /** Rekkefølgen på grace-skriving vs. premium-rekalkulering. */
   trace: string[]
+  /** organizations.member_grace_reason slik readStoredGraceReason leser den. */
+  storedGraceReason: string | null
 } = {
   event: {},
   org: null,
@@ -56,6 +58,7 @@ const state: {
   listThrows: false,
   listCalls: 0,
   trace: [],
+  storedGraceReason: null,
 }
 
 class MockStripe {
@@ -90,8 +93,13 @@ function builder(table: string) {
   // organization_members-spørringer kjører i samme hendelse.
   const filters: Record<string, unknown> = {}
   let isGraceUpdate = false
+  // Hvilke kolonner spørringen ba om. Trengs for å skille
+  // readStoredGraceReason (select member_grace_reason, eq id) fra
+  // getOrgAdminEmails (select name, slug, eq id) — begge filtrerer på `id`,
+  // så filteret alene er ikke nok til å avgjøre hvilken spørring dette er.
+  let selected = ''
   const b = {
-    select() { return b },
+    select(cols?: string) { selected = cols ?? ''; return b },
     eq(col: string, val: unknown) { filters[`eq:${col}`] = val; return b },
     neq(col: string, val: unknown) { filters[`neq:${col}`] = val; return b },
     in() { return b },
@@ -110,7 +118,12 @@ function builder(table: string) {
       return b
     },
     maybeSingle() {
-      if (table === 'organizations') return Promise.resolve({ data: state.org, error: null })
+      if (table === 'organizations') {
+        if (selected.includes('member_grace_reason')) {
+          return Promise.resolve({ data: { member_grace_reason: state.storedGraceReason }, error: null })
+        }
+        return Promise.resolve({ data: state.org, error: null })
+      }
       return Promise.resolve({ data: null, error: null })
     },
     then(resolve: (v: unknown) => void) {
@@ -218,6 +231,7 @@ beforeEach(() => {
     'admin-2': 'admin2@elkjop.test',
     'ansatt-1': 'ansatt1@elkjop.test',
   }
+  state.storedGraceReason = null
   state.orgUpdates = []
   state.sent = []
   state.errors = []
@@ -533,6 +547,89 @@ test('en org som ALLEREDE er aktiv koster ingen unødvendig grace-skriving', asy
   console.error = originalError
 
   assert.deepEqual(graceWrites(), [], 'ryddingen er gatet på at org-en faktisk sto som låst')
+})
+
+// ── Riktig admin-tekst ved trial-utløp (29. juli 2026) ─────────────────────
+//
+// En trial som bare rant ut ga admin «Bedriftsabonnementet er avsluttet» — en
+// oppsigelsesbekreftelse for noe de aldri kjøpte. Signalet fra grace-arbeidet
+// (member_grace_reason) velger nå tekst.
+//
+// MUTASJONSBEVIS (verifisert manuelt):
+//   * Låses isTrialExpiry til false, feiler begge trial-testene.
+//   * Låses den til true, feiler «reell kansellering …» og «betalingsfeil …».
+//   * Fjernes fallbacken til readStoredGraceReason, feiler «deleted ETTER at
+//     updated allerede låste …» — nettopp den rekkefølgen Stripe faktisk bruker.
+
+const adminSubjects = () =>
+  state.sent.filter(e => e.to.startsWith('admin')).map(e => e.subject)
+
+test('trial-utløp gir admin «Prøveperioden er over», ikke «abonnementet er avsluttet»', async () => {
+  state.org!.subscription_status = 'trialing'
+  state.event = deletedEvent(null)
+  await call()
+  console.error = originalError
+
+  const subjects = adminSubjects()
+  assert.equal(subjects.length, 2, 'begge admins skal varsles')
+  for (const s of subjects) {
+    assert.match(s, /Prøveperioden for Elkjøp Nordic er over/)
+    assert.doesNotMatch(s, /avsluttet/, 'ingenting ble avsluttet — det fantes aldri et abonnement')
+  }
+})
+
+test('deleted ETTER at updated allerede låste org-en bruker den LAGREDE årsaken', async () => {
+  // Den faktiske Stripe-rekkefølgen: updated (canceled) låser og klassifiserer,
+  // deleted kommer etterpå. Da er previousOrgStatus 'locked', så en fersk
+  // decideLockGrace ville svart «unknown» — og admin fått feil tekst igjen.
+  state.org!.subscription_status = 'locked'
+  state.storedGraceReason = 'trial_expired'
+  state.event = deletedEvent(null)
+  await call()
+  console.error = originalError
+
+  for (const s of adminSubjects()) {
+    assert.match(s, /Prøveperioden for Elkjøp Nordic er over/)
+  }
+})
+
+test('reell kansellering beholder «Bedriftsabonnementet er avsluttet»', async () => {
+  state.event = deletedEvent('cancellation_requested')
+  await call()
+  console.error = originalError
+
+  const subjects = adminSubjects()
+  assert.equal(subjects.length, 2)
+  for (const s of subjects) {
+    assert.match(s, /Bedriftsabonnementet er avsluttet/)
+    assert.doesNotMatch(s, /Prøveperioden/, 'de sa opp et abonnement de faktisk hadde')
+  }
+})
+
+test('betalingsfeil beholder også den eksisterende avslutningsteksten', async () => {
+  state.storedGraceReason = 'payment_failed'
+  state.org!.subscription_status = 'locked'
+  state.event = deletedEvent('payment_failed')
+  await call()
+  console.error = originalError
+
+  for (const s of adminSubjects()) {
+    assert.match(s, /Bedriftsabonnementet er avsluttet/)
+  }
+})
+
+test('kunne ikke lese lagret årsak → faller tilbake til standardteksten', async () => {
+  // Ikke-kritisk lesing: feiler den, skal admin få den gamle teksten framfor
+  // ingen e-post i det hele tatt.
+  state.org!.subscription_status = 'locked'
+  state.storedGraceReason = null
+  state.event = deletedEvent(null)
+  await call()
+  console.error = originalError
+
+  for (const s of adminSubjects()) {
+    assert.match(s, /Bedriftsabonnementet er avsluttet/)
+  }
 })
 
 test('en feilet grace-skriving stopper hverken låsen eller varslingen', async () => {

@@ -1574,6 +1574,105 @@ export function orgCancelledEmail(orgNameRaw: string): string {
 }
 
 /**
+ * Til ORG-ADMIN når en PRØVEPERIODE løper ut uten at kort er lagt inn
+ * (29. juli 2026).
+ *
+ * Bevisst IKKE `orgCancelledEmail`. Den sier «Bedriftsabonnementet er
+ * avsluttet» — og for en trial som bare rant ut er hvert ord feil: det fantes
+ * aldri et abonnement, ingen har avsluttet noe, og ingen har betalt en krone.
+ * Admin fikk altså en oppsigelsesbekreftelse for noe de aldri kjøpte, uten å
+ * bli fortalt det ene som faktisk gjaldt: at det er kortet som mangler.
+ *
+ * Skillet er mulig fordi grace-arbeidet klassifiserer årsaken —
+ * `member_grace_reason = 'trial_expired'`, se decideLockGrace() i
+ * lib/org-lock-grace.ts. Reelle kanselleringer og betalingsfeil beholder
+ * teksten de har i dag.
+ *
+ * Søsteren `orgTrialEndingEmail` varsler FØR utløpet («snart over»); denne
+ * kommer etter («er over»), og forskjellen på de to er at tilgangen nå
+ * faktisk er sperret.
+ */
+export function orgTrialEndedEmail(orgNameRaw: string, orgSlug: string): string {
+  const orgName = escapeHtml(orgNameRaw)
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prøveperioden for ${orgName} er over — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Pr&oslash;veperioden for ${orgName} er over
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vi fikk aldri registrert et betalingskort, s&aring; bedriftssidene er n&aring;
+                sperret. Det er alt som har skjedd &mdash; ingenting er sagt opp, og
+                ingenting er slettet.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Alle profiler, historikk og sesong-poeng best&aring;r</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; De ansatte kan fortsatt spille ukens quiz som vanlig</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e8e4dd;">&mdash;&nbsp; Legger du inn betaling, er alt tilbake med &eacute;n gang</td></tr>
+              </table>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Legg inn betaling &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Du mottar denne e-posten fordi du er administrator for ${orgName} p&aring; Quizkanonen.<br />
+                Sp&oslash;rsm&aring;l? Svar p&aring; denne e-posten.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+/**
  * Til ORG-ADMIN når orgen låses fra `subscription.updated` — altså
  * `past_due` eller `unpaid`, der Stripe fortsatt driver innkreving.
  *

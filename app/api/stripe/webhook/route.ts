@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgAccessLockedEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
+import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgTrialEndedEmail, orgAccessLockedEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
 import { shouldNotifyMembersOfLock, shouldNotifyAdminsOfDunningLock, notifyMembersOfOrgLock } from '@/lib/org-lock-notify'
 import { decideLockGrace, CLEARED_GRACE, type LockGraceDecision } from '@/lib/org-lock-grace'
 import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
@@ -87,6 +87,35 @@ async function applyLockGrace(
     `[webhook] lås-grace til ${decision.until} (${decision.reason}) org=${organizationId} (${context})`
   )
   return decision.until
+}
+
+// Den lagrede lås-årsaken, lest i en EGEN spørring.
+//
+// Hvorfor ikke bare utvide SELECT-en i deleted-grenen: den er kritisk. Feiler
+// den — typisk en manglende kolonne — blir `org` null, hendelsen behandles som
+// B2C, og org-en blir aldri låst i det hele tatt. Her koster en feil kun at
+// e-posten faller tilbake til den gamle teksten.
+//
+// Trengs fordi låse-sekvensen typisk er `updated (canceled)` FØRST og `deleted`
+// etterpå: da er org-en allerede `locked` når deleted ankommer, klassifiseringen
+// ble gjort av den forrige hendelsen, og en fersk `decideLockGrace` ville sett
+// `previousOrgStatus = 'locked'` og svart «unknown».
+async function readStoredGraceReason(organizationId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('organizations')
+    .select('member_grace_reason')
+    .eq('id', organizationId)
+    .maybeSingle()
+
+  if (error) {
+    console.error(
+      `[webhook] kunne ikke lese lagret lås-årsak org=${organizationId} — ` +
+      `e-posten faller tilbake til standardteksten:`, error.code, error.message,
+    )
+    return null
+  }
+
+  return (data?.member_grace_reason as string | null) ?? null
 }
 
 // Rydder grace når org-en blir frisk igjen. Samme ikke-kritiske mønster og
@@ -496,17 +525,14 @@ export async function POST(request: NextRequest) {
       // deleted. Uten vakten ville hver av dem forlenget grace med nye 7
       // dager, og perioden aldri tatt slutt.
       const isLockTransition = shouldNotifyMembersOfLock(org.subscription_status, 'locked')
+      const graceDecision = decideLockGrace({
+        previousOrgStatus: org.subscription_status,
+        stripeStatus: subscription.status,
+        cancellationReason: subscription.cancellation_details?.reason ?? null,
+      })
       let graceUntil: string | null = null
       if (isLockTransition) {
-        graceUntil = await applyLockGrace(
-          org.id,
-          decideLockGrace({
-            previousOrgStatus: org.subscription_status,
-            stripeStatus: subscription.status,
-            cancellationReason: subscription.cancellation_details?.reason ?? null,
-          }),
-          `sub.deleted org=${org.id}`,
-        )
+        graceUntil = await applyLockGrace(org.id, graceDecision, `sub.deleted org=${org.id}`)
       }
 
       const { data: members } = await supabaseAdmin
@@ -532,10 +558,40 @@ export async function POST(request: NextRequest) {
         await notifyMembersOfOrgLock(org.id, org.name, 'sub.deleted', graceUntil)
       }
 
-      // Send kanselleringsvarsel til ALLE org-admins — fire-and-forget
+      // ── Riktig tekst til admin, etter hva som FAKTISK skjedde ────────────
+      // En trial som bare rant ut fikk fram til nå «Bedriftsabonnementet er
+      // avsluttet» — en oppsigelsesbekreftelse for noe de aldri kjøpte, uten
+      // det ene som faktisk gjaldt: at kortet mangler.
+      //
+      // Klassifiseringen hentes fersk når VI nettopp gjorde den, ellers fra den
+      // lagrede — låse-sekvensen er typisk `updated (canceled)` først og
+      // `deleted` etterpå, og da eier den forrige hendelsen klassifiseringen.
+      const lockReason = isLockTransition
+        ? (graceDecision.grace ? graceDecision.reason : 'voluntary_cancel')
+        : await readStoredGraceReason(org.id)
+      const isTrialExpiry = lockReason === 'trial_expired'
+
+      console.log(
+        `[webhook] sub.deleted admin-varsel org=${org.id} — årsak=${lockReason ?? 'ukjent'} → ` +
+        `${isTrialExpiry ? 'orgTrialEndedEmail' : 'orgCancelledEmail'}`
+      )
+
+      // Send varsel til ALLE org-admins — fire-and-forget
       getOrgAdminEmails(org.id)
-        .then(({ emails, orgName }) => {
+        .then(({ emails, orgName, orgSlug }) => {
+          if (emails.length > 0 && orgName && isTrialExpiry && orgSlug) {
+            return sendToOrgAdmins(
+              emails,
+              {
+                subject: `Prøveperioden for ${orgName} er over — Quizkanonen`,
+                html: orgTrialEndedEmail(orgName, orgSlug),
+              },
+              `webhook orgTrialEndedEmail org=${org.id}`,
+            )
+          }
           if (emails.length > 0 && orgName) {
+            // Reell kansellering, betalingsfeil — eller en trial-utløp der vi
+            // manglet slug til CTA-en. Uendret tekst.
             return sendToOrgAdmins(
               emails,
               {
