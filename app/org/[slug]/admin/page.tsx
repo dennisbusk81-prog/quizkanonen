@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -202,16 +202,27 @@ export default function OrgAdminPage() {
   const [data, setData] = useState<AdminData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Skiller «du har ikke tilgang» fra «vi klarte ikke å hente dataene». Uten
+  // dette fikk en treg/feilende respons overskriften «Ingen tilgang», som er
+  // feil diagnose og sender admin til feil sted.
+  const [errorKind, setErrorKind] = useState<'access' | 'load'>('access')
+  // Settes når admin-data faktisk har landet (eller feilet) — slik at
+  // 8-sekunders-vakten under vet om den skal si fra eller holde kjeft.
+  const loadSettledRef = useRef(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   type WinnerEntry = { displayName: string; avatarUrl: string | null; points: number } | null
   const [winners, setWinners] = useState<{ month: WinnerEntry; quarter: WinnerEntry; year: WinnerEntry } | null>(null)
 
   const [creatingInvite, setCreatingInvite] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
   const [removeMemberError, setRemoveMemberError] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   type Top3Entry = { displayName: string; points: number }
   const [top3Winners, setTop3Winners] = useState<{ month: Top3Entry[]; quarter: Top3Entry[]; year: Top3Entry[] }>({ month: [], quarter: [], year: [] })
@@ -230,6 +241,7 @@ export default function OrgAdminPage() {
   const [reportTiming, setReportTiming]     = useState('monday_morning')
   const [savingTiming, setSavingTiming]     = useState(false)
   const [timingSaved, setTimingSaved]       = useState(false)
+  const [timingError, setTimingError]       = useState<string | null>(null)
 
   const [orgQuizOpensAt, setOrgQuizOpensAt]   = useState('')
   const [orgQuizClosesAt, setOrgQuizClosesAt] = useState('')
@@ -247,6 +259,7 @@ export default function OrgAdminPage() {
   const [seasonResetInput, setSeasonResetInput]   = useState('')
   const [seasonResetting, setSeasonResetting]     = useState(false)
   const [seasonResetDone, setSeasonResetDone]     = useState(false)
+  const [seasonResetError, setSeasonResetError]   = useState<string | null>(null)
 
   const [deleteOrgModal, setDeleteOrgModal]       = useState(false)
   const [deleteOrgInput, setDeleteOrgInput]       = useState('')
@@ -283,6 +296,8 @@ export default function OrgAdminPage() {
   const [activityData, setActivityData]     = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
   const [excludingId, setExcludingId]       = useState<string | null>(null)
+  const [csvLoading, setCsvLoading]         = useState(false)
+  const [csvError, setCsvError]             = useState<string | null>(null)
 
   // Toppliste top-level tab
   const [topTab, setTopTab]       = useState<'quiz' | 'season'>('quiz')
@@ -307,10 +322,19 @@ export default function OrgAdminPage() {
   // Search
   const [memberSearch, setMemberSearch] = useState('')
 
+  // Vakt mot en hengende admin-data-respons. Slo tidligere bare av loading
+  // uansett, slik at siden rendret med data = null — admin fikk et tomt panel
+  // (0 medlemmer, ingen invitasjonslenke) som var umulig å skille fra en
+  // faktisk tom bedrift. Nå sier den fra i stedet.
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 8000)
+    const t = setTimeout(() => {
+      if (loadSettledRef.current) return
+      setErrorKind('load')
+      setError('Kunne ikke laste bedriftsdata, prøv igjen.')
+      setLoading(false)
+    }, 8000)
     return () => clearTimeout(t)
-  }, [])
+  }, [loadAttempt])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => setSession(s))
@@ -472,8 +496,8 @@ export default function OrgAdminPage() {
       headers: { Authorization: `Bearer ${sess.access_token}` },
     })
       .then(r => {
-        if (r.status === 403) { setError('Ingen admin-tilgang.'); return null }
-        if (!r.ok) { setError('Kunne ikke laste data.'); return null }
+        if (r.status === 403) { setErrorKind('access'); setError('Ingen admin-tilgang.'); return null }
+        if (!r.ok) { setErrorKind('load'); setError('Kunne ikke laste bedriftsdata, prøv igjen.'); return null }
         return r.json()
       })
       .then((d: AdminData | null) => {
@@ -493,9 +517,20 @@ export default function OrgAdminPage() {
           loadQuizLeaderboard(d.org.id, sess.access_token)
         }
       })
-      .catch(() => setError('Noe gikk galt.'))
-      .finally(() => setLoading(false))
+      .catch(() => { setErrorKind('load'); setError('Kunne ikke laste bedriftsdata, prøv igjen.') })
+      .finally(() => { loadSettledRef.current = true; setLoading(false) })
   }, [slug, loadWinners, loadActivity, loadPrevRanks, loadStreaks, loadInsights, loadQuizLeaderboard, loadWeeklySummary])
+
+  // «Prøv igjen» fra load-feilskjermen: rearmer 8-sekunders-vakten og henter på
+  // nytt, i stedet for å tvinge admin til å laste hele siden om igjen.
+  const retryLoad = useCallback(() => {
+    if (!session) { router.push(`/login?next=/org/${slug}/admin`); return }
+    loadSettledRef.current = false
+    setError('')
+    setLoading(true)
+    setLoadAttempt(n => n + 1)
+    loadData(session)
+  }, [session, router, slug, loadData])
 
   // Stabil identitet — se lib/session-identity.ts. Unngår at loadData() (som
   // nuller activityData/quizData til null før refetch) kjører på nytt bare
@@ -519,13 +554,21 @@ export default function OrgAdminPage() {
   const createInvite = async () => {
     if (!session || !data) return
     setCreatingInvite(true)
+    setInviteError(null)
     try {
       const res = await fetch('/api/org/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ organization_id: data.org.id }),
       })
-      if (res.ok) loadData(session)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setInviteError(json?.error ?? 'Kunne ikke opprette invitasjonslenke. Prøv igjen.')
+        return
+      }
+      loadData(session)
+    } catch {
+      setInviteError('Kunne ikke opprette invitasjonslenke. Prøv igjen.')
     } finally {
       setCreatingInvite(false)
     }
@@ -534,46 +577,70 @@ export default function OrgAdminPage() {
   const deactivateInvite = async (id: string) => {
     if (!session) return
     setDeactivatingId(id)
+    setInviteError(null)
     try {
-      await fetch(`/api/org/invites/${id}/deactivate`, {
+      const res = await fetch(`/api/org/invites/${id}/deactivate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setInviteError(json?.error ?? 'Kunne ikke deaktivere invitasjonslenken. Prøv igjen.')
+        return
+      }
       loadData(session)
+    } catch {
+      setInviteError('Kunne ikke deaktivere invitasjonslenken. Prøv igjen.')
     } finally {
       setDeactivatingId(null)
     }
   }
 
-  // Deactivate old invite and immediately create a new one
+  // Deactivate old invite and immediately create a new one.
+  // To kall etter hverandre: hvis det andre feiler står bedriften uten aktiv
+  // lenke, og da må admin få vite akkurat det — ikke bare se en knapp som
+  // slutter å spinne.
   const renewInvite = async (id: string) => {
     if (!session || !data) return
     setDeactivatingId(id)
     setCreatingInvite(true)
+    setInviteError(null)
     try {
-      await fetch(`/api/org/invites/${id}/deactivate`, {
+      const deactivateRes = await fetch(`/api/org/invites/${id}/deactivate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      await fetch('/api/org/invites', {
+      if (!deactivateRes.ok) {
+        const json = await deactivateRes.json().catch(() => null)
+        setInviteError(json?.error ?? 'Kunne ikke fornye invitasjonslenken. Den gamle lenken gjelder fortsatt.')
+        return
+      }
+      const createRes = await fetch('/api/org/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ organization_id: data.org.id }),
       })
+      if (!createRes.ok) {
+        const json = await createRes.json().catch(() => null)
+        setInviteError(json?.error ?? 'Den gamle lenken ble deaktivert, men den nye ble ikke opprettet. Trykk «Opprett lenke» for å prøve igjen.')
+      }
       loadData(session)
+    } catch {
+      setInviteError('Kunne ikke fornye invitasjonslenken. Prøv igjen.')
     } finally {
       setDeactivatingId(null)
       setCreatingInvite(false)
     }
   }
 
-  const removeMember = async (membershipId: string, displayName: string) => {
-    if (!session) return
-    if (!confirm(`Er du sikker på at du vil fjerne ${displayName} fra bedriften? Dette kan ikke angres.`)) return
-    setRemovingId(membershipId)
+  // Selve fjerningen. Bekreftelsen skjer i modalen (se removeTarget) — resten
+  // av panelet bruker egne modaler, og window.confirm() skilte seg ut.
+  const removeMember = async () => {
+    if (!session || !removeTarget) return
+    setRemovingId(removeTarget.id)
     setRemoveMemberError(null)
     try {
-      const res = await fetch(`/api/org/members/${membershipId}/remove`, {
+      const res = await fetch(`/api/org/members/${removeTarget.id}/remove`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -582,6 +649,7 @@ export default function OrgAdminPage() {
         setRemoveMemberError(json?.error ?? 'Kunne ikke fjerne medlemmet. Prøv igjen.')
         return
       }
+      setRemoveTarget(null)
       loadData(session)
     } catch {
       setRemoveMemberError('Kunne ikke fjerne medlemmet. Prøv igjen.')
@@ -670,14 +738,22 @@ export default function OrgAdminPage() {
     if (!session) return
     setSavingSettings(true)
     setSettingsSaved(false)
+    setSettingsError(null)
     try {
-      await fetch(`/api/org/${slug}/settings`, {
+      const res = await fetch(`/api/org/${slug}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ allow_global_league: allowGlobal }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setSettingsError(json?.error ?? 'Kunne ikke lagre innstillingen. Prøv igjen.')
+        return
+      }
       setSettingsSaved(true)
       setTimeout(() => setSettingsSaved(false), 2000)
+    } catch {
+      setSettingsError('Kunne ikke lagre innstillingen. Prøv igjen.')
     } finally {
       setSavingSettings(false)
     }
@@ -687,14 +763,22 @@ export default function OrgAdminPage() {
     if (!session) return
     setSavingTiming(true)
     setTimingSaved(false)
+    setTimingError(null)
     try {
-      await fetch(`/api/org/${slug}/settings`, {
+      const res = await fetch(`/api/org/${slug}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ weekly_report_timing: reportTiming }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setTimingError(json?.error ?? 'Kunne ikke lagre innstillingen. Prøv igjen.')
+        return
+      }
       setTimingSaved(true)
       setTimeout(() => setTimingSaved(false), 2500)
+    } catch {
+      setTimingError('Kunne ikke lagre innstillingen. Prøv igjen.')
     } finally {
       setSavingTiming(false)
     }
@@ -737,18 +821,30 @@ export default function OrgAdminPage() {
     }
   }
 
-  // Toggle global-league and auto-save (button is now repurposed for portal)
+  // Toggle global-league and auto-save (button is now repurposed for portal).
+  // Toggelen flippes optimistisk, men rulles tilbake hvis PATCH-en feiler —
+  // ellers sto den visuelt på «på» mens databasen fortsatt sa «av».
   const toggleGlobal = async () => {
+    if (!session || savingSettings) return
+    const prev = allowGlobal
     const next = !allowGlobal
     setAllowGlobal(next)
-    if (!session) return
     setSavingSettings(true)
+    setSettingsError(null)
     try {
-      await fetch(`/api/org/${slug}/settings`, {
+      const res = await fetch(`/api/org/${slug}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ allow_global_league: next }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setAllowGlobal(prev)
+        setSettingsError(json?.error ?? 'Kunne ikke lagre innstillingen. Prøv igjen.')
+      }
+    } catch {
+      setAllowGlobal(prev)
+      setSettingsError('Kunne ikke lagre innstillingen. Prøv igjen.')
     } finally {
       setSavingSettings(false)
     }
@@ -877,19 +973,25 @@ export default function OrgAdminPage() {
   const handleSeasonReset = async () => {
     if (!data || !session || seasonResetting || seasonResetInput !== 'NULLSTILL') return
     setSeasonResetting(true)
+    setSeasonResetError(null)
     try {
       const res = await fetch(`/api/org/${data.org.id}/reset-season`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      if (res.ok) {
-        setSeasonResetModal(false)
-        setSeasonResetInput('')
-        setSeasonResetDone(true)
-        setActivityData(null)
-        loadWinners(data.org.id, session.access_token)
-        setTimeout(() => setSeasonResetDone(false), 4000)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setSeasonResetError(json?.error ?? 'Kunne ikke nullstille sesongen. Prøv igjen.')
+        return
       }
+      setSeasonResetModal(false)
+      setSeasonResetInput('')
+      setSeasonResetDone(true)
+      setActivityData(null)
+      loadWinners(data.org.id, session.access_token)
+      setTimeout(() => setSeasonResetDone(false), 4000)
+    } catch {
+      setSeasonResetError('Kunne ikke nullstille sesongen. Prøv igjen.')
     } finally {
       setSeasonResetting(false)
     }
@@ -964,21 +1066,34 @@ export default function OrgAdminPage() {
     }
   }
 
-  const downloadCsv = () => {
-    if (!data || !session) return
-    const url = `/api/org/${data.org.id}/members-activity?period=${activityPeriod}&format=csv`
-    fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then(r => r.blob())
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = blobUrl
-        a.download = `aktivitet-${activityPeriod}.csv`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(blobUrl)
-      })
+  // Uten res.ok-sjekken ble en 403/500 lastet ned som en .csv-fil med
+  // feilmeldingen som innhold — en fil som ser gyldig ut helt til den åpnes.
+  const downloadCsv = async () => {
+    if (!data || !session || csvLoading) return
+    setCsvLoading(true)
+    setCsvError(null)
+    try {
+      const url = `/api/org/${data.org.id}/members-activity?period=${activityPeriod}&format=csv`
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setCsvError(json?.error ?? 'Kunne ikke laste ned CSV. Prøv igjen.')
+        return
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `aktivitet-${activityPeriod}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      setCsvError('Kunne ikke laste ned CSV. Prøv igjen.')
+    } finally {
+      setCsvLoading(false)
+    }
   }
 
   // ── Loading / Error states ─────────────────────────────────────────────────
@@ -1000,9 +1115,25 @@ export default function OrgAdminPage() {
         <style>{CSS}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
+              {errorKind === 'access' ? 'Ingen tilgang' : 'Kunne ikke laste bedriftsdata'}
+            </p>
             <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24 }}>{error}</p>
-            <Link href="/" style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none' }}>← Forsiden</Link>
+            {errorKind === 'load' && (
+              <div style={{ marginBottom: 20 }}>
+                <button
+                  onClick={retryLoad}
+                  style={{
+                    padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
+                    border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                    fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                  }}
+                >
+                  Prøv igjen
+                </button>
+              </div>
+            )}
+            <Link href="/" style={{ fontSize: 13, color: errorKind === 'load' ? '#e8e4dd' : '#c9a84c', textDecoration: 'none' }}>← Forsiden</Link>
           </div>
         </div>
       </>
@@ -1388,6 +1519,7 @@ export default function OrgAdminPage() {
             <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
                 onClick={toggleGlobal}
+                aria-disabled={savingSettings}
                 style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
               >
                 <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
@@ -1399,6 +1531,12 @@ export default function OrgAdminPage() {
                 — Tillat at ansatte vises på felles sesong-toppliste
               </span>
             </div>
+
+            {settingsError && (
+              <p style={{ fontSize: 13, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10, padding: '10px 14px', marginTop: 12, lineHeight: 1.5 }}>
+                {settingsError}
+              </p>
+            )}
           </div>
 
           {/* ══════════════════════════════════════════════════════════════════
@@ -1411,9 +1549,10 @@ export default function OrgAdminPage() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     onClick={downloadCsv}
-                    style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                    disabled={csvLoading}
+                    style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: csvLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
-                    Last ned CSV
+                    {csvLoading ? 'Laster ned…' : 'Last ned CSV'}
                   </button>
                   <button
                     onClick={sendReminder}
@@ -1427,6 +1566,9 @@ export default function OrgAdminPage() {
                   <p style={{ fontSize: 12, color: reminderMsg.ok ? '#4ade80' : '#c94c4c', margin: 0 }}>
                     {reminderMsg.text}
                   </p>
+                )}
+                {csvError && (
+                  <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{csvError}</p>
                 )}
               </div>
             }
@@ -1542,7 +1684,10 @@ export default function OrgAdminPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => removeMember(member.id, member.nickname?.trim() || member.display_name)}
+                          onClick={() => {
+                            setRemoveTarget({ id: member.id, name: member.nickname?.trim() || member.display_name })
+                            setRemoveMemberError(null)
+                          }}
                           disabled={removingId === member.id}
                           style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
                         >
@@ -1572,9 +1717,6 @@ export default function OrgAdminPage() {
               })
             )}
 
-            {removeMemberError && (
-              <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{removeMemberError}</p>
-            )}
             {adminActionError && (
               <p style={{ fontSize: 12, color: '#f87171', padding: '0 18px 12px' }}>{adminActionError}</p>
             )}
@@ -1651,6 +1793,10 @@ export default function OrgAdminPage() {
                   </>
                 )}
               </div>
+
+              {inviteError && (
+                <p style={{ fontSize: 12, color: '#f87171', marginTop: 10, lineHeight: 1.5 }}>{inviteError}</p>
+              )}
 
               {/* RAD 2 — Inviter via e-post (kollapset som standard) */}
               <div style={{ marginTop: 12 }}>
@@ -2130,6 +2276,9 @@ export default function OrgAdminPage() {
               {timingSaved && (
                 <span style={{ fontSize: 13, color: '#4ade80' }}>Innstilling lagret</span>
               )}
+              {timingError && (
+                <span style={{ fontSize: 13, color: '#f87171', lineHeight: 1.5 }}>{timingError}</span>
+              )}
             </div>
           </div>
 
@@ -2214,7 +2363,7 @@ export default function OrgAdminPage() {
               )}
             </div>
             <button
-              onClick={() => { setSeasonResetModal(true); setSeasonResetInput('') }}
+              onClick={() => { setSeasonResetModal(true); setSeasonResetInput(''); setSeasonResetError(null) }}
               style={{
                 padding: '9px 18px', background: 'transparent',
                 border: '1px solid rgba(248,113,113,0.4)',
@@ -2309,6 +2458,43 @@ export default function OrgAdminPage() {
         />
       )}
 
+      {/* ── Fjern-medlem-modal ─────────────────────────────────────────────
+          Erstatter window.confirm(), som var den eneste nettleser-dialogen
+          igjen i panelet — resten av de destruktive handlingene bekreftes i
+          egne modaler i designsystemet. */}
+      {removeTarget && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
+              Fjern medlem
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
+              Dette fjerner <strong style={{ color: '#ffffff' }}>{removeTarget.name}</strong> fra {data?.org.name}.
+              Handlingen kan ikke angres. Personens egen konto og quizhistorikk beholdes.
+            </p>
+            {removeMemberError && (
+              <p style={{ fontSize: 12, color: '#f87171', marginBottom: 16, lineHeight: 1.5 }}>{removeMemberError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setRemoveTarget(null); setRemoveMemberError(null) }}
+                disabled={removingId === removeTarget.id}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={removeMember}
+                disabled={removingId === removeTarget.id}
+                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: '#f87171', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', opacity: removingId === removeTarget.id ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
+              >
+                {removingId === removeTarget.id ? 'Fjerner…' : 'Fjern medlem'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Forlat-organisasjon-modal ──────────────────────────────────────── */}
       {leaveOrgModal && data && session && (
         <LeaveOrgModal
@@ -2342,9 +2528,12 @@ export default function OrgAdminPage() {
               onKeyDown={e => { if (e.key === 'Enter') handleSeasonReset() }}
               style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
             />
+            {seasonResetError && (
+              <p style={{ fontSize: 12, color: '#f87171', marginBottom: 16, lineHeight: 1.5 }}>{seasonResetError}</p>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
-                onClick={() => { setSeasonResetModal(false); setSeasonResetInput('') }}
+                onClick={() => { setSeasonResetModal(false); setSeasonResetInput(''); setSeasonResetError(null) }}
                 style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 Avbryt
