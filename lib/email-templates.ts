@@ -408,6 +408,104 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
 </html>`
 }
 
+/**
+ * Til ANSATTE (ikke admin) når bedriftens org låses — trial som løper ut,
+ * kansellering, past_due eller unpaid. Admin får `orgCancelledEmail`; denne
+ * er den ansattes versjon av samme hendelse.
+ *
+ * Formuleringen er bevisst NØYTRAL om årsaken: webhooken kan ikke skille
+ * «prøveperioden er over» fra «abonnementet er sagt opp» fra «kortet ble
+ * avvist» på en måte som holder i alle tilfeller, og en ansatt skal ikke få
+ * feil forklaring på arbeidsgiverens vegne. Premium-setningen er betinget
+ * («hadde du»), fordi et medlem kan ha egen dekning via verdikode eller eget
+ * abonnement som overlever låsingen.
+ */
+export function orgAccessEndedEmail(orgNameRaw: string): string {
+  const orgName = escapeHtml(orgNameRaw)
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tilgangen gjennom ${orgName} er avsluttet — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo / header -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <!-- Title -->
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Tilgangen gjennom ${orgName} er avsluttet
+              </p>
+
+              <!-- Divider -->
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <!-- Body text -->
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                <strong style="color:#ffffff;">${orgName}</strong> sin avtale med Quizkanonen er ikke lenger aktiv.
+                Hadde du Premium gjennom bedriften, har du n&aring; mistet den tilgangen.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Din personlige profil, quizhistorikk og sesong-poeng er intakt, og du kan
+                fortsatt spille ukens quiz som vanlig.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vil du beholde Premium p&aring; egen h&aring;nd? Tegn ditt eget abonnement p&aring;
+                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a>
+                &mdash; kr 49/mnd, fornyes automatisk til du selv avslutter.
+              </p>
+
+              <!-- CTA button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://quizkanonen.no/premium"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se Premium
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+                Sp&oslash;rsm&aring;l om selve avtalen? Ta kontakt med den som administrerer Quizkanonen hos dere.<br />
+                Sp&oslash;rsm&aring;l ellers? Svar p&aring; denne e-posten.
+              </p>
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 // Premium fra verdikode med begrenset varighet har løpt ut.
 // Samme oppsett som gracePeriodEndedEmail, men uten bedrifts-formuleringen —
 // disse brukerne fikk tilgang via en kode, ikke gjennom en arbeidsgiver.

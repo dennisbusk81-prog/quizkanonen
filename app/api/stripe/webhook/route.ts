@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { premiumWelcomeEmail, premiumRenewalEmail, premiumCancelledEmail, orgPurchaseEmail, orgCancelledEmail, orgRenewalEmail, paymentFailedEmail, orgPaymentFailedEmail, trialEndedNoCardEmail, subscriptionResumedEmail } from '@/lib/email-templates'
+import { shouldNotifyMembersOfLock, notifyMembersOfOrgLock } from '@/lib/org-lock-notify'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
 import { planFromPriceId } from '@/lib/org-plan-prices'
@@ -398,7 +399,7 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id, name, slug, stripe_subscription_id')
+      .select('id, name, slug, stripe_subscription_id, subscription_status')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
@@ -434,6 +435,16 @@ export async function POST(request: NextRequest) {
         // Rekalkuler i stedet for å slå av blindt: et medlem kan ha egen
         // verdikode eller eget abonnement som fortsatt dekker dem.
         await recomputePremium(memberIds, `sub.deleted org=${org.id}`, stripe)
+      }
+
+      // Varsle de ANSATTE (ikke admin — admin får orgCancelledEmail under).
+      // Kun på selve overgangen inn i låst tilstand, se shouldNotifyMembersOfLock.
+      // Awaitet, ikke fire-and-forget: sendingen er flere rundturer
+      // (listUsers + e-postbatcher), og et serverless-miljø kan fryse
+      // instansen straks responsen er sendt. Funksjonen kaster aldri, så den
+      // kan ikke velte den betalingskritiske grenen.
+      if (shouldNotifyMembersOfLock(org.subscription_status, 'locked')) {
+        await notifyMembersOfOrgLock(org.id, org.name, 'sub.deleted')
       }
 
       // Send kanselleringsvarsel til org-admin — fire-and-forget
@@ -725,7 +736,7 @@ export async function POST(request: NextRequest) {
 
     const { data: org } = await supabaseAdmin
       .from('organizations')
-      .select('id')
+      .select('id, name, subscription_status')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
 
@@ -783,6 +794,13 @@ export async function POST(request: NextRequest) {
             // Rekalkuler per medlem: org-dekningen faller bort, men en egen
             // verdikode eller et eget abonnement skal ikke ryke med den.
             await recomputePremium(memberIds, `sub.updated locked org=${org.id}`, stripe)
+
+            // Varsle de ansatte. `org.subscription_status` er snapshotet fra
+            // SELECT-en over, altså statusen FØR denne hendelsen skrev 'locked'
+            // — så past_due → unpaid → canceled gir én e-post, ikke tre.
+            if (shouldNotifyMembersOfLock(org.subscription_status, 'locked')) {
+              await notifyMembersOfOrgLock(org.id, org.name, `sub.updated ${status}`)
+            }
           } else {
             const { error: memberActivateErr } = await supabaseAdmin.from('profiles')
               .update({ premium_status: true, premium_source: 'org' })
