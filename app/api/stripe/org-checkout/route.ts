@@ -82,6 +82,12 @@ export async function POST(request: NextRequest) {
           ? { customer: org.stripe_customer_id }
           : { customer_email: user.email ?? undefined }),
         metadata: { organization_id: org.id, type: 'org', userId: user.id },
+        // subscription_data.metadata, ikke bare sesjonens metadata: Stripe kopierer
+        // IKKE sesjons-metadata videre til abonnementet. Uten dette bærer et betalt
+        // org-abonnement ingen spor av hvilken org det gjelder, og en org der
+        // webhooken feilet kan ikke gjenfinnes hos Stripe i det hele tatt — den så
+        // da ut som et forlatt checkout-forsøk for /api/cron/cleanup-orgs.
+        subscription_data: { metadata: { organization_id: org.id, type: 'org' } },
         success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/org/${org.slug}/admin`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/org/${org.slug}/admin`,
       })
@@ -108,10 +114,10 @@ export async function POST(request: NextRequest) {
   try {
     const slug = randomBytes(4).toString('hex')
 
-    // FIX 10 — the org is created before Stripe payment completes. If the user
-    // abandons checkout, this leaves an orphan org (no stripe_subscription_id).
-    // A future cleanup cron should delete orgs older than 24h where
-    // stripe_subscription_id IS NULL.
+    // Org-en opprettes FØR Stripe-betalingen fullføres. Avbryter brukeren
+    // checkouten, ligger den igjen uten stripe_subscription_id.
+    // /api/cron/cleanup-orgs rydder slike opp — men kryssjekker mot Stripe først,
+    // fordi en org der webhooken feilet ser helt lik ut herfra.
     const { data: org, error: orgErr } = await supabaseAdmin
       .from('organizations')
       .insert({ name: orgName, slug, plan, created_by: user.id })
@@ -157,6 +163,9 @@ export async function POST(request: NextRequest) {
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: user.email ?? undefined,
       metadata: { organization_id: org.id, type: 'org', userId: user.id },
+      // Se merknaden i reaktiveringsgrenen over: abonnementet må bære org-id-en
+      // selv, ellers finnes org-en ikke igjen hos Stripe hvis webhooken svikter.
+      subscription_data: { metadata: { organization_id: org.id, type: 'org' } },
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/bedrift/success?org=${org.slug}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/bedrift/registrer?plan=${plan}`,
     })
