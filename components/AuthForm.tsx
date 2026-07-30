@@ -424,10 +424,14 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       </p>
 
       <p className="qk-auth-terms">
+        {/* Alderskravet bekreftes HER, ved registrering/innlogging — det finnes
+            ingen egen avkrysningsboks ved quiz-start lenger (fjernet i bced92d).
+            Vilkår §2 og personvern §9 peker på denne setningen. */}
         Ved å logge inn godtar du våre{' '}
         <a href="/vilkar" className="qk-auth-terms-link">vilkår</a>
         {' '}og{' '}
-        <a href="/personvern" className="qk-auth-terms-link">personvernerklæringen</a>.
+        <a href="/personvern" className="qk-auth-terms-link">personvernerklæringen</a>,
+        og bekrefter at du er 13 år eller eldre.
       </p>
     </>
   )

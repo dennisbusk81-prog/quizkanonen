@@ -13,7 +13,7 @@
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: mars 2026</span>
+          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>
         </div>
       </div>
 
@@ -48,7 +48,7 @@
 
           <Section title="2. Hvem vilkårene gjelder for">
             <P>Disse vilkårene gjelder for alle som bruker Quizkanonen — enten du spiller gratis, bruker en verdikode, eller er betalende abonnent. Ved å delta i en quiz bekrefter du at du har lest og godtar vilkårene.</P>
-            <P>Du må være minst 13 år for å bruke tjenesten. Ved å bekrefte alderskravet ved quiz-start forsikrer du at dette stemmer.</P>
+            <P>Du må være minst 13 år for å bruke tjenesten. Ved å opprette konto eller logge inn bekrefter du at dette stemmer.</P>
           </Section>
 
           <Section title="3. Hva tjenesten er">

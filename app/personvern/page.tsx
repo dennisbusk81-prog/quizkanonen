@@ -13,7 +13,7 @@
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: 23. juli 2026</span>
+          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>
         </div>
       </div>
 
@@ -160,7 +160,7 @@
           </Section>
 
           <Section title="9. Barn og ungdom">
-            <P>Quizkanonen er tilgjengelig for alle, men krever aldersbekreftelse (13+) ved registrering. Vi samler ikke bevisst inn opplysninger om barn under 13 år. Dersom du er forelder og mener barnet ditt har oppgitt opplysninger til oss, kontakt oss på <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>[support@quizkanonen.no]</a> så sletter vi dataene umiddelbart.</P>
+            <P>Quizkanonen er tilgjengelig for alle, men ved registrering bekrefter du at du er minst 13 år. Vi samler ikke bevisst inn opplysninger om barn under 13 år. Dersom du er forelder og mener barnet ditt har oppgitt opplysninger til oss, kontakt oss på <a href="mailto:support@quizkanonen.no" style={{ color: '#c9a84c' }}>[support@quizkanonen.no]</a> så sletter vi dataene umiddelbart.</P>
           </Section>
 
           <Section title="10. Endringer i erklæringen">
