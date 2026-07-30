@@ -15,6 +15,7 @@ import { ORG_PLANS, PLAN_ORDER, getPlan, type OrgPlanId } from '@/lib/org-plan'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { getSessionIdentity } from '@/lib/session-identity'
 import { fetchMembersActivity } from '@/lib/members-activity-fetch'
+import { fetchSeasonWinners, type SeasonWinnersState, type WinnerPeriod } from '@/lib/season-winners'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -212,8 +213,11 @@ export default function OrgAdminPage() {
   const loadSettledRef = useRef(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
 
-  type WinnerEntry = { displayName: string; avatarUrl: string | null; points: number } | null
-  const [winners, setWinners] = useState<{ month: WinnerEntry; quarter: WinnerEntry; year: WinnerEntry } | null>(null)
+  // null = ikke lastet ennå. Per periode er utfallet en Loaded<PeriodWinners>:
+  // {ok:false} = hentingen feilet, {ok:true, value.winner:null} = ingen kåret
+  // ennå. De to så tidligere helt like ut på skjermen («Ikke kåret ennå»).
+  // top3 ligger inne i samme verdi — det var før en egen parallell state.
+  const [winners, setWinners] = useState<SeasonWinnersState | null>(null)
 
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -225,10 +229,8 @@ export default function OrgAdminPage() {
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  type Top3Entry = { displayName: string; points: number }
-  const [top3Winners, setTop3Winners] = useState<{ month: Top3Entry[]; quarter: Top3Entry[]; year: Top3Entry[] }>({ month: [], quarter: [], year: [] })
-  const [copiedWinner, setCopiedWinner] = useState<false | 'month' | 'quarter' | 'year'>(false)
-  const [shareHovered, setShareHovered] = useState<false | 'month' | 'quarter' | 'year'>(false)
+  const [copiedWinner, setCopiedWinner] = useState<false | WinnerPeriod>(false)
+  const [shareHovered, setShareHovered] = useState<false | WinnerPeriod>(false)
 
   const [allowGlobal, setAllowGlobal] = useState(false)
 
@@ -356,29 +358,14 @@ export default function OrgAdminPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const loadWinners = useCallback((orgId: string, token: string) => {
-    const periods = ['month', 'quarter', 'year'] as const
-    Promise.all(
-      periods.map(p =>
-        fetch(`/api/toppliste?period=${p}&scope=organization&scope_id=${encodeURIComponent(orgId)}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        })
-          .then(r => r.ok ? r.json() : { entries: [] })
-          .catch(() => ({ entries: [] }))
-      )
-    ).then(([monthJson, quarterJson, yearJson]) => {
-      type ApiEntry = { displayName: string; avatarUrl: string | null; points: number }
-      const toWinner = (entries: ApiEntry[]) =>
-        entries[0] ? { displayName: entries[0].displayName, avatarUrl: entries[0].avatarUrl ?? null, points: entries[0].points } : null
-      const toTop3 = (entries: ApiEntry[]) =>
-        entries.slice(0, 3).map(e => ({ displayName: e.displayName, points: e.points }))
-      const mE = (monthJson.entries ?? []) as ApiEntry[]
-      const qE = (quarterJson.entries ?? []) as ApiEntry[]
-      const yE = (yearJson.entries ?? []) as ApiEntry[]
-      setWinners({ month: toWinner(mE), quarter: toWinner(qE), year: toWinner(yE) })
-      setTop3Winners({ month: toTop3(mE), quarter: toTop3(qE), year: toTop3(yE) })
-    })
+  const loadWinners = useCallback(async (orgId: string, token: string) => {
+    setWinners(null)
+    setWinners(await fetchSeasonWinners(period =>
+      fetch(`/api/toppliste?period=${period}&scope=organization&scope_id=${encodeURIComponent(orgId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+    ))
   }, [])
 
   const loadActivity = useCallback(async (orgId: string, token: string, period: 'month' | 'quarter' | 'year') => {
@@ -921,8 +908,13 @@ export default function OrgAdminPage() {
     setTimeout(() => setCopiedToken(null), 2000)
   }
 
-  const shareWinner = (period: 'month' | 'quarter' | 'year') => {
+  const shareWinner = (period: WinnerPeriod) => {
     if (!data) return
+    // Knappen rendres kun inne i en vellykket periode med vinner, så dette er
+    // en backstop — men den er billig, og alternativet er en delingstekst med
+    // tom pallplass utgitt for å være fasit.
+    const loaded = winners?.[period]
+    if (!loaded?.ok) return
     const now = new Date()
     const year = now.getFullYear()
     let periodLabel: string
@@ -936,7 +928,7 @@ export default function OrgAdminPage() {
     }
     const titleWord = period === 'month' ? 'Månedens' : period === 'quarter' ? 'Kvartalets' : 'Årets'
     const medals = ['🥇', '🥈', '🥉']
-    const top3Lines = top3Winners[period].map((e, i) => `${medals[i]} ${e.displayName} — ${e.points} poeng`)
+    const top3Lines = loaded.value.top3.map((e, i) => `${medals[i]} ${e.displayName} — ${e.points} poeng`)
     const mc = data.stats?.memberCount ?? data.members.length
     const ac = data.stats?.activeThisMonth ?? 0
     const pct = mc > 0 ? Math.round((ac / mc) * 100) : 0
@@ -2215,10 +2207,10 @@ export default function OrgAdminPage() {
 
           <div className="oa-winners-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 8 }}>
             {([
-              { label: 'Månedens kanon',   icon: '★', winner: winners?.month,   period: 'month'   as const },
-              { label: 'Kvartalets kanon', icon: '◆', winner: winners?.quarter, period: 'quarter' as const },
-              { label: 'Årets kanon',      icon: '♛', winner: winners?.year,    period: 'year'    as const },
-            ] as { label: string; icon: string; winner: WinnerEntry | undefined; period: 'month' | 'quarter' | 'year' }[]).map(({ label, icon, winner, period }) => (
+              { label: 'Månedens kanon',   icon: '★', loaded: winners?.month,   period: 'month'   as const },
+              { label: 'Kvartalets kanon', icon: '◆', loaded: winners?.quarter, period: 'quarter' as const },
+              { label: 'Årets kanon',      icon: '♛', loaded: winners?.year,    period: 'year'    as const },
+            ]).map(({ label, icon, loaded, period }) => (
               <div
                 key={label}
                 style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}
@@ -2229,18 +2221,36 @@ export default function OrgAdminPage() {
                     {label}
                   </span>
                 </div>
-                {winner === undefined ? (
+                {loaded === undefined ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
-                ) : winner === null ? (
+                ) : !loaded.ok ? (
+                  /* «Ikke kåret ennå» ville vært en påstand om at ingen har
+                     vunnet. Vi vet ikke — hentingen feilet. */
+                  <div>
+                    <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 10 }}>
+                      Kunne ikke hentes.
+                    </p>
+                    <button
+                      onClick={() => { if (data && session) loadWinners(data.org.id, session.access_token) }}
+                      style={{
+                        display: 'inline-block', fontSize: 11, padding: '4px 12px',
+                        border: '1px solid #2a2d38', borderRadius: 6, background: 'transparent',
+                        color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                      }}
+                    >
+                      Prøv igjen
+                    </button>
+                  </div>
+                ) : loaded.value.winner === null ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ikke kåret ennå</p>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar name={winner.displayName} size={36} />
+                    <Avatar name={loaded.value.winner.displayName} size={36} />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {winner.displayName}
+                        {loaded.value.winner.displayName}
                       </p>
-                      <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{winner.points} poeng</p>
+                      <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{loaded.value.winner.points} poeng</p>
                       <button
                         onClick={() => shareWinner(period)}
                         onMouseEnter={() => setShareHovered(period)}

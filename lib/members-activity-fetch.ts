@@ -1,3 +1,5 @@
+import { fetchResult, type MinimalResponse } from './fetch-result'
+
 // Én delt sannhet for hvordan et svar fra members-activity blir til klient-state.
 //
 // Bakgrunn: både org-admin og liga-eiersiden gjorde
@@ -13,24 +15,15 @@ export type MembersActivityResult<T> =
   | { ok: true; members: T[] }
   | { ok: false }
 
-// Kun det fetch-kontrakten vi faktisk bruker — gjør funksjonen testbar uten
-// en ekte Response.
-type MinimalResponse = { ok: boolean; json: () => Promise<unknown> }
-
+// Selve ok/ikke-ok-skillet bor i lib/fetch-result.ts og deles med
+// sesongvinnerne, som har en annen nyttelast men nøyaktig samme invariant.
+// Denne funksjonen beholdes som medlemsliste-formen av det.
 export async function fetchMembersActivity<T>(
   run: () => Promise<MinimalResponse>
 ): Promise<MembersActivityResult<T>> {
-  try {
-    const res = await run()
-    // Enhver ikke-ok status er «vet ikke». Særlig 500: den er RUTENS måte å si
-    // at aktivitets-oppslaget feilet, og skal aldri bli til en tom liste.
-    if (!res.ok) return { ok: false }
-    const json = await res.json() as { members?: T[] } | null
-    // 200 uten members er derimot reelt tomt — en bedrift/liga kan ha null
-    // medlemmer, og det er en sannhet vi har lov til å vise.
-    return { ok: true, members: json?.members ?? [] }
-  } catch {
-    // Nettverksfeil eller ugyldig JSON: også «vet ikke», ikke «tomt».
-    return { ok: false }
-  }
+  // 200 uten members er reelt tomt — en bedrift/liga KAN ha null medlemmer, og
+  // det er en sannhet vi har lov til å vise. Det er kun feilsvar som ikke skal
+  // kunne bli til en tom liste.
+  const result = await fetchResult(run, json => (json as { members?: T[] } | null)?.members ?? [])
+  return result.ok ? { ok: true, members: result.value } : { ok: false }
 }
