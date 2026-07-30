@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
+import { fetchMembersActivity } from '@/lib/members-activity-fetch'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -177,6 +178,10 @@ export default function LigaPage() {
         setSeasonResetInput('')
         setSeasonResetDone(true)
         setActivityData(null)
+        // Uten dette ville en feilboks fra et TIDLIGERE mislykket forsøk blitt
+        // stående etter en vellykket nullstilling, og sett ut som om
+        // nullstillingen feilet.
+        setActivityError(false)
         setTimeout(() => setSeasonResetDone(false), 4000)
       }
     } finally {
@@ -212,20 +217,17 @@ export default function LigaPage() {
     setActivityLoading(true)
     setActivityData(null)
     setActivityError(false)
-    try {
+    const result = await fetchMembersActivity<MemberActivity>(async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { setActivityError(true); return }
-      const res = await fetch(`/api/leagues/${leagueId}/members-activity?period=${period}`, {
+      // Ingen sesjon er også «vet ikke» — vi kan ikke påstå at ligaen er tom.
+      if (!session) throw new Error('ingen sesjon')
+      return fetch(`/api/leagues/${leagueId}/members-activity?period=${period}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      if (!res.ok) { setActivityError(true); return }
-      const json = await res.json()
-      setActivityData(json.members ?? [])
-    } catch {
-      setActivityError(true)
-    } finally {
-      setActivityLoading(false)
-    }
+    })
+    if (result.ok) setActivityData(result.members)
+    else setActivityError(true)
+    setActivityLoading(false)
   }
 
   async function handleExclude(userId: string, currentlyExcluded: boolean) {

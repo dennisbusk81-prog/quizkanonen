@@ -14,6 +14,7 @@ import { formatRemovalDate } from '@/lib/scheduled-removal'
 import { ORG_PLANS, PLAN_ORDER, getPlan, type OrgPlanId } from '@/lib/org-plan'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { getSessionIdentity } from '@/lib/session-identity'
+import { fetchMembersActivity } from '@/lib/members-activity-fetch'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -298,6 +299,12 @@ export default function OrgAdminPage() {
   const [activityPeriod, setActivityPeriod] = useState<'month' | 'quarter' | 'year'>('month')
   const [activityData, setActivityData]     = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
+  // Skiller «ingen aktivitet» fra «vi vet ikke». members-activity-ruten fikk en
+  // 500 ved feilet attempts-oppslag i 1297661 nettopp for å unngå stille
+  // degradering — men klienten oversatte den tilbake til en tom liste, så
+  // fiksen var usynlig her. activityData skal forbli null ved feil: den mater
+  // BÅDE statistikk-stripen, AKTIV-merkene og den interne rangeringen.
+  const [activityError, setActivityError]   = useState(false)
   const [excludingId, setExcludingId]       = useState<string | null>(null)
   const [csvLoading, setCsvLoading]         = useState(false)
   const [csvError, setCsvError]             = useState<string | null>(null)
@@ -377,17 +384,15 @@ export default function OrgAdminPage() {
   const loadActivity = useCallback(async (orgId: string, token: string, period: 'month' | 'quarter' | 'year') => {
     setActivityLoading(true)
     setActivityData(null)
-    try {
-      const res = await fetch(`/api/org/${orgId}/members-activity?period=${period}`, {
+    setActivityError(false)
+    const result = await fetchMembersActivity<MemberActivity>(() =>
+      fetch(`/api/org/${orgId}/members-activity?period=${period}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      const json = res.ok ? await res.json() : { members: [] }
-      setActivityData(json.members ?? [])
-    } catch {
-      setActivityData([])
-    } finally {
-      setActivityLoading(false)
-    }
+    )
+    if (result.ok) setActivityData(result.members)
+    else setActivityError(true)
+    setActivityLoading(false)
   }, [])
 
   const loadQuizLeaderboard = useCallback(async (orgId: string, token: string) => {
@@ -997,6 +1002,10 @@ export default function OrgAdminPage() {
       setSeasonResetInput('')
       setSeasonResetDone(true)
       setActivityData(null)
+      // Uten dette ville en feilboks fra et TIDLIGERE mislykket forsøk blitt
+      // stående etter en vellykket nullstilling, og sett ut som om
+      // nullstillingen feilet.
+      setActivityError(false)
       loadWinners(data.org.id, session.access_token)
       setTimeout(() => setSeasonResetDone(false), 4000)
     } catch {
@@ -1631,6 +1640,16 @@ export default function OrgAdminPage() {
               </span>
             </div>
 
+            {/* Uten dette leser en rad uten AKTIV-merke som «denne personen har
+                ikke spilt» — nøyaktig påstanden vi ikke kan stå inne for når
+                aktivitets-hentingen feilet. Lista selv kommer fra admin-data og
+                er upåvirket, så bare merkene mangler. */}
+            {activityError && (
+              <p style={{ fontSize: 12, color: '#e8e4dd', padding: '12px 18px', borderBottom: '1px solid #2a2d38', lineHeight: 1.5 }}>
+                Aktivitetsdata er utilgjengelig akkurat nå — AKTIV-merket vises ikke på radene under.
+              </p>
+            )}
+
             {/* Member rows */}
             {filteredMembers.length === 0 ? (
               <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>
@@ -2056,12 +2075,26 @@ export default function OrgAdminPage() {
                     Intern rangering — kun {data?.org.name}
                   </p>
                   <span style={{ fontSize: 12, color: '#7a7873' }}>
-                    {sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere
+                    {activityError ? '—' : `${sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere`}
                   </span>
                 </div>
 
                 {activityLoading ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                ) : activityError ? (
+                  /* «Ingen data for denne perioden» ville vært en ren løgn her —
+                     vi vet ikke om noen har poeng, hentingen feilet. */
+                  <div style={{ padding: '28px 24px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 14, lineHeight: 1.5 }}>
+                      Kunne ikke hente aktivitetsdata.
+                    </p>
+                    <button
+                      onClick={() => { if (data && session) loadActivity(data.org.id, session.access_token, activityPeriod) }}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                    >
+                      Prøv igjen
+                    </button>
+                  </div>
                 ) : sortedByPoints.filter(m => m.totalPoints > 0).length === 0 ? (
                   <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
                 ) : (
