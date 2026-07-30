@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useMemo } from 'react'
+import { useState } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
@@ -47,6 +47,13 @@ interface QuizInterludeProps {
   streak: number
   wrongInARow: number
   questionIndex: number       // 0-based index of question just answered
+  // Seed-komponent for meldingsvalget: samme (attemptId, questionIndex) skal
+  // alltid gi samme tekst — også etter gjenopptakelse (start-attempt sin
+  // reused-sti returnerer samme attemptId).
+  attemptId: string | null
+  // Ferdig utledet i goToNext (computeTopCategory) — komponenten får aldri
+  // questions/answers, kun aggregater.
+  topCategory: string | null
   low: number | null          // estimated rank range
   high: number | null
   rival: RivalData | null
@@ -101,6 +108,8 @@ export default function QuizInterlude({
   streak,
   wrongInARow,
   questionIndex,
+  attemptId,
+  topCategory,
   low,
   high,
   rival,
@@ -111,7 +120,10 @@ export default function QuizInterlude({
   liveRanking,
   onNext,
 }: QuizInterludeProps) {
-  // Percentile: beregnes før meldingsvalg slik at scoreIsAboveMedian kan brukes i selectQuizMessage
+  // Percentile: kun til persentil-HINTET nederst — siden 30. juli 2026 er den
+  // koblet HELT ut av meldingsvalget (delsummen halvveis og andre spilleres
+  // sluttsummer er ikke samme skala, og en tom liste gjorde at alle fikk
+  // «dårlig»-varianten av halvtidsmeldingen).
   const percentileEntry = percentileData.find(p => p.score === score)
   const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
 
@@ -126,13 +138,17 @@ export default function QuizInterlude({
     totalQuestions,
     questionIndex,
     rival,
-    scoreIsAboveMedian,
+    topCategory,
   }
 
-  const message = useMemo(() => selectQuizMessage(msgState), [
-    streak, wrongInARow, score, totalQuestions, questionIndex,
-    rival?.name, scoreIsAboveMedian,
-  ])
+  // FRYST VED MOUNT — useState-initializer, ikke useMemo. Komponenten mountes
+  // på nytt for hver mellomskjerm (interPhase-gaten i page.tsx), så meldingen
+  // velges én gang per visning. Med useMemo kunne rivalData (som ankommer
+  // asynkront etter quiz-start) bytte GREN midt i visningen — seedet valg alene
+  // fjerner bare re-rullingen innen samme gren, ikke gren-byttet.
+  const [message] = useState(() =>
+    selectQuizMessage(msgState, `${attemptId ?? 'anon'}:${questionIndex}`)
+  )
 
   const animClass = phase === 'in' ? 'qk-intermediate-in' : 'qk-intermediate-out'
 

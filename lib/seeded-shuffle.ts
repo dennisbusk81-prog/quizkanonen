@@ -51,6 +51,17 @@ export function seededShuffle<T>(arr: T[], seedStr: string): T[] {
   return out
 }
 
+// Deterministisk indeks i [0, length) fra en seed-streng — samme PRNG som
+// seededShuffle, men for ett enkelt valg i stedet for en hel permutasjon.
+// Brukes av selectQuizMessage: meldingen på mellomskjermen skal være en ren
+// funksjon av (attemptId, questionIndex), slik at en re-render eller en
+// gjenopptakelse etter nettbrudd aldri ruller om teksten foran spilleren.
+export function seededIndex(seedStr: string, length: number): number {
+  if (length <= 0) return 0
+  const rand = mulberry32(xmur3(seedStr)())
+  return Math.floor(rand() * length)
+}
+
 // Alle fire alternativ-bokstavene. Rekkefølgen her er kun utgangspunktet som
 // stokkes — den sier ingenting om hvor fasiten ligger.
 export const ALL_OPTION_LETTERS = ['A', 'B', 'C', 'D']

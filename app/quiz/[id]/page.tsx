@@ -6,6 +6,7 @@ import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
+import { computeTopCategory } from '@/lib/select-quiz-message'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
@@ -826,6 +827,9 @@ export default function QuizPage() {
   const [interStreak, setInterStreak] = useState(0)
   const [interWrongInARow, setInterWrongInARow] = useState(0)
   const [interNextQNum, setInterNextQNum] = useState(1)
+  // Kategori spilleren har flest riktige i (min. 3, «Diverse» ekskludert) —
+  // utledet i goToNext via computeTopCategory, ren lokal beregning.
+  const [interTopCategory, setInterTopCategory] = useState<string | null>(null)
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
   const [shuffledDisplayOrder, setShuffledDisplayOrder] = useState<string[]>(['A', 'B', 'C', 'D'])
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
@@ -1742,6 +1746,10 @@ export default function QuizPage() {
     setInterScore(correctSoFar)
     setInterStreak(streak)
     setInterWrongInARow(wrongInARow)
+    // Koblet på questionId → question.id inne i computeTopCategory — IKKE på
+    // indeks. answers kan avvike fra questions-rekkefølgen etter gjenopptakelse
+    // (withAnswer flytter et re-besvart spørsmål bakerst).
+    setInterTopCategory(computeTopCategory(answers, questions))
     setInterNextQNum(nextIndex + 1)
     setInterLow(low)
     setInterHigh(high)
@@ -2463,6 +2471,8 @@ export default function QuizPage() {
             streak={interStreak}
             wrongInARow={interWrongInARow}
             questionIndex={interNextQNum - 2}
+            attemptId={attemptId}
+            topCategory={interTopCategory}
             low={interLow}
             high={interHigh}
             rival={rivalData}
