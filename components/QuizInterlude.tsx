@@ -204,6 +204,13 @@ export default function QuizInterlude({
           fontFamily: "'Libre Baskerville', serif",
           fontSize: 28, fontWeight: 700, color: '#ffffff',
           lineHeight: 1.2, marginBottom: message.subline ? 10 : 20,
+          // Tekstbredden er 296px (maxWidth 360 − 2×32 padding) — et langt norsk
+          // sammensatt ord må brytes, ellers renner det ut horisontalt.
+          overflowWrap: 'break-word',
+          // Gulv på to linjer (målt: 2 × 33,59px = 67,19px ved fontSize 28 /
+          // lineHeight 1.2) så blokken under ikke hopper vertikalt mellom
+          // 1- og 2-linjers headlines. Tre linjer vokser som før — gulv, ikke tak.
+          minHeight: 68,
         }}>
           {message.headline}
         </h2>
