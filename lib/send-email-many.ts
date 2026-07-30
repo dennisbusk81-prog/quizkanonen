@@ -10,9 +10,7 @@
  * de øvrige, og ingen feil skal forsvinne stille.
  */
 import { sendEmail } from '@/lib/email'
-
-/** Maks antall samtidige Resend-kall. Samme tall som send-reminder-ruten. */
-const BATCH = 20
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 
 export type BulkSendResult = { sent: number; failed: number }
 
@@ -32,8 +30,8 @@ export async function sendEmailToMany(
   let sent = 0
   let failed = 0
 
-  for (let i = 0; i < recipients.length; i += BATCH) {
-    const batch = recipients.slice(i, i + BATCH)
+  for (let i = 0; i < recipients.length; i += EMAIL_BATCH_SIZE) {
+    const batch = recipients.slice(i, i + EMAIL_BATCH_SIZE)
     const results = await Promise.allSettled(
       batch.map(to => sendEmail({ to, ...message }))
     )

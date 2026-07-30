@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { reEngagementEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sent: 0, reason: 'no emails resolved' })
   }
 
-  // Step 4: Send in batches of 20
+  // Step 4: Send in batches — se EMAIL_BATCH_SIZE i lib/email-batch.ts
   const subject = 'Vi savner deg — quizen venter'
   const entries = [...emailMap.entries()] // [userId, email]
 
@@ -109,9 +110,8 @@ export async function GET(request: NextRequest) {
   let failed = 0
   const sentIds: string[] = []
 
-  const BATCH_SIZE = 20
-  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-    const batch = entries.slice(i, i + BATCH_SIZE)
+  for (let i = 0; i < entries.length; i += EMAIL_BATCH_SIZE) {
+    const batch = entries.slice(i, i + EMAIL_BATCH_SIZE)
     const results = await Promise.allSettled(
       batch.map(([userId, email]) => {
         const firstName = firstNameMap.get(userId)

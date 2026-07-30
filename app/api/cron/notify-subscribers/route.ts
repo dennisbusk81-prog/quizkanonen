@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { fetchAllRows } from '@/lib/paginate'
 
 export const dynamic = 'force-dynamic'
@@ -116,9 +117,8 @@ export async function GET(request: NextRequest) {
       let sent = 0
       let failed = 0
 
-      const BATCH_SIZE = 20
-      for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
-        const batch = subscribers.slice(i, i + BATCH_SIZE)
+      for (let i = 0; i < subscribers.length; i += EMAIL_BATCH_SIZE) {
+        const batch = subscribers.slice(i, i + EMAIL_BATCH_SIZE)
         const results = await Promise.allSettled(
           batch.map(s => sendEmail({ to: s.email, subject, html }))
         )

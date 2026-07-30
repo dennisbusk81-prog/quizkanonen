@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { rateLimit } from '@/lib/rate-limit'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
@@ -77,10 +78,9 @@ export async function POST(
   const html = `<p style="font-family:sans-serif;font-size:15px;color:#1a1c23;">Ukens quiz er åpen — logg inn på <a href="https://quizkanonen.no" style="color:#c9a84c;">quizkanonen.no</a> og spill før den stenger.</p>`
 
   let sent = 0
-  const BATCH = 20
-  for (let i = 0; i < emailsToSend.length; i += BATCH) {
+  for (let i = 0; i < emailsToSend.length; i += EMAIL_BATCH_SIZE) {
     const results = await Promise.allSettled(
-      emailsToSend.slice(i, i + BATCH).map(email =>
+      emailsToSend.slice(i, i + EMAIL_BATCH_SIZE).map(email =>
         sendEmail({ to: email, subject, html })
       )
     )

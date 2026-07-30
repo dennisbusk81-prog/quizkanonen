@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 
@@ -99,10 +100,9 @@ export async function GET(request: NextRequest) {
       let sent = 0
       let failed = 0
 
-      // Send in batches of 20 concurrent emails
-      const BATCH_SIZE = 20
-      for (let i = 0; i < entriesToSend.length; i += BATCH_SIZE) {
-        const batch = entriesToSend.slice(i, i + BATCH_SIZE)
+      // Send i batcher av samtidige e-poster — se EMAIL_BATCH_SIZE i lib/email-batch.ts
+      for (let i = 0; i < entriesToSend.length; i += EMAIL_BATCH_SIZE) {
+        const batch = entriesToSend.slice(i, i + EMAIL_BATCH_SIZE)
         const results = await Promise.allSettled(
           batch.map(([userId, email]) => {
             const html = quizReminderEmail(quizSnapshot.id, quizSnapshot.closes_at ?? null, quizSnapshot.title ?? undefined, buildUnsubscribeUrl(userId, 'reminders'))
@@ -219,10 +219,9 @@ export async function GET(request: NextRequest) {
 
           const html = orgCloseReminderEmail(orgName, orgClosesAt, activeQuiz.title ?? undefined)
           const subject = `Fristen nærmer seg — en time igjen for ${orgName}`
-          const BATCH_SIZE = 20
           let sent = 0
-          for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-            const batch = emails.slice(i, i + BATCH_SIZE)
+          for (let i = 0; i < emails.length; i += EMAIL_BATCH_SIZE) {
+            const batch = emails.slice(i, i + EMAIL_BATCH_SIZE)
             const results = await Promise.allSettled(batch.map(email => sendEmail({ to: email, subject, html })))
             sent += results.filter(r => r.status === 'fulfilled').length
           }
