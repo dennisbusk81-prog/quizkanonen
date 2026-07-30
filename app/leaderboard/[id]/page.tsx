@@ -121,6 +121,14 @@ export default function LeaderboardPage() {
   const router = useRouter()
   // Org-modus: ?org=<slug> scoper visningen til én bedrift. null = nasjonal (uendret).
   const orgSlug = searchParams.get('org')?.trim() || null
+  // Liga-modus: kun brukt til "tilbake til liga-topplisten"-lenken nederst —
+  // ingen datahenting/gating endres her (utenfor omfanget av denne fiksen,
+  // se components/SeasonLeaderboard.tsx sin buildQuizHref()).
+  const leagueSlug = searchParams.get('league')?.trim() || null
+  // hist=1 betyr at brukeren kom via "Tidligere quizer"-historikken i
+  // SeasonLeaderboard — brukes til å ta dem rett tilbake til samme åpne
+  // fane i stedet for "Siste quiz" ved retur.
+  const cameFromHistory = searchParams.get('hist') === '1'
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
@@ -1368,13 +1376,21 @@ export default function LeaderboardPage() {
                   Se din quizhistorikk →
                 </Link>
               )}
-              {/* Org-modus: lenk til bedriftstopplisten i stedet for den nasjonale */}
+              {/* Org-/liga-modus: lenk til riktig scopet toppliste i stedet
+                  for den nasjonale. cameFromHistory (?hist=1, satt av
+                  SeasonLeaderboard sin "Tidligere quizer"-lenke) tar
+                  brukeren rett tilbake til den ÅPNE historikk-fanen i
+                  stedet for "Siste quiz". */}
               {orgSlug ? (
-                <Link href={`/org/${orgSlug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                <Link href={`/org/${orgSlug}${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
                   Se bedriftstopplisten →
                 </Link>
+              ) : leagueSlug ? (
+                <Link href={`/liga/${leagueSlug}${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                  Se liga-topplisten →
+                </Link>
               ) : (
-                <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+                <Link href={`/toppliste${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
                   Se sesong-topplisten →
                 </Link>
               )}

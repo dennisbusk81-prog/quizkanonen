@@ -383,7 +383,7 @@ export default function LigaPage() {
 
           {/* Sesong-toppliste — scopet til ligaen */}
           {league && (
-            <SeasonLeaderboard scope="league" scopeId={league.id} loginHref={`/login?next=/liga/${slug}`} />
+            <SeasonLeaderboard scope="league" scopeId={league.id} leagueSlug={slug} loginHref={`/login?next=/liga/${slug}`} />
           )}
 
           {/* Eier: Medlemsoversikt */}

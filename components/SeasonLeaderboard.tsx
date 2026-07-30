@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import SkeletonCard from '@/components/SkeletonCard'
@@ -43,6 +44,10 @@ const EXTRA_STYLES = `
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Period = 'last_quiz' | 'month' | 'quarter' | 'year' | 'alltime'
+
+function isPeriod(v: string | null): v is Period {
+  return v === 'last_quiz' || v === 'month' || v === 'quarter' || v === 'year' || v === 'alltime'
+}
 
 type Entry = {
   rank: number
@@ -274,11 +279,13 @@ interface Props {
   globalLeagueDisabled?: boolean
   /** Org-slug — settes kun i org-modus. Brukes til å org-scope quiz-toppliste-lenker. */
   orgSlug?: string
+  /** Liga-slug — settes kun i liga-modus. Brukes til å liga-scope quiz-toppliste-lenker (parallelt med orgSlug). */
+  leagueSlug?: string
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste', globalLeagueDisabled, orgSlug }: Props) {
+export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?next=/toppliste', globalLeagueDisabled, orgSlug, leagueSlug }: Props) {
   const scopeInfix = scope === 'league' ? ' i ligaen' : scope === 'organization' ? ' i bedriften' : ''
   const notPlayedSuffix = scope !== 'global' ? ' Bli med de andre!' : ''
 
@@ -298,7 +305,37 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     alltime:   'Du har ikke spilt ennå.',
   }
 
-  const [period, setPeriod]           = useState<Period>('last_quiz')
+  // period/histOpen/expandedKey er URL-styrt (query-parametrene period/hist/
+  // histKey) i stedet for ren useState. Uten dette nullstilles hele
+  // "Tidligere quizer"-historikken hver gang siden mountes på nytt, så en
+  // bruker som gikk fra én historisk quiz til en annen måtte alltid innom
+  // "Siste quiz" (default-mount-tilstanden) og åpne historikken manuelt på
+  // nytt. Med URL-state kan lenken til en historisk quiz (se buildQuizHref
+  // under) ta brukeren rett tilbake til samme åpne fane, og visningen blir
+  // delbar/direktelastbar. Selve dataene (histData/expandedData) forblir
+  // lokal cache — periode-spesifikk, nullstilles ved periodebytte.
+  const router       = useRouter()
+  const pathname     = usePathname()
+  const searchParams = useSearchParams()
+
+  const updateQuery = useCallback((patch: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) params.delete(key)
+      else params.set(key, value)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [router, pathname, searchParams])
+
+  const periodParam = searchParams.get('period')
+  const period: Period = isPeriod(periodParam) ? periodParam : 'last_quiz'
+  function setPeriod(p: Period) {
+    // Nytt periodevalg nullstiller historikk-fanens URL-state også — samme
+    // oppførsel som før (se den fjernede period-reset-effekten under).
+    updateQuery({ period: p === 'last_quiz' ? null : p, hist: null, histKey: null })
+  }
+
   const [data, setData]               = useState<ApiResponse | null>(null)
   const [loading, setLoading]         = useState(true)
   const [loadError, setLoadError]     = useState(false)
@@ -314,10 +351,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const [searchInput, setSearchInput] = useState('')      // rå input
   const [search, setSearch]           = useState('')      // debounced, sendt til API
 
-  const [histOpen, setHistOpen]         = useState(false)
+  const histOpen                        = searchParams.get('hist') === '1'
+  const expandedKey                     = searchParams.get('histKey')
   const [histData, setHistData]         = useState<HistoryEntry[] | null>(null)
   const [histLoading, setHistLoading]   = useState(false)
-  const [expandedKey, setExpandedKey]   = useState<string | null>(null)
   const [expandedData, setExpandedData] = useState<Map<string, ExpandedEntry[] | 'loading'>>(new Map())
 
   // ── H2H Duell ("Utfordre") ──────────────────────────────────────────────────
@@ -470,11 +507,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, sessionUserId, scope, scopeId, browseMode, pageNo, search])
 
-  // Reset historikk + paginering når periode bytter
+  // Reset historikk-cache + paginering når periode bytter. hist/histKey
+  // trenger ikke nullstilles her lenger — de er URL-styrt, og setPeriod()
+  // over nullstiller dem allerede eksplisitt ved fanebytte.
   useEffect(() => {
-    setHistOpen(false)
     setHistData(null)
-    setExpandedKey(null)
     setExpandedData(new Map())
     setBrowseMode(false)
     setPageNo(1)
@@ -505,16 +542,24 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     }
   }, [histData, period, scope, scopeId, session])
 
+  // Åpner automatisk når `hist=1` finnes i URL-en — ikke bare ved klikk på
+  // akkordionen, men også ved direktelast/delt lenke (f.eks. fra en
+  // historisk quiz sin "Se sesong-topplisten"-retur-lenke). loadHistory sin
+  // egen guard (histData !== null) gjør at dette ikke dobbelt-henter ved
+  // rene URL-endringer som ikke gjelder hist.
+  useEffect(() => {
+    if (histOpen) loadHistory()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histOpen, period])
+
   const toggleHistory = () => {
-    const willOpen = !histOpen
-    setHistOpen(willOpen)
-    if (willOpen) loadHistory()
+    updateQuery({ hist: histOpen ? null : '1' })
   }
 
-  // Hent topp 10 for historisk periode (ved klikk)
-  async function loadExpanded(key: string) {
-    if (expandedKey === key) { setExpandedKey(null); return }
-    setExpandedKey(key)
+  // Henter topp 10 for en historisk periode. Kalles både ved klikk
+  // (loadExpanded under) og automatisk når ?histKey= finnes i URL-en ved
+  // mount/direktelast (effekten rett under).
+  async function fetchExpanded(key: string) {
     if (expandedData.has(key)) return
     setExpandedData(prev => new Map(prev).set(key, 'loading'))
     try {
@@ -534,6 +579,29 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     } catch {
       setExpandedData(prev => new Map(prev).set(key, []))
     }
+  }
+
+  function loadExpanded(key: string) {
+    updateQuery({ histKey: expandedKey === key ? null : key })
+  }
+
+  useEffect(() => {
+    if (expandedKey) fetchExpanded(expandedKey)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedKey])
+
+  // Bygger lenken fra en rad i "Tidligere quizer" til quizens egen
+  // resultatside. org/league-parameteren holder riktig scope gjennom
+  // navigasjonen (parallelt mønster for begge); hist=1 signaliserer til
+  // app/leaderboard/[id]/page.tsx at brukeren kom fra historikk-lista, slik
+  // at "Se sesong-topplisten"-lenken der kan ta dem rett tilbake til samme
+  // åpne fane i stedet for "Siste quiz".
+  function buildQuizHref(quizId: string): string {
+    const qp = new URLSearchParams()
+    if (scope === 'organization' && orgSlug) qp.set('org', orgSlug)
+    if (scope === 'league' && leagueSlug) qp.set('league', leagueSlug)
+    qp.set('hist', '1')
+    return `/leaderboard/${quizId}?${qp.toString()}`
   }
 
   const countdown  = getCountdown(period)
@@ -728,14 +796,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               {!entry.winner && <div style={{ fontSize: 12, color: '#e8e4dd', marginTop: 4 }}>Ingen innloggede spillere</div>}
             </div>
             {entry.quizId && (
-              <a
-                href={scope === 'organization' && orgSlug
-                  ? `/leaderboard/${entry.quizId}?org=${encodeURIComponent(orgSlug)}`
-                  : `/leaderboard/${entry.quizId}`}
+              <Link
+                href={buildQuizHref(entry.quizId)}
                 style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}
               >
                 Se toppliste →
-              </a>
+              </Link>
             )}
           </div>
         </div>
