@@ -2693,8 +2693,13 @@ export default function QuizPage() {
 
       {(() => {
         const categoryStats: Record<string, { correct: number; total: number }> = {}
-        answers.forEach((ans, i) => {
-          const q = questions[i]
+        // Koblet på questionId → question.id, IKKE på indeks: withAnswer flytter
+        // et re-besvart spørsmål bakerst i answers ved gjenopptakelse, så
+        // answers[i] og questions[i] kan peke på ULIKE spørsmål — statistikken
+        // ble da tilskrevet feil kategori. Samme mønster som computeTopCategory.
+        const questionById = new Map(questions.filter(Boolean).map(q => [q.id, q]))
+        answers.forEach(ans => {
+          const q = questionById.get(ans.questionId)
           if (!q?.category) return
           if (!categoryStats[q.category]) categoryStats[q.category] = { correct: 0, total: 0 }
           categoryStats[q.category].total++
