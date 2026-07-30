@@ -27,16 +27,31 @@ test('koder gjentar seg ikke — 5000 trekk gir 5000 ulike', () => {
 })
 
 test('fordelingen er jevn — ingen modulo-skjevhet mot starten av alfabetet', () => {
-  // 31 går ikke opp i 256. En naiv `byte % 31` gir de 8 første tegnene ~13 %
-  // høyere sannsynlighet. Forkastningsutvalget skal fjerne det.
+  // 31 går ikke opp i 256: byte-verdiene 0–255 gir residuene 0–7 (bokstavene
+  // A–H) én ekstra treff hver (256 = 8×31 + 8) hvis man bruker rå `byte % 31`.
+  // Det gjør A–H 9/256 sannsynlige mot 8/256 for resten — 12,5 % skjevere,
+  // og mot et jevnt "forventet"-mål (n/31) blir det et avvik på ca. 9,0 %.
+  // Forkastningsutvalget i generateAccessCode() skal fjerne akkurat dette.
+  //
+  // Antall samples og toleranse under er utledet, ikke gjettet:
+  // Hvert tegn er (ved korrekt forkastningsutvalg) uavhengig og likt fordelt
+  // over 31 symboler, så relativt standardavvik for én bøtte er
+  // sqrt((1-p)/(N·p)) = sqrt(30/N) der N = totalt antall trekte tegn.
+  // Med SAMPLES = 10 000 koder × 12 tegn = 120 000 trekk blir
+  // sqrt(30/120000) ≈ 1,58 %. En toleranse på 7,5 % ligger da ca. 4,7
+  // standardavvik unna null — falsk positiv er astronomisk usannsynlig selv
+  // med 31 sammenlignede bøtter (~1 av 1,5 millioner kjøringer) — men
+  // fortsatt godt under det ekte skjevhets-signalet på ~9,0 %, som i tillegg
+  // rammer 8 bokstaver samtidig (enda høyere fangst-sannsynlighet).
+  const SAMPLES = 10_000
   const counts = new Map<string, number>()
-  for (let i = 0; i < 2000; i++) {
+  for (let i = 0; i < SAMPLES; i++) {
     for (const ch of generateAccessCode()) counts.set(ch, (counts.get(ch) ?? 0) + 1)
   }
   const values = [...counts.values()]
-  const expected = (2000 * PERSONAL_CODE_LENGTH) / 31
+  const expected = (SAMPLES * PERSONAL_CODE_LENGTH) / 31
   const maxDeviation = Math.max(...values.map(v => Math.abs(v - expected) / expected))
-  assert.ok(maxDeviation < 0.12, `for skjev fordeling: ${(maxDeviation * 100).toFixed(1)} %`)
+  assert.ok(maxDeviation < 0.075, `for skjev fordeling: ${(maxDeviation * 100).toFixed(1)} %`)
 })
 
 test('lengden kan settes — org-trial-koder bruker 8', () => {
