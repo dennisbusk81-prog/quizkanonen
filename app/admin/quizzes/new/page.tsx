@@ -1093,7 +1093,9 @@ function QuizEditorInner() {
   // Save a single question — PATCH if exists in DB, POST if new
   const saveQuestion = useCallback(async (idx: number): Promise<void> => {
     const qId = quizIdRef.current
-    if (!qId) return // quiz not created yet — will be batched on createQuiz
+    // 'creating' teller som "ikke opprettet ennå": createQuiz POSTer alle
+    // spørsmålene selv, og en PATCH mot /api/admin/quizzes/creating gir 500.
+    if (!qId || qId === 'creating') return // will be batched on createQuiz
 
     // Re-entry-guard: avvis et nytt kall for SAMME indeks mens forrige
     // lagring for den fortsatt pågår. Uten denne kunne to overlappende kall
@@ -1213,7 +1215,11 @@ function QuizEditorInner() {
   // Save quiz metadata (title, dates, type) — used when editing an existing quiz
   const updateQuizMeta = useCallback(async () => {
     const qId = quizIdRef.current
-    if (!qId) return
+    // Mens createQuiz er underveis står quizIdRef på sentinelen 'creating'.
+    // Uten denne vakten ble den lagt rett inn i URL-en → PATCH
+    // /api/admin/quizzes/creating → 500 (sett i prod 16. juli). createQuiz
+    // sender selv med tittel og datoer, så det er ingenting å lagre her.
+    if (!qId || qId === 'creating') return
     const t = titleRef.current.trim()
     if (!t) return
     setSaveStatus('saving')
@@ -1244,7 +1250,8 @@ function QuizEditorInner() {
   // Standalone closes_at update — only patches the closes_at column
   const updateClosesAtOnly = useCallback(async () => {
     const qId = quizIdRef.current
-    if (!qId || !closesAtRef.current) return
+    // Samme sentinel-vakt som updateQuizMeta — createQuiz sender closes_at selv.
+    if (!qId || qId === 'creating' || !closesAtRef.current) return
     try {
       const res = await adminFetch(`/api/admin/quizzes/${qId}`, {
         method: 'PATCH',
