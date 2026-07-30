@@ -2646,7 +2646,9 @@ export default function QuizPage() {
   const percentage = Math.round((correctCount / totalQuestions) * 100)
   const streak = serverScore?.correctStreak ?? calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
   // Premium deler eksakt (rank); gratis deler estimatet (low) — samme som visningen.
-  const toppPercent = estimatedPlacement && estimatedPlacement.total > 1
+  // Gratis-estimatet deles kun når spennet faktisk vises (total >= 10, speiler
+  // plasseringskortet under) — ellers ble «topp 25%» av 4 deltakere delt videre.
+  const toppPercent = estimatedPlacement && estimatedPlacement.total > 1 && (isPremium || estimatedPlacement.total >= 10)
     ? Math.round(((estimatedPlacement.total - (isPremium ? estimatedPlacement.rank : estimatedPlacement.low)) / estimatedPlacement.total) * 100)
     : null
   const shareResultText = toppPercent !== null
@@ -2806,6 +2808,15 @@ export default function QuizPage() {
             </div>
           )
         }
+        // Spennet vises kun når datagrunnlaget er stort nok til at det betyr
+        // noe (samme brytningspunkt som tier-logikken over: total <= 10 gir
+        // tierStart=1/rangeY=total, altså «mellom plass 1 og N av N»). Tidlig
+        // fredag — de første 30–60 minuttene, når Facebook-trafikken er størst
+        // — er totalen under 10, og et «estimat» som spenner hele feltet leser
+        // som en ødelagt funksjon. Under grensen: ærlig ventetekst i stedet.
+        // Premium-grenen over er upåvirket — eksakt plassering er korrekt
+        // uansett antall.
+        const showSpan = estimatedPlacement.total >= 10
         return (
           <div className="qk-rsec" style={{
             background: '#21242e',
@@ -2815,12 +2826,20 @@ export default function QuizPage() {
             textAlign: 'center',
             marginBottom: 14,
           }}>
-            <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 8 }}>
-              Du er et sted mellom plass {tierStart} og {rangeY}
-            </div>
-            <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
-              av {estimatedPlacement.total} deltakere
-            </div>
+            {showSpan ? (
+              <>
+                <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 8 }}>
+                  Du er et sted mellom plass {tierStart} og {rangeY}
+                </div>
+                <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
+                  av {estimatedPlacement.total} deltakere
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 12, lineHeight: 1.5 }}>
+                Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
+              </div>
+            )}
             <a href="/founders" style={{
               display: 'inline-block',
               fontSize: 13, fontWeight: 600, color: '#c9a84c',
