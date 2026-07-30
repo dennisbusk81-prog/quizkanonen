@@ -83,10 +83,17 @@ export default function LigaPage() {
   const [deleteError, setDeleteError]   = useState<string | null>(null)
 
   // Medlemsoversikt
-  type MemberActivity = { userId: string; displayName: string; hasPlayed: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
+  // activeLast30Days styrer AKTIV-prikken og er rullerende (levert quiz siste 30
+  // dager). hasPeriodScore følger måned/kvartal/år-fanen og hører til
+  // poeng-linjen — de to skal IKKE slås sammen igjen.
+  type MemberActivity = { userId: string; displayName: string; activeLast30Days: boolean; hasPeriodScore: boolean; totalPoints: number; quizCount: number; lastActiveAt: string | null; isExcluded: boolean }
   const [activityPeriod, setActivityPeriod]     = useState<'month' | 'quarter' | 'year'>('month')
   const [activityData, setActivityData]         = useState<MemberActivity[] | null>(null)
   const [activityLoading, setActivityLoading]   = useState(false)
+  // Skiller «ingen medlemmer» fra «vi vet ikke». Uten dette ble ruten sin 500
+  // (feilet aktivitets-oppslag) til en tom liste på skjermen, og eieren fikk
+  // «Ingen medlemmer ennå» for en liga som faktisk har medlemmer.
+  const [activityError, setActivityError]       = useState(false)
   const [excludingId, setExcludingId]           = useState<string | null>(null)
   const [excludeError, setExcludeError]         = useState<string | null>(null)
 
@@ -204,16 +211,18 @@ export default function LigaPage() {
   async function loadActivity(period: 'month' | 'quarter' | 'year', leagueId: string) {
     setActivityLoading(true)
     setActivityData(null)
+    setActivityError(false)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { setActivityData([]); return }
+      if (!session) { setActivityError(true); return }
       const res = await fetch(`/api/leagues/${leagueId}/members-activity?period=${period}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      const json = res.ok ? await res.json() : { members: [] }
+      if (!res.ok) { setActivityError(true); return }
+      const json = await res.json()
       setActivityData(json.members ?? [])
     } catch {
-      setActivityData([])
+      setActivityError(true)
     } finally {
       setActivityLoading(false)
     }
@@ -431,17 +440,36 @@ export default function LigaPage() {
               {/* Member list */}
               {activityLoading ? (
                 <SkeletonCard rows={4} showHeader={false} style={{ marginTop: 4 }} />
+              ) : activityError ? (
+                <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px 20px' }}>
+                  <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+                    Kunne ikke hente medlemsoversikten. Prøv igjen om litt.
+                  </p>
+                  <button
+                    onClick={() => { if (league) loadActivity(activityPeriod, league.id) }}
+                    style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                  >
+                    Prøv igjen
+                  </button>
+                </div>
               ) : activityData && activityData.length > 0 ? (
                 <div>
                   {activityData.map(m => (
                     <div key={m.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, marginBottom: 6 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.hasPlayed ? '#4ade80' : '#2a2d38', border: m.hasPlayed ? 'none' : '1px solid #2a2d38', flexShrink: 0 }} />
+                      <div
+                        title={m.activeLast30Days ? 'Har levert minst én quiz de siste 30 dagene' : 'Ingen levert quiz de siste 30 dagene'}
+                        style={{ width: 8, height: 8, borderRadius: '50%', background: m.activeLast30Days ? '#4ade80' : '#2a2d38', border: m.activeLast30Days ? 'none' : '1px solid #2a2d38', flexShrink: 0 }}
+                      />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {m.displayName}{m.isExcluded ? ' (ekskludert)' : ''}
                         </div>
                         <div style={{ fontSize: 11, color: '#e8e4dd', marginTop: 1 }}>
-                          {m.hasPlayed ? `${m.totalPoints} poeng · ${m.quizCount} quiz${m.quizCount !== 1 ? 'er' : ''}` : 'Ikke spilt ennå'}
+                          {m.hasPeriodScore
+                            ? `${m.totalPoints} poeng · ${m.quizCount} quiz${m.quizCount !== 1 ? 'er' : ''}`
+                            : activityPeriod === 'month' ? 'Ingen poeng denne måneden'
+                            : activityPeriod === 'quarter' ? 'Ingen poeng dette kvartalet'
+                            : 'Ingen poeng i år'}
                         </div>
                       </div>
                       <button
