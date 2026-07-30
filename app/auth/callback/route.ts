@@ -18,7 +18,18 @@ import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`auth-callback:${ip}`, 20, 60_000).success) {
-    return NextResponse.redirect(new URL('/?error=rate_limit', request.url))
+    // Målet må være /login, ikke forsiden: `?error=` leses kun av AuthForm, som
+    // lever på /login og i AuthModal. Fram til 31. juli 2026 pekte denne til
+    // `/?error=rate_limit`, og forsiden leser ikke parameteren i det hele tatt —
+    // brukeren landet uinnlogget på forsiden uten en eneste forklaring.
+    // /api/auth/bekreft har hele tiden gjort dette riktig, og linkErrorMessage
+    // har allerede en `rate_limit`-case med ferdig tekst.
+    //
+    // Merk at `x-forwarded-for` gjør at en delt utgangs-IP (et kontor, en
+    // mobiloperatør) teller som ÉN klient mot grensen på 20/min — så dette
+    // treffer ikke bare misbruk, men også en gruppe ekte folk som logger inn
+    // samtidig. Desto viktigere at de får se hvorfor.
+    return NextResponse.redirect(new URL('/login?error=rate_limit', request.url))
   }
 
   const { searchParams, origin } = new URL(request.url)

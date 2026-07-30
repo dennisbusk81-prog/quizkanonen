@@ -17,10 +17,20 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now()
 
-  // Find a quiz that just opened (opens_at within the last 0–5 minutes).
+  // Find a quiz that just opened (opens_at within the last 0–10 minutes).
   // E-posten sendes NÅR quizen er åpen — ikke en time før. reminder_sent_at IS NULL
   // hindrer dobbel-sending hvis cron-en kjører flere ganger i vinduet.
-  const windowStart = new Date(now - 5 * 60 * 1000).toISOString()
+  //
+  // Vinduet var 5 minutter fram til 31. juli 2026 — nøyaktig samme lengde som
+  // cronens egen kadens, altså kant-i-kant uten margin. cron-job.org fyrer ikke
+  // på sekundet, så en quiz som åpnet i sprekken mellom to kjøringer fikk ALDRI
+  // åpningse-posten, og feilet stille: `reminder_sent_at` ble stående NULL, men
+  // `opens_at`-filteret hadde allerede passert, så ingen senere kjøring plukket
+  // den opp igjen. Ingen feilmelding noe sted — bare en utsendelse som uteble.
+  // 10 minutter gir én hel kjøring i margin og er samme vindu som
+  // send-push og notify-subscribers allerede bruker. Å utvide er trygt nettopp
+  // fordi reminder_sent_at IS NULL hindrer dobbeltsending i det bredere vinduet.
+  const windowStart = new Date(now - 10 * 60 * 1000).toISOString()
   const nowIso      = new Date(now).toISOString()
 
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
