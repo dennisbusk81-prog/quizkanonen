@@ -95,10 +95,25 @@ export async function POST(request: NextRequest) {
   )
 
   if (error) {
-    console.error('[api/profile/upsert] failed:', error.code, error.message)
+    // Navnekollisjon er et forventet brukerutfall, ikke en systemfeil — logges
+    // som warn så det ikke drukner de reelle feilene i profils-ruten.
     if (error.code === '23505') {
-      return NextResponse.json({ error: 'Dette brukernavnet er allerede tatt. Velg et annet.' }, { status: 409 })
+      console.warn('[api/profile/upsert] navnet er opptatt:', display_name)
+      // Meldingen vises ordrett av både NameRequiredModal og profilsiden.
+      // «Velg et annet» duger ikke: den som får denne har som regel skrevet
+      // sitt EGET navn, og modalen slipper deg ikke videre før den godtar
+      // noe. Eksempelet må bruke mellomnavn, ikke forbokstav med punktum —
+      // navneregexen over tillater ikke punktum og ville avvist forslaget.
+      return NextResponse.json(
+        {
+          error:
+            `Navnet «${display_name}» er allerede i bruk av en annen spiller. ` +
+            'Legg til mellomnavnet ditt for å skille dere — for eksempel «Ola Magnus Nordmann».',
+        },
+        { status: 409 }
+      )
     }
+    console.error('[api/profile/upsert] failed:', error.code, error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
