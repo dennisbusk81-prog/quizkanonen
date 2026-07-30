@@ -55,8 +55,11 @@ Ingen horisontal scroll observert. Ingen to-gule-brudd på desktop-bredder.
 ### /leaderboard/[id]
 
 **Ingen funn.**
-- `maxWidth: 680`, sentrert. `@media (min-width: 769px)` i podiumStyles
-  gir horisontalt resultat-layout og økt padding. Eksisterende desktop-tilpasning.
+- `maxWidth: 900`, sentrert (var 680 fram til 30. juli 2026 — flyttet til
+  900-gruppen sammen med /liga/[slug] da siden ble en 4-kolonners tabellside;
+  680-regelen fra e79f6b2 gjaldt den gamle kort-baserte visningen).
+  `@media (min-width: 769px)` i podiumStyles gir horisontalt resultat-layout
+  og økt padding. Eksisterende desktop-tilpasning.
 
 ---
 
@@ -72,7 +75,9 @@ Ingen horisontal scroll observert. Ingen to-gule-brudd på desktop-bredder.
 ### /liga/[slug]
 
 **Ingen funn.**
-- `maxWidth: 680px`. Sentrert enkeltkolonne. Fungerer godt på desktop.
+- `maxWidth: 900px` (var 680 fram til 30. juli 2026 — se /leaderboard/[id]
+  over; begge sidene rendrer nå ResultsTable og hører i 900-gruppen).
+  Sentrert enkeltkolonne. Fungerer godt på desktop.
 - Invitasjons-input-rad (input + kopier-knapp) er horisontalt — ser riktig ut på desktop.
 
 ---

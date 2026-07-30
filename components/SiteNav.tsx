@@ -27,6 +27,19 @@ interface SiteNavProps {
   orgSlug?: string
   orgName?: string
   quizId?: string
+  /**
+   * Query-streng (inkludert «?») som henges på «← Tilbake til bedriften».
+   * Finnes fordi denne lenken er en KONTEKSTUELL tilbake-lenke, ikke en
+   * vanlig nav-destinasjon: kom brukeren til quiz-resultatet fra
+   * «Tidligere quizer»-historikken på bedriftssiden (?hist=1), skal
+   * tilbakeveien gjenåpne den historikken — ikke lande på «Siste quiz».
+   * Uten dette var org-scope det ENESTE scopet der historikk-navigasjonen
+   * brøt sammen: global og liga rendrer `variant="default"` og har ingen
+   * slik tilbake-lenke, så der var bunn-lenken eneste utvei og fungerte.
+   * Den generelle «Min bedrift»-lenken i NavAuth beholder BEVISST ingen
+   * query — den er en frisk destinasjon, ikke en tilbakevei.
+   */
+  backQuery?: string
 }
 
 const barStyle: React.CSSProperties = {
@@ -50,7 +63,7 @@ const innerStyle: React.CSSProperties = {
   gap: 12,
 }
 
-export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId }: SiteNavProps) {
+export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId, backQuery }: SiteNavProps) {
   return (
     <nav style={barStyle}>
       <div style={innerStyle}>
@@ -70,7 +83,7 @@ export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId 
         {(variant === 'org' || variant === 'org-admin') && orgSlug && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, overflow: 'hidden' }}>
             <Link
-              href={`/org/${orgSlug}`}
+              href={`/org/${orgSlug}${backQuery ?? ''}`}
               style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0 }}
             >
               ← Tilbake til bedriften

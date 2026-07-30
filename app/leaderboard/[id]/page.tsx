@@ -39,7 +39,12 @@ const podiumStyles = `
 
 const s = {
   wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:         { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
+  // 900px, ikke 680: bredde-regelen fra e79f6b2 (13. juni 2026) satte 680 for
+  // «enkeltside-innhold» og 900 for «innholdsrike sider». Denne siden var
+  // kort-basert den gang; siden ResultsTable ble innført 26. juli er den en
+  // 4-kolonners tabellside på linje med /toppliste og /org/[slug], og hører
+  // derfor i 900-gruppen. Samme flytting gjort for /liga/[slug].
+  page:         { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
 
@@ -561,7 +566,7 @@ export default function LeaderboardPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <SkeletonCard rows={2} showHeader style={{ height: 110 }} />
         <SkeletonCard rows={10} showHeader />
       </div>
@@ -906,7 +911,12 @@ export default function LeaderboardPage() {
         onCancel={() => setPendingChallenge(null)}
         onConfirm={id => { setPendingChallenge(null); handleChallenge(id) }}
       />
-      <SiteNav variant={orgSlug ? 'org' : 'default'} orgSlug={orgSlug ?? undefined} quizId={quiz?.id} />
+      <SiteNav
+        variant={orgSlug ? 'org' : 'default'}
+        orgSlug={orgSlug ?? undefined}
+        quizId={quiz?.id}
+        backQuery={cameFromHistory ? '?hist=1' : undefined}
+      />
       <div style={s.wrap}>
         <div style={s.page}>
 

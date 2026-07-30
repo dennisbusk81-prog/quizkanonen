@@ -26,7 +26,11 @@ type LeagueInfo = {
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
-  page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
+  // 900px, ikke 680 — se samme begrunnelse i app/leaderboard/[id]/page.tsx:
+  // siden rendrer SeasonLeaderboard sin 4-kolonners ResultsTable og hører
+  // dermed i «innholdsrike sider»-gruppen, ikke i 680-gruppen den ble plassert
+  // i før tabellformatet fantes.
+  page:     { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
@@ -261,7 +265,7 @@ export default function LigaPage() {
     <>
       <style>{FONT_IMPORT}</style>
       <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
-        <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <SkeletonCard rows={2} showHeader style={{ height: 100 }} />
           <SkeletonCard rows={8} showHeader />
         </div>
