@@ -12,6 +12,7 @@ import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
+import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -85,7 +86,12 @@ type ApiResponse = {
   pageSize?: number
 }
 
-const PAGE_SIZE = 20
+// Sidestørrelsen kommer fra den delte konstanten, ikke et eget tall her — det
+// var nettopp to divergerende tall som gjorde at knappen «21–30» hentet rad
+// 41–60. `data.pageSize` fra API-et vinner fortsatt når svaret har landet;
+// konstanten er fallback før første svar, og er nå per definisjon lik den
+// serveren regner med. Se lib/leaderboard-page-size.ts.
+const PAGE_SIZE = TOPPLISTE_PAGE_SIZE
 
 type HistoryWinner = {
   displayName: string
@@ -616,7 +622,12 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const isPremium     = data?.userIsPremium === true
   const totalCount    = data?.totalCount ?? 0
   const userRank      = data?.userRank ?? null
-  const totalPages    = Math.max(1, Math.ceil(totalCount / (data?.pageSize ?? PAGE_SIZE)))
+  // ÉN avledet sidestørrelse for hele komponenten — knappe-etiketter,
+  // totalPages, «Gå til min plassering» og søketeksten skal aldri kunne bruke
+  // hvert sitt tall. Serverens `pageSize` vinner; PAGE_SIZE (= den delte
+  // TOPPLISTE_PAGE_SIZE) er fallback før første svar.
+  const effectivePageSize = data?.pageSize ?? PAGE_SIZE
+  const totalPages    = Math.max(1, Math.ceil(totalCount / effectivePageSize))
   const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
   const searching     = browseMode && search.trim() !== ''
   // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
@@ -646,7 +657,6 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     }
     return out
   }
-  const effectivePageSize = data?.pageSize ?? PAGE_SIZE
   const intervalLabel = (p: number) => `${(p - 1) * effectivePageSize + 1}–${Math.min(p * effectivePageSize, totalCount)}`
 
   // ── Row renderers ─────────────────────────────────────────────────────────
@@ -1002,8 +1012,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
               {totalCount === 0
                 ? `Ingen treff på «${search}».`
-                : totalCount > PAGE_SIZE
-                  ? `Viser de ${PAGE_SIZE} første av ${totalCount} treff. Forsøk et mer spesifikt søk.`
+                : totalCount > effectivePageSize
+                  ? `Viser de ${effectivePageSize} første av ${totalCount} treff. Forsøk et mer spesifikt søk.`
                   : `${totalCount} ${totalCount === 1 ? 'treff' : 'treff'}.`}
             </p>
           )}

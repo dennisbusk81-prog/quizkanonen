@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 import { fetchAllRows } from '@/lib/paginate'
+import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import {
   deriveBlockedFromScores,
   deriveBlockedFromLiveStatus,
@@ -252,11 +253,14 @@ export async function GET(request: NextRequest) {
   }
 
   // Paginering og søk — beregnes før last_quiz slik at begge modiene kan bruke dem.
-  // last_quiz bruker alltid PAGE_SIZE=10; period-modus overstyrer til 20 ved paginering.
+  // Sidestørrelsen er FAST (TOPPLISTE_PAGE_SIZE) i BEGGE moduser og uavhengig
+  // av om `?page=` er satt — se lib/leaderboard-page-size.ts for hvorfor.
+  // `isPaginated` betyr fortsatt «brukeren blar/søker», og styrer kun hvor mye
+  // ekstraarbeid ruten gjør (badges via enrich(), quiz-tidslinje, oppslag av
+  // ventende quiz) — den skal ALDRI påvirke sidestørrelsen igjen.
   const pageParamRaw  = searchParams.get('page')
   const searchRaw     = (searchParams.get('search') ?? '').trim()
   const isPaginated   = pageParamRaw !== null || searchRaw !== ''
-  const LAST_QUIZ_PAGE_SIZE = 10
   const page          = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
   const search        = searchRaw === '' ? null : searchRaw
   const excludedIds   = [...excludedSet]
@@ -334,7 +338,7 @@ export async function GET(request: NextRequest) {
       ? withRanks.filter(a => a.player_name.toLowerCase().includes(search.toLowerCase()))
       : withRanks
     const totalCount = filtered.length
-    const pageSlice  = filtered.slice((page - 1) * LAST_QUIZ_PAGE_SIZE, page * LAST_QUIZ_PAGE_SIZE)
+    const pageSlice  = filtered.slice((page - 1) * TOPPLISTE_PAGE_SIZE, page * TOPPLISTE_PAGE_SIZE)
 
     // Hent profiler kun for siden + innlogget bruker
     const pageIds = pageSlice.map(a => a.user_id)
@@ -390,13 +394,12 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
-    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: LAST_QUIZ_PAGE_SIZE })
+    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE })
   }
 
   // ── PERIOD MODE — sesong-poeng fra season_scores ──────────────────────────
   const periodStart = periodStartParam ?? getPeriodStart(period)
   const periodEnd   = periodEndParam ?? null   // null = ingen øvre grense
-  const PAGE_SIZE   = isPaginated ? 20 : 10   // period-modus: 20 ved paginering, 10 ellers
 
   type EntryOut = {
     rank: number; userId: string; displayName: string; nickname: string | null; avatarUrl: null
@@ -415,8 +418,14 @@ export async function GET(request: NextRequest) {
     p_excluded_ids: excludedIds,
   }
 
-  // Hjelper: tom respons (med "ventende quiz"-info i standardmodus)
-  async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null) {
+  // Hjelper: tom respons (med "ventende quiz"-info i standardmodus).
+  //
+  // `total` MÅ være det reelle antallet deltakere, ikke 0, når lista faktisk
+  // har rader men den forespurte SIDEN er tom. Klienten regner totalPages ut
+  // fra totalCount, og gatet sidenavigasjonen på `totalPages > 1` — en
+  // hardkodet 0 her ga totalPages = 1 og fjernet dermed hele knapperaden, så
+  // brukeren mistet veien tilbake til side 1 og måtte laste siden på nytt.
+  async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0) {
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
       const { data: openQuiz } = await supabaseAdmin
@@ -432,7 +441,7 @@ export async function GET(request: NextRequest) {
     console.log(`[toppliste] ${period}/${scope} empty ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries: [], userEntry: uEntry, userIsPremium, quizTitle: null,
-      activeQuizClosesAt, totalCount: 0, userRank: uRank, page, pageSize: PAGE_SIZE,
+      activeQuizClosesAt, totalCount: total, userRank: uRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
 
@@ -513,7 +522,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data: rankedData, error: rankedError } = await supabaseAdmin.rpc('season_leaderboard_ranked', {
-    ...rpcArgs, p_page: page, p_page_size: PAGE_SIZE, p_search: search,
+    ...rpcArgs, p_page: page, p_page_size: TOPPLISTE_PAGE_SIZE, p_search: search,
   })
 
   if (!rankedError) {
@@ -553,7 +562,22 @@ export async function GET(request: NextRequest) {
       ? { rank: userRank, displayName: userDisplayName ?? 'Spiller', nickname: userNickname, avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
       : null
 
-    if (rankedRows.length === 0) return emptyResponse(userEntry, userRank)
+    if (rankedRows.length === 0) {
+      // `total_count` leveres som en KOLONNE på hver rad, så en tom side gir
+      // oss den ikke. Er vi forbi siste side (kun mulig via en foreldet/delt
+      // ?page=, siden knappene nå bygges av samme faste sidestørrelse), hentes
+      // det reelle totaltallet med ett ekstra kall mot side 1 — ellers ville
+      // klienten fått totalCount: 0 og mistet hele sidenavigasjonen. Side 1
+      // uten rader betyr at lista faktisk er tom; da er 0 riktig svar.
+      let realTotal = 0
+      if (page > 1) {
+        const { data: firstPage } = await supabaseAdmin.rpc('season_leaderboard_ranked', {
+          ...rpcArgs, p_page: 1, p_page_size: TOPPLISTE_PAGE_SIZE, p_search: search,
+        })
+        realTotal = Number(((firstPage ?? []) as RankedRow[])[0]?.total_count ?? 0)
+      }
+      return emptyResponse(userEntry, userRank, realTotal)
+    }
 
     // Runde 5+6 er nå parallellisert inne i enrich()
     // RPC returnerer ikke nickname — hent kallenavn for de listede brukerne separat
@@ -585,7 +609,7 @@ export async function GET(request: NextRequest) {
     console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries, userEntry, userIsPremium, quizTitle: null,
-      totalCount, userRank, page, pageSize: PAGE_SIZE,
+      totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
 
@@ -651,9 +675,11 @@ export async function GET(request: NextRequest) {
   // Filtrer (søk) + paginer
   const filtered = search ? rankedAll.filter(r => r.displayName.toLowerCase().includes(search.toLowerCase())) : rankedAll
   const totalCount = filtered.length
-  const pageSlice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const pageSlice = filtered.slice((page - 1) * TOPPLISTE_PAGE_SIZE, page * TOPPLISTE_PAGE_SIZE)
 
-  if (pageSlice.length === 0) return emptyResponse(userEntry, userRank)
+  // Her er totaltallet allerede kjent (hele lista ligger i minnet), så det
+  // sendes rett videre — ingen ekstra spørring nødvendig som i RPC-stien.
+  if (pageSlice.length === 0) return emptyResponse(userEntry, userRank, totalCount)
 
   // Tidslinje fra de allerede hentede radene (RPC utilgjengelig i fallback)
   const timelineMap = new Map<string, string>()
@@ -677,6 +703,6 @@ export async function GET(request: NextRequest) {
   console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
     entries, userEntry, userIsPremium, quizTitle: null,
-    totalCount, userRank, page, pageSize: PAGE_SIZE,
+    totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
   })
 }
