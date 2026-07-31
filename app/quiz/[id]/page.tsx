@@ -12,8 +12,20 @@ import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
+import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
+
+// Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
+// grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
+// klienten — se lib/with-timeout.ts for bakgrunnen. Tallet er satt godt over
+// normal svartid (målt i hundredeler av sekunder, verstefall et par sekunder
+// ved kaldstart) og godt under det en spiller opplever som «henger».
+const NEXT_STEP_TIMEOUT_MS = 9000
 
 type PlayerInfo = { name: string; ageConfirmed: boolean }
+// Hvorfor vi ikke kom videre — styrer teksten spilleren får. En timeout er
+// ikke det samme som en feil: serveren kan ha svart helt fint, kallet nådde
+// bare aldri tilbake.
+type NextLoadFailure = 'error' | 'timeout' | null
 type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
 
 // Legger til/erstatter svaret for record.questionId i stedet for å alltid appende.
@@ -856,7 +868,7 @@ export default function QuizPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
-  const [nextLoadFailed, setNextLoadFailed] = useState(false)
+  const [nextLoadFailed, setNextLoadFailed] = useState<NextLoadFailure>(null)
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   // Re-entry-guard for goToNext: ref leses synkront (state-oppdatering er asynkron
@@ -1035,11 +1047,12 @@ export default function QuizPage() {
   // Tokenet tas som argument (ikke fra state) fordi startQuiz kaller denne i
   // samme tick som tokenet mottas — state er ikke oppdatert ennå der.
   const fetchQuestionAt = useCallback(
-    async (index: number, aId: string | null, token: string | null): Promise<{ question: Question; total: number }> => {
+    async (index: number, aId: string | null, token: string | null, signal?: AbortSignal): Promise<{ question: Question; total: number }> => {
       const sp = new URLSearchParams({ index: String(index) })
       if (aId) sp.set('attemptId', aId)
       const res = await fetch(`/api/quiz/${quizId}/questions?${sp.toString()}`, {
         headers: token ? { 'x-attempt-token': token } : {},
+        signal,
       })
       if (!res.ok) throw new Error(`questions ${res.status}`)
       return res.json()
@@ -1133,8 +1146,13 @@ export default function QuizPage() {
     }
   }, [])
 
-  const getTimeLimit = useCallback((question: Question) =>
-    question.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
+  // `question` tas som muligens undefined med vilje: kallerne slår opp i
+  // questions-arrayet (questions[currentIndex], questions[ni]), og arrayet
+  // fylles ut ett spørsmål av gangen — en hull-indeks er ikke utenkelig. Uten
+  // ?. ville et slikt oppslag kastet TypeError midt i spilling og tatt hele
+  // skjermen, i stedet for å falle tilbake på quiz-nivå-grensen.
+  const getTimeLimit = useCallback((question: Question | undefined) =>
+    question?.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
 
   // Visningsrekkefølgen for svaralternativene kommer nå ferdig stokket fra
   // /api/quiz/[id]/questions (deterministisk av attemptId + question.id).
@@ -1241,11 +1259,13 @@ export default function QuizPage() {
     questionIndex: number,
     correctSoFar: number,
     timeSoFar: number,
-    answeredSoFar: number
+    answeredSoFar: number,
+    signal?: AbortSignal
   ): Promise<{ rank: number; total: number; low: number; high: number } | null> => {
     try {
       const res = await fetch(
-        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`
+        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`,
+        { signal }
       )
       if (!res.ok) return null
       return await res.json()
@@ -1259,7 +1279,8 @@ export default function QuizPage() {
   const fetchLiveRankingFull = useCallback(async (
     correctSoFar: number,
     timeSoFar: number,
-    answeredSoFar: number
+    answeredSoFar: number,
+    signal?: AbortSignal
   ): Promise<{
     totalPlayers: number
     userRank: number
@@ -1276,7 +1297,7 @@ export default function QuizPage() {
         answered: String(answeredSoFar),
         total: String(totalQuestions),
       })
-      const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`)
+      const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`, { signal })
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
@@ -1648,20 +1669,48 @@ export default function QuizPage() {
     // Vi lager promisene her og venter på dem lenger nede. Ingen av
     // fetchLiveRankingFull/fetchRankingSnapshot kan rejecte (begge fanger selv
     // og returnerer null), så kun questionPromise trenger try/catch.
+    //
+    // ── Alle tre har en øvre tidsgrense (1. august 2026) ──────────────────────
+    // Fram til nå hadde Promise.all under ingen grense i det hele tatt. Et
+    // fetch som stopper opp på klienten — serveren kan ha logget 200 OK —
+    // settles aldri, og da venter Promise.all for alltid: knappen sto i
+    // «Laster…», og eneste vei videre var å laste siden på nytt. Én ekte
+    // spiller frøs slik to ganger i overgangen 14→15.
+    //
+    // Grensen må ligge på ALLE tre, ikke bare spørsmålshentingen: de venter i
+    // samme Promise.all, så et hengende rangeringskall ville frosset skjermen
+    // like effektivt. Hvert kall har sin egen AbortController, slik at en
+    // timeout i det ene ikke river ned det andre.
+    const questionController = new AbortController()
+    const rankingController = new AbortController()
+
     const questionPromise = questions[nextIndex]
       ? null
-      : fetchQuestionAt(nextIndex, attemptId, attemptToken)
+      : withTimeout(
+          fetchQuestionAt(nextIndex, attemptId, attemptToken, questionController.signal),
+          { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => questionController.abort() },
+        )
 
     // Hent snapshot-rangering kun for innloggede — ikke blokker quizen ved feil.
     // Del 5: premium henter alt i ETT kall (spenn + plassering + naboer);
     // ikke-premium trenger kun spennet og bruker den lettere ruten som før.
-    // Del 3: under terskelen hopper vi over kallet — mellomskjermen viser da
-    // «Beregner posisjon…» i stedet for et anslag bygget på ett–to svar.
+    // Del 3: under terskelen hopper vi over kallet — mellomskjermen sier da at
+    // plasseringen vises fra tredje svar, i stedet for å vise et anslag bygget
+    // på ett–to svar.
+    // Rangeringen er allerede «ikke kritisk» ved feil (begge helperne fanger og
+    // returnerer null). En timeout behandles likt: mellomskjermen vises uten
+    // plassering i stedet for ikke å vises i det hele tatt.
     const premiumRankingPromise = isLoggedIn && isPremium && placementReady
-      ? fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar)
+      ? withTimeoutOrNull(
+          fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
+          { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
+        )
       : null
     const spanRankingPromise = !isPremium && isLoggedIn && placementReady
-      ? fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar)
+      ? withTimeoutOrNull(
+          fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
+          { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
+        )
       : null
 
     // ── Vent på ALLE utestående kall før noe vises ────────────────────────────
@@ -1669,31 +1718,37 @@ export default function QuizPage() {
     // Vi venter derfor på begge også når spørsmålshentingen feiler — ellers
     // ville setInterLiveRanking under landet ETTER at «Prøv igjen»-skjermen sto
     // framme, og blandet seg inn i neste forsøk.
-    let questionFailed = false
-    const [questionResult, premiumRanking, spanRanking] = await Promise.all([
-      questionPromise
-        ? questionPromise.catch(() => { questionFailed = true; return null })
-        : Promise.resolve(null),
+    // Med timeout-vakten på plass settles alle tre innen NEXT_STEP_TIMEOUT_MS,
+    // uansett hva nettverket gjør — dette awaitet kan ikke lenger bli stående.
+    const [questionOutcome, premiumRanking, spanRanking] = await Promise.all([
+      questionPromise ?? Promise.resolve(null),
       premiumRankingPromise ?? Promise.resolve(null),
       spanRankingPromise ?? Promise.resolve(null),
     ])
 
-    // Ved feil: behold fremgang og tilby "Prøv igjen" (kaller goToNext på nytt)
-    // i stedet for å la brukeren bli stående uten vei videre.
-    if (questionFailed) {
-      setNextLoadFailed(true)
+    // Ved feil ELLER timeout: behold fremgang og tilby "Prøv igjen" (kaller
+    // goToNext på nytt) i stedet for å la brukeren bli stående uten vei videre.
+    // Bevisst manuell retry, ikke automatisk: symptomet spilleren opplever er
+    // nettopp at "ingenting skjer", og et stille nytt forsøk ville doblet den
+    // tiden før noe som helst vises på skjermen.
+    if (questionOutcome && !questionOutcome.ok) {
+      if (questionOutcome.timedOut) {
+        console.warn(`[quiz] neste spørsmål (${nextIndex}) svarte ikke innen ${NEXT_STEP_TIMEOUT_MS} ms`)
+      }
+      setNextLoadFailed(questionOutcome.timedOut ? 'timeout' : 'error')
       // Frigi guarden slik at "Prøv igjen"-knappen kan kalle goToNext på nytt.
       advancingRef.current = false
       setIsAdvancing(false)
       return
     }
-    if (questionResult) {
+    if (questionOutcome?.ok) {
+      const loaded = questionOutcome.value
       setQuestions(prev => {
         const copy = [...prev]
-        copy[nextIndex] = questionResult.question
+        copy[nextIndex] = loaded.question
         return copy
       })
-      setNextLoadFailed(false)
+      setNextLoadFailed(null)
     }
 
     let low: number | null = null
@@ -2439,10 +2494,12 @@ export default function QuizPage() {
       {nextLoadFailed && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: 'calc(100% - 32px)' }}>
           <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
-            Kunne ikke laste neste spørsmål. Fremgangen din er trygg.
+            {nextLoadFailed === 'timeout'
+              ? 'Nettverket svarte ikke i tide. Fremgangen din er trygg.'
+              : 'Kunne ikke laste neste spørsmål. Fremgangen din er trygg.'}
           </p>
           <button
-            onClick={() => { setNextLoadFailed(false); goToNext() }}
+            onClick={() => { setNextLoadFailed(null); goToNext() }}
             style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
           >
             Prøv igjen

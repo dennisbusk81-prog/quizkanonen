@@ -61,7 +61,7 @@ interface QuizInterludeProps {
   rankingSnapshot?: RankingSnapshot
   isPremium?: boolean
   // Kun innloggede får plassering i det hele tatt. Gjester skal derfor heller
-  // ikke se «Beregner posisjon…» — for dem kommer det aldri et tall.
+  // ikke se venteteksten under terskelen — for dem kommer det aldri et tall.
   isLoggedIn?: boolean
   // Del 5: hentes nå av page.tsx (goToNext) i SAMME kall som gir low/high, og
   // sendes ned hit. Tidligere gjorde denne komponenten sitt eget fetch mot
@@ -222,7 +222,14 @@ export default function QuizInterlude({
         )}
 
         {/* Del 3 — for tidlig til et meningsfylt anslag. Nøytral tilstand, slik at
-            plasseringen ikke bare forsvinner og dukker opp igjen uforklart. */}
+            plasseringen ikke bare forsvinner og dukker opp igjen uforklart.
+
+            Teksten sa fram til 1. august 2026 «Beregner posisjon…», som lovet
+            noe den ikke holdt: ingenting beregnes her. Under terskelen gjør
+            page.tsx (goToNext) bevisst ikke rangeringskallet i det hele tatt —
+            visningen venter kun på at nok spørsmål er besvart. En spiller som
+            sto fast av andre grunner hadde dermed en «pågår»-tekst foran seg
+            som aldri kunne bli ferdig. Nå sier den hva som faktisk mangler. */}
         {isLoggedIn && !placementReady && (
           <div style={{ marginBottom: 18 }}>
             <p style={{
@@ -231,8 +238,8 @@ export default function QuizInterlude({
             }}>
               Din plassering
             </p>
-            <p style={{ fontSize: 14, color: '#e8e4dd' }}>
-              Beregner posisjon…
+            <p style={{ fontSize: 13, color: '#918f8a' }}>
+              Vises når du har svart på {MIN_ANSWERED_FOR_PLACEMENT} spørsmål
             </p>
           </div>
         )}
