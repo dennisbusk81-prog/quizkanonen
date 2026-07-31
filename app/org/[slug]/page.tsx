@@ -9,6 +9,7 @@ import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import LeaveOrgModal from '@/components/LeaveOrgModal'
 import { isOrgLocked } from '@/lib/org-access'
+import { deriveOrgLoadState, type OrgLoadState } from '@/lib/org-membership-state'
 import { useProfile } from '@/components/ProfileProvider'
 import type { Session } from '@supabase/supabase-js'
 
@@ -25,8 +26,6 @@ type OrgInfo = {
   allowGlobalLeague:  boolean
 }
 
-type LoadState = 'loading' | 'ready' | 'notfound'
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OrgLeaderboardPage() {
@@ -36,7 +35,7 @@ export default function OrgLeaderboardPage() {
   // Org-data kommer nå fra den delte ProfileProvider-contexten (ett
   // /api/org/my-orgs-kall per sesjon) i stedet for et eget kall her — speiler
   // migreringen gjort i components/OrgCard.tsx (commit df99071).
-  const { myOrgs, loading: profileLoading, resolved: profileResolved } = useProfile()
+  const { myOrgs, myOrgsLoaded, myOrgsError, refreshMyOrgs } = useProfile()
 
   const [session,   setSession]   = useState<Session | null | undefined>(undefined)
   const [slowLoad, setSlowLoad] = useState(false)
@@ -59,14 +58,20 @@ export default function OrgLeaderboardPage() {
   }, [session, slug, router])
 
   const org: OrgInfo | null = myOrgs.find(o => o.orgSlug === slug) ?? null
-  const loadState: LoadState =
-    session === undefined || !session || profileLoading || !profileResolved
-      ? 'loading'
-      : org ? 'ready' : 'notfound'
+  // Gatet på myOrgsLoaded, IKKE på profileLoading. Se lib/org-membership-state.ts
+  // for hvorfor: `loading` ble satt til false av grener som ikke hadde hentet
+  // org-listen i det hele tatt, og «ikke medlem» ble derfor vist til ekte
+  // ansatte mens hentingen fortsatt pågikk.
+  const loadState: OrgLoadState = deriveOrgLoadState({
+    session: session === undefined ? 'unchecked' : session ? 'authenticated' : 'anonymous',
+    hasOrg: org !== null,
+    myOrgsLoaded,
+    myOrgsError,
+  })
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
-  if (session === undefined || loadState === 'loading') {
+  if (loadState === 'loading') {
     return (
       <>
         <style>{FONT}</style>
@@ -79,6 +84,41 @@ export default function OrgLeaderboardPage() {
                 <a href={`/org/${slug}`} style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
               </p>
             )}
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ── Feil ──────────────────────────────────────────────────────────────────
+  // Egen skjerm, ikke «Ingen tilgang». Et 401/500 fra my-orgs betyr at vi ikke
+  // VET om brukeren er medlem — å påstå at hen ikke er det, er både feil og en
+  // blindvei (samme skille som org-admin allerede gjør med errorKind).
+  if (loadState === 'error') {
+    return (
+      <>
+        <style>{FONT}</style>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
+              Kunne ikke hente bedriften din
+            </p>
+            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
+              Vi fikk ikke kontakt akkurat nå. Medlemskapet ditt er uendret.
+            </p>
+            <div style={{ marginBottom: 20 }}>
+              <button
+                onClick={() => { void refreshMyOrgs() }}
+                style={{
+                  padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
+                  border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                }}
+              >
+                Prøv igjen
+              </button>
+            </div>
+            <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Forsiden</Link>
           </div>
         </div>
       </>

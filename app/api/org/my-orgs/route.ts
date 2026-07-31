@@ -21,19 +21,28 @@ const myOrgsCache = new Map<string, { orgs: OrgResult[]; expires: number }>()
 // POST /api/org/my-orgs
 // Body: { access_token: string }
 // Returnerer alle organisasjoner brukeren er medlem av (uavhengig av rolle).
+//
+// STATUSKODER (endret 31. juli 2026): ruten svarte tidligere 200 med
+// `{ orgs: [] }` på ALLE tre utfallene under — manglende token, ugyldig token
+// og oppslagsfeil — altså samme svar som en bruker uten medlemskap. Klienten
+// sjekket `r.ok` og kunne umulig se forskjell, så et utløpt token eller en
+// transient DB-feil ga «Du er ikke medlem av denne bedriften» PERMANENT for en
+// ekte ansatt, ikke bare et glimt. Kun et faktisk oppslag får returnere en
+// liste; alt annet er en feil, og en tom liste betyr nå entydig «ingen
+// medlemskap». Samme invariant som lib/fetch-result.ts.
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const access_token: string | undefined = body?.access_token
 
   if (!access_token) {
-    return NextResponse.json({ orgs: [] })
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
   }
 
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(access_token)
 
   if (authErr || !user) {
     console.error('[my-orgs] getUser feil:', authErr?.message)
-    return NextResponse.json({ orgs: [] })
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
   }
 
   const now = Date.now()
@@ -52,7 +61,8 @@ export async function POST(request: NextRequest) {
 
   // Cach IKKE en feilrespons — unngår å servere tomt i 30s ved en transient feil.
   if (memErr) {
-    return NextResponse.json({ orgs: [] })
+    console.error('[my-orgs] medlemskapsoppslag feilet:', memErr.message)
+    return NextResponse.json({ error: 'lookup_failed' }, { status: 500 })
   }
 
   // PostgREST-embed for denne many-to-one-relasjonen (organization_id er FK
