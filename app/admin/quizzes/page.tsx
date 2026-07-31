@@ -307,7 +307,7 @@ export default function AdminQuizzes() {
       'Alternativ 2',
       'Alternativ 3',
       'Alternativ 4',
-      'Tid i sekunder (valgfritt, default 20)',
+      'Tid i sekunder (valgfritt, default 15)',
       'Bland svaralternativer (TRUE/FALSE, valgfritt)',
       'Kategori (valgfritt, en av de 10 kategoriene)',
     ]
