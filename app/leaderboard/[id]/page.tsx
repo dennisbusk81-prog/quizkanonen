@@ -1103,7 +1103,11 @@ export default function LeaderboardPage() {
             // Uten et forsøk er "plass 1 og 9" villedende — vis en nøytral CTA i stedet.
             let title: string
             let sub: string
-            if (savedResult) {
+            if (savedResult && totalCount >= 10) {
+              // Samme gate som plasseringskortet i app/quiz/[id]/page.tsx: under
+              // 10 deltakere spenner «estimatet» hele feltet («mellom plass 1 og
+              // N av N») og leser som en ødelagt funksjon. Nøytral ventetekst i
+              // stedet — se kommentaren ved showSpan der.
               const { correct_answers, total_time_ms } = savedResult
               const allRanked = soloAttempts
               const better = allRanked.filter(a =>
@@ -1116,6 +1120,9 @@ export default function LeaderboardPage() {
               const rangeY = Math.min(totalCount, tierStart + 9)
               title = `Du er et sted mellom plass ${rangeX} og ${rangeY}`
               sub = 'Logg inn for å spille under ditt eget navn'
+            } else if (savedResult) {
+              title = 'Du er blant de første som har spilt denne uken'
+              sub = 'Plasseringen din vises når flere har levert — logg inn for å spille under ditt eget navn.'
             } else {
               title = 'Logg inn og spill quizen'
               sub = 'Se hvor du havner i ukens resultater.'
@@ -1163,9 +1170,17 @@ export default function LeaderboardPage() {
               rangeX = Math.max(1, tierStart)
               rangeY = Math.min(totalCount, tierStart + 9)
             }
+            // Samme gate som gjestekortet over og som app/quiz/[id]/page.tsx.
+            const showSpan = totalCount >= 10
             return (
               <div style={s.card}>
-                <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
+                {showSpan ? (
+                  <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
+                ) : (
+                  <p style={{ ...s.cardTitle, lineHeight: 1.5 }}>
+                    Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
+                  </p>
+                )}
                 <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4 }}>
                   Se nøyaktig plassering —{' '}
                   <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'none' }}>

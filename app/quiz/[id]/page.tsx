@@ -2630,7 +2630,7 @@ export default function QuizPage() {
               </>
             ) : (
               <div style={{ fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
-                Svar på første spørsmål for å se din estimerte plass.
+                Svar på minst {MIN_ANSWERED_FOR_PLACEMENT} spørsmål for å se din estimerte plass.
               </div>
             )}
           </div>
