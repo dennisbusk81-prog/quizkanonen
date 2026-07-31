@@ -62,10 +62,18 @@ export default function RootLayout({
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs text-gray-500">
             <span>© 2026 Quizkanonen</span>
-            <Link href="/om" className="hover:text-gray-300 transition-all">Om Quizkanonen</Link>
-            <Link href="/slik-fungerer-det" className="hover:text-gray-300 transition-all">Slik fungerer det</Link>
-            <Link href="/personvern" className="hover:text-gray-300 transition-all">Personvernerklæring</Link>
-            <Link href="/vilkar" className="hover:text-gray-300 transition-all">Brukervilkår</Link>
+            {/* prefetch={false}: footeren ligger i root layout og er dermed på ALLE
+                sider. Uten dette prefetchet Next disse fire statiske infosidene 2–3
+                ganger hver per sidevisning (målt: tre sidelastninger, to maskiner,
+                ulik _rsc-hash per gang) — 8–12 unødvendige requests, og like mange
+                middleware-getUser()-kall mot Supabase for innloggede brukere, siden
+                middleware-matcheren ikke ekskluderer RSC-forespørsler. Sidene er
+                statiske og klikkes sjelden umiddelbart; Next prefetcher dem
+                fortsatt ved hover. */}
+            <Link href="/om" prefetch={false} className="hover:text-gray-300 transition-all">Om Quizkanonen</Link>
+            <Link href="/slik-fungerer-det" prefetch={false} className="hover:text-gray-300 transition-all">Slik fungerer det</Link>
+            <Link href="/personvern" prefetch={false} className="hover:text-gray-300 transition-all">Personvernerklæring</Link>
+            <Link href="/vilkar" prefetch={false} className="hover:text-gray-300 transition-all">Brukervilkår</Link>
             <a href="mailto:quizkanonen@gmail.com" className="hover:text-gray-300 transition-all">Kontakt</a>
           </div>
         </footer>
