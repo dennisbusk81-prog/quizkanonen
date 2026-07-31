@@ -30,6 +30,13 @@ body {
   .qk-nav-toppliste { display: none !important; }
 }
 
+/* Footer-lenker: hint-farge i hvile, brødtekst-farge ved hover.
+   Ligger her og ikke som inline style + onMouseEnter (mønsteret ellers i
+   appen, se NavAuth.tsx) fordi app/layout.tsx er en server-komponent —
+   hendelseshåndterere der ville krevd 'use client' på root layout. */
+.qk-footer-link { color: #918f8a; }
+.qk-footer-link:hover { color: #e8e4dd; }
+
 /* Datepicker-kontrast — gjør nettleserens dato/tid-popup lesbar på mørk bakgrunn */
 input[type="datetime-local"], input[type="date"] {
   color-scheme: dark;
