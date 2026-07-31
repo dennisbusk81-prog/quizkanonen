@@ -46,7 +46,7 @@ const s = {
   // derfor i 900-gruppen. Samme flytting gjort for /liga/[slug].
   page:         { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
 
   header:   { padding: '48px 0 36px', textAlign: 'center' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
@@ -57,9 +57,9 @@ const s = {
   rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 32 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 14px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
-  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
+  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
   profileBar: { background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 20, padding: '14px 20px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 },
   avatar:     { width: 34, height: 34, borderRadius: '50%', background: '#2a2d38', border: '1.5px solid rgba(201,168,76,0.22)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#c9a84c', overflow: 'hidden' as const },
@@ -67,7 +67,7 @@ const s = {
   card:       { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginBottom: 12 },
   cardRow:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' as const },
   cardTitle:  { fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 3 },
-  cardSub:    { fontSize: 12, color: '#7a7873' },
+  cardSub:    { fontSize: 12, color: '#918f8a' },
 
   btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
   btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
@@ -76,12 +76,12 @@ const s = {
   tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 16 },
   tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
   tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#7a7873', fontStyle: 'italic' as const },
+  tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#918f8a', fontStyle: 'italic' as const },
 
   empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 32 },
   emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
   emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
-  emptySub:  { fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 },
+  emptySub:  { fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 },
   btnLink:   { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', border: '1px solid #2a2d38', borderRadius: 10, textDecoration: 'none' },
 }
 
@@ -797,7 +797,7 @@ export default function LeaderboardPage() {
           </button>
         )}
         {browseSearching && (
-          <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+          <p style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
             {tc === 0
               ? `Ingen treff på «${browseSearch}».`
               : tc > BROWSE_PAGE_SIZE
@@ -847,7 +847,7 @@ export default function LeaderboardPage() {
 
   function renderBrowseList() {
     if (browseLoading && !browseData) {
-      return <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
+      return <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
     }
     const entries = browseData?.entries ?? []
     if (entries.length === 0) {
@@ -879,7 +879,7 @@ export default function LeaderboardPage() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 16 }}>
         {browsePageWindow(browsePage, totalPages).map((p, i) =>
           p === 'gap'
-            ? <span key={`g${i}`} style={{ color: '#7a7873', padding: '6px 4px', fontSize: 12 }}>…</span>
+            ? <span key={`g${i}`} style={{ color: '#918f8a', padding: '6px 4px', fontSize: 12 }}>…</span>
             : <button
                 key={p}
                 onClick={() => { setBrowsePage(p); setBrowseMode(true) }}
@@ -925,7 +925,7 @@ export default function LeaderboardPage() {
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>
             {orgSlug && (
-              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 8 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 8 }}>
                 Resultater blant kollegene dine
               </p>
             )}
@@ -948,7 +948,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{barName}</p>
-                  <p style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>Innlogget</p>
+                  <p style={{ fontSize: 11, color: '#918f8a', marginTop: 1 }}>Innlogget</p>
                 </div>
                 <button onClick={handleSignOut} style={s.btnOutline}>Logg ut</button>
               </div>
@@ -975,9 +975,9 @@ export default function LeaderboardPage() {
                     <div>
                       <p style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 }}>
                         <span className="qk-lb-hero-score" style={{ fontSize: 52 }}>{correctAnswers}</span>
-                        {totalQ != null && <span className="qk-lb-score-label" style={{ fontSize: 22, color: '#7a7873', fontWeight: 400 }}> av {totalQ}</span>}
+                        {totalQ != null && <span className="qk-lb-score-label" style={{ fontSize: 22, color: '#918f8a', fontWeight: 400 }}> av {totalQ}</span>}
                       </p>
-                      <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontWeight: 600 }}>riktige svar</p>
+                      <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontWeight: 600 }}>riktige svar</p>
                     </div>
                   )}
 
@@ -992,19 +992,19 @@ export default function LeaderboardPage() {
                       {timeMs != null && (
                         <div style={{ textAlign: 'center' as const }}>
                           <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{formatTime(timeMs)}</p>
-                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
+                          <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
                         </div>
                       )}
                       {scorePct != null && (
                         <div style={{ textAlign: 'center' as const }}>
                           <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{scorePct}%</p>
-                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
+                          <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
                         </div>
                       )}
                       {streak != null && streak > 0 && (
                         <div style={{ textAlign: 'center' as const }}>
                           <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{streak}</p>
-                          <p style={{ fontSize: 10, color: '#7a7873', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
+                          <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
                         </div>
                       )}
                     </div>
@@ -1012,7 +1012,7 @@ export default function LeaderboardPage() {
 
                   {/* Prosentil — utledet fra rank/totalCount som allerede er lastet over, ingen nytt kall */}
                   {rank != null && totalCount > 1 && (
-                    <p style={{ fontSize: 12, color: '#7a7873' }}>
+                    <p style={{ fontSize: 12, color: '#918f8a' }}>
                       Bedre enn {Math.round(((totalCount - rank) / (totalCount - 1)) * 100)}% av deltakerne
                     </p>
                   )}
@@ -1181,7 +1181,7 @@ export default function LeaderboardPage() {
                     Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
                   </p>
                 )}
-                <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                <p style={{ fontSize: 13, color: '#918f8a', marginTop: 4 }}>
                   Se nøyaktig plassering —{' '}
                   <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
                     få Premium
@@ -1213,7 +1213,7 @@ export default function LeaderboardPage() {
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               </div>
               <p style={s.emptyTitle}>Ingen resultater ennå</p>
               <p style={s.emptySub}>Vær den første til å fullføre denne quizen.</p>
@@ -1260,7 +1260,7 @@ export default function LeaderboardPage() {
                   siden det er nøyaktig samme betingelse utfordre-funksjonen
                   alltid har krevd. Vist én gang, ikke duplisert i begge faner. */}
               {session && (
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', margin: '0 0 14px' }}>
+                <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', margin: '0 0 14px' }}>
                   Trykk på en deltaker for å utfordre til duell.
                 </p>
               )}
@@ -1328,26 +1328,26 @@ export default function LeaderboardPage() {
               </div>
 
               {!session ? (
-                <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', padding: '16px 0' }}>
                   <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Logg inn</a> for å se svarfordeling.
                 </p>
               ) : !isPremium ? (
                 <div style={s.card}>
                   <p style={s.cardTitle}>Se svarfordelingen for ukens letteste og vanskeligste spørsmål</p>
-                  <p style={{ fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                  <p style={{ fontSize: 13, color: '#918f8a', marginTop: 4 }}>
                     <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Bli Premium</a>
                   </p>
                 </div>
               ) : showAnswerDist && (
                 answerDistLoading
-                  ? <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
+                  ? <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
                   : answerDist && (answerDist.easiest.length > 0 || answerDist.hardest.length > 0)
                     ? (['easiest', 'hardest'] as const).map(group => {
                         const list = answerDist[group]
                         if (list.length === 0) return null
                         return (
                           <div key={group} style={{ marginBottom: 18 }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>
                               {group === 'easiest' ? 'To letteste' : 'To vanskeligste'}
                             </p>
                             {list.map(q => (
@@ -1355,7 +1355,7 @@ export default function LeaderboardPage() {
                                 <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 4, lineHeight: 1.4 }}>
                                   {q.questionText}
                                 </p>
-                                <p style={{ fontSize: 11, color: '#7a7873', marginBottom: 12 }}>
+                                <p style={{ fontSize: 11, color: '#918f8a', marginBottom: 12 }}>
                                   {q.correctPct}% svarte riktig
                                 </p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1364,9 +1364,9 @@ export default function LeaderboardPage() {
                                     return (
                                       <div key={d.option}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', width: 14, flexShrink: 0 }}>{d.option}</span>
-                                          <span style={{ fontSize: 13, color: isCorrect ? '#e8e4dd' : '#7a7873', flex: 1, lineHeight: 1.3 }}>{d.label}</span>
-                                          <span style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#7a7873', flexShrink: 0 }}>{d.percent}%</span>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#918f8a', width: 14, flexShrink: 0 }}>{d.option}</span>
+                                          <span style={{ fontSize: 13, color: isCorrect ? '#e8e4dd' : '#918f8a', flex: 1, lineHeight: 1.3 }}>{d.label}</span>
+                                          <span style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#c9a84c' : '#918f8a', flexShrink: 0 }}>{d.percent}%</span>
                                         </div>
                                         <div style={{ height: 6, background: '#2a2d38', borderRadius: 3, overflow: 'hidden' }}>
                                           <div style={{ height: '100%', width: `${d.percent}%`, background: isCorrect ? '#c9a84c' : '#3a3d48', borderRadius: 3, transition: 'width 0.4s ease' }} />
@@ -1376,7 +1376,7 @@ export default function LeaderboardPage() {
                                   })}
                                 </div>
                                 {q.totalAnswers > 0 && (
-                                  <p style={{ fontSize: 11, color: '#7a7873', marginTop: 12, textAlign: 'right' }}>
+                                  <p style={{ fontSize: 11, color: '#918f8a', marginTop: 12, textAlign: 'right' }}>
                                     {q.totalAnswers} svar
                                   </p>
                                 )}
@@ -1385,14 +1385,14 @@ export default function LeaderboardPage() {
                           </div>
                         )
                       })
-                    : <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>Ingen svardata tilgjengelig.</p>
+                    : <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', textAlign: 'center', padding: '16px 0' }}>Ingen svardata tilgjengelig.</p>
               )}
             </div>
           )}
 
           {/* Neste steg */}
           <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 14, letterSpacing: '0.04em' }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 14, letterSpacing: '0.04em' }}>
               Neste quiz kommer fredag
             </p>
             <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1425,7 +1425,7 @@ export default function LeaderboardPage() {
           {/* Kontekstuell navigasjon — kun for innloggede, skjult i org-modus */}
           {!authLoading && session && !orgSlug && (userOrgs.length > 0) && (
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
                 Se også
               </p>
               <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>

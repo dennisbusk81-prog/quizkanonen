@@ -110,7 +110,7 @@ export default function UtfordringPage() {
             )}
 
             {!loggedIn && (
-              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 20 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 20 }}>
                 <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
                   Logg inn
                 </a>

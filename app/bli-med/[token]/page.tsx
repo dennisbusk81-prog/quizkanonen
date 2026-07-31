@@ -101,7 +101,7 @@ export default function BliMedPage() {
       <>
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -118,7 +118,7 @@ export default function BliMedPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
               Ugyldig lenke
             </p>
-            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24, lineHeight: 1.6 }}>
               {invite && !invite.valid ? (invite as { valid: false; error: string }).error : 'Invitasjonslenken er ikke gyldig.'}
             </p>
             <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
@@ -157,7 +157,7 @@ export default function BliMedPage() {
               <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
                 Bli med i<br /><em style={{ fontStyle: 'italic', color: '#c9a84c' }}>{orgName}</em>
               </h1>
-              <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 28, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 28, lineHeight: 1.6 }}>
                 Du inviteres til bedriftens quiz-liga. Alle deltakere får Premium-tilgang inkludert.
               </p>
             </div>

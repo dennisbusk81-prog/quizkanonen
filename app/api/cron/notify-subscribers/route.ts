@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
                   </td>
                 </tr>
               </table>
-              <p style="margin:0;font-size:12px;color:#7a7873;text-align:center;line-height:1.6;">
+              <p style="margin:0;font-size:12px;color:#918f8a;text-align:center;line-height:1.6;">
                 Du mottok denne e-posten fordi du meldte deg på varsler på quizkanonen.no.
               </p>
             </td>

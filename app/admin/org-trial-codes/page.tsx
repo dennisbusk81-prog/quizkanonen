@@ -30,7 +30,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);

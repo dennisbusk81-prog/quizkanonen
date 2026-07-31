@@ -79,7 +79,7 @@ function SuccessContent() {
       <>
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -105,7 +105,7 @@ function SuccessContent() {
             <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
               {data ? `Velkommen, ${data.org.name}!` : 'Betaling mottatt!'}
             </h1>
-            <p style={{ fontSize: 14, color: '#7a7873', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: '#918f8a', lineHeight: 1.6 }}>
               Bedriftsprofilen er opprettet. Del invitasjonslenken med teamet for å komme i gang.
             </p>
           </div>
@@ -113,7 +113,7 @@ function SuccessContent() {
           {/* Invite link card — tre tilstander: laster / funnet / ikke funnet */}
           {!inviteResolved ? (
             <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
-              <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>Henter invitasjonslenke...</p>
+              <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>Henter invitasjonslenke...</p>
             </div>
           ) : inviteUrl ? (
             <div style={{ background: '#1e1a0e', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
@@ -131,7 +131,7 @@ function SuccessContent() {
                   {copied ? 'Kopiert!' : 'Kopier'}
                 </button>
               </div>
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, lineHeight: 1.5 }}>
                 Alle som trykker på lenken og logger inn blir del av teamet og får Premium-tilgang.
               </p>
             </div>
@@ -150,7 +150,7 @@ function SuccessContent() {
 
           {/* Steps */}
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px', marginBottom: 28 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 20 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 20 }}>
               Kom i gang
             </p>
             {STEPS.map((step, i) => (
@@ -160,7 +160,7 @@ function SuccessContent() {
                 </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 3 }}>{step.title}</div>
-                  <div style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.5 }}>{step.desc}</div>
+                  <div style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.5 }}>{step.desc}</div>
                 </div>
               </div>
             ))}

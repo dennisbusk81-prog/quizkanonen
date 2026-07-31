@@ -13,7 +13,7 @@
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#7a7873', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>
+          <span style={{ color: '#918f8a', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>
         </div>
       </div>
 
@@ -28,7 +28,7 @@
           <h1 className="page-title" style={{ color: '#e8e4dd', fontSize: 'clamp(2rem, 5vw, 2.8rem)', fontWeight: 700, lineHeight: 1.2, marginBottom: '1rem' }}>
             Brukervilkår
           </h1>
-          <p style={{ color: '#7a7873', fontSize: '1.05rem', lineHeight: 1.7 }}>
+          <p style={{ color: '#918f8a', fontSize: '1.05rem', lineHeight: 1.7 }}>
             Ved å bruke Quizkanonen godtar du disse vilkårene. Les dem gjerne — de er skrevet for å være forståelige, ikke for å forvirre.
           </p>
         </div>
@@ -53,7 +53,7 @@
 
           <Section title="3. Hva tjenesten er">
             <P>Quizkanonen er en digital quiz-plattform der du kan:</P>
-            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#918f8a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Delta i ukentlige quizer gratis</li>
               <li style={{ marginBottom: '0.5rem' }}>Konkurrere mot andre spillere på leaderboard</li>
               <li>Få tilgang til utvidet innhold og funksjoner som premiumbruker</li>
@@ -79,7 +79,7 @@
               ].map(([label, text]) => (
                 <div key={label} style={{ display: 'flex', gap: '1rem', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '0.875rem 1rem' }}>
                   <span style={{ color: '#c9a84c', fontWeight: 600, fontSize: '0.85rem', minWidth: '120px', flexShrink: 0 }}>{label}</span>
-                  <span style={{ color: '#7a7873', fontSize: '0.9rem', lineHeight: 1.65 }}>{text}</span>
+                  <span style={{ color: '#918f8a', fontSize: '0.9rem', lineHeight: 1.65 }}>{text}</span>
                 </div>
               ))}
             </div>
@@ -91,7 +91,7 @@
 
           <Section title="7. Regler for rettferdig spill">
             <P>Quizkanonen er en ferdighetsbasert konkurranse. Følgende er ikke tillatt:</P>
-            <ul style={{ color: '#7a7873', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
+            <ul style={{ color: '#918f8a', lineHeight: 1.8, paddingLeft: '1.5rem', fontSize: '0.95rem' }}>
               <li style={{ marginBottom: '0.5rem' }}>Bruke automatiserte verktøy, bots eller scripts for å delta</li>
               <li style={{ marginBottom: '0.5rem' }}>Koordinere svar i sanntid med andre for å få urettferdig fordel</li>
               <li style={{ marginBottom: '0.5rem' }}>Omgå dobbeltspill-sperringen ved å manipulere nettleseren</li>
@@ -133,7 +133,7 @@
         {/* Footer nav */}
         <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid #2a2d38', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <a href="/personvern" style={{ color: '#c9a84c', fontSize: '0.9rem', textDecoration: 'none' }}>Personvernerklæring →</a>
-          <a href="/" style={{ color: '#7a7873', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
+          <a href="/" style={{ color: '#918f8a', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
         </div>
 
       </div>
@@ -157,12 +157,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function P({ children }: { children: React.ReactNode }) {
-  return <p style={{ color: '#7a7873', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
+  return <p style={{ color: '#918f8a', fontSize: '0.95rem', lineHeight: 1.75 }}>{children}</p>
 }
 
 function Box({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#7a7873', fontSize: '0.9rem', lineHeight: 1.8 }}>
+    <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: '10px', padding: '1rem 1.25rem', color: '#918f8a', fontSize: '0.9rem', lineHeight: 1.8 }}>
       {children}
     </div>
   )

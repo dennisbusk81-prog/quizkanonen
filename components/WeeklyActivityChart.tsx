@@ -24,7 +24,7 @@ const PAD_B = 30
 
 const GOLD = '#c9a84c'
 const BODY = '#e8e4dd'
-const HINT = '#7a7873'
+const HINT = '#918f8a'
 
 function formatWeek(iso: string): string {
   const d = new Date(iso)

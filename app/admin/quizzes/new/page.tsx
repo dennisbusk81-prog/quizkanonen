@@ -120,7 +120,7 @@ const STYLES = `
     --gold:   #c9a84c;
     --white:  #ffffff;
     --body:   #e8e4dd;
-    --muted:  #7a7873;
+    --muted:  #918f8a;
     --green:  #4a8c5c;
     --rcard:  16px;
     --rbtn:   10px;
@@ -1843,7 +1843,7 @@ function QuizEditorInner() {
             <div className="nq-header-right">
               <div className="nq-save-status">
                 {saveStatus === 'saved'  && <span style={{ color: '#4a8c5c' }}>Lagret ✓</span>}
-                {saveStatus === 'saving' && <span style={{ color: '#7a7873' }}>Lagrer…</span>}
+                {saveStatus === 'saving' && <span style={{ color: '#918f8a' }}>Lagrer…</span>}
                 {saveStatus === 'error'  && <span style={{ color: '#c94c4c' }}>Lagring feilet</span>}
               </div>
               <button
@@ -2132,7 +2132,7 @@ function QuizEditorInner() {
               <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 6, fontFamily: "'Instrument Sans', sans-serif", fontWeight: 600 }}>
                 Endre fasit fra {q.correctAnswers.join(', ')} til {keyPanel.pending.join(', ')}?
               </p>
-              <p style={{ fontSize: 11, color: '#7a7873', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+              <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
                 Dette påvirker leaderboard for {activeAnsweredCount} {activeAnsweredCount === 1 ? 'spiller' : 'spillere'}.
                 Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?
               </p>
@@ -2150,7 +2150,7 @@ function QuizEditorInner() {
                     fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
                     border: `1px solid ${keyPanelLoading ? '#2a2d38' : '#e8e4dd'}`,
                     background: 'transparent',
-                    color: keyPanelLoading ? '#7a7873' : '#e8e4dd',
+                    color: keyPanelLoading ? '#918f8a' : '#e8e4dd',
                     cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
                     fontFamily: "'Instrument Sans', sans-serif",
                   }}
@@ -2163,7 +2163,7 @@ function QuizEditorInner() {
                   disabled={keyPanelLoading}
                   style={{
                     fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38',
-                    background: 'transparent', color: '#7a7873',
+                    background: 'transparent', color: '#918f8a',
                     cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
                     fontFamily: "'Instrument Sans', sans-serif",
                   }}
@@ -2288,7 +2288,7 @@ function QuizEditorInner() {
             >
               ← Forrige
             </button>
-            <span style={{ fontSize: 13, color: '#7a7873', textAlign: 'center', flex: 1, whiteSpace: 'nowrap', padding: '0 4px' }}>
+            <span style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', flex: 1, whiteSpace: 'nowrap', padding: '0 4px' }}>
               {savingIdx === activeIdx ? 'Lagrer…' : `Spørsmål ${activeIdx + 1} av ${total}`}
             </span>
             <button

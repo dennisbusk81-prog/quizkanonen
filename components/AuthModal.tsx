@@ -84,7 +84,7 @@ export default function AuthModal({ open, onClose, next, description }: Props) {
             right: 16,
             background: 'none',
             border: 'none',
-            color: '#7a7873',
+            color: '#918f8a',
             fontSize: 20,
             cursor: 'pointer',
             lineHeight: 1,

@@ -33,20 +33,20 @@ const s = {
   // i før tabellformatet fantes.
   page:     { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   hero:        { paddingTop: 24, paddingBottom: 16 },
-  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 6 },
+  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
   heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em', marginBottom: 6 },
   heroBadge:   { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e8e4dd' },
   rule:        { width: '100%', height: 1, background: '#2a2d38', marginBottom: 16 },
 
   // Invite box (owner)
   inviteCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 18px', marginBottom: 12 },
-  inviteLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 8 },
+  inviteLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 8 },
   inviteRow:   { display: 'flex', gap: 8 },
-  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', flexShrink: 0 },
   copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "'Instrument Sans', sans-serif", cursor: 'default', flexShrink: 0 },
 
@@ -331,7 +331,7 @@ export default function LigaPage() {
             <div style={s.inviteCard}>
               <p style={s.inviteLabel}>
                 Invitasjonslenke
-                <span style={{ color: (league?.member_count ?? 0) >= 6 ? '#f87171' : '#7a7873', marginLeft: 6, fontWeight: 400, letterSpacing: 0, textTransform: 'none' as const }}>
+                <span style={{ color: (league?.member_count ?? 0) >= 6 ? '#f87171' : '#918f8a', marginLeft: 6, fontWeight: 400, letterSpacing: 0, textTransform: 'none' as const }}>
                   {league?.member_count}/6
                 </span>
               </p>
@@ -406,7 +406,7 @@ export default function LigaPage() {
             <div style={{ marginTop: 24 }}>
               {/* Section header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 14px' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', whiteSpace: 'nowrap' }}>
                   Medlemsoversikt
                 </span>
                 <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
@@ -463,7 +463,7 @@ export default function LigaPage() {
                         style={{ width: 8, height: 8, borderRadius: '50%', background: m.activeLast30Days ? '#4ade80' : '#2a2d38', border: m.activeLast30Days ? 'none' : '1px solid #2a2d38', flexShrink: 0 }}
                       />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#7a7873' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: m.isExcluded ? '#918f8a' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {m.displayName}{m.isExcluded ? ' (ekskludert)' : ''}
                         </div>
                         <div style={{ fontSize: 11, color: '#e8e4dd', marginTop: 1 }}>
@@ -477,7 +477,7 @@ export default function LigaPage() {
                       <button
                         onClick={() => handleExclude(m.userId, m.isExcluded)}
                         disabled={excludingId === m.userId}
-                        style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                        style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                       >
                         {excludingId === m.userId ? '…' : m.isExcluded ? 'Vis igjen' : 'Ekskluder'}
                       </button>
@@ -494,7 +494,7 @@ export default function LigaPage() {
           {league?.is_owner && (
             <div style={{ marginTop: 40 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', whiteSpace: 'nowrap' }}>
                   Faresone
                 </span>
                 <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
@@ -545,7 +545,7 @@ export default function LigaPage() {
               <button
                 onClick={handleDeleteLeague}
                 disabled={deleteInput !== 'SLETT' || deleting}
-                style={{ fontSize: 13, fontWeight: 600, color: deleteInput === 'SLETT' ? '#1a1c23' : '#7a7873', background: deleteInput === 'SLETT' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteInput === 'SLETT' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteInput === 'SLETT' ? '#1a1c23' : '#918f8a', background: deleteInput === 'SLETT' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteInput === 'SLETT' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {deleting ? 'Sletter…' : 'Slett liga'}
               </button>
@@ -577,7 +577,7 @@ export default function LigaPage() {
               <button
                 onClick={handleSeasonReset}
                 disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
-                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

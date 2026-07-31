@@ -156,7 +156,7 @@ export default function PremiumPage() {
                 style={{
                   padding: '10px 28px',
                   background: (loading || session === undefined) ? '#2a2d38' : '#c9a84c',
-                  color: (loading || session === undefined) ? '#7a7873' : '#1a1c23',
+                  color: (loading || session === undefined) ? '#918f8a' : '#1a1c23',
                   border: 'none', borderRadius: 10,
                   fontSize: 15, fontWeight: 700,
                   fontFamily: "'Instrument Sans', sans-serif",

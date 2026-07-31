@@ -77,9 +77,9 @@ export default function OrgLeaderboardPage() {
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Henter bedriften din …</p>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter bedriften din …</p>
             {slowLoad && (
-              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
                 Dette tar lengre tid enn vanlig.{' '}
                 <a href={`/org/${slug}`} style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
               </p>
@@ -103,7 +103,7 @@ export default function OrgLeaderboardPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
               Kunne ikke hente bedriften din
             </p>
-            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24, lineHeight: 1.6 }}>
               Vi fikk ikke kontakt akkurat nå. Medlemskapet ditt er uendret.
             </p>
             <div style={{ marginBottom: 20 }}>
@@ -132,7 +132,7 @@ export default function OrgLeaderboardPage() {
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>
-            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24 }}>Du er ikke medlem av denne bedriften.</p>
+            <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24 }}>Du er ikke medlem av denne bedriften.</p>
             <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Forsiden</Link>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function OrgLeaderboardPage() {
             <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
               Bedrifts<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>topplisten</em>
             </h1>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#7a7873', fontStyle: 'italic' }}>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#918f8a', fontStyle: 'italic' }}>
               Hvem er {org?.orgName}s kanon?
             </p>
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
@@ -187,7 +187,7 @@ export default function OrgLeaderboardPage() {
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', marginBottom: 6 }}>
                   Medlemskap
                 </p>
-                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6 }}>
+                <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6 }}>
                   Du er med i {org.orgName}. Forlater du bedriften, beholder du kontoen,
                   quizhistorikken og poengene dine — du fortsetter som vanlig bruker.
                 </p>

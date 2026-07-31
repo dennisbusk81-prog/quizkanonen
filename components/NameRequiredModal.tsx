@@ -111,7 +111,7 @@ export default function NameRequiredModal() {
         }}>
           Hva heter du?
         </h2>
-        <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 24, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 24, lineHeight: 1.6 }}>
           Skriv ditt fulle navn — det vises på topplisten og i ligaer. Andre spillere ser hvem de konkurrerer mot.
         </p>
 
@@ -156,7 +156,7 @@ export default function NameRequiredModal() {
             width: '100%',
             padding: '12px',
             background: isValid && !saving ? '#c9a84c' : '#2a2d38',
-            color: isValid && !saving ? '#1a1c23' : '#7a7873',
+            color: isValid && !saving ? '#1a1c23' : '#918f8a',
             border: 'none',
             borderRadius: 10,
             fontSize: 15,
@@ -169,7 +169,7 @@ export default function NameRequiredModal() {
           {saving ? 'Lagrer…' : 'Bekreft navn'}
         </button>
 
-        <p style={{ fontSize: 11, color: '#7a7873', marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 11, color: '#918f8a', marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
           Fornavn og etternavn. Kun bokstaver, mellomrom og bindestrek.
         </p>
       </div>

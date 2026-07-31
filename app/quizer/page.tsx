@@ -99,7 +99,7 @@ const css = `
 
   .qz-tag-muted {
     background: rgba(106,104,96,0.12);
-    color: #7a7873;
+    color: #918f8a;
     border: 1px solid rgba(106,104,96,0.18);
   }
 
@@ -111,13 +111,13 @@ const css = `
 
   .qz-tag-stengt {
     background: rgba(106,104,96,0.10);
-    color: #7a7873;
+    color: #918f8a;
     border: 1px solid rgba(106,104,96,0.15);
   }
 
   .qz-status-time {
     font-size: 12px;
-    color: #7a7873;
+    color: #918f8a;
     margin-top: 4px;
   }
 
@@ -132,7 +132,7 @@ const css = `
   }
 
   .qz-details { display: flex; flex-wrap: wrap; gap: 12px; }
-  .qz-detail { font-size: 12px; color: #7a7873; }
+  .qz-detail { font-size: 12px; color: #918f8a; }
 
   .qz-card-right {
     flex-shrink: 0;
@@ -152,7 +152,7 @@ const css = `
     font-weight: 600;
     padding: 9px 18px;
     border-radius: 10px;
-    border: 0.5px solid #7a7873;
+    border: 0.5px solid #918f8a;
     text-decoration: none;
     white-space: nowrap;
     transition: border-color 0.15s, color 0.15s;
@@ -178,7 +178,7 @@ const css = `
     padding: 48px 32px;
     text-align: center;
     font-size: 14px;
-    color: #7a7873;
+    color: #918f8a;
     line-height: 1.6;
   }
 

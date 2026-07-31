@@ -133,7 +133,7 @@ export default function SlikFungererDetPage() {
                 alignItems: 'center',
                 gap: 10,
               }}>
-                <span style={{ fontSize: 12, color: '#7a7873', whiteSpace: 'nowrap' as const }}>{label}</span>
+                <span style={{ fontSize: 12, color: '#918f8a', whiteSpace: 'nowrap' as const }}>{label}</span>
                 <span style={{
                   fontSize: 15,
                   fontWeight: 700,
@@ -176,7 +176,7 @@ export default function SlikFungererDetPage() {
 
             {/* Gratis */}
             <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 18px' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 12 }}>
                 Gratis
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
@@ -188,7 +188,7 @@ export default function SlikFungererDetPage() {
                   'Bli med i private ligaer',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <span style={{ color: '#7a7873', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ color: '#918f8a', flexShrink: 0, marginTop: 1 }}>✓</span>
                     {item}
                   </li>
                 ))}
@@ -201,7 +201,7 @@ export default function SlikFungererDetPage() {
                 Premium · kr 49/mnd
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
-                <li style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.4, fontStyle: 'italic' }}>Alt i gratis, pluss:</li>
+                <li style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.4, fontStyle: 'italic' }}>Alt i gratis, pluss:</li>
                 {[
                   'Nøyaktig plassering på leaderboard',
                   'Full quizhistorikk uke for uke',

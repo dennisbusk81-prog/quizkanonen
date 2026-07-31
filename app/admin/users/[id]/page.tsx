@@ -18,7 +18,7 @@ const STYLES = `
     --gold:   #c9a84c;
     --white:  #ffffff;
     --body:   #e8e4dd;
-    --hint:   #7a7873;
+    --hint:   #918f8a;
   }
 
   body {
@@ -634,7 +634,7 @@ export default function UserDetailPage() {
             <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
               <strong>{name}</strong>
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 }}>
               Brukeren kan ikke starte quiz og vises ikke på leaderboard i 30 dager.
             </p>
             {actionError && <p style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{actionError}</p>}
@@ -665,7 +665,7 @@ export default function UserDetailPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
               Slett {name}?
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
               Dette kan ikke angres. All data slettes permanent, inkludert medlemskap, dueller og
               sesong-poeng. Eventuelt aktivt personlig Stripe-abonnement kanselleres.
             </p>
@@ -696,7 +696,7 @@ export default function UserDetailPage() {
                 disabled={!canDelete || actionLoading}
                 style={{
                   fontSize: 13, fontWeight: 600,
-                  color: canDelete ? '#1a1c23' : '#7a7873',
+                  color: canDelete ? '#1a1c23' : '#918f8a',
                   background: canDelete ? '#f87171' : '#2a2d38',
                   border: 'none', borderRadius: 8, padding: '8px 20px',
                   cursor: canDelete && !actionLoading ? 'pointer' : 'not-allowed',

@@ -34,7 +34,7 @@ const STYLES = `
     --gold:   #c9a84c;
     --white:  #ffffff;
     --body:   #e8e4dd;
-    --muted:  #7a7873;
+    --muted:  #918f8a;
     --green:  #4ade80;
     --rcard:  16px;
     --rbtn:   10px;
@@ -158,7 +158,7 @@ export default function ClassicsPage() {
     <>
       <style>{STYLES}</style>
       <div className="cl-page">
-        <div className="cl-header"><p style={{ color: '#7a7873', fontSize: 14, paddingTop: 40 }}>Laster klassikere…</p></div>
+        <div className="cl-header"><p style={{ color: '#918f8a', fontSize: 14, paddingTop: 40 }}>Laster klassikere…</p></div>
       </div>
     </>
   )

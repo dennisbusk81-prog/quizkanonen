@@ -48,7 +48,7 @@ export default function WelcomeBanner() {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: '#7a7873',
+            color: '#918f8a',
             fontSize: 18,
             lineHeight: 1,
             padding: '2px 4px',

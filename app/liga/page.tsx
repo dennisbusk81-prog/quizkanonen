@@ -24,19 +24,19 @@ const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   hero:        { paddingTop: 24, paddingBottom: 20 },
-  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 6 },
+  heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
   heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' },
   heroTitleEm: { fontStyle: 'italic', color: '#c9a84c' },
   rule:        { width: '100%', height: 1, background: '#2a2d38', marginBottom: 20 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
-  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#7a7873', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
+  sectionCount:  { fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
 
   rowBase:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const, transition: 'border-color 0.12s' },
   rowHover:  { background: '#252836', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const },
@@ -44,14 +44,14 @@ const s = {
   rowMeta:   { fontSize: 13, color: '#e8e4dd' },
   rowRight:  { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   ownerBadge:{ fontSize: 10, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 4, padding: '2px 7px' },
-  rowArrow:  { fontSize: 14, color: '#7a7873' },
+  rowArrow:  { fontSize: 14, color: '#918f8a' },
 
   createCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 20px', marginBottom: 16 },
-  createLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 10 },
+  createLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 10 },
   inputRow:    { display: 'flex', gap: 8 },
   input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  btnGoldDis:  { padding: '10px 20px', background: '#2a2d38', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
+  btnGoldDis:  { padding: '10px 20px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
   cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
   createErrMsg:{ fontSize: 12, color: '#f87171', marginTop: 8 },
 
@@ -150,7 +150,7 @@ export default function MineLigaerPage() {
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Henter ligaene dine …</p>
           {slowLoad && (
-            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
               Dette tar lengre tid enn vanlig.{' '}
               <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
             </p>
@@ -166,7 +166,7 @@ export default function MineLigaerPage() {
       <div style={s.centered}>
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Vi klarte ikke å hente ligaene.</p>
-          <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+          <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
             <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
           </p>
         </div>

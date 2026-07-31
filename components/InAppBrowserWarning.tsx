@@ -62,7 +62,7 @@ export default function InAppBrowserWarning() {
         <p style={{
           fontFamily: "'Instrument Sans', sans-serif",
           fontSize: 12,
-          color: '#7a7873',
+          color: '#918f8a',
           marginTop: 10,
           lineHeight: 1.5,
         }}>

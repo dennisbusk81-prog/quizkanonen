@@ -13,8 +13,8 @@
 const UNSUBSCRIBE_ROW = `
           <tr>
             <td align="center" style="padding-top:12px;">
-              <p style="margin:0;font-size:11px;color:#7a7873;line-height:1.7;text-align:center;">
-                Ønsker du ikke flere e-poster? <a href="https://quizkanonen.no/profil" style="color:#7a7873;text-decoration:underline;">Meld deg av her.</a>
+              <p style="margin:0;font-size:11px;color:#918f8a;line-height:1.7;text-align:center;">
+                Ønsker du ikke flere e-poster? <a href="https://quizkanonen.no/profil" style="color:#918f8a;text-decoration:underline;">Meld deg av her.</a>
               </p>
             </td>
           </tr>`
@@ -23,8 +23,8 @@ function unsubscribeRow(url: string): string {
   return `
           <tr>
             <td align="center" style="padding-top:12px;">
-              <p style="margin:0;font-size:11px;color:#7a7873;line-height:1.7;text-align:center;">
-                <a href="${url}" style="color:#7a7873;text-decoration:underline;">Avslutt abonnement på denne typen e-post</a>
+              <p style="margin:0;font-size:11px;color:#918f8a;line-height:1.7;text-align:center;">
+                <a href="${url}" style="color:#918f8a;text-decoration:underline;">Avslutt abonnement på denne typen e-post</a>
               </p>
             </td>
           </tr>`
@@ -84,7 +84,7 @@ export function trialEndingEmail(daysLeft: number): string {
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Din gratis prøveperiode på Quizkanonen utløper om <strong style="color:#ffffff;">${daysLeft} ${dayWord}</strong>.
               </p>
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
                 Du mister tilgangen til
               </p>
 
@@ -198,7 +198,7 @@ export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string, orgSlu
 
               ${isTrial ? `
               <!-- Trial note -->
-              <p style="margin:0 0 16px;font-size:14px;color:#7a7873;line-height:1.7;border-left:2px solid #2a2d38;padding-left:14px;">
+              <p style="margin:0 0 16px;font-size:14px;color:#918f8a;line-height:1.7;border-left:2px solid #2a2d38;padding-left:14px;">
                 Dere har 14 dager gratis, ingen kortinfo nødvendig.
               </p>
               ` : ''}
@@ -766,7 +766,7 @@ export function codePremiumEndedEmail(): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#7a7873;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
                 Spørsmål? Svar på denne e-posten.
               </p>
@@ -845,7 +845,7 @@ export function gracePeriodEndedEmail(): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#7a7873;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
                 Spørsmål? Svar på denne e-posten.
               </p>
@@ -1280,7 +1280,7 @@ export function orgPurchaseEmail(orgNameRaw: string, orgSlug: string): string {
                 <strong style="color:#ffffff;">${orgName}</strong> er nå opprettet og klar til bruk.
               </p>
 
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
                 Neste steg
               </p>
 
@@ -1369,7 +1369,7 @@ export function orgTrialEmail(orgNameRaw: string, orgSlug: string, trialEndIso: 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px;">
                 <tr>
                   <td style="background:#1a1c23;border:1px solid #2a2d38;border-radius:12px;padding:14px 18px;">
-                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#7a7873;">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#918f8a;">
                       Prøveperioden varer til
                     </span><br />
                     <span style="font-size:16px;font-weight:600;color:#ffffff;margin-top:4px;display:inline-block;">
@@ -1379,7 +1379,7 @@ export function orgTrialEmail(orgNameRaw: string, orgSlug: string, trialEndIso: 
                 </tr>
               </table>
 
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
                 Slik kommer du i gang
               </p>
 
@@ -1964,7 +1964,7 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
                 <tr>
                   <td style="background:#1a1c23;border:1px solid #2a2d38;border-radius:12px;padding:14px 18px;">
-                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#7a7873;">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:#918f8a;">
                       Neste betaling
                     </span><br />
                     <span style="font-size:16px;font-weight:600;color:#ffffff;margin-top:4px;display:inline-block;">
@@ -2233,7 +2233,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
                   : `Ukens quiz i <strong style="color:#ffffff;">${orgName}</strong> er avgjort.`}
               </p>
 
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
                 Topp 3
               </p>
 
@@ -2246,7 +2246,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
               </p>
 
               <!-- Kopierbar tekstblokk for Teams/Slack -->
-              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#7a7873;">
+              <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
                 Klar til å dele
               </p>
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
@@ -2424,9 +2424,9 @@ export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quiz
                   </td>
                 </tr>
               </table>
-              <p style="margin:0;font-size:12px;color:#7a7873;text-align:center;line-height:1.6;">
+              <p style="margin:0;font-size:12px;color:#918f8a;text-align:center;line-height:1.6;">
                 Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.<br/>
-                <a href="https://quizkanonen.no/profil" style="color:#7a7873;">Endre varslingsinnstillinger</a>
+                <a href="https://quizkanonen.no/profil" style="color:#918f8a;">Endre varslingsinnstillinger</a>
               </p>
             </td>
           </tr>

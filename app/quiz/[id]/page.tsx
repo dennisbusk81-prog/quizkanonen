@@ -56,7 +56,7 @@ const styles = `
     --gold:    #c9a84c;
     --white:   #ffffff;
     --body:     #e8e4dd;
-    --muted:   #7a7873;
+    --muted:   #918f8a;
     --green:   #4ade80;
     --red:     #c94c4c;
     --rcard:   20px;
@@ -461,7 +461,7 @@ const styles = `
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .qk-option:hover:not(:disabled) { border-color: #7a7873; background: #262930; }
+    .qk-option:hover:not(:disabled) { border-color: #918f8a; background: #262930; }
   }
   .qk-option:disabled { cursor: default; }
   @keyframes qkButtonPop {
@@ -556,7 +556,7 @@ const styles = `
     margin-bottom: 5px;
   }
 
-  .qk-stat-label { font-size: 11px; color: #7a7873; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
+  .qk-stat-label { font-size: 11px; color: #918f8a; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 400; }
 
   @keyframes qkstreakfade {
     from { opacity: 0; transform: translateY(-4px); }
@@ -727,7 +727,7 @@ const styles = `
     font-weight: 600;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     margin-bottom: 14px;
     font-family: 'Instrument Sans', sans-serif;
   }
@@ -2008,7 +2008,7 @@ export default function QuizPage() {
       const rawTitle = quiz?.title ?? ''
       const displayTitle = rawTitle.length > 50 ? rawTitle.slice(0, 50) + '…' : rawTitle
       ctx.font = '400 13px "Instrument Sans", sans-serif'
-      ctx.fillStyle = '#7a7873'
+      ctx.fillStyle = '#918f8a'
       ctx.fillText(displayTitle, cx, cY + 116)
 
       // Divider
@@ -2030,7 +2030,7 @@ export default function QuizPage() {
         ctx.fillStyle = '#c9a84c'
         ctx.fillText(`${cCount}/${totalQuestions}`, col1x, statY)
         ctx.font = '500 11px "Instrument Sans", sans-serif'
-        ctx.fillStyle = '#7a7873'
+        ctx.fillStyle = '#918f8a'
         ctx.fillText('RIKTIGE SVAR', col1x, statY + 28)
 
         // Column separator
@@ -2045,7 +2045,7 @@ export default function QuizPage() {
         ctx.fillStyle = '#c9a84c'
         ctx.fillText(`Topp ${topp}%`, col2x, statY)
         ctx.font = '500 11px "Instrument Sans", sans-serif'
-        ctx.fillStyle = '#7a7873'
+        ctx.fillStyle = '#918f8a'
         ctx.fillText('PLASSERING', col2x, statY + 28)
       } else {
         // Just score centered
@@ -2132,7 +2132,7 @@ export default function QuizPage() {
       <SiteNav />
       <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
         <span className="qk-result-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </span>
         <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
         <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
@@ -2175,7 +2175,7 @@ export default function QuizPage() {
                           <span style={{ display: 'block', fontSize: 15, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {row.nickname.trim()}
                           </span>
-                          <span style={{ display: 'block', fontSize: 12, color: '#7a7873', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ display: 'block', fontSize: 12, color: '#918f8a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {row.player_name}
                           </span>
                         </>
@@ -2185,7 +2185,7 @@ export default function QuizPage() {
                         </span>
                       )}
                     </span>
-                    <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
                       {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
                     </span>
                   </div>
@@ -2214,7 +2214,7 @@ export default function QuizPage() {
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz.title}</h1>
       {quiz.category && (
-        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873', marginBottom: 16 }}>{quiz.category}</p>
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#918f8a', marginBottom: 16 }}>{quiz.category}</p>
       )}
       {loggedInDisplayName
         ? <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName}</strong>. Lykke til!</p>
@@ -2500,11 +2500,11 @@ export default function QuizPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
-                <span style={{ color: '#7a7873' }}>Rival</span>
+                <span style={{ color: '#918f8a' }}>Rival</span>
                 <span style={{ color: '#e8e4dd', fontWeight: 600 }}>{rivalData.score} riktige</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
-                <span style={{ color: '#7a7873' }}>Du</span>
+                <span style={{ color: '#918f8a' }}>Du</span>
                 <span style={{ color: correctSoFar > rivalData.score ? '#c9a84c' : '#e8e4dd', fontWeight: 600 }}>{correctSoFar} riktige</span>
               </div>
             </div>
@@ -2516,7 +2516,7 @@ export default function QuizPage() {
         <div className="qk-play-header">
           <span className="qk-progress-text">{currentIndex + 1} / {totalQuestions}</span>
           {quiz.category && (
-            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7a7873' }}>{quiz.category}</span>
+            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#918f8a' }}>{quiz.category}</span>
           )}
         </div>
 
@@ -2536,7 +2536,7 @@ export default function QuizPage() {
         }}>
           <div key={questionKey} className="qk-question-card qk-animate-in">
             {question?.category && (
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 8 }}>
                 {question.category}
               </p>
             )}
@@ -2607,14 +2607,14 @@ export default function QuizPage() {
           <p className="qk-side-label">Akkurat nå</p>
           {rankingSnapshot && (
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
+              <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#1a1c23', fontFamily: "'Libre Baskerville', serif", flexShrink: 0 }}>
                   {getAvatarInitial(rankingSnapshot.leaderName)}
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderName}</div>
-                  <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} riktige</div>
+                  <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} riktige</div>
                 </div>
               </div>
             </div>
@@ -2622,14 +2622,14 @@ export default function QuizPage() {
           <div style={{ borderTop: rankingSnapshot ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot ? 14 : 0 }}>
             {interLow !== null && interHigh !== null ? (
               <>
-                <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 4 }}>Din plass</div>
+                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 4 }}>Din plass</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#c9a84c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
                   #{interLow}–{interHigh}
                 </div>
-                <div style={{ fontSize: 11, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", marginTop: 2 }}>estimert</div>
+                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginTop: 2 }}>estimert</div>
               </>
             ) : (
-              <div style={{ fontSize: 12, color: '#7a7873', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
                 Svar på minst {MIN_ANSWERED_FOR_PLACEMENT} spørsmål for å se din estimerte plass.
               </div>
             )}
@@ -2673,9 +2673,9 @@ export default function QuizPage() {
       {/* Riktige svar — stor hero-visning */}
       <div style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:12,padding:'16px 12px 12px',textAlign:'center',marginBottom:8}}>
         <div style={{fontFamily:"'Libre Baskerville', serif",fontSize:40,fontWeight:700,color:'#ffffff',lineHeight:1}}>
-          {correctCount}<span style={{fontSize:22,color:'#7a7873',fontWeight:400}}>/{totalQuestions}</span>
+          {correctCount}<span style={{fontSize:22,color:'#918f8a',fontWeight:400}}>/{totalQuestions}</span>
         </div>
-        <div style={{fontSize:10,color:'#7a7873',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginTop:6}}>Riktige svar</div>
+        <div style={{fontSize:10,color:'#918f8a',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginTop:6}}>Riktige svar</div>
       </div>
       {/* Tre støtte-stats */}
       <div className="qk-rsec" style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:6,marginBottom:10}}>
@@ -2686,7 +2686,7 @@ export default function QuizPage() {
         ].map(({ val, label }) => (
           <div key={label} style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:10,padding:'8px 4px',textAlign:'center'}}>
             <div style={{fontSize:14,fontWeight:500,color:'#c9a84c',lineHeight:1.2}}>{val}</div>
-            <div style={{fontSize:8,color:'#7a7873',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:3}}>{label}</div>
+            <div style={{fontSize:8,color:'#918f8a',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:3}}>{label}</div>
           </div>
         ))}
       </div>
@@ -2711,7 +2711,7 @@ export default function QuizPage() {
         if (cats.length === 0) return null
         return (
           <div className="qk-rsec" style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10, textAlign: 'left' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10, textAlign: 'left' }}>
               Kategorier
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2759,7 +2759,7 @@ export default function QuizPage() {
                   <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
                     {row.player_name}
                   </span>
-                  <span style={{ fontSize: 13, color: '#7a7873', flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
                     {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
                   </span>
                 </div>
@@ -2793,16 +2793,16 @@ export default function QuizPage() {
               textAlign: 'center',
               marginBottom: 14,
             }}>
-              <div style={{ fontSize: 10, color: '#7a7873', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: '#918f8a', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
                 Din plassering
               </div>
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
-                {estimatedPlacement.rank}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
+                {estimatedPlacement.rank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
-              <div style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
                 Topp {toppXEksakt}% · bedre enn {prosentEksakt}% av deltakerne
               </div>
             </div>
@@ -2890,7 +2890,7 @@ export default function QuizPage() {
             }}>
               <span style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-                textTransform: 'uppercase' as const, color: '#7a7873',
+                textTransform: 'uppercase' as const, color: '#918f8a',
               }}>
                 Rival
               </span>
@@ -2927,7 +2927,7 @@ export default function QuizPage() {
           }}>
             <span style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.14em',
-              textTransform: 'uppercase' as const, color: '#7a7873',
+              textTransform: 'uppercase' as const, color: '#918f8a',
               display: 'block', marginBottom: 10,
             }}>
               Utfordre noen andre
@@ -2960,7 +2960,7 @@ export default function QuizPage() {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</p>
-                        <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>{c.score} riktige</p>
+                        <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>{c.score} riktige</p>
                       </div>
                     </div>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -2968,8 +2968,8 @@ export default function QuizPage() {
                         ? <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', letterSpacing: '0.06em' }}>Sendt</span>
                         : (
                           <>
-                            <span style={{ fontSize: 11, color: '#7a7873' }}>Utfordre</span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7873" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <span style={{ fontSize: 11, color: '#918f8a' }}>Utfordre</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="9 6 15 12 9 18" />
                             </svg>
                           </>
@@ -3170,12 +3170,12 @@ export default function QuizPage() {
                   : 'Prøv gratis i 30 dager →'}
             </a>
             {foundersData?.isFounders && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, textAlign: 'center' }}>
                 Kun {foundersData.remaining} plasser igjen
               </p>
             )}
             {!foundersData?.isFounders && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, textAlign: 'center' }}>
                 Ingen kortinfo nødvendig
               </p>
             )}

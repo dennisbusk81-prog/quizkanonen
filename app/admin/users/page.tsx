@@ -18,7 +18,7 @@ const STYLES = `
     --gold:  #c9a84c;
     --white: #ffffff;
     --body:  #e8e4dd;
-    --hint:  #7a7873;
+    --hint:  #918f8a;
   }
 
   body {
@@ -355,7 +355,7 @@ export default function AdminUsersPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 }}>
               Kunne ikke laste brukere
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 24 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 }}>
               Noe gikk galt under henting av brukerne. Dataene ligger trygt i
               databasen — dette er kun et lasteproblem. Prøv igjen.
             </p>

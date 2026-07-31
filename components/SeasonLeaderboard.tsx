@@ -222,7 +222,7 @@ function assignBadges(entries: Entry[]): Map<string, BadgeKind> {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   spinWrap: { padding: '56px 0', textAlign: 'center' as const },
 
   tabRow:      { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 4, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
@@ -235,7 +235,7 @@ const s = {
   name: { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
   userCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
@@ -265,12 +265,12 @@ const s = {
   histWinner:      { display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
   histWinnerName:  { fontSize: 13, color: '#e8e4dd', overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   histWinnerScore: { fontSize: 12, color: '#c9a84c', fontWeight: 600, flexShrink: 0 },
-  histChevron:     { fontSize: 11, color: '#7a7873', flexShrink: 0, marginLeft: 8 },
+  histChevron:     { fontSize: 11, color: '#918f8a', flexShrink: 0, marginLeft: 8 },
   histAvatarSm:    { width: 24, height: 24, borderRadius: '50%', background: '#2a2d38', border: '1px solid rgba(201,168,76,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#c9a84c', flexShrink: 0, overflow: 'hidden' as const },
 
   expandedWrap:  { background: '#1a1c23', borderTop: '0.5px solid #2a2d38', padding: '12px 18px' },
   expandedRow:   { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '0.5px solid rgba(42,45,56,0.6)' },
-  expandedRank:  { fontSize: 12, color: '#7a7873', width: 22, flexShrink: 0, textAlign: 'right' as const },
+  expandedRank:  { fontSize: 12, color: '#918f8a', width: 22, flexShrink: 0, textAlign: 'right' as const },
   expandedName:  { fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   expandedScore: { fontSize: 13, fontWeight: 600, color: '#c9a84c', flexShrink: 0 },
   expandedSpin:  { padding: '12px 0', fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const },
@@ -966,7 +966,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           </button>
           {pointsOpen && (
             <div style={{ background: '#21242e', borderTop: '1px solid #2a2d38', padding: '14px 18px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>Poengfordeling per quiz</div>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>Poengfordeling per quiz</div>
               {[['1. plass','12 poeng'],['2. plass','10 poeng'],['3. plass','8 poeng'],['4. plass','7 poeng'],['5. plass','6 poeng'],['6. plass','5 poeng'],['7. plass','4 poeng'],['8. plass','3 poeng'],['9. plass','2 poeng'],['10. plass','1 poeng'],['11+ plass','1 poeng']].map(([place, pts]) => (
                 <div key={place} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#e8e4dd', padding: '3px 0', borderBottom: '0.5px solid #2a2d38' }}>
                   <span style={{ color: '#e8e4dd' }}>{place}</span>
@@ -1009,7 +1009,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             </button>
           )}
           {searching && (
-            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
               {totalCount === 0
                 ? `Ingen treff på «${search}».`
                 : totalCount > effectivePageSize
@@ -1056,7 +1056,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 16 }}>
           {pageWindow(pageNo, totalPages).map((p, i) =>
             p === 'gap'
-              ? <span key={`gap-${i}`} style={{ color: '#7a7873', padding: '6px 4px', fontSize: 12 }}>…</span>
+              ? <span key={`gap-${i}`} style={{ color: '#918f8a', padding: '6px 4px', fontSize: 12 }}>…</span>
               : <button
                   key={p}
                   onClick={() => goToPage(p)}
@@ -1082,7 +1082,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
       {/* Badge-forklaring */}
       <div style={{ marginTop: 24, padding: '0 2px' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 10 }}>Hva betyr badgene?</div>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 10 }}>Hva betyr badgene?</div>
         <div style={s.legendRow}><BadgeCircle badge="krone" size={20} /><span>Krone — #1 på topplisten denne perioden</span></div>
         <div style={s.legendRow}><BadgeCircle badge="flamme" size={20} /><span>Flamme — lengst streak, minst 3 uker på rad (deltatt teller, uansett resultat)</span></div>
         <div style={s.legendRow}><BadgeCircle badge="lyn" size={20} /><span>Lyn — raskeste fullførte quiz</span></div>

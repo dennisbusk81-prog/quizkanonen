@@ -36,7 +36,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --green:    #4ade80;
     --radius-card: 20px;
     --radius-btn:  10px;
@@ -670,7 +670,7 @@ export default function AdminQuizzes() {
                 {/* ── Inline closes_at editor — kun for åpne quizer ── */}
                 {mounted && isOpen(quiz) && (
                   <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#7a7873', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', flexShrink: 0 }}>
                       Stenger
                     </span>
                     <input
@@ -774,12 +774,12 @@ export default function AdminQuizzes() {
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
               Importer quiz fra Excel
             </h2>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 20 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 20 }}>
               {importFileName} · {importRows.length} spørsmål funnet
             </p>
 
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 6 }}>
                 Quiz-navn *
               </label>
               <input
@@ -790,7 +790,7 @@ export default function AdminQuizzes() {
               />
             </div>
 
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 20, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 20, lineHeight: 1.5 }}>
               Quizen opprettes som skjult. Åpne quiz-cockpiten etter import for å justere datoer og publisere.
             </p>
 

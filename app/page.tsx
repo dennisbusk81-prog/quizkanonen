@@ -371,8 +371,8 @@ const SHARED_CSS = `
     --gold:     #c9a84c;
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --hint:     #7a7873;
-    --muted:    #7a7873;
+    --hint:     #918f8a;
+    --muted:    #918f8a;
     --radius-card: 16px;
     --radius-btn:  10px;
   }
@@ -1103,7 +1103,7 @@ const SHARED_CSS = `
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     margin-bottom: 12px;
     text-align: center;
   }
@@ -1155,7 +1155,7 @@ const SHARED_CSS = `
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     margin-bottom: 12px;
     text-align: center;
   }
@@ -1179,7 +1179,7 @@ const SHARED_CSS = `
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     margin-bottom: 12px;
   }
 
@@ -1466,7 +1466,7 @@ export default async function Home() {
                 </span>
               )}
             </div>
-            <p style={{ fontSize: 13, color: '#7a7873' }}>{todayLabel}</p>
+            <p style={{ fontSize: 13, color: '#918f8a' }}>{todayLabel}</p>
           </section>
 
           {/* Rivalry card — innkommende utfordring vises høyt opp */}
@@ -1484,13 +1484,13 @@ export default async function Home() {
               </p>
               {monthlyTop3.length > 0 && (
                 <div style={{ margin: '14px 0 2px' }}>
-                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>
                     Månedens toppliste
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {monthlyTop3.map((entry, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 12, color: '#7a7873', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
+                        <span style={{ fontSize: 12, color: '#918f8a', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
                         <span style={{ fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {truncateName(entry.displayName)}
                         </span>
@@ -1567,7 +1567,7 @@ export default async function Home() {
               background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
               padding: '20px 24px',
             }}>
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>
                 Ukens fakta
               </p>
               <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
@@ -1649,7 +1649,7 @@ export default async function Home() {
               </svg>
               <span className="qkp-shortcut-label">Sesongtoppliste</span>
               {isPremium && userPoints > 0 && (
-                <span style={{ fontSize: 12, color: '#7a7873', marginTop: -4 }}>{userRank}. plass — {userPoints} poeng</span>
+                <span style={{ fontSize: 12, color: '#918f8a', marginTop: -4 }}>{userRank}. plass — {userPoints} poeng</span>
               )}
               <span className="qkp-shortcut-arrow">→</span>
             </Link>
@@ -1671,7 +1671,7 @@ export default async function Home() {
               className="qkp-shortcut"
               style={{ opacity: isPremium ? 1 : 0.7 }}
             >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={isPremium ? '#c9a84c' : '#7a7873'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={isPremium ? '#c9a84c' : '#918f8a'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="M11 7v4l3 2"/>
               </svg>
@@ -1699,7 +1699,7 @@ export default async function Home() {
                 fontWeight: 600,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: '#7a7873',
+                color: '#918f8a',
                 marginBottom: 12,
               }}>
                 Dette får du med Premium
@@ -1815,7 +1815,7 @@ export default async function Home() {
           </div>
           <div className="qk-hero-status">
             <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google, e-post eller passord</span></span>
-            <span style={{ color: '#7a7873' }}>·</span>
+            <span style={{ color: '#918f8a' }}>·</span>
             <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
           </div>
           <div className="qk-steps">
@@ -1873,7 +1873,7 @@ export default async function Home() {
             <div className="qk-preview-card">
               <p className="qk-preview-card-label">Plassering</p>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#7a7873' }}>18.</span>
+                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#918f8a' }}>18.</span>
                 <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{ flexShrink: 0 }}>
                   <path d="M1 6H15M15 6L10 1M15 6L10 11" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -1919,13 +1919,13 @@ export default async function Home() {
             </p>
             {anonMonthlyTop3.length > 0 && (
               <div style={{ margin: '14px 0 2px' }}>
-                <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 10 }}>
+                <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>
                   Månedens toppliste
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {anonMonthlyTop3.map((entry, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: '#7a7873', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
+                      <span style={{ fontSize: 12, color: '#918f8a', width: 16, flexShrink: 0, fontWeight: 600 }}>{i + 1}.</span>
                       <span style={{ fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {truncateName(entry.displayName)}
                       </span>
@@ -2000,7 +2000,7 @@ export default async function Home() {
             }}>
               Få beskjed når neste quiz er klar
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 18, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 18, lineHeight: 1.6 }}>
               Vi sender deg en e-post når neste quiz åpner.
             </p>
             <NotifyForm />
@@ -2023,7 +2023,7 @@ export default async function Home() {
               fontWeight: 600,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
-              color: '#7a7873',
+              color: '#918f8a',
               marginBottom: 14,
             }}>Forrige uke — hvem vant?</p>
             <div className="qk-top3-rows qkp-league-top3">
@@ -2033,13 +2033,13 @@ export default async function Home() {
                 return (
                   <div key={i} className="qk-top3-row">
                     <div className="qk-top3-left">
-                      <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
+                      <span style={{ fontSize: 13, color: '#918f8a', width: 18, flexShrink: 0, fontWeight: 600 }}>
                         {i + 1}.
                       </span>
                       {row.nickname?.trim() ? (
                         <span style={{ minWidth: 0 }}>
                           <span className="qk-top3-name" style={{ display: 'block' }}>{truncateName(row.nickname.trim())}</span>
-                          <span style={{ display: 'block', fontSize: 12, color: '#7a7873', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ display: 'block', fontSize: 12, color: '#918f8a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {truncateName(row.player_name)}
                           </span>
                         </span>

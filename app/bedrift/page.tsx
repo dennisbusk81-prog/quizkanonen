@@ -15,7 +15,7 @@ const STYLES = `
     --gold-border: rgba(201,168,76,0.3);
     --white: #ffffff;
     --body: #e8e4dd;
-    --hint: #7a7873;
+    --hint: #918f8a;
     --green: #3B6D11;
     --green-bg: rgba(59,109,17,0.12);
   }
@@ -260,7 +260,7 @@ export default function BedriftPage() {
           </table>
           </div>
         </div>
-        <p style={{ fontSize: 13, color: '#7a7873', textAlign: 'center' as const, marginBottom: 48 }}>
+        <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center' as const, marginBottom: 48 }}>
           Trenger dere mer enn 50 plasser?{' '}
           <a href="mailto:support@quizkanonen.no?subject=Quizkanonen%20for%20bedrift%20%E2%80%94%20mer%20enn%2050%20ansatte" style={{ color: '#e8e4dd', textDecoration: 'none' }}>
             Kontakt oss

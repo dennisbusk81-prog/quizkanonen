@@ -62,7 +62,7 @@ const s = {
   },
   spinner: {
     fontFamily: "'Libre Baskerville', serif",
-    fontSize: 16, color: '#7a7873', fontStyle: 'italic' as const,
+    fontSize: 16, color: '#918f8a', fontStyle: 'italic' as const,
     marginBottom: 0,
   },
   error: {

@@ -6,7 +6,7 @@ import type React from 'react'
  *  - Har ikke kallenavn: vis bare ekte navn — ingen tom plass, ingen layout-endring.
  *
  * primaryStyle settes av kallestedet så fontstørrelse/farge matcher konteksten.
- * Sekundærlinjen er alltid 12px #7a7873 per designsystemet.
+ * Sekundærlinjen er alltid 12px #918f8a per designsystemet.
  */
 export default function PlayerName({
   nickname,
@@ -32,7 +32,7 @@ export default function PlayerName({
         <span
           style={{
             fontSize: 12,
-            color: '#7a7873',
+            color: '#918f8a',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',

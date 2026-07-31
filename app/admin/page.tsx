@@ -17,8 +17,8 @@ const STYLES = `
     --gold:  #c9a84c;
     --white: #ffffff;
     --body:  #e8e4dd;
-    --hint:  #7a7873;
-    --muted: #7a7873;
+    --hint:  #918f8a;
+    --muted: #918f8a;
   }
 
   body {
@@ -690,7 +690,7 @@ export default function AdminHome() {
           {/* Innstillinger */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#918f8a', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Maks plasser
               </label>
               <input
@@ -701,7 +701,7 @@ export default function AdminHome() {
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#918f8a', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Dager gratis (Founders)
               </label>
               <input
@@ -712,7 +712,7 @@ export default function AdminHome() {
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, color: '#7a7873', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#918f8a', marginBottom: 6, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                 Dager gratis (etter Founders)
               </label>
               <input
@@ -730,7 +730,7 @@ export default function AdminHome() {
               style={{
                 background: 'transparent',
                 border: '1px solid #2a2d38',
-                color: foundersSaving ? '#7a7873' : '#e8e4dd',
+                color: foundersSaving ? '#918f8a' : '#e8e4dd',
                 borderRadius: 10,
                 padding: '8px 20px',
                 fontSize: 13,
@@ -796,7 +796,7 @@ export default function AdminHome() {
                 ? 'Dette sletter ALLE season_scores og resetter alle quizer. Handlingen kan ikke angres.'
                 : 'Dette sletter season_scores for quizer med "test" i tittelen.'}
             </p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
             <input
               type="text"
               value={resetInput}
@@ -817,7 +817,7 @@ export default function AdminHome() {
               <button
                 onClick={handleReset}
                 disabled={resetInput !== 'NULLSTILL' || resetting}
-                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
+                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
               >
                 {resetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

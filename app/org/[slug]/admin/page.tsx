@@ -29,7 +29,7 @@ const CSS = `
 
   /* ── Section label ── */
   .oa-sec { display: flex; align-items: center; gap: 10px; margin: 36px 0 14px; }
-  .oa-sec-text { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #7a7873; white-space: nowrap; }
+  .oa-sec-text { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #918f8a; white-space: nowrap; }
   .oa-sec-line { flex: 1; height: 1px; background: #2a2d38; }
 
   /* ── Stat card ── */
@@ -60,12 +60,12 @@ const CSS = `
     font-family: 'Instrument Sans', sans-serif; outline: none;
     transition: border-color 0.15s;
   }
-  .oa-input::placeholder { color: #7a7873; }
+  .oa-input::placeholder { color: #918f8a; }
   .oa-input:focus { border-color: #c9a84c; }
 
   /* ── Rank badge colours ── */
   .oa-rank-gold   { color: #c9a84c; }
-  .oa-rank-silver { color: #7a7873; }
+  .oa-rank-silver { color: #918f8a; }
   .oa-rank-bronze { color: #c4825a; }
 
   /* ── Responsive ── */
@@ -157,7 +157,7 @@ function Tag({ label, color, title }: { label: string; color: 'gold' | 'green' |
     gold:  { bg: 'rgba(201,168,76,0.12)',  border: 'rgba(201,168,76,0.28)',  text: '#c9a84c' },
     green: { bg: 'rgba(74,222,128,0.10)',  border: 'rgba(74,222,128,0.25)',  text: '#4ade80' },
     blue:  { bg: 'rgba(99,179,237,0.10)',  border: 'rgba(99,179,237,0.25)',  text: '#e8e4dd' },
-    muted: { bg: 'rgba(122,120,115,0.12)', border: 'rgba(122,120,115,0.25)', text: '#7a7873' },
+    muted: { bg: 'rgba(122,120,115,0.12)', border: 'rgba(122,120,115,0.25)', text: '#918f8a' },
   }
   const c = map[color]
   return (
@@ -1120,7 +1120,7 @@ export default function OrgAdminPage() {
       <>
         <style>{CSS}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -1135,7 +1135,7 @@ export default function OrgAdminPage() {
             <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
               {errorKind === 'access' ? 'Ingen tilgang' : 'Kunne ikke laste bedriftsdata'}
             </p>
-            <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 24 }}>{error}</p>
+            <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24 }}>{error}</p>
             {errorKind === 'load' && (
               <div style={{ marginBottom: 20 }}>
                 <button
@@ -1275,14 +1275,14 @@ export default function OrgAdminPage() {
           <div className="oa-stats-strip" style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
 
             <div className="oa-stat">
-              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Medlemmer</p>
+              <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Medlemmer</p>
               <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
                 {memberCount}
               </p>
             </div>
 
             <div className="oa-stat">
-              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Aktive denne måneden</p>
+              <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Aktive denne måneden</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#4ade80', lineHeight: 1 }}>
                   {activeCount}
@@ -1294,14 +1294,14 @@ export default function OrgAdminPage() {
             </div>
 
             <div className="oa-stat">
-              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Quizer spilt denne måneden</p>
+              <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Quizer spilt denne måneden</p>
               <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {totalQuizzes ?? '—'}
               </p>
             </div>
 
             <div className="oa-stat">
-              <p style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.04em', marginBottom: 8 }}>Abonnement</p>
+              <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Abonnement</p>
               <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
                 {planName || '—'}
               </p>
@@ -1314,12 +1314,12 @@ export default function OrgAdminPage() {
           ══════════════════════════════════════════════════════════════════ */}
           {data?.org.plan === 'standard' && (weeklyLoading || weeklySummary) && (
             <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: 28, marginBottom: 20 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
                 Ukens oppsummering
               </p>
 
               {weeklyLoading && !weeklySummary ? (
-                <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+                <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
               ) : weeklySummary ? (
                 <>
                   <h2 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 4 }}>
@@ -1395,7 +1395,7 @@ export default function OrgAdminPage() {
             }}>
               <p style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
-                textTransform: 'uppercase', color: '#7a7873', marginBottom: 10,
+                textTransform: 'uppercase', color: '#918f8a', marginBottom: 10,
               }}>
                 Kom i gang
               </p>
@@ -1450,14 +1450,14 @@ export default function OrgAdminPage() {
                     {planName || 'Plan'}
                   </span>
                   {renewalDate && (
-                    <span style={{ fontSize: 12, color: '#7a7873' }}>Fornyes {renewalDate}</span>
+                    <span style={{ fontSize: 12, color: '#918f8a' }}>Fornyes {renewalDate}</span>
                   )}
                 </div>
                 <p style={{ fontSize: 13, color: '#e8e4dd' }}>
                   Bedriftsabonnement for {data?.org.name}
                 </p>
                 {upgradeHint && (
-                  <p style={{ fontSize: 12, color: '#7a7873', marginTop: 4 }}>
+                  <p style={{ fontSize: 12, color: '#918f8a', marginTop: 4 }}>
                     {upgradeHint}
                   </p>
                 )}
@@ -1484,13 +1484,13 @@ export default function OrgAdminPage() {
                   <button
                     onClick={openPortal}
                     disabled={portalLoading}
-                    style={{ fontSize: 12, color: '#7a7873', background: 'transparent', border: 'none', padding: 0, cursor: portalLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textAlign: 'right' }}
+                    style={{ fontSize: 12, color: '#918f8a', background: 'transparent', border: 'none', padding: 0, cursor: portalLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textAlign: 'right' }}
                   >
                     Legg inn betaling for å fortsette etter prøveperioden
                   </button>
                 )}
                 {portalError && (
-                  <p style={{ fontSize: 12, color: '#7a7873', margin: 0 }}>{portalError}</p>
+                  <p style={{ fontSize: 12, color: '#918f8a', margin: 0 }}>{portalError}</p>
                 )}
               </div>
             </div>
@@ -1527,7 +1527,7 @@ export default function OrgAdminPage() {
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: 12, color: '#7a7873', marginTop: 8, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: '#918f8a', marginTop: 8, lineHeight: 1.5 }}>
                   Endringen slår inn med én gang. Du betaler eller krediteres differansen for resten av perioden.
                 </p>
                 {planChangeError && (
@@ -1553,7 +1553,7 @@ export default function OrgAdminPage() {
               <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={toggleGlobal}>
                 Delta i global sesong-toppliste
               </span>
-              <span style={{ fontSize: 12, color: '#7a7873', marginLeft: 4 }}>
+              <span style={{ fontSize: 12, color: '#918f8a', marginLeft: 4 }}>
                 — Tillat at ansatte vises på felles sesong-toppliste
               </span>
             </div>
@@ -1623,7 +1623,7 @@ export default function OrgAdminPage() {
               />
               <span style={{
                 fontSize: 12,
-                color: planLimit !== null && memberCount >= planLimit ? '#f87171' : '#7a7873',
+                color: planLimit !== null && memberCount >= planLimit ? '#f87171' : '#918f8a',
                 whiteSpace: 'nowrap', flexShrink: 0,
               }}>
                 {planLimit !== null
@@ -1644,7 +1644,7 @@ export default function OrgAdminPage() {
 
             {/* Member rows */}
             {filteredMembers.length === 0 ? (
-              <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>
+              <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', padding: '20px 18px' }}>
                 {memberSearch ? 'Ingen treff.' : 'Ingen medlemmer ennå.'}
               </p>
             ) : (
@@ -1689,7 +1689,7 @@ export default function OrgAdminPage() {
                           </span>
                         )}
                       </div>
-                      <p style={{ fontSize: 11, color: '#7a7873', marginTop: 2 }}>
+                      <p style={{ fontSize: 11, color: '#918f8a', marginTop: 2 }}>
                         {member.nickname?.trim() && <>{member.display_name} · </>}
                         Ble med {new Date(member.joined_at).toLocaleDateString('nb-NO')}
                         {activity && ` · ${activity.totalPoints} poeng`}
@@ -1717,7 +1717,7 @@ export default function OrgAdminPage() {
                           <button
                             onClick={() => handleSetAdmin('add', undefined, member.user_id)}
                             disabled={adminActionLoading}
-                            style={{ fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
                           >
                             Gjør admin
                           </button>
@@ -1780,7 +1780,7 @@ export default function OrgAdminPage() {
 
               {/* RAD 1 — Delbar invitasjonslenke */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#7a7873', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <span style={{ fontSize: 13, color: '#918f8a', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Invitasjonslenke — del med ansatte
                 </span>
                 {primaryInvite ? (
@@ -1811,7 +1811,7 @@ export default function OrgAdminPage() {
                       style={{
                         padding: '8px 14px', background: 'transparent',
                         border: '0.5px solid #2a2d38', borderRadius: 8,
-                        fontSize: 12, color: '#7a7873',
+                        fontSize: 12, color: '#918f8a',
                         cursor: (deactivatingId === primaryInvite.id || creatingInvite) ? 'not-allowed' : 'pointer',
                         fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}
@@ -1821,7 +1821,7 @@ export default function OrgAdminPage() {
                   </>
                 ) : (
                   <>
-                    <p style={{ width: '100%', fontSize: 13, color: '#7a7873', marginTop: 4 }}>
+                    <p style={{ width: '100%', fontSize: 13, color: '#918f8a', marginTop: 4 }}>
                       Ingen aktiv invitasjonslenke ennå.
                     </p>
                     <button
@@ -1849,7 +1849,7 @@ export default function OrgAdminPage() {
               <div style={{ marginTop: 12 }}>
                 <button
                   onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
-                  style={{ fontSize: 12, color: '#7a7873', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
+                  style={{ fontSize: 12, color: '#918f8a', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
                 >
                   + Inviter via e-post
                 </button>
@@ -1872,7 +1872,7 @@ export default function OrgAdminPage() {
                         background: emailInviteSending || !emailInviteText.trim() ? 'transparent' : '#c9a84c',
                         border: `1px solid ${emailInviteSending || !emailInviteText.trim() ? '#2a2d38' : '#c9a84c'}`,
                         borderRadius: 8, fontSize: 13, fontWeight: 700,
-                        color: emailInviteSending || !emailInviteText.trim() ? '#7a7873' : '#1a1c23',
+                        color: emailInviteSending || !emailInviteText.trim() ? '#918f8a' : '#1a1c23',
                         cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer',
                         fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}
@@ -1905,7 +1905,7 @@ export default function OrgAdminPage() {
             <>
               <SectionLabel title="Planlagt fjerning" />
               <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, overflow: 'hidden' }}>
-                <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, padding: '16px 18px', borderBottom: '1px solid #2a2d38' }}>
+                <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, padding: '16px 18px', borderBottom: '1px solid #2a2d38' }}>
                   Disse fjernes automatisk på datoen. Du kan avbryte eller endre dato helt fram til den utløser.
                 </p>
 
@@ -1922,7 +1922,7 @@ export default function OrgAdminPage() {
                       <p style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {m.nickname?.trim() || m.display_name}
                       </p>
-                      <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2 }}>
+                      <p style={{ fontSize: 12, color: '#918f8a', marginTop: 2 }}>
                         Fjernes {formatRemovalDate(m.scheduled_removal_at!)}
                       </p>
                     </div>
@@ -1984,13 +1984,13 @@ export default function OrgAdminPage() {
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 360 }}>
                     {quizTitle ? `Siste quiz — ${quizTitle}` : 'Siste quiz'}
                   </p>
-                  <span style={{ fontSize: 12, color: '#7a7873', flexShrink: 0, marginLeft: 8 }}>
+                  <span style={{ fontSize: 12, color: '#918f8a', flexShrink: 0, marginLeft: 8 }}>
                     {quizError ? '—' : `${(quizData ?? []).length} deltakere`}
                   </span>
                 </div>
 
                 {quizLoading ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                  <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
                 ) : quizError ? (
                   /* «Ingen har spilt ennå» ville vært en ren løgn her — vi vet
                      ikke om noen har spilt, hentingen feilet. */
@@ -2015,7 +2015,7 @@ export default function OrgAdminPage() {
                     <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 }}>
                       Ingen har spilt ennå
                     </p>
-                    <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 18, lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 18, lineHeight: 1.5 }}>
                       Send en påminnelse til teamet så snart quizen åpner.
                     </p>
                     <button
@@ -2066,13 +2066,13 @@ export default function OrgAdminPage() {
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
                     Intern rangering — kun {data?.org.name}
                   </p>
-                  <span style={{ fontSize: 12, color: '#7a7873' }}>
+                  <span style={{ fontSize: 12, color: '#918f8a' }}>
                     {activityError ? '—' : `${sortedByPoints.filter(m => m.totalPoints > 0).length} deltakere`}
                   </span>
                 </div>
 
                 {activityLoading ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
+                  <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', padding: '20px 18px' }}>Laster…</p>
                 ) : activityError ? (
                   /* «Ingen data for denne perioden» ville vært en ren løgn her —
                      vi vet ikke om noen har poeng, hentingen feilet. */
@@ -2088,7 +2088,7 @@ export default function OrgAdminPage() {
                     </button>
                   </div>
                 ) : sortedByPoints.filter(m => m.totalPoints > 0).length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
+                  <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', padding: '20px 18px' }}>Ingen data for denne perioden.</p>
                 ) : (
                   sortedByPoints.filter(m => m.totalPoints > 0).map((m, idx) => {
                     const rank = idx + 1
@@ -2106,7 +2106,7 @@ export default function OrgAdminPage() {
                       >
                         <span
                           className={rankColor}
-                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#7a7873', flexShrink: 0 }}
+                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#918f8a', flexShrink: 0 }}
                         >
                           {rank}
                         </span>
@@ -2134,7 +2134,7 @@ export default function OrgAdminPage() {
                           <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
                             {m.totalPoints}
                           </span>
-                          <span style={{ fontSize: 11, color: '#7a7873', marginLeft: 4 }}>poeng</span>
+                          <span style={{ fontSize: 11, color: '#918f8a', marginLeft: 4 }}>poeng</span>
                         </div>
                       </div>
                     )
@@ -2160,7 +2160,7 @@ export default function OrgAdminPage() {
 
                 {/* Easiest */}
                 <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
                     Flest fikk dette rett
                   </p>
                   <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.4, marginBottom: 10 }}>
@@ -2173,7 +2173,7 @@ export default function OrgAdminPage() {
 
                 {/* Hardest */}
                 <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '20px 18px' }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
                     Vanskeligste spørsmål
                   </p>
                   {insightsData.hardest.map((q, i) => (
@@ -2217,12 +2217,12 @@ export default function OrgAdminPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
                   <span style={{ fontSize: 14, color: '#c9a84c' }}>{icon}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#7a7873' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a' }}>
                     {label}
                   </span>
                 </div>
                 {loaded === undefined ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Laster…</p>
+                  <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
                 ) : !loaded.ok ? (
                   /* «Ikke kåret ennå» ville vært en påstand om at ingen har
                      vunnet. Vi vet ikke — hentingen feilet. */
@@ -2242,7 +2242,7 @@ export default function OrgAdminPage() {
                     </button>
                   </div>
                 ) : loaded.value.winner === null ? (
-                  <p style={{ fontSize: 13, color: '#7a7873', fontStyle: 'italic' }}>Ikke kåret ennå</p>
+                  <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic' }}>Ikke kåret ennå</p>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Avatar name={loaded.value.winner.displayName} size={36} />
@@ -2259,7 +2259,7 @@ export default function OrgAdminPage() {
                           display: 'inline-block', marginTop: 8, fontSize: 11, padding: '4px 12px',
                           border: `1px solid ${shareHovered === period || copiedWinner === period ? '#c9a84c' : '#2a2d38'}`,
                           borderRadius: 6, background: 'transparent',
-                          color: copiedWinner === period ? '#e8e4dd' : shareHovered === period ? '#c9a84c' : '#7a7873',
+                          color: copiedWinner === period ? '#e8e4dd' : shareHovered === period ? '#c9a84c' : '#918f8a',
                           cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
                           transition: 'color 0.15s, border-color 0.15s',
                         }}
@@ -2279,7 +2279,7 @@ export default function OrgAdminPage() {
           <SectionLabel title="Bedriftsnavn" />
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 18 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 18 }}>
               Navnet vises på bedriftstopplisten og i alle e-poster vi sender til de ansatte.
             </p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2322,7 +2322,7 @@ export default function OrgAdminPage() {
           <SectionLabel title="Ukentlig rapport" />
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 18 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 18 }}>
               Velg når du vil motta ukens oppsummering på e-post
             </p>
 
@@ -2381,12 +2381,12 @@ export default function OrgAdminPage() {
           <SectionLabel title="Quiz-tidspunkter" />
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
               Sett egne tidspunkter for når quizen åpner og stenger for din bedrift. La feltene stå tomme for å bruke standard tidspunkter.
             </p>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 22 }}>
               <div style={{ flex: 1, minWidth: 140 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 8 }}>
                   Quiz åpner
                 </label>
                 <input
@@ -2398,7 +2398,7 @@ export default function OrgAdminPage() {
                 />
               </div>
               <div style={{ flex: 1, minWidth: 140 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 8 }}>
                   Quiz stenger
                 </label>
                 <input
@@ -2448,7 +2448,7 @@ export default function OrgAdminPage() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
                 Nullstill sesong-data
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.5 }}>
                 Sletter alle sesong-poeng for {data?.org.name}. Handlingen kan ikke angres.
               </p>
               {seasonResetDone && (
@@ -2481,7 +2481,7 @@ export default function OrgAdminPage() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
                 Avslutt bedriftskonto
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.5 }}>
                 Dette avslutter abonnementet og fjerner bedriftens konto fra Quizkanonen.
                 Alle ansattes personlige kontoer og quizhistorikk beholdes — de fortsetter
                 som vanlige brukere.
@@ -2513,7 +2513,7 @@ export default function OrgAdminPage() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>
                 Forlat organisasjon
               </p>
-              <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.5 }}>
                 Melder deg selv ut av {data?.org.name}. Bedriften består — kontoen din,
                 quizhistorikken og poengene dine beholdes.
                 {isLastAdmin && ' Du er eneste administrator, så du må utpeke en ny først.'}
@@ -2609,7 +2609,7 @@ export default function OrgAdminPage() {
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               Dette sletter alle sesong-poeng for {data?.org.name}. Handlingen kan ikke angres.
             </p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>
               Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:
             </p>
             <input
@@ -2634,7 +2634,7 @@ export default function OrgAdminPage() {
               <button
                 onClick={handleSeasonReset}
                 disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
-                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#7a7873', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
               </button>
@@ -2654,7 +2654,7 @@ export default function OrgAdminPage() {
               Dette avslutter abonnementet og fjerner {data?.org.name} fra Quizkanonen.
               Handlingen kan ikke angres. Ansattes personlige kontoer og quizhistorikk beholdes.
             </p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>
               Skriv bedriftens navn — <strong style={{ color: '#e8e4dd' }}>{data?.org.name}</strong> — for å bekrefte:
             </p>
             <input
@@ -2679,7 +2679,7 @@ export default function OrgAdminPage() {
               <button
                 onClick={handleDeleteOrg}
                 disabled={deleteOrgInput.trim() !== data?.org.name || deletingOrg}
-                style={{ fontSize: 13, fontWeight: 600, color: deleteOrgInput.trim() === data?.org.name ? '#1a1c23' : '#7a7873', background: deleteOrgInput.trim() === data?.org.name ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteOrgInput.trim() === data?.org.name ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteOrgInput.trim() === data?.org.name ? '#1a1c23' : '#918f8a', background: deleteOrgInput.trim() === data?.org.name ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteOrgInput.trim() === data?.org.name ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
               >
                 {deletingOrg ? 'Avslutter…' : 'Avslutt konto'}
               </button>

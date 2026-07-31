@@ -448,7 +448,7 @@ const STYLES = `
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     display: block;
     margin-bottom: 8px;
   }
@@ -466,7 +466,7 @@ const STYLES = `
     transition: border-color 0.15s;
     margin-bottom: 16px;
   }
-  .qk-auth-input::placeholder { color: #7a7873; }
+  .qk-auth-input::placeholder { color: #918f8a; }
   .qk-auth-input:focus { border-color: #c9a84c; }
 
   /* Nøytraliser nettlesers autofill-styling (Chrome/Edge/Safari injiserer en lys
@@ -486,7 +486,7 @@ const STYLES = `
   .qk-auth-hint {
     font-family: 'Instrument Sans', sans-serif;
     font-size: 12px;
-    color: #7a7873;
+    color: #918f8a;
     margin: 0 0 16px;
     line-height: 1.5;
   }
@@ -549,7 +549,7 @@ const STYLES = `
     margin: 20px 0;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 12px;
-    color: #7a7873;
+    color: #918f8a;
   }
   .qk-auth-separator::before,
   .qk-auth-separator::after {
@@ -608,7 +608,7 @@ const STYLES = `
     text-align: center;
     font-family: 'Instrument Sans', sans-serif;
     font-size: 13px;
-    color: #7a7873;
+    color: #918f8a;
     margin-top: 20px;
   }
 
@@ -627,7 +627,7 @@ const STYLES = `
   .qk-auth-terms {
     font-family: 'Instrument Sans', sans-serif;
     font-size: 11px;
-    color: #7a7873;
+    color: #918f8a;
     text-align: center;
     margin-top: 16px;
     line-height: 1.6;

@@ -84,7 +84,7 @@ export default function LeaveOrgModal({
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
               {error ?? LAST_ADMIN_TEXT}
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
               Du gjør en kollega til administrator i medlemslisten i bedriftspanelet. Når det er gjort, kan du forlate herfra.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -101,7 +101,7 @@ export default function LeaveOrgModal({
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
               Vil du forlate <strong style={{ color: '#ffffff' }}>{orgName}</strong>?
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
               Kontoen din, quizhistorikken og poengene dine beholdes — du fortsetter som vanlig bruker.
               Har du Premium gjennom bedriften, faller den bort med mindre du har egen dekning.
               Du kan bli med igjen hvis du får en ny invitasjon.

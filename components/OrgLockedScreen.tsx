@@ -52,7 +52,7 @@ export default function OrgLockedScreen({
       <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
         <div style={{ maxWidth: 460, width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '32px 28px', textAlign: 'center' }}>
 
-          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 12 }}>
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
             {orgName}
           </p>
 
@@ -63,7 +63,7 @@ export default function OrgLockedScreen({
           <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.7, marginBottom: 8 }}>
             Bedriftssidene er midlertidig sperret. Legg inn betaling for å fortsette med bedrifts-topplisten og admin-panelet.
           </p>
-          <p style={{ fontSize: 14, color: '#7a7873', lineHeight: 1.7, marginBottom: 28 }}>
+          <p style={{ fontSize: 14, color: '#918f8a', lineHeight: 1.7, marginBottom: 28 }}>
             Ingenting er slettet — profiler, historikk og poeng består. Ansatte kan fortsatt spille den ukentlige quizen som vanlig.
           </p>
 
@@ -87,7 +87,7 @@ export default function OrgLockedScreen({
               medlem av en organisasjon». */}
           {orgSlug && (
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #2a2d38' }}>
-              <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, marginBottom: 12 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 12 }}>
                 Skal du ikke være med i {orgName} lenger?
               </p>
               <button

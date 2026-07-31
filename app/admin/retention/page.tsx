@@ -17,7 +17,7 @@ const STYLES = `
     --gold:  #c9a84c;
     --white: #ffffff;
     --body:  #e8e4dd;
-    --hint:  #7a7873;
+    --hint:  #918f8a;
   }
 
   body {

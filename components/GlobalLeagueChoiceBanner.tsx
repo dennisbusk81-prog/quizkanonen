@@ -84,11 +84,11 @@ export default function GlobalLeagueChoiceBanner() {
         }}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M1 1L13 13M13 1L1 13" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M1 1L13 13M13 1L1 13" stroke="#918f8a" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </button>
 
-      <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+      <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 8 }}>
         Sesong-toppliste
       </p>
       <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.55, marginBottom: 16, paddingRight: 20 }}>

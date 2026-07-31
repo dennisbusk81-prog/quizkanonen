@@ -18,50 +18,50 @@ const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   avatarSection: { paddingTop: 8, paddingBottom: 6, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
   avatar:        { width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
   displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
-  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7a7873', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
+  badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#918f8a', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 12 },
 
   card:          { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 18px' },
   cardDivider:   { height: 1, background: '#2a2d38', margin: '12px 0' },
   sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
-  fieldHint:     { fontSize: 12, color: '#7a7873', marginBottom: 12, lineHeight: 1.5 },
+  fieldHint:     { fontSize: 12, color: '#918f8a', marginBottom: 12, lineHeight: 1.5 },
   inputRow:      { display: 'flex', gap: 8 },
   input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 15, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
   saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#7a7873', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 8px' },
-  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', whiteSpace: 'nowrap' as const },
+  sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
 
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 12 },
   statsCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '12px', textAlign: 'center' as const },
   statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
-  statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 },
+  statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 },
 
   btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
   btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #c9a84c' },
   redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   // Nøytral knapp (hvit outline) — passord-seksjonen skal ikke konkurrere med de
   // gule primærknappene ellers på siden. Samme mønster som Lagre-knappen for kallenavn.
   pwBtn:    { padding: '10px 22px', background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  pwBtnDis: { padding: '10px 22px', background: 'transparent', color: '#7a7873', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  pwBtnDis: { padding: '10px 22px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
   ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
-  ctaSub:   { fontSize: 13, color: '#7a7873', marginBottom: 16, lineHeight: 1.6 },
+  ctaSub:   { fontSize: 13, color: '#918f8a', marginBottom: 16, lineHeight: 1.6 },
 } as const
 
 function formatMemberNumber(n: number): string {
@@ -708,7 +708,7 @@ export default function ProfilPage() {
               : <span style={s.badgeStandard}>Gratis</span>
             }
             {memberNumber !== null && (
-              <p style={{ fontSize: 12, color: '#7a7873', marginTop: 2, marginBottom: 10 }}>
+              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 2, marginBottom: 10 }}>
                 {formatMemberNumber(memberNumber)}{memberSince ? ` · Medlem siden ${memberSince}` : ''}
               </p>
             )}
@@ -733,7 +733,7 @@ export default function ProfilPage() {
                   <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
                     {val}
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#7a7873', lineHeight: 1.3 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 }}>
                     {lbl}
                   </div>
                 </div>
@@ -804,7 +804,7 @@ export default function ProfilPage() {
                     style={{
                       padding: '10px 22px',
                       background: 'transparent',
-                      color: (savingNickname || editNickname.trim() === nickname.trim()) ? '#7a7873' : '#e8e4dd',
+                      color: (savingNickname || editNickname.trim() === nickname.trim()) ? '#918f8a' : '#e8e4dd',
                       border: `1px solid ${(savingNickname || editNickname.trim() === nickname.trim()) ? '#2a2d38' : '#e8e4dd'}`,
                       borderRadius: 10, fontSize: 14, fontWeight: 700,
                       fontFamily: "'Instrument Sans', sans-serif",
@@ -853,7 +853,7 @@ export default function ProfilPage() {
                         Se bedriftens toppliste →
                       </a>
                       {org.isAdmin && (
-                        <a href={`/org/${org.orgSlug}/admin`} style={{ fontSize: 13, color: '#7a7873', textDecoration: 'none' }}>
+                        <a href={`/org/${org.orgSlug}/admin`} style={{ fontSize: 13, color: '#918f8a', textDecoration: 'none' }}>
                           Administrer →
                         </a>
                       )}
@@ -882,7 +882,7 @@ export default function ProfilPage() {
                         <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>
                           Vis meg nasjonalt
                         </p>
-                        <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>
                           {org.orgName}
                           {globalPrefSavedOrg === org.orgId && <span style={{ color: '#4ade80', marginLeft: 8 }}>Lagret</span>}
                         </p>
@@ -949,7 +949,7 @@ export default function ProfilPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>{item.title}</p>
-                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>{item.desc}</p>
+                    <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>{item.desc}</p>
                   </div>
                   <div
                     role="switch"
@@ -966,7 +966,7 @@ export default function ProfilPage() {
                       position: 'absolute', top: 4,
                       left: item.value ? 22 : 4,
                       width: 16, height: 16, borderRadius: '50%',
-                      background: item.value ? '#1a1c23' : '#7a7873',
+                      background: item.value ? '#1a1c23' : '#918f8a',
                       transition: 'left 0.15s',
                     }} />
                   </div>
@@ -980,7 +980,7 @@ export default function ProfilPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>Push-varsler</p>
-                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                    <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>
                       {pushEnabled ? 'Aktivert — du får varsel når quizen åpner' : 'Få push-varsel til enheten når quizen er klar'}
                     </p>
                   </div>
@@ -1000,7 +1000,7 @@ export default function ProfilPage() {
                       position: 'absolute', top: 4,
                       left: pushEnabled ? 22 : 4,
                       width: 16, height: 16, borderRadius: '50%',
-                      background: pushEnabled ? '#1a1c23' : '#7a7873',
+                      background: pushEnabled ? '#1a1c23' : '#918f8a',
                       transition: 'left 0.15s',
                     }} />
                   </div>
@@ -1023,7 +1023,7 @@ export default function ProfilPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Du har ikke satt passord</p>
-                    <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                    <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>
                       Med passord kan du logge inn uten å være avhengig av Google
                     </p>
                   </div>
@@ -1041,7 +1041,7 @@ export default function ProfilPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Passord er satt</p>
-                  <p style={{ fontSize: 12, color: '#7a7873', lineHeight: 1.4 }}>
+                  <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>
                     Du kan logge inn med e-post og passord
                   </p>
                 </div>
@@ -1102,7 +1102,7 @@ export default function ProfilPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                     <div>
                       <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — aktivt</p>
-                      <p style={{ fontSize: 12, color: '#7a7873' }}>kr 49/mnd · Avslutt når du vil</p>
+                      <p style={{ fontSize: 12, color: '#918f8a' }}>kr 49/mnd · Avslutt når du vil</p>
                     </div>
                     <button
                       onClick={handlePortal}
@@ -1110,7 +1110,7 @@ export default function ProfilPage() {
                       style={{
                         background: 'transparent',
                         border: '1px solid #2a2d38',
-                        color: portalLoading ? '#7a7873' : '#e8e4dd',
+                        color: portalLoading ? '#918f8a' : '#e8e4dd',
                         fontFamily: "'Instrument Sans', sans-serif",
                         fontSize: 13,
                         fontWeight: 600,
@@ -1188,10 +1188,10 @@ export default function ProfilPage() {
               disabled={deleting}
               style={{
                 background: 'none', border: 'none', padding: 0,
-                fontSize: 12, color: '#7a7873',
+                fontSize: 12, color: '#918f8a',
                 cursor: deleting ? 'not-allowed' : 'pointer',
                 fontFamily: "'Instrument Sans', sans-serif",
-                textDecoration: 'underline', textDecorationColor: '#7a7873',
+                textDecoration: 'underline', textDecorationColor: '#918f8a',
               }}
             >
               {deleting ? 'Sletter…' : 'Slett konto'}

@@ -60,7 +60,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -697,13 +697,13 @@ export default function QuizAnalytics() {
                 gap: '8px 24px',
                 alignItems: 'center',
               }}>
-                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#7a7873', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#918f8a', flexShrink: 0 }}>
                   Bedrifter
                 </span>
                 {orgBreakdown.map(o => (
                   <span key={o.name} style={{ fontSize: 13, color: '#e8e4dd' }}>
                     {o.name}
-                    <span style={{ color: '#7a7873', marginLeft: 6 }}>{o.count}</span>
+                    <span style={{ color: '#918f8a', marginLeft: 6 }}>{o.count}</span>
                   </span>
                 ))}
               </div>
@@ -736,7 +736,7 @@ export default function QuizAnalytics() {
                               {p.nickname?.trim() ? (
                                 <>
                                   <span className="an-top-name">{p.nickname.trim()}</span>
-                                  <span className="an-top-email" style={{ color: '#7a7873' }}>{p.name}</span>
+                                  <span className="an-top-email" style={{ color: '#918f8a' }}>{p.name}</span>
                                 </>
                               ) : (
                                 <span className="an-top-name">{p.name}</span>
@@ -946,7 +946,7 @@ export default function QuizAnalytics() {
                 disabled={removing}
                 style={{
                   fontSize: 13, fontWeight: 600, color: '#1a1c23',
-                  background: removing ? '#7a7873' : '#f87171',
+                  background: removing ? '#918f8a' : '#f87171',
                   border: 'none', borderRadius: 8, padding: '8px 20px',
                   cursor: removing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                   transition: 'background 0.15s',

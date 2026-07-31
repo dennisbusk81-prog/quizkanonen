@@ -65,7 +65,7 @@ export default function ConsentBanner() {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: '#7a7873',
+            color: '#918f8a',
             padding: 0,
           }}
         >

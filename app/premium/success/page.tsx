@@ -12,7 +12,7 @@ const s = {
   title: { fontFamily: "'Libre Baskerville', serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
   subtitle: { color: '#e8e4dd', marginBottom: '32px', fontSize: '1rem', lineHeight: 1.6 },
   loadingTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
-  loadingSub: { color: '#7a7873', fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic' as const },
+  loadingSub: { color: '#918f8a', fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic' as const },
   btn: { display: 'inline-block', padding: '11px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif" },
 }
 

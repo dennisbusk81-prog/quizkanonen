@@ -121,11 +121,11 @@ export default function OrgCard() {
           Bevisst ingen oppfordring til handling og ingen skyldfordeling: en
           ansatt kan ikke fornye abonnementet selv, så teksten skal informere
           og ikke mer. Lenken til bedriftssiden skjules av samme grunn — den
-          fører til en betalingsskjerm de ikke kan bruke. #7a7873 er riktig
+          fører til en betalingsskjerm de ikke kan bruke. #918f8a er riktig
           her: dette er metadata som ikke skal klikkes, samme rolle som
           «Du spilte ikke ukens quiz» under. */}
       {locked && (
-        <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 0, lineHeight: 1.5 }}>
           Bedriften venter på fornyelse
         </p>
       )}
@@ -136,7 +136,7 @@ export default function OrgCard() {
             Du var {placement.rank} av {placement.total} i {placement.quizTitle}
           </p>
         ) : (
-          <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 14, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 14, lineHeight: 1.5 }}>
             Du spilte ikke ukens quiz
           </p>
         )
@@ -153,7 +153,7 @@ export default function OrgCard() {
               <span style={{ fontSize: 15 }}>{medals[i]}</span>
               <span style={{ fontSize: 13, color: '#e8e4dd' }}>{truncateName(entry.displayName)}</span>
             </div>
-            <span style={{ fontSize: 13, color: '#7a7873', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 13, color: '#918f8a', whiteSpace: 'nowrap' }}>
               {entry.totalPoints} poeng
             </span>
           </div>

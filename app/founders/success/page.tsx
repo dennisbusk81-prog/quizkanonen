@@ -123,7 +123,7 @@ export default async function FoundersSuccessPage() {
 
           {/* Feature list */}
           <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', marginBottom: 28, textAlign: 'left' as const }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#7a7873', marginBottom: 12, margin: '0 0 12px' }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 12, margin: '0 0 12px' }}>
               Du har nå tilgang til
             </p>
             {features.map(f => (
@@ -142,10 +142,10 @@ export default async function FoundersSuccessPage() {
 
           {/* Disclaimer */}
           <div style={{ marginTop: 24, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '14px 18px', textAlign: 'left' as const }}>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, margin: '0 0 6px' }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, margin: '0 0 6px' }}>
               <strong style={{ color: '#e8e4dd' }}>Ingen automatisk trekk</strong> — du bestemmer selv om du vil fortsette etter prøveperioden.
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, margin: 0 }}>
               Vi sender deg en påminnelse på e-post før de 30 dagene utløper.
             </p>
           </div>

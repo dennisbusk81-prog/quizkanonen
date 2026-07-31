@@ -199,9 +199,9 @@ export default function BedriftRegistrerPage() {
         <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#7a7873', fontStyle: 'italic' }}>Henter kontoen din …</p>
+            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter kontoen din …</p>
             {slowSessionLoad && (
-              <p style={{ fontSize: 13, color: '#7a7873', marginTop: 12 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
                 Dette tar lengre tid enn vanlig.{' '}
                 <a href="/bedrift/registrer" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
               </p>
@@ -229,14 +229,14 @@ export default function BedriftRegistrerPage() {
           <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 }}>
             Registrer <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>bedriften</em>
           </h1>
-          <p style={{ fontSize: 14, color: '#7a7873', marginBottom: 32, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 32, lineHeight: 1.6 }}>
             Velg plan og betal via Stripe. Ingen binding — avslutt når du vil.
           </p>
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px' }}>
 
             {/* Org name */}
-            <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 8 }}>
               Bedriftsnavn
             </label>
             <input
@@ -276,7 +276,7 @@ export default function BedriftRegistrerPage() {
               <>
                 {/* Plan selection */}
                 <div style={{ marginTop: 24 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 10 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 10 }}>
                     Velg plan
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -307,7 +307,7 @@ export default function BedriftRegistrerPage() {
                               {p.label}{p.featured ? ' — mest populær' : ''}{isDisabled ? ' — kommer snart' : ''}
                             </div>
                             <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{p.price}</div>
-                            <div style={{ fontSize: 11, color: '#7a7873', marginTop: 1 }}>{p.desc}</div>
+                            <div style={{ fontSize: 11, color: '#918f8a', marginTop: 1 }}>{p.desc}</div>
                           </div>
                         </div>
                       )
@@ -326,7 +326,7 @@ export default function BedriftRegistrerPage() {
                     </button>
                   ) : (
                     <>
-                      <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 8 }}>
                         Promo-kode
                       </label>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -369,7 +369,7 @@ export default function BedriftRegistrerPage() {
                   Logg inn eller opprett en konto for å fortsette.
                 </p>
                 <AuthForm next={`/bedrift/registrer?plan=${plan}`} onSuccess={() => { /* bli på siden — auth-lytteren over avdekker betalingsvalgene */ }} variant="modal" />
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', marginTop: 14, lineHeight: 1.5 }}>
                   Skjemaet er lagret — du kommer tilbake hit etter innlogging
                 </p>
               </>
@@ -382,7 +382,7 @@ export default function BedriftRegistrerPage() {
                 >
                   {trialLoading ? 'Starter...' : 'Aktiver prøveperiode →'}
                 </button>
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                   Bedriftssidene sperres til betaling hvis du ikke fortsetter etter prøveperioden.
                 </p>
               </>
@@ -395,13 +395,13 @@ export default function BedriftRegistrerPage() {
                 >
                   {loading ? 'Sender...' : 'Gå til betaling →'}
                 </button>
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                   Betaling håndteres sikkert av Stripe. Ingen binding.
                 </p>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
                   <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
-                  <span style={{ fontSize: 11, color: '#7a7873', letterSpacing: '0.08em', textTransform: 'uppercase' }}>eller</span>
+                  <span style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.08em', textTransform: 'uppercase' }}>eller</span>
                   <div style={{ flex: 1, height: 1, background: '#2a2d38' }} />
                 </div>
 
@@ -412,7 +412,7 @@ export default function BedriftRegistrerPage() {
                 >
                   {trialLoading ? 'Starter...' : 'Prøv gratis i 14 dager'}
                 </button>
-                <p style={{ fontSize: 12, color: '#7a7873', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
                   Ingen kortinfo nødvendig. Bedriftssidene sperres til betaling hvis du ikke fortsetter etter prøveperioden.
                 </p>
               </>

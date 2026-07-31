@@ -52,7 +52,7 @@ export default function ConsentBanner() {
           <p style={{ color: '#e8e4dd', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.35rem' }}>
             Vi bruker kun nødvendige data
           </p>
-          <p style={{ color: '#7a7873', fontSize: '0.85rem', lineHeight: 1.65 }}>
+          <p style={{ color: '#918f8a', fontSize: '0.85rem', lineHeight: 1.65 }}>
             Quizkanonen lagrer en enhets-ID lokalt i nettleseren for å hindre dobbeltspilling. 
             Vi bruker ingen sporings-cookies eller reklame. Les mer i vår{' '}
             <Link href="/personvern" style={{ color: '#c9a84c', textDecoration: 'underline' }}>

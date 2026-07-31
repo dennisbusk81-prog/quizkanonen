@@ -90,7 +90,7 @@ const s = {
     textAlign: 'center' as const,
     fontSize: 13,
     lineHeight: 1.6,
-    color: '#7a7873',
+    color: '#918f8a',
   },
 }
 

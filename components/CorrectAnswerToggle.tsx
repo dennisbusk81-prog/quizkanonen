@@ -60,7 +60,7 @@ export default function CorrectAnswerToggle({
                 borderRadius: 8,
                 border: `1px solid ${active ? 'rgba(74,222,128,0.3)' : '#2a2d38'}`,
                 background: active ? 'rgba(74,222,128,0.1)' : '#1a1c23',
-                color: active ? '#4ade80' : '#7a7873',
+                color: active ? '#4ade80' : '#918f8a',
                 fontFamily: "'Instrument Sans', sans-serif",
                 fontSize,
                 fontWeight: 600,
@@ -77,7 +77,7 @@ export default function CorrectAnswerToggle({
       {value.length > 1 && (
         <p style={{
           fontSize: 11,
-          color: '#7a7873',
+          color: '#918f8a',
           marginTop: 6,
           fontFamily: "'Instrument Sans', sans-serif",
         }}>

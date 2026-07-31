@@ -25,7 +25,7 @@ const STYLES = `
     --gold:     #c9a84c;
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --radius-card: 20px;
     --radius-btn:  10px;
   }

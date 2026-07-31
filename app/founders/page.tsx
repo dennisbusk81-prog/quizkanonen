@@ -66,7 +66,7 @@ const s = {
     fontWeight: 600,
     letterSpacing: '0.18em',
     textTransform: 'uppercase' as const,
-    color: '#7a7873',
+    color: '#918f8a',
     marginBottom: 10,
   },
   countdownTitle: {
@@ -91,7 +91,7 @@ const s = {
   },
   countdownHint: {
     fontSize: 12,
-    color: '#7a7873',
+    color: '#918f8a',
   },
   card: {
     background: '#21242e',
@@ -155,7 +155,7 @@ const s = {
     width: 'auto',
     padding: '10px 28px',
     background: '#2a2d38',
-    color: '#7a7873',
+    color: '#918f8a',
     border: 'none',
     borderRadius: 10,
     fontSize: 15,

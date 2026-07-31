@@ -42,7 +42,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -468,7 +468,7 @@ export default function AdminCodes() {
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: codeType === opt.value ? '#c9a84c' : '#e8e4dd', marginBottom: 2 }}>
                       {opt.label}
                     </span>
-                    <span style={{ display: 'block', fontSize: 11, color: '#7a7873' }}>{opt.sub}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: '#918f8a' }}>{opt.sub}</span>
                   </button>
                 ))}
               </div>
@@ -481,7 +481,7 @@ export default function AdminCodes() {
                   onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                   placeholder="F.eks. FREDAGSQUIZ"
                   className="ac-input ac-mono" />
-                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
                   Skal kunne deles åpent og huskes. Det er grensen og fristen under
                   som beskytter koden — ikke at den er vanskelig å gjette.
                 </p>
@@ -492,11 +492,11 @@ export default function AdminCodes() {
                 <p style={{
                   background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10,
                   padding: '11px 14px', fontFamily: "'Courier New', monospace",
-                  fontSize: 14, letterSpacing: '0.08em', color: '#7a7873',
+                  fontSize: 14, letterSpacing: '0.08em', color: '#918f8a',
                 }}>
                   Genereres automatisk
                 </p>
-                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
                   En privat kode skal ikke kunne gjettes av utenforstående, og
                   settes derfor tilfeldig av serveren. Du får se den når den er lagret.
                 </p>
@@ -518,7 +518,7 @@ export default function AdminCodes() {
                   onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}
                   placeholder="Tom = permanent"
                   className="ac-input" />
-                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
                   Hvor lenge brukeren har Premium etter at koden er løst inn.<br />
                   La feltet stå tomt for å gi permanent Premium.
                 </p>
@@ -530,7 +530,7 @@ export default function AdminCodes() {
                   disabled={codeType === 'personal'}
                   className="ac-input"
                   style={codeType === 'personal' ? { opacity: 0.45, cursor: 'not-allowed' } : undefined} />
-                <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
                   {codeType === 'personal'
                     ? 'Låst til 1 — en privat kode har én mottaker.'
                     : 'Hver konto kan bruke koden én gang. Taket gjelder totalt.'}
@@ -545,7 +545,7 @@ export default function AdminCodes() {
               <input type="date" value={form.valid_until_date}
                 onChange={e => setForm(f => ({ ...f, valid_until_date: e.target.value }))}
                 className="ac-input" />
-              <p style={{ fontSize: 11, color: '#7a7873', marginTop: 6, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
                 Siste dag koden kan løses inn. Påvirker ikke hvor lenge Premium varer.<br />
                 {codeType === 'shared'
                   ? 'En delt kode ligger ute for alltid — fristen er det som gjør at den ikke gjør det.'
@@ -563,7 +563,7 @@ export default function AdminCodes() {
           <div className="ac-form" style={{ borderColor: 'rgba(201,168,76,0.4)' }}>
             <p className="ac-form-title">Privat kode opprettet</p>
             <p className="ac-code-value" style={{ fontSize: 20 }}>{generated}</p>
-            <p style={{ fontSize: 12, color: '#7a7873', marginTop: 10, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, lineHeight: 1.6 }}>
               Send denne til mottakeren. Den står også i listen under.
             </p>
           </div>

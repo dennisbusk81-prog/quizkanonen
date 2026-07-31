@@ -35,7 +35,7 @@ const Chevron = ({ open }: { open: boolean }) => (
       transition: 'transform 0.25s ease-in-out',
     }}
   >
-    <path d="M1 1L7 7.5L13 1" stroke="#7a7873" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M1 1L7 7.5L13 1" stroke="#918f8a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 
@@ -91,7 +91,7 @@ export default function AccordionSection() {
                 <div style={{
                   fontSize: 13,
                   fontWeight: 400,
-                  color: '#7a7873',
+                  color: '#918f8a',
                   overflow: 'hidden',
                   maxHeight: isOpen ? '0' : '22px',
                   opacity: isOpen ? 0 : 1,

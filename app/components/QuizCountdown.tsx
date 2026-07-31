@@ -55,7 +55,7 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
         <p style={{ color: '#c9a84c', fontWeight: 700, fontSize: '1rem', marginBottom: '0.25rem' }}>
           🎯 Ukas quiz er åpen nå!
         </p>
-        <p style={{ color: '#7a7873', fontSize: '0.875rem' }}>
+        <p style={{ color: '#918f8a', fontSize: '0.875rem' }}>
           Bla ned og trykk Spill nå
         </p>
       </div>
@@ -115,7 +115,7 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
                   {pad(value)}
                 </span>
               </div>
-              <p style={{ color: '#7a7873', fontSize: '0.7rem', marginTop: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <p style={{ color: '#918f8a', fontSize: '0.7rem', marginTop: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 {label}
               </p>
             </div>
@@ -123,7 +123,7 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
         </div>
       )}
 
-      <p style={{ color: '#7a7873', fontSize: '0.875rem' }}>
+      <p style={{ color: '#918f8a', fontSize: '0.875rem' }}>
         {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)} kl. {timeStr}
       </p>
     </div>

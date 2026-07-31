@@ -90,7 +90,7 @@ function RivalAvatar({ rival }: { rival: RivalData }) {
       </div>
       <div style={{ textAlign: 'left' }}>
         <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600, margin: 0 }}>{rival.name}</p>
-        <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>
+        <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>
           {rival.score} riktige denne quizen
         </p>
       </div>
@@ -227,7 +227,7 @@ export default function QuizInterlude({
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: '#7a7873', marginBottom: 6,
+              textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
             }}>
               Din plassering
             </p>
@@ -242,7 +242,7 @@ export default function QuizInterlude({
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: '#7a7873', marginBottom: 6,
+              textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
             }}>
               Din rangering
             </p>
@@ -260,7 +260,7 @@ export default function QuizInterlude({
           <div style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: '#7a7873', marginBottom: 6,
+              textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
             }}>
               Din plassering
             </p>
@@ -268,9 +268,9 @@ export default function QuizInterlude({
               fontFamily: "'Libre Baskerville', serif",
               fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
             }}>
-              {liveRanking.userRank}.<span style={{ fontSize: 18, color: '#7a7873', fontWeight: 400 }}> plass</span>
+              {liveRanking.userRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', marginTop: 6 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', marginTop: 6 }}>
               av {liveRanking.totalPlayers} spillere så langt
             </p>
 
@@ -278,7 +278,7 @@ export default function QuizInterlude({
                 så plasseringstallet over forblir det eneste gule elementet. */}
             <div style={{ marginTop: 14, lineHeight: 1.8 }}>
               {liveRanking.above && (
-                <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
                   #{liveRanking.userRank - 1} {liveRanking.above.name} · {liveRanking.above.correct} riktige
                 </p>
               )}
@@ -289,11 +289,11 @@ export default function QuizInterlude({
                   Uten denne linja ser tallet ditt ut som en regnefeil når det står
                   mellom to høyere tall. Mindre og dempet, så det ikke leses som
                   enda en spillerrad. */}
-              <p style={{ fontSize: 11, color: '#7a7873', margin: 0, lineHeight: 1.4 }}>
+              <p style={{ fontSize: 11, color: '#918f8a', margin: 0, lineHeight: 1.4 }}>
                 {answeredSoFar} av {totalQuestions} spørsmål så langt
               </p>
               {liveRanking.below && (
-                <p style={{ fontSize: 13, color: '#7a7873', margin: 0 }}>
+                <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
                   #{liveRanking.userRank + 1} {liveRanking.below.name} · {liveRanking.below.correct} riktige
                 </p>
               )}
@@ -327,7 +327,7 @@ export default function QuizInterlude({
           }
           if (rival && rival.score === score + 1) {
             return (
-              <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 16 }}>
                 {rival.name} ligger ett hakk foran deg
               </p>
             )
@@ -339,7 +339,7 @@ export default function QuizInterlude({
             besvarte spørsmål til at tallet betyr noe (Del 3) */}
         {placementReady && scoreIsAboveMedian && percentileEntry && (
           <p style={{
-            fontSize: 12, color: '#7a7873', marginBottom: 16,
+            fontSize: 12, color: '#918f8a', marginBottom: 16,
           }}>
             Du er bedre enn {percentileEntry.percentile}% av deltakerne
           </p>
@@ -347,7 +347,7 @@ export default function QuizInterlude({
 
         {/* Score line */}
         {low === null && (
-          <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 24 }}>
+          <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 24 }}>
             {score} av {totalQuestions} riktige
             {streak >= 2 ? ` · ${streak} på rad` : ''}
           </p>

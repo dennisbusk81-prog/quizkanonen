@@ -61,7 +61,7 @@ const STYLES = `
 
   .login-sub {
     font-size: 13px;
-    color: #7a7873;
+    color: #918f8a;
     text-align: center;
     margin-bottom: 32px;
   }

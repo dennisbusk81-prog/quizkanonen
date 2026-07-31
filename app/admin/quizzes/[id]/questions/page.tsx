@@ -54,7 +54,7 @@ const STYLES = `
     --gold-bdr: rgba(201,168,76,0.22);
     --white:    #ffffff;
     --body:     #e8e4dd;
-    --muted:    #7a7873;
+    --muted:    #918f8a;
     --green:    #4ade80;
     --green-bg: rgba(74,222,128,0.10);
     --green-bdr:rgba(74,222,128,0.20);
@@ -917,7 +917,7 @@ export default function QuizQuestions() {
                         const blocked = correctLoading || unchanged
                         return (
                         <div style={{ marginTop: 12, padding: '14px 16px', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10 }}>
-                          <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Riktig svar — velg ett eller flere:</p>
+                          <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Riktig svar — velg ett eller flere:</p>
                           <div style={{ marginBottom: 12 }}>
                             <CorrectAnswerToggle
                               options={options}
@@ -927,7 +927,7 @@ export default function QuizQuestions() {
                               disabled={correctLoading}
                             />
                           </div>
-                          <p style={{ fontSize: 11, color: '#7a7873', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                          <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
                             {correctAnsweredCount === null
                               ? 'Henter antall besvarelser…'
                               : correctAnsweredCount === 0
@@ -942,7 +942,7 @@ export default function QuizQuestions() {
                                 fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
                                 border: `1px solid ${blocked ? '#2a2d38' : '#e8e4dd'}`,
                                 background: 'transparent',
-                                color: blocked ? '#7a7873' : '#e8e4dd',
+                                color: blocked ? '#918f8a' : '#e8e4dd',
                                 cursor: blocked ? 'not-allowed' : 'pointer',
                                 fontFamily: "'Instrument Sans', sans-serif",
                               }}
@@ -951,7 +951,7 @@ export default function QuizQuestions() {
                             </button>
                             <button
                               onClick={() => setCorrectingId(null)}
-                              style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38', background: 'transparent', color: '#7a7873', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                              style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38', background: 'transparent', color: '#918f8a', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
                             >
                               Avbryt
                             </button>

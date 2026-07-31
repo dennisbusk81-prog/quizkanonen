@@ -121,7 +121,7 @@ const STYLES = `
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     white-space: nowrap;
   }
   .qkrt-section-line { flex: 1; height: 1px; background: #2a2d38; }
@@ -144,7 +144,7 @@ const STYLES = `
     font-weight: 600;
     letter-spacing: 0.10em;
     text-transform: uppercase;
-    color: #7a7873;
+    color: #918f8a;
     padding: 14px 16px 12px;
     border-bottom: 1px solid #2a2d38;
     white-space: nowrap;
@@ -158,10 +158,10 @@ const STYLES = `
   }
   .qkrt-table tr:last-child td { border-bottom: none; }
   .qkrt-table tr.is-highlight td { background: rgba(201,168,76,0.10); }
-  .qkrt-rank { color: #7a7873; font-size: 12px; width: 34px; white-space: nowrap; }
+  .qkrt-rank { color: #918f8a; font-size: 12px; width: 34px; white-space: nowrap; }
   .qkrt-rank.medal { color: #c9a84c; font-weight: 700; }
   .qkrt-name { font-weight: 500; color: #ffffff; white-space: nowrap; }
-  .qkrt-nick { font-size: 11px; color: #7a7873; display: block; margin-top: 1px; white-space: nowrap; }
+  .qkrt-nick { font-size: 11px; color: #918f8a; display: block; margin-top: 1px; white-space: nowrap; }
   /* Selektoren må matche/slå .qkrt-table th sin spesifisitet (klasse+element),
      ellers taper høyrejusteringen for th.qkrt-num mot .qkrt-table th sin
      text-align: left — nøyaktig det som gjorde at RIKTIGE/TID-headerne sto
@@ -172,7 +172,7 @@ const STYLES = `
      text-align. */
   .qkrt-table th.qkrt-num, .qkrt-table td.qkrt-num { text-align: right; white-space: nowrap; }
   .qkrt-tied { color: #c9a84c; margin-left: 4px; }
-  .qkrt-metric-sub { display: block; font-size: 10px; color: #7a7873; margin-top: 1px; }
+  .qkrt-metric-sub { display: block; font-size: 10px; color: #918f8a; margin-top: 1px; }
 
   /* Navn-cellens indre layout: badge + navn til venstre, chevron/trailing-
      label dyttet til høyre kant — chevronen får IKKE egen kolonne (hver
@@ -180,17 +180,17 @@ const STYLES = `
      hele poenget med konverteringen). */
   .qkrt-name-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .qkrt-name-main { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .qkrt-chevron { flex-shrink: 0; color: #7a7873; }
+  .qkrt-chevron { flex-shrink: 0; color: #918f8a; }
   .qkrt-trailing-label { flex-shrink: 0; font-size: 11px; font-weight: 600; color: #c9a84c; letter-spacing: 0.06em; white-space: nowrap; }
   .qkrt-click-hint-wrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-  .qkrt-click-hint { font-size: 11px; color: #7a7873; white-space: nowrap; }
+  .qkrt-click-hint { font-size: 11px; color: #918f8a; white-space: nowrap; }
   .qkrt-table tr.is-clickable { cursor: pointer; }
   .qkrt-table tr.is-clickable:hover td,
   .qkrt-table tr.is-clickable:focus-visible td { background: rgba(255,255,255,0.03); }
   .qkrt-table tr.is-clickable:focus-visible { outline: 1px solid rgba(201,168,76,0.4); outline-offset: -1px; }
 
   .qkrt-sep-row td { border-bottom: none; padding: 10px 16px 0; }
-  .qkrt-inline-sep { text-align: center; font-size: 11px; color: #7a7873; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  .qkrt-inline-sep { text-align: center; font-size: 11px; color: #918f8a; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
   .qkrt-note-row td { border-bottom: none; padding: 0 16px 10px; }
   .qkrt-note-error { font-size: 13px; color: #E24B4A; margin: 0; }
   .qkrt-note-muted { font-size: 12px; color: #e8e4dd; text-align: center; margin: 0; }

@@ -49,7 +49,7 @@ export default function BackNav() {
       <Link href="/" style={{
         fontFamily: "'Instrument Sans', sans-serif",
         fontSize: 13,
-        color: '#7a7873',
+        color: '#918f8a',
         textDecoration: 'none',
         display: 'inline-block',
       }}>

@@ -50,7 +50,7 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
         <div style={{ marginBottom: 16 }}>
           <p style={{
             fontSize: 11,
-            color: '#7a7873',
+            color: '#918f8a',
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             marginBottom: 6,
@@ -100,7 +100,7 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
             {selected.top3.map((m, i) => (
               <div key={i} className="qk-top3-row">
                 <div className="qk-top3-left">
-                  <span style={{ fontSize: 13, color: '#7a7873', width: 18, flexShrink: 0, fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: '#918f8a', width: 18, flexShrink: 0, fontWeight: 600 }}>
                     {i + 1}.
                   </span>
                   <span className="qk-top3-name">{truncateName(m.displayName)}</span>
@@ -112,13 +112,13 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
             ))}
           </div>
           {selected.fromFallback && (
-            <p style={{ fontSize: 11, color: '#7a7873', marginTop: 8, marginBottom: 0 }}>
+            <p style={{ fontSize: 11, color: '#918f8a', marginTop: 8, marginBottom: 0 }}>
               Sesongpoeng beregnes når quizen stenger
             </p>
           )}
         </>
       ) : (
-        <p style={{ fontSize: 13, color: '#7a7873', marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 16 }}>
           Ingen har spilt ennå
         </p>
       )}

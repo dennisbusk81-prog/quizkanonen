@@ -86,7 +86,7 @@ export default function ScheduleRemovalModal({
           Velg datoen <strong style={{ color: '#ffffff' }}>{memberName}</strong> skal fjernes fra {orgName}.
         </p>
 
-        <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#7a7873', display: 'block', marginBottom: 8 }}>
+        <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', display: 'block', marginBottom: 8 }}>
           Fjernes den
         </label>
         <input
@@ -109,7 +109,7 @@ export default function ScheduleRemovalModal({
             <p style={{ fontSize: 14, color: '#ffffff', lineHeight: 1.6, marginBottom: 8 }}>
               {memberName} mister tilgangen til {orgName} {formatRemovalDate(`${date}T00:00:00.000Z`)}.
             </p>
-            <p style={{ fontSize: 13, color: '#7a7873', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6 }}>
               Premium gjennom bedriften varer i 7 dager etter det, med mindre vedkommende
               har egen dekning. Konto, quizhistorikk og poeng beholdes.
               Planen kan avbrytes eller endres helt fram til datoen.
@@ -117,7 +117,7 @@ export default function ScheduleRemovalModal({
           </div>
         )}
 
-        <p style={{ fontSize: 12, color: '#7a7873', marginBottom: 8 }}>
+        <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>
           Skriv <strong style={{ color: '#e8e4dd' }}>{memberName}</strong> for å bekrefte:
         </p>
         <input
@@ -153,7 +153,7 @@ export default function ScheduleRemovalModal({
             disabled={!canSave}
             style={{
               fontSize: 13, fontWeight: 600,
-              color: canSave ? '#1a1c23' : '#7a7873',
+              color: canSave ? '#1a1c23' : '#918f8a',
               background: canSave ? '#f87171' : '#2a2d38',
               border: 'none', borderRadius: 8, padding: '8px 20px',
               cursor: canSave ? 'pointer' : 'not-allowed',

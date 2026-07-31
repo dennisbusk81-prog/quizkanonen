@@ -224,7 +224,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               fontSize: 13, fontWeight: 600,
               color: '#e8e4dd', background: 'transparent',
               textDecoration: 'none', padding: '6px 14px',
-              borderRadius: 10, border: '1px solid #7a7873',
+              borderRadius: 10, border: '1px solid #918f8a',
               whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
               transition: 'border-color 0.15s, color 0.15s',
             }}
@@ -253,7 +253,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             fontSize: 13, fontWeight: 600,
             color: '#e8e4dd', background: 'transparent',
             textDecoration: 'none', padding: '6px 14px',
-            borderRadius: 10, border: '1px solid #7a7873',
+            borderRadius: 10, border: '1px solid #918f8a',
             whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
             transition: 'border-color 0.15s, color 0.15s',
           }}
@@ -418,7 +418,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             width="9" height="5" viewBox="0 0 9 5" fill="none"
             style={{ flexShrink: 0, transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
           >
-            <path d="M1 1L4.5 4L8 1" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M1 1L4.5 4L8 1" stroke="#918f8a" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </button>
 

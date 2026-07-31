@@ -140,7 +140,7 @@ export default function PushNotificationPrompt() {
             background: 'none',
             border: 'none',
             fontSize: 13,
-            color: '#7a7873',
+            color: '#918f8a',
             cursor: 'pointer',
             fontFamily: "'Instrument Sans', sans-serif",
             padding: 0,

@@ -33,7 +33,7 @@ function page(title: string, body: string, isError = false): NextResponse {
     .eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #c9a84c; margin-bottom: 12px; }
     h1 { font-family: 'Libre Baskerville', serif; font-size: 24px; font-weight: 700; color: #ffffff; margin-bottom: 14px; line-height: 1.3; }
     p { font-size: 14px; color: #e8e4dd; line-height: 1.6; margin-bottom: 24px; }
-    .hint { font-size: 13px; color: #7a7873; line-height: 1.6; margin-bottom: 0; }
+    .hint { font-size: 13px; color: #918f8a; line-height: 1.6; margin-bottom: 0; }
     a.btn { display: inline-block; background: transparent; color: #e8e4dd; font-family: 'Instrument Sans', sans-serif; font-size: 14px; font-weight: 600; padding: 10px 28px; border-radius: 10px; border: 1px solid #2a2d38; text-decoration: none; }
     .divider { height: 1px; background: #2a2d38; margin: 24px 0; }
     ${isError ? '.card { border-color: rgba(248,113,113,0.2); }' : ''}

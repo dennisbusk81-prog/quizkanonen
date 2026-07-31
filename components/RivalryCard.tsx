@@ -163,11 +163,11 @@ export default function RivalryCard({ prioritySlot }: Props) {
         onClick={() => setHistoryOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#7a7873', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#918f8a', letterSpacing: '0.04em' }}>
           Tidligere dueller
         </span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: historyOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }}>
-          <path d="M1 1L5 5L9 1" stroke="#7a7873" strokeWidth="1.5" strokeLinecap="round"/>
+          <path d="M1 1L5 5L9 1" stroke="#918f8a" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </button>
       {historyOpen && (
@@ -192,14 +192,14 @@ export default function RivalryCard({ prioritySlot }: Props) {
                   <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600, marginBottom: 2 }}>
                     {opponentName(r)}
                   </p>
-                  <p style={{ fontSize: 11, color: '#7a7873' }}>{statusLabel}</p>
+                  <p style={{ fontSize: 11, color: '#918f8a' }}>{statusLabel}</p>
                 </div>
                 {/* Ingen duell ble faktisk spilt her — et tallpar ("X – Y")
                     ville sett ut som en ekte sluttscore og motsagt teksten
                     ved siden av. */}
                 {!expiredUnanswered && (
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#7a7873' }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#918f8a' }}>
                       {r.myPoints} – {r.opponentPoints}
                     </p>
                   </div>
@@ -238,7 +238,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
           marginTop: 12,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', margin: 0 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', margin: 0 }}>
               Duell — denne måneden
             </p>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: outcomeColor }}>
@@ -251,7 +251,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
               <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
                 {me}
               </p>
-              <p style={{ fontSize: 11, color: '#7a7873', margin: 0 }}>Deg</p>
+              <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>Deg</p>
             </div>
 
             <p style={{ fontSize: 13, fontWeight: 700, color: '#2a2d38', flexShrink: 0, margin: 0 }}>vs</p>
@@ -260,7 +260,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
               <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
                 {them}
               </p>
-              <p style={{ fontSize: 11, color: '#7a7873', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p style={{ fontSize: 11, color: '#918f8a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {opponentName(activeDuel)}
               </p>
             </div>
@@ -367,7 +367,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
           </button>
         </div>
         {incoming.daysLeftToReply !== null && incoming.daysLeftToReply <= 5 && (
-          <p style={{ fontSize: 11, color: '#7a7873', marginTop: 10 }}>
+          <p style={{ fontSize: 11, color: '#918f8a', marginTop: 10 }}>
             {daysLeftLabel(incoming.daysLeftToReply)}
           </p>
         )}
@@ -387,7 +387,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
           padding: '18px 20px',
           marginTop: 12,
         }}>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 8 }}>
             Duell — venter på svar
           </p>
           <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 12 }}>
@@ -428,7 +428,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
         padding: '18px 20px',
         marginTop: 12,
       }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#7a7873', marginBottom: 8 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 8 }}>
           Duell
         </p>
         <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 10 }}>

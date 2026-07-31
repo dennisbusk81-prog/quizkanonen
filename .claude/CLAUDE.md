@@ -34,8 +34,16 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 | Gull | `#c9a84c` |
 | Titler | `#ffffff` |
 | Brødtekst | `#e8e4dd` |
-| Hint/meta | `#7a7873` |
-| **FORBUDT** | `#9a9590`, `#6a6860`, `#8a8fa8` |
+| Hint/meta | `#918f8a` |
+| **FORBUDT** | `#7a7873` (for lav kontrast), `#9a9590`, `#6a6860`, `#8a8fa8` |
+
+Hint-fargen ble hevet fra `#7a7873` til `#918f8a` 1. august 2026 av
+tilgjengelighetshensyn. `#7a7873` ga 3,86:1 mot bakgrunnen og bare 3,51:1 mot
+kort-bakgrunnen `#21242e` — under WCAG AA-kravet på 4,5:1, og konkret vanskelig
+å lese på mobil i sterkt lys. `#918f8a` er den minste hevingen som klarer 4,5:1
+mot ALLE tre mørke flatene: bakgrunn 5,27:1, kort 4,79:1, hover `#262930`
+4,51:1. Velg aldri en ny hint-tone uten å regne mot `#21242e` — kortet, ikke
+sidebakgrunnen, er den strengeste flaten hint-tekst faktisk ligger på.
 
 ### Typografi
 - Titler: `Libre Baskerville` (serif)
@@ -56,8 +64,8 @@ Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 - Mer luft er alltid bedre enn tettere
 
 ### Lenker
-- Lenker som ikke er primærhandlinger: `#e8e4dd` — aldri `#7a7873`
-- Unntak: hint-tekst og metadata som ikke krever klikk kan være `#7a7873`
+- Lenker som ikke er primærhandlinger: `#e8e4dd` — aldri `#918f8a`
+- Unntak: hint-tekst og metadata som ikke krever klikk kan være `#918f8a`
 
 ### Regler
 - Ingen Tailwind
@@ -339,7 +347,7 @@ Premium: kr 49/mnd. Stripe i **live mode** siden ~23. juni 2026.
 Rekkefølge ovenfra:
 1. Nav (SiteNav.tsx) — "Toppliste" synlig på desktop, skjult på mobil
 2. Hero — tittel, undertittel, gul knapp, statuslinje
-3. Sitat-linje — kursiv, #7a7873
+3. Sitat-linje — kursiv, #918f8a
 4. Fakta-ikoner — tre SVG (kalender, person, stjerne)
 5. Divider
 6. Quiz-kort — eyebrow, tittel, tagline, månedlig leaderboard, outline-knapp
@@ -469,6 +477,34 @@ Status per 20. juli 2026, etter to runder sikkerhetsgjennomgang og retting:
 
   Selve Founders-/trial-forretningslogikken er uendret — gratis prøve uten kort
   fungerer som før for legitime bedrifter.
+- **RPC-funksjoner kallbare direkte av `authenticated`, forbi API-rutenes
+  Premium-gating (30. juli):** 11 SECURITY DEFINER-funksjoner
+  (`season_leaderboard_ranked/user_stats/period_quizzes`,
+  `quiz_leaderboard_ranked/user_stats/better_count`,
+  `attempt_answer_option_counts`, `attempt_answer_stats_by_attempts`,
+  `weekly_active_players`, `count_active_players_since`,
+  `count_active_leagues`) hadde kun `REVOKE EXECUTE FROM PUBLIC, anon` —
+  ikke `authenticated`. Postgres gir `authenticated` en egen, eksplisitt
+  EXECUTE-grant som IKKE fjernes av en revoke fra PUBLIC alene. Empirisk
+  bekreftet mot prod: en fixture-gratisbruker kunne kalle alle 11 direkte
+  mot `/rest/v1/rpc/`, med eget JWT + anon-nøkkel, utenom appens API-ruter
+  — fikk andre brukeres eksakte plassering og full svarfordeling tilbake.
+  Rettet med eksplisitt `REVOKE ... FROM authenticated, anon, PUBLIC` på
+  alle 11, verifisert i `pg_proc.proacl`. `is_league_member` BEVISST IKKE
+  revokert — kalles av RLS-policyen på `league_members` og evaluerer kun
+  kallerens egen `auth.uid()`, lekker ingenting uansett hvem som kaller
+  den. `redeem_access_code` fikk samtidig `SET search_path=''` + fullt
+  kvalifiserte `public.`-navn (manglet begge deler).
+  **Regel for framtidige service_role-only SECURITY DEFINER-funksjoner:
+  REVOKE må navngi `authenticated` eksplisitt — `FROM PUBLIC, anon` er
+  ikke nok.**
+- **`access_codes`-tabellen offentlig lesbar uten innlogging (30. juli):**
+  egen sårbarhetsklasse fra punktet over (åpen RLS-policy på en tabell,
+  ikke manglende funksjonstilgang), funnet ved samme gjennomgang. Ren
+  anon-nøkkel uten Authorization-header hadde lesetilgang til samtlige
+  koder i klartekst. Opphevet entropi-modellen for `personal`-koder
+  (26. juli). Ingen skade i dag (2 koder, begge inaktive/oppbrukte), men
+  ville rammet neste premiekode. Policyen droppet, RLS slått på.
 - **Fortsatt åpent:** bot-/spam-beskyttelse (CAPTCHA e.l.) er ikke
   implementert — kun planlagt.
 
@@ -509,6 +545,11 @@ Fullført siden forrige status (15. juni):
 - ~~Premium kun én kilde av gangen i profiles~~ — autoritativ
   kildemodell (`lib/premium-state.ts`) + to sikkerhetsmodeller for
   verdikoder, 26. juli 2026
+- ~~RPC-funksjoner kallbare direkte av `authenticated`, forbi
+  API-rutenes Premium-gating~~ — eksplisitt REVOKE på 11 funksjoner,
+  30. juli 2026
+- ~~`access_codes`-tabellen offentlig lesbar uten innlogging~~ — RLS
+  strammet, 30. juli 2026
 
 Gjenstående/pågående:
 1. Forklaringstekst per spørsmål (admin-felt)
