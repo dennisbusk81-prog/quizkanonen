@@ -6,6 +6,7 @@ import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz, Question } from '@/lib/supabase'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey as sameKeys } from '@/lib/answer-key-correction'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 import Link from 'next/link'
 
 // Fasiten som liste, uansett om raden bruker correct_answers-arrayet eller den
@@ -741,7 +742,7 @@ export default function QuizQuestions() {
           <div>
             <label className="qq-label">Egendefinert tid (sek, 5–60)</label>
             <input type="number" min={5} max={60} value={form.time_limit_seconds} onChange={e => upd('time_limit_seconds', e.target.value)}
-              placeholder="Default: 10" className="qq-input" />
+              placeholder={`Standard: ${quiz?.time_limit_seconds ?? DEFAULT_QUESTION_TIME_LIMIT_SECONDS}`} className="qq-input" />
           </div>
         </div>
 

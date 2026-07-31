@@ -6,6 +6,7 @@ import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ type BankQuestion = {
 
 const emptyQ = (): QState => ({
   text: '', optionA: '', optionB: '', optionC: '', optionD: '',
-  correctAnswers: ['A'], timeLimit: 10, category: '', explanation: '',
+  correctAnswers: ['A'], timeLimit: DEFAULT_QUESTION_TIME_LIMIT_SECONDS, category: '', explanation: '',
 })
 
 /** Fasiten fra en lagret rad, med samme fallback som scoringen i submit-ruten. */
@@ -976,7 +977,7 @@ function QuizEditorInner() {
             optionC:       q.option_c ?? '',
             optionD:       q.option_d ?? '',
             correctAnswers: keysFromDb(q),
-            timeLimit:     q.time_limit_seconds ?? 10,
+            timeLimit:     q.time_limit_seconds ?? DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
             category:      q.category ?? '',
             explanation:   q.explanation ?? '',
           }))
@@ -1024,7 +1025,7 @@ function QuizEditorInner() {
           questions: Array.from({ length: count }, () => ({
             question_text: '', option_a: '', option_b: '',
             option_c: null, option_d: null,
-            time_limit_seconds: 10,
+            time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
             shuffle_options: shuffleAllRef.current,
             category: null,
           })),
@@ -1078,7 +1079,7 @@ function QuizEditorInner() {
       optionC:       q.option_c ?? '',
       optionD:       q.option_d ?? '',
       correctAnswers: keysFromDb(q),
-      timeLimit:     q.time_limit_seconds ?? 10,
+      timeLimit:     q.time_limit_seconds ?? DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
       category:      q.category ?? '',
       explanation:   q.explanation ?? '',
     }))
@@ -1597,7 +1598,7 @@ function QuizEditorInner() {
         optionC:       item.wrongAnswers?.[1]    ?? '',
         optionD:       item.wrongAnswers?.[2]    ?? '',
         correctAnswers: ['A'],
-        timeLimit:     10,
+        timeLimit:     DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
         category:      '',
         explanation:   item.explanation          ?? '',
       }))

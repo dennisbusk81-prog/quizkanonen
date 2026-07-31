@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 
 type ImportQuestion = {
   question_text: string
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
       description: '',
       opens_at: opens.toISOString(),
       closes_at: closes.toISOString(),
-      time_limit_seconds: 20,
+      time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
       num_options: 4,
       is_active: true,
       show_leaderboard: true,
