@@ -93,10 +93,18 @@ export function computeRetention(
 
 /** Henter grunnlaget og beregner. Nyeste først. */
 export async function fetchRetentionRows(): Promise<RetentionRow[]> {
+  // season_points_awarded=true er den autoritative «faktisk spilt og gjort
+  // opp»-markøren (satt av award-season-points, se lib/award-season-points.ts)
+  // — IKKE en closes_at-datosammenligning. Dennis planlegger quizer flere uker
+  // fram, så en ren dato-sjekk ville tatt med alle de kommende, uspilte
+  // radene. season_points_awarded unngår også testquiz-fallgruven: is_test
+  // filtreres i tillegg, samme prinsipp som app/quizer/page.tsx.
   const { data: quizzes, error: quizErr } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at, closes_at')
     .not('opens_at', 'is', null)
+    .eq('season_points_awarded', true)
+    .eq('is_test', false)
     .order('opens_at', { ascending: true })
 
   if (quizErr) throw new Error(quizErr.message)
