@@ -223,12 +223,31 @@ const STYLES = `
     border-radius: 20px;
   }
 
+  /* Kodetype vs. status er to ULIKE ting, og skal ikke se like ut.
+     Grått betyr «noe er av» (deaktivert/utløpt) — aldri «dette er en kodetype».
+     Typen får derfor sin egen farge: gull-tint for delt, samme visuelle språk
+     som det valgte kortet i opprettelses-skjemaet, så typen kjennes igjen
+     hele veien fra opprettelse til liste. */
+  .ac-badge.type-shared {
+    background: var(--gold-bg);
+    color: var(--gold);
+    border: 1px solid var(--gold-bdr);
+  }
+  .ac-badge.type-personal {
+    background: transparent;
+    color: var(--body);
+    border: 1px solid var(--border);
+  }
+
   .ac-badge.off     { background: var(--border); color: var(--muted); }
   .ac-badge.expired { background: rgba(248,113,113,0.10); color: #f87171; border: 1px solid rgba(248,113,113,0.18); }
 
   .ac-code-desc { font-size: 13px; color: var(--body); margin-bottom: 4px; }
 
   .ac-code-meta { font-size: 11px; color: var(--muted); }
+  /* Typen står også i meta-linjen, ikke bare som pille: da leses den som en
+     egenskap ved koden, ikke som pynt man kan overse. */
+  .ac-code-meta strong { color: var(--body); font-weight: 600; }
 
   /* Usage bar */
   .ac-usage-bar-track {
@@ -578,22 +597,30 @@ export default function AdminCodes() {
             const expired = isExpired(code.valid_until)
             const inactive = !code.is_active || expired
             const usagePct = Math.min((code.used_count / code.max_uses) * 100, 100)
+            // Eldre rader mangler code_type — de var alle brede koder.
+            const personal = code.code_type === 'personal'
+            // «1/1 brukt» sier ingenting om en kode som per definisjon har én
+            // mottaker. «Plasser» gir bare mening for en delt kode.
+            const usage = personal
+              ? (code.used_count > 0 ? 'brukt' : 'ikke brukt ennå')
+              : `${code.used_count} av ${code.max_uses} plasser brukt`
             return (
               <div key={code.id} className={`ac-code-card ${inactive ? 'inactive' : ''}`}>
                 <div className="ac-code-left">
                   <div className="ac-code-top">
                     <span className="ac-code-value">{code.code}</span>
-                    <span className="ac-badge off">
-                      {code.code_type === 'personal' ? 'Privat' : 'Delt'}
+                    <span className={`ac-badge ${personal ? 'type-personal' : 'type-shared'}`}>
+                      {personal ? 'Privat' : 'Delt'}
                     </span>
                     {!code.is_active && <span className="ac-badge off">Deaktivert</span>}
                     {expired && <span className="ac-badge expired">Utløpt</span>}
                   </div>
                   <p className="ac-code-desc">{code.description}</p>
                   <p className="ac-code-meta">
-                    {code.used_count}/{code.max_uses} brukt
+                    <strong>{personal ? 'Privat' : 'Delt'}</strong>
+                    {' — '}{usage}
                     {' · '}gir {code.duration_days ? `${code.duration_days} dager Premium` : 'permanent Premium'}
-                    {' · '}{code.valid_until ? `kan brukes til ${formatDate(code.valid_until)}` : 'ingen innløsningsfrist'}
+                    {' · '}{code.valid_until ? `siste frist ${formatDate(code.valid_until)}` : 'ingen frist'}
                   </p>
                   <div className="ac-usage-bar-track">
                     <div className="ac-usage-bar-fill" style={{ width: `${usagePct}%` }} />
