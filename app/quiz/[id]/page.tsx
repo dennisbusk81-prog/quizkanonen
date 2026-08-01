@@ -1928,8 +1928,12 @@ export default function QuizPage() {
             headers: finishSess?.access_token ? { Authorization: `Bearer ${finishSess.access_token}` } : {},
           })
           if (lbRes.ok) {
-            const lb: { userRank?: number | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
-            const rank = lb.userRank ?? lb.guestRank ?? null
+            // `userRank` (eksakt) sendes kun til Premium. Gratisbrukere får raden
+            // sin med en grovmalt `rank` (starten av 10-båndet) — som er alt
+            // gratis-visningen under uansett bruker, siden den regner seg fram til
+            // «et sted mellom plass X og Y» fra `low`.
+            const lb: { userRank?: number | null; userEntry?: { rank: number } | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
+            const rank = lb.userRank ?? lb.userEntry?.rank ?? lb.guestRank ?? null
             const total = lb.totalCount ?? 0
             if (rank && total > 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
           }

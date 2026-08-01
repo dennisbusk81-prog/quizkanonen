@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
+import { isUserPremium } from '@/lib/premium-check'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -146,18 +147,44 @@ export async function GET(
   })
   const totalAll = ranked.length
 
-  // Premium-status (fallback)
+  // Premium-status — samme delte sjekk som resten av Premium-gatingen
+  // (lib/premium-check.ts), inkludert grace-perioden etter tapt org-Premium.
+  // Var tidligere en lokal `premium_status`-spørring her, som IKKE tok grace
+  // med: en bruker i grace ville dermed mistet sin egen eksakte plassering.
   if (userId) {
-    const { data: prof } = await supabaseAdmin.from('profiles').select('premium_status').eq('id', userId).maybeSingle()
-    userIsPremium = prof?.premium_status === true
+    userIsPremium = await isUserPremium(userId)
   }
 
-  // Brukerens beste plassering
+  // ── Brukerens egen plassering — Premium-gate håndheves server-side ──────────
+  // EKSAKT plassering er en Premium-funksjon. Fram til 1. august 2026 lå det
+  // eksakte tallet i svaret til enhver innlogget bruker, og kun klienten valgte
+  // å ikke vise det — altså lesbart i nettverksfanen for alle.
+  //
+  // Premium: `userRank` (eksakt) + hele raden.
+  // Gratis:  `userRank` utelates HELT. Raden beholdes, men `rank` grovmales til
+  //          starten av 10-båndet — nøyaktig det tallet gratis-visningen selv
+  //          utleder («Du er et sted mellom plass 11 og 20», både her og i
+  //          resultatskjermen). Det eksakte tallet finnes dermed ikke i svaret.
+  //
+  // Raden selv er IKKE premium-data: score, tid, antall spørsmål og streak er
+  // brukerens egne resultater, og resultatkortet på /leaderboard/[id] viser dem
+  // til gratisbrukere (eneste kilde når de spilte på en annen enhet, eller
+  // ligger utenfor topp 50). Å fjerne raden ville tatt bort «12 av 15», streak
+  // og delings-knappen for gratisbrukere — ikke en paywall, bare et tap.
+  const RANK_BAND = 10
   let userEntry: LbEntry | null = null
   let userRank: number | null = null
   if (userId) {
     const mine = ranked.find(r => r.user_id === userId)
-    if (mine) { userRank = mine.rank; userEntry = toEntry(mine) }
+    if (mine) {
+      if (userIsPremium) {
+        userRank = mine.rank
+        userEntry = toEntry(mine)
+      } else {
+        const bandStart = Math.floor((mine.rank - 1) / RANK_BAND) * RANK_BAND + 1
+        userEntry = { ...toEntry(mine), rank: bandStart }
+      }
+    }
   }
 
   // Gjest-estimat
