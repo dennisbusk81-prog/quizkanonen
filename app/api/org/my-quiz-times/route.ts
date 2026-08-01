@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,12 @@ export async function GET(request: NextRequest) {
     .eq('id', quizId)
     .maybeSingle()
 
-  if (!quiz) return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
+  // closes_at er nullable i skjemaet (en quiz kan stå åpen uten sluttid). Uten
+  // den finnes det ingen dato å feste org-tiden til, og org-vinduet kan heller
+  // ikke klemmes mot noe — da er svaret «ingen org-spesifikke tider».
+  if (!quiz || !quiz.closes_at || !quiz.opens_at) {
+    return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
+  }
 
   // Find ALL of the user's org memberships (a user may belong to several)
   const { data: memberships } = await supabaseAdmin
@@ -56,11 +62,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ orgOpensAt: null, orgClosesAt: null, orgName: null })
   }
 
-  // Combine the quiz date (from closes_at) with an org TIME ("HH:MM" or
-  // "HH:MM:SS") → full ISO instant. slice(0,5) is robust to both formats.
-  const quizDate = quiz.closes_at.slice(0, 10) // YYYY-MM-DD
+  // Combine the quiz date (from closes_at, i NORSK kalender) with an org TIME
+  // ("HH:MM" eller "HH:MM:SS") → full ISO instant. Org-tiden er en norsk
+  // veggklokke, ikke UTC — fram til 1. august 2026 ble den limt sammen som
+  // `...Z` og lest som UTC, slik at "15:00" ble 17:00 norsk tid om sommeren.
+  // Se lib/oslo-time.ts.
+  const quizDate = osloDateString(quiz.closes_at)
   const combine = (time: string | null): string | null =>
-    time ? `${quizDate}T${time.slice(0, 5)}:00.000Z` : null
+    time && quizDate ? osloWallClockToUtcIso(quizDate, time) : null
 
   const globalOpensMs  = new Date(quiz.opens_at).getTime()
   const globalClosesMs = new Date(quiz.closes_at).getTime()

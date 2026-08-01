@@ -5,6 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 
 export const maxDuration = 60
 
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at, closes_at, reminder_sent_at')
+    .eq('is_test', false)
+    .eq('is_active', true)
     .lte('opens_at', nowIso)
     .gte('opens_at', windowStart)
     .is('reminder_sent_at', null)
@@ -140,15 +143,30 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Org close reminders ───────────────────────────────────────────────────
-  // Find active quiz (opens_at <= now <= closes_at) for org close time calc
-  const { data: activeQuiz } = await supabaseAdmin
+  // Find active quiz (opens_at <= now <= closes_at) for org close time calc.
+  //
+  // is_test/is_active-guardene er de samme som quiz-påminnelsen over bruker:
+  // uten dem plukket denne grenen første åpne quiz sortert på closes_at ASC,
+  // uansett om det var en ekte quiz, en testquiz eller en som var skjult i
+  // admin («Skjul»-knappen setter is_active=false, og RLS gjemmer den for
+  // publikum). En testquiz som lå åpen samtidig som en ekte quiz ville
+  // dessuten VINNE sorteringen hvis den stengte først — og da ville
+  // org_close_reminder_quiz_id blitt stemplet på testquizen, slik at den ekte
+  // quizens påminnelse aldri ble sendt.
+  const { data: activeQuiz, error: activeQuizError } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, closes_at')
+    .select('id, title, opens_at, closes_at')
+    .eq('is_test', false)
+    .eq('is_active', true)
     .lte('opens_at', new Date(now).toISOString())
     .gte('closes_at', new Date(now).toISOString())
     .order('closes_at', { ascending: true })
     .limit(1)
     .maybeSingle()
+
+  if (activeQuizError) {
+    console.error('[cron/send-reminders] active quiz lookup error:', activeQuizError.message)
+  }
 
   if (activeQuiz) {
     // Find orgs with org_quiz_closes_at set, not already reminded for this quiz
@@ -161,16 +179,37 @@ export async function GET(request: NextRequest) {
       console.error('[cron/send-reminders] orgs lookup error:', orgsError.message)
     }
 
-    const quizDate = activeQuiz.closes_at.slice(0, 10) // YYYY-MM-DD
+    // Datoen org-tiden hører til er quizens stengedato slik den ser ut i NORGE
+    // — ikke i UTC. Fredagsquizen stenger 20:00Z (22:00 norsk tid), så de to
+    // datoene er like i praksis i dag, men de faller fra hverandre så snart en
+    // quiz stenger etter norsk midnatt.
+    const quizDate = osloDateString(activeQuiz.closes_at)
+    const quizOpensMs  = new Date(activeQuiz.opens_at).getTime()
+    const quizClosesMs = new Date(activeQuiz.closes_at).getTime()
+    if (!quizDate) {
+      console.error('[cron/send-reminders] ugyldig closes_at på aktiv quiz:', activeQuiz.id)
+    }
 
-    for (const org of (orgsWithCloseTime ?? []) as { id: string; name: string; org_quiz_closes_at: string; org_close_reminder_quiz_id: string | null }[]) {
+    for (const org of (quizDate ? (orgsWithCloseTime ?? []) : []) as { id: string; name: string; org_quiz_closes_at: string; org_close_reminder_quiz_id: string | null }[]) {
       if (org.org_close_reminder_quiz_id === activeQuiz.id) continue // already sent for this quiz
 
-      // org_quiz_closes_at er PostgreSQL TIME type → "HH:MM:SS" fra PostgREST
-      // Legg til bare .000Z (ikke :00.000Z) for gyldig ISO 8601
-      const orgCloseDatetime = `${quizDate}T${org.org_quiz_closes_at}.000Z`
-      const msUntilClose = new Date(orgCloseDatetime).getTime() - now
-      const minUntilClose = msUntilClose / 60_000
+      // org_quiz_closes_at er en PostgreSQL TIME-kolonne → "HH:MM:SS" fra
+      // PostgREST, og verdien er en NORSK veggklokke (satt i et
+      // <input type="time"> i org-admin). Den ble tidligere limt sammen som
+      // `${dato}T${tid}.000Z`, altså tolket som UTC — "15:00" ble reelt
+      // 17:00 norsk tid om sommeren. Se lib/oslo-time.ts.
+      const orgCloseDatetime = osloWallClockToUtcIso(quizDate!, org.org_quiz_closes_at)
+      if (!orgCloseDatetime) {
+        console.error('[cron/send-reminders] ugyldig org_quiz_closes_at for org', org.id, '—', org.org_quiz_closes_at)
+        continue
+      }
+
+      // En org-stengetid utenfor quizens eget vindu er meningsløs (og kan
+      // oppstå hvis quizen går over et døgnskille). Da skal det ikke sendes.
+      const orgCloseMs = new Date(orgCloseDatetime).getTime()
+      if (orgCloseMs < quizOpensMs || orgCloseMs > quizClosesMs) continue
+
+      const minUntilClose = (orgCloseMs - now) / 60_000
 
       if (minUntilClose < 55 || minUntilClose > 65) continue // not in window
 
