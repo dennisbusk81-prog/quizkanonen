@@ -6,6 +6,11 @@ import { duelInviteEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 import { blocksNewDuel } from '@/lib/duel-expiry'
 import { hasExhaustedChallengesToRecipient, SAME_RECIPIENT_WINDOW_MS } from '@/lib/duel-cooldown'
+import {
+  DUEL_SENT_ACTION,
+  DUEL_SENDER_WINDOW_MS,
+  decideDuelSenderQuota,
+} from '@/lib/duel-quota'
 
 // POST /api/rivalries — send a duel challenge to another user
 export async function POST(request: NextRequest) {
@@ -89,6 +94,38 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // ── Totalt døgntak per AVSENDER (lib/duel-quota.ts) ───────────────────────
+  // Sperren under er per (avsender, mottaker) og sier ingenting om hvor mange
+  // FORSKJELLIGE mottakere én konto kan gå gjennom — med 400 medlemmer var det
+  // reelle taket per konto derfor 3 × 400. Denne tellingen ligger i
+  // admin_actions, ikke i minnet, så den overlever kalde starter.
+  //
+  // Sjekkes FØR mottaker-sperren med vilje: har kontoen brukt opp døgnkvoten
+  // sin, hjelper det ikke å utfordre en annen, og meldingen skal si det.
+  const senderSince = new Date(nowForCheck.getTime() - DUEL_SENDER_WINDOW_MS).toISOString()
+  const { count: sentLastDay, error: sentCountError } = await supabaseAdmin
+    .from('admin_actions')
+    .select('id', { count: 'exact', head: true })
+    .eq('action_type', DUEL_SENT_ACTION)
+    .eq('user_id', user.id)
+    .gte('created_at', senderSince)
+
+  // Kan vi ikke lese forbruket, vet vi ikke om dette er utfordring nr. 2 eller
+  // nr. 200. Da stopper vi, samme linje som /api/codes/redeem: en DB-feil skal
+  // ikke være omveien rundt grensen.
+  if (sentCountError) {
+    console.error('[rivalries POST] kunne ikke telle sendte utfordringer:', sentCountError.message)
+    return NextResponse.json(
+      { error: 'Kunne ikke sende utfordringen akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+
+  const senderQuota = decideDuelSenderQuota({ sentLastDay: sentLastDay ?? 0 })
+  if (!senderQuota.allowed) {
+    return NextResponse.json({ error: senderQuota.message }, { status: 429 })
+  }
+
   // ── Spam-sperre mot ÉN mottaker (FUNN 3.3) ────────────────────────────────
   // Uavhengig av IP-rate-limiten over: teller faktiske utfordringer sendt til
   // denne mottakeren siste døgn, uansett status. En kansellert utfordring har
@@ -150,6 +187,25 @@ export async function POST(request: NextRequest) {
       { error: 'En av dere fikk akkurat en ny duell. Last siden på nytt og prøv igjen.' },
       { status: 409 }
     )
+  }
+
+  // Bokfør utfordringen mot avsenderens døgnkvote. Skrives FØRST etter at
+  // race-vakten over har sluppet raden gjennom — en utfordring som ble rullet
+  // tilbake skal ikke koste kvote — og UAVHENGIG av om e-posten under faktisk
+  // går ut. Ellers ville en mottaker med e-postvarsler avslått vært en gratis
+  // vei rundt taket.
+  //
+  // Feiler skrivingen, er kvoten for neste kall for lav, altså for slapp. Det
+  // er samme retning som lib/invite-quota-bokføringen feiler i, og den må
+  // logges så den ikke blir usynlig.
+  const { error: quotaLogError } = await supabaseAdmin.from('admin_actions').insert({
+    action_type: DUEL_SENT_ACTION,
+    scope_type: 'rivalry',
+    scope_id: rivalry.id,
+    user_id: user.id,
+  })
+  if (quotaLogError) {
+    console.error('[rivalries POST] kvote-logging feilet:', quotaLogError.message)
   }
 
   // Send e-post til motstanderen — non-blocking, feil stopper ikke responsen
