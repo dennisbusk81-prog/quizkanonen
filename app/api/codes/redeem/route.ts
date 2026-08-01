@@ -6,9 +6,21 @@ import { sendEmail } from '@/lib/email'
 import { codeActivatedEmail, codeActivatedPausedEmail } from '@/lib/email-templates'
 import { decideRedemption, type PremiumState } from '@/lib/premium-state'
 import { getPremiumState, syncPremiumCache } from '@/lib/premium-state-io'
+import {
+  REDEEM_MISS_ACTION,
+  REDEEM_WINDOW_MS,
+  decideRedeemThrottle,
+  ipScopeId,
+} from '@/lib/redeem-throttle'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+
+  // Førstelag: billig burst-brems i minnet, før vi bruker et eneste DB-kall på
+  // en forespørsel som kommer i rasende tempo. Denne ALENE er ikke grensen vi
+  // lener oss på — Map-en lever per serverless-instans — men den holder
+  // rå-flooding unna auth-oppslaget under. Den autoritative tellingen ligger i
+  // admin_actions lenger nede.
   const rl = rateLimit(`codes-redeem:${ip}`, 5, 60_000)
   if (!rl.success) {
     return NextResponse.json({ error: 'For mange forespørsler. Vent litt og prøv igjen.' }, { status: 429 })
@@ -24,6 +36,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
   }
 
+  // ── Andrelag: vedvarende bom-telling (lib/redeem-throttle.ts) ───────────────
+  // To uavhengige dimensjoner, begge lest fra admin_actions så de overlever
+  // kalde starter: per konto (IP-er roteres billig) og per IP-bøtte (fanger
+  // mange konti fra samme maskin). Kun forsøk mot koder som ikke finnes telles
+  // — se lib/redeem-throttle.ts for hvorfor det er nettopp bom som er signalet.
+  const ipScope = ipScopeId(ip)
+  const since = new Date(Date.now() - REDEEM_WINDOW_MS).toISOString()
+
+  const [userMissRes, ipMissRes] = await Promise.all([
+    supabaseAdmin
+      .from('admin_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('action_type', REDEEM_MISS_ACTION)
+      .eq('user_id', user.id)
+      .gte('created_at', since),
+    supabaseAdmin
+      .from('admin_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('action_type', REDEEM_MISS_ACTION)
+      .eq('scope_id', ipScope)
+      .gte('created_at', since),
+  ])
+
+  // Kan vi ikke lese forbruket, vet vi ikke om dette er forsøk nr. 2 eller
+  // nr. 200. Da stopper vi. Ruten feiler allerede lukket når Stripe ikke kan
+  // leses (se under) — en DB-feil skal ikke være omveien rundt grensen.
+  if (userMissRes.error || ipMissRes.error) {
+    console.error(
+      '[codes/redeem] kunne ikke telle tidligere kodeforsøk:',
+      userMissRes.error?.message ?? ipMissRes.error?.message,
+    )
+    return NextResponse.json(
+      { error: 'Kunne ikke behandle kodeforsøket akkurat nå. Prøv igjen om litt.' },
+      { status: 503 },
+    )
+  }
+
+  const throttle = decideRedeemThrottle({
+    userMisses: userMissRes.count ?? 0,
+    ipMisses: ipMissRes.count ?? 0,
+  })
+  if (!throttle.allowed) {
+    return NextResponse.json({ error: throttle.message }, { status: 429 })
+  }
+
   const body = await request.json()
   const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : ''
   if (!code) {
@@ -37,6 +94,18 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (!accessCode) {
+    // Bokfør bommet. Én rad dekker begge tellingene over: user_id gir
+    // konto-dimensjonen, scope_id gir IP-bøtta. Feiler skrivingen, er neste
+    // forsøk sluppet gjennom på en for lav teller — riktig vei å feile, men
+    // den må logges så den ikke blir usynlig.
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
+      action_type: REDEEM_MISS_ACTION,
+      scope_type: 'ip',
+      scope_id: ipScope,
+      user_id: user.id,
+    })
+    if (logErr) console.error('[codes/redeem] kunne ikke bokføre kodeforsøk:', logErr.message)
+
     return NextResponse.json({ error: 'Ugyldig kode' }, { status: 400 })
   }
 

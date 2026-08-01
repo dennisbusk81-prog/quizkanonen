@@ -19,6 +19,7 @@ import {
   type OrgCoverage,
   type StripeCoverage,
 } from './premium-state'
+import { REDEEM_MISS_LIMIT_IP, REDEEM_MISS_LIMIT_USER } from './redeem-throttle'
 
 type CodeRow = {
   id: string
@@ -30,6 +31,9 @@ type CodeRow = {
   used_count: number
 }
 
+/** Én bokført bom-rad i admin_actions. */
+type MissRow = { action_type: string; scope_type: string; scope_id: string; user_id: string }
+
 const state: {
   code: CodeRow | null
   redemptions: Set<string>
@@ -39,6 +43,10 @@ const state: {
   premiumSources: { code: CodeCoverage | null; stripe: StripeCoverage | null; org: OrgCoverage | null }
   /** Alle kall ruten gjør mot Stripe — brukes til å bekrefte pause. */
   stripeCalls: Array<{ id: string; params: unknown }>
+  /** Bom-radene ruten har bokført (speiler admin_actions). */
+  misses: MissRow[]
+  /** Settes for å simulere at admin_actions ikke kan leses. */
+  missCountFails: boolean
 } = {
   code: null,
   redemptions: new Set(),
@@ -46,12 +54,41 @@ const state: {
   currentUser: 'user-a',
   premiumSources: { code: null, stripe: null, org: null },
   stripeCalls: [],
+  misses: [],
+  missCountFails: false,
 }
 
 const IN_FUTURE = new Date(Date.now() + 86_400_000).toISOString()
 const IN_PAST = new Date(Date.now() - 86_400_000).toISOString()
 
+// admin_actions er både telleren og bokføringen for bom. Faken speiler
+// filtrene ruten bruker: action_type + (user_id | scope_id) + created_at.
+// created_at ignoreres — alle rader i faken er «nå», altså innenfor vinduet.
+function adminActionsBuilder() {
+  const filters: Record<string, string> = {}
+  const b = {
+    select() { return b },
+    eq(col: string, val: string) { filters[col] = val; return b },
+    gte() { return b },
+    insert(row: MissRow) {
+      state.misses.push(row)
+      return Promise.resolve({ error: null })
+    },
+    then(resolve: (r: { count: number | null; error: { message: string } | null }) => unknown) {
+      if (state.missCountFails) {
+        return Promise.resolve({ count: null, error: { message: 'db nede' } }).then(resolve)
+      }
+      const count = state.misses.filter(m =>
+        Object.entries(filters).every(([col, val]) => m[col as keyof MissRow] === val)
+      ).length
+      return Promise.resolve({ count, error: null }).then(resolve)
+    },
+  }
+  return b
+}
+
 function builder(table: string) {
+  if (table === 'admin_actions') return adminActionsBuilder() as never
   const b = {
     select() { return b },
     eq() { return b },
@@ -137,11 +174,15 @@ mock.module('stripe', {
 
 const { POST } = await import('@/app/api/codes/redeem/route')
 
-function redeem(code: string, userId: string) {
+function redeem(code: string, userId: string, ip = '203.0.113.10') {
   state.currentUser = userId
   const request = new Request('https://quizkanonen.no/api/codes/redeem', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer test-token' },
+    headers: {
+      'content-type': 'application/json',
+      authorization: 'Bearer test-token',
+      'x-forwarded-for': ip,
+    },
     body: JSON.stringify({ code }),
   })
   return POST(request as never)
@@ -173,6 +214,8 @@ beforeEach(() => {
   state.premiumByUser = new Map()
   state.premiumSources = { code: null, stripe: null, org: null }
   state.stripeCalls = []
+  state.misses = []
+  state.missCountFails = false
 })
 
 test('delt kode stopper når maks antall innløsninger er nådd', async () => {
@@ -345,4 +388,94 @@ test('uten abonnement gjøres ingen Stripe-kall i det hele tatt', async () => {
   assert.equal(res.status, 200)
   assert.equal((await res.json()).pausedSubscription, false)
   assert.equal(state.stripeCalls.length, 0)
+})
+
+// ── Bremsing av gjetting ────────────────────────────────────────────────────
+// Reglene testes rent i lib/redeem-throttle.test.ts. Her bekreftes at RUTEN
+// bokfører riktig og faktisk stopper — og like viktig: at den ikke stopper
+// noen som ikke gjetter.
+//
+// MUTASJONSBEVIS: fjernes throttle-sjekken i ruten, svarer forsøk nr. 11 med
+// 400 «Ugyldig kode» i stedet for 429 og begge grense-testene ryker. Fjernes
+// insert-en av bom-raden, blir state.misses tom og de ryker på samme sted.
+
+test('grense per konto — 10 bom på en time, så stopper det', async () => {
+  state.code = null // ingen kode med dette navnet finnes
+
+  for (let i = 0; i < REDEEM_MISS_LIMIT_USER; i++) {
+    assert.equal((await redeem('GJETT' + i, 'user-a')).status, 400, `forsøk ${i + 1} skal slippe gjennom`)
+  }
+  assert.equal(state.misses.length, REDEEM_MISS_LIMIT_USER)
+
+  const blocked = await redeem('GJETTMER', 'user-a')
+  assert.equal(blocked.status, 429)
+  assert.match((await blocked.json()).error, /mislykkede kodeforsøk/i)
+
+  // Et avvist forsøk skal ikke også bokføres — da ville utestengelsen forlenget
+  // seg selv for hver gang brukeren prøver.
+  assert.equal(state.misses.length, REDEEM_MISS_LIMIT_USER)
+})
+
+test('grense per IP — mange konti fra samme maskin fanges selv om ingen av dem bommer mye', async () => {
+  state.code = null
+
+  // Ulike konti hver gang, så konto-grensen aldri slår inn: det er IP-bøtta
+  // som må fange dette.
+  for (let i = 0; i < REDEEM_MISS_LIMIT_IP; i++) {
+    assert.equal((await redeem('GJETT', `user-${i}`, '198.51.100.7')).status, 400)
+  }
+
+  const blocked = await redeem('GJETT', 'helt-ny-bruker', '198.51.100.7')
+  assert.equal(blocked.status, 429)
+  assert.match((await blocked.json()).error, /nettverket/i)
+})
+
+test('en annen IP har sin egen bøtte — naboen straffes ikke', async () => {
+  state.code = null
+  for (let i = 0; i < REDEEM_MISS_LIMIT_IP; i++) {
+    await redeem('GJETT', `user-${i}`, '198.51.100.7')
+  }
+
+  const other = await redeem('GJETT', 'uskyldig', '198.51.100.99')
+  assert.equal(other.status, 400, 'skal avvises som ugyldig kode, ikke som utestengt')
+})
+
+test('proxy-kjede endrer ikke bøtta — kun første hopp teller', async () => {
+  state.code = null
+  for (let i = 0; i < REDEEM_MISS_LIMIT_IP; i++) {
+    await redeem('GJETT', `user-${i}`, '198.51.100.7, 10.0.0.1')
+  }
+
+  // Samme klient, ny proxy bakenfor. Uten normaliseringen ville dette vært en
+  // fersk bøtte og grensen kunne omgås ved å variere kjeden.
+  const blocked = await redeem('GJETT', 'helt-ny-bruker', '198.51.100.7, 10.0.0.2')
+  assert.equal(blocked.status, 429)
+})
+
+test('en gyldig innløsning bokføres ikke som bom', async () => {
+  assert.equal((await redeem('FREDAGSQUIZ', 'user-a')).status, 200)
+  assert.equal(state.misses.length, 0)
+})
+
+test('ekte feil som ikke er gjetting bokføres ikke — brukeren låses aldri ute av sin egen kode', async () => {
+  // Utløpt kode, prøvd langt flere ganger enn grensen. Koden FINNES, så dette
+  // er ikke gjetting: brukeren skal se feilmeldingen sin hver gang.
+  state.code = sharedCode({ valid_until: IN_PAST })
+
+  for (let i = 0; i < REDEEM_MISS_LIMIT_USER + 5; i++) {
+    const res = await redeem('FREDAGSQUIZ', 'user-a')
+    assert.equal(res.status, 400)
+    assert.match((await res.json()).error, /utløpt/i)
+  }
+  assert.equal(state.misses.length, 0)
+})
+
+test('kan ikke telle tidligere forsøk → 503, og koden røres ikke', async () => {
+  // Fail closed: en DB-feil skal ikke være omveien rundt grensen.
+  state.missCountFails = true
+
+  const res = await redeem('FREDAGSQUIZ', 'user-a')
+  assert.equal(res.status, 503)
+  assert.equal(state.code?.used_count, 0)
+  assert.equal(state.redemptions.size, 0)
 })
