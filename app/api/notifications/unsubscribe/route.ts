@@ -24,9 +24,12 @@ import { verifyUnsubscribeToken, type UnsubscribeType } from '@/lib/unsubscribe'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap');`
 
-const VALID_TYPES: UnsubscribeType[] = ['reminders', 'reengagement', 'duel']
+const VALID_TYPES: UnsubscribeType[] = ['reminders', 'reengagement', 'duel', 'quiznotify']
 
-const COLUMN_MAP: Record<UnsubscribeType, string> = {
+// De tre profilbaserte typene slår av en kolonne på `profiles`. `quiznotify`
+// står bevisst utenfor kartet: den listen tilhører uinnloggede besøkende og
+// ligger i `quiz_notifications` — se `unsubscribeQuizNotify()` under.
+const COLUMN_MAP: Record<Exclude<UnsubscribeType, 'quiznotify'>, string> = {
   reminders:    'email_reminders',
   reengagement: 'email_reengagement',
   duel:         'email_duel_notifications',
@@ -36,6 +39,7 @@ const TYPE_LABEL: Record<UnsubscribeType, string> = {
   reminders:    'fredagspåminnelser',
   reengagement: 'aktivitetspåminnelser',
   duel:         'duell-utfordringer',
+  quiznotify:   'varsler om ny quiz',
 }
 
 const PROFILE_URL = 'https://www.quizkanonen.no/profil'
@@ -128,6 +132,19 @@ async function postParams(request: Request): Promise<URLSearchParams> {
   return merged
 }
 
+/**
+ * Avmelding fra «ny quiz er klar»-listen for uinnloggede (`quiz_notifications`).
+ *
+ * Raden slettes i stedet for å flagges: tabellen er en ren e-postliste (PII,
+ * ingen historikk å ta vare på), og en avmelding er nettopp «fjern adressen
+ * min». Melder samme person seg på igjen senere, oppretter upserten i
+ * /api/notifications/subscribe raden på nytt. En id som ikke finnes gir ingen
+ * feil — siden er dermed idempotent hvis lenken åpnes to ganger.
+ */
+async function unsubscribeQuizNotify(rowId: string): Promise<{ error: { message: string } | null }> {
+  return supabaseAdmin.from('quiz_notifications').delete().eq('id', rowId)
+}
+
 // GET — viser bekreftelsen. Rører ALDRI databasen.
 export async function GET(request: Request) {
   const verified = verify(new URL(request.url).searchParams)
@@ -161,12 +178,13 @@ export async function POST(request: Request) {
   }
 
   const { uid, unsubType } = verified
-  const column = COLUMN_MAP[unsubType]
 
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update({ [column]: false })
-    .eq('id', uid)
+  const { error } = unsubType === 'quiznotify'
+    ? await unsubscribeQuizNotify(uid)
+    : await supabaseAdmin
+        .from('profiles')
+        .update({ [COLUMN_MAP[unsubType]]: false })
+        .eq('id', uid)
 
   if (error) {
     console.error('[unsubscribe] update failed:', error.message)

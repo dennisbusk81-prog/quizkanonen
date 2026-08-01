@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 
-export type UnsubscribeType = 'reminders' | 'reengagement' | 'duel'
+// `quiznotify` skiller seg fra de tre andre: den gjelder e-postlisten for
+// UINNLOGGEDE (tabellen `quiz_notifications`), ikke en kolonne på `profiles`.
+// Id-en i tokenet er derfor rad-id-en i den tabellen, ikke en bruker-id — se
+// COLUMN_MAP/POST i app/api/notifications/unsubscribe/route.ts. Rad-id brukes
+// bevisst framfor e-postadressen: adressen er PII og skal ikke ligge i en URL.
+export type UnsubscribeType = 'reminders' | 'reengagement' | 'duel' | 'quiznotify'
 
 function secret(): string {
   return process.env.CRON_SECRET ?? ''

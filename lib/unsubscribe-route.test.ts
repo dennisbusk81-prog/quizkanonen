@@ -25,23 +25,33 @@ const USER_ID = '5c312683-2010-46d5-8a9d-a3529ee2e285'
 const OTHER_ID = '26e5126f-4c40-4588-9646-aa81d0c6a082'
 
 type Update = { column: string; value: unknown; uid: string }
+/** Sletting fra quiz_notifications — avmeldingen for uinnloggede abonnenter. */
+type Delete = { table: string; id: string }
 
 const state: {
   updates: Update[]
+  deletes: Delete[]
   updateError: { message: string } | null
-} = { updates: [], updateError: null }
+} = { updates: [], deletes: [], updateError: null }
 
 function builder(table: string) {
   let pending: Record<string, unknown> | null = null
+  let deleting = false
 
   const b = {
     update(patch: Record<string, unknown>) {
       pending = patch
       return b
     },
+    delete() {
+      deleting = true
+      return b
+    },
     eq(col: string, val: unknown) {
-      if (table === 'profiles' && pending && col === 'id') {
-        if (!state.updateError) {
+      if (!state.updateError && col === 'id') {
+        if (deleting) {
+          state.deletes.push({ table, id: String(val) })
+        } else if (table === 'profiles' && pending) {
           for (const [column, value] of Object.entries(pending)) {
             state.updates.push({ column, value, uid: String(val) })
           }
@@ -80,7 +90,9 @@ function postForm(params: Record<string, string>) {
   return POST(new Request(ENDPOINT, { method: 'POST', body: form }))
 }
 
-const validParams = (uid = USER_ID, type: 'reminders' | 'reengagement' | 'duel' = 'reminders') => ({
+type Type = 'reminders' | 'reengagement' | 'duel' | 'quiznotify'
+
+const validParams = (uid = USER_ID, type: Type = 'reminders') => ({
   token: generateUnsubscribeToken(uid, type),
   type,
   uid,
@@ -88,6 +100,7 @@ const validParams = (uid = USER_ID, type: 'reminders' | 'reengagement' | 'duel' 
 
 beforeEach(() => {
   state.updates = []
+  state.deletes = []
   state.updateError = null
 })
 
@@ -102,11 +115,12 @@ test('GET med gyldig lenke skriver INGENTING i databasen', async () => {
   assert.deepEqual(state.updates, [])
 })
 
-test('GET skriver ingenting for NOEN av de tre varseltypene', async () => {
-  for (const type of ['reminders', 'reengagement', 'duel'] as const) {
+test('GET skriver ingenting for NOEN av varseltypene', async () => {
+  for (const type of ['reminders', 'reengagement', 'duel', 'quiznotify'] as const) {
     await get(validParams(USER_ID, type))
   }
   assert.deepEqual(state.updates, [])
+  assert.deepEqual(state.deletes, [])
 })
 
 test('GET viser en bekreftelse med et POST-skjema, ikke en fullført avmelding', async () => {
@@ -227,6 +241,63 @@ test('POST rett mot lenke-URL-en, uten skjema-body, virker også', async () => {
     { column: 'email_reminders', value: false, uid: USER_ID },
   ])
   assert.match(await res.text(), /Du er avmeldt/)
+})
+
+// ── quiznotify: listen for uinnloggede (quiz_notifications) ─────────────────
+//
+// Denne typen har en HELT ANNEN sink enn de tre andre: en rad som slettes fra
+// `quiz_notifications`, ikke en kolonne som settes til false på `profiles`.
+// Abonnenten har ingen konto, så det finnes ingen profilside å skru varselet
+// av fra — lenken i e-posten er hele veien ut.
+//
+// MUTASJONSBEVIS: la POST falle tilbake på profiles-grenen for 'quiznotify'
+//   → «POST melder av …»-testen under feiler (deletes blir tom)
+//   → og «rører ikke profiles»-asserten fanger skrivingen som kom i stedet.
+
+test('POST med quiznotify sletter abonnentens rad — og rører ikke profiles', async () => {
+  const rowId = '9b2f1a7c-1f3d-4a11-9d0e-77c1b2d3e4f5'
+  const res = await postForm(validParams(rowId, 'quiznotify'))
+
+  assert.deepEqual(state.deletes, [{ table: 'quiz_notifications', id: rowId }])
+  assert.deepEqual(state.updates, [])
+  assert.match(await res.text(), /Du er avmeldt/)
+})
+
+test('GET med quiznotify viser bekreftelse uten å slette noe', async () => {
+  const res = await get(validParams(USER_ID, 'quiznotify'))
+  const html = await res.text()
+
+  assert.deepEqual(state.deletes, [])
+  assert.match(html, /<form[^>]*method="post"/i)
+  assert.match(html, /name="type" value="quiznotify"/)
+})
+
+test('et quiznotify-token kan ikke gjenbrukes mot de profilbaserte typene', async () => {
+  // Rad-id-en i quiz_notifications og bruker-id-en i profiles er begge uuid-er.
+  // Uten typen i signaturen kunne en avmeldingslenke fra quiz-varselet truffet
+  // en helt annen konto sine innstillinger, hvis id-ene tilfeldigvis kolliderte.
+  for (const type of ['reminders', 'reengagement', 'duel'] as const) {
+    await postForm({ token: generateUnsubscribeToken(USER_ID, 'quiznotify'), type, uid: USER_ID })
+  }
+  assert.deepEqual(state.updates, [])
+  assert.deepEqual(state.deletes, [])
+})
+
+test('et profil-token kan ikke slette en rad i quiz_notifications', async () => {
+  await postForm({
+    token: generateUnsubscribeToken(USER_ID, 'reminders'),
+    type: 'quiznotify',
+    uid: USER_ID,
+  })
+  assert.deepEqual(state.deletes, [])
+})
+
+test('en databasefeil under quiznotify gir feilside, ikke falsk «du er avmeldt»', async () => {
+  state.updateError = { message: 'kaboom' }
+  const html = await (await postForm(validParams(USER_ID, 'quiznotify'))).text()
+
+  assert.match(html, /Noe gikk galt/)
+  assert.doesNotMatch(html, /Du er avmeldt/)
 })
 
 test('en databasefeil gir feilside, ikke en falsk «du er avmeldt»', async () => {
