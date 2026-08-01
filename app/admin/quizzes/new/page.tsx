@@ -1031,7 +1031,11 @@ function QuizEditorInner() {
           })),
         }),
       })
-      if (!res.ok) { setSaveStatus('error'); return null }
+      if (!res.ok) {
+        quizIdRef.current = null // reset sentinel — ellers blir 'creating' stående og alle senere lagringer returnerer stille
+        setSaveStatus('error')
+        return null
+      }
       const data = await res.json()
       setQuizId(data.quizId)
       quizIdRef.current = data.quizId
