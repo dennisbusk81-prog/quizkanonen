@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { calculateStreak } from '@/lib/ranking'
 import { rateLimit } from '@/lib/rate-limit'
 import { verifyAttemptToken } from '@/lib/attempt-token'
+import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 
 // ── Service-role scoring for ukens quiz ──────────────────────────────────────
 // Klienten sender KUN rå svar (selectedAnswer + timeMs per spørsmål). Serveren
@@ -138,9 +139,10 @@ export async function POST(
     ((questionRows ?? []) as QuestionRow[]).map(q => [q.id, q]),
   )
 
-  // ── 3+4. Beregn is_correct, score, streak og clampet tid — server-side ──────
+  // ── 3+4. Beregn is_correct, score, streak og korrigert tid — server-side ────
   type Scored = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
   const scored: Scored[] = []
+  const reported: { timeMs: number; limitMs: number }[] = []
   for (const a of answers) {
     const q = qMap.get(a.questionId)
     if (!q) continue // ukjent spørsmål — telles ikke
@@ -155,17 +157,35 @@ export async function POST(
         ? q.correct_answers.includes(a.selectedAnswer)
         : a.selectedAnswer === q.correct_answer
 
-    // Clamp tid til [0, time_limit*1000] — hindrer urealistisk lave/negative tider
-    const limitMs = (q.time_limit_seconds ?? quizTimeLimit) * 1000
-    const safeTime = Number.isFinite(a.timeMs) ? a.timeMs : limitMs
-    const clampedMs = Math.min(Math.max(safeTime, 0), limitMs)
+    reported.push({ timeMs: a.timeMs, limitMs: (q.time_limit_seconds ?? quizTimeLimit) * 1000 })
+    scored.push({ questionId: a.questionId, selectedAnswer: a.selectedAnswer, isCorrect, timeMs: 0 })
+  }
 
-    scored.push({ questionId: a.questionId, selectedAnswer: a.selectedAnswer, isCorrect, timeMs: clampedMs })
+  // Tak (tidsgrensen) OG gulv på hver enkelt tid. Tidligere ble tiden kun
+  // clampet oppad; 0 ms per spørsmål var lovlig og ga garantert 1. plass, siden
+  // rangeringen sorterer stigende på total_time_ms. Se lib/answer-time-integrity.ts
+  // for hvorfor forløpt veggklokketid ikke kan brukes som gulv på summen.
+  const timeCheck = applyAnswerTimeIntegrity(reported, elapsedMs)
+  for (let i = 0; i < scored.length; i++) scored[i].timeMs = timeCheck.times[i]
+
+  if (timeCheck.suspicious) {
+    console.warn('[submit] MISTENKELIG svartid:', {
+      attemptId, quizId, elapsedMs,
+      questions: scored.length,
+      rapportertSumMs: timeCheck.rawTotalMs,
+      korrigertSumMs: timeCheck.totalMs,
+      korrigerteSvar: timeCheck.clampedCount,
+      grunner: timeCheck.reasons,
+      avvist: timeCheck.reject,
+    })
+  }
+  if (timeCheck.reject) {
+    return NextResponse.json({ error: 'Innsendingen kom for raskt' }, { status: 403 })
   }
 
   const correctAnswers = scored.filter(s => s.isCorrect).length
   const correctStreak = calculateStreak(scored.map(s => ({ is_correct: s.isCorrect })))
-  const totalTimeMs = scored.reduce((sum, s) => sum + s.timeMs, 0)
+  const totalTimeMs = timeCheck.totalMs
 
   // ── 5. Skriv: attempts-UPDATE, attempt_answers-INSERT, played_log ───────────
   // .select() gjør at PostgREST returnerer de faktisk oppdaterte radene, slik at
