@@ -158,6 +158,119 @@ export function buildAccessCode(input: AccessCodeInput): AccessCodeResult {
   }
 }
 
+// ── Endring av en eksisterende kode ─────────────────────────────────────────
+//
+// PATCH-ruten gjorde tidligere `update(body)` rått, akkurat som POST gjorde
+// `insert(body)` før 26. juli. Det betød at et PATCH-kall kunne sette
+// code_type, code eller used_count til hva som helst — altså gå utenom hele
+// modellen over: gjøre en privat kode «shared» med 5000 plasser, nullstille
+// forbruket på en oppbrukt kode, eller bytte selve kodeordet.
+//
+// Her er hvilke felt som faktisk KAN endres etter opprettelse. Alt annet er
+// avvist eksplisitt, ikke stille ignorert — en admin som tror hun endret
+// kodeordet skal få vite at hun ikke gjorde det.
+export const PATCHABLE_ACCESS_CODE_FIELDS = [
+  'is_active',
+  'description',
+  'max_uses',
+  'valid_until',
+] as const
+
+// LÅST etter opprettelse, og hvorfor:
+//   code, code_type — kodens identitet. En kode som er delt ut kan ikke bytte
+//     sikkerhetsmodell i ettertid uten at forsvaret den ble laget med faller.
+//   used_count      — forbrukstelleren. Skrives av redeem_access_code() i
+//     samme transaksjon som innløsningen; håndredigering ville løsnet den fra
+//     radene i access_code_redemptions.
+//   duration_days   — hvor lang Premium-periode koden gir. Innløsninger som
+//     alt har skjedd har regnet ut sin egen expires_at fra den verdien, så en
+//     endring i ettertid ville gitt to grupper med ulik dekning fra samme
+//     kode. Lag heller en ny kode.
+export type AccessCodePatch = Partial<
+  Pick<AccessCodeRow, 'is_active' | 'description' | 'max_uses' | 'valid_until'>
+>
+
+export type AccessCodePatchResult =
+  | { ok: true; patch: AccessCodePatch }
+  | { ok: false; error: string }
+
+/**
+ * Validerer en endring av en eksisterende verdikode.
+ *
+ * Ren funksjon, som `buildAccessCode`. `codeType` leses fra raden som skal
+ * endres — reglene er ulike for de to modellene, og typen kan ikke utledes av
+ * bodyen (den er nettopp ikke lov å sende).
+ */
+export function buildAccessCodePatch(input: unknown, codeType: AccessCodeType): AccessCodePatchResult {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return { ok: false, error: 'Ugyldig body.' }
+  }
+
+  const body = input as Record<string, unknown>
+  const keys = Object.keys(body)
+  if (keys.length === 0) {
+    return { ok: false, error: 'Ingen felter å oppdatere.' }
+  }
+
+  const allowed = PATCHABLE_ACCESS_CODE_FIELDS as readonly string[]
+  const forbidden = keys.find(k => !allowed.includes(k))
+  if (forbidden) {
+    return { ok: false, error: `Feltet «${forbidden}» kan ikke endres etter at koden er opprettet.` }
+  }
+
+  const patch: AccessCodePatch = {}
+
+  if ('is_active' in body) {
+    if (typeof body.is_active !== 'boolean') {
+      return { ok: false, error: 'is_active må være true eller false.' }
+    }
+    patch.is_active = body.is_active
+  }
+
+  if ('description' in body) {
+    const description = typeof body.description === 'string' ? body.description.trim() : ''
+    if (description.length < 2) {
+      return { ok: false, error: 'Beskrivelse må fylles ut (minst 2 tegn).' }
+    }
+    if (description.length > 200) {
+      return { ok: false, error: 'Beskrivelsen kan maks være 200 tegn.' }
+    }
+    patch.description = description
+  }
+
+  if ('max_uses' in body) {
+    // Private koder er private nettopp fordi de bare kan brukes én gang. Å
+    // heve taket i ettertid ville gjort premien til én vinner til en kode
+    // flere kunne løse inn.
+    if (codeType === 'personal') {
+      return { ok: false, error: 'Private koder er låst til én innløsning og kan ikke endres.' }
+    }
+    const maxUses = parseOptionalInt(body.max_uses)
+    if (maxUses === 'invalid' || maxUses === null) {
+      return { ok: false, error: 'Delte koder må ha et maks antall innløsninger.' }
+    }
+    if (maxUses < 1 || maxUses > MAX_USES_CEILING) {
+      return { ok: false, error: `Maks antall innløsninger må være mellom 1 og ${MAX_USES_CEILING}.` }
+    }
+    patch.max_uses = maxUses
+  }
+
+  if ('valid_until' in body) {
+    const validUntil = parseValidUntil(body.valid_until)
+    if (validUntil === 'invalid') {
+      return { ok: false, error: 'Ugyldig utløpsdato.' }
+    }
+    // Samme regel som ved opprettelse: en delt kode uten frist er en kode som
+    // aldri slutter å virke. Fristen kan flyttes, men ikke fjernes.
+    if (validUntil === null && codeType === 'shared') {
+      return { ok: false, error: 'Delte koder må ha en utløpsdato.' }
+    }
+    patch.valid_until = validUntil
+  }
+
+  return { ok: true, patch }
+}
+
 function parseOptionalInt(value: unknown): number | null | 'invalid' {
   if (value === null || value === undefined || value === '') return null
   const n = typeof value === 'number' ? value : Number(String(value).trim())

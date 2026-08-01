@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   generateAccessCode,
   buildAccessCode,
+  buildAccessCodePatch,
   PERSONAL_CODE_LENGTH,
   MAX_USES_CEILING,
 } from './access-code'
@@ -179,4 +180,80 @@ test('ekstra felt i bodyen kan ikke smugles inn i raden', () => {
   assert.equal(res.row.used_count, 0)
   assert.equal(res.row.is_active, true)
   assert.ok(!('id' in res.row))
+})
+
+// ── Endring av eksisterende kode (PATCH) ────────────────────────────────────
+// Samme feilklasse som over, på den andre siden av kodens levetid: PATCH-ruten
+// gjorde `update(body)` rått fram til 1. august.
+
+test('feltene admin faktisk endrer går gjennom', () => {
+  const res = buildAccessCodePatch(
+    { is_active: false, description: '  Utvidet frist  ', max_uses: 500, valid_until: IN_90_DAYS },
+    'shared',
+  )
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.patch.is_active, false)
+  assert.equal(res.patch.description, 'Utvidet frist', 'beskrivelse trimmes')
+  assert.equal(res.patch.max_uses, 500)
+  assert.equal(res.patch.valid_until, IN_90_DAYS)
+})
+
+test('av/på-bryteren alene er en gyldig patch — det er den admin-UI-et sender', () => {
+  const res = buildAccessCodePatch({ is_active: true }, 'shared')
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.deepEqual(res.patch, { is_active: true }, 'kun feltet som ble sendt skrives')
+})
+
+test('identitets- og integritetsfelt kan ikke endres etter opprettelse', () => {
+  for (const field of ['code', 'code_type', 'used_count', 'duration_days', 'id', 'created_at']) {
+    const res = buildAccessCodePatch({ [field]: 'hva som helst' }, 'shared')
+    assert.equal(res.ok, false, `${field} skulle vært avvist`)
+    if (res.ok) return
+    assert.match(res.error, new RegExp(field), 'feilmeldingen navngir feltet')
+  }
+})
+
+test('et lovlig felt redder ikke et ulovlig felt i samme kall', () => {
+  // Uten en eksplisitt sperre ville hele bodyen gått rett i update() —
+  // is_active er avledningen, used_count er det som faktisk skulle skrives.
+  const res = buildAccessCodePatch({ is_active: false, used_count: 0 }, 'shared')
+  assert.equal(res.ok, false)
+})
+
+test('privat kode kan ikke få hevet taket i ettertid', () => {
+  const res = buildAccessCodePatch({ max_uses: 5000 }, 'personal')
+  assert.equal(res.ok, false)
+  if (res.ok) return
+  assert.match(res.error, /én innløsning/i)
+})
+
+test('delt kode kan ikke miste taket eller fristen via PATCH', () => {
+  assert.equal(buildAccessCodePatch({ max_uses: null }, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch({ max_uses: 0 }, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch({ max_uses: MAX_USES_CEILING + 1 }, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch({ valid_until: null }, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch({ valid_until: '' }, 'shared').ok, false)
+})
+
+test('privat kode kan gjøres permanent — der er frist valgfri', () => {
+  const res = buildAccessCodePatch({ valid_until: null }, 'personal')
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.patch.valid_until, null)
+})
+
+test('ugyldige verdier på lovlige felt avvises', () => {
+  assert.equal(buildAccessCodePatch({ is_active: 'ja' }, 'shared').ok, false, 'is_active må være boolean')
+  assert.equal(buildAccessCodePatch({ description: 'A' }, 'shared').ok, false, 'for kort beskrivelse')
+  assert.equal(buildAccessCodePatch({ description: 'A'.repeat(201) }, 'shared').ok, false, 'for lang beskrivelse')
+  assert.equal(buildAccessCodePatch({ valid_until: 'i morgen' }, 'shared').ok, false, 'ugyldig dato')
+})
+
+test('tom eller ikke-objekt body avvises i stedet for å skrive ingenting stille', () => {
+  assert.equal(buildAccessCodePatch({}, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch(null, 'shared').ok, false)
+  assert.equal(buildAccessCodePatch([{ is_active: false }], 'shared').ok, false)
+  assert.equal(buildAccessCodePatch('is_active=false', 'shared').ok, false)
 })
