@@ -2553,22 +2553,26 @@ export default function QuizPage() {
         {rivalData && (
           <div className="qk-side-card">
             <p className="qk-side-label">Din rival</p>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 14 }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: rivalData.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
                 {getAvatarInitial(rivalData.name)}
               </div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', lineHeight: 1.3 }}>{rivalData.name}</span>
+              {/* maxWidth + break-word: display_name kan være 40 tegn uten
+                  mellomrom — kortet er bare 180px bredt. */}
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', lineHeight: 1.3, maxWidth: '100%', overflowWrap: 'break-word' }}>{rivalData.name}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
-                <span style={{ color: '#918f8a' }}>Rival</span>
-                <span style={{ color: '#e8e4dd', fontWeight: 600 }}>{rivalData.score} riktige</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
-                <span style={{ color: '#918f8a' }}>Du</span>
-                <span style={{ color: correctSoFar > rivalData.score ? '#c9a84c' : '#e8e4dd', fontWeight: 600 }}>{correctSoFar} riktige</span>
-              </div>
-            </div>
+            {/* Rivalens tall er en SLUTTSUM (findRival teller kun leverte
+                forsøk) — vises som et mål å slå, aldri side om side med
+                spillerens delsum. «Du: X riktige»-raden ble fjernet 2. aug
+                2026: delsum-mot-sluttsum er ikke en reell kappestrid, og
+                spillerens løpende score står allerede i poeng-pillen i
+                headeren på samme skjerm. */}
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: 0 }}>
+              Ferdig med {rivalData.score} riktige
+            </p>
+            <p style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: '4px 0 0' }}>
+              Kan du slå det?
+            </p>
           </div>
         )}
       </div>

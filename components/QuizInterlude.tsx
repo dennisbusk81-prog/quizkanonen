@@ -88,10 +88,15 @@ function RivalAvatar({ rival }: { rival: RivalData }) {
       }}>
         {initial}
       </div>
-      <div style={{ textAlign: 'left' }}>
-        <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600, margin: 0 }}>{rival.name}</p>
+      {/* minWidth 0 + break-word: display_name kan være 40 tegn uten mellomrom
+          — uten dette sprenger et langt navn flex-raden horisontalt. */}
+      <div style={{ textAlign: 'left', minWidth: 0 }}>
+        <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600, margin: 0, overflowWrap: 'break-word' }}>{rival.name}</p>
+        {/* Rivalens tall er en SLUTTSUM (findRival teller kun leverte forsøk).
+            «Ferdig» skal stå i selve tallinja: tallet er et mål å slå, ikke en
+            pågående kappestrid mot spillerens delsum. */}
         <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>
-          {rival.score} riktige denne quizen
+          Ferdig med {rival.score} riktige — kan du slå det?
         </p>
       </div>
     </div>
@@ -282,26 +287,27 @@ export default function QuizInterlude({
             </p>
 
             {/* Mini-leaderboard — naboer rundt deg. "Du"-raden er hvit (ikke gull)
-                så plasseringstallet over forblir det eneste gule elementet. */}
+                så plasseringstallet over forblir det eneste gule elementet.
+
+                Naboene viser IKKE poengtall: poolen består av FERDIGE forsøk
+                (sluttsummer), mens din egen sum er en delsum — rå tall side om
+                side ser ut som en regnefeil (naboen UNDER kan ha flere riktige
+                enn deg, fordi rangeringen bruker den tempo-projiserte summen
+                din). Rangeringen og navnene er riktige; kun tallene lyver.
+                En dempet forbeholdslinje under (Del 4, 25. juli) ble beviselig
+                ikke lest — merkingen må stå i selve tallinja. */}
             <div style={{ marginTop: 14, lineHeight: 1.8 }}>
               {liveRanking.above && (
                 <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
-                  #{liveRanking.userRank - 1} {liveRanking.above.name} · {liveRanking.above.correct} riktige
+                  #{liveRanking.userRank - 1} {liveRanking.above.name}
                 </p>
               )}
               <p style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, margin: 0 }}>
-                #{liveRanking.userRank} Du · {score} riktige
-              </p>
-              {/* Del 4 — nabo-radene viser SLUTTsummer, din egen viser en delsum.
-                  Uten denne linja ser tallet ditt ut som en regnefeil når det står
-                  mellom to høyere tall. Mindre og dempet, så det ikke leses som
-                  enda en spillerrad. */}
-              <p style={{ fontSize: 11, color: '#918f8a', margin: 0, lineHeight: 1.4 }}>
-                {answeredSoFar} av {totalQuestions} spørsmål så langt
+                #{liveRanking.userRank} Du · {score} riktige etter {answeredSoFar} spørsmål
               </p>
               {liveRanking.below && (
                 <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
-                  #{liveRanking.userRank + 1} {liveRanking.below.name} · {liveRanking.below.correct} riktige
+                  #{liveRanking.userRank + 1} {liveRanking.below.name}
                 </p>
               )}
             </div>
@@ -332,13 +338,10 @@ export default function QuizInterlude({
               </p>
             )
           }
-          if (rival && rival.score === score + 1) {
-            return (
-              <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 16 }}>
-                {rival.name} ligger ett hakk foran deg
-              </p>
-            )
-          }
+          // «{rival} ligger ett hakk foran deg» ble slettet 2. aug 2026: den
+          // testet rivalens SLUTTSUM mot spillerens DELSUM (score + 1), så
+          // påstanden var som regel usann og kan ikke reddes med merking.
+          // Ikke gjeninnfør en rival-gren her uten delsum-mot-delsum-data.
           return null
         })()}
 
