@@ -862,7 +862,6 @@ export default function QuizPage() {
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
   const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
-  const [percentileData, setPercentileData] = useState<Array<{ score: number; percentile: number }>>([])
   const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number; nickname?: string | null }>>([])
   const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
@@ -1396,7 +1395,7 @@ export default function QuizPage() {
         setPhase('playing')
       }
 
-      // Parallel: fetch rival and percentile data (non-blocking)
+      // Parallel: fetch rival data (non-blocking)
       const accessToken = session?.access_token
       if (accessToken) {
         fetch(`/api/quiz/rival?quizId=${quizId}`, {
@@ -1416,10 +1415,10 @@ export default function QuizPage() {
         // blokkerer ikke quiz-starten.
         refreshProfile()
       }
-      fetch(`/api/quiz/percentile?quizId=${quizId}`)
-        .then(r => r.ok ? r.json() : [])
-        .then(j => { if (Array.isArray(j)) setPercentileData(j) })
-        .catch(() => {})
+      // /api/quiz/percentile ble hentet her fram til 2. august 2026, kun for
+      // persentil-hintet på mellomskjermen. Hintet er fjernet (delsum slått opp
+      // i en fordeling av sluttsummer — se QuizInterlude.tsx), så hentingen er
+      // borte med det. Ett kall mindre per quiz-start.
     } catch {
       setPlayerInfo({ name: '', ageConfirmed: false })
       setStartError('Noe gikk galt. Prøv å laste siden på nytt.')
@@ -2537,7 +2536,6 @@ export default function QuizPage() {
             low={interLow}
             high={interHigh}
             rival={rivalData}
-            percentileData={percentileData}
             rankingSnapshot={rankingSnapshot ?? undefined}
             isPremium={isPremium}
             isLoggedIn={isLoggedIn}

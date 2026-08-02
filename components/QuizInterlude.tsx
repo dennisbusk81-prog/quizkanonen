@@ -18,11 +18,6 @@ interface RivalData {
   score: number
 }
 
-interface PercentileEntry {
-  score: number
-  percentile: number
-}
-
 interface RankingSnapshot {
   top10MinCorrect: number
   leaderName: string
@@ -57,7 +52,6 @@ interface QuizInterludeProps {
   low: number | null          // estimated rank range
   high: number | null
   rival: RivalData | null
-  percentileData: PercentileEntry[]
   rankingSnapshot?: RankingSnapshot
   isPremium?: boolean
   // Kun innloggede får plassering i det hele tatt. Gjester skal derfor heller
@@ -118,19 +112,30 @@ export default function QuizInterlude({
   low,
   high,
   rival,
-  percentileData,
   rankingSnapshot,
   isPremium,
   isLoggedIn,
   liveRanking,
   onNext,
 }: QuizInterludeProps) {
-  // Percentile: kun til persentil-HINTET nederst — siden 30. juli 2026 er den
-  // koblet HELT ut av meldingsvalget (delsummen halvveis og andre spilleres
-  // sluttsummer er ikke samme skala, og en tom liste gjorde at alle fikk
-  // «dårlig»-varianten av halvtidsmeldingen).
-  const percentileEntry = percentileData.find(p => p.score === score)
-  const scoreIsAboveMedian = percentileEntry ? percentileEntry.percentile >= 50 : false
+  // PERSENTIL FJERNET 2. august 2026 (siste flate i samme opprydding som
+  // 5c983dc). Hintet «Du er bedre enn X% av deltakerne» slo opp spillerens
+  // DELSUM i en fordeling av ferdige spilleres SLUTTSUMMER, uten
+  // tempo-projeksjonen som rettet rangeringen 25. juli — samme feilklasse som
+  // funn 5 og 6. Det lot seg ikke redde:
+  //   • Projisert oppslag i /api/quiz/percentile-poolen ville rettet skalaen,
+  //     men den poolen er en ANNEN enn snapshoten plasseringen leses fra
+  //     (ingen dedupe per spiller, ingen tid-tiebreak, hentet én gang ved
+  //     quiz-start) — to tall utledet av to ulike populasjoner, side om side
+  //     på samme skjerm, kan motsi hverandre.
+  //   • Å utlede persentilen av snapshotens rank/total ville vært konsistent,
+  //     men er da bare en omskriving av plasseringen som allerede står to
+  //     linjer over — OG hintet hadde ingen isPremium-gate, så det ville gitt
+  //     gratisbrukere et presist plasseringstall som paywallen bevisst
+  //     grovmaler (se leaderboard-gatingen 1.–2. august).
+  // Resultatskjermens persentil (app/quiz/[id]/page.tsx) er sluttsum mot
+  // sluttsum og er upåvirket. Ikke gjeninnfør et persentil-hint under spilling
+  // uten å løse begge punktene over.
 
   // questionIndex er 0-basert indeks for spørsmålet som nettopp ble besvart.
   const answeredSoFar = questionIndex + 1
@@ -344,16 +349,6 @@ export default function QuizInterlude({
           // Ikke gjeninnfør en rival-gren her uten delsum-mot-delsum-data.
           return null
         })()}
-
-        {/* Percentile hint — only when above median, og først når det finnes nok
-            besvarte spørsmål til at tallet betyr noe (Del 3) */}
-        {placementReady && scoreIsAboveMedian && percentileEntry && (
-          <p style={{
-            fontSize: 12, color: '#918f8a', marginBottom: 16,
-          }}>
-            Du er bedre enn {percentileEntry.percentile}% av deltakerne
-          </p>
-        )}
 
         {/* Score line */}
         {low === null && (
