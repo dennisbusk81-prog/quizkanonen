@@ -472,9 +472,9 @@ export default function HistorikkPage() {
                   Historikken din er lagret
                 </p>
                 <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
-                  Du har spilt quizer mens du var innlogget, så resultatene og poengene
-                  dine ligger lagret. Historikk, statistikk og nøyaktig plassering
-                  krever Premium.
+                  Du har spilt mens du var innlogget, så resultatene og poengene dine
+                  ligger lagret. Historikk, statistikk og nøyaktig plassering krever
+                  Premium.
                 </p>
                 <a href="/premium" style={{ display: 'inline-block', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', color: '#e8e4dd', fontSize: 14, fontWeight: 600, textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif" }}>
                   Se hva Premium gir →

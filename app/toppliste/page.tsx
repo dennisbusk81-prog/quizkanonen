@@ -7,7 +7,17 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import { supabase } from '@/lib/supabase'
 import { useProfile } from '@/components/ProfileProvider'
 
-function ExpiredPremiumBanner() {
+// Banneret het tidligere ExpiredPremiumBanner og sa «Reaktiver Premium». Begge
+// deler påsto en tidligere Premium-tilstand systemet ikke kjenner: `hasScores`
+// under teller season_scores, og processQuiz skriver de radene for ALLE
+// innloggede deltakere uavhengig av Premium (lib/award-season-points.ts). Testen
+// betyr «har spilt minst én gjort opp quiz innlogget», ikke «har hatt Premium»,
+// så en gratisbruker som aldri har hatt Premium fikk beskjed om å «reaktivere».
+// Det finnes ikke noe pålitelig signal på tidligere Premium å skille på:
+// premium_since nullstilles ved kansellering, og stripe_customer_id dekker kun
+// B2C-checkout. Teksten er derfor nøytral og sann i begge tilfeller. Samme
+// endring som i app/historikk/page.tsx.
+function PlacementLockedBanner() {
   // Premium fra delt context (ingen egen premium-status-fetch lenger).
   const { isPremium, userId, loading } = useProfile()
   const [hasScores, setHasScores] = useState(false)
@@ -35,11 +45,11 @@ function ExpiredPremiumBanner() {
       marginBottom: 16,
     }}>
       <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, margin: 0 }}>
-        Poengene dine er lagret.{' '}
+        Du har spilt mens du var innlogget, så poengene dine er lagret.
+        Nøyaktig plassering krever{' '}
         <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
-          Reaktiver Premium
-        </a>
-        {' '}for å se din plassering.
+          Premium
+        </a>.
       </p>
     </div>
   )
@@ -70,7 +80,7 @@ export default function TopplisterPage() {
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
 
-          <ExpiredPremiumBanner />
+          <PlacementLockedBanner />
           <ErrorBoundary>
             <SeasonLeaderboard scope="global" />
           </ErrorBoundary>
