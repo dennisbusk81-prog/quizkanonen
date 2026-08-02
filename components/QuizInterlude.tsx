@@ -123,9 +123,9 @@ export default function QuizInterlude({
   // DELSUM i en fordeling av ferdige spilleres SLUTTSUMMER, uten
   // tempo-projeksjonen som rettet rangeringen 25. juli — samme feilklasse som
   // funn 5 og 6. Det lot seg ikke redde:
-  //   • Projisert oppslag i /api/quiz/percentile-poolen ville rettet skalaen,
-  //     men den poolen er en ANNEN enn snapshoten plasseringen leses fra
-  //     (ingen dedupe per spiller, ingen tid-tiebreak, hentet én gang ved
+  //   • Et projisert oppslag i persentil-fordelingen ville rettet skalaen, men
+  //     den fordelingen kom fra en ANNEN pool enn snapshoten plasseringen leses
+  //     fra (ingen dedupe per spiller, ingen tid-tiebreak, hentet én gang ved
   //     quiz-start) — to tall utledet av to ulike populasjoner, side om side
   //     på samme skjerm, kan motsi hverandre.
   //   • Å utlede persentilen av snapshotens rank/total ville vært konsistent,

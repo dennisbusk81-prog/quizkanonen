@@ -1415,10 +1415,10 @@ export default function QuizPage() {
         // blokkerer ikke quiz-starten.
         refreshProfile()
       }
-      // /api/quiz/percentile ble hentet her fram til 2. august 2026, kun for
-      // persentil-hintet på mellomskjermen. Hintet er fjernet (delsum slått opp
-      // i en fordeling av sluttsummer — se QuizInterlude.tsx), så hentingen er
-      // borte med det. Ett kall mindre per quiz-start.
+      // Her lå en henting av persentil-fordelingen fram til 2. august 2026, kun
+      // for hintet på mellomskjermen. Hintet er fjernet (delsum slått opp i en
+      // fordeling av sluttsummer — se QuizInterlude.tsx), og ruten den hentet
+      // fra er slettet i samme slengen. Ett kall mindre per quiz-start.
     } catch {
       setPlayerInfo({ name: '', ageConfirmed: false })
       setStartError('Noe gikk galt. Prøv å laste siden på nytt.')
