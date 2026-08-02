@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { ipScopeId } from '@/lib/redeem-throttle'
+import {
+  CHECK_EMAIL_ACTION,
+  CHECK_EMAIL_WINDOW_MS,
+  decideCheckEmailThrottle,
+} from '@/lib/check-email-throttle'
 
 // EKSPLISITT app-side sperre mot duplikate kontoer ved passord-signup.
 //
@@ -9,18 +15,19 @@ import { rateLimit } from '@/lib/rate-limit'
 // automatiske identitetskobling (via "Confirm email") er riktig konfigurert — vi
 // sjekker eksplisitt om e-posten allerede finnes i auth.users FØR et signup sendes.
 //
-// Krever service-role (admin.listUsers), derav egen server-rute.
+// Krever service-role, derav egen server-rute.
 //
-// Returnerer { exists, hasPassword, hasGoogle } til klienten (identifier-first-flyten
-// på /login bruker dette til å vise kun relevante metoder). Ingen id-er lekkes.
+// Returnerer { exists, hasPassword, hasGoogle } til klienten. Ingen id-er lekkes.
 //
 // phase='pre-signup'  → forventet 0 treff for en ny bruker (ellers blokkeres signup).
 // phase='post-signup' → forventet NØYAKTIG 1 treff (verifiserer at ingen duplikat-id
 //                       ble opprettet). >1 logges som ADVARSEL.
-// phase='lookup'      → identifier-first-oppslag ved innlogging.
+// phase='lookup'      → oppslag ved innlogging (diagnoseLoginFailure i AuthForm).
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  // Rate-limit for å bremse e-post-enumerering (ruten avslører om en e-post finnes).
+  // Førstelag: billig burst-brems i minnet. Denne ALENE er ikke grensen vi
+  // lener oss på — Map-en lever per serverless-instans — men den holder
+  // rå-flooding unna DB-arbeidet under.
   if (!rateLimit(`check-email:${ip}`, 10, 60_000).success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
@@ -39,55 +46,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Mangler e-post' }, { status: 400 })
   }
 
-  // Paginer gjennom auth.users og finn ALLE treff på e-posten (case-insensitivt),
-  // ikke bare det første — slik at et eventuelt duplikat kan oppdages i loggen.
-  // Behold også første treff-objekt for å lese hvilke providere brukeren har.
-  //
-  // NB: identities-arrayet er TOMT i admin.listUsers-resultatet i denne Supabase-
-  // versjonen (verifisert mot en ekte Google-bruker). Den pålitelige kilden til
-  // «har Google» er app_metadata.providers (fallback provider), ikke identities.
-  type MatchedUser = { id: string; app_metadata?: { provider?: string; providers?: string[] } }
-  const matches: string[] = []
-  let matchedUser: MatchedUser | null = null
-  let page = 1
-  try {
-    while (true) {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
-      if (error) {
-        console.error('[auth/check-email] listUsers error (page', page, '):', error.message)
-        return NextResponse.json({ error: 'Kunne ikke verifisere e-post' }, { status: 500 })
-      }
-      const users = data?.users ?? []
-      for (const u of users) {
-        if (u.email && u.email.toLowerCase() === email) {
-          matches.push(u.id)
-          if (!matchedUser) matchedUser = { id: u.id, app_metadata: u.app_metadata }
-        }
-      }
-      if (users.length < 1000) break // siste side
-      page++
+  // ── Andrelag: vedvarende telling (lib/check-email-throttle.ts) ─────────────
+  // Ruten avslører om en e-post finnes, og er uinnlogget. Uten en teller som
+  // overlever kalde starter kan hele medlemslista kartlegges. Her telles ALLE
+  // oppslag, ikke bom — se modulen for hvorfor bom har motsatt fortegn her enn
+  // i lib/redeem-throttle.ts.
+  const ipScope = ipScopeId(ip)
+  const since = new Date(Date.now() - CHECK_EMAIL_WINDOW_MS).toISOString()
+
+  const { count: lookups, error: countError } = await supabaseAdmin
+    .from('admin_actions')
+    .select('id', { count: 'exact', head: true })
+    .eq('action_type', CHECK_EMAIL_ACTION)
+    .eq('scope_id', ipScope)
+    .gte('created_at', since)
+
+  // Til forskjell fra /api/codes/redeem feiler vi ÅPENT her, med vilje: kan vi
+  // ikke lese admin_actions, er databasen nede — og da feiler oppslaget under
+  // uansett med 500. Å feile lukket ville bare byttet ut den ene feilmeldingen
+  // med en annen, samtidig som en forbigående DB-hikke ville blokkert all
+  // registrering og all innloggingsdiagnostikk. Burst-bremsen over står igjen.
+  if (countError) {
+    console.error('[auth/check-email] kunne ikke telle tidligere oppslag:', countError.message)
+  } else {
+    const decision = decideCheckEmailThrottle(lookups ?? 0)
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.message }, { status: 429 })
     }
+
+    // Bokfør oppslaget FØR arbeidet gjøres, så et dyrt oppslag alltid er betalt
+    // for. Et avvist forsøk bokføres ikke — da ville utestengelsen forlenget seg
+    // selv for hver gang noen prøver.
+    const { error: logErr } = await supabaseAdmin.from('admin_actions').insert({
+      action_type: CHECK_EMAIL_ACTION,
+      scope_type: 'ip',
+      scope_id: ipScope,
+    })
+    if (logErr) console.error('[auth/check-email] kunne ikke bokføre oppslag:', logErr.message)
+  }
+
+  // Ett direkte oppslag mot auth.users.email (unik indeks fra GoTrue), i stedet
+  // for den tidligere pagineringen gjennom HELE brukertabellen ved hvert kall.
+  // Se supabase/migrations/20260738000001_auth_email_lookup.sql.
+  //
+  // NB: identities-arrayet er TOMT i admin.listUsers-resultatet i denne
+  // Supabase-versjonen (verifisert mot en ekte Google-bruker). Den pålitelige
+  // kilden til «har Google» er app_metadata.providers — funksjonen leser samme
+  // felt, med samme fallback.
+  type LookupRow = { match_ids: string[] | null; has_google: boolean; has_password: boolean }
+  let row: LookupRow | null = null
+  try {
+    const { data, error } = await supabaseAdmin.rpc('auth_email_lookup', { p_email: email })
+    if (error) {
+      console.error('[auth/check-email] auth_email_lookup error:', error.message)
+      return NextResponse.json({ error: 'Kunne ikke verifisere e-post' }, { status: 500 })
+    }
+    row = (Array.isArray(data) ? data[0] : data) as LookupRow | null
   } catch (err) {
     console.error('[auth/check-email] uventet feil:', err)
     return NextResponse.json({ error: 'Kunne ikke verifisere e-post' }, { status: 500 })
   }
 
-  // Utled hasGoogle (fra app_metadata.providers) og hasPassword (fra
-  // profiles.has_password) for den matchende brukeren. Begge false hvis e-posten
-  // ikke finnes.
-  let hasGoogle = false
-  let hasPassword = false
-  if (matchedUser) {
-    const meta = matchedUser.app_metadata ?? {}
-    const providers = meta.providers ?? (meta.provider ? [meta.provider] : [])
-    hasGoogle = providers.includes('google')
-    const { data: prof } = await supabaseAdmin
-      .from('profiles')
-      .select('has_password')
-      .eq('id', matchedUser.id)
-      .maybeSingle()
-    hasPassword = prof?.has_password === true
-  }
+  const matches = row?.match_ids ?? []
+  const hasGoogle = row?.has_google === true
+  const hasPassword = row?.has_password === true
 
   // Logglinje for verifisering (Dennis kan lese denne i Vercel-loggen).
   console.log(
