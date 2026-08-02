@@ -5,6 +5,7 @@ import {
   selectQuizMessage,
   computeStrongCategory,
   buildWeightedPool,
+  withoutStreakNumber,
   STREAK_MESSAGE_THRESHOLD,
   CATEGORY_MESSAGE_THRESHOLD,
   CATEGORY_MESSAGE_EXCLUDED,
@@ -37,6 +38,7 @@ function state(over: Partial<QuizMessageState> = {}): QuizMessageState {
     questionIndex: 3,
     rival: null,
     strongCategory: null,
+    streakShownElsewhere: false,
     ...over,
   }
 }
@@ -414,6 +416,102 @@ test('vektingen bryter ikke determinismen — samme seed gir samme tekst', () =>
 test('valgt melding lekker aldri priority-feltet ut til komponenten', () => {
   const msg = selectQuizMessage(state({ wrongInARow: 2 }), SEED)
   assert.deepEqual(Object.keys(msg).sort(), ['headline', 'subline'])
+})
+
+// ── Streak-tallet skal ikke stå to steder på samme skjerm ───────────────────
+// Score-linja på mellomskjermen viser «· N på rad» når det ikke finnes noe
+// rangeringsspenn å vise i stedet. Treffer headline-trekket da en {streak}-
+// tekst, står tallet to steder samtidig.
+
+const streakState = (over: Partial<QuizMessageState> = {}) =>
+  state({ streak: 6, correctSoFar: 6, questionIndex: 8, ...over })
+
+test('withoutStreakNumber fjerner alle tekster med plassholderen', () => {
+  const msgs: QuizMessage[] = [
+    { headline: '{streak} på rad.', subline: 'Det sitter.' },
+    { headline: 'Rekka holder.', subline: null },
+    { headline: 'Ustoppelig.', subline: 'Hele {streak} på rad.' }, // i subline
+    { headline: 'Du leverer.', subline: null },
+  ]
+  assert.deepEqual(withoutStreakNumber(msgs).map(m => m.headline), ['Rekka holder.', 'Du leverer.'])
+})
+
+test('withoutStreakNumber beholder settet hvis filteret ville tømt det', () => {
+  // Ingen melding er verre enn en gjentakelse — se kommentaren i funksjonen.
+  const alle: QuizMessage[] = [
+    { headline: '{streak} på rad.', subline: null },
+    { headline: 'Rekka er oppe i {streak}.', subline: null },
+  ]
+  assert.deepEqual(withoutStreakNumber(alle), alle)
+})
+
+test('streakShownElsewhere: headlinen gjentar ALDRI tallet fra score-linja', () => {
+  // Sveiper bredt — det er trekningen som skal være innsnevret, ikke flaksen.
+  for (let i = 0; i < 500; i++) {
+    const msg = selectQuizMessage(streakState({ streakShownElsewhere: true }), `dobbel-${i}:8`)
+    const text = `${msg.headline} ${msg.subline ?? ''}`
+    assert.ok(!text.includes('6'), `tallet står to steder: «${text}»`)
+    assert.equal(categoryOf(msg), 'streak', `falt ut av streak-grenen: «${msg.headline}»`)
+  }
+})
+
+test('uten streakShownElsewhere kan tallet fortsatt stå i headlinen', () => {
+  // Motprøven: filteret skal IKKE gjelde når score-linja viser et
+  // rangeringsspenn i stedet. Ellers ville de 11 tekstene vært døde overalt.
+  let sawNumber = false
+  for (let i = 0; i < 500; i++) {
+    const msg = selectQuizMessage(streakState({ streakShownElsewhere: false }), `enkel-${i}:8`)
+    if (`${msg.headline} ${msg.subline ?? ''}`.includes('6')) { sawNumber = true; break }
+  }
+  assert.ok(sawNumber, 'ingen av 500 seeds ga en {streak}-tekst uten filteret')
+})
+
+test('filteret gjelder kun streak-grenen, ikke de andre', () => {
+  // streakShownElsewhere skal ikke kunne endre hvilken GREN som velges, eller
+  // teksten i en gren som uansett ikke skriver ut streak-tallet.
+  const cases: Partial<QuizMessageState>[] = [
+    { correctSoFar: 5, questionIndex: 4 },   // perfect_run (streak 6 er også perfekt)
+    { questionIndex: 6, correctSoFar: 1 },   // halftime
+    { wrongInARow: 2 },                      // comeback
+    {},                                      // generic
+  ]
+  for (const over of cases) {
+    for (let i = 0; i < 30; i++) {
+      const seed = `gren-${i}:5`
+      assert.deepEqual(
+        selectQuizMessage(state({ ...over, streakShownElsewhere: true }), seed),
+        selectQuizMessage(state({ ...over, streakShownElsewhere: false }), seed),
+        `flagget påvirket en annen gren: ${JSON.stringify(over)}`
+      )
+    }
+  }
+})
+
+test('vektingen virker fortsatt på den filtrerte poolen', () => {
+  // 24 tekster igjen etter filtrering, 3 av dem prioriterte → pool 27.
+  // Ryker vektingen når filteret er på, blir forholdet 1,0 i stedet for 2,0.
+  const counts = new Map<string, number>()
+  const N = 20000
+  for (let i = 0; i < N; i++) {
+    const msg = selectQuizMessage(streakState({ streakShownElsewhere: true }), `fv-${i}:8`)
+    counts.set(msg.headline, (counts.get(msg.headline) ?? 0) + 1)
+  }
+  const igjen = withoutStreakNumber(quizMessages.streak)
+  const prioritized = igjen.filter(m => m.priority)
+  const plain = igjen.filter(m => !m.priority)
+  assert.ok(prioritized.length >= 2, 'filtreringen tok med seg alle prioriterte — testen sier da ingenting')
+
+  const avg = (msgs: QuizMessage[]) =>
+    msgs.reduce((s, m) => s + (counts.get(m.headline) ?? 0), 0) / msgs.length
+  const ratio = avg(prioritized) / avg(plain)
+  assert.ok(ratio > 1.7 && ratio < 2.3, `forventet ~2x også med filter, målte ${ratio.toFixed(2)}x`)
+})
+
+test('filtrert trekning er like deterministisk som ufiltrert', () => {
+  const first = selectQuizMessage(streakState({ streakShownElsewhere: true }), 'stabil:8')
+  for (let i = 0; i < 100; i++) {
+    assert.deepEqual(selectQuizMessage(streakState({ streakShownElsewhere: true }), 'stabil:8'), first)
+  }
 })
 
 // ── Lengde: headline må få plass på to linjer (296px, målt 30. juli 2026) ────

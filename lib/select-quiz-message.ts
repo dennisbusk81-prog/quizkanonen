@@ -14,6 +14,12 @@ export interface QuizMessageState {
   // computeStrongCategory() i goToNext (app/quiz/[id]/page.tsx). null når ingen
   // kvalifiserer — grenen faller da stille gjennom.
   strongCategory: string | null
+  // Sant når streak-tallet ALLEREDE står et annet sted på mellomskjermen —
+  // konkret i score-linja («7 av 12 riktige · 5 på rad»), som vises når det
+  // ikke finnes noe rangeringsspenn å vise i stedet. Da trekkes headlinen kun
+  // blant tekster UTEN {streak}, så tallet ikke står to steder samtidig.
+  // Settes av QuizInterlude fra nøyaktig samme uttrykk som styrer score-linja.
+  streakShownElsewhere: boolean
 }
 
 // Streak-terskelen for mellomskjermens headline. 5 — samme terskel som
@@ -110,6 +116,24 @@ function pickWeighted(msgs: QuizMessage[], seed: string): QuizMessage {
   return msgs[pool[seededIndex(seed, pool.length)]]
 }
 
+// Tekstene som IKKE skriver ut streak-tallet. Brukes når tallet allerede står
+// i score-linja (se streakShownElsewhere) — headlinen skal da si noe annet enn
+// det spilleren leser to centimeter lenger ned.
+//
+// Sjekker både headline og subline: ingen av dagens sublines bruker
+// plassholderen, men en ny tekst kan komme til å gjøre det, og da skal den
+// fanges her uten at noen husker å oppdatere filteret.
+//
+// Faller tilbake på hele settet hvis filteret skulle tømme det. Skrives alle
+// streak-tekstene en dag med {streak}, er en gjentakelse et lite problem —
+// ingen melding i det hele tatt er et større.
+export function withoutStreakNumber(msgs: QuizMessage[]): QuizMessage[] {
+  const filtered = msgs.filter(
+    m => !`${m.headline} ${m.subline ?? ''}`.includes('{streak}')
+  )
+  return filtered.length > 0 ? filtered : msgs
+}
+
 function pick(category: QuizMessageCategory, seed: string): QuizMessage {
   return pickWeighted(quizMessages[category], seed)
 }
@@ -144,6 +168,7 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
     questionIndex,
     rival,
     strongCategory,
+    streakShownElsewhere,
   } = state
 
   const questionsAnswered = questionIndex + 1
@@ -175,9 +200,14 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
     return fill(pick('comeback', seed), {})
   }
 
-  // 5. Streak — terskel 5, se STREAK_MESSAGE_THRESHOLD
+  // 5. Streak — terskel 5, se STREAK_MESSAGE_THRESHOLD. Står tallet allerede i
+  // score-linja, trekkes headlinen kun blant tekstene som ikke gjentar det.
+  // Vektingen av priority-tekster virker som før, på den filtrerte poolen.
   if (streak >= STREAK_MESSAGE_THRESHOLD) {
-    return fill(pick('streak', seed), { streak })
+    const pool = streakShownElsewhere
+      ? withoutStreakNumber(quizMessages.streak)
+      : quizMessages.streak
+    return fill(pickWeighted(pool, seed), { streak })
   }
 
   // 6. Rett etter ett feil svar (dekker også timeout)

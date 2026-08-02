@@ -142,6 +142,13 @@ export default function QuizInterlude({
   const answeredSoFar = questionIndex + 1
   const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
 
+  // Score-linja nederst vises når det ikke finnes et rangeringsspenn å vise i
+  // stedet, og tar da med «· N på rad» fra og med streak 2. Begge uttrykkene
+  // under mater BÅDE renderingen og meldingsvalget, slik at de to ikke kan
+  // komme i utakt: viser score-linja tallet, skal headlinen ikke gjenta det.
+  const scoreLineVisible = low === null
+  const scoreLineShowsStreak = scoreLineVisible && streak >= 2
+
   const msgState: QuizMessageState = {
     streak,
     wrongInARow,
@@ -150,6 +157,7 @@ export default function QuizInterlude({
     questionIndex,
     rival,
     strongCategory,
+    streakShownElsewhere: scoreLineShowsStreak,
   }
 
   // FRYST VED MOUNT — useState-initializer, ikke useMemo. Komponenten mountes
@@ -351,11 +359,11 @@ export default function QuizInterlude({
           return null
         })()}
 
-        {/* Score line */}
-        {low === null && (
+        {/* Score line — se scoreLineVisible/scoreLineShowsStreak øverst */}
+        {scoreLineVisible && (
           <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 24 }}>
             {score} av {totalQuestions} riktige
-            {streak >= 2 ? ` · ${streak} på rad` : ''}
+            {scoreLineShowsStreak ? ` · ${streak} på rad` : ''}
           </p>
         )}
 
