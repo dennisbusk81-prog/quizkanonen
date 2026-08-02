@@ -161,26 +161,34 @@ export async function POST(
     scored.push({ questionId: a.questionId, selectedAnswer: a.selectedAnswer, isCorrect, timeMs: 0 })
   }
 
-  // Tak (tidsgrensen) OG gulv på hver enkelt tid. Tidligere ble tiden kun
-  // clampet oppad; 0 ms per spørsmål var lovlig og ga garantert 1. plass, siden
-  // rangeringen sorterer stigende på total_time_ms. Se lib/answer-time-integrity.ts
-  // for hvorfor forløpt veggklokketid ikke kan brukes som gulv på summen.
+  // Tak (tidsgrensen) OG gulv på hver enkelt tid, pluss gulv på SUMMEN med
+  // veggklokke-substitusjon som utfall (aldri 403 — en feilklassifisering skal
+  // koste en dårligere tid, ikke et tapt forsøk). Se lib/answer-time-integrity.ts
+  // for kalibreringen og for hvorfor forløpt veggklokketid ikke kan brukes som
+  // gulv på summen.
   const timeCheck = applyAnswerTimeIntegrity(reported, elapsedMs)
   for (let i = 0; i < scored.length; i++) scored[i].timeMs = timeCheck.times[i]
 
+  // Logging i to bånd, begge med søkbar ropemarkør for Vercel-loggen:
+  // - "SVARTID ERSTATTET": under gulvet — totalen ble substituert.
+  // - "MISTENKELIG svartid": over gulvet, men verdt å se på (observasjonsbåndet
+  //   suspicious_low_avg, per-svar-gulvet floor_clamped, sum_over_elapsed).
+  // Formålet er datainnsamling: juks er hittil hypotetisk, og båndene viser om
+  // det finnes en reell hale FØR vi eventuelt strammer inn.
   if (timeCheck.suspicious) {
-    console.warn('[submit] MISTENKELIG svartid:', {
+    const fields = {
       attemptId, quizId, elapsedMs,
       questions: scored.length,
       rapportertSumMs: timeCheck.rawTotalMs,
-      korrigertSumMs: timeCheck.totalMs,
+      lagretSumMs: timeCheck.totalMs,
       korrigerteSvar: timeCheck.clampedCount,
       grunner: timeCheck.reasons,
-      avvist: timeCheck.reject,
-    })
-  }
-  if (timeCheck.reject) {
-    return NextResponse.json({ error: 'Innsendingen kom for raskt' }, { status: 403 })
+    }
+    if (timeCheck.substituted) {
+      console.warn('[submit] SVARTID ERSTATTET — rapportert sum under gulvet:', fields)
+    } else {
+      console.warn('[submit] MISTENKELIG svartid:', fields)
+    }
   }
 
   const correctAnswers = scored.filter(s => s.isCorrect).length
