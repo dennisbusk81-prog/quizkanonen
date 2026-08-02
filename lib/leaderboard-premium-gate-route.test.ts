@@ -16,11 +16,32 @@
 //     → grace-testen ryker (brukeren i grace mister eksakt plassering).
 //   • Fjernes raden helt for gratis (`userEntry = null`)   → 3 tester ryker
 //     (score/tid/streak/antall spørsmål forsvinner for gratisbrukere).
+//
+// ── TILLEGG 2. august 2026: to beslektede hull i SAMME rute ──────────────────
+// SAK 1: `hide_leaderboard_until_closed` ble håndhevet KUN i klienten. Ruten
+//        leste aldri quizzes-tabellen, så hele stillingen på en åpen, skjult
+//        quiz kunne hentes rått fra API-et.
+// SAK 2: ?page=/?search= (Premium-funksjoner i UI-et) ble besvart for alle, så
+//        en gratisbruker kunne bla seg fram til sin egen eksakte rad.
+//
+// MUTASJONSBEVIS for tillegget (alle kjørt, med målt antall):
+//   • Fjernes `leaderboardHidden` fra `entries`-valget      → 7 tester ryker.
+//   • Droppes `!quizIsClosed` (skjuler også stengte quizer) → 1 test ryker.
+//   • Droppes Premium-unntaket `!(userIsPremium && !!mine)` → 1 test ryker.
+//   • Fail-safe `!quizRow` byttes til «ikke skjult»         → 1 test ryker.
+//   • Skjules også `userEntry`/`totalCount`                 → 1 test ryker
+//     (svaret skal være redusert, ikke tomt — plasseringskortet lever av dem).
+//   • Fjernes `userIsPremium` fra browse-gaten              → 3 tester ryker.
+//   • Byttes browse-gaten til en 403 i stedet for å
+//     ignorere parameterne                                  → 4 tester ryker.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
 const QUIZ = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const ME = '11111111-1111-4111-8111-111111111111'
+
+const OM_EN_TIME = () => new Date(Date.now() + 3_600_000).toISOString()
+const FOR_EN_TIME_SIDEN = () => new Date(Date.now() - 3_600_000).toISOString()
 
 type AttemptRow = {
   id: string
@@ -37,12 +58,17 @@ type AttemptRow = {
   quiz_id: string
 }
 
+type QuizRow = { closes_at: string | null; hide_leaderboard_until_closed: boolean }
+
 const state: {
   attempts: AttemptRow[]
   profile: { premium_status: boolean; org_premium_grace_until: string | null }
+  /** null = ruten finner ingen quiz-rad (fail-safe-stien). */
+  quiz: QuizRow | null
 } = {
   attempts: [],
   profile: { premium_status: false, org_premium_grace_until: null },
+  quiz: null,
 }
 
 /** Et innsendt solo-forsøk. Færre riktige = dårligere plassering. */
@@ -64,7 +90,8 @@ function attempt(n: number, correct: number, userId: string | null = null): Atte
 }
 
 // Minimal PostgREST-etterligning. To ulike spørringer mot `profiles`:
-// premium-oppslaget (maybeSingle) og nickname-oppslaget (.in, await).
+// premium-oppslaget (maybeSingle) og nickname-oppslaget (.in, await). I tillegg
+// ett oppslag mot `quizzes` (maybeSingle) for skjult-leaderboard-gaten.
 function builder(table: string) {
   const filters: Array<(r: Record<string, unknown>) => boolean> = []
 
@@ -74,7 +101,8 @@ function builder(table: string) {
     in(col: string, vals: unknown[]) { filters.push(r => vals.includes(r[col])); return b },
     limit() { return b },
     maybeSingle() {
-      // Kun premium-oppslaget i lib/premium-check bruker maybeSingle her.
+      if (table === 'quizzes') return Promise.resolve({ data: state.quiz, error: null })
+      // Ellers: premium-oppslaget i lib/premium-check.
       return Promise.resolve({ data: state.profile, error: null })
     },
     then(resolve: (v: unknown) => void) {
@@ -104,6 +132,7 @@ mock.module('@/lib/supabase-admin', {
 const { GET } = await import('@/app/api/leaderboard/[id]/route')
 
 type Svar = {
+  entries: { rank: number; playerName: string }[]
   userRank: number | null
   userEntry: {
     rank: number
@@ -114,14 +143,25 @@ type Svar = {
   } | null
   totalCount: number
   userIsPremium: boolean
+  leaderboardHidden: boolean
+  page: number
+  pageSize: number
 }
 
-async function hentLeaderboard(): Promise<Svar> {
-  const request = new Request(`https://quizkanonen.no/api/leaderboard/${QUIZ}?is_team=false&limit=1`, {
-    headers: { authorization: 'Bearer test-token' },
+/** `query` er alt etter `?`. Uten Authorization-header hvis `anonym`. */
+async function hent(query = 'is_team=false&limit=1', anonym = false): Promise<Svar> {
+  const request = new Request(`https://quizkanonen.no/api/leaderboard/${QUIZ}?${query}`, {
+    headers: anonym ? {} : { authorization: 'Bearer test-token' },
   })
   const res = await GET(request as never, { params: Promise.resolve({ id: QUIZ }) })
   return res.json() as Promise<Svar>
+}
+
+const hentLeaderboard = () => hent()
+
+/** Gjør meg til Premium (vanlig, betalt — ikke grace). */
+function gjørMegPremium() {
+  state.profile = { premium_status: true, org_premium_grace_until: null }
 }
 
 beforeEach(() => {
@@ -132,6 +172,8 @@ beforeEach(() => {
     ...Array.from({ length: 8 }, (_, i) => attempt(i + 13, 3 - i * 0)),
   ]
   state.profile = { premium_status: false, org_premium_grace_until: null }
+  // Standard: en helt vanlig, åpen quiz uten skjult leaderboard.
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: false }
 })
 
 test('PREMIUM: får eksakt plassering — både userRank og rank i raden', async () => {
@@ -203,4 +245,191 @@ test('rank 1–10 grovmales til 1 (ingen bånd-start på 0 eller negativt)', asy
   const svar = await hentLeaderboard()
 
   assert.equal(svar.userEntry?.rank, 1)
+})
+
+// ── SAK 1: hide_leaderboard_until_closed ────────────────────────────────────
+// Gaten er den samme regelen som klientens `isHidden`:
+//   skjult = hide_leaderboard_until_closed && quizen er ÅPEN && !(Premium && har spilt)
+// «Åpen» avgjøres av den delte isQuizClosed() mot closes_at — samme signal som
+// /api/quiz/[id]/standings, ikke et nytt.
+
+test('SKJULT + ÅPEN quiz: ingen av de andre spillernes rader forlater serveren', async () => {
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.deepEqual(svar.entries, [], 'stillingen skal ikke kunne hentes rått mens quizen er åpen')
+})
+
+test('SKJULT + ÅPEN: også en uinnlogget klient får null rader', async () => {
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+
+  const svar = await hent('is_team=false&limit=50', true)
+
+  assert.equal(svar.entries.length, 0)
+})
+
+test('SKJULT + ÅPEN: svaret er REDUSERT, ikke tomt — eget resultat og totalCount står igjen', async () => {
+  // Resultatskjermen i app/quiz/[id] og plasseringskortet på leaderboard-siden
+  // kaller ruten nettopp mens quizen er åpen. Derfor ingen 403 og ingen blank
+  // respons: spilleren skal få SITT eget, bare ikke andres.
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.entries.length, 0)
+  assert.ok(svar.userEntry, 'brukerens egen rad skal overleve skjulingen')
+  assert.equal(svar.userEntry?.correctAnswers, 4)
+  assert.equal(svar.userEntry?.rank, 11, 'fortsatt grovmalt bånd-start for gratis')
+  assert.equal(svar.totalCount, 20, 'spennet «mellom plass X og Y» regnes ut fra dette tallet')
+})
+
+test('SKJULT + STENGT quiz: listen er tilbake (skjulingen gjelder kun mens quizen er åpen)', async () => {
+  state.quiz = { closes_at: FOR_EN_TIME_SIDEN(), hide_leaderboard_until_closed: true }
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.entries.length, 20)
+})
+
+test('SKJULT + ÅPEN: Premium som HAR spilt får listen — samme unntak som klienten', async () => {
+  gjørMegPremium()
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.entries.length, 20)
+})
+
+test('SKJULT + ÅPEN: Premium som IKKE har spilt får fortsatt null rader', async () => {
+  gjørMegPremium()
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  // Fjern mitt forsøk — Premium alene løfter ikke skjulingen.
+  state.attempts = state.attempts.filter(a => a.user_id !== ME)
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.equal(svar.entries.length, 0)
+})
+
+test('SKJULT + ÅPEN: et ikke-innsendt forsøk teller ikke som «har spilt»', async () => {
+  gjørMegPremium()
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.attempts = state.attempts.map(a => a.user_id === ME ? { ...a, submitted_at: null } : a)
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.entries.length, 0, 'å bare starte quizen skal ikke låse opp stillingen')
+})
+
+test('FAIL-SAFE: uten lesbar quiz-rad regnes leaderboardet som skjult', async () => {
+  // En blipp mot databasen skal ikke kunne åpne en skjult stilling.
+  state.quiz = null
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.equal(svar.entries.length, 0)
+})
+
+test('IKKE skjult + åpen quiz: listen leveres som før (ingen regresjon)', async () => {
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.entries.length, 20)
+})
+
+// ── SAK 2: ?page= og ?search= er Premium ────────────────────────────────────
+// Ikke-Premium får ikke en feil — parameterne ignoreres, og svaret blir det
+// samme som uten dem.
+
+test('GRATIS: ?page=2 ignoreres — samme svar som uten parameteren', async () => {
+  const uten = await hent('is_team=false&limit=50')
+  const med = await hent('is_team=false&limit=50&page=2')
+
+  assert.equal(med.page, 1, 'siden skal falle tilbake til 1, ikke 2')
+  assert.equal(med.pageSize, 50, 'browse-sidestørrelsen (20) skal ikke slå inn')
+  assert.deepEqual(
+    med.entries.map(e => e.rank),
+    uten.entries.map(e => e.rank),
+    'en gratisbruker skal ikke kunne bla seg forbi topplista',
+  )
+})
+
+test('GRATIS: ?page= gir ikke tilgang til rader utenfor den klassiske grensen', async () => {
+  // Uten gate ville side 2 (20/side) gitt radene 21–40. Med limit=10 stopper
+  // gratisbrukeren på de ti første, uansett hvilken side de ber om.
+  const svar = await hent('is_team=false&limit=10&page=3')
+
+  assert.equal(svar.entries.length, 10)
+  assert.equal(svar.entries[0]?.rank, 1, 'skal alltid starte på toppen')
+})
+
+test('GRATIS: ?search= ignoreres — verken rader eller totalCount filtreres', async () => {
+  const svar = await hent('is_team=false&limit=50&search=Meg')
+
+  assert.equal(svar.entries.length, 20, 'søket skal ikke isolere en enkelt rad')
+  assert.equal(svar.totalCount, 20, 'totalCount skal ikke avsløre treffantallet')
+})
+
+test('GRATIS: ?search= gir ingen feil, bare ingen ekstra data', async () => {
+  // En klient som spør i god tro skal ikke få en ny feilsti å håndtere.
+  const request = new Request(
+    `https://quizkanonen.no/api/leaderboard/${QUIZ}?is_team=false&search=Meg&page=2`,
+    { headers: { authorization: 'Bearer test-token' } },
+  )
+  const res = await GET(request as never, { params: Promise.resolve({ id: QUIZ }) })
+
+  assert.equal(res.status, 200)
+})
+
+test('PREMIUM: ?search= virker fortsatt (ingen regresjon)', async () => {
+  gjørMegPremium()
+
+  const svar = await hent('is_team=false&limit=50&search=Meg')
+
+  assert.equal(svar.entries.length, 1)
+  assert.equal(svar.entries[0]?.playerName, 'Meg Megsen')
+  assert.equal(svar.totalCount, 1, 'treffantallet er Premium-data og skal komme fram')
+})
+
+test('PREMIUM: ?page=2 virker fortsatt og gir side to (20/side)', async () => {
+  gjørMegPremium()
+  // 30 spillere → side 1 = rang 1–20, side 2 = rang 21–30.
+  state.attempts = Array.from({ length: 30 }, (_, i) => attempt(i + 1, 30 - i))
+
+  const svar = await hent('is_team=false&page=2')
+
+  assert.equal(svar.page, 2)
+  assert.equal(svar.pageSize, 20)
+  assert.equal(svar.entries.length, 10)
+  assert.equal(svar.entries[0]?.rank, 21)
+})
+
+test('GRACE etter tapt org-Premium gir også bla og søk', async () => {
+  // Binder browse-gaten til den samme isUserPremium som resten av ruten —
+  // en lokal `premium_status === true` ville tatt fra brukeren i grace.
+  state.profile = {
+    premium_status: false,
+    org_premium_grace_until: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  }
+
+  const svar = await hent('is_team=false&limit=50&search=Meg')
+
+  assert.equal(svar.userIsPremium, true)
+  assert.equal(svar.entries.length, 1, 'grace skal gi samme søk som betalt Premium')
+})
+
+test('SKJULT + ÅPEN slår ut bla/søk selv for Premium uten spilt forsøk', async () => {
+  gjørMegPremium()
+  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.attempts = state.attempts.filter(a => a.user_id !== ME)
+
+  const svar = await hent('is_team=false&search=Spiller')
+
+  assert.equal(svar.entries.length, 0, 'søk skal ikke være en vei rundt skjulingen')
 })

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
 import { isUserPremium } from '@/lib/premium-check'
+import { isQuizClosed } from '@/lib/standings-cache'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -86,16 +87,16 @@ export async function GET(
   const isTeam = searchParams.get('is_team') === 'true'
   const orgSlug = searchParams.get('org')?.trim() || null
 
+  // Bla/søk er ØNSKET her, ikke innvilget — se browse-gaten lenger nede.
   const pageParamRaw = searchParams.get('page')
   const searchRaw = (searchParams.get('search') ?? '').trim()
-  const isBrowse = pageParamRaw !== null || searchRaw !== ''
-  const search = searchRaw === '' ? null : searchRaw
-  const page = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
+  const browseRequested = pageParamRaw !== null || searchRaw !== ''
+  const searchRequested = searchRaw === '' ? null : searchRaw
+  const pageRequested = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
 
   // Klassisk visning: topp `limit` (default 50, maks 200). Browse: 20/side.
   const limitRaw = parseInt(searchParams.get('limit') ?? '50', 10)
   const classicLimit = Math.min(200, Math.max(1, Number.isNaN(limitRaw) ? 50 : limitRaw))
-  const pageSize = isBrowse ? 20 : classicLimit
 
   // Identifiser bruker + premium-status
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -127,12 +128,19 @@ export async function GET(
   // ── Delt rangerings-helper (service role) ────────────────────────────────────
   // Henter alle rader for rommet (solo/lag), filtrerer på submitted, dedup'er per
   // spiller og rangerer med 4-nøkkels tiebreak. Søk/paginering skjer i JS etterpå.
-  const { data: allRowsRaw } = await supabaseAdmin
-    .from('attempts')
-    .select(SELECT_COLS)
-    .eq('quiz_id', quizId)
-    .eq('is_team', isTeam)
-    .limit(5000)
+  const [{ data: allRowsRaw }, quizRes] = await Promise.all([
+    supabaseAdmin
+      .from('attempts')
+      .select(SELECT_COLS)
+      .eq('quiz_id', quizId)
+      .eq('is_team', isTeam)
+      .limit(5000),
+    supabaseAdmin
+      .from('quizzes')
+      .select('closes_at, hide_leaderboard_until_closed')
+      .eq('id', quizId)
+      .maybeSingle(),
+  ])
 
   // I org-modus: behold kun forsøk fra org-medlemmer (gjester droppes). Rank
   // regnes automatisk om relativt til org-undersettet av den delte helperen.
@@ -155,6 +163,54 @@ export async function GET(
     userIsPremium = await isUserPremium(userId)
   }
 
+  // Forsøket til den som spør — grunnlaget for både «har spilt» (skjult
+  // leaderboard) og brukerens egen plassering lenger nede.
+  const mine = userId ? ranked.find(r => r.user_id === userId) ?? null : null
+
+  // ── Skjult leaderboard mens quizen er åpen — håndheves server-side ──────────
+  // `quizzes.hide_leaderboard_until_closed` lå fram til 2. august 2026 KUN i
+  // klienten (`isHidden` i app/leaderboard/[id]/page.tsx). Ruten leste aldri
+  // quizzes-tabellen, så hele stillingen på en åpen, skjult quiz kunne hentes
+  // rått fra API-et uansett hva UI-et valgte å tegne.
+  //
+  // Regelen speiler klientens `isHidden` nøyaktig, inkludert unntaket: en
+  // Premium-bruker som HAR spilt får se listen også mens quizen er åpen.
+  // «Stengt» avgjøres av den delte `isQuizClosed()` (lib/standings-cache) mot
+  // `closes_at` — samme signal som /api/quiz/[id]/standings bruker, ikke et nytt.
+  //
+  // HVA SOM HOLDES TILBAKE: kun `entries` — de ANDRE spillernes rader, altså
+  // selve det skjulte. Svaret er redusert, ikke en 403. Grunnen er konkret:
+  // både resultatskjermen i app/quiz/[id] og `loadSoloPlacement` på
+  // leaderboard-siden kaller denne ruten nettopp mens quizen er åpen, for å
+  // vise spillerens EGEN plassering («Du er et sted mellom plass 11 og 20»).
+  // En 403 ville brutt det kortet for alle som spiller en skjult quiz — en
+  // legitim klient som spør før den vet at leaderboardet er skjult skal få
+  // sitt eget resultat, bare ikke andres. `userEntry`, `userRank` (Premium),
+  // `guestRank` og `totalCount` er derfor uendret; ingen av dem er andres
+  // rangering, og `totalCount` er tallet spennet regnes ut fra.
+  //
+  // Fail-safe: kan vi ikke lese quiz-raden (feil eller ingen rad), regnes
+  // leaderboardet som SKJULT. En blipp mot databasen skal ikke kunne åpne en
+  // skjult stilling; en quiz som ikke finnes har uansett ingen forsøk.
+  const quizRow = quizRes.data as { closes_at: string | null; hide_leaderboard_until_closed: boolean } | null
+  const quizIsClosed = quizRow ? isQuizClosed(quizRow.closes_at, Date.now()) : false
+  const leaderboardHidden = !quizRow
+    || (quizRow.hide_leaderboard_until_closed && !quizIsClosed && !(userIsPremium && !!mine))
+
+  // ── Bla og søk er Premium — håndheves server-side ───────────────────────────
+  // Klienten viste kontrollene kun til Premium (`showBrowseControls`), men ruten
+  // svarte på ?page=/?search= for hvem som helst. En gratisbruker kunne dermed
+  // bla seg fram til sin egen eksakte rad og lese det nøyaktige tallet som
+  // Premium-gaten over holder tilbake.
+  //
+  // Ikke-Premium får IKKE en feil: parameterne ignoreres, og svaret blir det
+  // samme som uten dem (klassisk topp-`limit`). Ingen ekstra data, ingen ny
+  // feilsti å håndtere for en klient som spør i god tro.
+  const isBrowse = browseRequested && userIsPremium && !leaderboardHidden
+  const search = isBrowse ? searchRequested : null
+  const page = isBrowse ? pageRequested : 1
+  const pageSize = isBrowse ? 20 : classicLimit
+
   // ── Brukerens egen plassering — Premium-gate håndheves server-side ──────────
   // EKSAKT plassering er en Premium-funksjon. Fram til 1. august 2026 lå det
   // eksakte tallet i svaret til enhver innlogget bruker, og kun klienten valgte
@@ -175,7 +231,6 @@ export async function GET(
   let userEntry: LbEntry | null = null
   let userRank: number | null = null
   if (userId) {
-    const mine = ranked.find(r => r.user_id === userId)
     if (mine) {
       if (userIsPremium) {
         userRank = mine.rank
@@ -203,13 +258,15 @@ export async function GET(
     : ranked
   const totalCount = search ? filtered.length : totalAll
   const start = isBrowse ? (page - 1) * pageSize : 0
-  const slice = filtered.slice(start, start + pageSize)
-  const entries: LbEntry[] = slice.map(r => toEntry(r))
+  // Skjult leaderboard: ingen av de andre spillernes rader forlater serveren.
+  const entries: LbEntry[] = leaderboardHidden
+    ? []
+    : filtered.slice(start, start + pageSize).map(r => toEntry(r))
 
   await fetchNicknames(userEntry ? [...entries, userEntry] : entries)
 
   return NextResponse.json({
     entries, totalCount, userEntry, userRank, guestRank,
-    userIsPremium, page, pageSize, isTeam,
+    userIsPremium, page, pageSize, isTeam, leaderboardHidden,
   })
 }
