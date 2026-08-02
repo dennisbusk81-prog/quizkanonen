@@ -1,7 +1,7 @@
 // Kjøres med:  npm test
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { topPercent, beatenPercent } from './placement-percent'
+import { topPercent, beatenPercent, placementPercentLine } from './placement-percent'
 
 // ── Kjernen i saken: nevneren i «bedre enn» ─────────────────────────────────
 // Dennis' funn 30. juli 2026 — nr. 2 av 2 fikk «Topp 100 % · bedre enn 0 %».
@@ -106,6 +106,59 @@ test('ugyldige verdier gir null, ikke et tall som ser ekte ut', () => {
   assert.equal(topPercent(11, 10), null)
   assert.equal(topPercent(1, 0), null)
   assert.equal(topPercent(1, NaN), null)
+})
+
+// ── Linja som helhet: skjules ved sisteplass ────────────────────────────────
+// Etter nevner-fiksen er «Topp 100 % · bedre enn 0 %» aritmetisk sant, men
+// leser som hån. Vakten ligger i placementPercentLine, ikke hos kalleren.
+
+test('sisteplass: linja skjules helt', () => {
+  assert.equal(placementPercentLine(2, 2), null)
+  assert.equal(placementPercentLine(10, 10), null)
+  assert.equal(placementPercentLine(55, 55), null)
+  assert.equal(placementPercentLine(201, 201), null)
+})
+
+test('sisteplass: primitivene svarer fortsatt ærlig — det er LINJA som skjules', () => {
+  assert.equal(topPercent(55, 55), 100)
+  assert.equal(beatenPercent(55, 55), 0)
+})
+
+test('nest sist: linja vises fortsatt', () => {
+  assert.deepEqual(placementPercentLine(54, 55), { top: 98, beaten: 2 })
+  // MUTASJONSVAKT: en vakt som feilaktig traff «nesten sist» ville gitt null.
+  assert.notEqual(placementPercentLine(54, 55), null)
+})
+
+test('to spillere: vinneren får linje, taperen ikke', () => {
+  assert.deepEqual(placementPercentLine(1, 2), { top: 50, beaten: 100 })
+  assert.equal(placementPercentLine(2, 2), null)
+})
+
+test('førsteplass og midtfelt gir linje med begge tall', () => {
+  assert.deepEqual(placementPercentLine(1, 55), { top: 2, beaten: 100 })
+  assert.deepEqual(placementPercentLine(10, 55), { top: 18, beaten: 83 })
+})
+
+test('alene i quizen: ingen linje (arver others-vakten)', () => {
+  assert.equal(placementPercentLine(1, 1), null)
+})
+
+test('ugyldige verdier gir ingen linje', () => {
+  assert.equal(placementPercentLine(0, 10), null)
+  assert.equal(placementPercentLine(11, 10), null)
+  assert.equal(placementPercentLine(NaN, 10), null)
+})
+
+test('linja viser ALDRI «Topp 100%» eller «bedre enn 0%»', () => {
+  for (const total of [2, 3, 10, 55, 201]) {
+    for (let rank = 1; rank <= total; rank++) {
+      const linje = placementPercentLine(rank, total)
+      if (linje === null) continue
+      assert.notEqual(linje.top, 100, `Topp 100% sluppet gjennom (r=${rank}, n=${total})`)
+      assert.notEqual(linje.beaten, 0, `bedre enn 0% sluppet gjennom (r=${rank}, n=${total})`)
+    }
+  }
 })
 
 test('monotoni: bedre plassering gir aldri lavere «bedre enn»-tall', () => {

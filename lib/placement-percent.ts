@@ -68,3 +68,38 @@ export function beatenPercent(rank: number, total: number): number | null {
   if (rank === total) return 0
   return clamp(Math.round(((total - rank) / others) * 100), 1, 99)
 }
+
+export type PlacementPercentLine = { top: number; beaten: number }
+
+/**
+ * Tallene til linja «Topp X % · bedre enn Y % av deltakerne», eller `null` når
+ * linja ikke skal vises i det hele tatt.
+ *
+ * VAKTEN BOR HER, IKKE HOS KALLEREN. Samme grunn som at `escapeHtml` brukes
+ * inne i `lib/email-templates.ts` og ikke hos den som sender e-posten: en regel
+ * som ligger ved sluket kan ingen framtidig kaller glemme. Skal linja vises et
+ * nytt sted (delekortet, historikk, en framtidig flate), arver den vakten
+ * gratis ved å kalle denne funksjonen i stedet for å regne selv.
+ *
+ * Returnerer null når:
+ *   • verdiene er ugyldige, eller spilleren er alene (ingen å sammenligne med)
+ *   • spilleren kom SIST — da ville linja lest «Topp 100 % · bedre enn 0 % av
+ *     deltakerne». Begge tallene er sanne etter nevner-fiksen 2. august 2026,
+ *     men «Topp 100 %» er en superlativ-innramming av det dårligste utfallet,
+ *     og «bedre enn 0 %» er ikke hyggeligere alene. Linja tilfører ingenting:
+ *     plasseringen står allerede i stort format rett over («55. plass av 55
+ *     deltakere»), så ingen informasjon går tapt ved å skjule den.
+ *
+ * Primitivene `topPercent`/`beatenPercent` beholder sine ærlige svar for
+ * sisteplass (100 og 0) — det er LINJA som undertrykkes, ikke tallene.
+ */
+export function placementPercentLine(
+  rank: number,
+  total: number,
+): PlacementPercentLine | null {
+  const top = topPercent(rank, total)
+  const beaten = beatenPercent(rank, total)
+  if (top === null || beaten === null) return null
+  if (rank === total) return null
+  return { top, beaten }
+}

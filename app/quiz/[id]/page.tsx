@@ -13,7 +13,7 @@ import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
-import { topPercent, beatenPercent } from '@/lib/placement-percent'
+import { placementPercentLine } from '@/lib/placement-percent'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -1998,7 +1998,18 @@ export default function QuizPage() {
       await document.fonts.ready
 
       const cCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
+      // Sisteplass: ingen plasserings-kolonne på delekortet, samme regel som
+      // persentillinja på resultatskjermen (placementPercentLine). Kortet
+      // faller da til «kun score, sentrert»-varianten under.
+      //
+      // ⚠️ MERK — TALLET HER ER IKKE SAMME STØRRELSE SOM PÅ RESULTATSKJERMEN.
+      // Skjermen viser rang/antall («Topp 2 %» for vinneren av 55). Denne
+      // linja viser (antall − rang)/antall, altså det omvendte: samme vinner
+      // får «Topp 98 %» på det delte bildet. Funnet 2. august 2026, bevisst
+      // IKKE rettet her fordi det er en endring i beregning, ikke en vakt —
+      // se rapporten til Dennis. Rettes det, skal det gå via topPercent().
       const topp = isPremium && estimatedPlacement && estimatedPlacement.total > 1
+        && estimatedPlacement.rank !== estimatedPlacement.total
         ? Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
         : null
 
@@ -2855,8 +2866,9 @@ export default function QuizPage() {
           // ikke hverandres komplement — se lib/placement-percent.ts. Fram til
           // 2. august 2026 ble «bedre enn» regnet med spilleren selv i nevneren,
           // så vinneren av en tospillerquiz fikk «bedre enn 50 %».
-          const toppXEksakt = topPercent(estimatedPlacement.rank, estimatedPlacement.total)
-          const bedreEnnEksakt = beatenPercent(estimatedPlacement.rank, estimatedPlacement.total)
+          // Vakten mot sisteplass og «alene i quizen» ligger i lib-et, ikke her
+          // — se placementPercentLine().
+          const prosentLinje = placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
           return (
             <div className="qk-rsec" style={{
               background: '#1e1a0e',
@@ -2875,13 +2887,11 @@ export default function QuizPage() {
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
-              {/* Skjules helt hvis tallene ikke betyr noe (alene i quizen) —
-                  en påstand om en sammenligning som ikke finnes er verre enn
-                  ingen linje. Dagens ytre vakt (total > 1) gjør at det ikke
-                  skjer i praksis; dette er belte og seler. */}
-              {toppXEksakt !== null && bedreEnnEksakt !== null && (
+              {/* Skjules helt ved sisteplass og når spilleren er alene — begge
+                  avgjort av placementPercentLine(), ikke av en betingelse her. */}
+              {prosentLinje && (
                 <div style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
-                  Topp {toppXEksakt}% · bedre enn {bedreEnnEksakt}% av deltakerne
+                  Topp {prosentLinje.top}% · bedre enn {prosentLinje.beaten}% av deltakerne
                 </div>
               )}
             </div>
