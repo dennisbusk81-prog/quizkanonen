@@ -13,6 +13,7 @@ import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
+import { topPercent, beatenPercent } from '@/lib/placement-percent'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -2833,8 +2834,13 @@ export default function QuizPage() {
       )}
 
       {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
-        const prosent = Math.round(((estimatedPlacement.total - estimatedPlacement.low) / estimatedPlacement.total) * 100)
-        const toppX = 100 - prosent
+        // Her lå `prosent`/`toppX` — samme feil nevner som premium-grenen under
+        // (spilleren selv talt med i feltet hun sammenlignes mot), men utledet
+        // av spennets `low`. De ble aldri vist noe sted: gratis-grenen viser
+        // «mellom plass X og Y», ikke en prosent. Fjernet 2. august 2026 i
+        // stedet for å rettes, så feilen ikke kan arves av en framtidig
+        // visning. Trenger gratis-grenen en prosent senere, finnes
+        // topPercent()/beatenPercent() i lib/placement-percent.ts.
         const tierStart = estimatedPlacement.total <= 10
           ? 1
           : Math.max(1, Math.floor((estimatedPlacement.low - 1) / 10) * 10 + 1)
@@ -2845,8 +2851,12 @@ export default function QuizPage() {
           // Premium = EKSAKT plassering: bruk `rank` fra den delte lista (identisk
           // med Topp 3), ikke spennets `low`. Dette var Kevin-symptomet — en rang-2-
           // spiller viste "1. plass" fordi low = rank-2 ble vist som eksakt.
-          const prosentEksakt = Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
-          const toppXEksakt = 100 - prosentEksakt
+          // «Topp X %» og «bedre enn Y %» er TO størrelser med ULIKE nevnere,
+          // ikke hverandres komplement — se lib/placement-percent.ts. Fram til
+          // 2. august 2026 ble «bedre enn» regnet med spilleren selv i nevneren,
+          // så vinneren av en tospillerquiz fikk «bedre enn 50 %».
+          const toppXEksakt = topPercent(estimatedPlacement.rank, estimatedPlacement.total)
+          const bedreEnnEksakt = beatenPercent(estimatedPlacement.rank, estimatedPlacement.total)
           return (
             <div className="qk-rsec" style={{
               background: '#1e1a0e',
@@ -2865,9 +2875,15 @@ export default function QuizPage() {
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
-              <div style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
-                Topp {toppXEksakt}% · bedre enn {prosentEksakt}% av deltakerne
-              </div>
+              {/* Skjules helt hvis tallene ikke betyr noe (alene i quizen) —
+                  en påstand om en sammenligning som ikke finnes er verre enn
+                  ingen linje. Dagens ytre vakt (total > 1) gjør at det ikke
+                  skjer i praksis; dette er belte og seler. */}
+              {toppXEksakt !== null && bedreEnnEksakt !== null && (
+                <div style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
+                  Topp {toppXEksakt}% · bedre enn {bedreEnnEksakt}% av deltakerne
+                </div>
+              )}
             </div>
           )
         }
