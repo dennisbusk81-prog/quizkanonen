@@ -1,25 +1,28 @@
-// ── Persentiltallene på resultatskjermen ─────────────────────────────────────
-// TO ULIKE størrelser, som fram til 2. august 2026 var koblet sammen med
-// `topp = 100 − bedreEnn`. Koblingen var feil, fordi de har ulike nevnere:
+// ── Persentiltallet på resultatskjermen ──────────────────────────────────────
+// «Bedre enn Y % av deltakerne» — andelen av de ANDRE spilleren slo.
 //
-//   topPercent    — HVOR I FELTET du havnet:   rang / antall
-//                   «Topp 10 %» = du er blant de 10 % beste.
-//   beatenPercent — hvor mange ANDRE du slo:   (antall − rang) / (antall − 1)
+// HISTORIKK, fordi den forklarer hvorfor det bare er ETT tall her nå:
 //
-// Den gamle koden regnet «bedre enn» som (antall − rang) / ANTALL, altså med
-// spilleren SELV talt med i feltet hun sammenlignes mot. Vinneren av en
-// tospillerquiz fikk «bedre enn 50 %» enda hun hadde slått alle de andre
-// (1 av 1), og nummer 2 av 2 fikk «Topp 100 % · bedre enn 0 %». Rapportert av
-// Dennis 30. juli 2026.
+// Fram til 2. august 2026 sto det «Topp X % · bedre enn Y % av deltakerne», og
+// «bedre enn» ble regnet som (antall − rang) / ANTALL — med spilleren selv talt
+// med i feltet hun sammenlignes mot. Vinneren av en tospillerquiz fikk «bedre
+// enn 50 %» enda hun hadde slått alle de andre (1 av 1). Rapportert av Dennis
+// 30. juli 2026.
 //
-// Merk at «Topp X %» var korrekt hele tiden: 100 − (n−r)/n·100 er identisk med
-// r/n·100. Det er kun «bedre enn» som hadde feil nevner — derfor er de to nå
-// skilt, i stedet for å utledes av hverandre.
+// De gamle tallene summerte pent til 100, og det er nettopp derfor feilen
+// overlevde: paret SÅ riktig ut. Etter at nevneren ble rettet ble begge tallene
+// sanne, men de sluttet å summere — «Topp 51 % · bedre enn 50 %» — fordi de har
+// ULIKE NEVNERE: «Topp» måler mot alle deltakere inkludert deg selv, «bedre
+// enn» måler mot de andre. Leseren ser to prosenttall om samme plassering som
+// ikke henger sammen, og konkluderer med at noe er ødelagt.
 //
-// Begge returnerer `null` når tallet ikke ville betydd noe (ugyldige inn-
-// verdier, eller ingen andre å sammenligne seg med). Kalleren skal da skjule
-// linja — ikke vise 0, ikke vise 100. «Bedre enn 100 % av 0 andre» er en
-// påstand om en sammenligning som ikke finnes.
+// Løsningen ble å vise ett tall i stedet for to. «Topp X %» tilførte lite når
+// plasseringen allerede står i stort format rett over («3. plass av 55
+// deltakere») — det er samme informasjon pakket om — og i et felt på 50–70
+// spillere er «topp 2 %» en oppblåst måte å si «du vant». Kan vurderes på nytt
+// hvis deltakerantallet en dag blir stort nok til at «topp 1 %» er meningsfullt;
+// funksjonen `topPercent` (rang / antall, med avrundingsvakter) lå her fram til
+// 2. august og kan hentes fra git-historikken.
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -36,22 +39,7 @@ function invalid(rank: number, total: number): boolean {
 }
 
 /**
- * «Topp X %» — hvor i feltet spilleren havnet. 1. plass av 10 → 10.
- *
- * Avrundingsgulv på 1: med 201+ deltakere gir rang 1 et råtall på 0,49 %, som
- * ville blitt «Topp 0 %». Ingen er i toppen 0 %.
- * Avrundingstak på 99 for alle andre enn sisteplassen: rang 200 av 201 gir
- * 99,5 % → 100, som ville påstått sisteplass for en spiller som slo noen.
- * Eksakt 100 er forbeholdt den som faktisk er sist.
- */
-export function topPercent(rank: number, total: number): number | null {
-  if (invalid(rank, total)) return null
-  if (rank === total) return 100
-  return clamp(Math.round((rank / total) * 100), 1, 99)
-}
-
-/**
- * «Bedre enn X % av deltakerne» — andelen av de ANDRE spilleren slo.
+ * «Bedre enn Y % av deltakerne» — andelen av de ANDRE spilleren slo.
  *
  * Nevneren er `total − 1`, ikke `total`: du sammenligner deg med de andre, ikke
  * med deg selv. Returnerer null når du er alene (ingen andre å slå).
@@ -59,6 +47,7 @@ export function topPercent(rank: number, total: number): number | null {
  * 100 er forbeholdt førsteplassen og 0 sisteplassen — mellomliggende
  * plasseringer klampes til 1–99, slik at avrunding aldri kan påstå «bedre enn
  * 100 %» for en som ble slått, eller «bedre enn 0 %» for en som slo noen.
+ * (Grensene nås først rundt 200 deltakere; dagens største quiz har 71.)
  */
 export function beatenPercent(rank: number, total: number): number | null {
   if (invalid(rank, total)) return null
@@ -69,37 +58,28 @@ export function beatenPercent(rank: number, total: number): number | null {
   return clamp(Math.round(((total - rank) / others) * 100), 1, 99)
 }
 
-export type PlacementPercentLine = { top: number; beaten: number }
-
 /**
- * Tallene til linja «Topp X % · bedre enn Y % av deltakerne», eller `null` når
- * linja ikke skal vises i det hele tatt.
+ * Tallet til linja «Bedre enn Y % av deltakerne», eller `null` når linja ikke
+ * skal vises i det hele tatt.
  *
  * VAKTEN BOR HER, IKKE HOS KALLEREN. Samme grunn som at `escapeHtml` brukes
  * inne i `lib/email-templates.ts` og ikke hos den som sender e-posten: en regel
  * som ligger ved sluket kan ingen framtidig kaller glemme. Skal linja vises et
- * nytt sted (delekortet, historikk, en framtidig flate), arver den vakten
- * gratis ved å kalle denne funksjonen i stedet for å regne selv.
+ * nytt sted, arver den vakten gratis ved å kalle denne funksjonen i stedet for
+ * å regne selv.
  *
  * Returnerer null når:
  *   • verdiene er ugyldige, eller spilleren er alene (ingen å sammenligne med)
- *   • spilleren kom SIST — da ville linja lest «Topp 100 % · bedre enn 0 % av
- *     deltakerne». Begge tallene er sanne etter nevner-fiksen 2. august 2026,
- *     men «Topp 100 %» er en superlativ-innramming av det dårligste utfallet,
- *     og «bedre enn 0 %» er ikke hyggeligere alene. Linja tilfører ingenting:
- *     plasseringen står allerede i stort format rett over («55. plass av 55
- *     deltakere»), så ingen informasjon går tapt ved å skjule den.
+ *   • spilleren kom SIST — «bedre enn 0 % av deltakerne» er sant, men ikke
+ *     hyggelig lesning, og tilfører ingenting: plasseringen står allerede rett
+ *     over («55. plass av 55 deltakere»), så ingen informasjon går tapt.
  *
- * Primitivene `topPercent`/`beatenPercent` beholder sine ærlige svar for
- * sisteplass (100 og 0) — det er LINJA som undertrykkes, ikke tallene.
+ * `beatenPercent` beholder sitt ærlige svar for sisteplass (0) — det er LINJA
+ * som undertrykkes, ikke tallet.
  */
-export function placementPercentLine(
-  rank: number,
-  total: number,
-): PlacementPercentLine | null {
-  const top = topPercent(rank, total)
+export function placementPercentLine(rank: number, total: number): number | null {
   const beaten = beatenPercent(rank, total)
-  if (top === null || beaten === null) return null
+  if (beaten === null) return null
   if (rank === total) return null
-  return { top, beaten }
+  return beaten
 }

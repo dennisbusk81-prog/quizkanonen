@@ -1998,20 +1998,6 @@ export default function QuizPage() {
       await document.fonts.ready
 
       const cCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
-      // Sisteplass: ingen plasserings-kolonne på delekortet, samme regel som
-      // persentillinja på resultatskjermen (placementPercentLine). Kortet
-      // faller da til «kun score, sentrert»-varianten under.
-      //
-      // ⚠️ MERK — TALLET HER ER IKKE SAMME STØRRELSE SOM PÅ RESULTATSKJERMEN.
-      // Skjermen viser rang/antall («Topp 2 %» for vinneren av 55). Denne
-      // linja viser (antall − rang)/antall, altså det omvendte: samme vinner
-      // får «Topp 98 %» på det delte bildet. Funnet 2. august 2026, bevisst
-      // IKKE rettet her fordi det er en endring i beregning, ikke en vakt —
-      // se rapporten til Dennis. Rettes det, skal det gå via topPercent().
-      const topp = isPremium && estimatedPlacement && estimatedPlacement.total > 1
-        && estimatedPlacement.rank !== estimatedPlacement.total
-        ? Math.round(((estimatedPlacement.total - estimatedPlacement.rank) / estimatedPlacement.total) * 100)
-        : null
 
       const W = 800, H = 420
       const canvas = document.createElement('canvas')
@@ -2089,43 +2075,26 @@ export default function QuizPage() {
       ctx.lineTo(cX + cW - 48, cY + 134)
       ctx.stroke()
 
-      // Stats
+      // Stats — kun score, sentrert, for alle spillere.
+      //
+      // Fram til 2. august 2026 hadde kortet to kolonner for Premium: score og
+      // «Topp X %» under etiketten PLASSERING. Kolonnen er fjernet sammen med
+      // «Topp X %» på resultatskjermen, av to grunner — den andre var en bug:
+      //   • Samme begrunnelse som på skjermen: tallet var plasseringen pakket
+      //     om, og «topp 2 %» i et felt på 55 er en oppblåst måte å si «du vant».
+      //   • Kortet regnet (antall − rang)/antall og tegnet det som «Topp X %»
+      //     UTEN inverteringen skjermen hadde. Vinneren av 55 fikk «Topp 2 %»
+      //     på skjermen og «Topp 98 %» på bildet hun delte. Ved å fjerne tallet
+      //     forsvinner motsigelsen i stedet for å måtte holdes i sync.
+      // Den sentrerte varianten er ikke ny — den ble allerede brukt for alle
+      // ikke-Premium-spillere, så dette er én kjent utforming for alle.
       const statY = cY + 212
-      if (topp !== null) {
-        // Two columns: score | placement
-        const col1x = cx - 130
-        const col2x = cx + 130
-
-        ctx.font = '700 52px "Libre Baskerville", serif'
-        ctx.fillStyle = '#c9a84c'
-        ctx.fillText(`${cCount}/${totalQuestions}`, col1x, statY)
-        ctx.font = '500 11px "Instrument Sans", sans-serif'
-        ctx.fillStyle = '#918f8a'
-        ctx.fillText('RIKTIGE SVAR', col1x, statY + 28)
-
-        // Column separator
-        ctx.strokeStyle = '#2a2d38'
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.moveTo(cx, statY - 46)
-        ctx.lineTo(cx, statY + 38)
-        ctx.stroke()
-
-        ctx.font = '700 42px "Libre Baskerville", serif'
-        ctx.fillStyle = '#c9a84c'
-        ctx.fillText(`Topp ${topp}%`, col2x, statY)
-        ctx.font = '500 11px "Instrument Sans", sans-serif'
-        ctx.fillStyle = '#918f8a'
-        ctx.fillText('PLASSERING', col2x, statY + 28)
-      } else {
-        // Just score centered
-        ctx.font = '700 58px "Libre Baskerville", serif'
-        ctx.fillStyle = '#c9a84c'
-        ctx.fillText(`${cCount}/${totalQuestions}`, cx, statY)
-        ctx.font = '500 16px "Instrument Sans", sans-serif'
-        ctx.fillStyle = '#e8e4dd'
-        ctx.fillText('riktige svar', cx, statY + 36)
-      }
+      ctx.font = '700 58px "Libre Baskerville", serif'
+      ctx.fillStyle = '#c9a84c'
+      ctx.fillText(`${cCount}/${totalQuestions}`, cx, statY)
+      ctx.font = '500 16px "Instrument Sans", sans-serif'
+      ctx.fillStyle = '#e8e4dd'
+      ctx.fillText('riktige svar', cx, statY + 36)
 
       // Branding
       ctx.font = '400 11px "Instrument Sans", sans-serif'
@@ -2139,10 +2108,19 @@ export default function QuizPage() {
 
       const file = new File([blob], 'quizkanonen-resultat.png', { type: 'image/png' })
       // Direkte utfordring i delingsteksten i stedet for nøytral resultattekst.
-      // Eksakt plassering tas kun med for Premium (samme gate som selve kortet
-      // over — se topp !== null), ellers overclaimer vi noe gratis-spillere
-      // faktisk ikke har fått vist.
-      const placementText = topp !== null && estimatedPlacement
+      // Eksakt plassering tas kun med for Premium, ellers overclaimer vi noe
+      // gratis-spillere faktisk ikke har fått vist.
+      //
+      // Betingelsene sto tidligere implisitt i `topp !== null` (variabelen som
+      // matet plasserings-kolonnen på kortet). Da kolonnen ble fjernet 2. august
+      // 2026 måtte gaten skrives ut — den er BEVISST identisk med den gamle,
+      // sisteplass-unntaket inkludert, så delingsteksten er uendret.
+      const visPlassering =
+        isPremium &&
+        !!estimatedPlacement &&
+        estimatedPlacement.total > 1 &&
+        estimatedPlacement.rank !== estimatedPlacement.total
+      const placementText = visPlassering && estimatedPlacement
         ? ` og havnet på ${estimatedPlacement.rank}. plass`
         : ''
       const shareChallengeText = `Jeg fikk ${cCount} av ${totalQuestions}${placementText}. Klarer du å slå meg neste fredag?`
@@ -2720,15 +2698,23 @@ export default function QuizPage() {
   const correctCount = serverScore?.correctAnswers ?? answers.filter(a => a.isCorrect).length
   const percentage = Math.round((correctCount / totalQuestions) * 100)
   const streak = serverScore?.correctStreak ?? calculateStreak(answers.map(a => ({ is_correct: a.isCorrect })))
-  // Premium deler eksakt (rank); gratis deler estimatet (low) — samme som visningen.
-  // Gratis-estimatet deles kun når spennet faktisk vises (total >= 10, speiler
-  // plasseringskortet under) — ellers ble «topp 25%» av 4 deltakere delt videre.
-  const toppPercent = estimatedPlacement && estimatedPlacement.total > 1 && (isPremium || estimatedPlacement.total >= 10)
-    ? Math.round(((estimatedPlacement.total - (isPremium ? estimatedPlacement.rank : estimatedPlacement.low)) / estimatedPlacement.total) * 100)
+  // Prosenten i delingsteksten («Del resultatet»-knappen lenger nede) — samme
+  // tall, fra samme funksjon, som persentillinja på resultatskjermen. Da kan
+  // det spilleren DELER aldri avvike fra det hun SER.
+  //
+  // Her lå fram til 2. august 2026 `toppPercent`/`shareResultText`, som delte
+  // «Jeg er topp X%» med den omvendte formelen (antall − rang)/antall:
+  // vinneren av 55 delte «topp 98%». `shareResultText` var i tillegg dødkode
+  // (ESLint meldte den ubrukt), men `toppPercent` matet også den LEVENDE
+  // delingsknappen — derfor er dette rettet, ikke bare slettet.
+  //
+  // KUN Premium: gratis-visningen viser bevisst et grovt spenn, og en presis
+  // prosent i delingsteksten ville omgått den gatingen. Gratis-varianten brukte
+  // tidligere spennets `low`, som både var omvendt OG mer presist enn det
+  // spilleren selv fikk se.
+  const deltProsent = isPremium && estimatedPlacement
+    ? placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
     : null
-  const shareResultText = toppPercent !== null
-    ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
-    : `Jeg spilte Quizkanonen denne uken! Kan du slå meg? quizkanonen.no`
 
   return (
     <><style>{styles}</style>
@@ -2851,7 +2837,7 @@ export default function QuizPage() {
         // «mellom plass X og Y», ikke en prosent. Fjernet 2. august 2026 i
         // stedet for å rettes, så feilen ikke kan arves av en framtidig
         // visning. Trenger gratis-grenen en prosent senere, finnes
-        // topPercent()/beatenPercent() i lib/placement-percent.ts.
+        // placementPercentLine() i lib/placement-percent.ts.
         const tierStart = estimatedPlacement.total <= 10
           ? 1
           : Math.max(1, Math.floor((estimatedPlacement.low - 1) / 10) * 10 + 1)
@@ -2887,11 +2873,17 @@ export default function QuizPage() {
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
-              {/* Skjules helt ved sisteplass og når spilleren er alene — begge
+              {/* «Topp X %» sto her fram til 2. august 2026, men de to tallene
+                  har ulike nevnere og sluttet å summere til 100 da nevneren ble
+                  rettet — «Topp 51 % · bedre enn 50 %» leste som en regnefeil.
+                  Plasseringen står allerede i stort format rett over, så tallet
+                  var samme informasjon pakket om.
+
+                  Skjules helt ved sisteplass og når spilleren er alene — begge
                   avgjort av placementPercentLine(), ikke av en betingelse her. */}
-              {prosentLinje && (
+              {prosentLinje !== null && (
                 <div style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
-                  Topp {prosentLinje.top}% · bedre enn {prosentLinje.beaten}% av deltakerne
+                  Bedre enn {prosentLinje}% av deltakerne
                 </div>
               )}
             </div>
@@ -3076,8 +3068,8 @@ export default function QuizPage() {
 
       <div className="qk-result-cta" style={{display:'flex',flexDirection:'column',gap:10}}>
         <button onClick={async () => {
-          const shareText = toppPercent !== null
-            ? `Jeg er topp ${toppPercent}% på Quizkanonen denne uken! Kan du slå meg?`
+          const shareText = deltProsent !== null
+            ? `Jeg er bedre enn ${deltProsent}% av deltakerne på Quizkanonen denne uken! Kan du slå meg?`
             : `Jeg spilte Quizkanonen denne uken! Kan du slå meg?`
           const shareData = { title: 'Quizkanonen', text: shareText, url: 'https://quizkanonen.no' }
           if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
