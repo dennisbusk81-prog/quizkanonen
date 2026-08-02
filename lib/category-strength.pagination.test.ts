@@ -49,6 +49,7 @@ function builder(table: string) {
     order() { return b },
     limit() { return b },
     gte() { return b },
+    lte() { return b },
     in() { return b },
     range(f: number, t: number) { from = f; to = t; return b },
     single() { return Promise.resolve({ data: null, error: null }) },

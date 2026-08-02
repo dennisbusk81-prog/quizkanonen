@@ -7,6 +7,11 @@ import {
   pickCategoryStrength,
   type CategoryStrength,
 } from './category-stats'
+import {
+  computeParticipationStreak,
+  type ParticipationStreak,
+  type StreakQuiz,
+} from './participation-streak'
 
 // ─── Exported types ──────────────────────────────────────────────────────────
 
@@ -43,6 +48,11 @@ export type PlayerStats = {
   // pickCategoryStrength() i lib/category-stats.ts for reglene.
   sterkeste_kategori: string | null
   svakeste_kategori: string | null
+  // Fredagsquizer på rad. IKKE det samme som `best_streak` over, som er
+  // riktige svar på rad inne i ÉN quiz (attempts.correct_streak). Se
+  // lib/participation-streak.ts.
+  deltakelsesrekke: number
+  lengste_deltakelsesrekke: number
 }
 
 export type AttemptAnswerDetail = {
@@ -270,6 +280,83 @@ async function fetchCategoryStrength(userId: string): Promise<CategoryStrength> 
   return pickCategoryStrength(computeCategoryStats(answers, questions))
 }
 
+type StreakQuizRow = { id: string; season_points_awarded: boolean | null }
+
+/**
+ * Deltakelsesrekke — hvor mange fredagsquizer på rad brukeren har spilt.
+ * Ren logikk og begrunnelse ligger i lib/participation-streak.ts; denne
+ * funksjonen gjør kun uthentingen.
+ *
+ * POPULASJONEN er gjenbruk, ikke en ny definisjon: `is_test = false` +
+ * `season_points_awarded` er nøyaktig markørene `fetchRetentionRows()` i
+ * lib/retention.ts bruker for «faktisk spilt og gjort opp». Forskjellen er
+ * `.lte('opens_at', now)` i stedet for `.eq('season_points_awarded', true)`:
+ * kveldens ÅPNE quiz må være med i lista for at en spiller som nettopp har
+ * levert skal se rekken telle opp med én gang, og flagget følger med som
+ * `settled` slik at den rene funksjonen kan behandle den asymmetrisk.
+ * Planlagte quizer (opens_at fram i tid — 6 stykker i prod per 2. august)
+ * holdes ute her, ikke i logikken.
+ *
+ * `quiz_type = 'weekly'` er ETT filter til, som retention IKKE har, og det er
+ * bevisst: rekken lover «fredagsquizer på rad», og en bonusquiz er ikke en
+ * fredagsquiz. Uten filteret ville en bonusquiz som ble gjort opp brutt rekken
+ * til alle som spiller trofast hver fredag, uten at de hadde gjort noe galt.
+ * `'weekly'` er samme markør /api/toppliste og /api/org/[slug]/quiz-scores
+ * allerede bruker for å skille ut fredagsserien. (Per 2. august er alle 13
+ * quizene i prod `weekly`, så filteret endrer ingenting i dag — det er
+ * forsikring mot den første bonusquizen.)
+ *
+ * DELTAKELSE måles på `submitted_at`, IKKE på `correct_streak IS NOT NULL`
+ * som resten av getPlayerStats bruker til å avgrense «fullført forsøk».
+ * Avviket er bevisst og målt: i prod 2. august 2026 finnes 6 rader med
+ * `correct_streak = 0` og `submitted_at = NULL` — alle med 0 riktige, 0 ms og
+ * 15 spørsmål, altså forsøk som ble påbegynt og forlatt. De endrer svaret for
+ * 6 av 130 spillere, og i ett tilfelle fabrikkerer de en hel rekke: en bruker
+ * som aldri svarte på quizen 19.06 ville fått «7 på rad» i stedet for 6.
+ * Å ha startet en quiz er ikke å ha deltatt i den.
+ *
+ * PAGINERING PÅ BEGGE: quizzes vokser med én rad i uka og attempts med én per
+ * spiller per quiz, så begge passerer 1000-taket med tiden — og et `.limit()`
+ * i nærheten er ikke bevis på noe, databasen har db-max-rows = 1000 og gir
+ * 1000 rader uansett hva man ber om. Sekundærsorteringen på `id` er ikke
+ * pynt: uten et deterministisk totalorden kan to sider med likt `opens_at`
+ * overlappe eller hoppe over rader mellom seg.
+ */
+async function fetchParticipationStreak(userId: string): Promise<ParticipationStreak> {
+  const nowIso = new Date().toISOString()
+
+  const [quizRows, attemptRows] = await Promise.all([
+    fetchAllRows<StreakQuizRow>((from, to) =>
+      supabaseAdmin
+        .from('quizzes')
+        .select('id, season_points_awarded')
+        .eq('is_test', false)
+        .eq('quiz_type', 'weekly')
+        .not('opens_at', 'is', null)
+        .lte('opens_at', nowIso)
+        .order('opens_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows<{ quiz_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('quiz_id')
+        .eq('user_id', userId)
+        .not('submitted_at', 'is', null)
+        .order('quiz_id', { ascending: true })
+        .range(from, to)
+    ),
+  ])
+
+  const quizzes: StreakQuiz[] = quizRows.map((q) => ({
+    id: q.id,
+    settled: q.season_points_awarded === true,
+  }))
+
+  return computeParticipationStreak(quizzes, attemptRows.map((a) => a.quiz_id))
+}
+
 type QuestionRow = {
   id: string
   question_text: string
@@ -360,6 +447,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     progresjon: null,
     sterkeste_kategori: null,
     svakeste_kategori: null,
+    deltakelsesrekke: 0,
+    lengste_deltakelsesrekke: 0,
   }
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
@@ -395,7 +484,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   // at den ikke koster en ekstra seriell rundtur. Den ligger her og ikke i
   // første Promise.all fordi den da ville blitt betalt også for brukere som
   // returnerer EMPTY over.
-  const [ranks, categoryStrength] = await Promise.all([
+  const [ranks, categoryStrength, participation] = await Promise.all([
     computeRanks(
       userAttempts.map((a) => ({
         id: a.id,
@@ -405,6 +494,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
       }))
     ),
     fetchCategoryStrength(userId),
+    fetchParticipationStreak(userId),
   ])
 
   const allRankValues = [...ranks.values()].map((r) => r.rank)
@@ -458,6 +548,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     progresjon,
     sterkeste_kategori: categoryStrength.sterkeste,
     svakeste_kategori: categoryStrength.svakeste,
+    deltakelsesrekke: participation.current,
+    lengste_deltakelsesrekke: participation.longest,
   }
 }
 
