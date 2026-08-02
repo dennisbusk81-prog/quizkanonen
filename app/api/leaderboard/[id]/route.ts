@@ -126,15 +126,18 @@ export async function GET(
       : null
 
   // ── Delt rangerings-helper (service role) ────────────────────────────────────
-  // Henter alle rader for rommet (solo/lag), filtrerer på submitted, dedup'er per
+  // Henter rader for rommet (solo/lag), filtrerer på submitted, dedup'er per
   // spiller og rangerer med 4-nøkkels tiebreak. Søk/paginering skjer i JS etterpå.
+  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
+  // .limit(5000) gjorde ingenting, og «alle rader» stemmer kun opp til 1000
+  // attempts per quiz. Spørringen er IKKE beskyttet mot vekst.
+  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
   const [{ data: allRowsRaw }, quizRes] = await Promise.all([
     supabaseAdmin
       .from('attempts')
       .select(SELECT_COLS)
       .eq('quiz_id', quizId)
-      .eq('is_team', isTeam)
-      .limit(5000),
+      .eq('is_team', isTeam),
     supabaseAdmin
       .from('quizzes')
       .select('closes_at, hide_leaderboard_until_closed, show_leaderboard')

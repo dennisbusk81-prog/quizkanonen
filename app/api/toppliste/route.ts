@@ -17,8 +17,7 @@ import {
 // STENGT quiz er statiske, så vi cacher de råe attemptene per quiz-id i minne
 // (samme getOrBuild-med-TTL-mønster som lib/ranking-snapshot, men per-instans i
 // minne — jf. modul-nivå Map i lib/rate-limit.ts). All filtrering/rangering/
-// output nedstrøms er 100 % uendret; kun DB-lesen på opptil 5000 rader spares
-// på cache-treff.
+// output nedstrøms er 100 % uendret; kun DB-lesen spares på cache-treff.
 type LastQuizRow = {
   id: string
   user_id: string
@@ -46,13 +45,16 @@ async function getLastQuizAttempts(quizId: string): Promise<LastQuizRow[]> {
   const cached = lastQuizAttemptsCache.get(quizId)
   if (cached && cached.expires > now) return cached.rows
 
+  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
+  // .limit(5000) gjorde ingenting. Spørringen er IKKE beskyttet mot vekst:
+  // over 1000 attempts på én quiz blir topplisten feil.
+  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
   const { data, error } = await supabaseAdmin
     .from('attempts')
     .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
     .eq('quiz_id', quizId)
     .not('user_id', 'is', null)
     .eq('is_team', false)
-    .limit(5000)
 
   // Cach IKKE en feilrespons — unngår å servere tomt i 30s ved en transient feil.
   if (error || !data) return []

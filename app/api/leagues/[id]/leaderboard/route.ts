@@ -71,11 +71,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     query = query.gte('completed_at', league.reset_at)
   }
 
-  // Limit to prevent unbounded scans. 5000 is generous for a 6-member league
-  // (~1 attempt/week × 6 members × 52 weeks × ~10 years).
-  query = query
-    .order('completed_at', { ascending: false })
-    .limit(5000)
+  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
+  // .limit(5000) gjorde ingenting (og regnestykket i den gamle kommentaren
+  // landet uansett på 3120, over taket). Spørringen er IKKE beskyttet mot
+  // vekst: over 1000 attempts i ligaen mister vi de eldste radene.
+  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
+  query = query.order('completed_at', { ascending: false })
 
   const { data: attempts, error: attemptsError } = await query
 

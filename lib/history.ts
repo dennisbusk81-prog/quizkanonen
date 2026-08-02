@@ -121,12 +121,15 @@ async function computeRanks(
 
   const quizIds = [...new Set(userAttempts.map((a) => a.quiz_id))]
 
+  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — en .limit()
+  // over 1000 gjør ingenting og ga tidligere falsk trygghet her. Spørringen er
+  // altså IKKE beskyttet mot vekst: over 1000 attempts på tvers av quizIds blir
+  // rangeringen feil. TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
   const { data } = await supabaseAdmin
     .from('attempts')
     .select('quiz_id, correct_answers, total_time_ms')
     .in('quiz_id', quizIds)
     .not('correct_streak', 'is', null)
-    .limit(5000) // prevent unbounded scans on popular quizzes
 
   if (!data) return new Map()
 
@@ -462,12 +465,15 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
       )
       .eq('user_id', userId)
       .not('correct_streak', 'is', null),
+    // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
+    // .limit(10_000) gjorde ingenting. Snitt-tallene under regnes derfor i
+    // praksis på maks 1000 av 90-dagers-attemptene og er IKKE beskyttet mot
+    // vekst. TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
     supabaseAdmin
       .from('attempts')
       .select('correct_answers, total_questions, total_time_ms')
       .not('correct_streak', 'is', null)
-      .gte('completed_at', ninetyDaysAgo)
-      .limit(10_000),
+      .gte('completed_at', ninetyDaysAgo),
   ])
 
   if (!userAttempts || userAttempts.length === 0) return EMPTY
