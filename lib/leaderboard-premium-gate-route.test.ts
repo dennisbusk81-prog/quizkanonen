@@ -34,6 +34,21 @@
 //   • Fjernes `userIsPremium` fra browse-gaten              → 3 tester ryker.
 //   • Byttes browse-gaten til en 403 i stedet for å
 //     ignorere parameterne                                  → 4 tester ryker.
+//
+// SAK 3 (samme feilklasse, lukket rett etter): `show_leaderboard = false` ble
+//        også håndhevet kun i klienten — der er det en full tidlig retur av
+//        HELE siden («Ukens resultater er ikke aktivert for denne quizen»).
+//        Ruten leverte stillingen som normalt. Virkningen er identisk med sak 1
+//        (entries tømmes), men BETINGELSEN er en annen: permanent, uten
+//        tidsgrense og uten Premium-unntak.
+//
+// MUTASJONSBEVIS for sak 3 (alle kjørt, med målt antall):
+//   • Ignoreres `show_leaderboard` helt                     → 8 tester ryker.
+//   • Gis av-bryteren en tidsgrense (`&& !quizIsClosed`)    → 1 test ryker.
+//   • Gis av-bryteren Premium-unntaket fra sak 1            → 2 tester ryker.
+//   • Nulles også userEntry/userRank/totalCount ved av      → 2 tester ryker
+//     (egen plassering er en annen funksjon enn den offentlige lista).
+//   • Lar `until_closed` vinne over `disabled` i årsaken    → 1 test ryker.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -58,7 +73,21 @@ type AttemptRow = {
   quiz_id: string
 }
 
-type QuizRow = { closes_at: string | null; hide_leaderboard_until_closed: boolean }
+type QuizRow = {
+  closes_at: string | null
+  hide_leaderboard_until_closed: boolean
+  show_leaderboard: boolean
+}
+
+/** Standard: en vanlig, åpen quiz med leaderboard PÅ og ingen skjuling. */
+function quizRow(overrides: Partial<QuizRow> = {}): QuizRow {
+  return {
+    closes_at: OM_EN_TIME(),
+    hide_leaderboard_until_closed: false,
+    show_leaderboard: true,
+    ...overrides,
+  }
+}
 
 const state: {
   attempts: AttemptRow[]
@@ -144,6 +173,7 @@ type Svar = {
   totalCount: number
   userIsPremium: boolean
   leaderboardHidden: boolean
+  hiddenReason: 'disabled' | 'until_closed' | null
   page: number
   pageSize: number
 }
@@ -173,7 +203,7 @@ beforeEach(() => {
   ]
   state.profile = { premium_status: false, org_premium_grace_until: null }
   // Standard: en helt vanlig, åpen quiz uten skjult leaderboard.
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: false }
+  state.quiz = quizRow()
 })
 
 test('PREMIUM: får eksakt plassering — både userRank og rank i raden', async () => {
@@ -254,7 +284,7 @@ test('rank 1–10 grovmales til 1 (ingen bånd-start på 0 eller negativt)', asy
 // /api/quiz/[id]/standings, ikke et nytt.
 
 test('SKJULT + ÅPEN quiz: ingen av de andre spillernes rader forlater serveren', async () => {
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50')
 
@@ -263,7 +293,7 @@ test('SKJULT + ÅPEN quiz: ingen av de andre spillernes rader forlater serveren'
 })
 
 test('SKJULT + ÅPEN: også en uinnlogget klient får null rader', async () => {
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50', true)
 
@@ -274,7 +304,7 @@ test('SKJULT + ÅPEN: svaret er REDUSERT, ikke tomt — eget resultat og totalCo
   // Resultatskjermen i app/quiz/[id] og plasseringskortet på leaderboard-siden
   // kaller ruten nettopp mens quizen er åpen. Derfor ingen 403 og ingen blank
   // respons: spilleren skal få SITT eget, bare ikke andres.
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50')
 
@@ -286,7 +316,7 @@ test('SKJULT + ÅPEN: svaret er REDUSERT, ikke tomt — eget resultat og totalCo
 })
 
 test('SKJULT + STENGT quiz: listen er tilbake (skjulingen gjelder kun mens quizen er åpen)', async () => {
-  state.quiz = { closes_at: FOR_EN_TIME_SIDEN(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ closes_at: FOR_EN_TIME_SIDEN(), hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50')
 
@@ -296,7 +326,7 @@ test('SKJULT + STENGT quiz: listen er tilbake (skjulingen gjelder kun mens quize
 
 test('SKJULT + ÅPEN: Premium som HAR spilt får listen — samme unntak som klienten', async () => {
   gjørMegPremium()
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50')
 
@@ -306,7 +336,7 @@ test('SKJULT + ÅPEN: Premium som HAR spilt får listen — samme unntak som kli
 
 test('SKJULT + ÅPEN: Premium som IKKE har spilt får fortsatt null rader', async () => {
   gjørMegPremium()
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
   // Fjern mitt forsøk — Premium alene løfter ikke skjulingen.
   state.attempts = state.attempts.filter(a => a.user_id !== ME)
 
@@ -318,7 +348,7 @@ test('SKJULT + ÅPEN: Premium som IKKE har spilt får fortsatt null rader', asyn
 
 test('SKJULT + ÅPEN: et ikke-innsendt forsøk teller ikke som «har spilt»', async () => {
   gjørMegPremium()
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
   state.attempts = state.attempts.map(a => a.user_id === ME ? { ...a, submitted_at: null } : a)
 
   const svar = await hent('is_team=false&limit=50')
@@ -426,10 +456,130 @@ test('GRACE etter tapt org-Premium gir også bla og søk', async () => {
 
 test('SKJULT + ÅPEN slår ut bla/søk selv for Premium uten spilt forsøk', async () => {
   gjørMegPremium()
-  state.quiz = { closes_at: OM_EN_TIME(), hide_leaderboard_until_closed: true }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
   state.attempts = state.attempts.filter(a => a.user_id !== ME)
 
   const svar = await hent('is_team=false&search=Spiller')
 
   assert.equal(svar.entries.length, 0, 'søk skal ikke være en vei rundt skjulingen')
+})
+
+// ── SAK 3: show_leaderboard = false ─────────────────────────────────────────
+// Samme VIRKNING som sak 1 (entries tømmes), men en annen BETINGELSE:
+// permanent, uten tidsgrense og uten Premium-unntak. Testene under fastholder
+// nettopp den forskjellen — det er den som gjør at de to ikke kan slås sammen
+// til én betingelse, bare til ett utfall.
+
+test('AV: show_leaderboard=false tømmer entries', async () => {
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.deepEqual(svar.entries, [], 'en deaktivert stilling skal ikke kunne hentes fra API-et')
+})
+
+test('AV: gjelder også når quizen er STENGT — i motsetning til hide_until_closed', async () => {
+  // Dette er kjerneforskjellen mellom de to innstillingene. At quizen stenger
+  // løfter hide_leaderboard_until_closed, men ikke show_leaderboard=false.
+  state.quiz = quizRow({ closes_at: FOR_EN_TIME_SIDEN(), show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.equal(svar.entries.length, 0, 'stengetid skal ikke skru på en deaktivert stilling')
+})
+
+test('AV: gjelder også Premium som HAR spilt — ingen unntak', async () => {
+  // Det andre som skiller dem: Premium-unntaket løfter hide_until_closed,
+  // men skal ikke kunne løfte en deaktivert stilling.
+  gjørMegPremium()
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.entries.length, 0, 'Premium skal ikke være en vei rundt av-bryteren')
+})
+
+test('AV: også uinnlogget får null rader', async () => {
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50', true)
+
+  assert.equal(svar.entries.length, 0)
+})
+
+test('AV: brukerens EGET resultat rammes ikke — kun den offentlige lista', async () => {
+  // Resultatskjermen etter en spilt quiz viser plasseringen sin uavhengig av
+  // show_leaderboard (den er gated på show_live_placement, et eget felt), og
+  // henter den herfra når /standings ikke svarer.
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.entries.length, 0)
+  assert.ok(svar.userEntry, 'egen rad skal overleve')
+  assert.equal(svar.userEntry?.correctAnswers, 4)
+  assert.equal(svar.userEntry?.rank, 11, 'fortsatt grovmalt bånd-start for gratis')
+  assert.equal(svar.totalCount, 20)
+})
+
+test('AV: Premium beholder sin eksakte egen plassering', async () => {
+  gjørMegPremium()
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.userRank, 12, 'userRank er egen plassering, ikke andres stilling')
+  assert.equal(svar.userEntry?.rank, 12)
+})
+
+test('AV: bla og søk gir ingen vei rundt, heller ikke for Premium', async () => {
+  gjørMegPremium()
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent('is_team=false&search=Spiller&page=1')
+
+  assert.equal(svar.entries.length, 0)
+})
+
+test('ÅRSAK: «disabled» og «until_closed» skilles i svaret', async () => {
+  // Ett felt for invarianten (ble radene holdt tilbake?), ett for årsaken —
+  // de to tilstandene betyr ulike ting for en bruker: «finnes ikke for denne
+  // quizen» vs. «kommer når quizen stenger».
+  state.quiz = quizRow({ show_leaderboard: false })
+  assert.equal((await hent('is_team=false&limit=50')).hiddenReason, 'disabled')
+
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  assert.equal((await hent('is_team=false&limit=50')).hiddenReason, 'until_closed')
+
+  state.quiz = quizRow()
+  assert.equal((await hent('is_team=false&limit=50')).hiddenReason, null)
+})
+
+test('ÅRSAK: av-bryteren vinner når begge innstillingene slår til samtidig', async () => {
+  // En deaktivert stilling er permanent; «kommer når quizen stenger» ville vært
+  // et løfte som aldri innfris.
+  state.quiz = quizRow({ show_leaderboard: false, hide_leaderboard_until_closed: true })
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.hiddenReason, 'disabled')
+})
+
+test('ÅRSAK: fail-safe uten quiz-rad rapporteres som «disabled»', async () => {
+  state.quiz = null
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.equal(svar.hiddenReason, 'disabled', 'uten rad kan vi ikke bekrefte at stillingen er PÅ')
+})
+
+test('PÅ + ikke skjult: listen leveres som før (ingen regresjon)', async () => {
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.hiddenReason, null)
+  assert.equal(svar.entries.length, 20)
 })

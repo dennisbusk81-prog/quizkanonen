@@ -137,7 +137,7 @@ export async function GET(
       .limit(5000),
     supabaseAdmin
       .from('quizzes')
-      .select('closes_at, hide_leaderboard_until_closed')
+      .select('closes_at, hide_leaderboard_until_closed, show_leaderboard')
       .eq('id', quizId)
       .maybeSingle(),
   ])
@@ -167,14 +167,27 @@ export async function GET(
   // leaderboard) og brukerens egen plassering lenger nede.
   const mine = userId ? ranked.find(r => r.user_id === userId) ?? null : null
 
-  // ── Skjult leaderboard mens quizen er åpen — håndheves server-side ──────────
-  // `quizzes.hide_leaderboard_until_closed` lå fram til 2. august 2026 KUN i
-  // klienten (`isHidden` i app/leaderboard/[id]/page.tsx). Ruten leste aldri
-  // quizzes-tabellen, så hele stillingen på en åpen, skjult quiz kunne hentes
-  // rått fra API-et uansett hva UI-et valgte å tegne.
+  // ── Når stillingen holdes tilbake — håndheves server-side ───────────────────
+  // TO ULIKE quiz-innstillinger fører hit, og fram til 2. august 2026 lå begge
+  // KUN i klienten. Ruten leste aldri quizzes-tabellen, så hele stillingen
+  // kunne hentes rått fra API-et uansett hva UI-et valgte å tegne.
   //
-  // Regelen speiler klientens `isHidden` nøyaktig, inkludert unntaket: en
-  // Premium-bruker som HAR spilt får se listen også mens quizen er åpen.
+  //   1. `show_leaderboard = false` — «Ukens resultater» er skrudd AV for
+  //      quizen. PERMANENT: ingen tidsgrense, ingen unntak. Klienten returnerer
+  //      hele siden tidlig («Ukens resultater er ikke aktivert for denne
+  //      quizen», app/leaderboard/[id]/page.tsx) — før faner, liste og
+  //      plasseringskort i det hele tatt vurderes.
+  //
+  //   2. `hide_leaderboard_until_closed = true` — stillingen er MIDLERTIDIG
+  //      skjult mens quizen er åpen. To ting løfter den: at quizen stenger, og
+  //      at en Premium-bruker HAR spilt. Klienten viser en låseskjerm
+  //      («Publiseres for alle når quizen stenger») i stedet for listen.
+  //
+  // De er altså ikke samme regel — den ene er permanent og unntaksfri, den
+  // andre tidsbegrenset med to unntak. Men VIRKNINGEN på svaret er identisk,
+  // og med vilje: begge tømmer `entries` og rører ingenting annet. Å gi dem
+  // hver sin variant ville laget to kodestier rundt samme invariant.
+  //
   // «Stengt» avgjøres av den delte `isQuizClosed()` (lib/standings-cache) mot
   // `closes_at` — samme signal som /api/quiz/[id]/standings bruker, ikke et nytt.
   //
@@ -189,13 +202,42 @@ export async function GET(
   // `guestRank` og `totalCount` er derfor uendret; ingen av dem er andres
   // rangering, og `totalCount` er tallet spennet regnes ut fra.
   //
+  // Dette gjelder også `show_leaderboard = false`: resultatskjermen etter en
+  // spilt quiz viser plasseringen sin uavhengig av innstillingen (den er gated
+  // på `show_live_placement`, et EGET felt), og henter den herfra når
+  // /standings ikke svarer. Egen plassering og offentlig stilling er to ulike
+  // funksjoner, og kun den siste skrus av her.
+  //
   // Fail-safe: kan vi ikke lese quiz-raden (feil eller ingen rad), regnes
-  // leaderboardet som SKJULT. En blipp mot databasen skal ikke kunne åpne en
-  // skjult stilling; en quiz som ikke finnes har uansett ingen forsøk.
-  const quizRow = quizRes.data as { closes_at: string | null; hide_leaderboard_until_closed: boolean } | null
+  // stillingen som holdt tilbake. En blipp mot databasen skal ikke kunne åpne
+  // en skjult stilling; en quiz som ikke finnes har uansett ingen forsøk.
+  const quizRow = quizRes.data as {
+    closes_at: string | null
+    hide_leaderboard_until_closed: boolean
+    show_leaderboard: boolean
+  } | null
   const quizIsClosed = quizRow ? isQuizClosed(quizRow.closes_at, Date.now()) : false
-  const leaderboardHidden = !quizRow
-    || (quizRow.hide_leaderboard_until_closed && !quizIsClosed && !(userIsPremium && !!mine))
+
+  // Permanent av — inkluderer fail-safe-stien (uten quiz-rad kan vi ikke
+  // bekrefte at stillingen er slått PÅ, og da leverer vi den ikke).
+  const leaderboardDisabled = !quizRow || !quizRow.show_leaderboard
+  // Midlertidig skjult mens quizen er åpen.
+  const hiddenUntilClosed = !!quizRow
+    && quizRow.hide_leaderboard_until_closed
+    && !quizIsClosed
+    && !(userIsPremium && !!mine)
+
+  // Ett felt for invarianten «ble radene holdt tilbake?» — det er dette som
+  // faktisk styrer `entries`, og et svar der `leaderboardHidden` er false mens
+  // listen er tom skal ikke kunne oppstå.
+  const leaderboardHidden = leaderboardDisabled || hiddenUntilClosed
+  // ...og årsaken separat, fordi de to tilstandene betyr ULIKE ting for en
+  // bruker: «finnes ikke for denne quizen» vs. «kommer når quizen stenger».
+  // Dagens klient leser riktignok quiz-raden selv og utleder teksten derfra,
+  // så feltet er ikke i bruk ennå — men uten det kan en API-konsument ikke
+  // skille de to uten et ekstra oppslag, og ville stått igjen med å gjette.
+  const hiddenReason: 'disabled' | 'until_closed' | null =
+    leaderboardDisabled ? 'disabled' : hiddenUntilClosed ? 'until_closed' : null
 
   // ── Bla og søk er Premium — håndheves server-side ───────────────────────────
   // Klienten viste kontrollene kun til Premium (`showBrowseControls`), men ruten
@@ -258,7 +300,8 @@ export async function GET(
     : ranked
   const totalCount = search ? filtered.length : totalAll
   const start = isBrowse ? (page - 1) * pageSize : 0
-  // Skjult leaderboard: ingen av de andre spillernes rader forlater serveren.
+  // Holdt tilbake (deaktivert ELLER skjult til stengetid): ingen av de andre
+  // spillernes rader forlater serveren.
   const entries: LbEntry[] = leaderboardHidden
     ? []
     : filtered.slice(start, start + pageSize).map(r => toEntry(r))
@@ -267,6 +310,6 @@ export async function GET(
 
   return NextResponse.json({
     entries, totalCount, userEntry, userRank, guestRank,
-    userIsPremium, page, pageSize, isTeam, leaderboardHidden,
+    userIsPremium, page, pageSize, isTeam, leaderboardHidden, hiddenReason,
   })
 }
