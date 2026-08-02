@@ -6,7 +6,9 @@ import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
-import { computeTopCategory } from '@/lib/select-quiz-message'
+import { computeStrongCategory } from '@/lib/select-quiz-message'
+import { computeCategoryStats } from '@/lib/category-stats'
+import { pluralNo } from '@/lib/plural-no'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
@@ -840,9 +842,10 @@ export default function QuizPage() {
   const [interStreak, setInterStreak] = useState(0)
   const [interWrongInARow, setInterWrongInARow] = useState(0)
   const [interNextQNum, setInterNextQNum] = useState(1)
-  // Kategori spilleren har flest riktige i (min. 3, «Diverse» ekskludert) —
-  // utledet i goToNext via computeTopCategory, ren lokal beregning.
-  const [interTopCategory, setInterTopCategory] = useState<string | null>(null)
+  // Kategorien til spørsmålet som nettopp ble besvart riktig, når spilleren har
+  // min. 3 riktige i den totalt («Diverse» ekskludert) — utledet i goToNext via
+  // computeStrongCategory, ren lokal beregning.
+  const [interStrongCategory, setInterStrongCategory] = useState<string | null>(null)
   const [pendingNextIndex, setPendingNextIndex] = useState<number | null>(null)
   const [shuffledDisplayOrder, setShuffledDisplayOrder] = useState<string[]>(['A', 'B', 'C', 'D'])
   const [rivalData, setRivalData] = useState<{ name: string; avatarColor: string; score: number } | null>(null)
@@ -1801,10 +1804,10 @@ export default function QuizPage() {
     setInterScore(correctSoFar)
     setInterStreak(streak)
     setInterWrongInARow(wrongInARow)
-    // Koblet på questionId → question.id inne i computeTopCategory — IKKE på
+    // Koblet på questionId → question.id inne i computeStrongCategory — IKKE på
     // indeks. answers kan avvike fra questions-rekkefølgen etter gjenopptakelse
     // (withAnswer flytter et re-besvart spørsmål bakerst).
-    setInterTopCategory(computeTopCategory(answers, questions))
+    setInterStrongCategory(computeStrongCategory(answers, questions))
     setInterNextQNum(nextIndex + 1)
     setInterLow(low)
     setInterHigh(high)
@@ -2234,7 +2237,7 @@ export default function QuizPage() {
                       )}
                     </span>
                     <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
-                      {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
+                      {row.correct_answers} {pluralNo(row.correct_answers, 'riktig', 'riktige')} · {(row.total_time_ms / 1000).toFixed(1)}s
                     </span>
                   </div>
                 )
@@ -2522,7 +2525,7 @@ export default function QuizPage() {
             wrongInARow={interWrongInARow}
             questionIndex={interNextQNum - 2}
             attemptId={attemptId}
-            topCategory={interTopCategory}
+            strongCategory={interStrongCategory}
             low={interLow}
             high={interHigh}
             rival={rivalData}
@@ -2556,7 +2559,7 @@ export default function QuizPage() {
                 spillerens løpende score står allerede i poeng-pillen i
                 headeren på samme skjerm. */}
             <p style={{ fontSize: 12, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: 0 }}>
-              Ferdig med {rivalData.score} riktige
+              Ferdig med {rivalData.score} {pluralNo(rivalData.score, 'riktig', 'riktige')}
             </p>
             <p style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: '4px 0 0' }}>
               Kan du slå det?
@@ -2579,7 +2582,7 @@ export default function QuizPage() {
         </div>
 
         <div className="qk-score-row">
-          <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} riktige</span>
+          <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} {pluralNo(correctSoFar, 'riktig', 'riktige')}</span>
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
@@ -2667,7 +2670,7 @@ export default function QuizPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderName}</div>
-                  <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} riktige</div>
+                  <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} {pluralNo(rankingSnapshot.leaderCorrect, 'riktig', 'riktige')}</div>
                 </div>
               </div>
             </div>
@@ -2755,20 +2758,11 @@ export default function QuizPage() {
       <div className="qk-divider"/>
 
       {(() => {
-        const categoryStats: Record<string, { correct: number; total: number }> = {}
-        // Koblet på questionId → question.id, IKKE på indeks: withAnswer flytter
-        // et re-besvart spørsmål bakerst i answers ved gjenopptakelse, så
-        // answers[i] og questions[i] kan peke på ULIKE spørsmål — statistikken
-        // ble da tilskrevet feil kategori. Samme mønster som computeTopCategory.
-        const questionById = new Map(questions.filter(Boolean).map(q => [q.id, q]))
-        answers.forEach(ans => {
-          const q = questionById.get(ans.questionId)
-          if (!q?.category) return
-          if (!categoryStats[q.category]) categoryStats[q.category] = { correct: 0, total: 0 }
-          categoryStats[q.category].total++
-          if (ans.isCorrect) categoryStats[q.category].correct++
-        })
-        const cats = Object.entries(categoryStats)
+        // Ren beregning i lib/category-stats.ts — sørger for at summen av
+        // radene alltid er antall besvarte spørsmål (svar uten kategori samles
+        // i en egen «Uten kategori»-rad nederst i stedet for å droppes), og at
+        // «Historie » og «historie» havner i samme rad.
+        const cats = computeCategoryStats(answers, questions)
         if (cats.length === 0) return null
         return (
           <div className="qk-rsec" style={{ marginBottom: 14 }}>
@@ -2776,7 +2770,7 @@ export default function QuizPage() {
               Kategorier
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {cats.map(([cat, { correct, total }]) => {
+              {cats.map(({ category: cat, correct, total }) => {
                 const pct = Math.round((correct / total) * 100)
                 const isGood = pct >= 60
                 return (
@@ -2821,7 +2815,7 @@ export default function QuizPage() {
                     {row.player_name}
                   </span>
                   <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
-                    {row.correct_answers} riktige · {(row.total_time_ms / 1000).toFixed(1)}s
+                    {row.correct_answers} {pluralNo(row.correct_answers, 'riktig', 'riktige')} · {(row.total_time_ms / 1000).toFixed(1)}s
                   </span>
                 </div>
               )
@@ -2949,10 +2943,10 @@ export default function QuizPage() {
         const outcomeLabelColor = outcome === 'won' ? '#4ade80' : outcome === 'lost' ? '#c94c4c' : '#c9a84c'
 
         const outcomeText = outcome === 'won'
-          ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} riktige.</>
+          ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
           : outcome === 'lost'
-            ? <><span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> slo deg denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} riktige.</>
-            : <>Likt med <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> — begge fikk {rivalScore} riktige. Tiden avgjør.</>
+            ? <><span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> slo deg denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
+            : <>Likt med <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> — begge fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}. Tiden avgjør.</>
 
         return (
           <div className="qk-rsec" style={{
@@ -3041,7 +3035,7 @@ export default function QuizPage() {
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</p>
-                        <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>{c.score} riktige</p>
+                        <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>{c.score} {pluralNo(c.score, 'riktig', 'riktige')}</p>
                       </div>
                     </div>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>

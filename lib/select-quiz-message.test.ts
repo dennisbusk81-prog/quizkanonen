@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   selectQuizMessage,
-  computeTopCategory,
+  computeStrongCategory,
   STREAK_MESSAGE_THRESHOLD,
   CATEGORY_MESSAGE_THRESHOLD,
 } from './select-quiz-message'
@@ -24,7 +24,7 @@ function state(over: Partial<QuizMessageState> = {}): QuizMessageState {
     totalQuestions: 15,
     questionIndex: 3,
     rival: null,
-    topCategory: null,
+    strongCategory: null,
     ...over,
   }
 }
@@ -92,7 +92,7 @@ test('perfect_run krever minst 2 besvarte', () => {
 test('halftime slår final_push-lignende tilstander og alt under seg', () => {
   // Q7 av 15, med både feilrekke, rival og kategori satt — halvtid vinner.
   assertCategory(
-    state({ questionIndex: 6, correctSoFar: 3, wrongInARow: 2, rival: { name: 'Kari' }, topCategory: 'Historie' }),
+    state({ questionIndex: 6, correctSoFar: 3, wrongInARow: 2, rival: { name: 'Kari' }, strongCategory: 'Historie' }),
     'halftime'
   )
 })
@@ -104,7 +104,7 @@ test('perfect_run slår halftime', () => {
 test('final_push ved 3 igjen, også med streak og kategori', () => {
   // Q12 av 15 → 3 igjen. Ikke perfekt (1 feil underveis).
   assertCategory(
-    state({ questionIndex: 11, correctSoFar: 11, streak: 6, topCategory: 'Sport' }),
+    state({ questionIndex: 11, correctSoFar: 11, streak: 6, strongCategory: 'Sport' }),
     'final_push'
   )
 })
@@ -113,8 +113,32 @@ test('final_push ikke ved 4 igjen', () => {
   assertCategory(state({ questionIndex: 10, correctSoFar: 5 }), 'generic')
 })
 
+// ── Entall i innspurten (QK_4 punkt 12) ─────────────────────────────────────
+
+test('nøyaktig 1 igjen gir final_push_last, 2 igjen gir final_push', () => {
+  // Q14 av 15 → 1 igjen. «Gi alt på de siste 1.» var grammatisk havari; ved 1
+  // skal entallssettet uten {remaining} brukes.
+  assertCategory(state({ questionIndex: 13, correctSoFar: 7 }), 'final_push_last')
+  // Q13 av 15 → 2 igjen — flertallssettet, som før.
+  assertCategory(state({ questionIndex: 12, correctSoFar: 7 }), 'final_push')
+})
+
+test('final_push_last-tekster inneholder aldri tallet 1 rått', () => {
+  // Mutasjonsvern: ryker entalls-rutingen (remaining=1 inn i flertallssettet),
+  // fylles «{remaining}» med 1 og teksten inneholder « 1». Entallstekstene
+  // skriver «ett»/«siste» i klartekst og skal aldri ha sifferet.
+  for (let qi = 0; qi < 20; qi++) {
+    const msg = selectQuizMessage(
+      state({ questionIndex: 13, correctSoFar: 7 }),
+      `attempt-${qi}:13`
+    )
+    const text = `${msg.headline} ${msg.subline ?? ''}`
+    assert.ok(!/\b1\b/.test(text), `sifferet 1 i entallsmelding: «${text}»`)
+  }
+})
+
 test('comeback ved 2 feil på rad — slår streak/after_wrong/kategori', () => {
-  assertCategory(state({ wrongInARow: 2, topCategory: 'Musikk' }), 'comeback')
+  assertCategory(state({ wrongInARow: 2, strongCategory: 'Musikk' }), 'comeback')
 })
 
 test('comeback er IKKE default lenger', () => {
@@ -136,23 +160,23 @@ test('streak-melding inneholder faktisk streak-tallet der {streak} brukes', () =
 })
 
 test('after_wrong ved nøyaktig 1 feil sist — ikke ved 0, ikke ved 2', () => {
-  assertCategory(state({ wrongInARow: 1, topCategory: 'Historie' }), 'after_wrong')
+  assertCategory(state({ wrongInARow: 1, strongCategory: 'Historie' }), 'after_wrong')
   assertCategory(state({ wrongInARow: 0 }), 'generic')
   assertCategory(state({ wrongInARow: 2 }), 'comeback')
 })
 
-test('category når topCategory er satt, faller stille gjennom ved null', () => {
-  assertCategory(state({ topCategory: 'Historie' }), 'category')
-  const msg = selectQuizMessage(state({ topCategory: 'Historie' }), SEED)
+test('category når strongCategory er satt, faller stille gjennom ved null', () => {
+  assertCategory(state({ strongCategory: 'Historie' }), 'category')
+  const msg = selectQuizMessage(state({ strongCategory: 'Historie' }), SEED)
   assert.ok(
     msg.headline.includes('Historie') || (msg.subline ?? '').includes('Historie'),
     `kategorinavnet mangler: «${msg.headline}»`
   )
-  assertCategory(state({ topCategory: null, rival: { name: 'Kari' } }), 'rival_intro')
+  assertCategory(state({ strongCategory: null, rival: { name: 'Kari' } }), 'rival_intro')
 })
 
 test('category slår rival_intro', () => {
-  assertCategory(state({ topCategory: 'Sport', rival: { name: 'Kari' } }), 'category')
+  assertCategory(state({ strongCategory: 'Sport', rival: { name: 'Kari' } }), 'category')
 })
 
 test('generic er default', () => {
@@ -201,7 +225,7 @@ test('halvtid er uavhengig av persentildata', () => {
 // ── Seed-determinisme ───────────────────────────────────────────────────────
 
 test('samme seed gir identisk tekst over 50 kall', () => {
-  const s = state({ topCategory: 'Historie' })
+  const s = state({ strongCategory: 'Historie' })
   const first = selectQuizMessage(s, 'attempt-x:7')
   for (let i = 0; i < 50; i++) {
     assert.deepEqual(selectQuizMessage(s, 'attempt-x:7'), first)
@@ -235,6 +259,7 @@ const ALLOWED_PLACEHOLDERS: Record<QuizMessageCategory, string[]> = {
   perfect_run: [],
   halftime: [],
   final_push: ['remaining'],
+  final_push_last: [],
   comeback: [],
   streak: ['streak'],
   after_wrong: [],
@@ -264,7 +289,11 @@ test('{percent} finnes ikke lenger i noen tekst', () => {
   assert.ok(!all.includes('{percent}'))
 })
 
-// ── computeTopCategory ──────────────────────────────────────────────────────
+// ── computeStrongCategory ───────────────────────────────────────────────────
+// Semantikk fra 2. august 2026 (QK_4 punkt 12): kategorien til det SIST
+// besvarte spørsmålet, kun når svaret var riktig og spilleren har minst 3
+// riktige i samme kategori totalt. Siste element i answers er per withAnswer
+// alltid spørsmålet som nettopp ble besvart.
 
 type A = { questionId: string; isCorrect: boolean }
 type Q = { id: string; category: string | null }
@@ -273,115 +302,134 @@ function q(id: string, category: string | null): Q {
   return { id, category }
 }
 
-test('terskel: 2 riktige i samme kategori gir null, 3 gir kategorien', () => {
+test('terskel: 2 riktige i kategorien gir null, 3 gir kategorien', () => {
   const questions = [q('a', 'Historie'), q('b', 'Historie'), q('c', 'Historie'), q('d', 'Sport')]
   const two: A[] = [
     { questionId: 'a', isCorrect: true },
-    { questionId: 'b', isCorrect: true },
-    { questionId: 'c', isCorrect: false },
     { questionId: 'd', isCorrect: true },
+    { questionId: 'c', isCorrect: false },
+    { questionId: 'b', isCorrect: true }, // sist besvart: riktig Historie, men bare 2 i kategorien
   ]
-  assert.equal(computeTopCategory(two, questions), null)
+  assert.equal(computeStrongCategory(two, questions), null)
   const three: A[] = [
     { questionId: 'a', isCorrect: true },
     { questionId: 'b', isCorrect: true },
     { questionId: 'c', isCorrect: true },
   ]
-  assert.equal(computeTopCategory(three, questions), 'Historie')
+  assert.equal(computeStrongCategory(three, questions), 'Historie')
   assert.equal(CATEGORY_MESSAGE_THRESHOLD, 3)
+})
+
+test('siste svar FEIL → null, selv med 3 riktige i kategorien fra før', () => {
+  const questions = ['a', 'b', 'c', 'd'].map(id => q(id, 'Historie'))
+  const answers: A[] = [
+    { questionId: 'a', isCorrect: true },
+    { questionId: 'b', isCorrect: true },
+    { questionId: 'c', isCorrect: true },
+    { questionId: 'd', isCorrect: false },
+  ]
+  // Prioritetskjeden ville uansett valgt after_wrong før category — men den
+  // rene funksjonen skal ikke lene seg på det.
+  assert.equal(computeStrongCategory(answers, questions), null)
+})
+
+test('siste riktige svar i ANNEN kategori enn den sterke → null (ikke totalens vinner)', () => {
+  // Gammel semantikk hadde returnert Historie her («Du kan Historie, du» på et
+  // Geografi-spørsmål) — nøyaktig funnet fra gjennomspillingen 30. juli.
+  const questions = [
+    q('h1', 'Historie'), q('h2', 'Historie'), q('h3', 'Historie'),
+    q('g1', 'Geografi'),
+  ]
+  const answers: A[] = [
+    { questionId: 'h1', isCorrect: true },
+    { questionId: 'h2', isCorrect: true },
+    { questionId: 'h3', isCorrect: true },
+    { questionId: 'g1', isCorrect: true }, // nettopp besvart: Geografi, kun 1 riktig der
+  ]
+  assert.equal(computeStrongCategory(answers, questions), null)
+})
+
+test('sterk kategori trenger IKKE være spillerens beste — 3 riktige holder', () => {
+  // Historie står i 4, men spilleren svarte nettopp riktig på sin 3. Sport —
+  // «Sterk i Sport» er sann og skal vises i akkurat det øyeblikket.
+  const questions = [
+    q('h1', 'Historie'), q('h2', 'Historie'), q('h3', 'Historie'), q('h4', 'Historie'),
+    q('s1', 'Sport'), q('s2', 'Sport'), q('s3', 'Sport'),
+  ]
+  const answers: A[] = [
+    { questionId: 'h1', isCorrect: true },
+    { questionId: 'h2', isCorrect: true },
+    { questionId: 'h3', isCorrect: true },
+    { questionId: 'h4', isCorrect: true },
+    { questionId: 's1', isCorrect: true },
+    { questionId: 's2', isCorrect: true },
+    { questionId: 's3', isCorrect: true },
+  ]
+  assert.equal(computeStrongCategory(answers, questions), 'Sport')
 })
 
 test('«Diverse» er ekskludert — uansett casing og whitespace, uansett antall', () => {
   for (const variant of ['Diverse', 'diverse', ' DIVERSE ', 'Diverse ']) {
     const questions = ['a', 'b', 'c', 'd', 'e'].map(id => q(id, variant))
     const answers: A[] = questions.map(x => ({ questionId: x.id, isCorrect: true }))
-    assert.equal(computeTopCategory(answers, questions), null, `variant «${variant}» slapp gjennom`)
+    assert.equal(computeStrongCategory(answers, questions), null, `variant «${variant}» slapp gjennom`)
   }
 })
 
 test('kategori uten verdi (null/tom/whitespace) teller ikke', () => {
-  const questions = [q('a', null), q('b', ''), q('c', '   '), q('d', 'Sport')]
-  const answers: A[] = questions.map(x => ({ questionId: x.id, isCorrect: true }))
-  assert.equal(computeTopCategory(answers, questions), null)
+  const questions = [q('a', 'Sport'), q('b', 'Sport'), q('c', 'Sport'), q('d', null), q('e', ''), q('f', '   ')]
+  // Sist besvart mangler kategori → null, selv med 3 riktige i Sport.
+  for (const lastId of ['d', 'e', 'f']) {
+    const answers: A[] = [
+      { questionId: 'a', isCorrect: true },
+      { questionId: 'b', isCorrect: true },
+      { questionId: 'c', isCorrect: true },
+      { questionId: lastId, isCorrect: true },
+    ]
+    assert.equal(computeStrongCategory(answers, questions), null, `lastId=${lastId}`)
+  }
 })
 
-test('case-varianter av samme kategori teller sammen, trimmet form returneres', () => {
+test('case-varianter teller sammen; visningsform er det nettopp besvarte spørsmålets variant', () => {
   const questions = [q('a', 'Historie '), q('b', 'historie'), q('c', 'HISTORIE')]
   const answers: A[] = [
     { questionId: 'a', isCorrect: true },
     { questionId: 'b', isCorrect: true },
     { questionId: 'c', isCorrect: true },
   ]
-  const result = computeTopCategory(answers, questions)
-  assert.ok(result !== null)
-  assert.equal(result!.toLowerCase(), 'historie')
-  assert.equal(result, result!.trim())
+  assert.equal(computeStrongCategory(answers, questions), 'HISTORIE')
 })
 
-test('kun riktige svar teller', () => {
-  const questions = [q('a', 'Musikk'), q('b', 'Musikk'), q('c', 'Musikk')]
-  const answers: A[] = [
+test('kun riktige svar teller mot terskelen', () => {
+  const questions = ['a', 'b', 'c', 'd'].map(id => q(id, 'Musikk'))
+  // 3 riktige (a, c, d) → terskelen nås, feilsvaret på b trekker ikke ned.
+  const overTerskel: A[] = [
     { questionId: 'a', isCorrect: true },
     { questionId: 'b', isCorrect: false },
     { questionId: 'c', isCorrect: true },
+    { questionId: 'd', isCorrect: true },
   ]
-  assert.equal(computeTopCategory(answers, questions), null)
+  assert.equal(computeStrongCategory(overTerskel, questions), 'Musikk')
+  // Bare 2 riktige (a, d) — feilsvarene på b og c teller ikke som riktige.
+  const underTerskel: A[] = [
+    { questionId: 'a', isCorrect: true },
+    { questionId: 'b', isCorrect: false },
+    { questionId: 'c', isCorrect: false },
+    { questionId: 'd', isCorrect: true },
+  ]
+  assert.equal(computeStrongCategory(underTerskel, questions), null)
 })
 
-test('svar på spørsmål som ikke finnes i questions (hull) ignoreres', () => {
+test('siste svar på ukjent questionId (hull i questions) → null', () => {
   const questions: (Q | undefined)[] = [q('a', 'Sport'), undefined, q('c', 'Sport')]
   const answers: A[] = [
     { questionId: 'a', isCorrect: true },
-    { questionId: 'ukjent', isCorrect: true },
     { questionId: 'c', isCorrect: true },
+    { questionId: 'ukjent', isCorrect: true },
   ]
-  assert.equal(computeTopCategory(answers, questions), null)
+  assert.equal(computeStrongCategory(answers, questions), null)
 })
 
-test('flest riktige vinner uten tie-break når antallet er ulikt', () => {
-  const questions = [
-    q('h1', 'Historie'), q('h2', 'Historie'), q('h3', 'Historie'),
-    q('s1', 'Sport'), q('s2', 'Sport'), q('s3', 'Sport'), q('s4', 'Sport'),
-  ]
-  const answers: A[] = questions.map(x => ({ questionId: x.id, isCorrect: true }))
-  assert.equal(computeTopCategory(answers, questions), 'Sport')
-})
-
-test('tie-break: kategorien til det SISTE riktige svaret blant de uavgjorte vinner', () => {
-  const questions = [
-    q('h1', 'Historie'), q('h2', 'Historie'), q('h3', 'Historie'),
-    q('s1', 'Sport'), q('s2', 'Sport'), q('s3', 'Sport'),
-  ]
-  // 3–3. Siste riktige er Sport → Sport vinner.
-  const sportSist: A[] = [
-    { questionId: 'h1', isCorrect: true },
-    { questionId: 's1', isCorrect: true },
-    { questionId: 'h2', isCorrect: true },
-    { questionId: 's2', isCorrect: true },
-    { questionId: 'h3', isCorrect: true },
-    { questionId: 's3', isCorrect: true },
-  ]
-  assert.equal(computeTopCategory(sportSist, questions), 'Sport')
-  // Samme svar, omstokket så Historie kommer sist → Historie vinner.
-  // (Alfabetisk hadde gitt Historie i BEGGE tilfeller — rekkefølgen må avgjøre.)
-  const historieSist = [...sportSist.slice(0, 4), sportSist[5], sportSist[4]]
-  assert.equal(computeTopCategory(historieSist, questions), 'Historie')
-})
-
-test('tie-break hopper over feilsvar på slutten', () => {
-  const questions = [
-    q('h1', 'Historie'), q('h2', 'Historie'), q('h3', 'Historie'),
-    q('s1', 'Sport'), q('s2', 'Sport'), q('s3', 'Sport'),
-    q('x', 'Musikk'),
-  ]
-  const answers: A[] = [
-    { questionId: 's1', isCorrect: true },
-    { questionId: 'h1', isCorrect: true },
-    { questionId: 's2', isCorrect: true },
-    { questionId: 'h2', isCorrect: true },
-    { questionId: 's3', isCorrect: true },
-    { questionId: 'h3', isCorrect: true },  // siste RIKTIGE blant uavgjorte
-    { questionId: 'x', isCorrect: false },  // feilsvar sist — skal hoppes over
-  ]
-  assert.equal(computeTopCategory(answers, questions), 'Historie')
+test('tom answers-liste → null', () => {
+  assert.equal(computeStrongCategory([], [q('a', 'Sport')]), null)
 })

@@ -5,10 +5,11 @@
 // — en tekst med en plassholder utenfor lista vises som rå tekst til spilleren,
 // f.eks. bokstavelig «{n}»):
 //   streak      → {streak}
-//   final_push  → {remaining}
+//   final_push  → {remaining}  (remaining er alltid 2 eller 3 — se under)
 //   category    → {category}
 //   rival_intro → {rivalName}
-//   alle andre  → ingen plassholdere
+//   alle andre  → ingen plassholdere (også final_push_last, som dekker
+//                 remaining=1 og derfor kan skrive «siste spørsmål» i klartekst)
 //
 // PRINSIPP (fra logikk-økten 30. juli 2026): en melding skal aldri påstå noe om
 // resultat, plassering eller ledelse — mellomskjermen viser tallene ved siden
@@ -24,6 +25,7 @@ export type QuizMessageCategory =
   | 'perfect_run'
   | 'halftime'
   | 'final_push'
+  | 'final_push_last'
   | 'comeback'
   | 'streak'
   | 'after_wrong'
@@ -51,10 +53,21 @@ export const quizMessages: Record<QuizMessageCategory, QuizMessage[]> = {
     { headline: 'Midtveis i quizen.', subline: 'Andre omgang starter nå.' },
   ],
 
+  // {remaining} er her alltid 2 eller 3 — remaining=1 rutes til
+  // final_push_last under (selectQuizMessage), så tekstene kan bøye i flertall.
   final_push: [
     { headline: 'Innspurten!', subline: 'Bare {remaining} spørsmål igjen.' },
     { headline: 'Nesten i mål!', subline: '{remaining} igjen — avslutt sterkt.' },
     { headline: 'Siste etappe.', subline: 'Gi alt på de siste {remaining}.' },
+  ],
+
+  // Entallssettet for innspurten — nøyaktig ett spørsmål igjen. Fram til
+  // 2. august 2026 fikk spilleren flertallstekstene med tallet 1 innfylt:
+  // «Gi alt på de siste 1.» (QK_4 punkt 12).
+  final_push_last: [
+    { headline: 'Siste spørsmål!', subline: 'Avslutt sterkt.' },
+    { headline: 'Ett igjen.', subline: 'Gi alt på det siste.' },
+    { headline: 'Nå avgjøres det.', subline: 'Bare ett spørsmål igjen.' },
   ],
 
   comeback: [

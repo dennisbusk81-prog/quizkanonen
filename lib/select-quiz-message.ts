@@ -9,10 +9,11 @@ export interface QuizMessageState {
   totalQuestions: number
   questionIndex: number   // 0-based index of question just answered (before advancing)
   rival: { name: string } | null
-  // Kategori spilleren har >= CATEGORY_MESSAGE_THRESHOLD riktige i, utledet av
-  // computeTopCategory() i goToNext (app/quiz/[id]/page.tsx). null når ingen
+  // Kategorien til spørsmålet spilleren NETTOPP svarte riktig på, forutsatt
+  // >= CATEGORY_MESSAGE_THRESHOLD riktige i samme kategori totalt. Utledet av
+  // computeStrongCategory() i goToNext (app/quiz/[id]/page.tsx). null når ingen
   // kvalifiserer — grenen faller da stille gjennom.
-  topCategory: string | null
+  strongCategory: string | null
 }
 
 // Streak-terskelen for mellomskjermens headline. 5 — samme terskel som
@@ -30,23 +31,37 @@ export const CATEGORY_MESSAGE_THRESHOLD = 3
 // «Diverse » kan forekomme. Tekstøkten kan utvide lista.
 export const CATEGORY_MESSAGE_EXCLUDED = ['diverse']
 
-// Utleder kategorien spilleren har flest riktige i (minst
-// CATEGORY_MESSAGE_THRESHOLD), eller null. Ren funksjon — kalles fra goToNext
-// med page.tsx sin lokale state; ingen nettverk, ingen DB.
+// Utleder kategorien til kategori-meldingen («Du kan {category}, du»):
+// kategorien til det SIST besvarte spørsmålet, forutsatt at svaret var riktig
+// og spilleren har minst CATEGORY_MESSAGE_THRESHOLD riktige i samme kategori i
+// denne quizen. Ren funksjon — kalles fra goToNext med page.tsx sin lokale
+// state; ingen nettverk, ingen DB.
+//
+// Fram til 2. august 2026 (QK_4 punkt 12) returnerte funksjonen spillerens
+// BESTE kategori så langt (flest riktige totalt, med tie-break). Men meldingen
+// står rett under svar-pillen for spørsmålet man nettopp besvarte og leses som
+// en kommentar til akkurat det — «Du kan Historie, du» på et Geografi-spørsmål
+// så ut som en glipp. Nå kreves det at siste svar er riktig OG i kategorien det
+// skrytes av; terskelen på 3 beholdes, så påstanden aldri hviler på ett enkelt
+// svar.
+//
+// Bevisst IKKE noe krav om at kategorien også er spillerens beste: «Sterk i
+// Sport» er sant med 3 riktige i Sport selv om Historie står i 4 — og et
+// maks-krav ville undertrykt meldingen i nøyaktig det øyeblikket den passer
+// best (rett etter tredje riktige i kategorien man nettopp svarte i). Dermed
+// finnes heller ingen uavgjort-situasjon å tie-breake.
 //
 // Kobler på questionId → question.id, IKKE på indeks: withAnswer flytter et
 // re-besvart spørsmål bakerst i answers ved gjenopptakelse, så indeksene i
-// answers og questions kan avvike.
-//
-// Tie-break ved likt antall riktige: kategorien til det SISTE riktige svaret
-// blant de uavgjorte vinner (følger øyeblikket spilleren nettopp var i, og er
-// like deterministisk som alfabetisk — uten systematisk slagside mot samme
-// kategorier hver gang). Alfabetisk kun som siste utvei; i praksis unåbar,
-// siden enhver uavgjort kategori har minst ett riktig svar å finne bakover.
-export function computeTopCategory(
+// answers og questions kan avvike. Siste element i answers er alltid spørsmålet
+// som nettopp ble besvart (withAnswer legger det bakerst).
+export function computeStrongCategory(
   answers: { questionId: string; isCorrect: boolean }[],
   questions: ({ id: string; category: string | null } | undefined)[],
 ): string | null {
+  const last = answers[answers.length - 1]
+  if (!last?.isCorrect) return null
+
   // id → trimmet kategori. Ekskluderte og tomme kategorier utelates helt —
   // spørsmålene deres teller ikke, på linje med spørsmål uten kategori.
   const catById = new Map<string, string>()
@@ -57,38 +72,19 @@ export function computeTopCategory(
     catById.set(q.id, trimmed)
   }
 
-  // Riktige per kategori. Nøkkel: lowercase (så «Historie» og «historie»
-  // teller sammen), visningsform: den sist sette trimmede varianten.
-  const counts = new Map<string, { count: number; display: string }>()
+  const lastCat = catById.get(last.questionId)
+  if (!lastCat) return null
+
+  // Riktige i samme kategori, case-insensitivt («Historie» og «historie»
+  // teller sammen). Visningsform: varianten på spørsmålet som nettopp ble
+  // besvart — det er den spilleren har foran seg.
+  const key = lastCat.toLowerCase()
+  let count = 0
   for (const a of answers) {
     if (!a.isCorrect) continue
-    const cat = catById.get(a.questionId)
-    if (!cat) continue
-    const key = cat.toLowerCase()
-    counts.set(key, { count: (counts.get(key)?.count ?? 0) + 1, display: cat })
+    if (catById.get(a.questionId)?.toLowerCase() === key) count++
   }
-
-  let max = 0
-  for (const { count } of counts.values()) if (count > max) max = count
-  if (max < CATEGORY_MESSAGE_THRESHOLD) return null
-
-  const tied = new Set<string>()
-  for (const [key, { count }] of counts) if (count === max) tied.add(key)
-  if (tied.size === 1) {
-    const [key] = tied
-    return counts.get(key)!.display
-  }
-
-  // Flere uavgjorte: siste riktige svar blant dem avgjør.
-  for (let i = answers.length - 1; i >= 0; i--) {
-    const a = answers[i]
-    if (!a.isCorrect) continue
-    const cat = catById.get(a.questionId)
-    if (cat && tied.has(cat.toLowerCase())) return counts.get(cat.toLowerCase())!.display
-  }
-
-  // Siste utvei — alfabetisk på visningsformen.
-  return [...tied].map(key => counts.get(key)!.display).sort()[0]
+  return count >= CATEGORY_MESSAGE_THRESHOLD ? lastCat : null
 }
 
 function pick(category: QuizMessageCategory, seed: string): QuizMessage {
@@ -123,7 +119,7 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
     totalQuestions,
     questionIndex,
     rival,
-    topCategory,
+    strongCategory,
   } = state
 
   const questionsAnswered = questionIndex + 1
@@ -141,9 +137,13 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
     return fill(pick('halftime', seed), {})
   }
 
-  // 3. Innspurt — 3 eller færre igjen
+  // 3. Innspurt — 3 eller færre igjen. Ved nøyaktig ett igjen brukes et eget
+  // entallssett: flertallstekstene sier «de siste {remaining}» o.l., som ved 1
+  // ga «Gi alt på de siste 1.» (QK_4 punkt 12).
   if (remaining > 0 && remaining <= 3) {
-    return fill(pick('final_push', seed), { remaining })
+    return remaining === 1
+      ? fill(pick('final_push_last', seed), {})
+      : fill(pick('final_push', seed), { remaining })
   }
 
   // 4. To eller flere feil på rad
@@ -161,9 +161,10 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
     return fill(pick('after_wrong', seed), {})
   }
 
-  // 7. Sterk kategori
-  if (topCategory) {
-    return fill(pick('category', seed), { category: topCategory })
+  // 7. Sterk kategori — knyttet til spørsmålet som nettopp ble besvart riktig,
+  // se computeStrongCategory
+  if (strongCategory) {
+    return fill(pick('category', seed), { category: strongCategory })
   }
 
   // 8. Rival

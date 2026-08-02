@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 import { getAvatarInitial } from '@/lib/avatar-initial'
+import { pluralNo } from '@/lib/plural-no'
 
 // Del 3 (25. juli 2026) — plassering og prosentil hviler nå på et anslag av
 // sluttresultatet, skalert opp fra tempoet så langt (se computePlacement i
@@ -46,9 +47,9 @@ interface QuizInterludeProps {
   // alltid gi samme tekst — også etter gjenopptakelse (start-attempt sin
   // reused-sti returnerer samme attemptId).
   attemptId: string | null
-  // Ferdig utledet i goToNext (computeTopCategory) — komponenten får aldri
+  // Ferdig utledet i goToNext (computeStrongCategory) — komponenten får aldri
   // questions/answers, kun aggregater.
-  topCategory: string | null
+  strongCategory: string | null
   low: number | null          // estimated rank range
   high: number | null
   rival: RivalData | null
@@ -90,7 +91,7 @@ function RivalAvatar({ rival }: { rival: RivalData }) {
             «Ferdig» skal stå i selve tallinja: tallet er et mål å slå, ikke en
             pågående kappestrid mot spillerens delsum. */}
         <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>
-          Ferdig med {rival.score} riktige — kan du slå det?
+          Ferdig med {rival.score} {pluralNo(rival.score, 'riktig', 'riktige')} — kan du slå det?
         </p>
       </div>
     </div>
@@ -108,7 +109,7 @@ export default function QuizInterlude({
   wrongInARow,
   questionIndex,
   attemptId,
-  topCategory,
+  strongCategory,
   low,
   high,
   rival,
@@ -148,7 +149,7 @@ export default function QuizInterlude({
     totalQuestions,
     questionIndex,
     rival,
-    topCategory,
+    strongCategory,
   }
 
   // FRYST VED MOUNT — useState-initializer, ikke useMemo. Komponenten mountes
@@ -308,7 +309,7 @@ export default function QuizInterlude({
                 </p>
               )}
               <p style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, margin: 0 }}>
-                #{liveRanking.userRank} Du · {score} riktige etter {answeredSoFar} spørsmål
+                #{liveRanking.userRank} Du · {score} {pluralNo(score, 'riktig', 'riktige')} etter {answeredSoFar} spørsmål
               </p>
               {liveRanking.below && (
                 <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
@@ -339,7 +340,7 @@ export default function QuizInterlude({
           if (neededForTop10 > 0 && questionsLeft < 3) {
             return (
               <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 16 }}>
-                Du trenger {neededForTop10} riktige til for å komme inn i topp 10
+                Du trenger {neededForTop10} {pluralNo(neededForTop10, 'riktig', 'riktige')} til for å komme inn i topp 10
               </p>
             )
           }
