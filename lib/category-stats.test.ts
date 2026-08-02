@@ -128,3 +128,184 @@ test('en reell kategori som heter «Uten kategori» slås sammen med restbøtta'
   assert.equal(rows[0].total, 2)
   assert.equal(rows[0].correct, 1)
 })
+
+// ── pickCategoryStrength — sterkeste/svakeste på tvers av all historikk ──────
+
+import {
+  pickCategoryStrength,
+  STRENGTH_MIN_ANSWERS,
+  STRENGTH_EXCLUDED_CATEGORIES,
+} from './category-stats'
+
+function stat(category: string, correct: number, total: number) {
+  return { category, correct, total }
+}
+
+test('velger høyeste og laveste andel riktige', () => {
+  const s = pickCategoryStrength([
+    stat('Historie', 1, 4),   // 25 %
+    stat('Sport', 3, 4),      // 75 %
+    stat('Musikk', 2, 4),     // 50 %
+  ])
+  assert.deepEqual(s, { sterkeste: 'Sport', svakeste: 'Historie' })
+})
+
+test('andel — ikke antall riktige — avgjør', () => {
+  // Historie har FLEST riktige, men dårligst andel.
+  const s = pickCategoryStrength([
+    stat('Historie', 5, 20),  // 25 %
+    stat('Sport', 3, 4),      // 75 %
+  ])
+  assert.equal(s.sterkeste, 'Sport')
+  assert.equal(s.svakeste, 'Historie')
+})
+
+// ── MUTASJONSBEVIS: terskelen ───────────────────────────────────────────────
+
+test('kategori under terskelen kan ikke bli svakeste', () => {
+  // Kunst 0/1 = 0 % er den svakeste på papiret, men hviler på ett svar.
+  const s = pickCategoryStrength([
+    stat('Kunst & Kultur', 0, 1),
+    stat('Historie', 1, 4),
+    stat('Sport', 3, 4),
+  ])
+  assert.equal(s.svakeste, 'Historie', 'ett enkelt svar ble valgt som svakeste')
+  assert.equal(s.sterkeste, 'Sport')
+})
+
+test('kategori under terskelen kan ikke bli sterkeste', () => {
+  const s = pickCategoryStrength([
+    stat('Kunst & Kultur', 2, 2),  // 100 %, men bare 2 svar
+    stat('Historie', 1, 4),
+    stat('Sport', 3, 4),           // 75 %
+  ])
+  assert.equal(s.sterkeste, 'Sport', 'to svar ble valgt som sterkeste')
+})
+
+test('terskelen er inklusiv — nøyaktig STRENGTH_MIN_ANSWERS teller med', () => {
+  const s = pickCategoryStrength([
+    stat('Kunst & Kultur', 3, STRENGTH_MIN_ANSWERS),
+    stat('Historie', 1, 4),
+  ])
+  assert.equal(s.sterkeste, 'Kunst & Kultur')
+})
+
+test('ingen kategori når terskelen → BEGGE null, ikke en tilfeldig kategori', () => {
+  const s = pickCategoryStrength([
+    stat('Sport', 2, 2),
+    stat('Historie', 0, 1),
+    stat('Musikk', 1, 1),
+  ])
+  assert.deepEqual(s, { sterkeste: null, svakeste: null })
+})
+
+test('kun ÉN kvalifisert kategori → begge null (sterkest/svakest krever sammenligning)', () => {
+  const s = pickCategoryStrength([
+    stat('Sport', 3, 5),
+    stat('Historie', 1, 2),
+  ])
+  assert.deepEqual(s, { sterkeste: null, svakeste: null })
+})
+
+test('tom liste → begge null', () => {
+  assert.deepEqual(pickCategoryStrength([]), { sterkeste: null, svakeste: null })
+})
+
+// ── MUTASJONSBEVIS: «Uten kategori» ─────────────────────────────────────────
+
+test('«Uten kategori» kan ikke bli sterkeste selv med 100 % og mange svar', () => {
+  const s = pickCategoryStrength([
+    stat(UNCATEGORIZED_LABEL, 40, 40),
+    stat('Sport', 3, 4),
+    stat('Historie', 1, 4),
+  ])
+  assert.equal(s.sterkeste, 'Sport')
+  assert.notEqual(s.sterkeste, UNCATEGORIZED_LABEL)
+})
+
+test('«Uten kategori» kan ikke bli svakeste selv med 0 % og mange svar', () => {
+  const s = pickCategoryStrength([
+    stat(UNCATEGORIZED_LABEL, 0, 40),
+    stat('Sport', 3, 4),
+    stat('Historie', 1, 4),
+  ])
+  assert.equal(s.svakeste, 'Historie')
+  assert.notEqual(s.svakeste, UNCATEGORIZED_LABEL)
+})
+
+test('«Uten kategori» teller ikke som den andre kategorien i to-kravet', () => {
+  // Kun Sport er en ekte kategori — «Uten kategori» skal ikke fylle plassen.
+  const s = pickCategoryStrength([
+    stat(UNCATEGORIZED_LABEL, 10, 20),
+    stat('Sport', 3, 4),
+  ])
+  assert.deepEqual(s, { sterkeste: null, svakeste: null })
+})
+
+// ── MUTASJONSBEVIS: Diverse ─────────────────────────────────────────────────
+
+test('Diverse ekskluderes fra begge ender', () => {
+  const s = pickCategoryStrength([
+    stat('Diverse', 20, 20),   // beste andel
+    stat('Sport', 3, 4),
+    stat('Historie', 1, 4),
+  ])
+  assert.equal(s.sterkeste, 'Sport')
+  const s2 = pickCategoryStrength([
+    stat('Diverse', 0, 20),    // dårligste andel
+    stat('Sport', 3, 4),
+    stat('Historie', 1, 4),
+  ])
+  assert.equal(s2.svakeste, 'Historie')
+})
+
+test('Diverse matches trimmet og case-insensitivt', () => {
+  for (const variant of ['diverse', ' Diverse ', 'DIVERSE']) {
+    const s = pickCategoryStrength([
+      stat(variant, 20, 20),
+      stat('Sport', 3, 4),
+      stat('Historie', 1, 4),
+    ])
+    assert.equal(s.sterkeste, 'Sport', `«${variant}» slapp gjennom`)
+  }
+})
+
+test('STRENGTH_EXCLUDED_CATEGORIES er lista som faktisk brukes', () => {
+  // Beviser at konstanten ikke bare er dekorasjon: en tom overstyring slipper
+  // Diverse inn igjen.
+  assert.ok(STRENGTH_EXCLUDED_CATEGORIES.includes('diverse'))
+  const s = pickCategoryStrength(
+    [stat('Diverse', 20, 20), stat('Sport', 3, 4), stat('Historie', 1, 4)],
+    { excluded: [] },
+  )
+  assert.equal(s.sterkeste, 'Diverse')
+})
+
+// ── Determinisme ────────────────────────────────────────────────────────────
+
+test('uavgjort andel brytes av flest svar, deretter navn — og er stabil', () => {
+  const stats = [
+    stat('Sport', 2, 4),      // 50 %, 4 svar
+    stat('Musikk', 4, 8),     // 50 %, 8 svar  ← mest belegg
+    stat('Historie', 1, 4),   // 25 %
+  ]
+  const a = pickCategoryStrength(stats)
+  const b = pickCategoryStrength([...stats].reverse())
+  assert.equal(a.sterkeste, 'Musikk')
+  assert.deepEqual(a, b, 'resultatet avhenger av inn-rekkefølgen')
+})
+
+test('helt lik andel og likt antall brytes alfabetisk i BEGGE ender', () => {
+  const stats = [stat('Sport', 2, 4), stat('Historie', 2, 4), stat('Musikk', 2, 4)]
+  const s = pickCategoryStrength(stats)
+  assert.equal(s.sterkeste, 'Historie')
+  assert.equal(s.svakeste, 'Historie')
+  // Samme rad i begge ender er riktig her: alle tre er identiske, så det
+  // finnes ingen reell forskjell å vise. Kalleren avgjør om den vil vise noe.
+  assert.deepEqual(pickCategoryStrength([...stats].reverse()), s)
+})
+
+test('sterkeste og svakeste er aldri samme kategori når andelene faktisk skiller', () => {
+  const s = pickCategoryStrength([stat('Sport', 3, 4), stat('Historie', 1, 4)])
+  assert.notEqual(s.sterkeste, s.svakeste)
+})

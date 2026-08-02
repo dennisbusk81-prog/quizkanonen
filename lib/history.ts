@@ -1,6 +1,12 @@
 // Server-only — never import this in 'use client' components.
 import { supabaseAdmin } from './supabase-admin'
 import { readStoredKey } from './answer-key-correction'
+import { fetchAllRows } from './paginate'
+import {
+  computeCategoryStats,
+  pickCategoryStrength,
+  type CategoryStrength,
+} from './category-stats'
 
 // ─── Exported types ──────────────────────────────────────────────────────────
 
@@ -32,8 +38,9 @@ export type PlayerStats = {
   bedre_enn_prosent: number | null
   raskere_enn_prosent: number | null
   progresjon: Progresjon | null
-  // NOTE: 'category' does not exist on the questions table (it is on quizzes).
-  // These fields are always null until a category column is added to questions.
+  // Sterkeste/svakeste kategori på tvers av ALL brukerens historikk — ikke én
+  // quiz. Begge er null når færre enn to kategorier klarer terskelen; se
+  // pickCategoryStrength() i lib/category-stats.ts for reglene.
   sterkeste_kategori: string | null
   svakeste_kategori: string | null
 }
@@ -203,6 +210,66 @@ function resolveTitle(raw: unknown): string {
   return v?.title ?? 'Ukjent quiz'
 }
 
+// Samme forsvar som resolveTitle: PostgREST returnerer en embed som objekt
+// eller som array avhengig av relasjonens form, og å anta feil form gir null
+// uten feilmelding. Målt mot prod 2. august 2026 er denne et objekt — men
+// antakelsen står ikke alene her.
+function resolveCategory(raw: unknown): string | null {
+  const v = raw as { category: string | null } | { category: string | null }[] | null
+  if (Array.isArray(v)) return v[0]?.category ?? null
+  return v?.category ?? null
+}
+
+type CategoryAnswerRow = {
+  question_id: string
+  is_correct: boolean
+  questions: unknown
+}
+
+/**
+ * Sterkeste/svakeste kategori over ALLE brukerens forsøk.
+ *
+ * Populasjonen er nøyaktig den samme som resten av getPlayerStats bruker:
+ * `attempts.correct_streak IS NOT NULL` = fullført forsøk. Filteret settes på
+ * den embeddede attempts-raden (`attempts!inner`), slik at én spørring gjør
+ * både avgrensningen og hentingen — ingen `.in()` med en voksende liste av
+ * attempt-id-er, og dermed heller ingen berøring med ~390-id-grensen i
+ * lib/paginate.ts.
+ *
+ * `questions(category)` er bevisst en VANLIG embed, ikke `!inner`: et svar på
+ * et spørsmål uten kategori skal fortsatt telles (det havner i
+ * «Uten kategori»-bøtta og holder summen hel), ikke forsvinne fra grunnlaget.
+ *
+ * PAGINERING ER IKKE VALGFRI HER. En bruker samler ~20 svarrader per quiz, så
+ * en trofast spiller passerer 1000-taket i løpet av omtrent ett år med
+ * ukentlig quiz. PostgREST kutter da stille, og nettopp de mest lojale
+ * brukerne ville fått kategoritall regnet på en vilkårlig del av historikken
+ * sin — uten at noe så galt ut. Se category-strength.pagination.test.ts.
+ */
+async function fetchCategoryStrength(userId: string): Promise<CategoryStrength> {
+  const rows = await fetchAllRows<CategoryAnswerRow>((from, to) =>
+    supabaseAdmin
+      .from('attempt_answers')
+      .select('question_id, is_correct, attempts!inner(user_id, correct_streak), questions(category)')
+      .eq('attempts.user_id', userId)
+      .not('attempts.correct_streak', 'is', null)
+      .range(from, to)
+  )
+
+  const answers = rows.map((r) => ({ questionId: r.question_id, isCorrect: r.is_correct }))
+
+  // computeCategoryStats slår opp kategori via questionId → question.id, så
+  // hvert spørsmål skal være med ÉN gang uansett hvor mange ganger det er
+  // besvart (samme spørsmål kan gå igjen i flere quizer).
+  const questions = [
+    ...new Map(
+      rows.map((r) => [r.question_id, { id: r.question_id, category: resolveCategory(r.questions) }])
+    ).values(),
+  ]
+
+  return pickCategoryStrength(computeCategoryStats(answers, questions))
+}
+
 type QuestionRow = {
   id: string
   question_text: string
@@ -323,15 +390,22 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   const best_streak = Math.max(0, ...userAttempts.map((r) => r.correct_streak ?? 0))
   const avg_score_pct = pct(total_correct, total_questions)
 
-  // Ranks — one extra query to fetch all-quiz attempts
-  const ranks = await computeRanks(
-    userAttempts.map((a) => ({
-      id: a.id,
-      quiz_id: a.quiz_id,
-      correct_answers: a.correct_answers,
-      total_time_ms: a.total_time_ms,
-    }))
-  )
+  // Ranks — one extra query to fetch all-quiz attempts.
+  // Kategoristyrken er uavhengig av rangeringen og hentes i samme bølge, slik
+  // at den ikke koster en ekstra seriell rundtur. Den ligger her og ikke i
+  // første Promise.all fordi den da ville blitt betalt også for brukere som
+  // returnerer EMPTY over.
+  const [ranks, categoryStrength] = await Promise.all([
+    computeRanks(
+      userAttempts.map((a) => ({
+        id: a.id,
+        quiz_id: a.quiz_id,
+        correct_answers: a.correct_answers,
+        total_time_ms: a.total_time_ms,
+      }))
+    ),
+    fetchCategoryStrength(userId),
+  ])
 
   const allRankValues = [...ranks.values()].map((r) => r.rank)
   const beste_plassering = allRankValues.length > 0 ? Math.min(...allRankValues) : null
@@ -382,8 +456,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     bedre_enn_prosent,
     raskere_enn_prosent,
     progresjon,
-    sterkeste_kategori: null, // category not yet on questions table
-    svakeste_kategori: null,  // category not yet on questions table
+    sterkeste_kategori: categoryStrength.sterkeste,
+    svakeste_kategori: categoryStrength.svakeste,
   }
 }
 
