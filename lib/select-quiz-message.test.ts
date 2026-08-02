@@ -4,14 +4,26 @@ import assert from 'node:assert/strict'
 import {
   selectQuizMessage,
   computeStrongCategory,
+  buildWeightedPool,
   STREAK_MESSAGE_THRESHOLD,
   CATEGORY_MESSAGE_THRESHOLD,
+  CATEGORY_MESSAGE_EXCLUDED,
 } from './select-quiz-message'
 import type { QuizMessageState } from './select-quiz-message'
-import { quizMessages } from './quiz-messages'
+import { quizMessages, categoryMessages } from './quiz-messages'
 import type { QuizMessageCategory, QuizMessage } from './quiz-messages'
 
 const SEED = 'attempt-abc:5'
+
+// Alle tekstsett med grenen de tilhører. categoryMessages er ni separate
+// lister, men de betjener ÉN gren (category) — de skal derfor ikke regnes som
+// tvetydige mot hverandre eller mot fallback-settet.
+const ALL_SETS: [QuizMessageCategory, QuizMessage[]][] = [
+  ...(Object.entries(quizMessages) as [QuizMessageCategory, QuizMessage[]][]),
+  ...Object.values(categoryMessages).map(
+    msgs => ['category', msgs] as [QuizMessageCategory, QuizMessage[]]
+  ),
+]
 
 // Basistilstand som IKKE treffer noen gren over default: 4 besvarte av 15
 // (ikke halvtid=7, remaining 11 > 3), 1 riktig (ikke perfekt), ingen
@@ -44,7 +56,7 @@ function matchesTemplate(template: string | null, actual: string | null): boolea
 }
 
 function categoryOf(msg: QuizMessage): QuizMessageCategory | null {
-  for (const [cat, msgs] of Object.entries(quizMessages) as [QuizMessageCategory, QuizMessage[]][]) {
+  for (const [cat, msgs] of ALL_SETS) {
     if (msgs.some(m => matchesTemplate(m.headline, msg.headline) && matchesTemplate(m.subline, msg.subline))) {
       return cat
     }
@@ -57,14 +69,20 @@ function assertCategory(s: QuizMessageState, expected: QuizMessageCategory, seed
   assert.equal(categoryOf(msg), expected, `forventet ${expected}, fikk: «${msg.headline}»`)
 }
 
-// Sanity for categoryOf selv: ingen tekst må kunne matche to kategorier,
-// ellers er alle kategori-assertions under upålitelige.
-test('ingen headline+subline er tvetydig på tvers av kategorier', () => {
-  for (const [cat, msgs] of Object.entries(quizMessages) as [QuizMessageCategory, QuizMessage[]][]) {
+// Sanity for categoryOf selv: ingen tekst må kunne matche to ULIKE grener,
+// ellers er alle kategori-assertions under upålitelige. (Innenfor category er
+// overlapp greit — fallback-templaten «{category} sitter.» matcher med vilje
+// «Musikken sitter.», og begge er samme gren.)
+test('ingen headline+subline er tvetydig på tvers av grener', () => {
+  for (const [cat, msgs] of ALL_SETS) {
     for (const m of msgs) {
-      const hits = (Object.entries(quizMessages) as [QuizMessageCategory, QuizMessage[]][])
-        .filter(([, other]) => other.some(o => matchesTemplate(o.headline, m.headline) && matchesTemplate(o.subline, m.subline)))
-        .map(([c]) => c)
+      const hits = [
+        ...new Set(
+          ALL_SETS
+            .filter(([, other]) => other.some(o => matchesTemplate(o.headline, m.headline) && matchesTemplate(o.subline, m.subline)))
+            .map(([c]) => c)
+        ),
+      ]
       assert.deepEqual(hits, [cat], `«${m.headline}» matcher ${hits.join(', ')}`)
     }
   }
@@ -153,10 +171,42 @@ test('streak ved terskelen 5, ikke ved 4', () => {
   assertCategory(state({ streak: 4, correctSoFar: 4, questionIndex: 8 }), 'generic')
 })
 
-test('streak-melding inneholder faktisk streak-tallet der {streak} brukes', () => {
-  // Alle tre streak-tekster bruker {streak} — verifiser utfyllingen.
-  const msg = selectQuizMessage(state({ streak: 6, correctSoFar: 6, questionIndex: 8 }), SEED)
-  assert.ok(msg.headline.includes('6') || (msg.subline ?? '').includes('6'), `mangler tallet: «${msg.headline}» / «${msg.subline}»`)
+test('streak-melding fyller {streak} med faktisk tall når teksten bruker den', () => {
+  // Ikke alle streak-tekster bruker {streak} lenger, så vi sveiper seeds:
+  // hver tekst som HAR plassholderen skal få tallet, og ingen skal slippe ut rå.
+  let sawNumber = false
+  for (let i = 0; i < 300; i++) {
+    const msg = selectQuizMessage(state({ streak: 6, correctSoFar: 6, questionIndex: 8 }), `a-${i}:8`)
+    const text = `${msg.headline} ${msg.subline ?? ''}`
+    assert.ok(!text.includes('{'), `rå plassholder sluppet ut: «${text}»`)
+    if (text.includes('6')) sawNumber = true
+  }
+  assert.ok(sawNumber, 'ingen av 300 seeds traff en tekst med {streak}')
+})
+
+test('ingen gren slipper ut en rå plassholder til spilleren', () => {
+  // Bredt vern: en tekst med en plassholder som ikke fylles i sin egen gren
+  // vises bokstavelig som «{n}». Sveiper alle grener over mange seeds.
+  const cases: Partial<QuizMessageState>[] = [
+    { streak: 6, correctSoFar: 6, questionIndex: 8 },              // streak
+    { correctSoFar: 5, questionIndex: 4 },                          // perfect_run
+    { questionIndex: 6, correctSoFar: 1 },                          // halftime
+    { questionIndex: 12, correctSoFar: 7 },                         // final_push
+    { questionIndex: 13, correctSoFar: 7 },                         // final_push_last
+    { wrongInARow: 2 },                                             // comeback
+    { wrongInARow: 1 },                                             // after_wrong
+    { strongCategory: 'Historie' },                                 // category (egen liste)
+    { strongCategory: 'Ukjent Kategori' },                          // category (fallback)
+    { rival: { name: 'Kari' } },                                    // rival_intro
+    {},                                                             // generic
+  ]
+  for (const over of cases) {
+    for (let i = 0; i < 60; i++) {
+      const msg = selectQuizMessage(state(over), `seed-${i}:${i}`)
+      const text = `${msg.headline} ${msg.subline ?? ''}`
+      assert.ok(!text.includes('{') && !text.includes('}'), `rå plassholder: «${text}» (${JSON.stringify(over)})`)
+    }
+  }
 })
 
 test('after_wrong ved nøyaktig 1 feil sist — ikke ved 0, ikke ved 2', () => {
@@ -166,12 +216,11 @@ test('after_wrong ved nøyaktig 1 feil sist — ikke ved 0, ikke ved 2', () => {
 })
 
 test('category når strongCategory er satt, faller stille gjennom ved null', () => {
+  // Merk: teksten gjentar IKKE nødvendigvis kategorinavnet lenger. Kjente
+  // kategorier har skreddersydde tekster («Du har lest deg opp.» for Historie)
+  // nettopp for å slippe å skrive inn navnet — se categoryMessages. At riktig
+  // liste velges dekkes av «hver kjent kategori får sine egne tekster».
   assertCategory(state({ strongCategory: 'Historie' }), 'category')
-  const msg = selectQuizMessage(state({ strongCategory: 'Historie' }), SEED)
-  assert.ok(
-    msg.headline.includes('Historie') || (msg.subline ?? '').includes('Historie'),
-    `kategorinavnet mangler: «${msg.headline}»`
-  )
   assertCategory(state({ strongCategory: null, rival: { name: 'Kari' } }), 'rival_intro')
 })
 
@@ -284,9 +333,163 @@ test('alle tekster bruker kun plassholdere som fylles i sin egen gren', () => {
   }
 })
 
+test('kategorienes egne tekster har navnet skrevet inn — ingen plassholdere', () => {
+  // Hele poenget med per-kategori-listene: ingen {category} å fylle, og dermed
+  // ingen lange kategorinavn som sprenger headline-høyden.
+  for (const [cat, msgs] of Object.entries(categoryMessages)) {
+    for (const m of msgs) {
+      const text = `${m.headline} ${m.subline ?? ''}`
+      assert.ok(!/\{\w+\}/.test(text), `«${m.headline}» (${cat}) bruker en plassholder`)
+    }
+  }
+})
+
 test('{percent} finnes ikke lenger i noen tekst', () => {
-  const all = JSON.stringify(quizMessages)
+  const all = JSON.stringify(quizMessages) + JSON.stringify(categoryMessages)
   assert.ok(!all.includes('{percent}'))
+})
+
+// ── Vekting av Dennis' favoritter (★ → priority: true) ──────────────────────
+
+test('buildWeightedPool gir prioriterte tekster nøyaktig to plasser', () => {
+  const msgs: QuizMessage[] = [
+    { headline: 'a', subline: null },
+    { headline: 'b', subline: null, priority: true },
+    { headline: 'c', subline: null },
+    { headline: 'd', subline: null, priority: true },
+  ]
+  assert.deepEqual(buildWeightedPool(msgs), [0, 1, 1, 2, 3, 3])
+})
+
+test('buildWeightedPool uten prioriterte er identitet', () => {
+  const msgs: QuizMessage[] = [
+    { headline: 'a', subline: null },
+    { headline: 'b', subline: null },
+  ]
+  assert.deepEqual(buildWeightedPool(msgs), [0, 1])
+})
+
+test('priority: false teller som vanlig vekt', () => {
+  const msgs: QuizMessage[] = [
+    { headline: 'a', subline: null, priority: false },
+    { headline: 'b', subline: null, priority: true },
+  ]
+  assert.deepEqual(buildWeightedPool(msgs), [0, 1, 1])
+})
+
+test('prioriterte tekster velges omtrent dobbelt så ofte som vanlige', () => {
+  // comeback: 14 tekster, 5 prioriterte → pool 19. Prioritert 2/19, vanlig 1/19.
+  // Måler snitt-treff per prioritert mot snitt-treff per vanlig; forventet 2,0.
+  // Romslig toleranse — dette er en hash-fordeling, ikke en perfekt uniform.
+  const counts = new Map<string, number>()
+  const N = 20000
+  for (let i = 0; i < N; i++) {
+    const msg = selectQuizMessage(state({ wrongInARow: 2 }), `vekt-${i}:3`)
+    counts.set(msg.headline, (counts.get(msg.headline) ?? 0) + 1)
+  }
+  const prioritized = quizMessages.comeback.filter(m => m.priority)
+  const plain = quizMessages.comeback.filter(m => !m.priority)
+  assert.ok(prioritized.length >= 2 && plain.length >= 2, 'comeback må ha begge slag for at testen skal si noe')
+
+  const avg = (msgs: QuizMessage[]) =>
+    msgs.reduce((s, m) => s + (counts.get(m.headline) ?? 0), 0) / msgs.length
+  const ratio = avg(prioritized) / avg(plain)
+  assert.ok(
+    ratio > 1.7 && ratio < 2.3,
+    `forventet ~2x for prioriterte, målte ${ratio.toFixed(2)}x`
+  )
+})
+
+test('vektingen bryter ikke determinismen — samme seed gir samme tekst', () => {
+  // Vektingen legger til indekser i poolen; gjøres den rekkefølgen ustabil
+  // (f.eks. med en shuffle), ruller teksten om under spillerens re-render.
+  for (const over of [{ wrongInARow: 2 }, { streak: 6, correctSoFar: 6, questionIndex: 8 }, {}]) {
+    const first = selectQuizMessage(state(over), 'stabil:9')
+    for (let i = 0; i < 100; i++) {
+      assert.deepEqual(selectQuizMessage(state(over), 'stabil:9'), first)
+    }
+  }
+})
+
+test('valgt melding lekker aldri priority-feltet ut til komponenten', () => {
+  const msg = selectQuizMessage(state({ wrongInARow: 2 }), SEED)
+  assert.deepEqual(Object.keys(msg).sort(), ['headline', 'subline'])
+})
+
+// ── Lengde: headline må få plass på to linjer (296px, målt 30. juli 2026) ────
+
+test('ingen headline er lengre enn 35 tegn med verste plassholderverdi', () => {
+  const worst = (s: string) =>
+    s.replace(/\{streak\}/g, '15')
+      .replace(/\{remaining\}/g, '3')
+      .replace(/\{category\}/g, 'Vitenskap & Natur')
+      .replace(/\{rivalName\}/g, 'X')
+  for (const [cat, msgs] of ALL_SETS) {
+    for (const m of msgs) {
+      const h = worst(m.headline)
+      assert.ok(h.length <= 35, `«${h}» (${cat}) er ${h.length} tegn — over taket på 35`)
+    }
+  }
+})
+
+test('rivalens navn står aldri i en headline', () => {
+  // display_name kan være 40 tegn; i headline (28px) sprenger det høyden, i
+  // subline bryter det pent.
+  for (const m of quizMessages.rival_intro) {
+    assert.ok(!m.headline.includes('{rivalName}'), `«${m.headline}» har navnet i headline`)
+  }
+})
+
+// ── Kategorilistene ─────────────────────────────────────────────────────────
+
+test('hver kjent kategori får sine egne tekster, ikke fallback-settet', () => {
+  const known = ['Musikk', 'Sport', 'Historie', 'Geografi', 'Film & TV',
+    'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn']
+  for (const cat of known) {
+    const own = categoryMessages[cat.toLowerCase()]
+    assert.ok(own && own.length > 0, `«${cat}» mangler egen tekstliste`)
+    const headlines = new Set(own.map(m => m.headline))
+    for (let i = 0; i < 40; i++) {
+      const msg = selectQuizMessage(state({ strongCategory: cat }), `kat-${i}:4`)
+      assert.ok(headlines.has(msg.headline), `«${cat}» ga «${msg.headline}», som ikke er i dens egen liste`)
+    }
+  }
+})
+
+test('kategorioppslaget tåler casing og whitespace fra admin', () => {
+  const own = new Set(categoryMessages['film & tv'].map(m => m.headline))
+  for (const variant of ['Film & TV', 'film & tv', ' FILM & TV ', 'Film & TV ']) {
+    const msg = selectQuizMessage(state({ strongCategory: variant }), 'case:2')
+    assert.ok(own.has(msg.headline), `variant «${variant}» falt til fallback: «${msg.headline}»`)
+  }
+})
+
+test('ukjent kategori faller tilbake på {category}-settet med navnet innfylt', () => {
+  // En kategori lagt til i admin etter at tekstene ble skrevet skal fortsatt
+  // gi en melding — ikke krasje og ikke vise rå «{category}».
+  const msg = selectQuizMessage(state({ strongCategory: 'Litteratur' }), SEED)
+  const text = `${msg.headline} ${msg.subline ?? ''}`
+  assert.ok(text.includes('Litteratur'), `fallback fylte ikke inn navnet: «${text}»`)
+  assert.ok(!text.includes('{'), `rå plassholder: «${text}»`)
+  assert.equal(categoryOf(msg), 'category')
+})
+
+test('«Diverse» har ingen kategoritekster og når aldri kategorigrenen', () => {
+  for (const key of Object.keys(categoryMessages)) {
+    assert.ok(
+      !CATEGORY_MESSAGE_EXCLUDED.includes(key),
+      `«${key}» er ekskludert i computeStrongCategory, men har likevel tekster`
+    )
+  }
+  assert.ok(!('diverse' in categoryMessages))
+})
+
+test('alle kategorilister har minst tre varianter', () => {
+  // Under tre blir gjentakelsen påfallende for en spiller som treffer samme
+  // kategori flere ganger i én quiz.
+  for (const [cat, msgs] of Object.entries(categoryMessages)) {
+    assert.ok(msgs.length >= 3, `«${cat}» har bare ${msgs.length}`)
+  }
 })
 
 // ── computeStrongCategory ───────────────────────────────────────────────────

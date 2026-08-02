@@ -1,4 +1,4 @@
-import { quizMessages } from './quiz-messages'
+import { quizMessages, categoryMessages } from './quiz-messages'
 import type { QuizMessage, QuizMessageCategory } from './quiz-messages'
 import { seededIndex } from './seeded-shuffle'
 
@@ -87,11 +87,35 @@ export function computeStrongCategory(
   return count >= CATEGORY_MESSAGE_THRESHOLD ? lastCat : null
 }
 
-function pick(category: QuizMessageCategory, seed: string): QuizMessage {
-  const msgs = quizMessages[category]
-  return msgs[seededIndex(seed, msgs.length)]
+// Indeksene å trekke blant, med `priority`-tekster oppført TO ganger. Skilt ut
+// som egen eksport fordi vektingen ellers bare kan verifiseres statistisk —
+// her kan den sjekkes eksakt (se select-quiz-message.test.ts).
+//
+// Vekting via duplikate indekser, ikke via et akkumulert vektintervall: valget
+// forblir ett enkelt `seededIndex`-oppslag, altså like deterministisk og like
+// billig som før. Rekkefølgen i poolen er stabil, så samme seed treffer samme
+// tekst — det er hele grunnen til at meldingen ikke ruller om under en
+// re-render eller etter en gjenopptakelse.
+export function buildWeightedPool(msgs: QuizMessage[]): number[] {
+  const pool: number[] = []
+  for (let i = 0; i < msgs.length; i++) {
+    pool.push(i)
+    if (msgs[i].priority) pool.push(i)
+  }
+  return pool
 }
 
+function pickWeighted(msgs: QuizMessage[], seed: string): QuizMessage {
+  const pool = buildWeightedPool(msgs)
+  return msgs[pool[seededIndex(seed, pool.length)]]
+}
+
+function pick(category: QuizMessageCategory, seed: string): QuizMessage {
+  return pickWeighted(quizMessages[category], seed)
+}
+
+// Returnerer alltid et rent {headline, subline}: `priority` er redigerings-
+// metadata i tekstfilen og skal aldri lekke ut til komponenten.
 function fill(msg: QuizMessage, vars: Record<string, string | number>): QuizMessage {
   const replace = (s: string) =>
     s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`))
@@ -162,8 +186,14 @@ export function selectQuizMessage(state: QuizMessageState, seed: string): QuizMe
   }
 
   // 7. Sterk kategori — knyttet til spørsmålet som nettopp ble besvart riktig,
-  // se computeStrongCategory
+  // se computeStrongCategory. Kategorier vi har skrevet egne tekster for får
+  // dem; alt annet faller tilbake på det generiske {category}-settet, slik at
+  // en kategori lagt til i admin i morgen fortsatt gir en melding.
   if (strongCategory) {
+    const own = categoryMessages[strongCategory.trim().toLowerCase()]
+    if (own && own.length > 0) {
+      return fill(pickWeighted(own, seed), {})
+    }
     return fill(pick('category', seed), { category: strongCategory })
   }
 
