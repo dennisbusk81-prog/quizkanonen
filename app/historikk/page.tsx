@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -259,36 +259,19 @@ export default function HistorikkPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
-  const [expiredPremium, setExpiredPremium] = useState(false)
+  const [historyLocked, setHistoryLocked] = useState(false)
 
-  // Read any qk_historikk_* cache before first paint — prevents loading flash on back-navigation.
-  // Runs synchronously before the browser paints; safe because this is a client-only component.
-  // The fetch useEffect below still validates the session and refreshes if the cache is stale.
-  useLayoutEffect(() => {
-    const TTL = 5 * 60 * 1000
-    try {
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (!key?.startsWith('qk_historikk_')) continue
-        const raw = sessionStorage.getItem(key)
-        if (!raw) continue
-        const cached = JSON.parse(raw) as {
-          fetchedAt: number
-          data: { history: HistoryAttempt[]; stats: PlayerStats; total?: number; pageSize?: number }
-        }
-        if (Date.now() - cached.fetchedAt < TTL && cached.data) {
-          const t  = cached.data.total    ?? cached.data.history.length
-          const ps = cached.data.pageSize ?? API_PAGE_SIZE
-          setHistory(cached.data.history)
-          setStats(cached.data.stats)
-          setTotal(t)
-          setHasMore(cached.data.history.length >= ps && t > cached.data.history.length)
-          setLoadState('ready')
-          return
-        }
-      }
-    } catch { /* sessionStorage unavailable */ }
-  }, [])
+  // Cachen leses KUN i fetch-effekten under, på nøkkelen `qk_historikk_${bruker-id}`.
+  //
+  // Her lå tidligere en useLayoutEffect som leste cachen før første paint for å
+  // unngå skjelett-blink ved tilbakenavigering. Den kunne ikke vite hvem som var
+  // innlogget — bruker-id-en finnes først etter `getSession()`, som er async — så
+  // den itererte over ALLE `qk_historikk_*`-nøkler og malte den første ferske.
+  // Ved brukerbytte i samme fane (delt maskin, familie-PC, testing med to
+  // kontoer) betydde det at forrige brukers historikk ble vist til den nye
+  // brukeren fram til fetchen rettet det opp. Skjelettet er billigere enn det.
+  //
+  // Ikke gjeninnfør en pre-paint-lesning uten en synkron, pålitelig bruker-id.
 
   // Background prefetch: after list is shown, silently cache the 3 most recent
   // attempt details so clicking a row opens instantly.
@@ -391,14 +374,19 @@ export default function HistorikkPage() {
       if (cancelled) return
 
       if (res.status === 403) {
-        // Check if this is a former Premium user (has season_scores) → show retention banner
+        // Har brukeren spilt noe i det hele tatt? season_scores skrives av
+        // processQuiz for ALLE innloggede deltakere, uavhengig av Premium
+        // (lib/award-season-points.ts), så en treffer her betyr «har spilt minst
+        // én gjort opp quiz innlogget» — IKKE «har hatt Premium». Teksten under
+        // må derfor ikke påstå en tidligere Premium-tilstand; se kortet i
+        // `historyLocked`-grenen.
         const { count } = await supabase
           .from('season_scores')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', session.user.id)
           .eq('scope_type', 'global')
         if ((count ?? 0) > 0) {
-          if (!cancelled) { setExpiredPremium(true); setLoadState('ready') }
+          if (!cancelled) { setHistoryLocked(true); setLoadState('ready') }
         } else {
           router.replace('/premium')
         }
@@ -471,7 +459,7 @@ export default function HistorikkPage() {
 
   const progMsg = stats?.progresjon ? toProgMsg(stats.progresjon) : null
 
-  if (expiredPremium) {
+  if (historyLocked) {
     return (
       <>
         <style>{FONT_IMPORT}</style>
@@ -484,10 +472,12 @@ export default function HistorikkPage() {
                   Historikken din er lagret
                 </p>
                 <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
-                  Poengene dine er lagret. Reaktiver Premium for å se din plassering og quizhistorikk.
+                  Du har spilt quizer mens du var innlogget, så resultatene og poengene
+                  dine ligger lagret. Historikk, statistikk og nøyaktig plassering
+                  krever Premium.
                 </p>
                 <a href="/premium" style={{ display: 'inline-block', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', color: '#e8e4dd', fontSize: 14, fontWeight: 600, textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif" }}>
-                  Reaktiver Premium →
+                  Se hva Premium gir →
                 </a>
               </div>
             </div>
