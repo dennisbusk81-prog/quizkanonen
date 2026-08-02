@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { pluralNo } from '@/lib/plural-no'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
@@ -515,18 +516,26 @@ export default function HistorikkPage() {
             )}
             {stats && stats.total_attempts > 0 && (
               <div style={s.heroSub}>
-                {stats.total_attempts} {stats.total_attempts === 1 ? 'quiz spilt' : 'quizer spilt'}
+                {stats.total_attempts} {pluralNo(stats.total_attempts, 'quiz spilt', 'quizer spilt')}
                 {' · '}snitt {stats.avg_score_pct}%
               </div>
             )}
             <div style={s.heroRule} />
+            {/* Lenken het «Se ukens leaderboard», men `history` er sortert på
+                completed_at DESC, så history[0] er brukerens SIST SPILTE quiz —
+                ikke ukens. For en som ikke spilte denne uka pekte den på en
+                gammel quiz (Dennis' egen side pekte på 3. juli). Teksten
+                beskriver nå det lenken faktisk gjør, og er sann uansett når
+                brukeren sist spilte. Skal den peke på ukens quiz, må klienten
+                få vite hvilken quiz det ER — et nytt datapunkt, ikke en
+                tekstendring. */}
             {history.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <Link
                   href={`/leaderboard/${history[0].quiz_id}`}
                   style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.02em' }}
                 >
-                  Se ukens leaderboard →
+                  Se leaderboard for din siste quiz →
                 </Link>
               </div>
             )}
@@ -590,14 +599,19 @@ export default function HistorikkPage() {
             </div>
           ) : (
             <>
+              {/* Tellepillen er ENESTE visning av totalen her. Under lå tidligere
+                  «{total} quizer totalt», som viste nøyaktig samme tall rett under
+                  pillen — og ubøyd, så én spilt quiz ga «1 quizer totalt». Pillen
+                  er beholdt framfor setningen fordi den er mønsteret alle de andre
+                  seksjonsoverskriftene bruker (liga, historikk/[attemptId], to
+                  steder i leaderboard/[id]), ingen av dem med en setning ved siden
+                  av. Seksjonsetiketten til venstre bærer substantivet, så tallet
+                  trenger det ikke. */}
               <div style={s.sectionHeader}>
                 <span style={s.sectionText}>Siste quizer</span>
                 <div style={s.sectionLine} />
                 <span style={s.sectionCount}>{total > 0 ? total : history.length}</span>
               </div>
-              <p style={{ fontSize: 13, color: '#918f8a', margin: '0 0 10px' }}>
-                {total > 0 ? total : history.length} quizer totalt
-              </p>
 
               {history.map((attempt) => {
                 const pct = scorePct(attempt.correct_answers, attempt.total_questions)
