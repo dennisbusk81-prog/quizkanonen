@@ -49,6 +49,26 @@
 //   • Nulles også userEntry/userRank/totalCount ved av      → 2 tester ryker
 //     (egen plassering er en annen funksjon enn den offentlige lista).
 //   • Lar `until_closed` vinne over `disabled` i årsaken    → 1 test ryker.
+//
+// SAK 4 (3. august 2026, samme feilklasse igjen): `guestRank` ble regnet ut fra
+//        de SAMME radene som skjulingen holdt tilbake, uten å se på
+//        `leaderboardHidden`. `entries` ble tømt, men en uinnlogget kaller
+//        kunne sende ?my_correct=&my_time= og få sin EKSAKTE plass i en skjult
+//        stilling. Gaten var satt på hovedstien; denne sideveien rundt var det
+//        ikke. Funnet ved å verifisere at sak 1–3 faktisk var lukket.
+//
+// MUTASJONSBEVIS for sak 4 (alle kjørt, med målt antall):
+//   • Fjernes `!leaderboardHidden` fra guest-grenen (den
+//     naive implementasjonen som sto der før)              → 5 tester ryker.
+//   • Gates det kun på `hiddenReason === 'until_closed'`   → 2 tester ryker
+//     (den permanente av-bryteren ville lekket).
+//   • Skjules OGSÅ egen rad (`if (mine && !leaderboardHidden)`,
+//     en for bred «skjul alt»-fiks)                        → 4 tester ryker.
+//
+// Merk metoden i «LEKKASJEBEVIS»-testen: den positive kontrollen kjøres FØRST,
+// på samme fixture og samme spørrestreng, og fastslår at plasseringen er 13.
+// Uten den ville `null` i den skjulte grenen ikke bevist noe — en tom fixture
+// eller en feilstavet parameter gir samme null uten at gaten er involvert.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -163,6 +183,7 @@ const { GET } = await import('@/app/api/leaderboard/[id]/route')
 type Svar = {
   entries: { rank: number; playerName: string }[]
   userRank: number | null
+  guestRank: number | null
   userEntry: {
     rank: number
     correctAnswers: number
@@ -582,4 +603,98 @@ test('PÅ + ikke skjult: listen leveres som før (ingen regresjon)', async () =>
   assert.equal(svar.leaderboardHidden, false)
   assert.equal(svar.hiddenReason, null)
   assert.equal(svar.entries.length, 20)
+})
+
+// ── SAK 4: guestRank var en sidevei rundt skjulingen ────────────────────────
+// `entries` ble tømt, men `guestRank` ble regnet ut fra de SAMME radene uten å
+// se på `leaderboardHidden`. En plassering er rekkefølgeinformasjon, så en
+// uinnlogget kaller kunne sende ?my_correct=&my_time= og få sin eksakte plass i
+// en stilling som ikke skulle ut ennå.
+//
+// Gjest-fixturen: 4 riktige og en svært dårlig tid. 11 spillere har flere
+// riktige, og «Meg Megsen» har like mange men bedre tid → eksakt plass 13.
+
+const GJEST = 'is_team=false&limit=50&my_correct=4&my_time=99999'
+
+test('LEKKASJEBEVIS: samme fixture gir eksakt plass 13 når den er synlig — og null når den er skjult', async () => {
+  // Positiv kontroll FØRST, på nøyaktig samme data og samme spørrestreng.
+  // Uten den beviser ikke `null` noe som helst: en tom fixture, en feilstavet
+  // parameter eller en NaN ville gitt samme null uten at gaten var involvert.
+  // 13 er tallet en naiv implementasjon (den som sto her fram til 3. august)
+  // returnerte OGSÅ når stillingen var skjult.
+  const synlig = await hent(GJEST, true)
+  assert.equal(synlig.leaderboardHidden, false)
+  assert.equal(synlig.guestRank, 13, 'positiv kontroll: plasseringen ER utledbar av disse radene')
+
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  const skjult = await hent(GJEST, true)
+
+  assert.equal(skjult.leaderboardHidden, true)
+  assert.equal(skjult.entries.length, 0, 'radene holdes tilbake — som før')
+  assert.equal(
+    skjult.guestRank,
+    null,
+    'plasseringen utledes av de samme radene og må holdes tilbake med dem',
+  )
+  assert.notEqual(skjult.guestRank, 13, 'det naive svaret skal ikke kunne komme ut')
+})
+
+test('SKJULT + ÅPEN: guestRank holdes tilbake selv om gjesten spør med gyldige tall', async () => {
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+
+  const svar = await hent(GJEST, true)
+
+  assert.equal(svar.guestRank, null)
+})
+
+test('AV: show_leaderboard=false holder også guestRank tilbake (ingen stengetid opphever den)', async () => {
+  // Årsakene behandles likt: begge betyr at radene ble holdt tilbake for denne
+  // kalleren. Hadde gaten vært bundet til 'until_closed' alene, ville den
+  // permanente av-bryteren lekket — og den har ikke engang en stengetid som
+  // til slutt gjør lekkasjen irrelevant.
+  state.quiz = quizRow({ show_leaderboard: false })
+
+  const svar = await hent(GJEST, true)
+
+  assert.equal(svar.hiddenReason, 'disabled')
+  assert.equal(svar.guestRank, null)
+})
+
+test('FAIL-SAFE: uten lesbar quiz-rad holdes guestRank tilbake', async () => {
+  state.quiz = null
+
+  const svar = await hent(GJEST, true)
+
+  assert.equal(svar.guestRank, null, 'en databaseblipp skal ikke åpne en skjult plassering')
+})
+
+test('SKJULT + STENGT: guestRank er tilbake sammen med radene', async () => {
+  // Gaten følger stillingen, den avlyser ikke gjest-estimatet permanent.
+  state.quiz = quizRow({ closes_at: FOR_EN_TIME_SIDEN(), hide_leaderboard_until_closed: true })
+
+  const svar = await hent(GJEST, true)
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.guestRank, 13)
+})
+
+test('guestRank-gaten rører IKKE innloggedes egen plassering', async () => {
+  // Designvalget fra 1. august står: egen rad er brukerens eget resultat, ikke
+  // andres rekkefølge. Denne testen finnes for at en fremtidig, for bred
+  // «skjul alt»-fiks ikke skal ta med seg userEntry på veien.
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+
+  const innlogget = await hent('is_team=false&limit=50')
+  const gjest = await hent(GJEST, true)
+
+  assert.equal(gjest.guestRank, null, 'gjesten mister plasseringen')
+  assert.ok(innlogget.userEntry, 'den innloggede beholder sin egen rad')
+  assert.equal(innlogget.userEntry?.rank, 11, 'fortsatt grovmalt bånd-start for gratis')
+  assert.equal(innlogget.userEntry?.correctAnswers, 4)
+})
+
+test('IKKE skjult: guestRank leveres som før (ingen regresjon for uinnloggede)', async () => {
+  const svar = await hent(GJEST, true)
+
+  assert.equal(svar.guestRank, 13)
 })

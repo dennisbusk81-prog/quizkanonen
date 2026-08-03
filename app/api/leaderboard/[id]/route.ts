@@ -287,9 +287,27 @@ export async function GET(
     }
   }
 
-  // Gjest-estimat
+  // ── Gjest-estimat — holdt tilbake av SAMME invariant som `entries` ──────────
+  // En plassering ER rekkefølgeinformasjon: den utledes av nøyaktig de radene
+  // skjulingen holder tilbake. Fram til 3. august 2026 ble den regnet ut uten å
+  // se på `leaderboardHidden` i det hele tatt, så det hjalp ikke at `entries`
+  // ble tømt — en uinnlogget kaller kunne sende ?my_correct=&my_time= og få sin
+  // eksakte plass i en skjult stilling. Samme feilklasse som gaten selv rettet:
+  // hovedstien var stengt, én sidevei rundt var det ikke.
+  //
+  // BEGGE skjul-årsakene behandles likt her, med vilje. `leaderboardHidden` er
+  // allerede det ferdig utregnede svaret på «ble radene holdt tilbake for DENNE
+  // kalleren» — den bærer Premium-unntaket i `hiddenUntilClosed` med seg, og en
+  // gjest er per definisjon utenfor det unntaket uansett. Å gate kun på
+  // 'until_closed' ville latt den permanente 'disabled'-stien lekke, og den har
+  // ikke engang en stengetid som til slutt opphever den. Årsakene skiller seg i
+  // BETINGELSE, ikke i hva som skal ut av serveren.
+  //
+  // Innloggedes EGEN plassering (`userEntry`/`userRank` over) er bevisst
+  // upåvirket: det er brukerens eget resultat, ikke andres rekkefølge — se
+  // «AV: brukerens EGET resultat rammes ikke» i testene.
   let guestRank: number | null = null
-  if (guestScore && !Number.isNaN(guestScore.correct) && !Number.isNaN(guestScore.timeMs)) {
+  if (!leaderboardHidden && guestScore && !Number.isNaN(guestScore.correct) && !Number.isNaN(guestScore.timeMs)) {
     const better = ranked.filter(r =>
       r.correct_answers > guestScore.correct ||
       (r.correct_answers === guestScore.correct && r.total_time_ms < guestScore.timeMs)
