@@ -451,11 +451,20 @@ const styles = `
     align-items: center;
     gap: 14px;
     background: var(--card);
-    border: 0.5px solid #2a2d38;
+    /* 1px @ #63687a = 3,07:1 mot sidebakgrunnen #1a1c23 (WCAG 1.4.11). Den
+       gamle kanten (0,5px @ #2a2d38) lå på 1,24:1 og var i praksis usynlig —
+       hover-regelen under er eneste avgrensning, og den finnes ikke på mobil.
+       Padding er 13,5px, ikke 14px, for å kompensere for den bredere kanten:
+       30px sirkel + 27px padding + 2px kant = 59px, likt på alle skjermer.
+       Den gamle 0,5px-kanten ble rundet til hele ENHETSpiksler og ga derfor
+       ulik høyde per DPR (målt: 60px @1x, 59px @2x, 58,67px @3x) — 59px @2x
+       er verdien som er bevart. Endrer du kantbredden, må du endre paddingen
+       tilsvarende, ellers flytter «Neste»-knappen seg. */
+    border: 1px solid #63687a;
     border-radius: var(--rcard);
-    padding: 14px 16px;
+    padding: 13.5px 16px;
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
+    transition: border-color 0.15s, background 0.15s, transform 0.12s;
     text-align: left;
     width: 100%;
   }
@@ -478,6 +487,13 @@ const styles = `
   @media (hover: hover) and (pointer: fine) {
     .qk-option:hover:not(:disabled) { border-color: #918f8a; background: #262930; }
   }
+  /* Trykk-respons. transform — IKKE bredde/padding/margin — slik at
+     naboalternativene ikke flytter seg. Speiler .qk-btn-primary:active. */
+  .qk-option:active:not(:disabled) { transform: scale(0.985); border-color: #918f8a; }
+  /* Alternativene arvet tidligere nettleserens standard fokusring. #918f8a
+     framfor gull: gull ville kollidert med alternativet som allerede er
+     markert som riktig. outline påvirker ikke layout. */
+  .qk-option:focus-visible { outline: 2px solid #918f8a; outline-offset: 2px; }
   .qk-option:disabled { cursor: default; }
   @keyframes qkButtonPop {
     0%   { transform: scale(1); }
@@ -533,7 +549,9 @@ const styles = `
     transition: all 0.15s;
   }
 
-  .qk-option.correct .qk-opt-letter { background: var(--green); border-color: var(--green); color: #fff; }
+  /* Mørk tekst på grønt: hvit på #4ade80 er 1,74:1, #1a1c23 gir 9,76:1.
+     Denne tilstanden vises hver gang spilleren svarer feil. */
+  .qk-option.correct .qk-opt-letter { background: var(--green); border-color: var(--green); color: #1a1c23; }
   .qk-option.wrong .qk-opt-letter { background: var(--red); border-color: var(--red); color: #fff; }
 
   .qk-opt-text { font-size: 16px; font-weight: 500; color: var(--white); line-height: 1.4; }
@@ -2464,6 +2482,18 @@ export default function QuizPage() {
       return ' idle'
     }
 
+    // Etter at svaret er avgitt skilles riktig og feil i dag UTELUKKENDE av
+    // grønn mot rød — ingen ikon, ingen mønster. For en deuteranop er eneste
+    // skille opacity 0,7 mot 1,0. ✓/✗ i bokstavsirkelen gir et
+    // fargeuavhengig skille, samme konvensjon som app/historikk/[attemptId].
+    // Ubesvarte/øvrige alternativer beholder bokstaven.
+    const getOptionMarker = (opt: string, i: number) => {
+      const cls = getOptionClass(opt)
+      if (cls === ' correct' || cls === ' correct-self') return '✓'
+      if (cls === ' wrong') return '✗'
+      return ['A', 'B', 'C', 'D'][i]
+    }
+
     const currentStreak = (() => {
       let s = 0
       for (let i = answers.length - 1; i >= 0; i--) {
@@ -2626,7 +2656,7 @@ export default function QuizPage() {
                     kolonnen. `opt` er fortsatt DB-bokstaven og brukes til klikk,
                     scoring, tekst-oppslag og highlight — så fasiten kan ikke lenger
                     utledes fra bokstaven når svaralternativene stokkes. */}
-                <span className="qk-opt-letter">{['A', 'B', 'C', 'D'][i]}</span>
+                <span className="qk-opt-letter">{getOptionMarker(opt, i)}</span>
                 <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
               </button>
             ))}
