@@ -571,8 +571,20 @@ const styles = `
   .qk-option.qk-pos-c .qk-opt-letter { background: #b58a6f; border-color: #b58a6f; color: #12141a; }
   .qk-option.qk-pos-d .qk-opt-letter { background: #9b7fa8; border-color: #9b7fa8; color: #12141a; }
 
-  .qk-option.correct { background: rgba(59,109,17,0.12); border-color: #3B6D11; }
-  .qk-option.correct .qk-opt-letter { background: #3B6D11; border-color: #3B6D11; color: #fff; }
+  /* Én grønn i hele tilstanden — kant, fyll og bokstavsirkel. Fram til
+     3. august 2026 var kanten #3B6D11 (B2B-sidens merkegrønn) mens sirkelen
+     var var(--green): to grønne i samme tilstand. #3B6D11 klarte dessuten
+     ikke WCAG 1.4.11 som kant — 2,74:1 mot bakgrunnen og 2,50:1 mot sitt eget
+     fyll, begge under 3:1. var(--green) gir 9,76:1 og 7,65:1. Samme form som
+     .qk-option.wrong under: literal rgba på fyllet, var() på kanten. */
+  .qk-option.correct { background: rgba(74,222,128,0.12); border-color: var(--green); }
+  /* Bokstavsirkelen for denne tilstanden står bevisst IKKE her, men etter
+     .qk-opt-letter-basen lenger ned (søk «Mørk tekst på grønt»): den må vinne
+     over basens egen bakgrunn, og med lik spesifisitet er det rekkefølgen som
+     avgjør. En .qk-option.correct .qk-opt-letter lagt inn her ville vært død
+     ved fødselen — det var nettopp en slik regel som sto her til 3. august
+     2026, og som ville reversert kontrastfiksen stille hvis noen slettet
+     regelen lenger ned i den tro at DEN var duplikatet. */
 
   .qk-option.correct-self { background: rgba(201,168,76,0.1); border-color: #c9a84c; animation: qkButtonPop 0.4s ease-out; }
   .qk-option.correct-self .qk-opt-letter { background: #c9a84c; border-color: #c9a84c; color: #1a1c23; transform: scale(1.2); transition: transform 0.15s; }

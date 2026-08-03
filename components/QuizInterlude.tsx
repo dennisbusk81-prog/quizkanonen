@@ -218,7 +218,11 @@ export default function QuizInterlude({
         {lastCorrect === true ? (
           <div className="qk-il-pill" style={{
             display: 'inline-block',
-            background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
+            // Samme grønn som «riktig»-tilstanden på svaralternativene
+            // (#4ade80 = quizens --green, og tekstfargen under). Var tidligere
+            // #3B6D11-familien mens teksten var #4ade80 — to grønne i én pille,
+            // og en annen grønn enn skjermen spilleren kom rett fra.
+            background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)',
             borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
             color: '#4ade80', fontSize: 15, fontWeight: 600,
           }}>
