@@ -279,7 +279,12 @@ export const quizMessages: Record<QuizMessageCategory, QuizMessage[]> = {
     { headline: 'Du har noen å slå.', subline: '{rivalName} er ferdig.', priority: true },
     { headline: 'Én har levert allerede.', subline: 'Det er {rivalName}.', priority: true },
     { headline: 'Du er ikke alene om dette.', subline: '{rivalName} har spilt ferdig.' },
-    { headline: 'Noen har satt et tall.', subline: '{rivalName} har fullført.' },
+    // «Noen har satt et tall.» byttet 3. aug 2026: den var en observasjon uten
+    // mottaker, i motsetning til de andre i settet som peker mot spilleren
+    // («Du har noen å slå», «Det er et mål å slå her»). 23 tegn (tak 35),
+    // ingen {rivalName} i headline, og sann uansett stilling — grenen vet
+    // ikke hvem som leder, og skal ikke påstå det.
+    { headline: 'Noen er allerede i mål.', subline: '{rivalName} har fullført.' },
     { headline: 'Det er et mål å slå her.', subline: null },
   ],
 
