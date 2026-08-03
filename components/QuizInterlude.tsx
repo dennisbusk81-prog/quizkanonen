@@ -69,7 +69,7 @@ interface QuizInterludeProps {
 function RivalAvatar({ rival }: { rival: RivalData }) {
   const initial = getAvatarInitial(rival.name)
   return (
-    <div style={{
+    <div className="qk-il-rival" style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
       marginBottom: 20,
     }}>
@@ -173,13 +173,39 @@ export default function QuizInterlude({
 
   return (
     <div
-      className={animClass}
+      className={`${animClass} qk-il-wrap`}
       style={{
         position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
         display: 'flex', overflowY: 'auto',
         padding: '40px 32px',
       }}
     >
+      {/* Kompaktmodus for lav viewport-høyde (mobil i landskap, lave vinduer).
+          Fullt Premium-innhold er 409px og fikk ikke plass i 390px høyde —
+          D3 gjorde toppen nåbar, dette gjør scrolling unødvendig. Samme
+          500px-grense som spillskjermens kompaktmodus og sticky-medien;
+          ingen portrettmobil er under 667px høy, så dette kan ikke lekke dit.
+          !important er nødvendig og bevisst: basisstilene står inline (vinner
+          ellers alltid over klasser), og overstyringene er samlet her i én
+          blokk i stedet for å flytte hele komponenten over på klasser. */}
+      <style>{`
+        @media (max-height: 500px) {
+          .qk-il-wrap       { padding: 16px 24px !important; }
+          .qk-il-pill       { padding: 6px 16px !important; margin-bottom: 12px !important; font-size: 13px !important; }
+          .qk-il-expl       { margin-bottom: 12px !important; }
+          /* min-height 54 = to linjer ved 22px/1.2 — samme hopp-vern som
+             basens 68 ved 28px, bare skalert. */
+          .qk-il-headline   { font-size: 22px !important; min-height: 54px !important; margin-bottom: 8px !important; }
+          .qk-il-subline    { font-size: 13px !important; margin-bottom: 10px !important; }
+          .qk-il-block      { margin-bottom: 10px !important; }
+          .qk-il-rank       { font-size: 26px !important; }
+          .qk-il-minilb     { margin-top: 8px !important; line-height: 1.5 !important; }
+          .qk-il-rival      { margin-bottom: 10px !important; }
+          .qk-il-ctx        { margin-bottom: 10px !important; }
+          .qk-il-scoreline  { margin-bottom: 12px !important; }
+          .qk-il-btn        { padding: 8px 22px !important; }
+        }
+      `}</style>
       {/* margin: auto — ikke align/justify-content på containeren — fordi
           containeren er et fast utsnitt (inset 0) MED overflow: flex-
           sentrering klipper da toppen uscrollbart når innholdet er høyere
@@ -190,7 +216,7 @@ export default function QuizInterlude({
 
         {/* Previous question result pill */}
         {lastCorrect === true ? (
-          <div style={{
+          <div className="qk-il-pill" style={{
             display: 'inline-block',
             background: 'rgba(59,109,17,0.15)', border: '1px solid rgba(59,109,17,0.35)',
             borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
@@ -199,7 +225,7 @@ export default function QuizInterlude({
             ✓ Riktig svar
           </div>
         ) : lastCorrect === false ? (
-          <div style={{
+          <div className="qk-il-pill" style={{
             display: 'inline-block',
             background: 'rgba(201,76,76,0.10)', border: '1px solid rgba(201,76,76,0.25)',
             borderRadius: 10, padding: '10px 22px', marginBottom: explanation ? 12 : 28,
@@ -211,7 +237,7 @@ export default function QuizInterlude({
 
         {/* Explanation */}
         {explanation && (
-          <div style={{
+          <div className="qk-il-expl" style={{
             borderLeft: '3px solid #c9a84c',
             paddingLeft: 12,
             marginBottom: 28,
@@ -224,7 +250,7 @@ export default function QuizInterlude({
         )}
 
         {/* Dynamic headline */}
-        <h2 style={{
+        <h2 className="qk-il-headline" style={{
           fontFamily: "'Libre Baskerville', serif",
           fontSize: 28, fontWeight: 700, color: '#ffffff',
           lineHeight: 1.2, marginBottom: message.subline ? 10 : 20,
@@ -240,7 +266,7 @@ export default function QuizInterlude({
         </h2>
 
         {message.subline && (
-          <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 20, lineHeight: 1.5 }}>
+          <p className="qk-il-subline" style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 20, lineHeight: 1.5 }}>
             {message.subline}
           </p>
         )}
@@ -255,7 +281,7 @@ export default function QuizInterlude({
             sto fast av andre grunner hadde dermed en «pågår»-tekst foran seg
             som aldri kunne bli ferdig. Nå sier den hva som faktisk mangler. */}
         {isLoggedIn && !placementReady && (
-          <div style={{ marginBottom: 18 }}>
+          <div className="qk-il-block" style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
@@ -270,14 +296,14 @@ export default function QuizInterlude({
 
         {/* Live ranking — gratis ser estimert spenn, Premium ser eksakt plassering */}
         {placementReady && !isPremium && low !== null && high !== null && (
-          <div style={{ marginBottom: 18 }}>
+          <div className="qk-il-block" style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
             }}>
               Din rangering
             </p>
-            <p style={{
+            <p className="qk-il-rank" style={{
               fontFamily: "'Libre Baskerville', serif",
               fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
             }}>
@@ -288,14 +314,14 @@ export default function QuizInterlude({
 
         {/* Premium: eksakt plassering som hovedelement, mini-leaderboard som støtte */}
         {placementReady && isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
-          <div style={{ marginBottom: 18 }}>
+          <div className="qk-il-block" style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
               textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
             }}>
               Din plassering
             </p>
-            <p style={{
+            <p className="qk-il-rank" style={{
               fontFamily: "'Libre Baskerville', serif",
               fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
             }}>
@@ -315,7 +341,7 @@ export default function QuizInterlude({
                 din). Rangeringen og navnene er riktige; kun tallene lyver.
                 En dempet forbeholdslinje under (Del 4, 25. juli) ble beviselig
                 ikke lest — merkingen må stå i selve tallinja. */}
-            <div style={{ marginTop: 14, lineHeight: 1.8 }}>
+            <div className="qk-il-minilb" style={{ marginTop: 14, lineHeight: 1.8 }}>
               {liveRanking.above && (
                 <p style={{ fontSize: 13, color: '#918f8a', margin: 0 }}>
                   #{liveRanking.userRank - 1} {liveRanking.above.name}
@@ -345,14 +371,14 @@ export default function QuizInterlude({
 
           if (isInTop10) {
             return (
-              <p style={{ fontSize: 13, color: '#c9a84c', marginBottom: 16 }}>
+              <p className="qk-il-ctx" style={{ fontSize: 13, color: '#c9a84c', marginBottom: 16 }}>
                 Du er i topp 10 akkurat nå — hold det gående
               </p>
             )
           }
           if (neededForTop10 > 0 && questionsLeft < 3) {
             return (
-              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 16 }}>
+              <p className="qk-il-ctx" style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 16 }}>
                 Du trenger {neededForTop10} {pluralNo(neededForTop10, 'riktig', 'riktige')} til for å komme inn i topp 10
               </p>
             )
@@ -366,7 +392,7 @@ export default function QuizInterlude({
 
         {/* Score line — se scoreLineVisible/scoreLineShowsStreak øverst */}
         {scoreLineVisible && (
-          <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 24 }}>
+          <p className="qk-il-scoreline" style={{ fontSize: 13, color: '#918f8a', marginBottom: 24 }}>
             {score} av {totalQuestions} riktige
             {scoreLineShowsStreak ? ` · ${streak} på rad` : ''}
           </p>
@@ -375,6 +401,7 @@ export default function QuizInterlude({
         {/* Next question button */}
         <button
           onClick={onNext}
+          className="qk-il-btn"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: '#c9a84c', color: '#1a1c23',

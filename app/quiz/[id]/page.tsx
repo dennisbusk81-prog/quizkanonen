@@ -859,6 +859,45 @@ const styles = `
        !important nødvendig for å vinne over Tailwinds .max-w-5xl (klasse-selektors høyere spesifisitet) */
     footer > div { max-width: 980px !important; }
   }
+
+  /* ── Kompaktmodus for lav viewport-HØYDE (mobil i landskap, lave vinduer) ──
+     844×390 er bredere enn 640px og treffes ikke av noen width-basert regel —
+     innholdet (564px målt) scrollet i det som skal være ett blikk. Samme
+     grense som sticky-medien (500px): ingen portrettmobil er under 667px høy,
+     så kompaktmodus kan ikke lekke dit, og i lave desktop-vinduer FJERNER den
+     scrollingen i stedet for å bare sticky-plastre den.
+
+     Budsjett mot 390px (normaltilfelle, 2-linjers spørsmål, korte svar):
+     8 shell + 26,7 header + ~22 timer + 10 bar + ~30 poengrad + ~103 kort
+     + 114 ruter + ~44 knappefelt + 8 shell ≈ 365px — også med streak-badge
+     (+21,6) holder det seg under 390. Spørsmålstekst 16px er samme verdi som
+     ≤400px-nivået i portrett; rute-min-height 48px er anbefalt minste
+     touchflate. MÅ stå ETTER 769px- og 1100px-blokkene: lik spesifisitet,
+     kildeorden avgjør. */
+  @media (max-height: 500px) {
+    .qk-play-shell    { padding-top: 8px; padding-bottom: 8px; }
+    .qk-play-header   { padding-top: 0; margin-bottom: 4px; }
+    .qk-timer         { font-size: 16px; margin-bottom: 2px; }
+    .qk-timer-bar-wrap { margin-bottom: 6px; }
+    .qk-score-row     { margin-bottom: 4px; }
+    .qk-question-card { padding: 10px 18px; margin-bottom: 8px; }
+    .qk-question-text { font-size: 16px; }
+    .qk-streak-badge  { margin-bottom: 6px; }
+    .qk-options       { margin-bottom: 8px; }
+    /* 48px rommer én tekstlinje med god luft; 2+-linjers svar vokser raden
+       som ellers (min-height er gulv, ikke tak). */
+    .qk-option        { min-height: 48px; padding: 8px 14px; }
+    .qk-opt-letter    { width: 26px; height: 26px; font-size: 12px; }
+    .qk-explanation   { padding: 8px 12px; margin-bottom: 8px; }
+    .qk-next-btn-wrap { padding: 6px 0 4px; }
+    .qk-next-btn-wrap .qk-btn-primary { padding: 7px; }
+  }
+  /* Grid-varianten (≥1100px) har egen ytterpadding som også må strammes —
+     egen medie fordi .qk-game-wrap under 1100px er en ren div uten padding,
+     og en generell regel ville lagt NY padding på landskap-mobil. */
+  @media (max-height: 500px) and (min-width: 1100px) {
+    .qk-game-wrap { padding-top: 12px; padding-bottom: 12px; }
+  }
 `
 
 export default function QuizPage() {
