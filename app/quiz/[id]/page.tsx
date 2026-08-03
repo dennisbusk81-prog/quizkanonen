@@ -444,7 +444,10 @@ const styles = `
 
   @media (max-width: 400px) { .qk-question-text { font-size: 16px; } }
 
-  .qk-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+  /* 2×2-rutenett (A B / C D i visningsrekkefølge). align-items er bevisst
+     IKKE satt — default stretch gjør at begge ruter i en rad alltid holder
+     samme høyde, også når bare den ene brekker til flere linjer. */
+  .qk-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 
   .qk-option {
     display: flex;
@@ -454,14 +457,13 @@ const styles = `
     /* 1px @ #63687a = 3,07:1 mot sidebakgrunnen #1a1c23 (WCAG 1.4.11). Den
        gamle kanten (0,5px @ #2a2d38) lå på 1,24:1 og var i praksis usynlig —
        hover-regelen under er eneste avgrensning, og den finnes ikke på mobil.
-       Padding er 13,5px, ikke 14px, for å kompensere for den bredere kanten:
-       30px sirkel + 27px padding + 2px kant = 59px, likt på alle skjermer.
-       Den gamle 0,5px-kanten ble rundet til hele ENHETSpiksler og ga derfor
-       ulik høyde per DPR (målt: 60px @1x, 59px @2x, 58,67px @3x) — 59px @2x
-       er verdien som er bevart. Endrer du kantbredden, må du endre paddingen
-       tilsvarende, ellers flytter «Neste»-knappen seg. */
+       min-height rommer TO tekstlinjer (2 × 22,4px + 27px padding + 2px kant)
+       slik at rutehøyden ikke endrer seg mellom spørsmål — et 8-tegns og et
+       25-tegns svar gir samme høyde. Kun svar som brekker til 3+ linjer
+       (7 av 792 i banken er over 25 tegn) lar raden vokse utover dette. */
     border: 1px solid #63687a;
     border-radius: var(--rcard);
+    min-height: 74px;
     padding: 13.5px 16px;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s, transform 0.12s;
@@ -472,7 +474,13 @@ const styles = `
   /* ── Mobile touch targets ──────────────────────────────────────────── */
   @media (max-width: 640px) {
     .qk-options { gap: 12px; }
-    .qk-option  { min-height: 52px; }
+    /* Ved 375px viewport er en rute 161,5px bred. Innermålene strammes
+       (padding/gap her, sirkel/tekst i egen media-blokk etter basereglene)
+       for at et 25-tegns svar skal holde seg innenfor to linjer:
+       161,5 − 2 kant − 24 padding − 26 sirkel − 10 gap = 99,5px tekstfelt
+       ≈ 13–14 tegn per linje @ 15px. min-height = 2 × 21px linjer + 20px
+       padding + 2px kant = 64px. */
+    .qk-option  { min-height: 64px; padding: 10px 12px; gap: 10px; }
     .qk-next-btn-wrap {
       position: sticky;
       bottom: 0;
@@ -485,7 +493,11 @@ const styles = `
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .qk-option:hover:not(:disabled) { border-color: #918f8a; background: #262930; }
+    /* var(--pos-bg): posisjonsfargede ruter beholder tonen sin under hover
+       (kanten lysnes — det er hover-responsen); #262930 er fallback for
+       ruter uten posisjonsfarge. Uten denne ville hover grået ut flaten og
+       sett ut som deaktivert. */
+    .qk-option:hover:not(:disabled) { border-color: #918f8a; background: var(--pos-bg, #262930); }
   }
   /* Trykk-respons. transform — IKKE bredde/padding/margin — slik at
      naboalternativene ikke flytter seg. Speiler .qk-btn-primary:active. */
@@ -523,6 +535,22 @@ const styles = `
     100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
   }
 
+  /* ── Posisjonsfarger (kun FØR svar) ─────────────────────────────────
+     Dempet tonet flate + kant per visnings-POSISJON (etter stokking),
+     så alternativene kan skilles fra hverandre. Klassene settes bare
+     mens spørsmålet er ubesvart — JSX fjerner dem i det svaret avgis,
+     slik at correct/correct-self/wrong/idle under overtar uimotsagt.
+     Hvit tekst mot flatene: A 14,1:1 · B 14,0:1 · C 14,5:1 · D 15,3:1.
+     Sirkeltekst #12141a mot sirklene: 4,7–6,0:1. Alle ≥ 4,5:1. */
+  .qk-option.qk-pos-a { --pos-bg: #252b3d; background: var(--pos-bg); border-color: #6f7fb5; }
+  .qk-option.qk-pos-b { --pos-bg: #1f2f2c; background: var(--pos-bg); border-color: #5f9c8e; }
+  .qk-option.qk-pos-c { --pos-bg: #32271f; background: var(--pos-bg); border-color: #b58a6f; }
+  .qk-option.qk-pos-d { --pos-bg: #2a2231; background: var(--pos-bg); border-color: #9b7fa8; }
+  .qk-option.qk-pos-a .qk-opt-letter { background: #6f7fb5; border-color: #6f7fb5; color: #12141a; }
+  .qk-option.qk-pos-b .qk-opt-letter { background: #5f9c8e; border-color: #5f9c8e; color: #12141a; }
+  .qk-option.qk-pos-c .qk-opt-letter { background: #b58a6f; border-color: #b58a6f; color: #12141a; }
+  .qk-option.qk-pos-d .qk-opt-letter { background: #9b7fa8; border-color: #9b7fa8; color: #12141a; }
+
   .qk-option.correct { background: rgba(59,109,17,0.12); border-color: #3B6D11; }
   .qk-option.correct .qk-opt-letter { background: #3B6D11; border-color: #3B6D11; color: #fff; }
 
@@ -554,7 +582,17 @@ const styles = `
   .qk-option.correct .qk-opt-letter { background: var(--green); border-color: var(--green); color: #1a1c23; }
   .qk-option.wrong .qk-opt-letter { background: var(--red); border-color: var(--red); color: #fff; }
 
-  .qk-opt-text { font-size: 16px; font-weight: 500; color: var(--white); line-height: 1.4; }
+  /* min-width: 0 lar tekstfeltet krympe under innholdsbredden sin i den
+     smale ruta (flex-barn har ellers min-width: auto), og break-word
+     brekker enkeltord bredere enn ruta i stedet for å la dem flyte ut. */
+  .qk-opt-text { font-size: 16px; font-weight: 500; color: var(--white); line-height: 1.4; min-width: 0; overflow-wrap: break-word; }
+
+  /* Må stå ETTER basereglene over for å vinne kaskaden (lik spesifisitet).
+     Regnestykket bak målene står i mobilblokken lenger opp. */
+  @media (max-width: 640px) {
+    .qk-opt-letter { width: 26px; height: 26px; font-size: 12px; }
+    .qk-opt-text { font-size: 15px; }
+  }
 
   .qk-explanation {
     background: rgba(201,168,76,0.06);
@@ -2650,12 +2688,14 @@ export default function QuizPage() {
                 onClick={e => handleAnswer(opt, e.currentTarget as HTMLButtonElement)}
                 disabled={answered}
                 style={{ animationDelay: `${i * 50}ms` }}
-                className={`qk-option qk-animate-in${getOptionClass(opt)}`}
+                className={`qk-option qk-animate-in${answered ? '' : ` qk-pos-${'abcd'[i]}`}${getOptionClass(opt)}`}
               >
-                {/* Vist bokstav følger visnings-POSISJONEN (0→A, 1→B ...), ikke DB-
-                    kolonnen. `opt` er fortsatt DB-bokstaven og brukes til klikk,
-                    scoring, tekst-oppslag og highlight — så fasiten kan ikke lenger
-                    utledes fra bokstaven når svaralternativene stokkes. */}
+                {/* Vist bokstav OG posisjonsfarge (qk-pos-*) følger visnings-
+                    POSISJONEN (0→A, 1→B ...), ikke DB-kolonnen. `opt` er fortsatt
+                    DB-bokstaven og brukes til klikk, scoring, tekst-oppslag og
+                    highlight — så fasiten kan ikke lenger utledes fra bokstaven
+                    når svaralternativene stokkes. Posisjonsklassen settes kun
+                    FØR svar; etter svar overtar correct/wrong/idle alene. */}
                 <span className="qk-opt-letter">{getOptionMarker(opt, i)}</span>
                 <span className="qk-opt-text">{question?.[optionKeys[opt]] as string}</span>
               </button>
