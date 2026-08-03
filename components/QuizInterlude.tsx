@@ -176,12 +176,17 @@ export default function QuizInterlude({
       className={animClass}
       style={{
         position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', overflowY: 'auto',
+        display: 'flex', overflowY: 'auto',
         padding: '40px 32px',
       }}
     >
-      <div style={{ textAlign: 'center', maxWidth: 360, width: '100%' }}>
+      {/* margin: auto — ikke align/justify-content på containeren — fordi
+          containeren er et fast utsnitt (inset 0) MED overflow: flex-
+          sentrering klipper da toppen uscrollbart når innholdet er høyere
+          enn viewporten (målt på 844×390: pillen lå 8px over skjermkanten
+          og kunne ikke nås). Auto-marger gir samme sentrering, men
+          kollapser til 0 ved overflow så alt kan scrolles til. */}
+      <div style={{ textAlign: 'center', maxWidth: 360, width: '100%', margin: 'auto' }}>
 
         {/* Previous question result pill */}
         {lastCorrect === true ? (

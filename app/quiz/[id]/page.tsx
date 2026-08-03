@@ -362,10 +362,18 @@ const styles = `
     margin: 0 auto;
   }
 
+  /* margin-top: auto her + margin-bottom: auto på scenen (inline i JSX)
+     sentrerer hele kolonnen (header + timer + poengrad + scene) som ÉN enhet
+     i ledig høyde. Auto-marger — IKKE justify-content: center — fordi de
+     kollapser til 0 når innholdet er høyere enn viewporten (landskap):
+     justify-content ville klippet toppen uscrollbart. Scenen holder konstant
+     høyde gjennom svar-øyeblikket (se reservasjonen i JSX), ellers ville
+     sentreringen flyttet kortet når knappen dukker opp. */
   .qk-play-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: auto;
     margin-bottom: 10px;
     padding-top: 8px;
   }
@@ -436,7 +444,7 @@ const styles = `
 
   .qk-question-text {
     font-family: 'Libre Baskerville', serif;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 400;
     color: #ffffff;
     line-height: 1.5;
@@ -474,13 +482,25 @@ const styles = `
   /* ── Mobile touch targets ──────────────────────────────────────────── */
   @media (max-width: 640px) {
     .qk-options { gap: 12px; }
-    /* Ved 375px viewport er en rute 161,5px bred. Innermålene strammes
-       (padding/gap her, sirkel/tekst i egen media-blokk etter basereglene)
+    /* Ved 375px viewport er en rute 161,5px bred. Innermålene er strammet
+       (padding/gap her, sirkel/tekst i egne media-blokker etter basereglene)
        for at et 25-tegns svar skal holde seg innenfor to linjer:
        161,5 − 2 kant − 24 padding − 26 sirkel − 10 gap = 99,5px tekstfelt
-       ≈ 13–14 tegn per linje @ 15px. min-height = 2 × 21px linjer + 20px
-       padding + 2px kant = 64px. */
-    .qk-option  { min-height: 64px; padding: 10px 12px; gap: 10px; }
+       ≈ 13–14 tegn per linje @ 15px. To tekstlinjer + padding + kant er
+       64px; min-height 84 legger 20px luft på det — rutene er BREDDE-
+       begrenset, så frigjort skjermhøyde tas ut som luft, ikke som større
+       tekst (15→16px ville krympet tekstfeltet og brukket 25-tegns svar
+       til tre linjer igjen). */
+    .qk-option  { min-height: 84px; padding: 10px 12px; gap: 10px; }
+  }
+
+  /* Sticky Neste-knapp når innholdet kan gå forbi folden: smal skjerm ELLER
+     lav skjerm. Høydebetingelsen finnes for mobil i landskap (f.eks. 844×390)
+     — som er bredere enn 640px, men den eneste geometrien som faktisk
+     scroller. Uten den lå knappen ~150px under folden uten sticky. Slår også
+     inn i svært lave desktop-vinduer (<500px) — der scroller innholdet
+     også, så sticky er riktig, ikke en bivirkning. */
+  @media (max-width: 640px), (max-height: 500px) {
     .qk-next-btn-wrap {
       position: sticky;
       bottom: 0;
@@ -590,8 +610,14 @@ const styles = `
   /* Må stå ETTER basereglene over for å vinne kaskaden (lik spesifisitet).
      Regnestykket bak målene står i mobilblokken lenger opp. */
   @media (max-width: 640px) {
-    .qk-opt-letter { width: 26px; height: 26px; font-size: 12px; }
     .qk-opt-text { font-size: 15px; }
+  }
+
+  /* Sirkelen beholder basens 30px ned til 390px viewport. Under det koster
+     de 4 ekstra pikslene akkurat nok tekstbredde til at et 25-tegns svar
+     brekker til tre linjer — så 26px kun der. */
+  @media (max-width: 389.98px) {
+    .qk-opt-letter { width: 26px; height: 26px; font-size: 12px; }
   }
 
   .qk-explanation {
@@ -782,7 +808,7 @@ const styles = `
   /* ── Desktop ── */
   @media (min-width: 769px) {
     .qk-panel          { padding: 44px 40px; }
-    .qk-question-text  { font-size: 20px; }
+    .qk-question-text  { font-size: 22px; }
   }
 
   /* ── Desktop side panels (1100px+) ── */
@@ -809,9 +835,16 @@ const styles = `
       gap: 24px;
       align-items: start;
       justify-content: center;
+      /* align-content sentrerer RADEN (alle tre kolonner samlet) vertikalt i
+         ledig høyde — align-items: start beholdes, sidepanelene topper
+         fortsatt raden. min-height (ikke height) gjør sentreringen trygg:
+         er innholdet høyere enn viewporten vokser containeren og siden
+         scroller — ingen uscrollbar topp. */
+      align-content: center;
+      min-height: 100vh;
       max-width: 980px;
       margin: 0 auto;
-      padding: 40px 20px 0;
+      padding: 40px 20px;
     }
     .qk-game-wrap .qk-play-shell {
       min-height: 0;
@@ -2654,9 +2687,17 @@ export default function QuizPage() {
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
+        {/* Scenen er topp-justert uten fast høyde. Fram til 3. aug 2026 sto her
+            minHeight: 420 + justifyContent: center — riktig for den gamle
+            vertikale alternativ-listen (~413px innhold), men etter 2×2-
+            omleggingen (295px) sentrerte den kortet i 125px død luft og fikk
+            det til å hoppe 31px opp i det spilleren svarte. Høyden holdes nå
+            konstant gjennom svar-øyeblikket ved at forklaring + Neste-knapp
+            alltid rendres med reservert plass (visibility: hidden) — se under.
+            margin-bottom: auto er motstykket til margin-top: auto på
+            .qk-play-header (A-sentreringen). */}
         <div ref={questionCardRef} style={{
-          minHeight: 420,
-          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          display: 'flex', flexDirection: 'column', marginBottom: 'auto',
         }}>
           <div key={questionKey} className="qk-question-card qk-animate-in">
             {question?.category && (
@@ -2702,12 +2743,32 @@ export default function QuizPage() {
             ))}
           </div>
 
-          {answered && (
-            <div>
+          {/* Alltid i layout, usynlige før svar: reserverer EKSAKT plassen
+              forklaringen og Neste-knappen kommer til å ta, slik at hverken
+              kortet eller sentreringen flytter seg når spilleren svarer.
+              Forklaringsteksten er allerede i klienten før svar (questions-
+              ruten sender den bevisst med spørsmålet), så dette lekker
+              ingenting nytt. visibility — ikke display — fordi plassen er
+              poenget; hidden fjerner også klikk- og fokusflaten.
+
+              Begge ligger FLATT som direktebarn av scenen, uten felles
+              wrapper: en wrapper ville vært containing block for sticky-
+              knappen, og siden den ikke er høyere enn knappen selv får
+              sticky null slakk og pinner aldri (målt: knapp på 544 i stedet
+              for 390 i 844×390). Med scenen som containing block virker
+              bottom: 0 som ment. */}
               {quiz.show_answer_explanation && question?.explanation && (
-                <div className="qk-explanation">{question.explanation}</div>
+                <div
+                  className="qk-explanation"
+                  style={{ visibility: answered ? 'visible' : 'hidden' }}
+                  aria-hidden={!answered}
+                >{question.explanation}</div>
               )}
-              <div className="qk-next-btn-wrap">
+              <div
+                className="qk-next-btn-wrap"
+                style={{ visibility: answered ? 'visible' : 'hidden' }}
+                aria-hidden={!answered}
+              >
                 <button onClick={goToNext} disabled={isAdvancing} className="qk-btn-primary">
                   {isAdvancing ? (
                     <>
@@ -2722,8 +2783,6 @@ export default function QuizPage() {
                   )}
                 </button>
               </div>
-            </div>
-          )}
         </div>
       </div>
 
