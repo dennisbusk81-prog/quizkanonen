@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz, Question } from '@/lib/supabase'
+import { readStoredKey } from '@/lib/answer-key-correction'
 import Link from 'next/link'
 
 type AttemptRow = {
@@ -866,13 +867,17 @@ export default function QuizAnalytics() {
                   )}
 
                   <div>
+                    {/* Effektiv fasit, ikke bare correct_answer: uten dette fikk
+                        kun det FØRSTE riktige alternativet gull-markering på et
+                        spørsmål med flere riktige svar, og spørsmålet så
+                        dårligere ut i kvalitetsvurderingen enn det er. */}
                     {opts.map(opt => {
                       const optKey = opt === 'A' ? 'option_a' : opt === 'B' ? 'option_b' : opt === 'C' ? 'option_c' : 'option_d'
                       const label = qs.question[optKey as keyof Question] as string
                       if (!label) return null
                       const count = qs.option_counts[opt] || 0
                       const pct = qs.total_answers > 0 ? Math.round((count / qs.total_answers) * 100) : 0
-                      const isCorrect = qs.question.correct_answer === opt
+                      const isCorrect = readStoredKey(qs.question).includes(opt)
                       const players = qs.option_players[opt] || []
                       const expandKey = `${qs.question.id}_${opt}`
                       const isExpanded = expandedOpts.has(expandKey)
