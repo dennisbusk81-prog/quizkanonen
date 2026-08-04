@@ -23,7 +23,7 @@ export async function PATCH(
 
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name')
+    .select('id, name, onboarding_completed_at')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -45,7 +45,7 @@ export async function PATCH(
   const lock = await requireUnlockedOrg({ slug })
   if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
-  let body: { name?: unknown; allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null }
+  let body: { name?: unknown; allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null; onboarding_completed?: boolean }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
@@ -68,6 +68,15 @@ export async function PATCH(
       update.name = nameCheck.value
       previousName = org.name
     }
+  }
+
+  // Oppsettet på /org/[slug]/velkommen er fullført. Stemples KUN én gang: en
+  // admin som senere går frivillig til velkomstsiden igjen skal ikke flytte
+  // tidspunktet, for da slutter feltet å svare på «når ble dette gjort».
+  // Kolonnen er den eneste varige måten å vite at oppsettet er unnagjort —
+  // se lib/org-onboarding.ts for hvorfor svarene selv ikke duger.
+  if (body.onboarding_completed === true && !org.onboarding_completed_at) {
+    update.onboarding_completed_at = new Date().toISOString()
   }
 
   if (typeof body.allow_global_league === 'boolean') update.allow_global_league = body.allow_global_league

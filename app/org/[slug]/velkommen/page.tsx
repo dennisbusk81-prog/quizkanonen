@@ -225,6 +225,10 @@ export default function OrgVelkommenPage() {
     setError(null)
     try {
       const body: Record<string, unknown> = {
+        // Stempler onboarding_completed_at (kun første gang). Det er dette
+        // signalet bedriftspanelet leser for å slutte å sende admin hit —
+        // se lib/org-onboarding.ts.
+        onboarding_completed: true,
         allow_global_league: allowGlobal,
         // Åpningen nullstilles bevisst i begge grener: siden lover at quizen
         // åpner likt for alle, og da skal ikke en åpningstid satt tidligere i

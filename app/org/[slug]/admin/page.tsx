@@ -10,6 +10,7 @@ import LeaveOrgModal from '@/components/LeaveOrgModal'
 import ScheduleRemovalModal from '@/components/ScheduleRemovalModal'
 import ResultsTable from '@/components/ResultsTable'
 import { isOrgLocked } from '@/lib/org-access'
+import { shouldRedirectToWelcome } from '@/lib/org-onboarding'
 import { formatRemovalDate } from '@/lib/scheduled-removal'
 import { ORG_PLANS, PLAN_ORDER, getPlan, type OrgPlanId } from '@/lib/org-plan'
 import { getAvatarInitial } from '@/lib/avatar-initial'
@@ -117,6 +118,7 @@ type AdminData = {
     weekly_report_timing: string
     org_quiz_opens_at: string | null
     org_quiz_closes_at: string | null
+    onboarding_completed_at: string | null
   }
   members: Member[]
   invites: Invite[]
@@ -544,6 +546,25 @@ export default function OrgAdminPage() {
     loadData(session)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionIdentity, slug, router, loadData])
+
+  // ── Ufullført oppsett → velkomstsiden ──────────────────────────────────────
+  // En admin som går rett hit (bokmerke, e-postlenke) hopper ellers over
+  // oppsettet helt. Betingelsen bor i lib/org-onboarding.ts og er
+  // mutasjonstestet, nettopp fordi den MÅ slutte å fyre: når stempelet er
+  // satt, sendes ingen hit igjen.
+  //
+  // Låsesjekken ligger inne i shouldRedirectToWelcome og går foran — en låst
+  // org skal til låseskjermen under, ikke til et oppsett settings-ruten
+  // uansett avviser med 403.
+  //
+  // replace(), ikke push(): oppsettet skal ikke ligge igjen i historikken som
+  // et sted «tilbake» fører til. admin-data har alt bekreftet at brukeren er
+  // org-admin (403 ellers), så vanlige medlemmer kommer aldri hit.
+  const needsWelcome = shouldRedirectToWelcome(data?.org)
+  useEffect(() => {
+    if (!needsWelcome) return
+    router.replace(`/org/${slug}/velkommen`)
+  }, [needsWelcome, slug, router])
 
   useEffect(() => {
     if (!data || !session) return
@@ -1158,8 +1179,24 @@ export default function OrgAdminPage() {
   }
 
   // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
+  // MÅ stå før oppsett-viderekoblingen under: en låst org hører hjemme her,
+  // ikke i et oppsett den ikke får lagre.
   if (data && session && isOrgLocked(data.org)) {
     return <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} orgSlug={slug} accessToken={session.access_token} />
+  }
+
+  // ── Ufullført oppsett: effekten over navigerer, så ikke blink panelet ──────
+  if (needsWelcome) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
+            Henter oppsettet …
+          </p>
+        </div>
+      </>
+    )
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────

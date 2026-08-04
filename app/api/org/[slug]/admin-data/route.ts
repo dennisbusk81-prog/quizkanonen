@@ -25,7 +25,7 @@ export async function GET(
   // Get org
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, plan, stripe_subscription_id, stripe_period_end, subscription_status, allow_global_league, admin_can_see_answers, weekly_report_timing, org_quiz_opens_at, org_quiz_closes_at')
+    .select('id, name, plan, stripe_subscription_id, stripe_period_end, subscription_status, allow_global_league, admin_can_see_answers, weekly_report_timing, org_quiz_opens_at, org_quiz_closes_at, onboarding_completed_at')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -125,6 +125,9 @@ export async function GET(
       weekly_report_timing: org.weekly_report_timing ?? 'monday_morning',
       org_quiz_opens_at: org.org_quiz_opens_at ?? null,
       org_quiz_closes_at: org.org_quiz_closes_at ?? null,
+      // Panelet avgjør ut fra denne om admin skal sendes til oppsettet.
+      // Ligger på org-raden panelet uansett henter — ingen ekstra spørring.
+      onboarding_completed_at: org.onboarding_completed_at ?? null,
     },
     members,
     invites: invites ?? [],
