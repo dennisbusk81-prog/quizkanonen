@@ -185,7 +185,10 @@ export default function BedriftRegistrerPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
-      if (data.slug) window.location.href = `/org/${data.slug}/admin`
+      // Til oppsettet, ikke rett inn i panelet. Trial-veien hoppet tidligere
+      // over enhver velkomst — /bedrift/success finnes kun for betalt kjøp — og
+      // det er nettopp trial-veien de fleste bedrifter kommer inn gjennom.
+      if (data.slug) window.location.href = `/org/${data.slug}/velkommen`
     } catch {
       setError('Noe gikk galt. Prøv igjen.')
     } finally {

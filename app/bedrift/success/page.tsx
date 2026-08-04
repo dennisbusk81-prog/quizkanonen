@@ -15,7 +15,7 @@ type OrgData = {
 }
 
 const STEPS = [
-  { n: '1', title: 'Gå til admin-panelet ditt', desc: 'I admin-panelet finner du invitasjonslenken, ser hvem som har blitt med og administrerer tilganger.' },
+  { n: '1', title: 'Sett opp bedriften', desc: 'To korte valg: om de ansatte skal vises på den åpne topplisten, og når quizen skal stenge hos dere. Deretter er du i bedriftspanelet, der du finner invitasjonslenken og administrerer tilganger.' },
   { n: '2', title: 'Del invitasjonslenken', desc: 'Alle som logger inn via lenken får automatisk Premium-tilgang og havner på bedriftens leaderboard.' },
   { n: '3', title: 'Spill ukens quiz på fredag', desc: 'Quizkanonen sender ut ny quiz hver fredag. Alle med tilgang kan spille og konkurrere om topp-plasseringen i bedriften.' },
 ]
@@ -170,10 +170,10 @@ function SuccessContent() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {orgSlug && (
               <Link
-                href={`/org/${orgSlug}/admin`}
+                href={`/org/${orgSlug}/velkommen`}
                 style={{ display: 'block', textAlign: 'center', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, textDecoration: 'none' }}
               >
-                Gå til admin-panelet →
+                Sett opp bedriften →
               </Link>
             )}
             {orgSlug && (

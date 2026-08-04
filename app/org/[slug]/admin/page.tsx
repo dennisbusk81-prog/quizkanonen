@@ -1541,21 +1541,26 @@ export default function OrgAdminPage() {
               </div>
             )}
 
-            {/* Toggle row — inside banner, separated by a subtle divider */}
-            <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Toggle row — inside banner, separated by a subtle divider.
+                Ordlyden navngir VALGET, ikke listen: markedet er nordisk, så
+                verken «global» eller «nasjonal» beskriver den riktig. Samme
+                formulering brukes på /org/[slug]/velkommen. */}
+            <div style={{ borderTop: '1px solid rgba(201,168,76,0.15)', marginTop: 14, paddingTop: 14, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div
                 onClick={toggleGlobal}
                 aria-disabled={savingSettings}
-                style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s' }}
+                style={{ width: 28, height: 16, borderRadius: 8, background: allowGlobal ? '#c9a84c' : '#2a2d38', border: `1px solid ${allowGlobal ? '#c9a84c' : '#3a3d48'}`, position: 'relative', flexShrink: 0, cursor: 'pointer', transition: 'background 0.2s', marginTop: 2 }}
               >
                 <div style={{ position: 'absolute', top: 2, left: allowGlobal ? 13 : 2, width: 10, height: 10, borderRadius: '50%', background: '#ffffff', transition: 'left 0.2s' }} />
               </div>
-              <span style={{ fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={toggleGlobal}>
-                Delta i global sesong-toppliste
-              </span>
-              <span style={{ fontSize: 12, color: '#918f8a', marginLeft: 4 }}>
-                — Tillat at ansatte vises på felles sesong-toppliste
-              </span>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={toggleGlobal}>
+                  Vis ansatte på den åpne topplisten
+                </span>
+                <span style={{ display: 'block', fontSize: 12, color: '#918f8a', marginTop: 3, lineHeight: 1.5 }}>
+                  Resultater og visningsnavn blir synlige for alle spillere på Quizkanonen, ikke bare ansatte i bedriften.
+                </span>
+              </div>
             </div>
 
             {settingsError && (

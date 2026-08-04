@@ -886,13 +886,17 @@ export default function ProfilPage() {
             )}
           </div>
 
-          {/* Nasjonal toppliste — kun hvis medlem av minst én org som tillater global liga */}
+          {/* Åpen toppliste — kun hvis medlem av minst én org som tillater det.
+              Seksjonen vises altså kun for bedriftsbrukere, og bruker derfor
+              samme ordlyd som GlobalLeagueChoiceBanner og bedriftspanelet. */}
           {orgs.some(o => o.allowGlobalLeague) && (
             <div style={{ ...s.card, marginBottom: 10 }}>
-              <p style={s.sectionLabel}>Nasjonal toppliste</p>
+              <p style={s.sectionLabel}>Åpen toppliste</p>
               <p style={{ ...s.fieldHint, color: '#e8e4dd' }}>
-                Velg om du vil vises på den nasjonale sesong-topplisten sammen med alle
-                Quizkanonen-spillere. Du kan alltid være med på bedriftens interne liga uansett.
+                Velg om du vil vises på den åpne topplisten sammen med alle spillere
+                på Quizkanonen. Resultatene og visningsnavnet ditt blir da synlige
+                for alle. Du kan se topplisten selv om du ikke vises på den, og du
+                er med på bedriftens interne liste uansett.
               </p>
               {orgs.filter(o => o.allowGlobalLeague).map((org, i) => {
                 const visible = org.globalLeagueOptOut !== true
@@ -902,7 +906,7 @@ export default function ProfilPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: '#e8e4dd', marginBottom: 2 }}>
-                          Vis meg nasjonalt
+                          Vis meg der
                         </p>
                         <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.4 }}>
                           {org.orgName}

@@ -91,9 +91,13 @@ export default function GlobalLeagueChoiceBanner() {
       <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 8 }}>
         Sesong-toppliste
       </p>
-      <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.55, marginBottom: 16, paddingRight: 20 }}>
-        Vil du vises på den nasjonale sesong-topplisten sammen med alle Quizkanonen-spillere,
-        eller kun på {org.orgName} sin interne liga?
+      <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.55, marginBottom: 8, paddingRight: 20 }}>
+        Vil du vises på den åpne topplisten sammen med alle spillere på Quizkanonen,
+        eller kun på {org.orgName} sin interne liste?
+      </p>
+      <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.55, marginBottom: 16, paddingRight: 20 }}>
+        Resultatene og visningsnavnet ditt blir da synlige for alle. Du kan se
+        topplisten selv om du ikke vises på den.
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button
@@ -106,7 +110,7 @@ export default function GlobalLeagueChoiceBanner() {
             opacity: saving ? 0.6 : 1, whiteSpace: 'nowrap',
           }}
         >
-          Bli med i nasjonal toppliste
+          Ja, vis meg der
         </button>
         <button
           onClick={() => choose(true)}
@@ -118,7 +122,7 @@ export default function GlobalLeagueChoiceBanner() {
             opacity: saving ? 0.6 : 1, whiteSpace: 'nowrap',
           }}
         >
-          Kun bedriftens liga
+          Kun internt
         </button>
       </div>
     </div>
