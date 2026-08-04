@@ -101,10 +101,18 @@ const s = {
   featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#918f8a', marginBottom: 2 },
   featuredCtx:  { fontSize: 10, color: '#918f8a', lineHeight: 1.4 },
 
-  smallGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 },
+  smallGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 },
   smallCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '12px 8px', textAlign: 'center' as const },
   smallNum:     { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 },
   smallLbl:     { fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 },
+
+  // Deltakelsesrekke + kategori-styrke. Egne kort framfor en femte kolonne i
+  // smallGrid: tallet her kommer aldri alene (rekorden står under det), og
+  // kategoriene er ord, ikke tall — begge trenger mer bredde enn 1/4 rad.
+  streakCard:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', marginBottom: 10 },
+  catRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
+  catCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
+  catVal:       { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1.2, marginBottom: 4, overflowWrap: 'break-word' as const },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
@@ -584,6 +592,52 @@ export default function HistorikkPage() {
                   <div style={s.smallLbl}>Beste plassering</div>
                 </div>
               </div>
+
+              {/* Deltakelsesrekke — fredagsquizer på rad. Ikke det samme som
+                  «Beste streak» over, som er riktige svar på rad inne i ÉN quiz.
+                  Rekken skal aldri stå som et bart 0-tall: når den er brutt er
+                  rekorden hele poenget, så den flyttes opp i selve tallinja. */}
+              <div style={s.streakCard}>
+                {stats.deltakelsesrekke > 0 ? (
+                  <>
+                    <div style={s.featuredNum}>{stats.deltakelsesrekke}</div>
+                    <div style={s.featuredLbl}>Fredagsquizer på rad</div>
+                    <div style={s.featuredCtx}>
+                      {stats.lengste_deltakelsesrekke > stats.deltakelsesrekke
+                        ? `Rekorden din er ${stats.lengste_deltakelsesrekke}`
+                        : 'Dette er rekorden din'}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={s.featuredNum}>0 nå</div>
+                    <div style={s.featuredLbl}>Fredagsquizer på rad</div>
+                    <div style={s.featuredCtx}>
+                      {stats.lengste_deltakelsesrekke > 0
+                        ? `Rekorden din er ${stats.lengste_deltakelsesrekke} — spill neste fredagsquiz, så starter en ny rekke`
+                        : 'Spill neste fredagsquiz, så starter rekken din'}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Kategoristyrke settes alltid samlet av getPlayerStats — begge
+                  er null, eller ingen er det. Er de null, vises ingenting;
+                  ingen tom-tilstand er ønsket her. */}
+              {stats.sterkeste_kategori !== null && stats.svakeste_kategori !== null && (
+                <div style={s.catRow}>
+                  <div style={s.catCard}>
+                    <div style={s.catVal}>{stats.sterkeste_kategori}</div>
+                    <div style={s.featuredLbl}>Sterkeste kategori</div>
+                    <div style={s.featuredCtx}>på tvers av all historikken din</div>
+                  </div>
+                  <div style={s.catCard}>
+                    <div style={s.catVal}>{stats.svakeste_kategori}</div>
+                    <div style={s.featuredLbl}>Svakeste kategori</div>
+                    <div style={s.featuredCtx}>her er det mest å hente</div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
