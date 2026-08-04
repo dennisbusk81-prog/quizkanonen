@@ -15,7 +15,7 @@ import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
-import { decidePlacementDisplay } from '@/lib/placement-visibility'
+import { decidePlacementDisplay, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -1208,8 +1208,19 @@ export default function LeaderboardPage() {
             )
           })()}
 
-          {/* Placement card for free logged-in user who has played while quiz is open */}
-          {!authLoading && session && !isPremium && !isClosed && hasPlayed && totalCount > 0 && (() => {
+          {/* Placement card for free logged-in user who has played while quiz is open.
+              Vilkåret (inkl. suppressOwnPublicRank-gaten for blokkerte — dette
+              kortet var den femte og siste egen-plassering-flaten på siden som
+              manglet den) bor i lib/placement-visibility.ts, testdekket. */}
+          {shouldShowFreePlacementCard({
+            authLoading,
+            hasSession: !!session,
+            isPremium,
+            isClosed,
+            hasPlayed,
+            totalCount,
+            suppressOwnPublicRank,
+          }) && (() => {
             let rangeX = 1
             let rangeY = Math.min(10, totalCount)
             // Foretrekk server-beregnet plassering; fall tilbake til lokalt estimat

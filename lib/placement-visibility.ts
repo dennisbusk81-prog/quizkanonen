@@ -53,3 +53,33 @@ export function decidePlacementDisplay(input: {
 
   return { mode: 'both', org: input.orgs[0] }
 }
+
+// ── Gratis-plasseringskortet på /leaderboard/[id] ────────────────────────────
+// «Du er et sted mellom plass X og Y» for innloggede gratisbrukere mens quizen
+// er åpen. Vilkåret bor her — ikke inline i JSX — fordi det var nettopp dette
+// kortet som ble glemt da de fire andre egen-plassering-flatene på siden fikk
+// suppressOwnPublicRank-gaten (hero, persentil, delingstekst, «Gå til min
+// plassering»): en blokkert gratisbruker fikk det OFFENTLIGE båndet her mens
+// resultatskjermen viste det interne. Som ren funksjon kan gaten
+// mutasjonstestes; en inline-betingelse kan ikke.
+//
+// suppressOwnPublicRank er sidens ferdig utregnede «skal eget offentlig tall
+// holdes tilbake» (internal-only ELLER unknown, og aldri i ?org=-modus) — samme
+// verdi som de fire andre flatene leser.
+export function shouldShowFreePlacementCard(input: {
+  authLoading: boolean
+  hasSession: boolean
+  isPremium: boolean
+  isClosed: boolean
+  hasPlayed: boolean
+  totalCount: number
+  suppressOwnPublicRank: boolean
+}): boolean {
+  if (input.authLoading || !input.hasSession) return false
+  if (input.isPremium) return false            // Premium har hero-kortet med eksakt tall
+  if (input.isClosed) return false             // etter stengt quiz står det endelige tallet i listen
+  if (!input.hasPlayed) return false
+  if (input.totalCount <= 0) return false
+  if (input.suppressOwnPublicRank) return false
+  return true
+}

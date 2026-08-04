@@ -1,6 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decidePlacementDisplay, type PlacementOrg } from './placement-visibility'
+import {
+  decidePlacementDisplay,
+  shouldShowFreePlacementCard,
+  type PlacementOrg,
+} from './placement-visibility'
 
 const openOrg: PlacementOrg = {
   orgSlug: 'aapen-as',
@@ -97,4 +101,39 @@ test('ubesvart valg (optOut=null) i åpen org er both, ikke blokkert', () => {
     orgs: [{ ...openOrg, globalLeagueOptOut: null }],
   })
   assert.equal(d.mode, 'both')
+})
+
+// ── Gratis-plasseringskortet på /leaderboard/[id] ────────────────────────────
+// MUTASJONSBEVIS: fjernes suppressOwnPublicRank-sjekken i
+// shouldShowFreePlacementCard, ryker «blokkert gratisbruker …»-testen under —
+// det var nøyaktig den manglende sjekken som var funn 2 (5. august 2026).
+
+const freeCardBase = {
+  authLoading: false,
+  hasSession: true,
+  isPremium: false,
+  isClosed: false,
+  hasPlayed: true,
+  totalCount: 12,
+  suppressOwnPublicRank: false,
+}
+
+test('positiv kontroll: ikke-blokkert gratisbruker som har spilt får kortet', () => {
+  assert.equal(shouldShowFreePlacementCard(freeCardBase), true)
+})
+
+test('blokkert gratisbruker (suppressOwnPublicRank) får IKKE det offentlige båndet', () => {
+  assert.equal(
+    shouldShowFreePlacementCard({ ...freeCardBase, suppressOwnPublicRank: true }),
+    false,
+  )
+})
+
+test('kortet er fortsatt skjult for premium, stengt quiz, ikke-spilt og tomt felt', () => {
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, isPremium: true }), false)
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, isClosed: true }), false)
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, hasPlayed: false }), false)
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, totalCount: 0 }), false)
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, hasSession: false }), false)
+  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, authLoading: true }), false)
 })
