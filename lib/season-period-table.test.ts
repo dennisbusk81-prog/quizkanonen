@@ -22,6 +22,7 @@ const baseState = (overrides: Partial<PlacementRowState> = {}): PlacementRowStat
   userEntryRank: 23,
   isPremium: true,
   scope: 'global',
+  userBlockedFromGlobal: false,
   ...overrides,
 })
 
@@ -63,6 +64,15 @@ test('ikke Premium, ikke org-scope → ingen rad (samme gate som Oppgrader-CTA-e
 
 test('org-scope teller som "premium nok" selv uten personlig Premium-abonnement', () => {
   assert.equal(shouldShowPlacementRow(baseState({ isPremium: false, scope: 'organization' })), true)
+})
+
+// MUTASJONSBEVIS (funn 3, 5. august 2026): fjernes userBlockedFromGlobal-
+// sjekken i shouldShowPlacementRow, ville en blokkert kallers rad — med rank
+// mot det UFILTRERTE feltet — blitt tegnet inn i den offentlige listen, og
+// testen under ryker. userEntry finnes da kun som bærer av «egne tall»
+// (last_quiz-fallbacken i /api/toppliste).
+test('blokkert kaller får ALDRI plasseringsrad i den offentlige listen, selv med userEntry', () => {
+  assert.equal(shouldShowPlacementRow(baseState({ userBlockedFromGlobal: true })), false)
 })
 
 // ── buildPlacementRow ────────────────────────────────────────────────────────

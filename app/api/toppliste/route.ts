@@ -93,6 +93,33 @@ async function getMemberSet(scope: 'league' | 'organization', scopeId: string): 
 // cache-nøkkel (quiz-id) og TTL er uendret; se lib-filen for hele resonnementet
 // («historikken står som den var», fail-open ved lesefeil).
 
+// ── Live blokkert-status for ÉN bruker (periode-fanene, 5. august 2026) ──────
+// Periode-visningene leser season_scores, og en blokkert bruker har ingen
+// global-rader der — det finnes altså ikke noe felt å falle tilbake til slik
+// last_quiz-grenen gjør. Men klienten trenger å vite AT kalleren står utenfor,
+// ellers viser den «Du har ikke spilt ennå denne måneden» til en som spilte
+// (samme feilklasse som «Reaktiver Premium»). Nåværende status er riktig
+// signal her: det er dagens blokkering som avgjør om nye poeng uteblir.
+// Kalles kun når userEntry er null (blokkerte flest), én indeksert
+// enkeltbruker-spørring + evt. ett org-oppslag. Fail-open: en lesefeil skal
+// aldri stemple noen som blokkert.
+async function isUserGloballyBlockedLive(userId: string): Promise<boolean> {
+  const { data: mems } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id, global_league_opt_out')
+    .eq('user_id', userId)
+  if (!mems || mems.length === 0) return false
+  const typed = mems as { organization_id: string; global_league_opt_out: boolean | null }[]
+  if (typed.some(m => m.global_league_opt_out === true)) return true
+  const orgIds = [...new Set(typed.map(m => m.organization_id))]
+  const { data: restricted } = await supabaseAdmin
+    .from('organizations')
+    .select('id')
+    .in('id', orgIds)
+    .eq('allow_global_league', false)
+  return ((restricted ?? []) as { id: string }[]).length > 0
+}
+
 // ── Period helpers ────────────────────────────────────────────────────────────
 
 function getPeriodStart(period: string): string {
@@ -301,8 +328,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Egne tall skjules aldri for en selv (5. august 2026) ──────────────────
+    // En BLOKKERT kaller finnes ikke i withRanks (det filtrerte feltet) og
+    // fikk fram til nå userEntry: null — klienten viste da «Du spilte ikke
+    // ukens quiz.» til en som faktisk spilte. Samme prinsipp som
+    // /api/leaderboard/[id] sin mine-fallback: raden hentes fra det
+    // UFILTRERTE feltet (uten blocked-gaten, fortsatt uten excluded/
+    // suspenderte). Ranken derfra er mot hele feltet og tegnes ikke av
+    // klienten (userBlockedFromGlobal gater plasseringsraden, se
+    // lib/season-period-table.ts) — raden bærer «har spilt» og egne tall.
+    //
+    // globallyBlockedSet.has(userId) forutsetter at kalleren HAR et forsøk på
+    // quizen (settet utledes av attemptUserIds). Flagget settes kun når den
+    // LEVERTE raden faktisk finnes i det ufiltrerte feltet — et startet-men-
+    // ulevert forsøk skal fortsatt gi «Du spilte ikke …», som da er sant.
+    // Invariant for klienten: på Siste quiz medfører userBlockedFromGlobal
+    // alltid en userEntry.
+    let userBlockedFromGlobal = false
+    if (userId && !userEntry && globallyBlockedSet.has(userId)) {
+      const unfilteredRows = (rawAttempts as Array<RankableAttempt & { user_id: string }>)
+        .filter(a => !excludedSet.has(a.user_id))
+      const mine = rankQuizAttempts(unfilteredRows, { includeGuests: false, requireSubmitted: true })
+        .find(a => a.user_id === userId)
+      if (mine) {
+        userBlockedFromGlobal = true
+        const profile = profileMap.get(userId)
+        userEntry = {
+          rank: mine.rank,
+          displayName: profile?.display_name ?? mine.player_name,
+          nickname: profile?.nickname ?? null,
+          avatarUrl: null,
+          points: mine.correct_answers,
+          quizCount: 1,
+          fastestMs: mine.total_time_ms,
+        }
+      }
+    }
+
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
-    return NextResponse.json({ entries, userEntry, userIsPremium, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE })
+    return NextResponse.json({ entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE })
   }
 
   // ── PERIOD MODE — sesong-poeng fra season_scores ──────────────────────────
@@ -333,7 +397,7 @@ export async function GET(request: NextRequest) {
   // fra totalCount, og gatet sidenavigasjonen på `totalPages > 1` — en
   // hardkodet 0 her ga totalPages = 1 og fjernet dermed hele knapperaden, så
   // brukeren mistet veien tilbake til side 1 og måtte laste siden på nytt.
-  async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0) {
+  async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0, uBlocked = false) {
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
       const { data: openQuiz } = await supabaseAdmin
@@ -348,7 +412,7 @@ export async function GET(request: NextRequest) {
     }
     console.log(`[toppliste] ${period}/${scope} empty ${Date.now() - t0}ms`)
     return NextResponse.json({
-      entries: [], userEntry: uEntry, userIsPremium, quizTitle: null,
+      entries: [], userEntry: uEntry, userIsPremium, userBlockedFromGlobal: uBlocked, quizTitle: null,
       activeQuizClosesAt, totalCount: total, userRank: uRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
@@ -470,6 +534,15 @@ export async function GET(request: NextRequest) {
       ? { rank: userRank, displayName: userDisplayName ?? 'Spiller', nickname: userNickname, avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
       : null
 
+    // Blokkert fra den åpne topplisten? Kun global-scope, kun når kalleren
+    // mangler rader i perioden — se isUserGloballyBlockedLive. Uten dette
+    // viste klienten «Du har ikke spilt ennå denne måneden» til en blokkert
+    // som spilte (poengene skrives aldri globalt for dem).
+    const userBlockedFromGlobal =
+      scope === 'global' && userId && !userEntry
+        ? await isUserGloballyBlockedLive(userId)
+        : false
+
     if (rankedRows.length === 0) {
       // `total_count` leveres som en KOLONNE på hver rad, så en tom side gir
       // oss den ikke. Er vi forbi siste side (kun mulig via en foreldet/delt
@@ -484,7 +557,7 @@ export async function GET(request: NextRequest) {
         })
         realTotal = Number(((firstPage ?? []) as RankedRow[])[0]?.total_count ?? 0)
       }
-      return emptyResponse(userEntry, userRank, realTotal)
+      return emptyResponse(userEntry, userRank, realTotal, userBlockedFromGlobal)
     }
 
     // Runde 5+6 er nå parallellisert inne i enrich()
@@ -516,7 +589,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
-      entries, userEntry, userIsPremium, quizTitle: null,
+      entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
       totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
@@ -580,6 +653,12 @@ export async function GET(request: NextRequest) {
     ? { rank: userRank!, displayName: rankedAll[userRankIdx].displayName, nickname: rankedAll[userRankIdx].nickname, avatarUrl: null, points: rankedAll[userRankIdx].points, quizCount: rankedAll[userRankIdx].quizCount }
     : null
 
+  // Samme blokkert-signal som RPC-stien — se kommentaren der.
+  const userBlockedFromGlobal =
+    scope === 'global' && userId && !userEntry
+      ? await isUserGloballyBlockedLive(userId)
+      : false
+
   // Filtrer (søk) + paginer
   const filtered = search ? rankedAll.filter(r => r.displayName.toLowerCase().includes(search.toLowerCase())) : rankedAll
   const totalCount = filtered.length
@@ -587,7 +666,7 @@ export async function GET(request: NextRequest) {
 
   // Her er totaltallet allerede kjent (hele lista ligger i minnet), så det
   // sendes rett videre — ingen ekstra spørring nødvendig som i RPC-stien.
-  if (pageSlice.length === 0) return emptyResponse(userEntry, userRank, totalCount)
+  if (pageSlice.length === 0) return emptyResponse(userEntry, userRank, totalCount, userBlockedFromGlobal)
 
   // Tidslinje fra de allerede hentede radene (RPC utilgjengelig i fallback)
   const timelineMap = new Map<string, string>()
@@ -610,7 +689,7 @@ export async function GET(request: NextRequest) {
 
   console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
-    entries, userEntry, userIsPremium, quizTitle: null,
+    entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
     totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
   })
 }

@@ -11,6 +11,7 @@ import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
+import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 
@@ -77,6 +78,11 @@ type ApiResponse = {
   entries: Entry[]
   userEntry: UserEntry | null
   userIsPremium: boolean
+  // Kalleren er blokkert fra den åpne topplisten (stengt org / eget opt-out).
+  // På Siste quiz medfører flagget alltid en userEntry (kalleren leverte —
+  // raden er «egne tall» fra det ufiltrerte feltet, se /api/toppliste); i
+  // periode-fanene betyr det «poengene dine føres ikke her». Kun global-scope.
+  userBlockedFromGlobal?: boolean
   quizTitle?: string | null
   quizClosesAt?: string | null
   activeQuizClosesAt?: string | null
@@ -323,6 +329,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
+  // Kun til «Se topplisten hos {org}»-lenken i blokkert-kortet (global-scope).
+  // Ren context-lesing — ProfileProvider henter uansett, ingen nye kall herfra.
+  const { myOrgs, myOrgsLoaded } = useProfile()
 
   const updateQuery = useCallback((patch: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -713,6 +722,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     if (!shouldShowPlacementRow({
       userVisible, userEntryRank: data?.userEntry?.rank ?? null,
       isPremium: data?.userIsPremium === true, scope,
+      // Blokkert kallers userEntry bærer «egne tall» med rank mot det
+      // UFILTRERTE feltet — den skal aldri tegnes inn i den offentlige listen.
+      userBlockedFromGlobal: data?.userBlockedFromGlobal === true,
     })) return rows
 
     rows.push(buildPlacementRow(data!.userEntry!, isLastQuiz))
@@ -736,6 +748,41 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       )
     }
     if (!data) return null
+
+    // ── Blokkert fra den åpne topplisten (stengt org / eget opt-out) ─────────
+    // Si det som er sant i stedet for «Du spilte ikke ukens quiz.» / «Du har
+    // ikke spilt ennå …» — begge var usanne for en blokkert som spilte (funn 3,
+    // 5. august 2026; samme feilklasse som «Reaktiver Premium»). Grenen står
+    // FØR ue-grenene: fallback-userEntry kan ha rank <= 10, og uten denne ville
+    // «return null» under svelget hele seksjonen. Kun global — org/liga er
+    // interne rom der de blokkerte hører hjemme og vises som normalt.
+    if (scope === 'global' && data.userBlockedFromGlobal) {
+      const internalHome = myOrgsLoaded && myOrgs.length > 0 ? myOrgs[0] : null
+      return (
+        <>
+          <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
+          <div style={s.userCard}>
+            {/* Ordlyd godkjent av Dennis 5. august 2026: periode-teksten skal
+                si hvor poengene FAKTISK teller — «inngår ikke» alene kunne
+                leses som at de er borte. Navnefallbacken («i bedriften din»)
+                dekker vinduet før myOrgs har landet; periode-flagget forut-
+                setter et levende org-medlemskap server-side, så «bedriften
+                din» er alltid sant der. */}
+            <p style={{ ...s.ctaText, marginBottom: internalHome ? 14 : 0 }}>
+              {isLastQuiz
+                ? 'Du spilte ukens quiz — resultatet ditt vises ikke i den åpne topplisten.'
+                : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i den åpne topplisten.`}
+            </p>
+            {internalHome && (
+              <Link href={`/org/${internalHome.orgSlug}`} style={s.btnOutline}>
+                Se topplisten hos {internalHome.orgName} &rarr;
+              </Link>
+            )}
+          </div>
+        </>
+      )
+    }
+
     // Allerede synlig (fremhevet) i listen — eget plasserings-kort er overflødig
     if (userVisible) return null
 

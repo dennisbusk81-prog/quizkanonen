@@ -15,6 +15,14 @@ export type PlacementRowState = {
   userEntryRank: number | null
   isPremium: boolean
   scope: 'global' | 'league' | 'organization'
+  /**
+   * True når API-et sier at kalleren er blokkert fra den åpne topplisten
+   * (userBlockedFromGlobal, 5. august 2026). Da finnes userEntry kun som
+   * bærer av «egne tall» — ranken er mot det UFILTRERTE feltet og skal ikke
+   * tegnes som en rad i den offentlige listen. renderUserSection viser i
+   * stedet en sann tekst.
+   */
+  userBlockedFromGlobal: boolean
 }
 
 /**
@@ -35,6 +43,7 @@ export type PlacementRowState = {
  * kartleggingen i periode-tabell-final-spec.
  */
 export function shouldShowPlacementRow(state: PlacementRowState): boolean {
+  if (state.userBlockedFromGlobal) return false
   if (state.userVisible) return false
   if (state.userEntryRank == null) return false
   if (state.userEntryRank <= 10) return false
