@@ -16,6 +16,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { placementPercentLine } from '@/lib/placement-percent'
+import { decidePlacementDisplay } from '@/lib/placement-visibility'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -943,6 +944,12 @@ export default function QuizPage() {
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
   const [estimatedPlacement, setEstimatedPlacement] = useState<{ rank: number; low: number; high: number; total: number } | null>(null)
+  // Intern plassering (org-rommet) fra /api/leaderboard/[id]?org= — hentes i en
+  // egen effekt når resultatskjermen vises og spilleren er org-medlem (se
+  // lib/placement-visibility.ts for hvem som ser hva). exactRank er null for
+  // gratis (samme Premium-gate som globalt — ruten sender kun 10-båndets start
+  // i userEntry.rank).
+  const [internalPlacement, setInternalPlacement] = useState<{ exactRank: number | null; bandStart: number | null; total: number } | null>(null)
   const [serverScore, setServerScore] = useState<{ correctAnswers: number; totalTimeMs: number; correctStreak: number } | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
@@ -955,7 +962,19 @@ export default function QuizPage() {
   // til de to bevisste resjekkene (quiz-start + innsending) der founders kan ha
   // aktivert midt i økta. myOrgs brukes til season-summary-boksen under —
   // unngår et eget POST /api/org/my-orgs-kall (speiler OrgCard.tsx, df99071).
-  const { isPremium, refreshProfile, myOrgs } = useProfile()
+  // userId/myOrgsLoaded mater decidePlacementDisplay — samme kilde som myOrgs,
+  // så «hvem er du» og «hvilke orger» aldri kommer fra to usynkrone svar.
+  const { isPremium, refreshProfile, myOrgs, myOrgsLoaded, userId: profileUserId } = useProfile()
+  // Hvilken plassering denne spilleren skal se på resultatskjermen — se
+  // lib/placement-visibility.ts. 'internal-only' (blokkert org/eget opt-out)
+  // undertrykker det offentlige tallet i BÅDE plasseringskortet og begge
+  // delingstekstene; 'both' legger det interne tallet til; 'unknown' (org-svar
+  // ikke landet ennå) viser ingen plassering framfor å gjette 'public'.
+  const placementDisplay = decidePlacementDisplay({
+    userId: profileUserId,
+    orgsLoaded: myOrgsLoaded,
+    orgs: myOrgs,
+  })
   const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
@@ -1117,6 +1136,43 @@ export default function QuizPage() {
       } catch { /* org-tider er valgfrie */ }
     })
   }, [quizId])
+
+  // Intern plassering for org-medlemmer — hentes når resultatskjermen vises.
+  // Egen effekt (ikke i finishQuiz) med vilje: myOrgs lastes asynkront, og
+  // hadde hentingen ligget i finishQuiz ville en spiller hvis org-svar landet
+  // ETTER innsending aldri fått det interne tallet. Effekten re-kjører når
+  // placementDisplay endres og henter da det som mangler. Ref-vakten hindrer
+  // dobbelthenting (StrictMode/re-render) uten å blokkere en NY org-slug.
+  const internalPlacementFetchedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (phase !== 'finished') return
+    if (placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'both') return
+    const orgSlug = placementDisplay.org.orgSlug
+    if (internalPlacementFetchedFor.current === orgSlug) return
+    internalPlacementFetchedFor.current = orgSlug
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) return
+        // Samme rute og samme medlemskaps-gate som org-visningen på
+        // /leaderboard/[id]?org= — ingen ny kodesti. limit=1: vi trenger kun
+        // userRank/userEntry/totalCount, ikke listen.
+        const res = await fetch(
+          `/api/leaderboard/${quizId}?is_team=false&limit=1&org=${encodeURIComponent(orgSlug)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+        )
+        if (!res.ok) return
+        const j: { userRank?: number | null; userEntry?: { rank: number } | null; totalCount?: number } = await res.json()
+        if (j?.userEntry) {
+          setInternalPlacement({
+            exactRank: j.userRank ?? null,
+            bandStart: j.userEntry.rank ?? null,
+            total: j.totalCount ?? 0,
+          })
+        }
+      } catch { /* intern plassering er et tillegg — resultatskjermen skal ikke feile på den */ }
+    })()
+  }, [phase, placementDisplay, quizId])
 
   useEffect(() => {
     async function fetchData() {
@@ -2258,8 +2314,14 @@ export default function QuizPage() {
       // matet plasserings-kolonnen på kortet). Da kolonnen ble fjernet 2. august
       // 2026 måtte gaten skrives ut — den er BEVISST identisk med den gamle,
       // sisteplass-unntaket inkludert, så delingsteksten er uendret.
+      // 'internal-only' (blokkert org/eget opt-out): delingsteksten skal ikke
+      // bære NOEN plassering — intern («3. av 29») er meningsløs utad og røper
+      // org-tilhørighet, offentlig motsier at spilleren står utenfor den åpne
+      // konkurransen. 'unknown': org-svaret har ikke landet, ikke gjett.
       const visPlassering =
         isPremium &&
+        placementDisplay.mode !== 'internal-only' &&
+        placementDisplay.mode !== 'unknown' &&
         !!estimatedPlacement &&
         estimatedPlacement.total > 1 &&
         estimatedPlacement.rank !== estimatedPlacement.total
@@ -2895,7 +2957,13 @@ export default function QuizPage() {
   // prosent i delingsteksten ville omgått den gatingen. Gratis-varianten brukte
   // tidligere spennets `low`, som både var omvendt OG mer presist enn det
   // spilleren selv fikk se.
-  const deltProsent = isPremium && estimatedPlacement
+  // Samme gate som visPlassering i delingskortet: blokkerte (internal-only)
+  // og uavklarte (unknown) deler uten plasseringspåstand — den nøytrale
+  // «Jeg spilte…»-varianten finnes allerede som fallback.
+  const deltProsent = isPremium
+    && placementDisplay.mode !== 'internal-only'
+    && placementDisplay.mode !== 'unknown'
+    && estimatedPlacement
     ? placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
     : null
 
@@ -3004,7 +3072,77 @@ export default function QuizPage() {
         </div>
       )}
 
-      {estimatedPlacement && estimatedPlacement.total > 1 && (() => {
+      {/* ── Blokkerte org-medlemmer (stengt org eller eget opt-out) ser KUN sin
+          interne plassering. Det offentlige tallet er svaret på et spørsmål
+          bedriften/den ansatte har sagt de ikke stiller — se
+          lib/placement-visibility.ts. Data fra /api/leaderboard/[id]?org=
+          (samme rute og Premium-gate som org-visningen av leaderboardet). ── */}
+      {placementDisplay.mode === 'internal-only' && internalPlacement && internalPlacement.total > 1 && (() => {
+        const orgName = placementDisplay.org.orgName
+        if (isPremium && internalPlacement.exactRank != null) {
+          return (
+            <div className="qk-rsec" style={{
+              background: '#1e1a0e',
+              border: '0.5px solid rgba(201,168,76,0.3)',
+              borderRadius: 16,
+              padding: '20px 16px',
+              textAlign: 'center',
+              marginBottom: 14,
+            }}>
+              <div style={{ fontSize: 10, color: '#918f8a', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
+                Din plassering hos {orgName}
+              </div>
+              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+                {internalPlacement.exactRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
+              </div>
+              <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                av {internalPlacement.total} deltakere
+              </div>
+            </div>
+          )
+        }
+        // Gratis: samme 10-bånd og samme «for få har levert»-terskel som den
+        // globale gratis-varianten under — bare mot org-rommet. bandStart er
+        // allerede båndets start (serveren grovmaler), utregningen er idempotent.
+        const low = internalPlacement.bandStart ?? 1
+        const tierStart = internalPlacement.total <= 10 ? 1 : Math.max(1, Math.floor((low - 1) / 10) * 10 + 1)
+        const rangeY = internalPlacement.total <= 10 ? internalPlacement.total : Math.min(internalPlacement.total, tierStart + 9)
+        const showSpan = internalPlacement.total >= 10
+        return (
+          <div className="qk-rsec" style={{
+            background: '#21242e',
+            border: '0.5px solid #2a2d38',
+            borderRadius: 16,
+            padding: 16,
+            textAlign: 'center',
+            marginBottom: 14,
+          }}>
+            {showSpan ? (
+              <>
+                <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 8 }}>
+                  Du er et sted mellom plass {tierStart} og {rangeY}
+                </div>
+                <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
+                  av {internalPlacement.total} deltakere hos {orgName}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 12, lineHeight: 1.5 }}>
+                Plasseringen din hos {orgName} vises når flere av dere har levert.
+              </div>
+            )}
+            <a href="/founders" style={{
+              display: 'inline-block',
+              fontSize: 13, fontWeight: 600, color: '#c9a84c',
+              textDecoration: 'none',
+            }}>
+              Oppgrader til Premium for å se nøyaktig plassering →
+            </a>
+          </div>
+        )
+      })()}
+
+      {placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'unknown' && estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         // Her lå `prosent`/`toppX` — samme feil nevner som premium-grenen under
         // (spilleren selv talt med i feltet hun sammenlignes mot), men utledet
         // av spennets `low`. De ble aldri vist noe sted: gratis-grenen viser
@@ -3047,6 +3185,14 @@ export default function QuizPage() {
               <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
                 av {estimatedPlacement.total} deltakere
               </div>
+              {/* Org-medlemmer i en org som deltar åpent ser BEGGE tall —
+                  det interne i tillegg til (aldri i stedet for) det totale. */}
+              {placementDisplay.mode === 'both' && internalPlacement != null
+                && internalPlacement.exactRank != null && internalPlacement.total > 1 && (
+                <div style={{ fontSize: 13, color: '#e8e4dd', marginTop: 8 }}>
+                  {internalPlacement.exactRank}. av {internalPlacement.total} hos {placementDisplay.org.orgName}
+                </div>
+              )}
               {/* «Topp X %» sto her fram til 2. august 2026, men de to tallene
                   har ulike nevnere og sluttet å summere til 100 da nevneren ble
                   rettet — «Topp 51 % · bedre enn 50 %» leste som en regnefeil.
@@ -3089,6 +3235,16 @@ export default function QuizPage() {
                 <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
                   av {estimatedPlacement.total} deltakere
                 </div>
+                {/* Begge tall også for gratis — men kun når org-rommet er stort
+                    nok til at et 10-bånd betyr noe (samme terskel som showSpan
+                    for det globale spennet). Små org-felt tidlig på fredagen
+                    ville gitt «mellom plass 1 og N av N hos dere». */}
+                {placementDisplay.mode === 'both' && internalPlacement != null
+                  && internalPlacement.bandStart != null && internalPlacement.total >= 10 && (
+                  <div style={{ fontSize: 11, color: '#e8e4dd', marginBottom: 12 }}>
+                    Hos {placementDisplay.org.orgName}: mellom plass {internalPlacement.bandStart} og {Math.min(internalPlacement.total, internalPlacement.bandStart + 9)} av {internalPlacement.total}
+                  </div>
+                )}
               </>
             ) : (
               <div style={{ fontSize: 15, color: '#e8e4dd', marginBottom: 12, lineHeight: 1.5 }}>

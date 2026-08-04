@@ -15,6 +15,7 @@ import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
+import { decidePlacementDisplay } from '@/lib/placement-visibility'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -143,7 +144,8 @@ export default function LeaderboardPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<{ display_name: string | null } | null>(null)
   // Premium + org-medlemskap fra delt context (ProfileProvider).
-  const { isPremium, myOrgs, refreshProfile } = useProfile()
+  // userId/myOrgsLoaded mater decidePlacementDisplay — samme kilde som myOrgs.
+  const { isPremium, myOrgs, myOrgsLoaded, userId: profileUserId, refreshProfile } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
@@ -169,6 +171,24 @@ export default function LeaderboardPage() {
   // en meny med ett valg vært en unødvendig ekstra tapp.
   const [pendingChallenge, setPendingChallenge] = useState<{ id: string; name: string } | null>(null)
   const userOrgs = myOrgs.map(o => ({ orgSlug: o.orgSlug, orgName: o.orgName }))
+  // Hvilken plassering denne brukeren skal se — se lib/placement-visibility.ts.
+  // Gjelder KUN den nasjonale visningen: org-visningen (?org=) ER den interne
+  // plasseringen og er alltid legitim for et verifisert medlem.
+  const placementDisplay = decidePlacementDisplay({
+    userId: profileUserId,
+    orgsLoaded: myOrgsLoaded,
+    orgs: myOrgs,
+  })
+  // Blokkert (stengt org / eget opt-out): den offentlige listen vises som
+  // normalt — de skal kunne SE konkurransen — men uten brukerens egen
+  // offentlige plassering (hero-kortets «Plass X av Y», persentilen,
+  // delingstallet og «Gå til min plassering»). 'unknown' behandles likt:
+  // før org-svaret har landet vet vi ikke om tallet er lov å vise.
+  const suppressOwnPublicRank = !orgSlug
+    && (placementDisplay.mode === 'internal-only' || placementDisplay.mode === 'unknown')
+  // Intern plassering for «begge tall»-visningen (org som deltar åpent) —
+  // hentes i egen effekt under.
+  const [internalSolo, setInternalSolo] = useState<{ rank: number | null; total: number } | null>(null)
   const [fetchError, setFetchError] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [challengeCopied, setChallengeCopied] = useState(false)
@@ -209,6 +229,34 @@ export default function LeaderboardPage() {
   const [browseSearch, setBrowseSearch]           = useState('')
   const [browseData, setBrowseData]   = useState<{ entries: LbEntry[]; totalCount: number; userRank: number | null } | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
+
+  // «Begge tall»: org-medlemmer i en org som deltar åpent får det interne
+  // tallet i tillegg til det offentlige i hero-kortet. Egen effekt (ikke i
+  // loadSession) fordi myOrgs lander asynkront fra ProfileProvider — effekten
+  // re-kjører når org-svaret kommer. Samme rute og medlemskaps-gate som
+  // ?org=-visningen; limit=1 fordi kun userRank/totalCount trengs.
+  useEffect(() => {
+    if (orgSlug) return // org-visningen ER intern — ingen ekstra henting
+    if (placementDisplay.mode !== 'both') return
+    const token = session?.access_token
+    if (!token) return
+    const slug = placementDisplay.org.orgSlug
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(
+          `/api/leaderboard/${quizId}?is_team=false&limit=1&org=${encodeURIComponent(slug)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        )
+        if (!res.ok) return
+        const j: { userRank?: number | null; totalCount?: number } = await res.json()
+        if (!cancelled && typeof j?.totalCount === 'number') {
+          setInternalSolo({ rank: j.userRank ?? null, total: j.totalCount })
+        }
+      } catch { /* intern plassering er et tillegg — siden skal ikke feile på den */ }
+    })()
+    return () => { cancelled = true }
+  }, [orgSlug, placementDisplay.mode, placementDisplay.org?.orgSlug, session?.access_token, quizId])
 
   useEffect(() => {
     async function fetchData() {
@@ -749,7 +797,9 @@ export default function LeaderboardPage() {
 
   // ── Premium browse-modus (paginering/søk) for "Alle"/"Lag" ────────────────
   const roomTotal    = soloTotal
-  const roomUserRank = userSoloAttempt?.rank ?? null
+  // suppressOwnPublicRank: «Gå til min plassering (#N)» viser det offentlige
+  // tallet og skal ikke tilbys blokkerte — knappen forsvinner når ranken er null.
+  const roomUserRank = suppressOwnPublicRank ? null : (userSoloAttempt?.rank ?? null)
   const userInBrowse = !!(currentUserId && browseData?.entries.some(e => e.userId === currentUserId))
   const browseSearching = browseMode && browseSearch.trim() !== ''
   const showBrowseControls = isPremium && activeTab === 'alle' && (roomTotal > 10 || browseMode)
@@ -960,7 +1010,7 @@ export default function LeaderboardPage() {
             const correctAnswers = userAttempt?.correct_answers ?? savedResult?.correct_answers ?? null
             const totalQ = userAttempt?.total_questions ?? null
             const timeMs = userAttempt?.total_time_ms ?? savedResult?.total_time_ms ?? null
-            const rank = isPremium && userAttempt ? userAttempt.rank : null
+            const rank = isPremium && userAttempt && !suppressOwnPublicRank ? userAttempt.rank : null
             const streak = userAttempt?.correct_streak ?? null
             const scorePct = correctAnswers != null && totalQ != null ? Math.round(correctAnswers / totalQ * 100) : null
             const hasStats = rank != null || timeMs != null || scorePct != null || (streak != null && streak > 0)
@@ -987,6 +1037,14 @@ export default function LeaderboardPage() {
                       {rank != null && (
                         <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#c9a84c', whiteSpace: 'nowrap' as const }}>
                           Plass {rank} av {totalCount}
+                        </span>
+                      )}
+                      {/* «Begge tall» for org-medlemmer som deltar åpent — det
+                          interne i tillegg til det offentlige, aldri i stedet. */}
+                      {rank != null && !orgSlug && placementDisplay.mode === 'both'
+                        && internalSolo?.rank != null && internalSolo.total > 0 && (
+                        <span style={{ fontSize: 13, color: '#e8e4dd', whiteSpace: 'nowrap' as const }}>
+                          {internalSolo.rank}. av {internalSolo.total} hos dere
                         </span>
                       )}
                       {timeMs != null && (
@@ -1026,7 +1084,9 @@ export default function LeaderboardPage() {
           {!authLoading && session && hasPlayed && (() => {
             const shareCorrect = userAttempt?.correct_answers ?? savedResult?.correct_answers ?? null
             const shareTotalQ  = userAttempt?.total_questions ?? null
-            const shareRank    = isPremium && userAttempt ? userAttempt.rank : null
+            // Blokkerte deler den plasseringsløse varianten under — intern
+            // plassering er meningsløs utad og røper org-tilhørighet.
+            const shareRank    = isPremium && userAttempt && !suppressOwnPublicRank ? userAttempt.rank : null
             if (shareCorrect == null) return null
             const shareText = shareRank != null && shareTotalQ != null
               ? `Jeg fikk ${shareCorrect}/${shareTotalQ} og havnet på ${shareRank}. av ${totalCount} på Quizkanonen! 🎯`
