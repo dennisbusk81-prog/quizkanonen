@@ -364,8 +364,12 @@ export default function OrgVelkommenPage() {
           }}>
             Velkommen, {data.org.name}
           </h1>
+          {/* «Alt kan endres senere» står her, FØR valgene — ikke bare som
+              småtekst ved knappen. Det er den setningen som gjør begge valgene
+              ufarlige å ta, og da må den leses før man tar dem. */}
           <p style={{ ...bodyText, marginBottom: 32 }}>
-            To korte valg, så er bedriften satt opp. Det tar et minutt.
+            To korte valg, så er bedriften satt opp. Det tar et minutt — og alt
+            kan endres senere under Innstillinger i bedriftspanelet.
           </p>
 
           {/* 1 — Forklaring, ingen valg */}
@@ -389,12 +393,16 @@ export default function OrgVelkommenPage() {
             <p style={stepLabel}>Valg 1 av 2</p>
             <p style={heading}>Skal de ansatte vises på den åpne topplisten?</p>
             <p style={{ ...bodyText, marginBottom: 8 }}>
-              Resultater og visningsnavn blir synlige for alle spillere på
-              Quizkanonen, ikke bare ansatte i bedriften.
+              Da får de ansatte konkurrere mot alle som spiller Quizkanonen, ikke
+              bare mot hverandre. Samme quiz, større felt.
+            </p>
+            <p style={{ ...bodyText, marginBottom: 8 }}>
+              Resultatene og visningsnavnene deres står da på den åpne topplisten,
+              sammen med alle andre spillere.
             </p>
             <p style={{ ...hintText, marginBottom: 8 }}>
-              Sier du ja, velger hver enkelt ansatt likevel selv — de får spørsmålet
-              og kan når som helst melde seg av på profilen sin.
+              Hver enkelt ansatt velger fortsatt selv — de får spørsmålet, og kan
+              når som helst melde seg av på profilen sin.
             </p>
             <p style={{ ...hintText, marginBottom: 16 }}>
               Valget gjelder sesong-topplisten. De ansatte kan fortsatt vises på
@@ -432,9 +440,9 @@ export default function OrgVelkommenPage() {
             </p>
             <p style={{ ...bodyText, marginBottom: 16 }}>
               {globalWindow
-                ? `Uten en egen frist står den åpen til ${globalWindow.closes}, altså sent på kvelden når folk for lengst har gått hjem.`
-                : 'Uten en egen frist står den åpen til sent på kvelden, når folk for lengst har gått hjem.'}
-              {' '}De fleste bedrifter vil ha fristen i arbeidstiden.
+                ? `Uten en egen frist står den åpen til ${globalWindow.closes}, så de ansatte kan spille når som helst utover kvelden.`
+                : 'Uten en egen frist står den åpen til sent på kvelden, så de ansatte kan spille når som helst utover kvelden.'}
+              {' '}Vil dere heller at quizen tas i arbeidstiden, setter dere en tidligere frist.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
@@ -539,7 +547,7 @@ export default function OrgVelkommenPage() {
             )}
 
             <p style={{ ...hintText, textAlign: 'center', marginTop: 12 }}>
-              Alt kan endres senere under Innstillinger i bedriftspanelet.
+              Alt kan endres senere i bedriftspanelet.
             </p>
           </div>
 
