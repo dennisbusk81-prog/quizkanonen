@@ -134,7 +134,16 @@ export function trialEndingEmail(daysLeft: number): string {
 </html>`
 }
 
-export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string, orgSlug: string, isTrial?: boolean): string {
+// Sendes til den som nettopp ble MEDLEM av en bedrift (eneste kaller er
+// /api/org/welcome-email, som fyres av /bli-med/[token] etter en fullført
+// innmelding). Mottakeren er altså en ansatt, ikke administratoren:
+// administratoren får orgPurchaseEmail eller orgTrialEmail i stedet.
+//
+// Derfor nevner denne malen bevisst IKKE bedriftspanelet, invitasjon av
+// kolleger eller prøveperioden — det er administratorens oppgaver og
+// betalingsforhold, og en ansatt har ikke tilgang til /org/[slug]/admin i det
+// hele tatt. Én handling: spill ukens quiz.
+export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string): string {
   const firstName = escapeHtml(firstNameRaw)
   const orgName = escapeHtml(orgNameRaw)
   return `<!DOCTYPE html>
@@ -173,37 +182,34 @@ export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string, orgSlu
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <!-- Body text -->
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Velkommen til Quizkanonen! Vi håper det blir mange morsomme timer for teamet hos <strong style="color:#ffffff;">${orgName}</strong>.
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Velkommen inn i <strong style="color:#ffffff;">${orgName}</strong> på Quizkanonen.
               </p>
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Det eneste du trenger å gjøre nå, er å få med kollegene dine. Gå inn på bedriftspanelet — der kan du enten dele en invitasjonslenke direkte, eller la oss sende e-post til dem for deg.
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Quizkanonen er en quiz du spiller sammen med kollegene dine. Ny quiz hver fredag — du konkurrerer mot resten av ${orgName} på bedriftens egen toppliste, og følger din egen utvikling fra uke til uke.
+              </p>
+              <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Premium er inkludert for deg som medlem, så du ser nøyaktig plassering, historikk og statistikk fra første quiz.
               </p>
 
               <!-- CTA button -->
-              <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
+                    <a href="https://www.quizkanonen.no/"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Gå til bedriftspanelet &rarr;
+                      Spill ukens quiz &rarr;
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Når de er med, trenger du ikke gjøre noe mer — alle får automatisk en påminnelse på e-post hver fredag når ukens quiz åpner, så ingen glemmer å bli med.
+              <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
+                Vil du bli minnet på det hver fredag? Skru på påminnelser under
+                <a href="https://www.quizkanonen.no/profil" style="color:#e8e4dd;text-decoration:underline;">Profil</a>.
               </p>
 
-              ${isTrial ? `
-              <!-- Trial note -->
-              <p style="margin:0 0 16px;font-size:14px;color:#918f8a;line-height:1.7;border-left:2px solid #2a2d38;padding-left:14px;">
-                Dere har 14 dager gratis, ingen kortinfo nødvendig.
-              </p>
-              ` : ''}
-
-              <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+              <p style="margin:0;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Spørsmål? Bare svar på denne e-posten.
               </p>
 

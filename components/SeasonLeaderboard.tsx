@@ -1024,20 +1024,26 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       {!loading && data?.entries.length === 0 ? (
         searching ? null : (() => {
           const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
+          // Lenken til forsiden er poenget med en tom liste: uten den var
+          // «Spill en quiz for å komme på listen!» en oppfordring uten noe å
+          // trykke på — særlig for et ferskt org-medlem, som lander her rett
+          // etter innmelding og ellers ikke får vite hvor quizen bor.
           if (quizStillOpen) {
             return (
               <div style={s.empty}>
                 <p style={s.emptyTitle}>Poeng beregnes etter quizen</p>
-                <p style={s.emptySub}>
+                <p style={{ ...s.emptySub, marginBottom: 18 }}>
                   Poeng for ukens quiz registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
                 </p>
+                <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
               </div>
             )
           }
           return (
             <div style={s.empty}>
               <p style={s.emptyTitle}>{emptyText.title}</p>
-              <p style={s.emptySub}>{emptyText.sub}</p>
+              <p style={{ ...s.emptySub, marginBottom: 18 }}>{emptyText.sub}</p>
+              <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
             </div>
           )
         })()

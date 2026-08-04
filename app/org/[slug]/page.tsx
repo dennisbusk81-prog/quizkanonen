@@ -170,6 +170,42 @@ export default function OrgLeaderboardPage() {
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
 
+          {/* Slik fungerer det — kort forklaring for et ferskt medlem.
+              Innmeldingen sender den ansatte rett hit, og siden besto tidligere
+              kun av en (for en ny bedrift tom) toppliste: ingen forklaring på
+              hva dette er, og ingen vei til selve quizen. Lenken er outline,
+              ikke gull — den aktive fanen i topplisten under er allerede gull,
+              og to gule elementer skal ikke konkurrere på samme skjerm. */}
+          {org && (
+            <div style={{
+              background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
+              padding: '24px 20px', marginTop: 20,
+            }}>
+              <p style={{
+                fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
+                textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 10,
+              }}>
+                Slik fungerer det
+              </p>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+                Ny quiz hver fredag. Du spiller den samme quizen som alle andre, og
+                resultatet ditt teller på {org.orgName} sin interne toppliste her —
+                i tillegg til din egen historikk og statistikk.
+              </p>
+              <Link
+                href="/"
+                style={{
+                  display: 'inline-block', background: 'transparent', color: '#e8e4dd',
+                  border: '1px solid #e8e4dd', borderRadius: 10,
+                  fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                  padding: '10px 24px', textDecoration: 'none',
+                }}
+              >
+                Se ukens quiz &rarr;
+              </Link>
+            </div>
+          )}
+
           {/* Sesong-toppliste scopet til bedriften */}
           {org && <SeasonLeaderboard scope="organization" scopeId={org.orgId} orgSlug={slug} loginHref={`/login?next=/org/${slug}`} globalLeagueDisabled={!org.allowGlobalLeague} />}
 

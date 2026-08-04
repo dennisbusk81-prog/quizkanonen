@@ -54,7 +54,7 @@ test('legitime navn er uendret i orgInviteEmail', () => {
 test('org-navn escapes i de øvrige org-malene', () => {
   for (const html of [
     orgTrialEmail(XSS, 'abc123', '2026-08-18T01:34:54Z'),
-    orgWelcomeEmail(XSS, XSS, 'abc123', true),
+    orgWelcomeEmail(XSS, XSS),
   ]) {
     assert.ok(!html.includes('<script'))
   }

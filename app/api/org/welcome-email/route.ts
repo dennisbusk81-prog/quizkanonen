@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   // Hent org
   const { data: org } = await supabaseAdmin
     .from('organizations')
-    .select('id, name, slug, subscription_status')
+    .select('id, name')
     .eq('slug', orgSlug)
     .maybeSingle()
 
@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
   const displayName = profile?.display_name ?? authUser.email.split('@')[0]
   const firstName = displayName.split(' ')[0]
 
-  const isTrial = (org as { subscription_status?: string }).subscription_status === 'trialing'
-
-  // Send e-post
+  // Mottakeren her er den som nettopp BLE MEDLEM — i praksis en ansatt.
+  // Administratoren får orgPurchaseEmail/orgTrialEmail fra Stripe-flyten i
+  // stedet, så malen nevner verken bedriftspanelet eller prøveperioden.
   try {
     await sendEmail({
       to: authUser.email,
       subject: 'Velkommen til Quizkanonen!',
-      html: orgWelcomeEmail(firstName, org.name, org.slug, isTrial),
+      html: orgWelcomeEmail(firstName, org.name),
       replyTo: 'support@quizkanonen.no',
     })
   } catch (err) {
