@@ -65,6 +65,18 @@ export interface CategoryStrength {
   // nettopp det denne utvidelsen fjernet.
   sterkesteProsent: number | null
   svakesteProsent: number | null
+  // Råtallene bak prosenten. Prosenten alene skjuler hvor tynt den hviler:
+  // terskelen er 3 svar, så «100 %» er ofte 3 av 3. Målt mot prod 4. august
+  // 2026 fikk 3 av de 4 mest aktive spillerne nettopp Kunst & Kultur 3/3 =
+  // 100 % som sterkeste. Kalleren viser derfor begge deler, og trenger
+  // nevneren for å kunne gjøre det.
+  //
+  // Utledes IKKE i UI-et fra prosenten (100 % kan være 3/3 eller 11/11) —
+  // de er egne tall og må hentes som egne tall.
+  sterkesteRiktige: number | null
+  sterkesteBesvart: number | null
+  svakesteRiktige: number | null
+  svakesteBesvart: number | null
 }
 
 const EMPTY_STRENGTH: CategoryStrength = {
@@ -72,6 +84,10 @@ const EMPTY_STRENGTH: CategoryStrength = {
   svakeste: null,
   sterkesteProsent: null,
   svakesteProsent: null,
+  sterkesteRiktige: null,
+  sterkesteBesvart: null,
+  svakesteRiktige: null,
+  svakesteBesvart: null,
 }
 
 /**
@@ -130,6 +146,10 @@ export function pickCategoryStrength(
     svakeste: worst.category,
     sterkesteProsent: asPct(best),
     svakesteProsent: asPct(worst),
+    sterkesteRiktige: best.correct,
+    sterkesteBesvart: best.total,
+    svakesteRiktige: worst.correct,
+    svakesteBesvart: worst.total,
   }
 }
 

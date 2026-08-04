@@ -141,6 +141,13 @@ function stat(category: string, correct: number, total: number) {
   return { category, correct, total }
 }
 
+// Brukes med deepEqual, ikke felt-for-felt: da fanger testene også et NYTT
+// felt som ved et uhell får en verdi i tom-tilstanden.
+const INGEN_STYRKE = {
+  sterkeste: null, sterkesteProsent: null, sterkesteRiktige: null, sterkesteBesvart: null,
+  svakeste: null, svakesteProsent: null, svakesteRiktige: null, svakesteBesvart: null,
+}
+
 test('velger høyeste og laveste andel riktige', () => {
   const s = pickCategoryStrength([
     stat('Historie', 1, 4),   // 25 %
@@ -148,8 +155,8 @@ test('velger høyeste og laveste andel riktige', () => {
     stat('Musikk', 2, 4),     // 50 %
   ])
   assert.deepEqual(s, {
-    sterkeste: 'Sport', sterkesteProsent: 75,
-    svakeste: 'Historie', svakesteProsent: 25,
+    sterkeste: 'Sport',    sterkesteProsent: 75, sterkesteRiktige: 3, sterkesteBesvart: 4,
+    svakeste: 'Historie',  svakesteProsent: 25,  svakesteRiktige: 1,  svakesteBesvart: 4,
   })
 })
 
@@ -199,10 +206,7 @@ test('ingen kategori når terskelen → BEGGE null, ikke en tilfeldig kategori',
     stat('Historie', 0, 1),
     stat('Musikk', 1, 1),
   ])
-  assert.deepEqual(s, {
-    sterkeste: null, sterkesteProsent: null,
-    svakeste: null, svakesteProsent: null,
-  })
+  assert.deepEqual(s, INGEN_STYRKE)
 })
 
 test('kun ÉN kvalifisert kategori → begge null (sterkest/svakest krever sammenligning)', () => {
@@ -210,17 +214,11 @@ test('kun ÉN kvalifisert kategori → begge null (sterkest/svakest krever samme
     stat('Sport', 3, 5),
     stat('Historie', 1, 2),
   ])
-  assert.deepEqual(s, {
-    sterkeste: null, sterkesteProsent: null,
-    svakeste: null, svakesteProsent: null,
-  })
+  assert.deepEqual(s, INGEN_STYRKE)
 })
 
 test('tom liste → begge null', () => {
-  assert.deepEqual(pickCategoryStrength([]), {
-    sterkeste: null, sterkesteProsent: null,
-    svakeste: null, svakesteProsent: null,
-  })
+  assert.deepEqual(pickCategoryStrength([]), INGEN_STYRKE)
 })
 
 // ── MUTASJONSBEVIS: «Uten kategori» ─────────────────────────────────────────
@@ -251,10 +249,7 @@ test('«Uten kategori» teller ikke som den andre kategorien i to-kravet', () =>
     stat(UNCATEGORIZED_LABEL, 10, 20),
     stat('Sport', 3, 4),
   ])
-  assert.deepEqual(s, {
-    sterkeste: null, sterkesteProsent: null,
-    svakeste: null, svakesteProsent: null,
-  })
+  assert.deepEqual(s, INGEN_STYRKE)
 })
 
 // ── MUTASJONSBEVIS: Diverse ─────────────────────────────────────────────────
@@ -399,13 +394,43 @@ test('prosent og kategori er null sammen — aldri én av dem alene', () => {
     pickCategoryStrength([stat('Historie', 1, 4), stat('Sport', 3, 4)]),  // begge finnes
   ]
   for (const s of cases) {
-    assert.equal(
-      s.sterkeste === null, s.sterkesteProsent === null,
-      'sterkeste og sterkesteProsent stod fra hverandre',
-    )
-    assert.equal(
-      s.svakeste === null, s.svakesteProsent === null,
-      'svakeste og svakesteProsent stod fra hverandre',
-    )
+    for (const felt of ['Prosent', 'Riktige', 'Besvart'] as const) {
+      assert.equal(
+        s.sterkeste === null, s[`sterkeste${felt}`] === null,
+        `sterkeste og sterkeste${felt} stod fra hverandre`,
+      )
+      assert.equal(
+        s.svakeste === null, s[`svakeste${felt}`] === null,
+        `svakeste og svakeste${felt} stod fra hverandre`,
+      )
+    }
   }
+})
+
+test('råtallene hører til den valgte kategorien, og skiller 3/3 fra 11/11', () => {
+  // Begge er 100 %. Uten egne råtall ville UI-et ikke kunne vise forskjell på
+  // en kategori som hviler på 3 svar og en som hviler på 11 — nettopp
+  // forskjellen tallene ble lagt til for å vise. Målt mot prod 4. august 2026
+  // er dette ikke et konstruert tilfelle: Carlos Medellín har Film & TV 11/11
+  // og Kunst & Kultur 3/3 samtidig.
+  const s = pickCategoryStrength([
+    stat('Film & TV', 11, 11),
+    stat('Kunst & Kultur', 3, 3),
+    stat('Geografi', 10, 17),
+  ])
+  assert.equal(s.sterkeste, 'Film & TV', 'flest svar skal vinne uavgjort')
+  assert.equal(s.sterkesteProsent, 100)
+  assert.equal(s.sterkesteRiktige, 11)
+  assert.equal(s.sterkesteBesvart, 11, 'råtallene kom fra feil kategori')
+
+  assert.equal(s.svakeste, 'Geografi')
+  assert.equal(s.svakesteRiktige, 10)
+  assert.equal(s.svakesteBesvart, 17)
+})
+
+test('råtallene er kategoriens egne, ikke summen over alle kategorier', () => {
+  const s = pickCategoryStrength([stat('Sport', 3, 4), stat('Historie', 1, 4)])
+  assert.equal(s.sterkesteBesvart, 4, 'nevneren var totalen over alle kategorier')
+  assert.equal(s.svakesteBesvart, 4)
+  assert.equal(s.sterkesteRiktige! + s.svakesteRiktige!, 4)
 })

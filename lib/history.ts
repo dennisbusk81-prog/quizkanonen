@@ -48,13 +48,21 @@ export type PlayerStats = {
   // pickCategoryStrength() i lib/category-stats.ts for reglene.
   sterkeste_kategori: string | null
   svakeste_kategori: string | null
-  // Andel riktige i de to kategoriene over, i prosent. Null nøyaktig når
-  // kategorien er null — se CategoryStrength i lib/category-stats.ts.
+  // Andel riktige i de to kategoriene over, i prosent, med råtallene bak.
+  // Alle seks er null nøyaktig når kategorien er null — se CategoryStrength i
+  // lib/category-stats.ts.
   //
   // NB: dette er andel av BESVARTE spørsmål i kategorien over hele
   // historikken, ikke andel av alle spørsmål i banken i den kategorien.
+  //
+  // `_riktige`/`_besvart` vises sammen med prosenten fordi terskelen er 3
+  // svar: «100 %» er ofte 3 av 3, og prosenten alene overselger det.
   sterkeste_kategori_prosent: number | null
+  sterkeste_kategori_riktige: number | null
+  sterkeste_kategori_besvart: number | null
   svakeste_kategori_prosent: number | null
+  svakeste_kategori_riktige: number | null
+  svakeste_kategori_besvart: number | null
   // Fredagsquizer på rad. IKKE det samme som `best_streak` over, som er
   // riktige svar på rad inne i ÉN quiz (attempts.correct_streak). Se
   // lib/participation-streak.ts.
@@ -458,7 +466,11 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     sterkeste_kategori: null,
     svakeste_kategori: null,
     sterkeste_kategori_prosent: null,
+    sterkeste_kategori_riktige: null,
+    sterkeste_kategori_besvart: null,
     svakeste_kategori_prosent: null,
+    svakeste_kategori_riktige: null,
+    svakeste_kategori_besvart: null,
     deltakelsesrekke: 0,
     lengste_deltakelsesrekke: 0,
   }
@@ -564,7 +576,11 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     sterkeste_kategori: categoryStrength.sterkeste,
     svakeste_kategori: categoryStrength.svakeste,
     sterkeste_kategori_prosent: categoryStrength.sterkesteProsent,
+    sterkeste_kategori_riktige: categoryStrength.sterkesteRiktige,
+    sterkeste_kategori_besvart: categoryStrength.sterkesteBesvart,
     svakeste_kategori_prosent: categoryStrength.svakesteProsent,
+    svakeste_kategori_riktige: categoryStrength.svakesteRiktige,
+    svakeste_kategori_besvart: categoryStrength.svakesteBesvart,
     deltakelsesrekke: participation.current,
     lengste_deltakelsesrekke: participation.longest,
   }
