@@ -208,8 +208,10 @@ const MIN_LENGTH = 8
 type SessionState = 'checking' | 'ready' | 'missing'
 
 export default function SettPassordPage() {
+  // Bruker-id-en ble tidligere holdt i state utelukkende for å sende den til
+  // /api/auth/mark-password. Den ruten er borte, og sessionState bærer allerede
+  // det eneste signalet siden trenger: har vi en gyldig sesjon eller ikke.
   const [sessionState, setSessionState] = useState<SessionState>('checking')
-  const [userId, setUserId] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -226,7 +228,6 @@ export default function SettPassordPage() {
       if (done) return
       if (data.session?.user) {
         done = true
-        setUserId(data.session.user.id)
         setSessionState('ready')
       }
     })
@@ -234,7 +235,6 @@ export default function SettPassordPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (done || !session?.user) return
       done = true
-      setUserId(session.user.id)
       setSessionState('ready')
     })
 
@@ -269,24 +269,11 @@ export default function SettPassordPage() {
         return
       }
 
-      // Marker profilen slik at /login viser passord-innlogging neste gang.
-      // Gjenbruker mark-password-ruten fra passord-signup (service-role upsert —
-      // profilraden kan mangle felt vi ikke har lov til å røre fra klienten).
-      if (userId) {
-        try {
-          const res = await fetch('/api/auth/mark-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId }),
-          })
-          if (!res.ok) {
-            console.error('[sett-passord] mark-password feilet:', await res.text().catch(() => ''))
-          }
-        } catch (e) {
-          console.error('[sett-passord] mark-password-kall feilet:', e)
-        }
-      }
-
+      // Ingen markering av profilen her lenger. updateUser() over har allerede
+      // skrevet passordet til auth.users, og /login leser nå den kilden direkte
+      // via public.auth_email_lookup. Feltet kan dermed ikke komme ut av synk
+      // med virkeligheten — og det var den gamle markeringsruten som utgjorde
+      // sårbarheten (uautentisert skriving på vilkårlig bruker-id).
       setSaved(true)
       // Brukeren er nå innlogget med en ekte sesjon — send dem til forsiden.
       setTimeout(() => window.location.assign('/'), 3000)

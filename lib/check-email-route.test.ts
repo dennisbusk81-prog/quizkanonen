@@ -72,8 +72,10 @@ mock.module('@/lib/supabase-admin', {
         if (table === 'admin_actions') return adminActionsBuilder() as never
         throw new Error(`uventet tabell: ${table}`)
       },
-      // Speiler public.auth_email_lookup i
-      // supabase/migrations/20260738000001_auth_email_lookup.sql
+      // Speiler public.auth_email_lookup, sist endret i
+      // supabase/migrations/20260804000000_derive_has_password.sql — has_password
+      // kommer nå fra auth.users.encrypted_password, ikke fra profiles.
+      // Ruten ser samme felt som før; kun kilden bak er byttet.
       rpc: async (fn: string, params: { p_email: string }) => {
         assert.equal(fn, 'auth_email_lookup')
         state.rpcCalls++

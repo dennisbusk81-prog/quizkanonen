@@ -237,7 +237,7 @@ export default function ProfilPage() {
       const profileRes = await Promise.race([
         supabase
           .from('profiles')
-          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color, has_password')
+          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color')
           .eq('id', uid)
           .maybeSingle(),
         new Promise<{ data: null; error: Error }>((_, reject) =>
@@ -252,10 +252,32 @@ export default function ProfilPage() {
         member_number: number | null; show_member_number: boolean | null;
         email_reminders: boolean | null; email_reengagement: boolean | null;
         email_duel_notifications: boolean | null; created_at: string | null;
-        avatar_color: string | null; has_password: boolean | null;
+        avatar_color: string | null;
       } | null
 
-      setHasPassword(profile?.has_password === true)
+      // has_password er ikke lenger en kolonne vi leser — den er avledet fra
+      // auth.users.encrypted_password server-side. Egen forespørsel fordi
+      // auth-skjemaet ikke er eksponert via PostgREST, og fordi feltet ikke skal
+      // kunne påvirkes av noe klienten sender.
+      //
+      // IKKE awaited: passord-seksjonen ligger langt ned på siden, og navn,
+      // avatar og medlemsnummer skal ikke vente på en ekstra rundtur for å
+      // rendres. Den fyller seg selv inn når svaret kommer.
+      //
+      // Feiler den, lar vi hasPassword stå på false. Begge grenene er
+      // funksjonelle uansett — «Endre passord» kaller updateUser(), som setter
+      // et passord også for en konto som ikke hadde ett — så et bomskudd her
+      // koster feil ordlyd, ikke en blokkert bruker. Da velger vi grenen som
+      // også virker for en Google-bruker uten passord.
+      fetch('/api/profile/has-password', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+        .then(async res => {
+          if (!cancelled && res.ok) {
+            setHasPassword((await res.json()).hasPassword === true)
+          }
+        })
+        .catch(() => { /* behold false */ })
 
       const name = profile?.display_name ?? ''
       setDisplayName(name)

@@ -155,8 +155,19 @@ folk på kontoret. Dette er altså en bevisst, begrunnet designbeslutning per
   har hatt passord — `diagnoseLoginFailure()` i `AuthForm.tsx`), samt
   duplikat-sperren ved signup (`pre-signup`/`post-signup`-fasene, uendret siden
   før 20. juli)
-- `profiles.has_password` (boolean) — settes til `true` når en bruker har satt
-  passord, enten ved passord-signup eller senere fra profilsiden
+- **«Har konto passord?» er AVLEDET, ikke lagret (4. august 2026).** Sannheten
+  leses fra `auth.users.encrypted_password` via `public.auth_has_password(uuid)`
+  — service_role-only, samme mønster som `auth_email_lookup` (som nå bruker
+  samme kilde). Tre lesere: `/api/auth/check-email` (→ `/login`),
+  `GET /api/profile/has-password` (→ `/profil`) og `/api/admin/users/[id]`.
+  Kolonnen `profiles.has_password` er død og skal ikke leses.
+  **Regel: ikke gjeninnfør en rute som SETTER dette feltet.** Forgjengeren
+  `POST /api/auth/mark-password` tok `userId` fra body uten noen auth-sjekk, så
+  hvem som helst kunne merke en vilkårlig konto som «har passord» og dermed
+  frata en Google-bruker beskjeden om at kontoen ikke har noe passord. Den
+  måtte være uautentisert for å virke i det hele tatt, siden passord-signup
+  ikke har sesjon ennå — det er nettopp derfor lagring var feil form.
+  `lib/has-password-route.test.ts` feller både ruten og et kall til den.
 - `components/PasswordInput.tsx` — passordfelt med vis/skjul-ikon, delt av
   signup, innlogging og passord-bytte
 - `/sett-passord` — side for å sette passord første gang (etter passord-signup)

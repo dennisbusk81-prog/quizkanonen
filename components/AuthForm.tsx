@@ -176,7 +176,7 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       }
 
       const n = resolvedNext()
-      const { data, error } = await signUpWithPassword(cleanEmail, password, n !== '/' ? n : undefined)
+      const { error } = await signUpWithPassword(cleanEmail, password, n !== '/' ? n : undefined)
       if (error) {
         setNotice({ text: 'Kunne ikke opprette konto. Prøv igjen.' })
         setLoading(false)
@@ -191,24 +191,15 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         body: JSON.stringify({ email: cleanEmail, phase: 'post-signup' }),
       }).catch(() => { /* kun logging — ikke kritisk */ })
 
-      // Marker at brukeren nå har satt et passord. Server-side upsert fordi det
-      // ikke finnes sesjon/profilrad ennå. Awaited (men ikke fatal) slik at
-      // has_password er lagret før brukeren senere kommer tilbake og logger inn.
-      if (data.user?.id) {
-        try {
-          const markRes = await fetch('/api/auth/mark-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: data.user.id }),
-          })
-          if (!markRes.ok) {
-            console.error('[auth] mark-password feilet:', await markRes.text().catch(() => ''))
-          }
-        } catch (e) {
-          console.error('[auth] mark-password-kall feilet:', e)
-        }
-      }
-
+      // Ingen «marker at brukeren har passord»-kall her lenger. Passordet er
+      // allerede lagret i auth.users av signUpWithPassword, og det er den
+      // kilden vi nå leser (public.auth_has_password). Et eget kall ville kun
+      // vært en påstand om noe som allerede er sant — og det var nettopp den
+      // påstanden hvem som helst kunne forfalske via /api/auth/mark-password.
+      //
+      // Dette dekker også hullet i den gamle løsningen: signup har ingen sesjon
+      // (Confirm email er PÅ), så markeringen MÅTTE være uautentisert for å
+      // virke i det hele tatt. Avledningen har ikke det problemet.
       setSent('signup')
     } catch {
       setNotice({ text: 'Noe gikk galt. Prøv igjen.' })

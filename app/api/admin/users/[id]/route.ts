@@ -16,7 +16,7 @@ export async function GET(
     .from('profiles')
     .select(`
       id, display_name, nickname, avatar_color, created_at, last_seen_at,
-      age_confirmed_at, has_password,
+      age_confirmed_at,
       premium_status, premium_source, premium_since, premium_expires_at,
       stripe_customer_id, personal_stripe_subscription_id, org_premium_grace_until,
       suspended_until
@@ -39,6 +39,13 @@ export async function GET(
   // Supabase-versjonen, providers i app_metadata er den pålitelige kilden.
   const providers: string[] = appMeta.providers ?? (appMeta.provider ? [appMeta.provider] : [])
   const hasGoogle = providers.includes('google')
+
+  // «Passord»-merket er avledet fra auth.users.encrypted_password, ikke lest fra
+  // profiles. Merk at providers her IKKE kan brukes til det samme: en magic
+  // link-bruker har også provider 'email' uten å ha noe passord.
+  const { data: hasPasswordRaw, error: hasPasswordErr } = await supabaseAdmin
+    .rpc('auth_has_password', { p_user_id: id })
+  if (hasPasswordErr) console.error('[users/[id]] auth_has_password feilet:', hasPasswordErr.message)
 
   // ── Aktivitet ────────────────────────────────────────────────────────────
   // Én bruker har et beskjedent antall forsøk (attempts_user_quiz_unique
@@ -159,7 +166,7 @@ export async function GET(
       email: authUser?.email ?? null,
       googleName: (meta.full_name ?? meta.name ?? null) as string | null,
       hasGoogle,
-      hasPassword: profile.has_password === true,
+      hasPassword: hasPasswordRaw === true,
       createdAt: profile.created_at,
       lastSeenAt: profile.last_seen_at,
       ageConfirmedAt: profile.age_confirmed_at,
