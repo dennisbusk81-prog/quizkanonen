@@ -9,6 +9,7 @@ import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import KategoriTall from '@/components/KategoriTall'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,15 +114,8 @@ const s = {
   catRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
   catCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
   catVal:       { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1.2, marginBottom: 4, overflowWrap: 'break-word' as const },
-  // Prosenten er tallet BAK påstanden, ikke selve påstanden — den skal leses
-  // etter kategorinavnet, så den er lysegrå brødtekst og ikke et andre
-  // gull-element i samme kort.
-  catPct:       { fontSize: 13, fontWeight: 600, color: '#e8e4dd', marginBottom: 6 },
-  // Råtallene bak prosenten, dempet på samme linje. Terskelen er 3 svar, så
-  // «100 %» er ofte 3 av 3 — uten nevneren leser prosenten mye sterkere enn
-  // den har dekning for. Målt mot prod 4. august 2026: 3 av de 4 mest aktive
-  // spillerne fikk Kunst & Kultur 3/3 som sterkeste kategori.
-  catCount:     { fontSize: 12, fontWeight: 400, color: '#918f8a' },
+  // Prosent- og antall-linja under kategorinavnet bor i
+  // components/KategoriTall.tsx, sammen med vakten som avgjør om den vises.
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
@@ -151,6 +145,20 @@ const s = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const API_PAGE_SIZE = 50
+
+// Skjemaversjon for `sessionStorage`-bufferen under. BUMP DENNE hver gang
+// felt legges til eller fjernes i svaret fra /api/historikk.
+//
+// Bufferen lagrer hele JSON-svaret og leser det tilbake som om det matcher
+// dagens PlayerStats-type. Det gjør det ikke: et blob skrevet av forrige
+// deploy overlever i fanen, og nye felt er `undefined` i det. 4. august 2026
+// ga det «% riktige ( av )» på kategorikortene, og — mer stille —
+// `deltakelsesrekke: undefined`, som faller gjennom `> 0` og viser «0 nå» til
+// en spiller som har en rekke gående.
+//
+// Versjonen i NØKKELEN, ikke i verdien: en gammel nøkkel blir da aldri lest,
+// i stedet for å bli lest og forkastet. v2 = feltene lagt til 4. august 2026.
+const CACHE_VERSION = 'v2'
 
 // SVG graph dimensions
 const GW = 600
@@ -279,7 +287,8 @@ export default function HistorikkPage() {
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [historyLocked, setHistoryLocked] = useState(false)
 
-  // Cachen leses KUN i fetch-effekten under, på nøkkelen `qk_historikk_${bruker-id}`.
+  // Cachen leses KUN i fetch-effekten under, på nøkkelen
+  // `qk_historikk_${CACHE_VERSION}_${bruker-id}`.
   //
   // Her lå tidligere en useLayoutEffect som leste cachen før første paint for å
   // unngå skjelett-blink ved tilbakenavigering. Den kunne ikke vite hvem som var
@@ -359,7 +368,7 @@ export default function HistorikkPage() {
         return
       }
 
-      const CACHE_KEY = `qk_historikk_${session.user.id}`
+      const CACHE_KEY = `qk_historikk_${CACHE_VERSION}_${session.user.id}`
 
       try {
         const raw = sessionStorage.getItem(CACHE_KEY)
@@ -637,23 +646,21 @@ export default function HistorikkPage() {
                 <div style={s.catRow}>
                   <div style={s.catCard}>
                     <div style={s.catVal}>{stats.sterkeste_kategori}</div>
-                    <div style={s.catPct}>
-                      {stats.sterkeste_kategori_prosent}% riktige{' '}
-                      <span style={s.catCount}>
-                        ({stats.sterkeste_kategori_riktige} av {stats.sterkeste_kategori_besvart})
-                      </span>
-                    </div>
+                    <KategoriTall
+                      prosent={stats.sterkeste_kategori_prosent}
+                      riktige={stats.sterkeste_kategori_riktige}
+                      besvart={stats.sterkeste_kategori_besvart}
+                    />
                     <div style={s.featuredLbl}>Sterkeste kategori</div>
                     <div style={s.featuredCtx}>på tvers av all historikken din</div>
                   </div>
                   <div style={s.catCard}>
                     <div style={s.catVal}>{stats.svakeste_kategori}</div>
-                    <div style={s.catPct}>
-                      {stats.svakeste_kategori_prosent}% riktige{' '}
-                      <span style={s.catCount}>
-                        ({stats.svakeste_kategori_riktige} av {stats.svakeste_kategori_besvart})
-                      </span>
-                    </div>
+                    <KategoriTall
+                      prosent={stats.svakeste_kategori_prosent}
+                      riktige={stats.svakeste_kategori_riktige}
+                      besvart={stats.svakeste_kategori_besvart}
+                    />
                     <div style={s.featuredLbl}>Svakeste kategori</div>
                     <div style={s.featuredCtx}>her er det mest å hente</div>
                   </div>
