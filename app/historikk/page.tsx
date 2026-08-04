@@ -567,54 +567,20 @@ export default function HistorikkPage() {
             )}
           </div>
 
-          {/* Graph with inline progresjon */}
-          <ScoreGraph history={history} progMsg={progMsg} />
+          {/* Ferske tall først: deltakelsesrekke og kategoristyrke sier noe om
+              hvor spilleren står NÅ, og står derfor over den bakoverskuende
+              statistikken (utvikling, persentiler, totaler).
 
-          {/* Stats — featured + small */}
+              Samme betingelse som blokken lenger ned — `stats.total_attempts > 0`
+              — står bevisst to steder framfor at ScoreGraph flyttes inn i den:
+              grafen rendres uavhengig av `stats` og har sin egen tom-tilstand
+              for under to quizer. */}
           {stats && stats.total_attempts > 0 && (
             <>
-              <div style={s.featuredRow}>
-                <div style={s.featuredCard}>
-                  <div style={s.featuredNum}>
-                    {stats.bedre_enn_prosent !== null ? `${stats.bedre_enn_prosent}%` : '—'}
-                  </div>
-                  <div style={s.featuredLbl}>Bedre enn andre</div>
-                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
-                </div>
-                <div style={s.featuredCard}>
-                  <div style={s.featuredNum}>
-                    {stats.raskere_enn_prosent !== null ? `${stats.raskere_enn_prosent}%` : '—'}
-                  </div>
-                  <div style={s.featuredLbl}>Raskere enn andre</div>
-                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
-                </div>
-              </div>
-
-              <div style={s.smallGrid}>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.total_attempts}</div>
-                  <div style={s.smallLbl}>Quizer spilt</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.avg_score_pct}%</div>
-                  <div style={s.smallLbl}>Snitt score</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.best_streak}</div>
-                  <div style={s.smallLbl}>Beste streak</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>
-                    {stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—'}
-                  </div>
-                  <div style={s.smallLbl}>Beste plassering</div>
-                </div>
-              </div>
-
               {/* Deltakelsesrekke — fredagsquizer på rad. Ikke det samme som
-                  «Beste streak» over, som er riktige svar på rad inne i ÉN quiz.
-                  Rekken skal aldri stå som et bart 0-tall: når den er brutt er
-                  rekorden hele poenget, så den flyttes opp i selve tallinja. */}
+                  «Beste streak» lenger ned, som er riktige svar på rad inne i ÉN
+                  quiz. Rekken skal aldri stå som et bart 0-tall: når den er brutt
+                  er rekorden hele poenget, så den flyttes opp i selve tallinja. */}
               <div style={s.streakCard}>
                 {stats.deltakelsesrekke > 0 ? (
                   <>
@@ -666,6 +632,52 @@ export default function HistorikkPage() {
                   </div>
                 </div>
               )}
+            </>
+          )}
+
+          {/* Graph with inline progresjon */}
+          <ScoreGraph history={history} progMsg={progMsg} />
+
+          {/* Stats — featured + small */}
+          {stats && stats.total_attempts > 0 && (
+            <>
+              <div style={s.featuredRow}>
+                <div style={s.featuredCard}>
+                  <div style={s.featuredNum}>
+                    {stats.bedre_enn_prosent !== null ? `${stats.bedre_enn_prosent}%` : '—'}
+                  </div>
+                  <div style={s.featuredLbl}>Bedre enn andre</div>
+                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
+                </div>
+                <div style={s.featuredCard}>
+                  <div style={s.featuredNum}>
+                    {stats.raskere_enn_prosent !== null ? `${stats.raskere_enn_prosent}%` : '—'}
+                  </div>
+                  <div style={s.featuredLbl}>Raskere enn andre</div>
+                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
+                </div>
+              </div>
+
+              <div style={s.smallGrid}>
+                <div style={s.smallCard}>
+                  <div style={s.smallNum}>{stats.total_attempts}</div>
+                  <div style={s.smallLbl}>Quizer spilt</div>
+                </div>
+                <div style={s.smallCard}>
+                  <div style={s.smallNum}>{stats.avg_score_pct}%</div>
+                  <div style={s.smallLbl}>Snitt score</div>
+                </div>
+                <div style={s.smallCard}>
+                  <div style={s.smallNum}>{stats.best_streak}</div>
+                  <div style={s.smallLbl}>Beste streak</div>
+                </div>
+                <div style={s.smallCard}>
+                  <div style={s.smallNum}>
+                    {stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—'}
+                  </div>
+                  <div style={s.smallLbl}>Beste plassering</div>
+                </div>
+              </div>
             </>
           )}
 
