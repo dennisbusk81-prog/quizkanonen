@@ -56,9 +56,23 @@ export const STRENGTH_EXCLUDED_CATEGORIES = ['diverse']
 export interface CategoryStrength {
   sterkeste: string | null
   svakeste: string | null
+  // Andel riktige i prosent for de to kategoriene over, avrundet med
+  // Math.round som resten av /historikk (pct() i lib/history.ts).
+  //
+  // Prosenten følger kategorien sin: er kategorien null, er prosenten null, og
+  // omvendt. De skal ALDRI kunne stå fra hverandre — et prosenttall uten
+  // kategori ville vært et tall uten påstand, og en kategori uten tall er
+  // nettopp det denne utvidelsen fjernet.
+  sterkesteProsent: number | null
+  svakesteProsent: number | null
 }
 
-const EMPTY_STRENGTH: CategoryStrength = { sterkeste: null, svakeste: null }
+const EMPTY_STRENGTH: CategoryStrength = {
+  sterkeste: null,
+  svakeste: null,
+  sterkesteProsent: null,
+  svakesteProsent: null,
+}
 
 /**
  * Velger sterkeste og svakeste kategori ut fra andel riktige.
@@ -104,7 +118,19 @@ export function pickCategoryStrength(
     (a, b) => rate(a) - rate(b) || b.total - a.total || a.category.localeCompare(b.category, 'nb'),
   )
 
-  return { sterkeste: byBest[0].category, svakeste: byWorst[0].category }
+  // Prosenten regnes fra de SAMME radene som ble valgt, ikke slås opp på nytt
+  // på kategorinavn: to bøtter kan ha samme navn i ulik skrivemåte, og et
+  // oppslag ville da kunne treffe en annen rad enn den sorteringen valgte.
+  const best = byBest[0]
+  const worst = byWorst[0]
+  const asPct = (s: CategoryStat) => (s.total > 0 ? Math.round(rate(s) * 100) : 0)
+
+  return {
+    sterkeste: best.category,
+    svakeste: worst.category,
+    sterkesteProsent: asPct(best),
+    svakesteProsent: asPct(worst),
+  }
 }
 
 // Kobler på questionId → question.id, IKKE på indeks (withAnswer flytter

@@ -48,6 +48,13 @@ export type PlayerStats = {
   // pickCategoryStrength() i lib/category-stats.ts for reglene.
   sterkeste_kategori: string | null
   svakeste_kategori: string | null
+  // Andel riktige i de to kategoriene over, i prosent. Null nøyaktig når
+  // kategorien er null — se CategoryStrength i lib/category-stats.ts.
+  //
+  // NB: dette er andel av BESVARTE spørsmål i kategorien over hele
+  // historikken, ikke andel av alle spørsmål i banken i den kategorien.
+  sterkeste_kategori_prosent: number | null
+  svakeste_kategori_prosent: number | null
   // Fredagsquizer på rad. IKKE det samme som `best_streak` over, som er
   // riktige svar på rad inne i ÉN quiz (attempts.correct_streak). Se
   // lib/participation-streak.ts.
@@ -450,6 +457,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     progresjon: null,
     sterkeste_kategori: null,
     svakeste_kategori: null,
+    sterkeste_kategori_prosent: null,
+    svakeste_kategori_prosent: null,
     deltakelsesrekke: 0,
     lengste_deltakelsesrekke: 0,
   }
@@ -554,6 +563,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     progresjon,
     sterkeste_kategori: categoryStrength.sterkeste,
     svakeste_kategori: categoryStrength.svakeste,
+    sterkeste_kategori_prosent: categoryStrength.sterkesteProsent,
+    svakeste_kategori_prosent: categoryStrength.svakesteProsent,
     deltakelsesrekke: participation.current,
     lengste_deltakelsesrekke: participation.longest,
   }

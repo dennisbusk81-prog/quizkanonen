@@ -113,6 +113,10 @@ const s = {
   catRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
   catCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
   catVal:       { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1.2, marginBottom: 4, overflowWrap: 'break-word' as const },
+  // Prosenten er tallet BAK påstanden, ikke selve påstanden — den skal leses
+  // etter kategorinavnet, så den er lysegrå brødtekst og ikke et andre
+  // gull-element i samme kort.
+  catPct:       { fontSize: 13, fontWeight: 600, color: '#e8e4dd', marginBottom: 6 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
@@ -628,11 +632,17 @@ export default function HistorikkPage() {
                 <div style={s.catRow}>
                   <div style={s.catCard}>
                     <div style={s.catVal}>{stats.sterkeste_kategori}</div>
+                    {stats.sterkeste_kategori_prosent !== null && (
+                      <div style={s.catPct}>{stats.sterkeste_kategori_prosent}% riktige</div>
+                    )}
                     <div style={s.featuredLbl}>Sterkeste kategori</div>
                     <div style={s.featuredCtx}>på tvers av all historikken din</div>
                   </div>
                   <div style={s.catCard}>
                     <div style={s.catVal}>{stats.svakeste_kategori}</div>
+                    {stats.svakeste_kategori_prosent !== null && (
+                      <div style={s.catPct}>{stats.svakeste_kategori_prosent}% riktige</div>
+                    )}
                     <div style={s.featuredLbl}>Svakeste kategori</div>
                     <div style={s.featuredCtx}>her er det mest å hente</div>
                   </div>
