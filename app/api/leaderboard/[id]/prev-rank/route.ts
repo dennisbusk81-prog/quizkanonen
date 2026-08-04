@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
+import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import type { Attempt } from '@/lib/supabase'
 
 // ── Forrige quiz' rangering for «pil opp»-trendmerket ────────────────────────
@@ -40,7 +41,7 @@ export async function GET(
 
   const { data: prevQuiz } = await supabaseAdmin
     .from('quizzes')
-    .select('id')
+    .select('id, season_points_awarded')
     .lt('closes_at', current.closes_at)
     .order('closes_at', { ascending: false })
     .limit(1)
@@ -65,7 +66,28 @@ export async function GET(
     ? (prevAttempts as Attempt[]).filter(a => a.user_id != null && orgMemberIdSet.has(a.user_id))
     : (prevAttempts as Attempt[])
 
-  const ranked = rankAttempts(scopedPrev)
+  // Nasjonal sti: samme globale synlighets-gate som hovedruten — blokkerte
+  // (stengt org / eget opt-out) skal heller ikke lekke via rank-mappen for
+  // FORRIGE quiz. Settet gjelder forrige quiz' id og oppgjørsstatus, ikke
+  // gjeldende. Org-modus gates ikke (intern visning, medlemskap verifisert);
+  // gjester (user_id null) berøres aldri. Ruten er allerede solo-only
+  // (is_team=false i spørringen over), så lag-forbeholdet i lib-en treffer ikke.
+  let visiblePrev = scopedPrev
+  if (!orgMemberIdSet) {
+    const prevUserIds = [...new Set(
+      scopedPrev.map(a => a.user_id).filter((id): id is string => !!id)
+    )]
+    const blocked = await getGloballyBlockedSet(
+      prevQuiz.id,
+      prevUserIds,
+      (prevQuiz as { season_points_awarded?: boolean }).season_points_awarded === true,
+    )
+    if (blocked.size > 0) {
+      visiblePrev = scopedPrev.filter(a => a.user_id == null || !blocked.has(a.user_id))
+    }
+  }
+
+  const ranked = rankAttempts(visiblePrev)
   const prevRanks: Record<string, number> = {}
   for (const a of ranked) {
     const key = a.user_id ?? a.player_name

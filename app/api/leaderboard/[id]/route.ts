@@ -4,6 +4,7 @@ import { rankQuizAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
 import { isUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
+import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -140,7 +141,7 @@ export async function GET(
       .eq('is_team', isTeam),
     supabaseAdmin
       .from('quizzes')
-      .select('closes_at, hide_leaderboard_until_closed, show_leaderboard')
+      .select('closes_at, hide_leaderboard_until_closed, show_leaderboard, season_points_awarded')
       .eq('id', quizId)
       .maybeSingle(),
   ])
@@ -152,7 +153,35 @@ export async function GET(
     ? ((allRowsRaw ?? []) as RawRow[]).filter(r => r.user_id != null && memberIdSet.has(r.user_id))
     : ((allRowsRaw ?? []) as RawRow[])
 
-  const ranked = rankQuizAttempts(scopedRows, {
+  // ── Global synlighets-gate (nasjonal sti, solo-rommet) ──────────────────────
+  // Brukere blokkert fra den åpne konkurransen (org med allow_global_league=
+  // false, eller eget global_league_opt_out) skal ikke vises på den OFFENTLIGE
+  // resultatlisten — samme signal og samme «historikken står som den var»-
+  // semantikk som toppliste sin «Siste quiz»-fane (lib/globally-blocked-set.ts).
+  //
+  //   • ?org=-modus gates IKKE: der er visningen intern og medlemskapet
+  //     verifisert — det er nettopp dit de blokkerte hører hjemme.
+  //   • Lag-rommet gates IKKE: blocked-settet er utledet fra solo-populasjonen
+  //     (award skriver kun for is_team=false), så på en gjort-opp quiz ville
+  //     en lagleder uten solo-forsøk feilaktig regnes som blokkert.
+  //   • Gjester (user_id null) berøres aldri.
+  const seasonPointsAwarded = (quizRes.data as { season_points_awarded?: boolean } | null)
+    ?.season_points_awarded === true
+  let globallyBlocked: Set<string> = new Set()
+  if (!orgSlug && !isTeam) {
+    const attemptUserIds = [...new Set(
+      scopedRows.map(r => r.user_id).filter((id): id is string => !!id)
+    )]
+    globallyBlocked = await getGloballyBlockedSet(quizId, attemptUserIds, seasonPointsAwarded)
+  }
+  const publicRows = globallyBlocked.size > 0
+    ? scopedRows.filter(r => r.user_id == null || !globallyBlocked.has(r.user_id))
+    : scopedRows
+
+  // Alt offentlig (entries, totalCount, guestRank, søk/paginering) OG ikke-
+  // blokkerte brukeres egen plassering regnes fra det synlige feltet, slik at
+  // hero-tallet alltid stemmer med listen ved siden av.
+  const ranked = rankQuizAttempts(publicRows, {
     includeGuests: orgMemberIds ? false : true,
     requireSubmitted: true,
   })
@@ -168,7 +197,22 @@ export async function GET(
 
   // Forsøket til den som spør — grunnlaget for både «har spilt» (skjult
   // leaderboard) og brukerens egen plassering lenger nede.
-  const mine = userId ? ranked.find(r => r.user_id === userId) ?? null : null
+  //
+  // En BLOKKERT kaller finnes ikke i det synlige feltet, men eget resultat
+  // (score/tid/streak i userEntry) skal aldri skjules for en selv — gatingen
+  // over gjelder kun ANDRES visning. Fallback: finn raden i det ufiltrerte
+  // feltet. Ranken derfra vises ikke av dagens klient (internal-only-modus på
+  // resultatflatene viser internt tall i stedet), men raden bærer «har spilt»
+  // for hide_leaderboard-unntaket og brukerens egne tall.
+  const mine = userId
+    ? ranked.find(r => r.user_id === userId)
+      ?? (globallyBlocked.has(userId)
+        ? rankQuizAttempts(scopedRows, {
+            includeGuests: orgMemberIds ? false : true,
+            requireSubmitted: true,
+          }).find(r => r.user_id === userId) ?? null
+        : null)
+    : null
 
   // ── Når stillingen holdes tilbake — håndheves server-side ───────────────────
   // TO ULIKE quiz-innstillinger fører hit, og fram til 2. august 2026 lå begge
