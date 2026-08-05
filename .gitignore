@@ -43,3 +43,7 @@ next-env.d.ts
 .vercel
 .env*
 .claude/settings.local.json
+
+# sentry — kan inneholde auth-token i klartekst (.env* dekker
+# .env.sentry-build-plugin, men ikke denne)
+.sentryclirc
