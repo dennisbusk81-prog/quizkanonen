@@ -150,6 +150,11 @@ export default function AttemptDetailPage() {
       if (!raw) return
       const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
       if (Date.now() - cached.fetchedAt < CACHE_TTL) {
+        // Cachen ligger i sessionStorage, som ikke finnes under SSR. Hele
+        // poenget med useLayoutEffect her er å sette den FØR første paint; å
+        // flytte lesingen ut av effekten ville fjernet både muligheten og
+        // gevinsten.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetail(cached.data)
         setLoadState('ready')
       }

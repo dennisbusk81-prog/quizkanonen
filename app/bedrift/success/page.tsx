@@ -47,6 +47,11 @@ function SuccessContent() {
 
   useEffect(() => {
     if (session === undefined || !orgSlug) return
+    // Avslutter laste-tilstanden når sesjonssjekken er ferdig og ga «ikke
+    // innlogget». `session === undefined` (uavklart) og `null` (avklart, ingen)
+    // er to ulike tilstander; uten dette ville siden stått og lastet for en
+    // utlogget bruker.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!session) { setLoading(false); return }
 
     fetch(`/api/org/${orgSlug}/admin-data`, {

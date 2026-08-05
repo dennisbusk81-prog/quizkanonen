@@ -10,6 +10,11 @@ export default function WelcomeBanner() {
     // Show only on the very first visit — mark immediately so it won't repeat
     if (!localStorage.getItem(STORAGE_KEY)) {
       localStorage.setItem(STORAGE_KEY, '1')
+      // localStorage finnes ikke under SSR, så dette KAN ikke leses i en
+      // useState-initializer uten hydration mismatch. Lesing av nettleser-verdi
+      // etter montering er det tiltenkte mønsteret; alternativet
+      // (useSyncExternalStore) ville vært en omskriving, ikke en lint-fiks.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVisible(true)
     }
   }, [])

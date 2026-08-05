@@ -76,6 +76,11 @@ export default function RivalryCard({ prioritySlot }: Props) {
     setLoading(false)
   }, [])
 
+  // load() er en asynkron datahenting som starter med setLoading. Den KAN ikke
+  // kjøre under SSR (krever sesjonstoken fra nettleseren), så «hent ved
+  // montering» er riktig mønster her. Regelen er ment for avledet tilstand,
+  // ikke for I/O.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   async function handleAction(id: string, action: 'accept' | 'decline' | 'cancel') {

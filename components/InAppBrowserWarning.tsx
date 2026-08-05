@@ -10,6 +10,10 @@ function detectInApp(): { inApp: boolean; isAndroid: boolean } {
 
 export default function InAppBrowserWarning() {
   const [state, setState] = useState<{ inApp: boolean; isAndroid: boolean } | null>(null)
+  // detectInApp leser navigator.userAgent, som ikke finnes under SSR.
+  // Deteksjonen må skje etter montering; en useState-initializer ville krasjet
+  // på serveren.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setState(detectInApp()) }, [])
   if (!state?.inApp) return null
 

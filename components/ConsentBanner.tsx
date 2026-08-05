@@ -9,6 +9,10 @@ export default function ConsentBanner() {
 
   useEffect(() => {
     const consent = localStorage.getItem(CONSENT_KEY)
+    // Samtykket ligger i localStorage, som ikke finnes under SSR. Verdien må
+    // leses etter montering; en useState-initializer ville gitt hydration
+    // mismatch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!consent) setVisible(true)
   }, [])
 

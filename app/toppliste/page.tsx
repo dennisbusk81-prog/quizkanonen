@@ -23,6 +23,10 @@ function PlacementLockedBanner() {
   const [hasScores, setHasScores] = useState(false)
 
   useEffect(() => {
+    // Nullstillingsvakt i en asynkron datahenting: bytter bruker (eller logger
+    // ut) må det gamle svaret forkastes før den nye spørringen. Regelen er ment
+    // for avledet tilstand, ikke for opprydding rundt I/O.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!userId) { setHasScores(false); return }
     let cancelled = false
     supabase

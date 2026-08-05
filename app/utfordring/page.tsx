@@ -13,6 +13,10 @@ export default function UtfordringPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    // Leser window.location.search, som ikke finnes under SSR. Query-parameterne
+    // må hentes etter montering; en useState-initializer ville krasjet på
+    // serveren.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFra(params.get('fra') ?? 'En spiller')
     setQuiz(params.get('quiz') ?? '')
     setMounted(true)

@@ -29,10 +29,18 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
   const [quizOpen, setQuizOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
+  // mounted-flagget FINNES for å skille server-render fra klient. Å sette det
+  // utenfor en effekt ville gjort flagget sant allerede under SSR og dermed
+  // opphevet hele hensikten med det.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!target) return
+    // Nedtellingen avhenger av Date.now(), som er ULIK på server og klient.
+    // Førsteverdien må derfor settes etter montering; en useState-initializer
+    // ville gitt hydration mismatch. Samme grunn for setQuizOpen rett under.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimeLeft(getTimeLeft(target))
     setQuizOpen(target.getTime() <= Date.now())
     const interval = setInterval(() => {

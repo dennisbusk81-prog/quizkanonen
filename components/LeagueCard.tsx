@@ -26,6 +26,9 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
     try {
       const saved = localStorage.getItem(PREF_KEY)
       if (saved && leagues.some(l => l.id === saved)) {
+        // Lagret valg ligger i localStorage, som ikke finnes under SSR. Kan
+        // ikke flyttes inn i useState-initializeren uten hydration mismatch.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedId(saved)
       }
     } catch {
