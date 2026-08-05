@@ -17,11 +17,24 @@
 // `lib/answer-key-correction.ts` og `lib/invite-quota.ts`: beslutningen er verdt
 // å teste for seg, uavhengig av komponenten den kalles fra.
 
-// Teksten ruten svarer med i dobbel-scoring-vernet. Statuskoden alene holder
-// IKKE: submit-ruten har fem ulike 403-er (ugyldig token, forsøk i feil quiz,
-// ingen tilgang, manglende autentisering, for rask innsending), og fire av dem
-// er ekte feil. Meldingen er det eneste som skiller dem i dagens respons.
-const ALREADY_SUBMITTED_ERROR = 'Forsøket er allerede levert'
+// ⚠ DELT KONTRAKT MELLOM SERVER OG KLIENT — ikke bare en feiltekst.
+//
+// app/api/quiz/[id]/submit/route.ts svarer med denne teksten i dobbel-scoring-
+// vernet (403) og i race-grenen (409). Klienten LESER og TOLKER den:
+// `classifySubmitResponse` under bruker den til å skille «forsøket ditt ligger
+// allerede trygt lagret» fra en ekte feil, etter at en timeout har fått
+// spilleren til å trykke «Prøv igjen».
+//
+// Statuskoden alene holder IKKE: submit-ruten har fem ulike 403-er (ugyldig
+// token, forsøk i feil quiz, ingen tilgang, manglende autentisering, for rask
+// innsending), og fire av dem er ekte feil. Meldingen er det eneste som skiller
+// dem i dagens respons.
+//
+// Derfor: endres teksten, må den endres HER — begge sider leser samme konstant.
+// Skriver du den ordrett i ruten igjen, er koblingen brutt i stillhet, og
+// spilleren får «vi fikk ikke bekreftet» om et resultat som ER lagret.
+// lib/submit-response.test.ts feller en slik ordrett kopi.
+export const ALREADY_SUBMITTED_ERROR = 'Forsøket er allerede levert'
 
 export type SubmitClassification =
   // Serveren scoret forsøket nå og sendte tallene tilbake.

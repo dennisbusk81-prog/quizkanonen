@@ -4,6 +4,7 @@ import { calculateStreak } from '@/lib/ranking'
 import { rateLimit } from '@/lib/rate-limit'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
+import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
 
 // ── Service-role scoring for ukens quiz ──────────────────────────────────────
 // Klienten sender KUN rå svar (selectedAnswer + timeMs per spørsmål). Serveren
@@ -97,8 +98,11 @@ export async function POST(
   }
 
   // Dobbel-scoring-vern: allerede scoret?
+  // Teksten er en DELT KONTRAKT — klienten tolker den spesifikt som «forsøket
+  // ligger lagret» når spilleren har trykket «Prøv igjen» etter en timeout.
+  // Se lib/submit-response.ts. Ikke skriv den ordrett her.
   if (attempt.submitted_at !== null || (attempt.correct_answers ?? 0) > 0) {
-    return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 403 })
+    return NextResponse.json({ error: ALREADY_SUBMITTED_ERROR }, { status: 403 })
   }
 
   // ── 1b. Tidsvalidering mot server-klokken ───────────────────────────────────
@@ -236,7 +240,7 @@ export async function POST(
       .maybeSingle()
 
     if (!winner) {
-      return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 409 })
+      return NextResponse.json({ error: ALREADY_SUBMITTED_ERROR }, { status: 409 })
     }
     return NextResponse.json({
       correctAnswers: winner.correct_answers ?? 0,

@@ -26,7 +26,13 @@
 //   • Snus ok-sjekken → «et 200-svar er alltid scoret» ryker.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifySubmitResponse } from './submit-response'
+import { readFileSync } from 'node:fs'
+import { classifySubmitResponse, ALREADY_SUBMITTED_ERROR } from './submit-response'
+
+// Testene bruker KONSTANTEN, ikke en ordrett kopi av teksten. Det er poenget
+// med å dele den: endres ordlyden ett sted, følger server, klient og tester
+// med. Det som IKKE får endre seg i stillhet, er at ruten faktisk bruker
+// konstanten — det låses av den siste testen i denne filen.
 
 // De fem 403-ene submit-ruten faktisk kan svare med, ordrett fra route.ts.
 const OTHER_403S = [
@@ -60,7 +66,7 @@ test('HELE KJEDEN: timeout → retry → 403 «allerede levert» er en bekreftel
   const v = classifySubmitResponse({
     status: 403,
     ok: false,
-    errorMessage: 'Forsøket er allerede levert',
+    errorMessage: ALREADY_SUBMITTED_ERROR,
     hasTimedOutOnce,
   })
 
@@ -78,7 +84,7 @@ test('uten forutgående timeout er samme 403 fortsatt en feil', () => {
   const v = classifySubmitResponse({
     status: 403,
     ok: false,
-    errorMessage: 'Forsøket er allerede levert',
+    errorMessage: ALREADY_SUBMITTED_ERROR,
     hasTimedOutOnce: false,
   })
   assert.equal(v.kind, 'error')
@@ -104,7 +110,7 @@ test('409 med samme tekst er en ekte feil — attempts-raden fantes ikke', () =>
   // Rutens 409-gren betyr at raden ikke lot seg lese tilbake etter racet. Der
   // er noe faktisk galt, og det skal ikke skjules bak en resultatskjerm.
   const v = classifySubmitResponse({
-    status: 409, ok: false, errorMessage: 'Forsøket er allerede levert', hasTimedOutOnce: true,
+    status: 409, ok: false, errorMessage: ALREADY_SUBMITTED_ERROR, hasTimedOutOnce: true,
   })
   assert.equal(v.kind, 'error')
 })
@@ -116,4 +122,30 @@ test('serverfeil og rate-limit går feilveien uansett flaggets tilstand', () => 
       assert.equal(v.kind, 'error', `status ${status} (timeout=${hasTimedOutOnce}) ble ikke feil`)
     }
   }
+})
+
+// ── Én kilde til sannhet: ruten må BRUKE konstanten, ikke kopiere teksten ─────
+// Dette er hele grunnen til at konstanten finnes. Skriver noen teksten ordrett
+// i ruten igjen — eller endrer den der uten å vite at klienten leser den —
+// klassifiseringen brytes i stillhet, og spilleren får «vi fikk ikke bekreftet»
+// om et resultat som ligger trygt lagret. En oppførselstest kan ikke fange det:
+// den ville fortsatt vært grønn, fordi begge sider ville sett riktige ut hver
+// for seg.
+test('submit-ruten bruker konstanten og har ingen ordrett kopi av teksten', () => {
+  const route = readFileSync('app/api/quiz/[id]/submit/route.ts', 'utf8')
+
+  assert.ok(/import \{ ALREADY_SUBMITTED_ERROR \} from '@\/lib\/submit-response'/.test(route),
+    'submit-ruten importerer ikke ALREADY_SUBMITTED_ERROR — da er koblingen til klienten kun en tilfeldig lik streng')
+
+  // Teksten skal kun forekomme som konstant-referanse, aldri som strengliteral
+  // i en respons. Kommentarer er greit; det er `error: '...'` som er farlig.
+  const literalInResponse = new RegExp(`error:\\s*['"\`]${ALREADY_SUBMITTED_ERROR}['"\`]`)
+  assert.ok(!literalInResponse.test(route),
+    'submit-ruten har en ordrett kopi av teksten i en respons — bruk ALREADY_SUBMITTED_ERROR i stedet')
+
+  // Begge stedene som svarer med denne teksten (403-vernet og 409-race-grenen)
+  // skal gå via konstanten, ellers kan de drifte fra hverandre.
+  const uses = (route.match(/error: ALREADY_SUBMITTED_ERROR/g) ?? []).length
+  assert.equal(uses, 2,
+    `forventet 2 bruk av konstanten i ruten (403-vernet og 409-grenen), fant ${uses}`)
 })
