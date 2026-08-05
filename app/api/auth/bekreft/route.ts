@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 
 // Innløser en e-postlenke (token_hash) og oppretter sesjonen.
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const { origin } = new URL(request.url)
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`auth-verify:${ip}`, 20, 60_000).success) {
+  if (!(await rateLimitShared(`auth-verify:${ip}`, 20, 60_000)).success) {
     return NextResponse.redirect(`${origin}/login?error=rate_limit`, 303)
   }
 

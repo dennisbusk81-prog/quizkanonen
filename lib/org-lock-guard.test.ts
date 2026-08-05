@@ -151,8 +151,15 @@ mock.module('@/lib/email', {
   },
 })
 
+// BEGGE lagene må mockes her: fila kjører tre ruter, og de ligger på hver sin
+// side av migreringen. org/join bruker den delte limiteren (Upstash),
+// send-invite og settings bruker fortsatt in-memory-varianten.
 mock.module('@/lib/rate-limit', {
   namedExports: { rateLimit: () => ({ success: true, remaining: 99 }) },
+})
+
+mock.module('@/lib/rate-limit-shared', {
+  namedExports: { rateLimitShared: async () => ({ success: true, remaining: 99 }) },
 })
 
 const { requireUnlockedOrg, ORG_LOCKED_CODE, ORG_LOCKED_ERROR } = await import('@/lib/org-lock-guard')

@@ -35,8 +35,12 @@ mock.module('@/lib/supabase-admin', {
   },
 })
 
-mock.module('@/lib/rate-limit', {
-  namedExports: { rateLimit: () => ({ success: true, remaining: 99 }) },
+// Checkout er migrert til den DELTE rate-limiteren (Upstash). Mocken må derfor
+// treffe den nye modulen — mockes bare den gamle, kjører den ekte
+// rateLimitShared med sin modul-lokale Map, og testene ville påvirket
+// hverandre gjennom en teller som lever mellom dem.
+mock.module('@/lib/rate-limit-shared', {
+  namedExports: { rateLimitShared: async () => ({ success: true, remaining: 99 }) },
 })
 
 mock.module('@/lib/premium-state-io', {

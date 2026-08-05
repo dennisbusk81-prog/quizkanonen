@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`notify-subscribe:${ip}`, 5, 60_000).success) {
+  if (!(await rateLimitShared(`notify-subscribe:${ip}`, 5, 60_000)).success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

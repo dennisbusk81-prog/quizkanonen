@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { checkMemberCapacity } from '@/lib/org-plan'
 import {
   requireUnlockedOrg,
@@ -50,7 +50,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-join:${ip}`, 10, 60_000).success) {
+  if (!(await rateLimitShared(`org-join:${ip}`, 10, 60_000)).success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

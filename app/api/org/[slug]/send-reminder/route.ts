@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
 
   // Conservative rate limit — this sends emails
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`send-reminder:${ip}`, 5, 3_600_000).success) {
+  if (!(await rateLimitShared(`send-reminder:${ip}`, 5, 3_600_000)).success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

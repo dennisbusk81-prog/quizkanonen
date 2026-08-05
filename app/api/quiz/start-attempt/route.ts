@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
 
 // ── Service-role attempt-opprettelse ─────────────────────────────────────────
@@ -13,7 +13,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`start-attempt:${ip}`, 20, 600_000).success) {
+  if (!(await rateLimitShared(`start-attempt:${ip}`, 20, 600_000)).success) {
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 

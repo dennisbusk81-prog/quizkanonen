@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { calculateStreak } from '@/lib/ranking'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
@@ -32,7 +32,7 @@ export async function POST(
   if (!quizId) return NextResponse.json({ error: 'Mangler quiz-id' }, { status: 400 })
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`submit:${ip}`, 20, 600_000).success) {
+  if (!(await rateLimitShared(`submit:${ip}`, 20, 600_000)).success) {
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 

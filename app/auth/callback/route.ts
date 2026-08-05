@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 
 // PKCE-callback. Etter 20. juli er dette i praksis Google OAuth-stien.
@@ -17,7 +17,7 @@ import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 // e-postlenker som allerede er sendt ut med gammel mal.
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`auth-callback:${ip}`, 20, 60_000).success) {
+  if (!(await rateLimitShared(`auth-callback:${ip}`, 20, 60_000)).success) {
     // Målet må være /login, ikke forsiden: `?error=` leses kun av AuthForm, som
     // lever på /login og i AuthModal. Fram til 31. juli 2026 pekte denne til
     // `/?error=rate_limit`, og forsiden leser ikke parameteren i det hele tatt —

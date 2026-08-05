@@ -107,8 +107,10 @@ mock.module('@/lib/supabase-admin', {
   },
 })
 
-mock.module('@/lib/rate-limit', {
-  namedExports: { rateLimit: () => ({ success: true, remaining: 99 }) },
+// org/join er migrert til den DELTE rate-limiteren (Upstash) — se
+// lib/rate-limit-shared.ts. Mocken følger med dit.
+mock.module('@/lib/rate-limit-shared', {
+  namedExports: { rateLimitShared: async () => ({ success: true, remaining: 99 }) },
 })
 
 const { POST } = await import('@/app/api/org/join/[token]/route')

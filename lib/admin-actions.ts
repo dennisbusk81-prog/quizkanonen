@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers'
 import { timingSafeEqual } from 'crypto'
-import { rateLimit } from './rate-limit'
+import { rateLimitShared } from './rate-limit-shared'
 import { createAdminToken } from './admin-token'
 
 // ── Admin-innlogging ─────────────────────────────────────────────────────────
@@ -10,16 +10,19 @@ import { createAdminToken } from './admin-token'
 // begrensning: en angriper kunne kalle server-actionen ubegrenset og gjette
 // passordet i ro og mak. Nå:
 //
-//   • maks 5 forsøk per IP per 15 minutter (samme delte rate-limit som brukes på
-//     andre sensitive endepunkter, f.eks. check-email og start-attempt)
+//   • maks 5 forsøk per IP per 15 minutter, med DELT teller (se
+//     lib/rate-limit-shared.ts)
 //   • timing-safe sammenligning, så responstiden ikke lekker hvor mange tegn
 //     som stemmer
 //   • ved suksess returneres et signert, tidsbegrenset token — passordet lagres
 //     ALDRI i nettleseren
 //
-// Merk at rate-limit-lageret er per serverless-instans (modul-nivå Map). Det
-// gjør begrensningen mindre eksakt under høy samtidighet, men admin-login har i
-// praksis én bruker — og selv en delvis sperre gjør ubegrenset gjetting umulig.
+// Telleren lå fram til 5. august 2026 i en Map per serverless-instans. Vinduet
+// her er 15 minutter — lengre enn levetiden til en instans — så telleren kunne
+// forsvinne midt i vinduet helt uten samtidighet, og en gjetter som traff nye
+// instanser fikk stadig ferske forsøk. For nettopp passordgjetting er det den
+// svakeste varianten av sperren som teller, og derfor er dette kallstedet
+// blant dem som er flyttet til delt lagring.
 
 const MAX_ATTEMPTS = 5
 const WINDOW_MS = 15 * 60 * 1000
@@ -37,7 +40,7 @@ export async function verifyAdminPassword(password: string): Promise<AdminLoginR
   const hdrs = await headers()
   const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
-  if (!rateLimit(`admin-login:${ip}`, MAX_ATTEMPTS, WINDOW_MS).success) {
+  if (!(await rateLimitShared(`admin-login:${ip}`, MAX_ATTEMPTS, WINDOW_MS)).success) {
     return {
       ok: false,
       lockedOut: true,

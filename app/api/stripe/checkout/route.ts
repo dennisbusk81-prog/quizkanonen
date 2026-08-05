@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { getCodeCoverage } from '@/lib/premium-state-io'
 
 const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
@@ -9,7 +9,7 @@ const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`stripe-checkout:${ip}`, 10, 60_000)
+  const rl = await rateLimitShared(`stripe-checkout:${ip}`, 10, 60_000)
   if (!rl.success) {
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
