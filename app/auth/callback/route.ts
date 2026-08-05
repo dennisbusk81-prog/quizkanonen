@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { AUTH_LINK_RATE_LIMIT } from '@/lib/auth-rate-limit'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 
 // PKCE-callback. Etter 20. juli er dette i praksis Google OAuth-stien.
@@ -17,7 +18,7 @@ import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 // e-postlenker som allerede er sendt ut med gammel mal.
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`auth-callback:${ip}`, 20, 60_000)).success) {
+  if (!(await rateLimitShared(`auth-callback:${ip}`, AUTH_LINK_RATE_LIMIT.limit, AUTH_LINK_RATE_LIMIT.windowMs)).success) {
     // Målet må være /login, ikke forsiden: `?error=` leses kun av AuthForm, som
     // lever på /login og i AuthModal. Fram til 31. juli 2026 pekte denne til
     // `/?error=rate_limit`, og forsiden leser ikke parameteren i det hele tatt —
@@ -26,9 +27,12 @@ export async function GET(request: NextRequest) {
     // har allerede en `rate_limit`-case med ferdig tekst.
     //
     // Merk at `x-forwarded-for` gjør at en delt utgangs-IP (et kontor, en
-    // mobiloperatør) teller som ÉN klient mot grensen på 20/min — så dette
-    // treffer ikke bare misbruk, men også en gruppe ekte folk som logger inn
-    // samtidig. Desto viktigere at de får se hvorfor.
+    // mobiloperatør) teller som ÉN klient mot grensen — så dette treffer ikke
+    // bare misbruk, men også en gruppe ekte folk som logger inn samtidig.
+    // Desto viktigere at de får se hvorfor. Grensen ble hevet 20 → 60/min
+    // 5. august 2026 nettopp av den grunn; se lib/auth-rate-limit.ts. Til
+    // forskjell fra spillestien kan den ikke nøkles på bruker-id — her finnes
+    // ingen verifisert bruker ennå.
     return NextResponse.redirect(new URL('/login?error=rate_limit', request.url))
   }
 
