@@ -198,6 +198,14 @@ eller lignende bildefelt — kun avatar_color (fargevalg for initial-sirkel).
 Ingen bildeopplasting er bygget eller planlagt. Bekreftet empirisk mot prod
 24. juli 2026 (400 42703 column does not exist).
 
+### Testquiz for browser-verifisering
+`.claude/QK_TESTQUIZ_OPPSKRIFT.md` — ferdig opprettelses- og ryddespørring,
+med begrunnelse for hvert felt (`is_test`, `quiz_type='test'`,
+`season_points_awarded=true`, og hvorfor `is_active=true` er PÅKREVD for at
+anon-lesingen i spillsiden skal se quizen i det hele tatt). Skriv den ikke på
+nytt ad hoc — sju barnetabeller henger på `quizzes.id`, og `played_log`
+cascader ikke.
+
 ### Sesong-leaderboard-arkitektur
 - `season_scores`: scope_type IN ('global', 'league', 'organization')
 - Global: scope_type='global', scope_id=NULL
