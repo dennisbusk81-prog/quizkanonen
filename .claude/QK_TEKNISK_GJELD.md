@@ -7,6 +7,41 @@ QK_4-lanseringsdokumentet ved behov.
 
 ## LØST
 
+- **~~RPC-funksjoner kallbare direkte av `authenticated`, forbi API-rutenes
+  Premium-gating~~ — LØST 30. juli 2026.**
+  11 SECURITY DEFINER-funksjoner (`season_leaderboard_ranked/user_stats/
+  period_quizzes`, `quiz_leaderboard_ranked/user_stats/better_count`,
+  `attempt_answer_option_counts`, `attempt_answer_stats_by_attempts`,
+  `weekly_active_players`, `count_active_players_since`,
+  `count_active_leagues`) hadde kun `REVOKE EXECUTE FROM PUBLIC, anon` —
+  ikke `authenticated`. Rotårsak: Postgres gir `authenticated` en egen,
+  eksplisitt EXECUTE-grant som IKKE fjernes av en revoke fra PUBLIC alene.
+  Empirisk bekreftet mot prod med en fixture-gratisbruker (eget JWT + anon-
+  nøkkel, direkte mot `/rest/v1/rpc/`, utenom alle API-ruter): alle 11
+  svarte 200 med reelle data, inkludert andre brukeres eksakte plassering
+  og full svarfordeling. Rettet med eksplisitt
+  `REVOKE ... FROM authenticated, anon, PUBLIC`, verifisert i
+  `pg_proc.proacl`. `is_league_member` BEVISST IKKE revokert — kalles av
+  RLS-policyen på `league_members`, evaluerer kun kallerens egen
+  `auth.uid()`, lekker ingenting. `redeem_access_code` fikk samtidig
+  `SET search_path=''` + fullt kvalifiserte `public.`-navn (manglet begge
+  deler fra før), funksjonelt reverifisert mot ekte kodeinnløsning i prod.
+  **Ny regel for framtidige service_role-only SECURITY DEFINER-funksjoner:
+  REVOKE må navngi `authenticated` eksplisitt — `FROM PUBLIC, anon` er
+  ikke nok.** Full detalj: `QK_OPPDATERING_RPC_SIKKERHET_30JULI.md`.
+
+- **~~`access_codes`-tabellen offentlig lesbar uten innlogging~~ — LØST
+  30. juli 2026.** Egen sårbarhetsklasse fra punktet over (åpen
+  RLS-policy på en tabell, ikke manglende EXECUTE-revoke på en funksjon)
+  — oppdaget ved samme gjennomgang, ikke del av selve RPC-bestillingen.
+  En helt åpen SELECT-policy ga ren anon-nøkkel (ingen Authorization-
+  header) lesetilgang til samtlige koder i klartekst: kodeord, `max_uses`,
+  `used_count`, `is_active`, `valid_until`. Opphevet hele entropi-modellen
+  fra 26. juli for `personal`-koder. Ingen skade i dag — kun 2 koder i
+  prod, begge `shared`, én inaktiv og én oppbrukt 1/1 — men ville smelt
+  den dagen en `personal`-premiekode opprettes. Policyen droppet, RLS
+  slått på. Appens eneste tilgang er via `service_role`, upåvirket.
+
 - **~~Next.js rute-konflikt: `app/api/org/[id]/` vs `app/api/org/[slug]/`~~ — LØST 14. juni 2026.**
   `next dev` / `next start` krasjet med "You cannot use different slug names for the same dynamic path".
   De fem `[id]`-rutene (`reset-season`, `members-activity`, `send-invite`, `send-reminder`, `quiz-insights`)
@@ -38,6 +73,51 @@ QK_4-lanseringsdokumentet ved behov.
 ---
 
 ## MEDIUM
+
+- **`/api/toppliste` `last_quiz`-modus mangler `is_test`-filter — skjermet av
+  en KONVENSJON, ikke av en guard (notert 5. august 2026).**
+  Quiz-oppslaget i `last_quiz`-grenen
+  ([app/api/toppliste/route.ts](../app/api/toppliste/route.ts), ca. linje 216)
+  filtrerer på `quiz_type = 'weekly'` og krever minst én attempt via
+  `attempts!inner(id)`. Det holder testquizer unna **så lenge de opprettes
+  etter oppskriften**, som setter `quiz_type='test'`. En testquiz som lages ad
+  hoc med `quiz_type='weekly'` — og som noen faktisk spiller, slik at
+  INNER JOIN-en er tilfredsstilt — vil vises som «siste quiz» på topplisten
+  for alle.
+  `is_test` er det autoritative feltet og bør stå i spørringen ved siden av
+  `quiz_type`. Samme guard som `send-reminders`, `send-push` og (siden
+  `7c81c0a`) `notify-subscribers` har.
+  **Beslektet feilklasse:** `notify-subscribers` var «skjermet» på nøyaktig
+  samme måte — av et tidsvindu i stedet for en guard — helt til en etterlatt
+  testquiz åpnet 5. august og ble annonsert til påmeldingslisten. En guard som
+  avhenger av at alle følger en oppskrift, er en konvensjon.
+  Dokumentert også i `.claude/QK_TESTQUIZ_OPPSKRIFT.md`; står her fordi
+  gjeldslisten er stedet man leter.
+
+- **Analytics-sidens «Endre svar» kan ikke uttrykke multi-fasit — kollapser
+  den ved skriving på uspilte quizer (notert 5. august 2026).**
+  `saveCorrectAnswer()` i
+  [app/admin/quizzes/[id]/analytics/page.tsx](../app/admin/quizzes/%5Bid%5D/analytics/page.tsx)
+  (ca. linje 532) sender `PATCH { correct_answer: <én bokstav> }` til
+  `questions/[qid]`. Panelet er enkeltvalg og har ingen måte å uttrykke flere
+  riktige svar på.
+  Ruten selv er korrekt: `decideAnswerKeyPatch` skriver alltid BEGGE
+  fasitkolonnene sammen via `answerKeyColumns()`. Nettopp derfor kollapser en
+  fasit med flere riktige svar til ett — `answerKeyColumns(['B'])` gir
+  `correct_answers = NULL`. Feilen ligger i UI-et, ikke i skrivelogikken.
+  To utfall, avhengig av om quizen er spilt:
+  - **Spilt quiz** (har `attempt_answers`): ruten svarer `409
+    answer_key_locked`, og fasiten er trygg. Men UI-et viser bare «Kunne ikke
+    oppdatere riktig svar.» uten å si hvorfor, så admin står i en blindvei
+    uten forklaring. Siden analytics per definisjon handler om spilte quizer,
+    er dette normaltilfellet.
+  - **Uspilt quiz**: skrives direkte, og en multi-fasit kollapser stille.
+
+  Ingen regradering skjer i noen av tilfellene — den kodestien ligger kun i
+  `/api/admin/correct-answer`, som tar et array (`newCorrectAnswers`) og er
+  det panelet burde brukt. Se «Fasit-endring — ÉN kodesti» i CLAUDE.md.
+  **Ikke akutt i dag:** prod har 0 av 199 spørsmål med flere riktige svar.
+  Blir akutt første gang et multi-svar-spørsmål lages.
 
 - **/toppliste er full klient-side rendering med session-check-waterfall
   før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
