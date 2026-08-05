@@ -4,6 +4,7 @@ import { calculateStreak } from '@/lib/ranking'
 import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
@@ -37,7 +38,9 @@ export async function POST(
 
   // ── Lag 1: grov burst-brems per IP, FØR token-oppslaget ─────────────────────
   // In-memory med vilje — se lib/play-rate-limit.ts for hvorfor.
-  if (!rateLimit(`submit:pre:${ip}`, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+  const preKey = `submit:pre:${ip}`
+  if (!rateLimit(preKey, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+    logRateLimitHit(preKey, { lag: 'burst', ...PLAY_PRE_AUTH_BURST, quizId })
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
@@ -53,12 +56,9 @@ export async function POST(
   }
 
   // ── Lag 2: den ekte grensen — per BRUKER når vi har en, ellers per IP ───────
-  const rl = await rateLimitShared(
-    playRateLimitKey('submit', tokenUserId, ip),
-    PLAY_RATE_LIMIT.limit,
-    PLAY_RATE_LIMIT.windowMs,
-  )
-  if (!rl.success) {
+  const rlKey = playRateLimitKey('submit', tokenUserId, ip)
+  if (!(await rateLimitShared(rlKey, PLAY_RATE_LIMIT.limit, PLAY_RATE_LIMIT.windowMs)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', ...PLAY_RATE_LIMIT, innlogget: tokenUserId !== null, quizId })
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 

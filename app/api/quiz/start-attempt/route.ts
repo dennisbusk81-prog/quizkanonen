@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // ── Service-role attempt-opprettelse ─────────────────────────────────────────
 // Erstatter den gamle klient-INSERT-en i app/quiz/[id]/page.tsx (startQuiz).
@@ -18,7 +19,9 @@ export async function POST(request: NextRequest) {
 
   // ── Lag 1: grov burst-brems per IP, FØR token-oppslaget ─────────────────────
   // In-memory med vilje — se lib/play-rate-limit.ts for hvorfor.
-  if (!rateLimit(`start-attempt:pre:${ip}`, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+  const preKey = `start-attempt:pre:${ip}`
+  if (!rateLimit(preKey, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+    logRateLimitHit(preKey, { lag: 'burst', ...PLAY_PRE_AUTH_BURST })
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
@@ -34,12 +37,9 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Lag 2: den ekte grensen — per BRUKER når vi har en, ellers per IP ───────
-  const rl = await rateLimitShared(
-    playRateLimitKey('start-attempt', userId, ip),
-    PLAY_RATE_LIMIT.limit,
-    PLAY_RATE_LIMIT.windowMs,
-  )
-  if (!rl.success) {
+  const rlKey = playRateLimitKey('start-attempt', userId, ip)
+  if (!(await rateLimitShared(rlKey, PLAY_RATE_LIMIT.limit, PLAY_RATE_LIMIT.windowMs)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', ...PLAY_RATE_LIMIT, innlogget: userId !== null })
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 

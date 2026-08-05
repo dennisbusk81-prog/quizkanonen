@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
 
 export async function GET(request: NextRequest) {
@@ -22,8 +23,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
   }
 
-  const rl = rateLimit(`live-ranking:${ip}:${quizId}`, 30, 60_000)
+  // Nøklet på IP+quiz, ikke bruker — se FALLGRUVE-avsnittet i CLAUDE.md.
+  // Ruten kalles ÉN GANG PER SPØRSMÅL av Premium-spillere, så 30/60s tilsvarer
+  // ca. 6 samtidige Premium-spillere bak samme IP. At det ikke biter i dag
+  // skyldes utelukkende at telleren er in-memory (per instans).
+  //
+  // Loggingen finnes fordi symptomet ellers er HELT stille: et 429 gir
+  // `fetchLiveRankingFull` → null i klienten, og mellomskjermen vises uten
+  // plassering. Premium-funksjonen forsvinner da uten feilmelding, uten
+  // Sentry-hendelse og — fram til nå — uten loggspor.
+  const rlKey = `live-ranking:${ip}:${quizId}`
+  const rl = rateLimit(rlKey, 30, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000, quizId })
     return NextResponse.json(
       { error: 'For mange forespørsler — prøv igjen om litt' },
       { status: 429 }

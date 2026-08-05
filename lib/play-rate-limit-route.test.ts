@@ -284,6 +284,33 @@ test('et UGYLDIG token havner i anon-bøtta, ikke i en egen bruker-bøtte', asyn
 
 // ── Lag 1: burst-bremsen foran token-oppslaget ──────────────────────────────
 
+// ── 429 skal etterlate et SPOR (5. august 2026) ─────────────────────────────
+
+test('et 429 fra ruten logger den søkbare markøren — uten IP og uten bruker-id', async () => {
+  // Ikke nok at lib/rate-limit-log virker isolert: her bevises at rutene
+  // faktisk KALLER den. Et 429 var tidligere helt sporløst — ingen
+  // Sentry-hendelse (en returnert 429 er ikke et kast) og ingen logglinje.
+  const IP = '198.51.100.70'
+  const ekteWarn = console.warn
+  const linjer: unknown[][] = []
+  console.warn = (...a: unknown[]) => { linjer.push(a) }
+  try {
+    for (let i = 0; i < PLAY_RATE_LIMIT.limit + 1; i++) await start(IP, 'anna')
+  } finally {
+    console.warn = ekteWarn
+  }
+
+  const tekst = linjer
+    .map(a => a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' '))
+    .join('\n')
+
+  assert.match(tekst, /\[rate-limit\] TAK TRUFFET/, 'markøren må finnes i loggen')
+  assert.match(tekst, /start-attempt/, 'ruten må kunne identifiseres')
+  assert.match(tekst, /"innlogget":true/, 'en avvist INNLOGGET spiller er det alarmerende tilfellet')
+  assert.ok(!tekst.includes(IP), 'IP skal aldri havne i loggen')
+  assert.ok(!tekst.includes('user-anna'), 'bruker-id skal aldri havne i loggen')
+})
+
 test('lag 1 stopper en flom av søppel-tokens før den når den delte telleren', async () => {
   // Lag 1 er in-memory og teller ALLE forespørsler fra IP-en, også de som
   // aldri får en gyldig bruker. Uten det ville hvert søppel-token kostet et
