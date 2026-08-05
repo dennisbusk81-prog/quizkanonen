@@ -337,7 +337,36 @@ trusselbilder:
 `RESEND_API_KEY`, `ANTHROPIC_API_KEY`,
 `STRIPE_PRICE_FOUNDERS`,
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
-`STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`
+`STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`,
+`NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`
+
+### Feilovervåkning — Sentry (5. august 2026)
+`@sentry/nextjs` etter standardmønsteret for App Router: `instrumentation.ts`
+(laster runtime-riktig init + `onRequestError`), `instrumentation-client.ts`,
+`sentry.server.config.ts`, `sentry.edge.config.ts`, `app/global-error.tsx`,
+og `withSentryConfig`-innpakning i `next.config.ts`.
+
+**Invariant: alt som sendes til Sentry går gjennom `scrubEvent()` i
+`lib/sentry-scrub.ts`.** Skrubbingen ligger ved SINKET (kalles fra
+`beforeSend`/`beforeSendTransaction` i alle tre initene), ikke hos kallerne —
+samme mønster som escapingen i `lib/email-templates.ts`. Da kan ingen
+framtidig `Sentry.captureException(...)` et sted i koden glemme den. Fjerner
+e-post, JWT/Bearer, Stripe-nøkler, de bokstavelige verdiene av
+server-hemmelighetene i `process.env`, sensitive headere (`authorization`,
+`cookie`, `x-admin-token`, `x-attempt-token`, `stripe-signature`,
+`x-forwarded-for`) og invitasjons-token som ligger i STIEN
+(`/api/org/join/<token>`). `user.id` beholdes bevisst — sporbarhet uten
+personopplysning. `sendDefaultPii` er eksplisitt `false` alle tre stedene.
+
+Andre bevisste valg: `tracesSampleRate` 0,15 (gjelder KUN ytelses-transaksjoner
+— exceptions sendes alltid 100 %); Session Replay bevisst IKKE på; `ignoreErrors`
+holdt kort, og «Failed to fetch»/`AbortError` er med vilje IKKE filtrert bort
+fordi de er signalet fra timeout-vaktene i `lib/with-timeout.ts`; av lokalt med
+mindre `NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=1`; source maps slettes etter
+opplasting så serverkoden ikke serveres offentlig.
+
+Alt er inert uten `NEXT_PUBLIC_SENTRY_DSN` — `enabled` er da `false` og SDK-en
+sender ingenting.
 
 ---
 
