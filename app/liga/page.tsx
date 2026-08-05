@@ -152,6 +152,11 @@ export default function MineLigaerPage() {
           {slowLoad && (
             <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
               Dette tar lengre tid enn vanlig.{' '}
+              {/* Bevisst hard navigasjon, ikke <Link>: dette er «Prøv igjen» på
+                  /liga og peker på siden brukeren ALLEREDE står på. Full
+                  sidelast er hele poenget — en <Link> til samme rute ville
+                  truffet Next sin router-cache og i praksis ikke gjort noe. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
             </p>
           )}
@@ -167,6 +172,9 @@ export default function MineLigaerPage() {
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Vi klarte ikke å hente ligaene.</p>
           <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
+            {/* Bevisst hard navigasjon, ikke <Link>: «Prøv igjen» peker på
+                siden brukeren allerede står på. Full sidelast er hele poenget. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/liga" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
           </p>
         </div>

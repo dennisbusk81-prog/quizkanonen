@@ -194,6 +194,11 @@ export default function BliMedPage() {
               <p style={s.sub}>Invitasjonslenken er kanskje ugyldig eller utløpt.</p>
               {joinError && <div style={s.error}>{joinError}</div>}
               <div style={{ marginTop: 20 }}>
+                {/* Bevisst hard navigasjon, ikke <Link>: brukeren kommer hit
+                    rett etter en innmelding som endret medlemskapet. Full
+                    sidelast garanterer at /liga viser fersk server-data i
+                    stedet for en router-cache fra før innmeldingen. */}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                 <a
                   href="/liga"
                   style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}

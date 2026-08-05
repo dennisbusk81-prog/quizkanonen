@@ -2499,6 +2499,13 @@ export default function QuizPage() {
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
       <p style={{color:'#e8e4dd',fontSize:14}}>Fant ikke quizen.</p>
+      {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+          quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+          deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+          kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+          Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+          se lint-oppryddingen 5. august 2026. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a href="/" style={{color:'var(--gold)',fontSize:13,marginTop:16,display:'block'}}>← Tilbake</a>
     </div></div></div></>
   )
@@ -2581,6 +2588,13 @@ export default function QuizPage() {
           {quiz.show_leaderboard && (
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se ukens resultater</a>
           )}
+          {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+              quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+              deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+              kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+              Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+              se lint-oppryddingen 5. august 2026. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
         </div>
       </div></div></div></>
@@ -3750,6 +3764,13 @@ export default function QuizPage() {
 
         {isLoggedIn && (
           <p style={{ textAlign: 'center', marginTop: 4, marginBottom: 8 }}>
+            {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+                quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+                deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+                kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+                Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+                se lint-oppryddingen 5. august 2026. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
               Spill mot vennene dine → Opprett en liga
             </a>
@@ -3775,6 +3796,13 @@ export default function QuizPage() {
           </div>
         )}
 
+        {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+            quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+            deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+            kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+            Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+            se lint-oppryddingen 5. august 2026. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
 
@@ -3788,6 +3816,13 @@ export default function QuizPage() {
               <p style={{ fontSize: 12, color: '#e8e4dd' }}>{ligaBox.name}</p>
             </a>
           ) : ligaBox.type === 'multi' ? (
+            // Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+            // quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+            // deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+            // kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+            // Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+            // se lint-oppryddingen 5. august 2026.
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Se hvordan du gjør det mot vennene dine →
@@ -3795,6 +3830,13 @@ export default function QuizPage() {
               <p style={{ fontSize: 12, color: '#e8e4dd' }}>Se dine ligaer</p>
             </a>
           ) : (
+            // Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
+            // quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
+            // deltakerantall, ligastatus) i stedet for Next sin router-cache, som
+            // kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
+            // Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
+            // se lint-oppryddingen 5. august 2026.
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
             <a href="/liga" style={{ textDecoration: 'none' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Konkurrer mot venner

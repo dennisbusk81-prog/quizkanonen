@@ -22,6 +22,18 @@ import type React from 'react'
 // overflow noe sted i .qk-nav-actions nå, så den bug-klassen er strukturelt
 // umulig å gjenskape.)
 //
+// NAVIGASJONSLENKENE ER BEVISST <a>, IKKE <Link>. Full sidelast gir fersk
+// server-data ved seksjonsbytte i stedet for Next sin router-cache (som kan
+// være opptil 30 s gammel), og rydder samtidig klienttilstand. Mønsteret er
+// konsekvent i hele filen — /toppliste, /bedrift og /profil bruker det også,
+// de flagges bare tilfeldigvis ikke av @next/next/no-html-link-for-pages,
+// som kun kjenner igjen ruter den kan matche mot en dynamisk mappe. Derfor
+// står det målrettede disables på /liga og /historikk: regelen fyrer
+// vilkårlig på et valg som er tatt med vilje. Vurdert og bekreftet under
+// lint-oppryddingen 5. august 2026; en eventuell overgang til
+// <Link prefetch={false}> ligger i backloggen og krever manuell test av
+// spillestien.
+//
 // .qk-mobile-only-inline brukes til å bytte "Spill ukens quiz →" til det
 // kortere "Spill nå →" (samme tekst som forsidens quiz-kort) kun på mobil —
 // gir nok plass til hamburger + Logg inn + knappen samtidig i verste fall.
@@ -138,6 +150,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       <>
         <style>{NAV_MOBILE_CSS}</style>
         <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>
+        {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+            server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+            — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/liga" style={navLink} className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -190,6 +206,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               >
                 For bedrifter
               </a>
+              {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+                  server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+                  — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -262,6 +282,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         </Link>
       )}
       {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>}
+      {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+          server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+          — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a href="/liga" style={navLink} className="nav-hide-mobile"
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -339,6 +363,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Sesongtoppliste
               </a>
             )}
+            {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+                server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+                — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
               onMouseEnter={e => e.currentTarget.style.background = '#262930'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -439,6 +467,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Min profil
             </a>
+            {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+                server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+                — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/liga"
               onClick={() => setDropdownOpen(false)}
@@ -449,6 +481,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               Mine ligaer
             </a>
             {isPremium && (
+              // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+              // server-data i stedet for Next sin router-cache. Ikke en forglemmelse
+              // — se toppkommentaren og lint-oppryddingen 5. august 2026.
+              // eslint-disable-next-line @next/next/no-html-link-for-pages
               <a
                 href="/historikk"
                 onClick={() => setDropdownOpen(false)}

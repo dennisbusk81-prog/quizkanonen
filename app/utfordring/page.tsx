@@ -95,6 +95,10 @@ export default function UtfordringPage() {
                 Ta imot utfordringen
               </a>
             ) : (
+              // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+              // server-data på forsiden (aktiv quiz, deltakerantall) i stedet
+              // for Next sin router-cache.
+              // eslint-disable-next-line @next/next/no-html-link-for-pages
               <a
                 href="/"
                 style={{

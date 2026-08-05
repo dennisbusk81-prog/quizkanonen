@@ -10,6 +10,11 @@
       {/* Header */}
       <div style={{ borderBottom: '1px solid #2a2d38' }}>
         <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
+          {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
+              server-data på forsiden (aktiv quiz, deltakerantall) i stedet for
+              Next sin router-cache, som kan være opptil 30 s gammel. Ikke en
+              forglemmelse — se lint-oppryddingen 5. august 2026. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
             Quizkanonen
           </a>
@@ -172,6 +177,9 @@
         {/* Footer nav */}
         <div style={{ marginTop: '4rem', paddingTop: '2rem', borderTop: '1px solid #2a2d38', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <a href="/vilkar" style={{ color: '#c9a84c', fontSize: '0.9rem', textDecoration: 'none' }}>Brukervilkår →</a>
+          {/* Bevisst hard navigasjon, ikke <Link>: fersk server-data på
+              forsiden i stedet for Next sin router-cache. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" style={{ color: '#918f8a', fontSize: '0.9rem', textDecoration: 'none' }}>← Tilbake til forsiden</a>
         </div>
 

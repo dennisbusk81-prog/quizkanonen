@@ -232,6 +232,13 @@ export default function UserMenu() {
                 >
                   Min profil
                 </a>
+                {/* Bevisst hard navigasjon, ikke <Link>: hele denne menyen
+                    bruker <a>, også til /toppliste, /bedrift og /profil, som
+                    regelen tilfeldigvis ikke flagger. Full sidelast gir fersk
+                    server-data i stedet for Next sin router-cache, og rydder
+                    samtidig klienttilstand ved bytte av seksjon. Ikke en
+                    forglemmelse — se lint-oppryddingen 5. august 2026. */}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                 <a
                   href="/liga"
                   onClick={() => setDropdownOpen(false)}
@@ -285,6 +292,10 @@ export default function UserMenu() {
                 </a>
                 {profileLoaded && isPremium ? (
                   <>
+                    {/* Bevisst hard navigasjon, ikke <Link>: fersk server-data
+                        i stedet for Next sin router-cache. Samme mønster som
+                        resten av menyen. */}
+                    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                     <a
                       href="/historikk"
                       onClick={() => setDropdownOpen(false)}
