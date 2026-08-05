@@ -58,7 +58,6 @@ export default function RootLayout({
         <NameRequiredModal />
         <ServiceWorkerRegistration />
         <ConsentBanner />
-        </ProfileProvider>
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs" style={{ color: '#918f8a' }}>
             <span>© 2026 Quizkanonen</span>
@@ -77,6 +76,7 @@ export default function RootLayout({
             <a href="mailto:quizkanonen@gmail.com" className="qk-footer-link transition-all">Kontakt</a>
           </div>
         </footer>
+        </ProfileProvider>
       </body>
     </html>
   );
