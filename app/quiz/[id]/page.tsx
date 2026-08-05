@@ -25,6 +25,16 @@ import { decidePlacementDisplay } from '@/lib/placement-visibility'
 // ved kaldstart) og godt under det en spiller opplever som «henger».
 const NEXT_STEP_TIMEOUT_MS = 9000
 
+// Samme øvre grense ved MÅLSTREKEN (finishQuiz og already_played-stien).
+// Fram til 5. august 2026 hadde ingen av kallene der noen grense — nøyaktig
+// samme svakhet som goToNext hadde før 1. august, bare på et verre tidspunkt:
+// et hengende submit-kall lot spilleren stå på siste spørsmål med knappen
+// disabled i «Laster…» for alltid, og et hengende /standings i
+// already_played-stien lot siden stå på lasteskjermen (kallet ligger FØR
+// setLoading(false)). Egen konstant fra NEXT_STEP_TIMEOUT_MS fordi de to
+// stedene er uavhengige og kan trenge ulike tall senere; i dag er begge 9 sek.
+const FINISH_TIMEOUT_MS = 9000
+
 type PlayerInfo = { name: string; ageConfirmed: boolean }
 // Hvorfor vi ikke kom videre — styrer teksten spilleren får. En timeout er
 // ikke det samme som en feil: serveren kan ha svart helt fint, kallet nådde
@@ -1030,6 +1040,15 @@ export default function QuizPage() {
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
+  // Submit ved målstreken svarte ikke innen fristen. Holdes BEVISST atskilt fra
+  // finishSaveError: en timeout gir oss ingen kunnskap om hvorvidt serveren
+  // rakk å lagre resultatet, og da kan vi ikke påstå at det ikke ble lagret.
+  const [finishTimedOut, setFinishTimedOut] = useState(false)
+  // Har vi timet ut minst én gang i dette forsøket? Styrer teksten hvis et
+  // senere forsøk feiler: submit er ikke idempotent — et nytt kall etter at det
+  // første faktisk landet svarer 403 «Forsøket er allerede levert» — så
+  // «Resultatet ble ikke lagret» ville da vært en direkte usann påstand.
+  const finishTimedOutOnceRef = useRef(false)
   const [nextLoadFailed, setNextLoadFailed] = useState<NextLoadFailure>(null)
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -1220,13 +1239,19 @@ export default function QuizPage() {
         // Hent topp 3 direkte her — phase-useEffect kan miste fase-endringen i
         // already_played-stien pga. timing med loading-state. Samme delte
         // /standings-liste som resultatskjermen bruker (kun topp-3 vises her).
-        try {
-          const t3res = await fetch(`/api/quiz/${quizId}/standings`)
-          if (t3res.ok) {
-            const t3json = await t3res.json()
-            if (Array.isArray(t3json.top3)) setTop3(t3json.top3)
-          }
-        } catch {}
+        // Tidsgrense: dette kallet ligger FØR setLoading(false), så et fetch som
+        // stopper opp på klienten ville låst hele siden på lasteskjermen. Topp-3
+        // er pynt her — ved timeout viser vi resten av skjermen uten den, i
+        // stedet for ikke å vise noe i det hele tatt.
+        const t3Controller = new AbortController()
+        const t3json = await withTimeoutOrNull(
+          (async () => {
+            const t3res = await fetch(`/api/quiz/${quizId}/standings`, { signal: t3Controller.signal })
+            return t3res.ok ? (await t3res.json()) as { top3?: typeof top3 } : null
+          })(),
+          { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
+        )
+        if (t3json && Array.isArray(t3json.top3)) setTop3(t3json.top3)
         setLoading(false)
         return
       }
@@ -1267,10 +1292,15 @@ export default function QuizPage() {
     // (samme /standings-liste, samme øyeblikk — kan ikke divergere). Her henter
     // vi kun for 'already_played', der plasseringskortet ikke vises.
     if (phase === 'already_played') {
-      fetch(`/api/quiz/${quizId}/standings`)
-        .then(r => r.ok ? r.json() : { top3: [] })
-        .then(j => { if (Array.isArray(j.top3)) setTop3(j.top3) })
-        .catch(() => {})
+      // Ingen fryserisiko her (ingenting venter på dette kallet), men det får
+      // samme grense som de øvrige standings-kallene — et hengende kall skal
+      // ikke bli liggende og lande midt i en senere fase.
+      const t3Controller = new AbortController()
+      withTimeoutOrNull(
+        fetch(`/api/quiz/${quizId}/standings`, { signal: t3Controller.signal })
+          .then(r => r.ok ? r.json() as Promise<{ top3?: typeof top3 }> : null),
+        { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
+      ).then(j => { if (j && Array.isArray(j.top3)) setTop3(j.top3) })
     }
   }, [phase, quizId])
 
@@ -2046,28 +2076,59 @@ export default function QuizPage() {
     let correct = finalAnswers.filter(a => a.isCorrect).length
     let streak = calculateStreak(finalAnswers.map(a => ({ is_correct: a.isCorrect })))
     let finalTimeMs = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
+    setFinishTimedOut(false)
     try {
       if (attemptId) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const res = await fetch(`/api/quiz/${quizId}/submit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-            ...(attemptToken ? { 'x-attempt-token': attemptToken } : {}),
-          },
-          body: JSON.stringify({
-            attemptId,
-            deviceId,
-            answers: finalAnswers.map(ans => ({
-              questionId: ans.questionId,
-              selectedAnswer: ans.selectedAnswer,
-              timeMs: ans.timeMs,
-            })),
-          }),
-        })
-        if (!res.ok) throw new Error(`submit returnerte ${res.status}`)
-        const result: { correctAnswers: number; totalTimeMs: number; correctStreak: number } = await res.json()
+        // ── Øvre tidsgrense på innsendingen (5. august 2026) ──────────────────
+        // getSession, selve POST-en og json-parsingen ligger inne i SAMME
+        // withTimeout: alle tre er await-punkter uten egen grense, og et hvilket
+        // som helst av dem kunne holde finishQuiz åpen for alltid. Da nås aldri
+        // setPhase('finished') nederst — og goToNext rekker aldri å frigi
+        // advancingRef heller, så knappen ble stående disabled i «Laster…».
+        // Samme fareklasse som mellomskjermen hadde 31. juli, bare ved
+        // målstreken. Selve scoring-/submit-logikken er uendret; dette er kun
+        // en vakt rundt kallet.
+        const submitController = new AbortController()
+        const submitOutcome = await withTimeout(
+          (async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            const res = await fetch(`/api/quiz/${quizId}/submit`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+                ...(attemptToken ? { 'x-attempt-token': attemptToken } : {}),
+              },
+              body: JSON.stringify({
+                attemptId,
+                deviceId,
+                answers: finalAnswers.map(ans => ({
+                  questionId: ans.questionId,
+                  selectedAnswer: ans.selectedAnswer,
+                  timeMs: ans.timeMs,
+                })),
+              }),
+              signal: submitController.signal,
+            })
+            if (!res.ok) throw new Error(`submit returnerte ${res.status}`)
+            return (await res.json()) as { correctAnswers: number; totalTimeMs: number; correctStreak: number }
+          })(),
+          { ms: FINISH_TIMEOUT_MS, onTimeout: () => submitController.abort() },
+        )
+        if (!submitOutcome.ok) {
+          // Timeout og feil skilles her, som i goToNext — men konsekvensen er en
+          // annen: ved en ren feil VET vi at innsendingen ikke gikk gjennom, ved
+          // en timeout vet vi ingenting. Timeout får derfor sin egen skjerm med
+          // valg, ikke feilmeldingen som påstår at ingenting ble lagret.
+          if (submitOutcome.timedOut) {
+            console.warn(`[quiz] submit svarte ikke innen ${FINISH_TIMEOUT_MS} ms`, { quizId, attemptId })
+            finishTimedOutOnceRef.current = true
+            setFinishTimedOut(true)
+            return
+          }
+          throw new Error('submit feilet')
+        }
+        const result = submitOutcome.value
         correct = result.correctAnswers
         finalTimeMs = result.totalTimeMs
         streak = result.correctStreak
@@ -2076,8 +2137,6 @@ export default function QuizPage() {
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
       localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: finalTimeMs }))
-      // finishSess brukes også av fallback-leaderboard-fetchen lenger nede.
-      const { data: { session: finishSess } } = await supabase.auth.getSession()
       // Bevisst resjekk parallelt med snapshot-fetchen — founders-aktivering kan
       // ha skjedd etter quiz-start. Rutes gjennom context sin refreshProfile()
       // (tvungen fersk server-sjekk, null-safe). Fire-and-forget: IKKE await —
@@ -2087,63 +2146,88 @@ export default function QuizPage() {
       // Hent topp-3 OG plassering fra ETT felles endepunkt (samme rangerte liste,
       // samme øyeblikk) — så "Topp 3" og "Din plassering" aldri kan divergere.
       // attemptId sikrer at spilleren selv er med i lista (rebuild om nødvendig).
-      let placementSet = false
-      try {
-        const stParams = new URLSearchParams({
-          question: String(totalQuestions - 1),
-          correct: String(correct),
-          time: String(finalTimeMs),
-        })
-        if (attemptId) stParams.set('attemptId', attemptId)
-        const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`)
-        if (stRes.ok) {
-          const st: {
-            top3?: typeof top3
-            placement?: { rank: number; total: number; low: number; high: number } | null
-          } = await stRes.json()
-          if (Array.isArray(st.top3)) setTop3(st.top3)
-          if (st.placement && st.placement.total > 1) {
-            setEstimatedPlacement({
-              rank: st.placement.rank,
-              low: st.placement.low,
-              high: st.placement.high,
-              total: st.placement.total,
+      // ── Alt herfra er pynt: topp-3 og plassering ──────────────────────────
+      // Resultatet er lagret; det som gjenstår er en sesjonsoppslag og opptil to
+      // fetch-kall i serie. ETT felles 9-sekunders budsjett for hele blokken, ikke
+      // ett per kall: spilleren skal aldri vente mer enn én grense på å få se
+      // resultatskjermen, uansett hvor mange av kallene som henger. Utfallet
+      // forkastes ved timeout (withTimeoutOrNull) — resultatskjermen vises da
+      // uten plassering i stedet for ikke i det hele tatt, samme degradering som
+      // rangeringskallene i goToNext har.
+      const extrasController = new AbortController()
+      await withTimeoutOrNull(
+        (async () => {
+          // finishSess brukes også av fallback-leaderboard-fetchen lenger nede.
+          const { data: { session: finishSess } } = await supabase.auth.getSession()
+          let placementSet = false
+          try {
+            const stParams = new URLSearchParams({
+              question: String(totalQuestions - 1),
+              correct: String(correct),
+              time: String(finalTimeMs),
             })
-            placementSet = true
+            if (attemptId) stParams.set('attemptId', attemptId)
+            const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`, { signal: extrasController.signal })
+            if (stRes.ok) {
+              const st: {
+                top3?: typeof top3
+                placement?: { rank: number; total: number; low: number; high: number } | null
+              } = await stRes.json()
+              if (Array.isArray(st.top3)) setTop3(st.top3)
+              if (st.placement && st.placement.total > 1) {
+                setEstimatedPlacement({
+                  rank: st.placement.rank,
+                  low: st.placement.low,
+                  high: st.placement.high,
+                  total: st.placement.total,
+                })
+                placementSet = true
+              }
+            }
+          } catch { /* standings feilet — fall through til fallback */ }
+          if (!placementSet) {
+            // Fallback via leaderboard-API-et (samme delte rangerings-helper) i stedet
+            // for en usortert/udedupert anon-spørring. Anon-klienten kan uansett ikke
+            // lese user_id lenger (kolonne-lås), så server-ruten er eneste korrekte vei.
+            try {
+              const params = new URLSearchParams()
+              if (!finishSess?.access_token) {
+                params.set('my_correct', String(correct))
+                params.set('my_time', String(finalTimeMs))
+              }
+              const lbRes = await fetch(`/api/leaderboard/${quizId}?${params.toString()}`, {
+                headers: finishSess?.access_token ? { Authorization: `Bearer ${finishSess.access_token}` } : {},
+                signal: extrasController.signal,
+              })
+              if (lbRes.ok) {
+                // `userRank` (eksakt) sendes kun til Premium. Gratisbrukere får raden
+                // sin med en grovmalt `rank` (starten av 10-båndet) — som er alt
+                // gratis-visningen under uansett bruker, siden den regner seg fram til
+                // «et sted mellom plass X og Y» fra `low`.
+                const lb: { userRank?: number | null; userEntry?: { rank: number } | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
+                const rank = lb.userRank ?? lb.userEntry?.rank ?? lb.guestRank ?? null
+                const total = lb.totalCount ?? 0
+                if (rank && total > 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
+              }
+            } catch { /* fallback feilet — la plassering være uoppgitt */ }
           }
-        }
-      } catch { /* standings feilet — fall through til fallback */ }
-      if (!placementSet) {
-        // Fallback via leaderboard-API-et (samme delte rangerings-helper) i stedet
-        // for en usortert/udedupert anon-spørring. Anon-klienten kan uansett ikke
-        // lese user_id lenger (kolonne-lås), så server-ruten er eneste korrekte vei.
-        try {
-          const params = new URLSearchParams()
-          if (!finishSess?.access_token) {
-            params.set('my_correct', String(correct))
-            params.set('my_time', String(finalTimeMs))
-          }
-          const lbRes = await fetch(`/api/leaderboard/${quizId}?${params.toString()}`, {
-            headers: finishSess?.access_token ? { Authorization: `Bearer ${finishSess.access_token}` } : {},
-          })
-          if (lbRes.ok) {
-            // `userRank` (eksakt) sendes kun til Premium. Gratisbrukere får raden
-            // sin med en grovmalt `rank` (starten av 10-båndet) — som er alt
-            // gratis-visningen under uansett bruker, siden den regner seg fram til
-            // «et sted mellom plass X og Y» fra `low`.
-            const lb: { userRank?: number | null; userEntry?: { rank: number } | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
-            const rank = lb.userRank ?? lb.userEntry?.rank ?? lb.guestRank ?? null
-            const total = lb.totalCount ?? 0
-            if (rank && total > 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
-          }
-        } catch { /* fallback feilet — la plassering være uoppgitt */ }
-      }
+          return true
+        })(),
+        { ms: FINISH_TIMEOUT_MS, onTimeout: () => extrasController.abort() },
+      )
     } catch {
       const isLate = quiz?.closes_at && new Date(quiz.closes_at) < new Date()
+      // Rekkefølgen er bevisst. Har vi allerede timet ut én gang, kan vi ikke si
+      // «ble ikke lagret»: submit er ikke idempotent, så et nytt forsøk etter at
+      // det første faktisk landet svarer 403 «Forsøket er allerede levert» — det
+      // ser ut som en feil her, men betyr det motsatte. Vi sier derfor kun det vi
+      // faktisk vet, nemlig at vi ikke fikk bekreftelse.
       setFinishSaveError(
         isLate
           ? 'Quizen stengte mens du spilte — svaret ditt ble ikke lagret. Sesong-poeng gjelder ikke for sente innleveringer.'
-          : 'Resultatet ble ikke lagret — sjekk internettforbindelsen din'
+          : finishTimedOutOnceRef.current
+            ? 'Vi fikk ikke bekreftet om resultatet ble lagret. Sjekk topplisten om litt.'
+            : 'Resultatet ble ikke lagret — sjekk internettforbindelsen din'
       )
       setTimeout(() => {
         setFinishSaveError(null)
@@ -2152,6 +2236,19 @@ export default function QuizPage() {
       return
     }
     setPhase('finished')
+  }
+
+  // Nytt forsøk etter en submit-timeout. Speiler guard-håndteringen i goToNext
+  // (som er den som normalt setter og frigir dem rundt finishQuiz), slik at
+  // knappen under overlayet ikke kan trykkes mens forsøket pågår.
+  const retryFinishQuiz = async () => {
+    if (advancingRef.current) return
+    setFinishTimedOut(false)
+    advancingRef.current = true
+    setIsAdvancing(true)
+    await finishQuiz()
+    advancingRef.current = false
+    setIsAdvancing(false)
   }
 
   const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
@@ -2697,6 +2794,32 @@ export default function QuizPage() {
       {finishSaveError && (
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 20px', fontSize: 13, color: '#e8e4dd', zIndex: 9999, whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
           {finishSaveError}
+        </div>
+      )}
+
+      {/* Innsendingen svarte ikke i tide — spilleren skal ALDRI bli stående her.
+          Teksten påstår med vilje ingenting om lagringen: vi har ikke fått svar,
+          og vet derfor ikke om resultatet rakk fram. To veier videre, aldri null. */}
+      {finishTimedOut && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: 'calc(100% - 32px)' }}>
+          <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+            Nettverket svarte ikke i tide. Vi vet ikke om resultatet ditt rakk å bli lagret.
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={retryFinishQuiz}
+              disabled={isAdvancing}
+              style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
+            >
+              {isAdvancing ? 'Prøver…' : 'Prøv igjen'}
+            </button>
+            <button
+              onClick={() => { setFinishTimedOut(false); setPhase('finished') }}
+              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+            >
+              Vis resultatet
+            </button>
+          </div>
         </div>
       )}
 
