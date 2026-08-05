@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { calculateStreak } from '@/lib/ranking'
+import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
@@ -32,7 +34,31 @@ export async function POST(
   if (!quizId) return NextResponse.json({ error: 'Mangler quiz-id' }, { status: 400 })
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`submit:${ip}`, 20, 600_000)).success) {
+
+  // ── Lag 1: grov burst-brems per IP, FØR token-oppslaget ─────────────────────
+  // In-memory med vilje — se lib/play-rate-limit.ts for hvorfor.
+  if (!rateLimit(`submit:pre:${ip}`, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+    return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
+  }
+
+  // ── Identitet FØR lag 2 ─────────────────────────────────────────────────────
+  // Samme ene `auth.getUser` som tidligere lå nede ved eierskapssjekken, bare
+  // flyttet opp: lag 2 nøkler på bruker-id. Eierskapssjekken lenger nede bruker
+  // resultatet herfra — den slår ikke opp på nytt.
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  let tokenUserId: string | null = null
+  if (token) {
+    const { data: authData } = await supabaseAdmin.auth.getUser(token)
+    tokenUserId = authData.user?.id ?? null
+  }
+
+  // ── Lag 2: den ekte grensen — per BRUKER når vi har en, ellers per IP ───────
+  const rl = await rateLimitShared(
+    playRateLimitKey('submit', tokenUserId, ip),
+    PLAY_RATE_LIMIT.limit,
+    PLAY_RATE_LIMIT.windowMs,
+  )
+  if (!rl.success) {
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
@@ -85,11 +111,11 @@ export async function POST(
   }
 
   // Eierskap: innlogget → token-bruker må eie raden; gjest → raden må være gjest
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  // `tokenUserId` er slått opp øverst (for rate-limit-nøkkelen) og gjenbrukes
+  // her — nøyaktig samme semantikk som før: token til stede men ugyldig gir
+  // `null` og dermed 403, ikke gjeste-behandling.
   if (token) {
-    const { data: authData } = await supabaseAdmin.auth.getUser(token)
-    const userId = authData.user?.id ?? null
-    if (!userId || attempt.user_id !== userId) {
+    if (!tokenUserId || attempt.user_id !== tokenUserId) {
       return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
     }
   } else if (attempt.user_id !== null) {

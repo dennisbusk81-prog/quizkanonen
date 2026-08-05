@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
+import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 
 // ── Service-role attempt-opprettelse ─────────────────────────────────────────
 // Erstatter den gamle klient-INSERT-en i app/quiz/[id]/page.tsx (startQuiz).
@@ -13,7 +15,31 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`start-attempt:${ip}`, 20, 600_000)).success) {
+
+  // ── Lag 1: grov burst-brems per IP, FØR token-oppslaget ─────────────────────
+  // In-memory med vilje — se lib/play-rate-limit.ts for hvorfor.
+  if (!rateLimit(`start-attempt:pre:${ip}`, PLAY_PRE_AUTH_BURST.limit, PLAY_PRE_AUTH_BURST.windowMs).success) {
+    return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
+  }
+
+  // ── Sesjon (valgfri — ruten tillater fortsatt anonyme kall) ─────────────────
+  // Flyttet HIT fra midt i handleren: lag 2 nøkler på bruker-id, så identiteten
+  // må være avgjort før grensen sjekkes. Ingen ekstra rundtur — dette er samme
+  // ene `auth.getUser` som sto lenger nede, bare tidligere i rekkefølgen.
+  let userId: string | null = null
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  if (token) {
+    const { data: authData } = await supabaseAdmin.auth.getUser(token)
+    userId = authData.user?.id ?? null
+  }
+
+  // ── Lag 2: den ekte grensen — per BRUKER når vi har en, ellers per IP ───────
+  const rl = await rateLimitShared(
+    playRateLimitKey('start-attempt', userId, ip),
+    PLAY_RATE_LIMIT.limit,
+    PLAY_RATE_LIMIT.windowMs,
+  )
+  if (!rl.success) {
     return NextResponse.json({ error: 'For mange forsøk. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
@@ -46,14 +72,6 @@ export async function POST(request: NextRequest) {
   const leaderDisplayName = typeof body.leaderDisplayName === 'string' && body.leaderDisplayName.trim()
     ? body.leaderDisplayName.trim()
     : null
-
-  // ── Sesjon (valgfri — anonyme spillere er tillatt) ───────────────────────────
-  let userId: string | null = null
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
-  if (token) {
-    const { data: authData } = await supabaseAdmin.auth.getUser(token)
-    userId = authData.user?.id ?? null
-  }
 
   // ── Suspensjonssperre ─────────────────────────────────────────────────────────
   // Tidligere håndhevet av RLS INSERT-policyen. service_role omgår RLS, så vi må
