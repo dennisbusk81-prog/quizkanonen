@@ -5,6 +5,17 @@ import { sendEmail } from '@/lib/email'
 import { trialEndingEmail, orgTrialEndingEmail } from '@/lib/email-templates'
 import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
+import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
+import { dispatchInBatches } from '@/lib/notify-dispatch'
+
+// Ruten slår opp abonnementer i Stripe per kandidat FØR den sender, så den er
+// tyngre enn de andre e-post-cronene. Den manglet maxDuration helt.
+// Org-grenen under stempler allerede per organisasjon, inne i løkken — det er
+// B2C-grenen som hadde stemplingen etter løkken.
+export const maxDuration = 60
+
+const WORK_BUDGET_MS = 50_000
+const BATCH_INTERVAL_MS = 1_000
 
 // Sender påminnelse til org-admin når en B2B-trial nærmer seg slutt (innen 2 døgn)
 // og ikke allerede er påminnet. Stempler organizations.trial_reminder_sent_at for
@@ -142,47 +153,54 @@ async function sendB2CTrialReminders(now: number, dryRun: boolean): Promise<B2CR
     return { candidates: profiles.length, recipients, sent: 0, failed: 0 }
   }
 
-  // Send påminnelser parallelt, hver med 5-sekunders timeout. Bruk faktisk dager-igjen
-  // per bruker i emnefelt/innhold.
-  const sentAt = new Date().toISOString()
-  const sendResults = await Promise.allSettled(
-    recipients.map(({ id, email, daysLeft }) =>
-      withTimeout(
-        sendEmail({
-          to: email,
-          subject: `${daysLeft} dager igjen av din gratis prøveperiode`,
-          html: trialEndingEmail(daysLeft),
-        }),
-        5_000,
-      ).then(() => id)
-    )
+  // Send i batcher, med 5-sekunders timeout per kall, og STEMPLE PER BATCH.
+  //
+  // To ting var galt her, samme feilklasse som F4 i notify-subscribers:
+  //   • Alle mottakerne gikk av gårde i ÉN Promise.allSettled — ingen
+  //     batching i det hele tatt. Ved nok trials sprenger det Resends grense
+  //     på 10 forespørsler i sekundet i ett jafs.
+  //   • trial_reminder_sent_at ble skrevet én gang, etter at alt var sendt.
+  //     Et tidsavbrudd stemplet da ingen, og neste kjøring sendte «X dager
+  //     igjen» på nytt til de som alt hadde fått den.
+  //
+  // Kandidatspørringen filtrerer allerede på `trial_reminder_sent_at IS NULL`,
+  // så gjenopptakelsen faller på plass når stemplingen skjer underveis.
+  const result = await dispatchInBatches<B2CRecipient>(
+    recipients,
+    {
+      send: ({ email, daysLeft }) =>
+        withTimeout(
+          sendEmail({
+            to: email,
+            subject: `${daysLeft} dager igjen av din gratis prøveperiode`,
+            html: trialEndingEmail(daysLeft),
+          }),
+          5_000,
+        ),
+      stamp: async delivered => {
+        const { error } = await supabaseAdmin
+          .from('profiles')
+          .update({ trial_reminder_sent_at: new Date().toISOString() })
+          .in('id', delivered.map(d => d.id))
+        if (error) throw new Error(error.message)
+      },
+      now: () => Date.now(),
+      sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+      onSendError: (r, reason) => {
+        console.error('[cron/trial-reminders] failed to send to', r.id, '—', reason)
+      },
+      onStampError: reason => {
+        console.error('[cron/trial-reminders] stempling feilet, stopper kjøringen:', reason)
+      },
+    },
+    { batchSize: EMAIL_BATCH_SIZE, minBatchIntervalMs: BATCH_INTERVAL_MS, budgetMs: WORK_BUDGET_MS },
   )
 
-  const sentIds: string[] = []
-  let sent = 0
-  let failed = 0
-  for (const r of sendResults) {
-    if (r.status === 'fulfilled') {
-      sentIds.push(r.value)
-      sent++
-    } else {
-      console.error('[cron/trial-reminders] failed to send:', r.reason)
-      failed++
-    }
+  if (result.stoppedOnBudget) {
+    console.log(`[cron/trial-reminders] stoppet på tidsbudsjett — ${result.remaining} gjenstår til neste kjøring`)
   }
 
-  // Stemple sendte rader — hindrer dobbel-sending hvis cronen fyrer flere ganger.
-  if (sentIds.length > 0) {
-    const { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({ trial_reminder_sent_at: sentAt })
-      .in('id', sentIds)
-    if (updateError) {
-      console.error('[cron/trial-reminders] failed to stamp trial_reminder_sent_at:', updateError.message)
-    }
-  }
-
-  return { candidates: profiles.length, recipients, sent, failed }
+  return { candidates: profiles.length, recipients, sent: result.sent, failed: result.failed }
 }
 
 export async function GET(request: NextRequest) {

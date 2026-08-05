@@ -4,6 +4,21 @@ import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { reEngagementEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { dispatchInBatches } from '@/lib/notify-dispatch'
+
+// Samme feilklasse som F4 i notify-subscribers: ruten manglet maxDuration og
+// skrev re_engagement_sent_at ÉN gang, etter hele løkken. Et tidsavbrudd midt
+// i løkken stemplet da ingen, og neste kjøring sendte «Vi savner deg» på nytt
+// til folk som alt hadde fått den.
+//
+// Kandidatspørringen filtrerer allerede på `re_engagement_sent_at IS NULL`, så
+// gjenopptakelsen faller på plass av seg selv når stemplingen først skjer
+// underveis — det finnes ingen alt-eller-intet-sjekk å rydde bort her, slik
+// det gjorde i notify-subscribers.
+export const maxDuration = 60
+
+const WORK_BUDGET_MS = 50_000
+const BATCH_INTERVAL_MS = 1_000
 
 // Send a single re-engagement email to users who:
 //   a. have email_reminders = true
@@ -106,42 +121,40 @@ export async function GET(request: NextRequest) {
   const subject = 'Vi savner deg — quizen venter'
   const entries = [...emailMap.entries()] // [userId, email]
 
-  let sent = 0
-  let failed = 0
-  const sentIds: string[] = []
-
-  for (let i = 0; i < entries.length; i += EMAIL_BATCH_SIZE) {
-    const batch = entries.slice(i, i + EMAIL_BATCH_SIZE)
-    const results = await Promise.allSettled(
-      batch.map(([userId, email]) => {
+  // Step 5: stemples PER BATCH, ikke etter løkken. Blir funksjonen drept
+  // underveis, er de leverte allerede merket og får aldri e-posten på nytt.
+  const result = await dispatchInBatches<[string, string]>(
+    entries,
+    {
+      send: ([userId, email]) => {
         const firstName = firstNameMap.get(userId)
         const html = reEngagementEmail(firstName, buildUnsubscribeUrl(userId, 'reengagement'))
-        return sendEmail({ to: email, subject, html }).then(() => userId)
-      })
-    )
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        sent++
-        sentIds.push(r.value)
-      } else {
-        console.error('[cron/re-engagement] send failed:', r.reason)
-        failed++
-      }
-    }
-  }
+        return sendEmail({ to: email, subject, html })
+      },
+      stamp: async delivered => {
+        const { error } = await supabaseAdmin
+          .from('profiles')
+          .update({ re_engagement_sent_at: new Date().toISOString() })
+          .in('id', delivered.map(([userId]) => userId))
+        if (error) throw new Error(error.message)
+      },
+      now: () => Date.now(),
+      sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+      onSendError: ([userId], reason) => {
+        console.error('[cron/re-engagement] send failed for', userId, '—', reason)
+      },
+      onStampError: reason => {
+        console.error('[cron/re-engagement] stempling feilet, stopper kjøringen:', reason)
+      },
+    },
+    { batchSize: EMAIL_BATCH_SIZE, minBatchIntervalMs: BATCH_INTERVAL_MS, budgetMs: WORK_BUDGET_MS },
+  )
 
-  // Step 5: Mark successfully sent users so they never receive this email again
-  if (sentIds.length > 0) {
-    const { error: updateError } = await supabaseAdmin
-      .from('profiles')
-      .update({ re_engagement_sent_at: new Date().toISOString() })
-      .in('id', sentIds)
-
-    if (updateError) {
-      console.error('[cron/re-engagement] failed to set re_engagement_sent_at:', updateError.message)
-    }
-  }
-
-  console.log(`[cron/re-engagement] sent=${sent} failed=${failed}`)
-  return NextResponse.json({ sent, failed })
+  console.log(
+    `[cron/re-engagement] sent=${result.sent} failed=${result.failed} ` +
+    `gjenstår=${result.remaining}` +
+    (result.stoppedOnBudget ? ' (stoppet på tidsbudsjett — resten tas neste kjøring)' : '') +
+    (result.stampFailed ? ' (STOPPET: stempling feilet)' : '')
+  )
+  return NextResponse.json({ sent: result.sent, failed: result.failed, remaining: result.remaining })
 }
