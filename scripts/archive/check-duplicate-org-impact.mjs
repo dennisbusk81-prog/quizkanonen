@@ -98,7 +98,6 @@ for (const m of orgMembers) {
 
 const relevantOrgUsers = new Set()
 for (const at of targets) {
-  const prof = profileById.get(at.user_id)
   const memberships = at.user_id ? (orgMemberByUser.get(at.user_id) ?? []) : []
   console.log(`${at.player_name.padEnd(28)} quiz=${(quizById.get(at.quiz_id)?.title ?? '').padEnd(24)} user_id=${at.user_id ?? '(gjest)'}`)
   if (!at.user_id) {
@@ -161,10 +160,9 @@ if (relevantOrgUsers.size === 0) {
     const memberships = orgMemberByUser.get(at.user_id) ?? []
     for (const m of memberships) {
       const org = orgById.get(m.organization_id)
-      const blocked = m.global_league_opt_out === true || org?.allow_global_league === false
       // org-scope er uavhengig av allow_global_league/opt_out (den regelen gjelder
       // kun GLOBAL-raden i award-season-points) — org-scope beregnes alltid for
-      // org-medlemmer. Vi sjekker den likevel for kontekst.
+      // org-medlemmer.
       const orgMemberIds = orgMembers.filter(x => x.organization_id === m.organization_id).map(x => x.user_id)
       const pool = attempts.filter(a => a.quiz_id === at.quiz_id && !a.is_team && a.user_id && orgMemberIds.includes(a.user_id))
 

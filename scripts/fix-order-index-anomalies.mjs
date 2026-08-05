@@ -51,7 +51,7 @@ for (const q of questions) { if (!qByQuiz.has(q.quiz_id)) qByQuiz.set(q.quiz_id,
 
 const updates = [] // { id, from, to, quizTitle }
 
-function planQuiz(titleMatch, expectedTotal) {
+function planQuiz(titleMatch) {
   const quiz = quizzes.find(q => q.title.includes(titleMatch))
   const qs = (qByQuiz.get(quiz.id) ?? []).sort((a, b) => a.order_index - b.order_index || a.id.localeCompare(b.id))
   console.log(`${quiz.title}: ${qs.length} sporsmal, order_index i dag = [${qs.map(q => q.order_index).join(',')}]`)
@@ -68,7 +68,7 @@ function planQuiz(titleMatch, expectedTotal) {
   // i tie-grupper), slik at ingen spørsmål bytter plass seg imellom utover å
   // fylle det manglende hullet / skille de sammenslåtte verdiene.
   let next = 1
-  for (const [oldIdx, group] of [...byIndex.entries()].sort((a, b) => a[0] - b[0])) {
+  for (const [, group] of [...byIndex.entries()].sort((a, b) => a[0] - b[0])) {
     for (const q of group) {
       if (q.order_index !== next) updates.push({ id: q.id, from: q.order_index, to: next, quizTitle: quiz.title })
       next++
@@ -78,8 +78,10 @@ function planQuiz(titleMatch, expectedTotal) {
   return quiz
 }
 
-planQuiz('26.06', 15)
-planQuiz('07.08', 19)
+// Tallene bak var forventet antall spørsmål (15 og 19), men planQuiz leste dem
+// aldri — de var dokumentasjon i argumentform. Beholdt som kommentar.
+planQuiz('26.06')  // 15 spørsmål
+planQuiz('07.08')  // 19 spørsmål
 
 console.log('== Planlagte endringer ==')
 for (const u of updates) console.log(`   ${u.quizTitle}: order_index ${u.from} → ${u.to}  (id=${u.id.slice(0, 8)}...)`)

@@ -223,7 +223,6 @@ for (const [qid, list] of byQuiz) {
     const corrected = rankQuizAttempts(room.map(a =>
       correctedStreakByAttemptId.has(a.id) ? { ...a, correct_streak: correctedStreakByAttemptId.get(a.id) } : a
     ))
-    const curRankById = new Map(current.map(r => [r.id, r.rank]))
     const corrRankById = new Map(corrected.map(r => [r.id, r.rank]))
     let changed = 0, top3 = 0
     for (const r of current) {
