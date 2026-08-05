@@ -6,8 +6,73 @@ import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
+import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
+import { dispatchInBatches } from '@/lib/notify-dispatch'
+import {
+  NOTIFY_CHANNEL,
+  fetchAlreadyNotified,
+  stampNotified,
+} from '@/lib/quiz-notification-log'
 
 export const maxDuration = 60
+
+// Vi slutter å starte nye batcher etter 50 s, ti sekunder før budsjettet, så
+// siste batch rekker å bli stemplet. Se lib/notify-dispatch.ts.
+const WORK_BUDGET_MS = 50_000
+
+// Resend avviser over 10 forespørsler i sekundet. EMAIL_BATCH_SIZE (8)
+// begrenser SAMTIDIGHET, ikke gjennomstrømning — uten pacing mellom
+// batch-startene blir vedvarende rate ~32/s. Se lib/email-batch.ts.
+const BATCH_INTERVAL_MS = 1_000
+
+// Hvor lenge etter åpning en quiz fortsatt kan varsles om.
+//
+// Vinduet var 10 minutter, og var da en KOMPENSASJON for at stemplingen var
+// feil: `reminder_sent_at` ble skrevet én gang etter hele løkken, så et
+// avbrudd etterlot ingen spor, og et smalt vindu begrenset hvor mange ganger
+// alle kunne få e-posten på nytt.
+//
+// Nå som hver mottaker stemples fortløpende i quiz_notification_log, er
+// gjentatte kjøringer trygge — de plukker opp nøyaktig restene. Da blir det
+// smale vinduet i stedet en kapasitetsgrense: med cron hvert 5. minutt rakk
+// to kjøringer aldri en stor liste. 60 minutter gir ~12 kjøringer.
+//
+// Samme tall og samme resonnement som notify-subscribers (3a27619).
+const NOTIFY_WINDOW_MS = 60 * 60 * 1000
+
+type EmailTarget = { userId: string; email: string }
+
+/**
+ * Slår opp e-postadresser for et sett med bruker-id-er.
+ *
+ * `auth.admin.listUsers` er en full skanning uansett hvor få vi spør om, så
+ * dette kalles ETTER at alt varslede er trukket fra — er det ingen igjen,
+ * unngår vi skanningen helt.
+ */
+async function resolveEmails(
+  userIds: Set<string>,
+  logPrefix: string,
+): Promise<EmailTarget[]> {
+  const targets: EmailTarget[] = []
+  let page = 1
+  for (;;) {
+    const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    })
+    if (listError) {
+      console.error(`${logPrefix} listUsers error (page`, page, '):', listError.message)
+      break
+    }
+    const users = authData?.users ?? []
+    for (const u of users) {
+      if (u.email && userIds.has(u.id)) targets.push({ userId: u.id, email: u.email })
+    }
+    if (users.length < 1000) break
+    page++
+  }
+  return targets
+}
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -18,30 +83,28 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now()
 
-  // Find a quiz that just opened (opens_at within the last 0–10 minutes).
-  // E-posten sendes NÅR quizen er åpen — ikke en time før. reminder_sent_at IS NULL
-  // hindrer dobbel-sending hvis cron-en kjører flere ganger i vinduet.
+  // Finn en quiz som nettopp åpnet. E-posten sendes NÅR quizen er åpen — ikke
+  // en time før.
   //
-  // Vinduet var 5 minutter fram til 31. juli 2026 — nøyaktig samme lengde som
-  // cronens egen kadens, altså kant-i-kant uten margin. cron-job.org fyrer ikke
-  // på sekundet, så en quiz som åpnet i sprekken mellom to kjøringer fikk ALDRI
-  // åpningse-posten, og feilet stille: `reminder_sent_at` ble stående NULL, men
-  // `opens_at`-filteret hadde allerede passert, så ingen senere kjøring plukket
-  // den opp igjen. Ingen feilmelding noe sted — bare en utsendelse som uteble.
-  // 10 minutter gir én hel kjøring i margin og er samme vindu som
-  // send-push og notify-subscribers allerede bruker. Å utvide er trygt nettopp
-  // fordi reminder_sent_at IS NULL hindrer dobbeltsending i det bredere vinduet.
-  const windowStart = new Date(now - 10 * 60 * 1000).toISOString()
+  // MERK: her sto tidligere `.is('reminder_sent_at', null)`. Det filteret var
+  // alt-eller-intet-sjekken, og det kan ikke bli stående sammen med stempling
+  // per mottaker: en avbrutt kjøring stempler quizen, quizen forsvinner fra
+  // DETTE oppslaget, og de gjenstående får aldri e-posten. Vi ville byttet
+  // dobbeltsending mot stille undersending — og verre her enn i
+  // notify-subscribers, fordi ruten da rapporterer «ingen quiz i vinduet»,
+  // som er den normale meldingen nesten hele tiden.
+  //
+  // Dedupen ligger nå i quiz_notification_log, per mottaker.
+  const windowStart = new Date(now - NOTIFY_WINDOW_MS).toISOString()
   const nowIso      = new Date(now).toISOString()
 
   const { data: nextQuiz, error: quizError } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, opens_at, closes_at, reminder_sent_at')
+    .select('id, title, opens_at, closes_at')
     .eq('is_test', false)
     .eq('is_active', true)
     .lte('opens_at', nowIso)
     .gte('opens_at', windowStart)
-    .is('reminder_sent_at', null)
     .order('opens_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -53,92 +116,101 @@ export async function GET(request: NextRequest) {
 
   // Quiz-påminnelser kjøres kun når en quiz nettopp åpnet. Org-close-
   // påminnelsene lenger ned er en egen, uavhengig seksjon som skal kjøre
-  // hver gang cronen fyrer — derfor ingen tidlig return her lenger.
+  // hver gang cronen fyrer — derfor ingen tidlig return her.
   if (nextQuiz) {
-    // A quiz is in the reminder window — do the heavy lifting (profile
-    // lookup, auth pagination, email sending) in the background via
-    // waitUntil so cron-job.org never sees a timeout.
-    const quizSnapshot = nextQuiz // capture for the closure
+    // Tungt arbeid (profiloppslag, auth-paginering, sending) i bakgrunnen via
+    // waitUntil, så cron-job.org aldri ser en timeout. maxDuration gjelder
+    // også dette arbeidet — det er nettopp her løkken ligger.
+    const quizSnapshot = nextQuiz
+    const target = { quizId: quizSnapshot.id, channel: NOTIFY_CHANNEL.quizOpenEmail }
 
     waitUntil(
-    (async () => {
-      // Fetch profile IDs that have opted in to reminders
-      const { data: profiles, error: profilesError } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('email_reminders', true)
-
-      if (profilesError) {
-        console.error('[cron/send-reminders] profiles error:', profilesError.message)
-        return
-      }
-
-      if (!profiles || profiles.length === 0) {
-        console.log('[cron/send-reminders] no subscribers — nothing to send')
-        return
-      }
-
-      const subscriberIds = new Set(profiles.map(p => p.id))
-
-      // Paginate auth.admin.listUsers to resolve subscriber emails in bulk
-      // (avoids N sequential getUserById calls).
-      const emailsByUserId = new Map<string, string>()
-      let page = 1
-      while (true) {
-        const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-          page,
-          perPage: 1000,
-        })
-        if (listError) {
-          console.error('[cron/send-reminders] listUsers error (page', page, '):', listError.message)
-          break
+      (async () => {
+        // Abonnentene utledes av et filter og har ingen egen tilstand — derfor
+        // paginert henting, ellers ville abonnent nr. 1001 stille aldri fått
+        // e-post.
+        let profiles: { id: string }[]
+        try {
+          profiles = await fetchAllRows<{ id: string }>((from, to) =>
+            supabaseAdmin
+              .from('profiles')
+              .select('id')
+              .eq('email_reminders', true)
+              .order('id', { ascending: true })
+              .range(from, to)
+          )
+        } catch (e) {
+          console.error('[cron/send-reminders] profiles error:', e instanceof Error ? e.message : e)
+          return
         }
-        const users = authData?.users ?? []
-        for (const u of users) {
-          if (u.email && subscriberIds.has(u.id)) {
-            emailsByUserId.set(u.id, u.email)
-          }
+
+        if (profiles.length === 0) {
+          console.log('[cron/send-reminders] no subscribers — nothing to send')
+          return
         }
-        if (users.length < 1000) break // last page
-        page++
-      }
 
-      const entriesToSend = [...emailsByUserId.entries()]
-      if (entriesToSend.length === 0) {
-        console.log('[cron/send-reminders] no subscriber emails found')
-        return
-      }
+        // Dette er det som gjør kjøringen gjenopptakbar: en avbrutt kjøring
+        // etterlater restene, og neste kjøring henter nøyaktig dem.
+        let alreadyNotified: Set<string>
+        try {
+          alreadyNotified = await fetchAlreadyNotified(target)
+        } catch (e) {
+          // Uten loggen vet vi ikke hvem som alt har fått e-posten. Å sende
+          // «for sikkerhets skyld» ville gitt duplikater til hele listen.
+          console.error('[cron/send-reminders] kunne ikke lese varslingslogg — sender ingenting:', e instanceof Error ? e.message : e)
+          return
+        }
 
-      const subject = 'Fredagsquizen er nå åpen'
-      let sent = 0
-      let failed = 0
+        const pendingIds = new Set(profiles.map(p => p.id).filter(id => !alreadyNotified.has(id)))
+        if (pendingIds.size === 0) {
+          console.log('[cron/send-reminders] alle abonnenter er alt varslet for denne quizen')
+          return
+        }
 
-      // Send i batcher av samtidige e-poster — se EMAIL_BATCH_SIZE i lib/email-batch.ts
-      for (let i = 0; i < entriesToSend.length; i += EMAIL_BATCH_SIZE) {
-        const batch = entriesToSend.slice(i, i + EMAIL_BATCH_SIZE)
-        const results = await Promise.allSettled(
-          batch.map(([userId, email]) => {
-            const html = quizReminderEmail(quizSnapshot.id, quizSnapshot.closes_at ?? null, quizSnapshot.title ?? undefined, buildUnsubscribeUrl(userId, 'reminders'))
-            return sendEmail({ to: email, subject, html })
-          })
+        const entriesToSend = await resolveEmails(pendingIds, '[cron/send-reminders]')
+        if (entriesToSend.length === 0) {
+          console.log('[cron/send-reminders] no subscriber emails found')
+          return
+        }
+
+        const subject = 'Fredagsquizen er nå åpen'
+
+        const result = await dispatchInBatches<EmailTarget>(
+          entriesToSend,
+          {
+            send: ({ userId, email }) => sendEmail({
+              to: email,
+              subject,
+              html: quizReminderEmail(
+                quizSnapshot.id,
+                quizSnapshot.closes_at ?? null,
+                quizSnapshot.title ?? undefined,
+                buildUnsubscribeUrl(userId, 'reminders'),
+              ),
+            }),
+            // Stempler KUN de som faktisk ble levert, og gjør det per batch.
+            // Feilede mottakere forblir ustemplet og forsøkes på nytt så lenge
+            // quizen er innenfor vinduet.
+            stamp: delivered => stampNotified(target, delivered.map(d => d.userId)),
+            now: () => Date.now(),
+            sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+            onSendError: ({ userId }, reason) => {
+              console.error('[cron/send-reminders] sending feilet for bruker', userId, '—', reason)
+            },
+            onStampError: reason => {
+              console.error('[cron/send-reminders] stempling feilet, stopper kjøringen:', reason)
+            },
+          },
+          { batchSize: EMAIL_BATCH_SIZE, minBatchIntervalMs: BATCH_INTERVAL_MS, budgetMs: WORK_BUDGET_MS },
         )
-        sent   += results.filter(r => r.status === 'fulfilled').length
-        failed += results.filter(r => r.status === 'rejected').length
-      }
 
-      // Mark the quiz so a re-run of the cron does not send duplicate emails
-      if (sent > 0) {
-        const { error: markError } = await supabaseAdmin
-          .from('quizzes')
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq('id', quizSnapshot.id)
-        if (markError) {
-          console.error('[cron/send-reminders] failed to set reminder_sent_at:', markError.message)
-        }
-      }
-
-      console.log(`[cron/send-reminders] quiz="${quizSnapshot.title}" sent=${sent} failed=${failed}`)
-    })()
+        console.log(
+          `[cron/send-reminders] quiz="${quizSnapshot.title}" sendt=${result.sent} ` +
+          `feilet=${result.failed} gjenstår=${result.remaining} batcher=${result.batches}` +
+          (result.stoppedOnBudget ? ' (stoppet på tidsbudsjett — resten tas ved neste kjøring)' : '') +
+          (result.stampFailed ? ' (STOPPET: stempling feilet)' : '')
+        )
+      })()
     )
   }
 
@@ -150,9 +222,7 @@ export async function GET(request: NextRequest) {
   // uansett om det var en ekte quiz, en testquiz eller en som var skjult i
   // admin («Skjul»-knappen setter is_active=false, og RLS gjemmer den for
   // publikum). En testquiz som lå åpen samtidig som en ekte quiz ville
-  // dessuten VINNE sorteringen hvis den stengte først — og da ville
-  // org_close_reminder_quiz_id blitt stemplet på testquizen, slik at den ekte
-  // quizens påminnelse aldri ble sendt.
+  // dessuten VINNE sorteringen hvis den stengte først.
   const { data: activeQuiz, error: activeQuizError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at, closes_at')
@@ -169,10 +239,15 @@ export async function GET(request: NextRequest) {
   }
 
   if (activeQuiz) {
-    // Find orgs with org_quiz_closes_at set, not already reminded for this quiz
+    // Orgene med egen stengetid. `org_close_reminder_quiz_id` leses IKKE
+    // lenger: det var et alt-eller-intet-stempel per org, med nøyaktig samme
+    // feilform som quiz-stempelet over — ble sendingen avbrutt midt i en
+    // organisasjon, fikk resten av medlemmene aldri påminnelsen. Dedupen
+    // ligger nå i quiz_notification_log, per medlem, med organisasjonen som
+    // scope.
     const { data: orgsWithCloseTime, error: orgsError } = await supabaseAdmin
       .from('organizations')
-      .select('id, name, org_quiz_closes_at, org_close_reminder_quiz_id')
+      .select('id, name, org_quiz_closes_at')
       .not('org_quiz_closes_at', 'is', null)
 
     if (orgsError) {
@@ -190,9 +265,7 @@ export async function GET(request: NextRequest) {
       console.error('[cron/send-reminders] ugyldig closes_at på aktiv quiz:', activeQuiz.id)
     }
 
-    for (const org of (quizDate ? (orgsWithCloseTime ?? []) : []) as { id: string; name: string; org_quiz_closes_at: string; org_close_reminder_quiz_id: string | null }[]) {
-      if (org.org_close_reminder_quiz_id === activeQuiz.id) continue // already sent for this quiz
-
+    for (const org of (quizDate ? (orgsWithCloseTime ?? []) : []) as { id: string; name: string; org_quiz_closes_at: string }[]) {
       // org_quiz_closes_at er en PostgreSQL TIME-kolonne → "HH:MM:SS" fra
       // PostgREST, og verdien er en NORSK veggklokke (satt i et
       // <input type="time"> i org-admin). Den ble tidligere limt sammen som
@@ -211,11 +284,22 @@ export async function GET(request: NextRequest) {
 
       const minUntilClose = (orgCloseMs - now) / 60_000
 
-      if (minUntilClose < 55 || minUntilClose > 65) continue // not in window
+      // Vinduet er BEVISST ikke utvidet slik quiz-vinduet ble: e-posten lover
+      // «en time igjen», så den er bundet til klokkeslettet og ikke bare til
+      // quizen. Med cron hvert 5. minutt gir 55–65 min rom for et par
+      // kjøringer, og en avbrutt kjøring plukkes opp av den neste innenfor
+      // vinduet. Rekker den ikke det, uteblir påminnelsen for restene — det
+      // er prisen for at et forsinket «en time igjen» er verdiløst.
+      if (minUntilClose < 55 || minUntilClose > 65) continue
 
       const orgId = org.id
       const orgName = org.name
       const orgClosesAt = orgCloseDatetime
+      const orgTarget = {
+        quizId: activeQuiz.id,
+        channel: NOTIFY_CHANNEL.orgCloseEmail,
+        scopeId: orgId,
+      }
 
       waitUntil(
         (async () => {
@@ -230,62 +314,72 @@ export async function GET(request: NextRequest) {
             return
           }
           if (!memberRows || memberRows.length === 0) return
-          const memberUserIds = new Set(memberRows.map(m => m.user_id))
+          const memberUserIds = memberRows.map(m => m.user_id as string)
 
-          // Find members who have email_reminders enabled
-          const { data: subscribedProfiles, error: subsError } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .eq('email_reminders', true)
-            .in('id', [...memberUserIds])
-
-          if (subsError) {
-            console.error('[cron/send-reminders] org subscribed profiles error:', subsError.message)
+          // Chunket: `.in()` legger hver id i URL-en og brekker rundt 390
+          // id-er — en LAVERE grense enn radtaket på 1000, altså den vi
+          // treffer først. Se lib/paginate.ts.
+          let subscribedProfiles: { id: string }[]
+          try {
+            subscribedProfiles = await fetchAllRowsChunked<{ id: string }>(
+              memberUserIds,
+              (chunk, from, to) =>
+                supabaseAdmin
+                  .from('profiles')
+                  .select('id')
+                  .eq('email_reminders', true)
+                  .in('id', chunk)
+                  .order('id', { ascending: true })
+                  .range(from, to)
+            )
+          } catch (e) {
+            console.error('[cron/send-reminders] org subscribed profiles error:', e instanceof Error ? e.message : e)
             return
           }
-          if (!subscribedProfiles || subscribedProfiles.length === 0) return
-          const subscribedIds = new Set(subscribedProfiles.map(p => p.id))
+          if (subscribedProfiles.length === 0) return
 
-          // Resolve emails
-          const emailsByUserId = new Map<string, string>()
-          let page = 1
-          while (true) {
-            const { data: authData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
-            if (listError) {
-              console.error('[cron/send-reminders] org listUsers error (page', page, '):', listError.message)
-              break
-            }
-            const users = authData?.users ?? []
-            for (const u of users) {
-              if (u.email && subscribedIds.has(u.id)) emailsByUserId.set(u.id, u.email)
-            }
-            if (users.length < 1000) break
-            page++
+          let alreadyNotified: Set<string>
+          try {
+            alreadyNotified = await fetchAlreadyNotified(orgTarget)
+          } catch (e) {
+            console.error('[cron/send-reminders] kunne ikke lese varslingslogg for org', orgId, '— sender ingenting:', e instanceof Error ? e.message : e)
+            return
           }
 
-          const emails = [...emailsByUserId.values()]
-          if (emails.length === 0) return
+          const pendingIds = new Set(
+            subscribedProfiles.map(p => p.id).filter(id => !alreadyNotified.has(id))
+          )
+          if (pendingIds.size === 0) return
+
+          const targets = await resolveEmails(pendingIds, '[cron/send-reminders] org')
+          if (targets.length === 0) return
 
           const html = orgCloseReminderEmail(orgName, orgClosesAt, activeQuiz.title ?? undefined)
           const subject = `Fristen nærmer seg — en time igjen for ${orgName}`
-          let sent = 0
-          for (let i = 0; i < emails.length; i += EMAIL_BATCH_SIZE) {
-            const batch = emails.slice(i, i + EMAIL_BATCH_SIZE)
-            const results = await Promise.allSettled(batch.map(email => sendEmail({ to: email, subject, html })))
-            sent += results.filter(r => r.status === 'fulfilled').length
-          }
 
-          if (sent > 0) {
-            const { error: markError } = await supabaseAdmin
-              .from('organizations')
-              .update({ org_close_reminder_quiz_id: activeQuiz.id })
-              .eq('id', orgId)
-            if (markError) {
-              console.error('[cron/send-reminders] failed to set org_close_reminder_quiz_id:', markError.message)
-            }
-          }
+          const result = await dispatchInBatches<EmailTarget>(
+            targets,
+            {
+              send: ({ email }) => sendEmail({ to: email, subject, html }),
+              stamp: delivered => stampNotified(orgTarget, delivered.map(d => d.userId)),
+              now: () => Date.now(),
+              sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+              onSendError: ({ userId }, reason) => {
+                console.error('[cron/send-reminders] org-sending feilet for bruker', userId, '—', reason)
+              },
+              onStampError: reason => {
+                console.error('[cron/send-reminders] org-stempling feilet, stopper kjøringen:', reason)
+              },
+            },
+            { batchSize: EMAIL_BATCH_SIZE, minBatchIntervalMs: BATCH_INTERVAL_MS, budgetMs: WORK_BUDGET_MS },
+          )
 
-          console.log(`[cron/send-reminders] org close reminder: org="${orgName}" sent=${sent}`)
+          console.log(
+            `[cron/send-reminders] org close reminder: org="${orgName}" sendt=${result.sent} ` +
+            `feilet=${result.failed} gjenstår=${result.remaining}` +
+            (result.stoppedOnBudget ? ' (stoppet på tidsbudsjett)' : '') +
+            (result.stampFailed ? ' (STOPPET: stempling feilet)' : '')
+          )
         })()
       )
     }
