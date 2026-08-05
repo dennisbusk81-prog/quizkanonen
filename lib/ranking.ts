@@ -40,8 +40,8 @@ export function rankAttempts(attempts: Attempt[]): RankedAttempt[] {
       return a.total_time_ms - b.total_time_ms
     }
     // 3. Flest riktige på rad
-    const aStreak = (a as any).correct_streak || 0
-    const bStreak = (b as any).correct_streak || 0
+    const aStreak = a.correct_streak || 0
+    const bStreak = b.correct_streak || 0
     if (bStreak !== aStreak) {
       return bStreak - aStreak
     }
@@ -56,14 +56,14 @@ export function rankAttempts(attempts: Attempt[]): RankedAttempt[] {
       const isSame =
         attempt.correct_answers === prev.correct_answers &&
         attempt.total_time_ms === prev.total_time_ms &&
-        ((attempt as any).correct_streak || 0) === ((prev as any).correct_streak || 0)
+        (attempt.correct_streak || 0) === (prev.correct_streak || 0)
       if (!isSame) rank = index + 1
     }
     const next = sorted[index + 1]
     const isTied = next
       ? attempt.correct_answers === next.correct_answers &&
         attempt.total_time_ms === next.total_time_ms &&
-        ((attempt as any).correct_streak || 0) === ((next as any).correct_streak || 0)
+        (attempt.correct_streak || 0) === (next.correct_streak || 0)
       : false
 
     return { ...attempt, rank, isTied }
