@@ -18,6 +18,7 @@ import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
 import { decidePlacementDisplay } from '@/lib/placement-visibility'
+import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -41,17 +42,6 @@ type PlayerInfo = { name: string; ageConfirmed: boolean }
 // ikke det samme som en feil: serveren kan ha svart helt fint, kallet nådde
 // bare aldri tilbake.
 type NextLoadFailure = 'error' | 'timeout' | null
-type AnswerRecord = { questionId: string; selectedAnswer: string | null; isCorrect: boolean; timeMs: number }
-
-// Legger til/erstatter svaret for record.questionId i stedet for å alltid appende.
-// Uten dette kunne et gjenopptatt spørsmål (side lastet på nytt midt i quizen,
-// resumeData.index peker på det SISTE besvarte spørsmålet — se startQuiz) få to
-// rader for samme spørsmål hvis brukeren svarte på det igjen: den gamle
-// gjenopptatte raden OG den nye ville begge blitt sendt til submit, som satte inn
-// begge i attempt_answers uten deduplisering. Siste svar for et spørsmål vinner.
-function withAnswer(prev: AnswerRecord[], record: AnswerRecord): AnswerRecord[] {
-  return [...prev.filter(a => a.questionId !== record.questionId), record]
-}
 
 // Siste sikkerhetsnett rett før innsending: selv om withAnswer over hindrer nye
 // duplikater i klient-state, dedupliserer vi payloaden også — samme prinsipp
@@ -1413,9 +1403,53 @@ export default function QuizPage() {
     localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({ index, answers: currentAnswers, totalTime: time }))
   }, [quizId])
 
+  const handleTimeout = useCallback(() => {
+    // Samme synkrone guard som handleAnswer. Timer-effekten som kaller hit er
+    // gatet på `answered`-state, altså med samme forsinkelse — svarer brukeren i
+    // samme tick som tiden løper ut, kunne begge kjørt og registrert hvert sitt
+    // svar. Nå vinner den som kommer først, og den andre avbryter.
+    if (answeredRef.current) return
+    answeredRef.current = true
+    const question = questions[currentIndex]
+    const { newAnswers, newTimeMs } = buildTimeoutAnswer({
+      questionId: question.id,
+      timeLimitSeconds: getTimeLimit(question),
+      answers,
+    })
+    setAnswers(newAnswers); setTotalTimeMs(newTimeMs)
+    setAnswered(true); saveProgress(currentIndex, newAnswers, newTimeMs)
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
+  }, [questions, currentIndex, getTimeLimit, answers, saveProgress])
+
+  // ── Hvorfor handleTimeout leses via ref, ikke via deps (5. august 2026) ──────
+  // Timer-effekten under kaller handleTimeout, men har den bevisst IKKE i sin
+  // dependency-liste. handleTimeout lukker over `answers` — altså scoringen.
+  //
+  // Hvorfor ikke bare legge den i deps: hver gang handleTimeout bytter identitet
+  // ville effekten kjørt på nytt, og en re-kjøring RYDDER og re-armerer
+  // setTimeout-en under. Nedtellingen ville da startet sekundet på nytt ved
+  // enhver re-render som rører answers/quiz/questions, og drevet saktere enn
+  // veggklokka. Det er en spillopplevelse-endring vi ikke vil ha.
+  //
+  // Hvorfor det likevel er trygt i dag: kallet skjer SYNKRONT i effekt-kroppen,
+  // og React kjører aldri en utdatert effekt-closure. Men det er et strukturelt
+  // sammentreff, ikke et design — flytter noen kallet inn i en utsatt callback
+  // (pause-funksjon, setInterval, annen timer-implementasjon), kaller den
+  // beholdte closuren handleTimeout med et gammelt `answers`, og withAnswer
+  // ville da DROPPE hvert svar registrert siden effekten sist kjørte. Ikke feil
+  // tid — et helt svar borte fra payloaden til /submit.
+  //
+  // Ref-en fjerner den avhengigheten: den er fersk uansett hvor kallet står.
+  // Sync-effekten MÅ være deklarert FØR timer-effekten — React kjører passive
+  // effekter i deklarasjonsrekkefølge, så motsatt rekkefølge ville gitt
+  // timer-effekten en ref som er én commit på etterskudd. Se
+  // lib/quiz-timeout-answer.test.ts for mutasjonsbeviset.
+  const handleTimeoutRef = useRef(handleTimeout)
+  useEffect(() => { handleTimeoutRef.current = handleTimeout }, [handleTimeout])
+
   useEffect(() => {
     if (phase !== 'playing' || answered || questions.length === 0) return
-    if (timeLeft <= 0) { handleTimeout(); return }
+    if (timeLeft <= 0) { handleTimeoutRef.current(); return }
     const timer = setTimeout(() => setTimeLeft(t => t - 1), 1000)
     return () => clearTimeout(timer)
   }, [phase, answered, timeLeft, currentIndex, questions])
@@ -1440,28 +1474,6 @@ export default function QuizPage() {
       el.classList.add('qk-timer--calm')
     }
   }, [timeLeft, answered])
-
-  const handleTimeout = useCallback(() => {
-    // Samme synkrone guard som handleAnswer. Timer-effekten som kaller hit er
-    // gatet på `answered`-state, altså med samme forsinkelse — svarer brukeren i
-    // samme tick som tiden løper ut, kunne begge kjørt og registrert hvert sitt
-    // svar. Nå vinner den som kommer først, og den andre avbryter.
-    if (answeredRef.current) return
-    answeredRef.current = true
-    const question = questions[currentIndex]
-    const timeMs = getTimeLimit(question) * 1000
-    const record: AnswerRecord = { questionId: question.id, selectedAnswer: null, isCorrect: false, timeMs }
-    const newAnswers = withAnswer(answers, record)
-    // Summert fra newAnswers, ikke inkrementert fra forrige totalTimeMs: hvis dette
-    // spørsmålet allerede hadde et svar (gjenopptatt midt i quiz, se withAnswer),
-    // ville et inkrement lagt den nye tiden OPPÅ den gamle i stedet for å erstatte
-    // den — total_time_ms er tiebreaker på topplista og må reflektere nøyaktig én
-    // tid per spørsmål.
-    const newTime = newAnswers.reduce((sum, a) => sum + a.timeMs, 0)
-    setAnswers(newAnswers); setTotalTimeMs(newTime)
-    setAnswered(true); saveProgress(currentIndex, newAnswers, newTime)
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
-  }, [questions, currentIndex, getTimeLimit, answers, saveProgress])
 
   // `answeredSoFar` sendes med slik at serveren kan skalere delsummen opp til
   // samme skala som de ferdige forsøkene den rangeres mot (Del 1+2). Under
