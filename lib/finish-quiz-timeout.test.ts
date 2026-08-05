@@ -164,6 +164,30 @@ test('en submit-timeout gir alltid en vei videre, og påstår ingenting om lagri
     'timeout-skjermen påstår at resultatet ikke ble lagret — det vet vi ikke, submit kan ha landet')
 })
 
+test('«allerede lagret» avbryter IKKE try-blokken — extras-blokken skal kjøre', () => {
+  // Klassifiseringen selv er oppførselstestet i lib/submit-response.test.ts.
+  // Det denne fanger er WIRINGEN: at grenen faktisk faller videre ned i resten
+  // av try-blokken i stedet for å returnere tidlig. Returnerte den tidlig, ville
+  // spilleren fått en resultatskjerm uten topp-3 og plassering — nøyaktig
+  // symptomet fiksen skulle fjerne.
+  assert.ok(/classifySubmitResponse\(/.test(finishQuizBody),
+    'finishQuiz klassifiserer ikke submit-svaret — da er 403 «allerede levert» ikke til å skille fra en ekte feil')
+  assert.ok(/hasTimedOutOnce: finishTimedOutOnceRef\.current/.test(finishQuizBody),
+    'klassifiseringen får ikke vite om vi har timet ut — da godtas «allerede levert» også på et første forsøk')
+
+  const branchIdx = finishQuizBody.indexOf('alreadyStored')
+  assert.notEqual(branchIdx, -1, 'fant ikke «allerede lagret»-grenen')
+  // Fra grenen og fram til slutten av submit-blokken skal det ikke stå et
+  // `return` som kortslutter resten av finishQuiz.
+  const afterBranch = finishQuizBody.slice(finishQuizBody.indexOf('if (!submitOutcome.value.alreadyStored)'))
+  const untilExtras = afterBranch.slice(0, afterBranch.indexOf('extrasController'))
+  assert.ok(!/\n\s*return\b/.test(untilExtras),
+    'et return mellom «allerede lagret»-grenen og extras-blokken kortslutter topp-3/plassering')
+  assert.ok(/localStorage\.removeItem\(`qk_progress_/.test(untilExtras)
+    && /localStorage\.setItem\(`qk_result_/.test(untilExtras),
+    'qk_progress_ ryddes / qk_result_ skrives ikke på «allerede lagret»-veien — den skal være konsistent med happy path')
+})
+
 test('feilteksten etter en timeout påstår ikke at resultatet gikk tapt', () => {
   // submit er ikke idempotent: et nytt forsøk etter at det første faktisk landet
   // svarer 403 «Forsøket er allerede levert». Uten dette skillet ville spilleren

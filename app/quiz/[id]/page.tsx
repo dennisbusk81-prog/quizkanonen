@@ -15,6 +15,7 @@ import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
+import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
 import { decidePlacementDisplay } from '@/lib/placement-visibility'
 
@@ -2110,8 +2111,26 @@ export default function QuizPage() {
               }),
               signal: submitController.signal,
             })
-            if (!res.ok) throw new Error(`submit returnerte ${res.status}`)
-            return (await res.json()) as { correctAnswers: number; totalTimeMs: number; correctStreak: number }
+            // Statusen må OVERLEVE hit. Kastet vi på !res.ok, gjorde withTimeout
+            // rejection om til et utfall uten status, og en 403 «allerede
+            // levert» — som er en BEKREFTELSE på at forsøket ligger lagret —
+            // ble umulig å skille fra en ekte feil. Derfor klassifiseres svaret
+            // her, og kun ekte feil kastes.
+            const body = await res.json().catch(() => null) as
+              | { correctAnswers?: number; totalTimeMs?: number; correctStreak?: number; error?: string }
+              | null
+            const verdict = classifySubmitResponse({
+              status: res.status,
+              ok: res.ok,
+              errorMessage: body?.error ?? null,
+              hasTimedOutOnce: finishTimedOutOnceRef.current,
+            })
+            if (verdict.kind === 'error') throw new Error(`submit returnerte ${res.status}`)
+            if (verdict.kind === 'already-stored') return { alreadyStored: true as const }
+            return {
+              alreadyStored: false as const,
+              score: body as { correctAnswers: number; totalTimeMs: number; correctStreak: number },
+            }
           })(),
           { ms: FINISH_TIMEOUT_MS, onTimeout: () => submitController.abort() },
         )
@@ -2128,12 +2147,25 @@ export default function QuizPage() {
           }
           throw new Error('submit feilet')
         }
-        const result = submitOutcome.value
-        correct = result.correctAnswers
-        finalTimeMs = result.totalTimeMs
-        streak = result.correctStreak
-        setServerScore(result)
-        setTotalTimeMs(finalTimeMs)
+        // «Allerede lagret»: vårt eget første kall rakk fram etter at vi hadde
+        // gitt opp å vente. Serveren sender ingen score tilbake i det svaret —
+        // men den trengs heller ikke: den lagrede raden ble skrevet av NØYAKTIG
+        // samme kropp som dette kallet sendte, så de klientberegnede tallene
+        // over er de samme tallene. Vi lar dem stå, hopper over setServerScore
+        // (vi har ingen serverbekreftede tall å sette), og faller BEVISST
+        // videre ned i resten av try-blokken: localStorage skal ryddes/skrives
+        // og topp-3 + plasseringskort hentes, akkurat som på happy path.
+        if (!submitOutcome.value.alreadyStored) {
+          const result = submitOutcome.value.score
+          correct = result.correctAnswers
+          finalTimeMs = result.totalTimeMs
+          streak = result.correctStreak
+          setServerScore(result)
+          setTotalTimeMs(finalTimeMs)
+        } else {
+          console.warn('[quiz] submit svarte «allerede levert» etter timeout — forsøket ligger lagret', { quizId, attemptId })
+          setTotalTimeMs(finalTimeMs)
+        }
       }
       localStorage.removeItem(`qk_progress_${quizId}`)
       localStorage.setItem(`qk_result_${quizId}`, JSON.stringify({ correct_answers: correct, total_time_ms: finalTimeMs }))
