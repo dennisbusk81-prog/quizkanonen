@@ -2075,7 +2075,12 @@ export default function QuizPage() {
     setPendingNextIndex(null)
     setInterPhase('out')
     setTimeout(() => setInterPhase('hidden'), 250)
-  }, [pendingNextIndex, questions, getTimeLimit, quiz, displayOrderFor, attemptId])
+    // `quiz` sto her, men brukes ikke i kroppen. Den var heller ikke et skjult
+    // ferskhets-behov: både getTimeLimit og displayOrderFor har quiz i SINE
+    // deps, så en quiz-endring bytter identitet på dem og dermed på denne
+    // callbacken uansett. Fjernet 5. august 2026 — siste exhaustive-deps-
+    // advarsel i spillestien.
+  }, [pendingNextIndex, questions, getTimeLimit, displayOrderFor, attemptId])
 
   const finishQuiz = async () => {
     const deviceId = getDeviceId()
