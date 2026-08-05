@@ -338,7 +338,18 @@ trusselbilder:
 `STRIPE_PRICE_FOUNDERS`,
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
 `STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`,
-`NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`
+`NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`,
+`KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`,
+`KV_URL`, `REDIS_URL`
+
+KV-/REDIS-variablene er lagt inn av Upstash-integrasjonen i Vercel
+Marketplace og bruker det gamle Vercel KV-navnemønsteret — ikke `UPSTASH_*`.
+De ligger på **Production og Preview, ikke Development**, og Vercel har
+markert dem som **sensitive**: de kan ikke leses tilbake med
+`vercel env pull` (verdien kommer ut som `[SENSITIVE]`). To konsekvenser:
+lokal `npm run dev` kjører uten delt lagring (som er meningen), og en av dem
+kan ikke endres «midlertidig» og settes tilbake etterpå — den opprinnelige
+verdien er ikke gjenopprettbar uten Upstash-dashbordet.
 
 ### Feilovervåkning — Sentry (5. august 2026)
 `@sentry/nextjs` etter standardmønsteret for App Router: `instrumentation.ts`
@@ -367,6 +378,63 @@ opplasting så serverkoden ikke serveres offentlig.
 
 Alt er inert uten `NEXT_PUBLIC_SENTRY_DSN` — `enabled` er da `false` og SDK-en
 sender ingenting.
+
+### Rate-limiting — to lag, og hvem som bruker hvilket (5. august 2026)
+Det finnes TRE mekanismer, og de er ikke alternativer til hverandre:
+
+1. **`lib/rate-limit.ts`** — Map på modulnivå, altså én teller PER
+   serverless-instans. Uendret og fortsatt riktig for de fleste kallsteder.
+2. **`lib/rate-limit-shared.ts`** (+ ren `lib/rate-limit-protocol.ts`) — delt
+   teller i Upstash Redis over REST. Brukt av de 12 kallstedene der lag 1 var
+   eneste forsvar OG konsekvensen er reell.
+3. **Autoritativ telling i `admin_actions`** — `lib/redeem-throttle.ts`,
+   `lib/check-email-throttle.ts`, `lib/org-trial-code-throttle.ts`,
+   `lib/duel-quota.ts`, `lib/invite-quota.ts`. Overlever kalde starter, og var
+   svaret på dette problemet lenge før Upstash fantes.
+
+**Migrert til delt teller (lag 2):** admin-innlogging, `stripe/checkout`,
+`stripe/org-checkout`, `stripe/founders-activate`,
+`stripe/org-founders-activate`, `api/auth/bekreft`, `auth/callback`,
+`api/notifications/subscribe`, `org/[slug]/send-reminder`,
+`org/join/[token]`, `quiz/start-attempt`, `quiz/[id]/submit`.
+
+**Bevisst IKKE migrert:** flatene med lag 3 (de har allerede en teller som
+overlever), og alle rene lese-ruter — der er grensen kostnadsdemping, og
+instans-spredning er harmløs. Ikke migrer noe «for konsistensens skyld»;
+hver rundtur koster latency og en Upstash-kommando.
+
+**Invariant — teller og TTL settes i SAMME transaksjon:**
+`SET <k> 0 PX <ms> NX` + `INCR <k>` via `/multi-exec`. IKKE `INCR` +
+`PEXPIRE`: med INCR først finnes et vindu der nøkkelen mangler utløpstid, og
+feiler den andre kommandoen der, blir sperren PERMANENT. `PEXPIRE ... NX`
+ville også løst det, men krever Redis 7.0+; `SET` med `PX`/`NX` er støttet
+siden 2.6.12. TTL skal heller ALDRI fornyes per kall — et glidende vindu ville
+låst ute en bruker som fortsetter å prøve, siden vinduet aldri utløper så
+lenge trafikken pågår. Fast vindu, samme semantikk som lag 1.
+
+Andre bevisste valg: **fail-open** ved timeout/feil (1000 ms frist — kortere
+ville falt åpent nettopp når instanser churner og TLS-håndtrykket er kaldt);
+in-memory sjekkes FØRST og kortslutter uten rundtur, gyldig fordi en
+instans-teller aldri kan være høyere enn den delte; Sentry-varsel ved
+fail-open, bremset til 1/minutt per instans, og kun med nøkkelPREFIKSET —
+resten av nøkkelen er IP eller bruker-id, som `sentry-scrub` ikke fanger i
+`extra`.
+
+Inert uten `KV_REST_API_URL`/`KV_REST_API_TOKEN` — env-variabelen ER
+funksjonsbryteren, så utrullingen kan slås av uten ny deploy.
+
+**Merk at Preview og Production deler samme Upstash-database og samme
+nøkkelrom.** En preview-deploy bruker altså av samme teller som prod for
+samme IP. Det er uproblematisk for rate-limiting, men greit å vite før man
+tester grenser mot en preview.
+
+Verifisert i preview 5. august 2026, ikke antatt: 429 griper på nøyaktig
+grense+1; telleren overlevde en HELT NY deploy (bevis på at den ligger i
+Upstash og ikke i minnet); en nøkkel med kortere vindu slapp igjennom igjen
+etter at vinduet gikk ut (bevis på at TTL faktisk settes); og med Upstash
+pekt mot en uårbar vert svarte ruten 400/429 som normalt — aldri 500 — med
+~1040 ms per kall, altså timeout-fristen som slår inn og faller åpent.
+Målt kostnad ved normal drift: ~9 ms median.
 
 ---
 
@@ -590,6 +658,9 @@ Fullført siden forrige status (15. juni):
   30. juli 2026
 - ~~`access_codes`-tabellen offentlig lesbar uten innlogging~~ — RLS
   strammet, 30. juli 2026
+- ~~Rate-limiting kun per serverless-instans på sikkerhetskritiske
+  ruter~~ — delt teller i Upstash for 12 kallsteder, 5. august 2026
+  (se «Rate-limiting — to lag» under ARKITEKTUR OG MØNSTRE)
 
 Gjenstående/pågående:
 1. Forklaringstekst per spørsmål (admin-felt)
