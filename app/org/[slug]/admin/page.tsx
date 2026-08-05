@@ -228,7 +228,7 @@ export default function OrgAdminPage() {
   const [removeMemberError, setRemoveMemberError] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
-  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [copiedWinner, setCopiedWinner] = useState<false | WinnerPeriod>(false)
@@ -1202,7 +1202,6 @@ export default function OrgAdminPage() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const activeInvites   = data?.invites.filter(i => i.is_active) ?? []
-  const inactiveInvites = data?.invites.filter(i => !i.is_active) ?? []
   const primaryInvite   = activeInvites[0] ?? null
 
   const memberCount    = data?.stats?.memberCount ?? data?.members.length ?? 0

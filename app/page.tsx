@@ -1759,7 +1759,6 @@ export default async function Home() {
 
   const activeQuiz   = shared.activeQuiz
   const upcomingQuiz = shared.upcomingQuiz
-  const nextQuizAt: string | null = shared.nextQuizAt
   const activeParticipantCount = shared.participantCount
   const foundersSettingsResult = shared.founders
 

@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 export default function PushNotificationPrompt() {
   const [visible, setVisible]   = useState(false)
   const [loading, setLoading]   = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
+  const [, setLoggedIn] = useState(false)
   // iOS Safari støtter web-push KUN når PWA-en er lagt til hjemskjermen.
   // I dette tilfellet viser vi installasjons-hint istedenfor en knapp som
   // ellers ville feilet stille.

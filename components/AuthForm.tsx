@@ -324,7 +324,7 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       )}
 
       <form
-        onSubmit={e => { e.preventDefault(); isSignup ? handleSignup() : handleLogin() }}
+        onSubmit={e => { e.preventDefault(); if (isSignup) handleSignup(); else handleLogin() }}
         className={variant === 'modal' ? 'qk-auth-form qk-auth-form-modal' : 'qk-auth-form'}
       >
         <label className="qk-auth-label" htmlFor="qk-auth-email">E-postadresse</label>

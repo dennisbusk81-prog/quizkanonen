@@ -950,7 +950,7 @@ export default function QuizPage() {
   const [attemptToken, setAttemptToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [nameInput, setNameInput] = useState('')
-  const [ageConfirmed, setAgeConfirmed] = useState(false)
+  const [, setAgeConfirmed] = useState(false)
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
@@ -963,9 +963,9 @@ export default function QuizPage() {
   const [internalPlacement, setInternalPlacement] = useState<{ exactRank: number | null; bandStart: number | null; total: number } | null>(null)
   const [serverScore, setServerScore] = useState<{ correctAnswers: number; totalTimeMs: number; correctStreak: number } | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [loggedInUserId, setLoggedInUserId] = useState<string | null>(null)
+  const [, setLoggedInUserId] = useState<string | null>(null)
   const [loggedInDisplayName, setLoggedInDisplayName] = useState<string | null>(null)
-  const [ageAlreadyConfirmed, setAgeAlreadyConfirmed] = useState(false)
+  const [, setAgeAlreadyConfirmed] = useState(false)
   const [ligaBox, setLigaBox] = useState<{ type: 'liga'; name: string; slug: string } | { type: 'multi' } | { type: 'cta' } | null>(null)
   const [orgBox, setOrgBox] = useState<{ orgName: string; orgSlug: string; userRank: number | null } | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -990,7 +990,6 @@ export default function QuizPage() {
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [nameConflict, setNameConflict] = useState(false)
   const [questionKey, setQuestionKey] = useState(0)
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
   const [interLow, setInterLow] = useState<number | null>(null)
@@ -1004,7 +1003,7 @@ export default function QuizPage() {
     above: { name: string; correct: number } | null
     below: { name: string; correct: number } | null
   } | null>(null)
-  const [interQLeft, setInterQLeft] = useState(0)
+  const [, setInterQLeft] = useState(0)
   const [interLastCorrect, setInterLastCorrect] = useState<boolean | null>(null)
   const [interCorrectAnswerText, setInterCorrectAnswerText] = useState<string | null>(null)
   const [interExplanation, setInterExplanation] = useState<string | null>(null)
@@ -2075,7 +2074,6 @@ export default function QuizPage() {
     // Klient-beregning brukes kun som fallback hvis submit-ruten ikke svarer.
     // Server-ruten er fasit: den slår opp riktige svar og beregner score selv.
     let correct = finalAnswers.filter(a => a.isCorrect).length
-    let streak = calculateStreak(finalAnswers.map(a => ({ is_correct: a.isCorrect })))
     let finalTimeMs = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
     setFinishTimedOut(false)
     try {
@@ -2159,7 +2157,6 @@ export default function QuizPage() {
           const result = submitOutcome.value.score
           correct = result.correctAnswers
           finalTimeMs = result.totalTimeMs
-          streak = result.correctStreak
           setServerScore(result)
           setTotalTimeMs(finalTimeMs)
         } else {

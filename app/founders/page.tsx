@@ -196,7 +196,7 @@ const s = {
 
 export default function FoundersPage() {
   const router = useRouter()
-  const [session, setSession] = useState<Session | null>(null)
+  const [, setSession] = useState<Session | null>(null)
   // Premium fra delt context (ingen egen premium-status-fetch lenger).
   const { isPremium } = useProfile()
   const [loading, setLoading] = useState(false)

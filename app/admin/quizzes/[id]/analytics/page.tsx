@@ -500,7 +500,6 @@ export default function QuizAnalytics() {
   const avgTimeSec = totalStarts > 0
     ? Math.round(attempts.reduce((sum, a) => sum + a.total_time_ms, 0) / totalStarts / 1000)
     : 0
-  const teamCount = attempts.filter(a => a.is_team).length
 
   const questionStats: QuestionStat[] = questions.map(q => {
     const qAnswers = answers.filter(a => a.question_id === q.id)
