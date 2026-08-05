@@ -114,10 +114,13 @@ const state: {
   profile: { premium_status: boolean; org_premium_grace_until: string | null }
   /** null = ruten finner ingen quiz-rad (fail-safe-stien). */
   quiz: QuizRow | null
+  /** true = organisasjons-oppslagene i lib/globally-blocked-set feiler. */
+  orgLookupsThrow: boolean
 } = {
   attempts: [],
   profile: { premium_status: false, org_premium_grace_until: null },
   quiz: null,
+  orgLookupsThrow: false,
 }
 
 /** Et innsendt solo-forsøk. Færre riktige = dårligere plassering. */
@@ -141,7 +144,18 @@ function attempt(n: number, correct: number, userId: string | null = null): Atte
 // Minimal PostgREST-etterligning. To ulike spørringer mot `profiles`:
 // premium-oppslaget (maybeSingle) og nickname-oppslaget (.in, await). I tillegg
 // ett oppslag mot `quizzes` (maybeSingle) for skjult-leaderboard-gaten.
-function builder(table: string) {
+//
+// `order`/`range` MÅ finnes: ruten kaller den EKTE lib/globally-blocked-set
+// (kun supabase-admin er mocket her), og den paginerer med fetchAllRows.
+// Manglet de, kastet lib-en — og fail-safe-stien (5. august 2026, funn F2)
+// skjulte da samtlige spillere, slik at hver eneste test i denne filen målte
+// fail-safe i stedet for det den faktisk handler om. Se
+// «FAIL-SAFE mot org-oppslaget» nederst for den bevisste versjonen av det.
+//
+// `organizations` og `organization_members` svarer TOMT: ingen bedrift har
+// skrudd av global liga i disse fixturene, som er riktig grunntilstand for en
+// fil som handler om Premium-gating.
+function builder(table: string, orgLookupsThrow: boolean) {
   const filters: Array<(r: Record<string, unknown>) => boolean> = []
 
   const b: Record<string, unknown> = {
@@ -149,6 +163,8 @@ function builder(table: string) {
     eq(col: string, val: unknown) { filters.push(r => r[col] === val); return b },
     in(col: string, vals: unknown[]) { filters.push(r => vals.includes(r[col])); return b },
     limit() { return b },
+    order() { return b },
+    range() { return b },
     maybeSingle() {
       if (table === 'quizzes') return Promise.resolve({ data: state.quiz, error: null })
       // Ellers: premium-oppslaget i lib/premium-check.
@@ -159,6 +175,12 @@ function builder(table: string) {
         let out = state.attempts as unknown as Record<string, unknown>[]
         for (const f of filters) out = out.filter(f)
         return resolve({ data: out, error: null })
+      }
+      if (table === 'organizations' || table === 'organization_members') {
+        if (orgLookupsThrow) {
+          return resolve({ data: null, error: { message: 'simulert DB-feil' } })
+        }
+        return resolve({ data: [], error: null })
       }
       // profiles → nickname-oppslaget
       return resolve({ data: [{ id: ME, nickname: null }], error: null })
@@ -173,7 +195,7 @@ mock.module('@/lib/supabase-admin', {
       auth: {
         getUser: async () => ({ data: { user: { id: ME } }, error: null }),
       },
-      from: (table: string) => builder(table),
+      from: (table: string) => builder(table, state.orgLookupsThrow),
     },
   },
 })
@@ -225,6 +247,7 @@ beforeEach(() => {
   state.profile = { premium_status: false, org_premium_grace_until: null }
   // Standard: en helt vanlig, åpen quiz uten skjult leaderboard.
   state.quiz = quizRow()
+  state.orgLookupsThrow = false
 })
 
 test('PREMIUM: får eksakt plassering — både userRank og rank i raden', async () => {
