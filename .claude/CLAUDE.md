@@ -403,6 +403,48 @@ overlever), og alle rene lese-ruter — der er grensen kostnadsdemping, og
 instans-spredning er harmløs. Ikke migrer noe «for konsistensens skyld»;
 hver rundtur koster latency og en Upstash-kommando.
 
+### Hva telleren nøkles PÅ (5. august 2026 — like viktig som hvor den bor)
+
+**Spillestien (`quiz/start-attempt`, `quiz/[id]/submit`) nøkles på BRUKER-ID,
+ikke IP.** Se `lib/play-rate-limit.ts`. To lag:
+1. `rateLimit` (in-memory) `<rute>:pre:<ip>`, 120/min — grov burst-brems FØR
+   token-oppslaget, så et søppel-token ikke gir et gratis GoTrue-kall.
+2. `rateLimitShared` `<rute>:user:<id>` for innloggede, `<rute>:anon:<ip>`
+   ellers. 20/10 min, uendret tall.
+
+`auth.getUser` er FLYTTET øverst i begge rutene for å kunne nøkle på bruker —
+det er samme ene oppslag som lå lenger nede, ikke et nytt. Ikke flytt det
+tilbake ned; da blir `userId` alltid null og alle havner i anon-bøtta.
+
+Bakgrunn: 20/IP var reelt 7–20 spillere per nett (én spiller bruker flere
+kall — sidelast kaller `start-attempt` på nytt via gjenbruk-stien, «Prøv
+igjen» kaller `submit` på nytt). Elkjøp Nordic har 29 medlemmer bak ett
+kontornett. Feilen var usynlig så lenge telleren lå per instans; den delte
+telleren gjorde den reell. **Å gjøre en mekanisme korrekt kan avdekke at
+parameteren aldri var det.**
+
+**De uautentiserte innloggingsrutene KAN ikke nøkles slik.** `/auth/callback`
+og `/api/auth/bekreft` har per definisjon ingen verifisert bruker ennå. Der
+er IP-grensen i stedet dimensjonert opp: 20 → **60 per 60 s**, felles
+konstant i `lib/auth-rate-limit.ts`. Trygt fordi grensen er sekundær
+polstring — begge rutene krever en OAuth-kode bundet til en PKCE-verifier
+eller et `token_hash` fra Supabase, og uten den er et forsøk verdiløst
+uansett hvor mange ganger det gjentas.
+
+**FALLGRUVE — `/api/quiz/live-ranking` er fortsatt nøklet `<ip>:<quizId>`,
+30 per 60 s, in-memory.** Den kalles ÉN GANG PER SPØRSMÅL av Premium-spillere
+(`goToNext` → `fetchLiveRankingFull`), altså `N-3` ganger per quiz — det
+eneste stedet i spillestien der forbruket skalerer med antall spørsmål. Med
+målt spilletid gir det ~5 kall/min per spiller, så grensen tilsvarer ca. **6
+samtidige Premium-spillere bak samme IP**. At det ikke biter i dag skyldes
+utelukkende at telleren er per instans.
+
+Migrerer du den til delt teller uten å nøkle den på bruker først, gjenskaper
+du F1 — denne gangen på en flate der symptomet er STILLE: et 429 gir
+`fetchLiveRankingFull` → null, og mellomskjermen vises uten plassering.
+Premium-funksjonen forsvinner uten feilmelding, uten Sentry-hendelse og uten
+loggspor. Re-nøkle FØR du flytter den, ikke etter.
+
 **Invariant — teller og TTL settes i SAMME transaksjon:**
 `SET <k> 0 PX <ms> NX` + `INCR <k>` via `/multi-exec`. IKKE `INCR` +
 `PEXPIRE`: med INCR først finnes et vindu der nøkkelen mangler utløpstid, og
