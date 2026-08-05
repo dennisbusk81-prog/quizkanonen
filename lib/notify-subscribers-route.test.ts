@@ -19,6 +19,9 @@
 //       e-posten (stille undersending).
 //   (b) Fjernes `.or(...)`-filteret fra abonnenthentingen, feiler samme test
 //       motsatt vei: den alt varslede får e-posten på nytt.
+//   (c) Fjernes `is_test`/`is_active`-guardene fra quiz-oppslaget, feiler tre
+//       tester — blant annet «testquiz stjeler ikke varselet fra den ekte»,
+//       som er den formen feilen faktisk tok i produksjon 5. august 2026.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -29,7 +32,10 @@ const QUIZ_ID = 'b3f1c2d4-5e6a-4b7c-8d9e-0f1a2b3c4d5e'
 const ANNEN_QUIZ = '11111111-2222-3333-4444-555555555555'
 
 type SubRow = { id: string; email: string; notified_at: string | null; notified_quiz_id: string | null }
-type QuizRow = { id: string; title: string | null; opens_at: string }
+type QuizRow = {
+  id: string; title: string | null; opens_at: string
+  is_test: boolean; is_active: boolean
+}
 
 const db: {
   quizzes: QuizRow[]
@@ -63,6 +69,7 @@ function builder(table: string) {
   let lteCol: string | null = null, lteVal: string | null = null
   let gteCol: string | null = null, gteVal: string | null = null
   let orExpr: string | null = null
+  let orderCol: string | null = null, orderDesc = false
   let limitN: number | null = null
   let rangeFrom = 0, rangeTo = Number.MAX_SAFE_INTEGER
   let updating: Record<string, string> | null = null
@@ -97,6 +104,12 @@ function builder(table: string) {
       if (!matchesOr(r)) return false
       return true
     })
+    // Sorteringen er implementert ekte. Uten den ville «testquiz stjeler ikke
+    // varselet» bestått på array-rekkefølge alene, og dermed målt ingenting:
+    // hele poenget er at den NYESTE quizen vinner oppslaget.
+    if (orderCol === 'opens_at' && orderDesc) {
+      out = [...out].sort((a, b) => String(b.opens_at).localeCompare(String(a.opens_at)))
+    }
     if (limitN !== null) out = out.slice(0, limitN)
     return out.slice(rangeFrom, rangeTo + 1)
   }
@@ -108,7 +121,9 @@ function builder(table: string) {
     lte(col: string, val: string) { lteCol = col; lteVal = val; return b },
     gte(col: string, val: string) { gteCol = col; gteVal = val; return b },
     or(expr: string) { orExpr = expr; return b },
-    order() { return b },
+    order(col: string, opts?: { ascending?: boolean }) {
+      orderCol = col; orderDesc = opts?.ascending === false; return b
+    },
     limit(n: number) { limitN = n; return b },
     range(from: number, to: number) { rangeFrom = from; rangeTo = to; return b },
     in(col: string, vals: string[]) { inCol = col; inVals = vals; return b },
@@ -155,8 +170,14 @@ const sub = (id: string, over: Partial<SubRow> = {}): SubRow => ({
   ...over,
 })
 
+const quiz = (over: Partial<QuizRow> = {}): QuizRow => ({
+  id: QUIZ_ID, title: 'Ukens quiz', opens_at: minutesAgo(3),
+  is_test: false, is_active: true,
+  ...over,
+})
+
 beforeEach(() => {
-  db.quizzes = [{ id: QUIZ_ID, title: 'Ukens quiz', opens_at: minutesAgo(3) }]
+  db.quizzes = [quiz()]
   db.subs = []
   db.sentTo = []
   db.sendFailsFor = new Set()
@@ -184,11 +205,56 @@ test('alle uvarslede abonnenter får e-post og stemples', async () => {
 })
 
 test('ingen quiz i vinduet → ingen e-post', async () => {
-  db.quizzes = [{ id: QUIZ_ID, title: 'Gammel', opens_at: minutesAgo(120) }]
+  db.quizzes = [quiz({ title: 'Gammel', opens_at: minutesAgo(120) })]
   db.subs = [sub('a')]
 
   await call()
   assert.deepEqual(db.sentTo, [])
+})
+
+// ── is_test / is_active ─────────────────────────────────────────────────────
+//
+// Manglet HELT fram til 5. august 2026, og slo til i produksjon samme kveld:
+// en etterlatt testquiz åpnet 22:46, og kjøringen 23:00 sendte
+// «Ukens quiz er klar — [TEST – ikke ekte] finishQuiz-timeout» til
+// påmeldingslisten. Vinduet var utvidet fra 10 til 60 minutter timer i
+// forveien (3a27619), noe som gjorde treffet seks ganger mer sannsynlig.
+
+test('testquiz annonseres ikke', async () => {
+  db.quizzes = [quiz({ is_test: true, title: '[TEST – ikke ekte] noe' })]
+  db.subs = [sub('a')]
+
+  await call()
+  assert.deepEqual(db.sentTo, [], 'en testquiz skal aldri nå påmeldingslisten')
+  assert.deepEqual(db.updates, [], 'og skal ikke stemple abonnenten heller')
+})
+
+test('skjult quiz (is_active=false) annonseres ikke', async () => {
+  // «Skjul»-knappen i admin setter is_active=false. En e-post om en quiz
+  // publikum ikke får se er verre enn ingen e-post.
+  db.quizzes = [quiz({ is_active: false })]
+  db.subs = [sub('a')]
+
+  await call()
+  assert.deepEqual(db.sentTo, [])
+})
+
+test('testquiz stjeler ikke varselet fra den ekte quizen', async () => {
+  // MUTASJONSBEVIS. Uten guardene vinner testquizen
+  // `order('opens_at', desc)` fordi den åpnet sist. Da annonseres feil quiz,
+  // OG abonnenten stemples med testquizens id — så den ekte quizen ville
+  // fortsatt blitt sendt senere, men e-posten som gikk ut var feil.
+  db.quizzes = [
+    quiz({ id: QUIZ_ID, opens_at: minutesAgo(20), title: 'Fredagsquiz' }),
+    quiz({ id: ANNEN_QUIZ, opens_at: minutesAgo(1), is_test: true, title: '[TEST – ikke ekte] noe' }),
+  ]
+  db.subs = [sub('a')]
+
+  await call()
+
+  assert.deepEqual(db.sentTo, ['a@example.com'])
+  assert.equal(db.subs[0].notified_quiz_id, QUIZ_ID, 'stemplet med den EKTE quizen')
+  assert.equal(db.updates.every(u => u.quizId === QUIZ_ID), true)
 })
 
 test('feil hemmelighet gir 401 og sender ingenting', async () => {

@@ -59,9 +59,24 @@ export async function GET(request: NextRequest) {
   const now = new Date()
   const windowStart = new Date(now.getTime() - NOTIFY_WINDOW_MS).toISOString()
 
+  // is_test/is_active-guardene: uten dem plukket oppslaget ENHVER quiz-rad som
+  // åpnet i vinduet — også en testquiz eller en som var skjult i admin
+  // («Skjul» setter is_active=false). Det slo til i prod 5. august 2026: en
+  // etterlatt testquiz åpnet 22:46, og kjøringen 23:00 annonserte
+  // «[TEST – ikke ekte] finishQuiz-timeout» til påmeldingslisten.
+  //
+  // Skaden var én e-post fordi listen har én rad i dag. Ved annonsering er
+  // den samme feilen et par tusen e-poster om en testquiz — eller om en quiz
+  // som bevisst er skjult, noe som er verre.
+  //
+  // Søsterrutene send-reminders og send-push har hatt de samme to linjene
+  // siden 28d74c9. Denne ruten fyrer på nøyaktig samme hendelse (en quiz
+  // åpner) og skal ha samme guard.
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at')
+    .eq('is_test', false)
+    .eq('is_active', true)
     .lte('opens_at', now.toISOString())
     .gte('opens_at', windowStart)
     .order('opens_at', { ascending: false })

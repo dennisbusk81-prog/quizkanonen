@@ -206,6 +206,76 @@ anon-lesingen i spillsiden skal se quizen i det hele tatt). Skriv den ikke på
 nytt ad hoc — sju barnetabeller henger på `quizzes.id`, og `played_log`
 cascader ikke.
 
+### ARBEIDSREGEL — en feil har som regel søsken (5. august 2026)
+**Når du finner en feil, spør ALLTID hvilke andre steder som har samme form,
+FØR du melder den fiksa. Fiks alle, eller si eksplisitt hvilke du lot stå og
+hvorfor.** Å rette stedet du tilfeldigvis sto i, og stoppe der, etterlater et
+hull som ser lukket ut i rapporten.
+
+Dette mønsteret dukket opp tre ganger på én dag 5. august:
+- Feilklassen «stemple etter løkken» gjaldt **fem** cron-jobber, ikke den ene
+  bestillingen gjaldt (`notify-subscribers`).
+- `.in()`-lister over ~390 id-er brakk flere steder enn det ene som ble målt.
+- Et manglende `is_test`-filter ble funnet og rettet i `send-push`, mens
+  **søsterruten `notify-subscribers`, som fyrer på nøyaktig samme hendelse,
+  beholdt hullet** — og sendte «Ukens quiz er klar — [TEST – ikke ekte] …»
+  til påmeldingslisten samme kveld, to timer etter at fiksen var pushet.
+
+Billigste mottiltak, i denne rekkefølgen: `grep` etter det som var galt
+(kolonnenavnet, filteret, kallformen) på tvers av hele `app/` og `lib/`;
+spør hvilke andre kodestier som utløses av samme hendelse; og legg funnene
+i rapporten selv når du ikke fikser dem.
+
+### Varsling når en quiz åpner — TRE ruter, samme trigger
+`notify-subscribers`, `send-reminders` og `send-push` fyrer alle på «en quiz
+har åpnet», men mot **ulike mottakerlister**:
+
+| Rute | Liste | Emne |
+|---|---|---|
+| `notify-subscribers` | `quiz_notifications` (påmeldte besøkende, uinnlogget) | «Ukens quiz er klar — {tittel}» |
+| `send-reminders` | `profiles.email_reminders = true` (innloggede) | «Fredagsquizen er nå åpen» |
+| `send-push` | `push_subscriptions` (web push) | — |
+
+**Alle tre MÅ ha `.eq('is_test', false)` og `.eq('is_active', true)` i
+quiz-oppslaget.** Uten dem plukkes en testquiz eller en quiz som er skjult i
+admin («Skjul» setter `is_active=false`), og den vinner dessuten
+`order('opens_at', desc)` hvis den åpnet sist. Emnefeltet er den raskeste
+måten å avgjøre hvilken rute som sendte en gitt e-post.
+
+Dedupen deres er per mottaker, ikke per quiz: `quiz_notifications.notified_quiz_id`
+for den første, `quiz_notification_log` for de to andre. Se
+«Gjenopptakbar varsling» under.
+
+### Gjenopptakbar varsling — quiz_notification_log (5. august 2026)
+`send-reminders` og `send-push` hadde ingen per-mottaker-tilstand: mottakerne
+utledes av et filter, og stempelet var ÉTT felt på quiz-raden
+(`reminder_sent_at` / `push_sent_at`). Et avbrudd kunne derfor ikke etterlate
+spor per person — enten var quizen merket (og resten fikk aldri varsel),
+eller ikke (og alle fikk det på nytt).
+
+Tabellen `quiz_notification_log (quiz_id, channel, scope_id, recipient_id,
+sent_at)` er den manglende tilstanden. PK på de fire første, RLS på uten
+policies, ryddes etter 30 dager av `cron/cleanup-notification-log`
+(**vercel.json**, 04:00).
+
+- `scope_id` er nil-uuid som sentinel, ikke NULL: en bruker kan være medlem i
+  flere organisasjoner og skal ha ett org-varsel per org. NULL går ikke —
+  kolonnen er del av PK, og PostgREST-upsert krever unik indeks over vanlige
+  kolonner.
+- `recipient_id` er `push_subscriptions.id` for push, ikke `user_id`: én
+  bruker kan ha flere enheter, og feiler bare den ene, skal bare den
+  forsøkes på nytt.
+- **De tre gamle stemplene er DØDE** (`quizzes.reminder_sent_at`,
+  `quizzes.push_sent_at`, `organizations.org_close_reminder_quiz_id`) og
+  merket som det med `COMMENT ON COLUMN`. Ikke les dem, ikke skriv dem.
+
+**Regel:** stempler du underveis, må en alt-eller-intet-dedupsjekk fjernes i
+SAMME operasjon. I disse rutene var sjekken ikke en `if`, men et FILTER i
+oppslaget (`.is('reminder_sent_at', null)`) — quizen forsvinner da fra
+resultatsettet, og ruten melder «ingen quiz i vinduet», som er den normale
+meldingen nesten hele tiden. Stille undersending forkledd som normaldrift, og
+verre enn dobbeltsending fordi den aldri oppdages.
+
 ### Sesong-leaderboard-arkitektur
 - `season_scores`: scope_type IN ('global', 'league', 'organization')
 - Global: scope_type='global', scope_id=NULL
