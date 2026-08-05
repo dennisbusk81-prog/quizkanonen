@@ -717,7 +717,7 @@ export default function QuizQuestions() {
                   </label>
                   {isCorrect && <span className="qq-correct-text">✓ riktig</span>}
                 </div>
-                <input type="text" value={(form as any)[key]} onChange={e => upd(key, e.target.value)}
+                <input type="text" value={form[key]} onChange={e => upd(key, e.target.value)}
                   placeholder={`Alternativ ${opt}`} className="qq-input" />
               </div>
             )

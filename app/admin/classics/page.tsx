@@ -152,7 +152,8 @@ export default function ClassicsPage() {
     }
   }
 
-  const optMap: Record<string, string> = { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
+  const optMap: Record<string, 'option_a' | 'option_b' | 'option_c' | 'option_d'> =
+    { A: 'option_a', B: 'option_b', C: 'option_c', D: 'option_d' }
 
   if (loading) return (
     <>
@@ -196,7 +197,7 @@ export default function ClassicsPage() {
         ) : (
           filtered.map(q => {
             const correctKeys = q.correct_answers && q.correct_answers.length > 0 ? q.correct_answers : [q.correct_answer]
-            const opts = ['A', 'B', 'C', 'D'].filter(o => (q as any)[optMap[o]])
+            const opts = ['A', 'B', 'C', 'D'].filter(o => q[optMap[o]])
             return (
               <div key={q.id} className="cl-card">
                 <p className="cl-q-text">{q.question_text}</p>
@@ -204,7 +205,7 @@ export default function ClassicsPage() {
                 <div className="cl-opts">
                   {opts.map(o => (
                     <p key={o} className={`cl-opt ${correctKeys.includes(o) ? 'correct' : ''}`}>
-                      <strong>{o}: </strong>{(q as any)[optMap[o]]}{correctKeys.includes(o) ? ' ✓' : ''}
+                      <strong>{o}: </strong>{q[optMap[o]]}{correctKeys.includes(o) ? ' ✓' : ''}
                     </p>
                   ))}
                 </div>
