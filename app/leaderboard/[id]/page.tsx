@@ -15,7 +15,7 @@ import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
-import { decidePlacementDisplay, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
+import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import type { Session } from '@supabase/supabase-js'
 
 const podiumStyles = `
@@ -145,7 +145,12 @@ export default function LeaderboardPage() {
   const [profile, setProfile] = useState<{ display_name: string | null } | null>(null)
   // Premium + org-medlemskap fra delt context (ProfileProvider).
   // userId/myOrgsLoaded mater decidePlacementDisplay — samme kilde som myOrgs.
-  const { isPremium, myOrgs, myOrgsLoaded, userId: profileUserId, refreshProfile } = useProfile()
+  // myOrgsError/refreshMyOrgs er utveien når org-svaret har FEILET og
+  // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
+  const {
+    isPremium, myOrgs, myOrgsLoaded, userId: profileUserId, refreshProfile,
+    myOrgsError, refreshMyOrgs,
+  } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
@@ -1079,6 +1084,30 @@ export default function LeaderboardPage() {
               </div>
             )
           })()}
+
+          {/* ── Org-svaret feilet: plasseringen er ikke borte, den er uavklart ──
+              suppressOwnPublicRank tømmer fem flater på denne siden (hero-rank,
+              persentil, delingstall, «Gå til min plassering», gratis-kortet).
+              Er årsaken 'unknown' PLUSS en feilet henting, retter det seg aldri
+              selv — se shouldOfferPlacementRetry i lib/placement-visibility.ts.
+              Plassert her, rett under hero-kortet, fordi det er der tallet
+              skulle stått. Krever hasPlayed: uten et resultat er det ingen
+              plassering å savne. ── */}
+          {!authLoading && session && hasPlayed
+            && shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError }) && (
+            <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', marginBottom: 12, lineHeight: 1.6 }}>
+              Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
+              <button
+                onClick={() => { void refreshMyOrgs() }}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+                }}
+              >
+                Prøv igjen
+              </button>
+            </p>
+          )}
 
           {/* Del-knapp — innloggede brukere som har spilt */}
           {!authLoading && session && hasPlayed && (() => {
