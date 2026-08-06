@@ -185,7 +185,7 @@ export function greetingName(name: string | null | undefined): string | null {
  * Endres åpningstiden noen gang, må BEGGE sidene oppdateres.
  */
 export function quizStatusLine(active: Loaded<string | null> | null): string {
-  if (active?.ok && active.value) return 'Ukens quiz er åpen — 15 spørsmål venter.'
+  if (active?.ok && active.value) return 'Ukens quiz er åpen nå — 15 spørsmål venter.'
   if (active?.ok) return 'Neste quiz åpner fredag kl. 12.'
   return 'Ny quiz hver fredag kl. 12.'
 }

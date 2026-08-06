@@ -255,7 +255,7 @@ test('modalen er fortsatt backstop overalt ellers', () => {
 // ── Statuslinjen ─────────────────────────────────────────────────────────────
 
 test('åpen quiz gir «quizen venter», bekreftet ingen gir «fredag kl. 12»', () => {
-  assert.equal(quizStatusLine({ ok: true, value: 'abc-123' }), 'Ukens quiz er åpen — 15 spørsmål venter.')
+  assert.equal(quizStatusLine({ ok: true, value: 'abc-123' }), 'Ukens quiz er åpen nå — 15 spørsmål venter.')
   assert.equal(quizStatusLine({ ok: true, value: null }), 'Neste quiz åpner fredag kl. 12.')
 })
 
