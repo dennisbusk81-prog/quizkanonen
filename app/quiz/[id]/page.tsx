@@ -17,7 +17,7 @@ import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
-import { decidePlacementDisplay } from '@/lib/placement-visibility'
+import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
@@ -3322,6 +3322,37 @@ export default function QuizPage() {
               Oppgrader til Premium for å se nøyaktig plassering →
             </a>
           </div>
+        )
+      })()}
+
+      {/* ── Hvorfor spilleren ikke finnes på den åpne topplisten ───────────────
+          Fram til nå sto det ingenting: den blokkerte fikk et internt tall (eller
+          ingenting, når orgen er for liten), og måtte selv gjette hvorfor hun
+          ikke er på den nasjonale lista. Blokkeringen er bevisst, og da er det
+          fraværet av forklaring — ikke oppførselen — som er feilen.
+
+          Vilkåret er KUN moduset, ikke `internalPlacement`: kortet over vises
+          først når org-rommet har mer enn én deltaker, og den første ansatte som
+          spiller fredag morgen er nettopp den som ser minst og forstår minst.
+
+          Årsaken avgjøres av globalExclusionReason() (ren, testdekket), ikke av
+          en betingelse her — teksten skal aldri kunne påstå feil årsak.
+          Diskret hint-farge, ingen gull: dette er en forklaring, ikke en
+          handling, og skjermen har allerede sin ene gule flate. ── */}
+      {placementDisplay.mode === 'internal-only' && (() => {
+        const org = placementDisplay.org
+        const grunn = globalExclusionReason(org)
+        return (
+          <p className="qk-rsec" style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
+            {grunn === 'org-policy' ? (
+              <>Du konkurrerer internt hos {org.orgName} og vises ikke på den åpne topplisten.</>
+            ) : (
+              <>
+                Du har valgt å ikke vises på den åpne topplisten — du konkurrerer internt hos {org.orgName}.{' '}
+                <a href="/profil" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Endre i profilen</a>
+              </>
+            )}
+          </p>
         )
       })()}
 

@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   decidePlacementDisplay,
+  globalExclusionReason,
   shouldShowFreePlacementCard,
   type PlacementOrg,
 } from './placement-visibility'
@@ -101,6 +102,39 @@ test('ubesvart valg (optOut=null) i åpen org er both, ikke blokkert', () => {
     orgs: [{ ...openOrg, globalLeagueOptOut: null }],
   })
   assert.equal(d.mode, 'both')
+})
+
+// ── Årsaken bak internal-only (forklaringsteksten på resultatskjermen) ───────
+// MUTASJONSBEVIS: byttes betingelsen til å lese globalLeagueOptOut først,
+// ryker «begge sanne»-testen — og en ansatt i en stengt org ville da fått
+// «du har valgt …» og blitt sendt til en profilbryter uten effekt.
+
+test('stengt org gir org-policy', () => {
+  assert.equal(globalExclusionReason(closedOrg), 'org-policy')
+})
+
+test('eget opt-out i åpen org gir own-choice', () => {
+  assert.equal(globalExclusionReason({ ...openOrg, globalLeagueOptOut: true }), 'own-choice')
+})
+
+test('begge sanne: org-policy vinner — den ansattes bryter er da uten effekt', () => {
+  assert.equal(
+    globalExclusionReason({ ...closedOrg, globalLeagueOptOut: true }),
+    'org-policy',
+  )
+})
+
+test('årsaken er avledet av samme org decidePlacementDisplay plukket ut', () => {
+  // Ved flere medlemskap må teksten beskrive den orgen plasseringstallet
+  // gjelder, ikke en vilkårlig annen.
+  const d = decidePlacementDisplay({
+    userId: 'u1',
+    orgsLoaded: true,
+    orgs: [{ ...openOrg, globalLeagueOptOut: true }, closedOrg],
+  })
+  assert.equal(d.mode, 'internal-only')
+  assert.equal(d.org?.orgSlug, 'aapen-as')
+  assert.equal(globalExclusionReason(d.org as PlacementOrg), 'own-choice')
 })
 
 // ── Gratis-plasseringskortet på /leaderboard/[id] ────────────────────────────

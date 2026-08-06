@@ -54,6 +54,26 @@ export function decidePlacementDisplay(input: {
   return { mode: 'both', org: input.orgs[0] }
 }
 
+// ── HVORFOR står jeg ikke på den åpne topplisten? ────────────────────────────
+// 'internal-only' har TO ulike årsaker, og en forklaringstekst som påstår feil
+// årsak er verre enn ingen tekst: «bedriften din har valgt …» til en ansatt som
+// selv slo det av er en usann påstand om arbeidsgiveren, og «du har valgt …»
+// til en ansatt i en stengt org sender henne til en profilbryter som ikke kan
+// endre utfallet (org-policyen overstyrer — se /api/org/[slug]/league-preference:
+// opt-in gir ikke global synlighet når orgen har allow_global_league=false).
+//
+// Derfor vinner org-policyen når BEGGE er sanne: det er den som faktisk
+// bestemmer utfallet, og den ansattes egen bryter er da uten effekt.
+//
+// Merk at `org` her er den samme raden decidePlacementDisplay() plukket ut
+// (første blokkerende medlemskap) — ikke en ny kilde, så teksten kan ikke
+// beskrive en annen org enn den plasseringstallet gjelder.
+export type GlobalExclusionReason = 'org-policy' | 'own-choice'
+
+export function globalExclusionReason(org: PlacementOrg): GlobalExclusionReason {
+  return org.allowGlobalLeague === false ? 'org-policy' : 'own-choice'
+}
+
 // ── Gratis-plasseringskortet på /leaderboard/[id] ────────────────────────────
 // «Du er et sted mellom plass X og Y» for innloggede gratisbrukere mens quizen
 // er åpen. Vilkåret bor her — ikke inline i JSX — fordi det var nettopp dette
