@@ -37,6 +37,18 @@ const NEXT_STEP_TIMEOUT_MS = 9000
 // stedene er uavhengige og kan trenge ulike tall senere; i dag er begge 9 sek.
 const FINISH_TIMEOUT_MS = 9000
 
+// Samme øvre grense ved STARTSTREKEN (startQuiz). Fram til 6. august 2026 var
+// dette det siste ubeskyttede leddet i spillestien: getSession, POST
+// /api/quiz/start-attempt og spørsmålshentingen lå alle uten grense, så ett
+// hengende kall lot «Start quiz»-knappen stå disabled i «Laster…» for alltid —
+// eneste vei videre var å laste siden på nytt. Startsekvensen er TO serielle
+// nettverkssteg, og hvert steg får sitt eget budsjett på 9 sek (samme form som
+// finishQuiz: getSession+POST+json i én blokk, som goToNext: spørsmålshenting i
+// én blokk) — en treg mobilforbindelse som klarer 9 sek per kall i resten av
+// quizen, klarer den også her. Egen konstant av samme grunn som
+// FINISH_TIMEOUT_MS: stedene er uavhengige og kan trenge ulike tall senere.
+const START_TIMEOUT_MS = 9000
+
 type PlayerInfo = { name: string; ageConfirmed: boolean }
 // Hvorfor vi ikke kom videre — styrer teksten spilleren får. En timeout er
 // ikke det samme som en feil: serveren kan ha svart helt fint, kallet nådde
@@ -1567,64 +1579,121 @@ export default function QuizPage() {
     setPlayerInfo(info)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      // ── Steg 1: opprett forsøket, med øvre tidsgrense (6. august 2026) ──────
+      // getSession, selve POST-en og json-parsingen ligger inne i SAMME
+      // withTimeout — samme form som submit-blokken i finishQuiz: alle tre er
+      // await-punkter uten egen grense, og et hvilket som helst av dem kunne
+      // holde startQuiz åpen for alltid. Da kjørte aldri finally, isStarting
+      // ble stående true, og knappen sto disabled i «Laster…» til siden ble
+      // lastet på nytt. Utfallene klassifiseres INNE i blokken (suspendert /
+      // avvist-med-tekst / opprettet) og håndteres utenfor — ingen setState i
+      // den innpakkede funksjonen, så et abortert etterslep ikke kan lande
+      // midt i et nytt forsøk. Selve oppstartslogikken er uendret; dette er
+      // kun en vakt rundt kallene.
+      //
       // Attempt opprettes server-side (service-role) via /api/quiz/start-attempt.
       // Klienten kan ikke lenger skrive til attempts direkte (RLS låst til service_role).
-      const res = await fetch('/api/quiz/start-attempt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          quizId,
-          playerName: info.name,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        // Suspendert konto — vis suspensjons-skjermen istedenfor generisk feil.
-        if (res.status === 403 && err.suspended) {
-          setIsSuspended(true)
-          return
+      const startController = new AbortController()
+      const startOutcome = await withTimeout(
+        (async () => {
+          const { data: { session } } = await supabase.auth.getSession()
+          const res = await fetch('/api/quiz/start-attempt', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({
+              quizId,
+              playerName: info.name,
+            }),
+            signal: startController.signal,
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            // Suspendert konto — vis suspensjons-skjermen istedenfor generisk feil.
+            if (res.status === 403 && err.suspended) return { kind: 'suspended' as const }
+            return { kind: 'rejected' as const, message: (err.error as string | undefined) ?? 'Noe gikk galt. Prøv å laste siden på nytt.' }
+          }
+          const { attemptId: newAttemptId, attemptToken: newAttemptToken } = await res.json()
+          return {
+            kind: 'created' as const,
+            attemptId: (newAttemptId || null) as string | null,
+            attemptToken: (newAttemptToken || null) as string | null,
+            session,
+          }
+        })(),
+        { ms: START_TIMEOUT_MS, onTimeout: () => startController.abort() },
+      )
+      if (!startOutcome.ok) {
+        // Timeout og feil skilles som i goToNext. Utveien er synlig begge
+        // veier: feilteksten vises under knappen, og finally under frigir
+        // isStarting, så «Start quiz»-knappen er aktiv igjen — å trykke den er
+        // selve «prøv igjen» (start-attempt gjenbruker et påbegynt forsøk
+        // server-side, så et nytt trykk er trygt).
+        if (startOutcome.timedOut) {
+          console.warn(`[quiz] start-attempt svarte ikke innen ${START_TIMEOUT_MS} ms`, { quizId })
         }
         setPlayerInfo({ name: '', ageConfirmed: false })
-        setStartError(err.error ?? 'Noe gikk galt. Prøv å laste siden på nytt.')
+        setStartError(startOutcome.timedOut
+          ? 'Det tok for lang tid å starte quizen. Sjekk internettforbindelsen og prøv igjen.'
+          : 'Noe gikk galt. Prøv å laste siden på nytt.')
         return
       }
-      const { attemptId: newAttemptId, attemptToken: newAttemptToken } = await res.json()
-      setAttemptId(newAttemptId || null)
-      setAttemptToken(newAttemptToken || null)
+      const started = startOutcome.value
+      if (started.kind === 'suspended') {
+        setIsSuspended(true)
+        return
+      }
+      if (started.kind === 'rejected') {
+        setPlayerInfo({ name: '', ageConfirmed: false })
+        setStartError(started.message)
+        return
+      }
+      const session = started.session
+      setAttemptId(started.attemptId)
+      setAttemptToken(started.attemptToken)
 
+      // ── Steg 2: hent spørsmålene, med eget budsjett ─────────────────────────
       // Hent spørsmålene som trengs for å starte: fersk start → kun index 0,
       // resume → 0..resumeData.index. Resten hentes underveis i goToNext.
+      // Samme form som spørsmålshentingen i goToNext: withTimeout + abort, så
+      // et hengende kall ikke kan holde oppstarten åpen. Resume-stien henter
+      // parallelt og deler derfor ett budsjett, som Promise.all i goToNext.
       const firstIdx = resumeData ? resumeData.index : 0
-      let loadedQuestions: Question[]
-      let total: number
-      try {
-        if (resumeData) {
-          const results = await Promise.all(
-            Array.from({ length: resumeData.index + 1 }, (_, i) =>
-              fetchQuestionAt(i, newAttemptId || null, newAttemptToken || null),
-            ),
-          )
-          loadedQuestions = results.map(r => r.question)
-          total = results[0]?.total ?? loadedQuestions.length
-        } else {
-          const r0 = await fetchQuestionAt(0, newAttemptId || null, newAttemptToken || null)
-          loadedQuestions = [r0.question]
-          total = r0.total
+      const questionController = new AbortController()
+      const questionsOutcome = await withTimeout(
+        (async () => {
+          if (resumeData) {
+            const results = await Promise.all(
+              Array.from({ length: resumeData.index + 1 }, (_, i) =>
+                fetchQuestionAt(i, started.attemptId, started.attemptToken, questionController.signal),
+              ),
+            )
+            const loaded = results.map(r => r.question)
+            return { loadedQuestions: loaded, total: results[0]?.total ?? loaded.length }
+          }
+          const r0 = await fetchQuestionAt(0, started.attemptId, started.attemptToken, questionController.signal)
+          return { loadedQuestions: [r0.question], total: r0.total }
+        })(),
+        { ms: START_TIMEOUT_MS, onTimeout: () => questionController.abort() },
+      )
+      if (!questionsOutcome.ok) {
+        if (questionsOutcome.timedOut) {
+          console.warn(`[quiz] spørsmålene svarte ikke innen ${START_TIMEOUT_MS} ms ved oppstart`, { quizId })
         }
-      } catch {
         setPlayerInfo({ name: '', ageConfirmed: false })
-        setStartError('Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
+        setStartError(questionsOutcome.timedOut
+          ? 'Det tok for lang tid å laste spørsmålene. Sjekk internettforbindelsen og prøv igjen.'
+          : 'Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
         return
       }
+      const { loadedQuestions, total } = questionsOutcome.value
       setQuestions(loadedQuestions)
       setTotalQuestions(total)
 
       const firstQ = loadedQuestions[firstIdx]
-      setShuffledDisplayOrder(displayOrderFor(firstQ, newAttemptId || null))
+      setShuffledDisplayOrder(displayOrderFor(firstQ, started.attemptId))
       // Kun ved FAKTISK første oppstart. En re-kjøring (nå forhindret av
       // re-entry-guarden over, men dette er andre forsvarslinje) skal verken
       // nullstille klokken — total_time_ms er tiebreaker på topplista, så en
