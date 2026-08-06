@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   decidePlacementDisplay,
   globalExclusionReason,
+  shouldOfferPlacementRetry,
   shouldShowFreePlacementCard,
   type PlacementOrg,
 } from './placement-visibility'
@@ -170,4 +171,53 @@ test('kortet er fortsatt skjult for premium, stengt quiz, ikke-spilt og tomt fel
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, totalCount: 0 }), false)
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, hasSession: false }), false)
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, authLoading: true }), false)
+})
+
+// ── FUNN 1: en feilet my-orgs skal ikke kunne låse egen plassering ───────────
+//
+// MUTASJONSBEVIS (kjørt, ikke påstått — se rapporten for kjøringene):
+//   • `return false` (funksjonen fjernet helt)  → «feilet henting tilbyr retry»
+//     ryker. Det er den permanente låsingen som var hele funn 1.
+//   • `mode === 'unknown'` alene (myOrgsError ignoreres) → «uavklart MENS
+//     hentingen pågår tilbyr IKKE retry» ryker — vi ville lovet en utvei av en
+//     tilstand som retter seg selv, og blinket en knapp ved hver sidelast.
+//   • `myOrgsError` alene (mode ignoreres) → «et BEKREFTET svar tilbyr aldri
+//     retry» ryker: en blokkert ansatt ville fått «Prøv igjen» på et utfall et
+//     nytt forsøk aldri kan endre.
+//   • `||` i stedet for `&&` → begge de negative testene ryker (2 av 21).
+
+test('FUNN 1: uavklart org-status som har FEILET tilbyr en vei tilbake', () => {
+  assert.equal(
+    shouldOfferPlacementRetry({ mode: 'unknown', myOrgsError: true }),
+    true,
+    'uten dette forsvinner spillerens egen plassering for resten av økta',
+  )
+})
+
+test('FUNN 1: uavklart MENS hentingen pågår tilbyr IKKE retry', () => {
+  // Ingen feil ennå — svaret er underveis og retter seg selv. En knapp her
+  // ville blinket i det normale oppstartsvinduet på hver eneste sidelast.
+  assert.equal(shouldOfferPlacementRetry({ mode: 'unknown', myOrgsError: false }), false)
+})
+
+test('FUNN 1: et BEKREFTET svar tilbyr aldri retry — heller ikke ved en senere feil', () => {
+  // 'internal-only' er ikke en feil: det offentlige tallet SKAL mangle, og et
+  // nytt forsøk kan ikke endre det. 'public'/'both' viser det allerede.
+  for (const mode of ['public', 'internal-only', 'both'] as const) {
+    assert.equal(
+      shouldOfferPlacementRetry({ mode, myOrgsError: true }),
+      false,
+      `${mode} er et bekreftet svar og skal ikke love en utvei`,
+    )
+    assert.equal(shouldOfferPlacementRetry({ mode, myOrgsError: false }), false)
+  }
+})
+
+test('FUNN 1: decidePlacementDisplay er UENDRET — «vet ikke» blir aldri «vet»', () => {
+  // Regresjonsvakt for kravet: retry-utveien skal ikke ha løsnet på
+  // 'unknown'-semantikken. En feilet henting er fortsatt «vet ikke», altså
+  // ingen offentlig plassering — knappen er veien ut, ikke en gjetning.
+  const d = decidePlacementDisplay({ userId: 'u1', orgsLoaded: false, orgs: [closedOrg] })
+  assert.equal(d.mode, 'unknown')
+  assert.equal(d.org, null)
 })

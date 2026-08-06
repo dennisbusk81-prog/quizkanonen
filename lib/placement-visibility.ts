@@ -54,6 +54,35 @@ export function decidePlacementDisplay(input: {
   return { mode: 'both', org: input.orgs[0] }
 }
 
+// ── Når «vet ikke» aldri går over av seg selv ────────────────────────────────
+// 'unknown' er riktig så lenge org-svaret fortsatt er underveis — det retter
+// seg selv når svaret lander. Men ProfileProvider setter med vilje ALDRI
+// `myOrgsLoaded` på et FEILET forsøk (et feilsvar er «vet ikke», aldri «ingen
+// medlemskap»), og hverken resultatskjermen eller /leaderboard/[id] henter
+// org-listen på nytt. Én feilet `/api/org/my-orgs` skjulte derfor spillerens
+// egen plassering for resten av økta — på begge flatene, og nettopp i
+// belønningsøyeblikket etter fullført quiz.
+//
+// Skillet vi trenger er altså ikke «vet vi det?» (det svarer
+// decidePlacementDisplay på, og semantikken der står urørt), men «kan vi
+// noensinne komme til å vite det uten at brukeren gjør noe?». `myOrgsError` er
+// det signalet, og `refreshMyOrgs()` fra samme context er utveien —
+// nøyaktig samme par som /org/[slug] sin feilskjerm allerede bruker.
+//
+// Bevisst en KNAPP og ikke et automatisk nytt forsøk: en automatisk retry på
+// en rute som nettopp feilet er en ny mekanisme med egne vakter, og på
+// quizkvelden er en stille retry-løkke mot et endepunkt under press verre enn
+// en knapp brukeren trykker på når hen faktisk vil ha tallet.
+export function shouldOfferPlacementRetry(input: {
+  mode: PlacementDisplay['mode']
+  myOrgsError: boolean
+}): boolean {
+  // KUN 'unknown'. 'internal-only' er et bekreftet svar — der ER det riktig at
+  // det offentlige tallet mangler, og en «Prøv igjen» ville lovet at et nytt
+  // forsøk kunne endre utfallet. 'public'/'both' viser allerede plasseringen.
+  return input.mode === 'unknown' && input.myOrgsError
+}
+
 // ── HVORFOR står jeg ikke på den åpne topplisten? ────────────────────────────
 // 'internal-only' har TO ulike årsaker, og en forklaringstekst som påstår feil
 // årsak er verre enn ingen tekst: «bedriften din har valgt …» til en ansatt som
