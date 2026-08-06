@@ -124,7 +124,14 @@ export default function ProfilPage() {
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
   const [memberSince, setMemberSince] = useState<string | null>(null)
   const [showMemberNumber, setShowMemberNumber] = useState(false)
-  const [emailReminders, setEmailReminders] = useState(true)
+  // Fallback-verdiene speiler kolonnenes DEFAULT i databasen, ikke et ønske om
+  // hva bryteren «bør» vise: email_reminders er NOT NULL DEFAULT false (opt-in,
+  // og send-reminders-cronen henter kun på `= true`), mens email_reengagement og
+  // email_duel_notifications er nullable DEFAULT true (opt-out). Vis derfor AV
+  // for påminnelser og PÅ for de to andre når raden ikke er lest ennå — eller
+  // ikke ble lest i det hele tatt (profil-hentingen under faller tilbake på
+  // `{ data: null }` ved timeout).
+  const [emailReminders, setEmailReminders] = useState(false)
   const [emailReengagement, setEmailReengagement] = useState(true)
   const [emailDuelNotifications, setEmailDuelNotifications] = useState(true)
   const [prefSavedKey, setPrefSavedKey] = useState<string | null>(null)
@@ -191,7 +198,7 @@ export default function ProfilPage() {
         setEditName(profile.display_name ?? '')
         setNickname(profile.nickname ?? '')
         setEditNickname(profile.nickname ?? '')
-        setEmailReminders(profile.email_reminders ?? true)
+        setEmailReminders(profile.email_reminders ?? false)
         setEmailReengagement(profile.email_reengagement ?? true)
         setEmailDuelNotifications(profile.email_duel_notifications ?? true)
       }
@@ -300,7 +307,7 @@ export default function ProfilPage() {
           if (!cancelled) setMemberNumber((count ?? 0) + 1)
         } catch { /* behold null */ }
       }
-      setEmailReminders(profile?.email_reminders ?? true)
+      setEmailReminders(profile?.email_reminders ?? false)
       setEmailReengagement(profile?.email_reengagement ?? true)
       setEmailDuelNotifications(profile?.email_duel_notifications ?? true)
       if (profile?.created_at) {
