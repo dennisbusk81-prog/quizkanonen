@@ -15,6 +15,13 @@ import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
+import { withTimeout } from '@/lib/with-timeout'
+import { decideSessionCheck } from '@/lib/session-check'
+
+// Sikkerhetsventil mot auth-lås-konflikt i getSession() — samme verdi og samme
+// begrunnelse som AuthListener.tsx: oppslaget leser normalt cookie/localStorage
+// på under 100 ms, så dette er aldri normal last, kun en øvre grense.
+const SESSION_CHECK_MS = 1500
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -396,7 +403,24 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       setSession(prev => (prev?.access_token === s?.access_token ? prev : s))
       setSessionChecked(true)
     }
-    supabase.auth.getSession().then(({ data: { session: s } }) => applySession(s))
+    // ── Tidsgrense på getSession() (7. august 2026) ──────────────────────────
+    // Samme sikkerhetsventil, samme 1500 ms, som AuthListener allerede har mot
+    // auth-lås-konflikt. Den ble nødvendig HER da scopede kall begynte å vente
+    // på `sessionChecked` (se scopedFetchReady under): henger getSession, blir
+    // flagget aldri satt, og org-/ligatopplisten står i skjelettet for alltid.
+    // Før ventingen fantes, fyrte hentingen umiddelbart og en treg getSession
+    // kunne ikke låse noe.
+    //
+    // Ved timeout settes KUN `sessionChecked` — ikke `session`. Å kalle
+    // applySession(null) ville påstått «utlogget» og gitt en ekte innlogget
+    // bruker «Logg inn»-kortet; her sier vi bare at vi ikke lenger venter, og
+    // onAuthStateChange (uendret backup, den mer pålitelige av de to) setter
+    // sesjonen når den lander.
+    withTimeout(supabase.auth.getSession(), { ms: SESSION_CHECK_MS }).then(outcome => {
+      const decision = decideSessionCheck(outcome)
+      if (decision.applySession) applySession(decision.session)
+      else setSessionChecked(decision.checked)
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => applySession(s))
     return () => subscription.unsubscribe()
   }, [])
