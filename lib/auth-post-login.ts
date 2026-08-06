@@ -13,7 +13,17 @@ import { welcomeFreeEmail } from '@/lib/email-templates'
 // ville en kopi ha betydd to steder å vedlikeholde profilopprettelse og
 // velkomstmail — og en ny bruker som kom inn via e-postlenke ville mistet begge
 // hvis kopien kom ut av synk. Derfor delt funksjon fra dag én.
-export async function ensureProfileForUser(user: User): Promise<void> {
+//
+// RETURVERDIEN `isNewUser` (6. august 2026) er signalet velkomstsiden /velkommen
+// gates på. Den er IKKE et nytt oppslag: den sier bare hvilken gren under som
+// ble tatt, og den grenen nås per definisjon én gang per konto — samme garanti
+// velkomst-e-posten allerede hviler på. Derfor koster «er brukeren ny?» null
+// ekstra databasearbeid i en sti der latency er dyrest.
+//
+// Alle feilgrener returnerer `false`. Det er med vilje: klarte vi ikke å
+// opprette profilen, skal brukeren gjennom den vanlige, uendrede stien — ikke
+// inn i en onboarding som ikke har noen rad å skrive til.
+export async function ensureProfileForUser(user: User): Promise<{ isNewUser: boolean }> {
   const now = new Date().toISOString()
 
   // Google-brukere: seed display_name fra full_name i metadata.
@@ -36,12 +46,12 @@ export async function ensureProfileForUser(user: User): Promise<void> {
       'message:', updateError.message,
       'details:', updateError.details
     )
-    return
+    return { isNewUser: false }
   }
 
   if (updated && updated.length > 0) {
     console.log('[auth] profile last_seen refreshed for user', user.id)
-    return
+    return { isNewUser: false }
   }
 
   // Ingen eksisterende rad → ny bruker. ignoreDuplicates beskytter mot at to
@@ -59,25 +69,33 @@ export async function ensureProfileForUser(user: User): Promise<void> {
       'message:', insertError.message,
       'details:', insertError.details
     )
-    return
+    return { isNewUser: false }
   }
 
   console.log('[auth] profile created for new user', user.id)
 
   // Velkomstmail til ny gratisbruker — blokkerer aldri innlogging.
   // Kjøres kun én gang: denne grenen nås bare når UPDATE traff 0 rader.
-  if (!user.email) return
-  const firstName = (initialDisplayName ?? user.email.split('@')[0]).split(' ')[0]
-  try {
-    await sendEmail({
-      to: user.email,
-      subject: 'Velkommen til Quizkanonen!',
-      html: welcomeFreeEmail(firstName),
-      replyTo: 'support@quizkanonen.no',
-    })
-  } catch (emailErr) {
-    console.error('[auth] welcomeFreeEmail feilet:', emailErr)
+  //
+  // Var tidligere `if (!user.email) return`. Nå en if-blokk, fordi funksjonen
+  // må returnere `isNewUser: true` også for en bruker uten e-postadresse —
+  // hen er like ny, og skal ha velkomstsiden selv om det ikke finnes noe sted
+  // å sende e-posten.
+  if (user.email) {
+    const firstName = (initialDisplayName ?? user.email.split('@')[0]).split(' ')[0]
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Velkommen til Quizkanonen!',
+        html: welcomeFreeEmail(firstName),
+        replyTo: 'support@quizkanonen.no',
+      })
+    } catch (emailErr) {
+      console.error('[auth] welcomeFreeEmail feilet:', emailErr)
+    }
   }
+
+  return { isNewUser: true }
 }
 
 // Kun interne stier er lovlige redirect-mål.
