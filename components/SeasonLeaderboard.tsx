@@ -14,6 +14,7 @@ import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
+import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -329,9 +330,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
-  // Kun til «Se topplisten hos {org}»-lenken i blokkert-kortet (global-scope).
-  // Ren context-lesing — ProfileProvider henter uansett, ingen nye kall herfra.
-  const { myOrgs, myOrgsLoaded } = useProfile()
+  // Kun til blokkert-kortet i global-scope: «Se topplisten hos {org}»-lenken og
+  // årsaksteksten. Ren context-lesing — ProfileProvider henter uansett, ingen
+  // nye kall herfra.
+  const { userId, myOrgs, myOrgsLoaded } = useProfile()
 
   const updateQuery = useCallback((patch: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -765,7 +767,19 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     // «return null» under svelget hele seksjonen. Kun global — org/liga er
     // interne rom der de blokkerte hører hjemme og vises som normalt.
     if (scope === 'global' && data.userBlockedFromGlobal) {
-      const internalHome = myOrgsLoaded && myOrgs.length > 0 ? myOrgs[0] : null
+      // Hvilken org å navngi — og HVORFOR brukeren står utenfor — avgjøres av de
+      // rene funksjonene i lib/placement-visibility.ts, ikke av en betingelse
+      // her. `myOrgs[0]` holdt ikke: ved flere medlemskap er det den BLOKKERENDE
+      // raden som forklarer utestengelsen, og en årsak lest av feil rad ville
+      // påstå noe usant (samme risiko som resultatskjermen, ab74097).
+      const placement = decidePlacementDisplay({ userId, orgsLoaded: myOrgsLoaded, orgs: myOrgs })
+      const blockingOrg = placement.mode === 'internal-only' ? placement.org : null
+      // Fallback beholdt for det ene tilfellet der ingen nåværende org blokkerer:
+      // periode-/quiz-flagget kan være HISTORISK (deriveBlockedFromScores —
+      // vedtaket den gang quizen ble gjort opp), og da finnes ingen årsak å
+      // påstå i dag. Da vises kortet som før, uten årsakslinje.
+      const internalHome = blockingOrg ?? (myOrgsLoaded && myOrgs.length > 0 ? myOrgs[0] : null)
+      const reason = blockingOrg ? globalExclusionReason(blockingOrg) : null
       return (
         <>
           <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
@@ -776,11 +790,34 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 dekker vinduet før myOrgs har landet; periode-flagget forut-
                 setter et levende org-medlemskap server-side, så «bedriften
                 din» er alltid sant der. */}
-            <p style={{ ...s.ctaText, marginBottom: internalHome ? 14 : 0 }}>
+            <p style={{ ...s.ctaText, marginBottom: reason ? 8 : internalHome ? 14 : 0 }}>
               {isLastQuiz
                 ? 'Du spilte ukens quiz — resultatet ditt vises ikke i den åpne topplisten.'
                 : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i den åpne topplisten.`}
             </p>
+            {/* ── Årsaken, som egen linje ────────────────────────────────────
+                Setningen over sier HVA som skjer og er ordrett den Dennis
+                godkjente 5. august; denne sier HVORFOR. De to årsakene må ikke
+                forveksles: «bedriften har valgt» til en som selv slo det av er
+                en usann påstand om arbeidsgiveren, og «du har valgt» til en
+                ansatt i en stengt org sender henne til en profilbryter uten
+                effekt (org-policyen overstyrer — se
+                /api/org/[slug]/league-preference). Derfor vinner org-policyen
+                når begge er sanne, avgjort av globalExclusionReason().
+                Hint-farge og ingen gull: dette er en forklaring, ikke en
+                handling, og kortet har allerede sin ene knapp. ── */}
+            {blockingOrg && reason && (
+              <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 14 }}>
+                {reason === 'org-policy' ? (
+                  <>{blockingOrg.orgName} har valgt at ansatte konkurrerer internt.</>
+                ) : (
+                  <>
+                    Du har selv valgt å ikke vises på den åpne topplisten.{' '}
+                    <Link href="/profil" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Endre i profilen</Link>
+                  </>
+                )}
+              </p>
+            )}
             {internalHome && (
               <Link href={`/org/${internalHome.orgSlug}`} style={s.btnOutline}>
                 Se topplisten hos {internalHome.orgName} &rarr;
