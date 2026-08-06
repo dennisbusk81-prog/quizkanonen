@@ -50,10 +50,11 @@ const state: {
   orgMems: { organization_id: string; global_league_opt_out: boolean | null }[]
   orgMemsCalls: number
   restrictedOrgs: { id: string }[]
+  gateMembership: boolean
 } = {
   latestQuiz: null, attempts: [], blocked: [], authUser: null,
   profileRows: [], userProfile: null, rpcRanked: [], rpcUserStats: [],
-  orgMems: [], orgMemsCalls: 0, restrictedOrgs: [],
+  orgMems: [], orgMemsCalls: 0, restrictedOrgs: [], gateMembership: true,
 }
 
 function thenable<T>(data: T) {
@@ -114,9 +115,22 @@ function excludedBuilder() {
   return b
 }
 
+// To ulike lesninger deler tabellen: scope-gatens maybeSingle (select
+// 'user_id') og isUserGloballyBlockedLive sin liste-lesning (select inkluderer
+// 'global_league_opt_out'). orgMemsCalls teller KUN live-sjekken — det er den
+// org-scope-testen under beviser at aldri kjører.
 function orgMembersBuilder() {
-  state.orgMemsCalls++
-  const b = { select() { return b }, eq() { return b }, ...thenable(state.orgMems) }
+  const b = {
+    select(cols: string) {
+      if (cols.includes('global_league_opt_out')) state.orgMemsCalls++
+      return b
+    },
+    eq() { return b },
+    async maybeSingle() {
+      return { data: state.gateMembership ? { user_id: 'gate' } : null, error: null }
+    },
+    ...thenable(state.orgMems),
+  }
   return b
 }
 
@@ -190,6 +204,7 @@ beforeEach(() => {
   state.orgMems = []
   state.orgMemsCalls = 0
   state.restrictedOrgs = []
+  state.gateMembership = true
 })
 
 // ── Siste quiz: positiv kontroll FØRST ───────────────────────────────────────
@@ -268,6 +283,8 @@ test('org-scope: live-sjekken kjøres ikke og flagget er false, selv for et opt-
   state.orgMems = [{ organization_id: 'org-1', global_league_opt_out: true }]
   const j = await (await call('period=month&scope=organization&scope_id=org-1', 'tok')).json()
   assert.equal(j.userBlockedFromGlobal, false)
-  // organization_members ble aldri spurt — gaten sitter på scope, ikke på svaret.
+  // Live-sjekkens lesning (select med global_league_opt_out) kjørte aldri —
+  // gaten sitter på scope, ikke på svaret. (Scope-gatens medlemskaps-
+  // maybeSingle telles bevisst ikke, se orgMembersBuilder.)
   assert.equal(state.orgMemsCalls, 0)
 })
