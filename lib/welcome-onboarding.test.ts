@@ -7,8 +7,9 @@
 //   2. En bruker som er midt i en invitasjonsflyt skal aldri kapres hit.
 //   3. En bruker skal aldri bli stående fast på siden.
 //
-// MUTASJONSBEVIS — kjørt 6. august 2026, tallene er MÅLT, ikke anslått
-// (26 tester i baseline, alle grønne):
+// MUTASJONSBEVIS — tallene er MÅLT, ikke anslått. a/b/c/e/f kjørt 6. august
+// og RE-KJØRT 7. august etter at shouldAskForName ble erstattet av
+// nameFieldState; M1/M2 kjørt 7. august (29 tester i baseline, alle grønne):
 //
 //   a) `if (!enabled) return false` fjernet fra shouldShowWelcome
 //      → 3 faller, alle tre i «bryteren av»-blokken.
@@ -18,15 +19,25 @@
 //   c) `if (!isNewUser) return false` fjernet
 //      → 2 faller: «eksisterende bruker ser ALDRI velkomstsiden» og
 //        «kun én gang i praksis».
-//   d) `if (!loaded.ok) return false` fjernet fra shouldAskForName
-//      → 1 faller: «feilet henting skjuler feltet». Kun én test dekker den
-//        grenen, og det er nok — de andre navnetestene verner den IKKE.
 //   e) `attempt <= 1` byttet til `attempt <= 2` i decideNavigation
 //      → 1 faller: «andre trykk navigerer ALLTID».
 //   f) allowlisten i welcomeOnboardingEnabled byttet til `return true`
 //      → 1 faller: «bryteren er AV ved en skrivefeil». At undefined/null/''
 //        fortsatt gir false skyldes den tidligere `if (!raw)`-returen, ikke
 //        allowlisten — de to grenene vernes altså hver for seg.
+//
+//   M1) nameFieldState lest fra `displayName` (kilden med e-post-fallback)
+//       i stedet for `displayNameRaw`
+//       → 1 faller: «MUTASJONSBEVIS 1». Dette er buggens familie — fixturen
+//         anne-marie@ er valgt fordi lokaldelen BESTÅR navnevalideringen og
+//         dermed avslører mutanten der «support» ikke ville gjort det.
+//   M2) `'pending'` byttet til `'hide'` i {ok:false}-grenen
+//       → 1 faller: «MUTASJONSBEVIS 2». Selve prod-buggen 6. august: «vet
+//         ikke» kollapset til «har navn», feltet forsvant, og
+//         NameRequiredModal fanget navnet på neste side.
+//
+// (Gamle mutasjon d gjaldt shouldAskForName, som er fjernet — M2 er dens
+// arvtaker med motsatt fasit: «vet ikke» skal nå VISES som plassholder.)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -35,8 +46,9 @@ import {
   decideNavigation,
   greetingName,
   isValidDisplayName,
+  nameFieldState,
   postLoginPath,
-  shouldAskForName,
+  quizStatusLine,
   shouldShowWelcome,
   welcomeExitPath,
   welcomeOnboardingEnabled,
@@ -138,25 +150,47 @@ test('ny bruker + bryter på + next "/" → velkomstsiden', () => {
   assert.equal(postLoginPath({ isNewUser: true, next: '/', enabled: true }), WELCOME_PATH)
 })
 
-// ── Navnefeltet ──────────────────────────────────────────────────────────────
+// ── Navnefeltet — tre tilstander, og de to mutasjonsbevisene fra prod-buggen ─
 
 test('feltet skjules når brukeren allerede har et gyldig navn', () => {
-  assert.equal(shouldAskForName({ ok: true, value: 'Ola Nordmann' }), false)
-  assert.equal(shouldAskForName({ ok: true, value: 'Anne-Marie' }), false)
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: 'Ola Nordmann' }, displayName: 'Ola Nordmann' }), 'hide')
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: 'Anne-Marie' }, displayName: 'Anne-Marie' }), 'hide')
 })
 
 test('feltet vises når navnet mangler eller er ubrukelig', () => {
-  assert.equal(shouldAskForName({ ok: true, value: null }), true)
-  assert.equal(shouldAskForName({ ok: true, value: '' }), true)
-  assert.equal(shouldAskForName({ ok: true, value: '   ' }), true)
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: null }, displayName: null }), 'show')
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: '' }, displayName: null }), 'show')
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: '   ' }, displayName: null }), 'show')
   // Ett ord er ikke et fullt navn — /api/profile/upsert avviser det med 400.
-  assert.equal(shouldAskForName({ ok: true, value: 'Ola' }), true)
+  assert.equal(nameFieldState({ displayNameRaw: { ok: true, value: 'Ola' }, displayName: 'Ola' }), 'show')
 })
 
-test('feilet henting skjuler feltet — «vet ikke» er ikke «mangler navn»', () => {
-  // Å vise feltet her ville bedt en Google-bruker som HAR navn om å skrive det
-  // på nytt. NameRequiredModal fanger opp den som faktisk mangler navn.
-  assert.equal(shouldAskForName({ ok: false }), false)
+test('MUTASJONSBEVIS 1: en kilde med e-post-fallback FELLES', () => {
+  // PRODUKSJONSBUGGENS FAMILIE. `displayName` fra useProfile() er en
+  // visningsverdi med fallback til e-postens lokaldel (ProfileProvider ~144).
+  // Fixturen er valgt med omhu: for anne-marie@example.com er lokaldelen
+  // «anne-marie» — som BESTÅR navnevalideringen (bokstaver + bindestrek).
+  // En implementasjon som leser `displayName` konkluderer da «har navn» og
+  // skjuler feltet, enda kolonnen er NULL. («support» hadde ikke avslørt
+  // mutanten — den stryker på mellomrom/bindestrek-kravet uansett.)
+  assert.equal(
+    nameFieldState({ displayNameRaw: { ok: true, value: null }, displayName: 'anne-marie' }),
+    'show',
+  )
+  // Og speilbildet fra den faktiske prod-hendelsen 6. august:
+  assert.equal(
+    nameFieldState({ displayNameRaw: { ok: true, value: null }, displayName: 'support' }),
+    'show',
+  )
+})
+
+test('MUTASJONSBEVIS 2: «vet ikke» er plassholder — ALDRI skjult', () => {
+  // Selve prod-buggen: { ok: false } → 'hide' gjorde at feltet forsvant og
+  // NameRequiredModal fanget navnet på NESTE side — den doble navnespørringen
+  // AuthListener-unntaket skulle fjerne. 'pending' er sin egen tilstand.
+  assert.equal(nameFieldState({ displayNameRaw: { ok: false }, displayName: null }), 'pending')
+  // …også når fallback-verdien ser ut som et navn:
+  assert.equal(nameFieldState({ displayNameRaw: { ok: false }, displayName: 'Ola Nordmann' }), 'pending')
 })
 
 test('navneregelen er den samme som upsert-ruten håndhever', () => {
@@ -183,6 +217,20 @@ test('hilsenen bruker fornavnet, og står uten navn når vi ikke har et', () => 
 test('åpen quiz → quizen, ingen åpen quiz → forsiden', () => {
   assert.equal(welcomeExitPath('abc-123'), '/quiz/abc-123')
   assert.equal(welcomeExitPath(null), '/')
+})
+
+// ── Statuslinjen ─────────────────────────────────────────────────────────────
+
+test('åpen quiz gir «quizen venter», bekreftet ingen gir «fredag kl. 12»', () => {
+  assert.equal(quizStatusLine({ ok: true, value: 'abc-123' }), 'Ukens quiz er åpen — 15 spørsmål venter.')
+  assert.equal(quizStatusLine({ ok: true, value: null }), 'Neste quiz åpner fredag kl. 12.')
+})
+
+test('ikke landet og feilet gir SAMME nøytrale linje — teksten venter aldri', () => {
+  // null = svaret har ikke landet; { ok: false } = ruten feilet/timet ut.
+  // Begge er «vet ikke», og den nøytrale linjen er sann i begge tilfeller.
+  assert.equal(quizStatusLine(null), 'Ny quiz hver fredag kl. 12.')
+  assert.equal(quizStatusLine({ ok: false }), 'Ny quiz hver fredag kl. 12.')
 })
 
 // ── Feilhåndtering: brukeren blir aldri stående fast ─────────────────────────

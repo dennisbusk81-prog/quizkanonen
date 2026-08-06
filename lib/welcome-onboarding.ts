@@ -101,23 +101,70 @@ export function isValidDisplayName(name: string | null | undefined): boolean {
 }
 
 /**
- * Skal navnefeltet vises?
+ * Navnefeltets tilstand — TRE utfall, ikke to.
  *
- * `{ ok: false }` → NEI. En feilet henting er «vet ikke», aldri «mangler navn»
- * (lib/fetch-result.ts). Å vise feltet da ville bedt en Google-bruker som
- * allerede HAR navn om å skrive det på nytt — nøyaktig det bestillingen ber oss
- * unngå. NameRequiredModal er backstop for den som faktisk mangler navn, så
- * ingen faller mellom stolene.
+ * Forgjengeren (shouldAskForName, boolsk) kollapset «vet ikke» til «skjul», og
+ * det VAR produksjonsbuggen 6. august: alle veier til `{ ok: false }` i
+ * oppstarten (auth-lås-timeout, feilet spørring) skjulte feltet, og backstopen
+ * for skjulingen var NameRequiredModal på NESTE side — altså nøyaktig den
+ * doble navnespørringen AuthListener-unntaket skulle fjerne. Med tre tilstander
+ * kan «vet ikke» få sin egen visning (plassholder) i stedet for å bli
+ * bit-identisk med «har navn».
+ *
+ *   'show'    — vi VET at navnet mangler eller er ugyldig. Vis feltet.
+ *   'hide'    — vi VET at brukeren har et gyldig navn. Ikke noe felt.
+ *   'pending' — vi vet ikke ennå. Plassholder — ALDRI 'hide', for «vet ikke»
+ *               skal aldri bli til «har navn».
  */
-export function shouldAskForName(loaded: Loaded<string | null>): boolean {
-  if (!loaded.ok) return false
-  return !isValidDisplayName(loaded.value)
+export type NameFieldState = 'show' | 'hide' | 'pending'
+
+/**
+ * Kilden er de to navnefeltene fra useProfile() — og funksjonen finnes for å
+ * DOKUMENTERE hvilket av dem som er lovlig å lese:
+ *
+ * `displayNameRaw` er den rå kolonneverdien fra profiles.display_name, som en
+ * bekreftet henting. `displayName` er visningsverdien for UserMenu/NavAuth og
+ * har en FALLBACK TIL E-POSTENS LOKALDEL (ProfileProvider ~linje 144) — for
+ * support@quizkanonen.no «heter» brukeren der support. Den duger aldri som
+ * «har navn»-signal og tas imot her KUN for at testene skal kunne felle en
+ * implementasjon som leser den. Se mutasjonsbeviset i testfilen.
+ */
+export type WelcomeNameSource = {
+  displayNameRaw: Loaded<string | null>
+  displayName: string | null
+}
+
+export function nameFieldState({ displayNameRaw }: WelcomeNameSource): NameFieldState {
+  if (!displayNameRaw.ok) return 'pending'
+  return isValidDisplayName(displayNameRaw.value) ? 'hide' : 'show'
 }
 
 /** Fornavnet til hilsenen. Tomt navn → null, og hilsenen står uten navn. */
 export function greetingName(name: string | null | undefined): string | null {
   if (!isValidDisplayName(name)) return null
   return (name as string).trim().split(' ')[0] || null
+}
+
+// ── Statuslinjen ─────────────────────────────────────────────────────────────
+
+/**
+ * «Hva skjer nå?» — linjen som gir «Kom i gang»-knappen mening.
+ *
+ * `null` = svaret fra /api/quiz/active har ikke landet ennå. Den nøytrale
+ * varianten rendres da UMIDDELBART — teksten venter aldri på nettverket, den
+ * oppgraderes når svaret kommer. `{ ok: false }` (ruten feilet/timet ut) gir
+ * samme nøytrale linje: den er sann uansett, og «vet ikke» skal ikke se
+ * annerledes ut enn «vet ikke ennå».
+ *
+ * Klokkeslettet 12 er bevisst hardkodet — samme påstand som
+ * /slik-fungerer-det allerede gjør («Hver fredag kl. 12:00»). /api/quiz/active
+ * svarer kun {id}, så et datadrevet klokkeslett hadde krevd et endret kall.
+ * Endres åpningstiden noen gang, må BEGGE sidene oppdateres.
+ */
+export function quizStatusLine(active: Loaded<string | null> | null): string {
+  if (active?.ok && active.value) return 'Ukens quiz er åpen — 15 spørsmål venter.'
+  if (active?.ok) return 'Neste quiz åpner fredag kl. 12.'
+  return 'Ny quiz hver fredag kl. 12.'
 }
 
 // ── Lagring og navigasjon ────────────────────────────────────────────────────
