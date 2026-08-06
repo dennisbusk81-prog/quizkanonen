@@ -39,6 +39,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ entries: [] })
   }
 
+  // ── Scope-gate (6. august 2026) — speiler /api/toppliste ────────────────────
+  // Samme hull som hovedruten: scope/scope_id ble lest rått, og periodevinnere
+  // i org-/liga-rom (displayName + nickname) var lesbare anonymt. Kun 'global'
+  // er åpen uten innlogging. Identisk 403 enten org/ligaen ikke finnes eller
+  // kalleren ikke er medlem — svaret skal ikke røpe at rommet eksisterer.
+  if (scope !== 'global') {
+    if ((scope !== 'league' && scope !== 'organization') || !scopeId) {
+      return NextResponse.json({ error: 'Ugyldig scope' }, { status: 400 })
+    }
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    if (authError || !user) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+
+    const { data: membership, error: memberError } = scope === 'league'
+      ? await supabaseAdmin.from('league_members').select('user_id')
+          .eq('league_id', scopeId).eq('user_id', user.id).maybeSingle()
+      : await supabaseAdmin.from('organization_members').select('user_id')
+          .eq('organization_id', scopeId).eq('user_id', user.id).maybeSingle()
+
+    // Fail-safe: kan medlemskap ikke avgjøres, avvis. Prisen er en midlertidig
+    // utilgjengelig org-/liga-historikk som retter seg selv — alternativet er
+    // en lekkasje som ikke kan angres.
+    if (memberError) return NextResponse.json({ error: 'Kunne ikke bekrefte tilgang' }, { status: 503 })
+    if (!membership) return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+  }
+
+  // CDN-cache KUN for global. Et scoped svar er autorisert per kaller — med
+  // `public, s-maxage` ville CDN-en cachet et medlems svar på URL-en og
+  // servert det videre til anonyme (Authorization-headeren er ikke del av
+  // cache-nøkkelen). Denne linjen må derfor alltid stå FORAN gaten i historikken:
+  // header av på scopede svar før noen gate gjør dem autoriserte.
+  const respond = (body: unknown) =>
+    scope === 'global'
+      ? NextResponse.json(body, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+      : NextResponse.json(body)
+
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
     const now = new Date().toISOString()
@@ -52,7 +89,7 @@ export async function GET(request: NextRequest) {
       .limit(21)
 
     if (!allClosed || allClosed.length <= 1) {
-      return NextResponse.json({ entries: [] }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+      return respond({ entries: [] })
     }
 
     const quizzes = (allClosed as { id: string; title: string; closes_at: string }[]).slice(1)
@@ -124,7 +161,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ entries }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+    return respond({ entries })
   }
 
   // ── PERIODE MODE (month / quarter / year) ─────────────────────────────────
@@ -162,7 +199,7 @@ export async function GET(request: NextRequest) {
   })
 
   if (scores.length === 0) {
-    return NextResponse.json({ entries: [] }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+    return respond({ entries: [] })
   }
 
   // Gruppér per periode-nøkkel
@@ -179,7 +216,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (byPeriod.size === 0) {
-    return NextResponse.json({ entries: [] }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+    return respond({ entries: [] })
   }
 
   // Finn vinner per periode
@@ -230,5 +267,5 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  return NextResponse.json({ entries }, { headers: { 'Cache-Control': 'public, s-maxage=300' } })
+  return respond({ entries })
 }
