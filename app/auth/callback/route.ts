@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { AUTH_LINK_RATE_LIMIT } from '@/lib/auth-rate-limit'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
+import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboarding'
 
 // PKCE-callback. Etter 20. juli er dette i praksis Google OAuth-stien.
 //
@@ -85,7 +86,28 @@ export async function GET(request: NextRequest) {
 
   console.log('[auth/callback] session ok, user id:', data.user.id, 'email:', data.user.email)
 
-  await ensureProfileForUser(data.user)
+  const { isNewUser } = await ensureProfileForUser(data.user)
+
+  // Velkomstsiden for ferske B2C-brukere. Regelen bor i lib/welcome-onboarding.ts
+  // slik at denne ruten og /api/auth/bekreft ikke kan drifte fra hverandre —
+  // de to har allerede måttet rettes hver for seg én gang (rate_limit-redirecten
+  // pekte feil sted her i flere uker mens bekreft gjorde det riktig).
+  //
+  // Uten WELCOME_ONBOARDING_ENABLED returnerer postLoginPath alltid `next`, og
+  // linjene under er da et rent no-op: `target === next`, ingen header røres,
+  // responsen er bit-identisk med den ruten returnerte før denne endringen.
+  const target = postLoginPath({
+    isNewUser,
+    next,
+    enabled: welcomeOnboardingEnabled(process.env.WELCOME_ONBOARDING_ENABLED),
+  })
+
+  // Location settes på den EKSISTERENDE responsen. `response` ble opprettet før
+  // exchangeCodeForSession nettopp fordi setAll-closuren skriver sesjons-
+  // cookiene inn i den — en ny NextResponse.redirect her ville kastet dem.
+  if (target !== next) {
+    response.headers.set('location', `${origin}${target}`)
+  }
 
   // Session is now stored in cookies on `response` — no URL hash needed.
   // createBrowserClient on the client will read the cookies and fire onAuthStateChange.

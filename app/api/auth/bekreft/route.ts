@@ -4,6 +4,7 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { AUTH_LINK_RATE_LIMIT } from '@/lib/auth-rate-limit'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
+import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboarding'
 
 // Innløser en e-postlenke (token_hash) og oppretter sesjonen.
 //
@@ -78,7 +79,25 @@ export async function POST(request: NextRequest) {
 
   console.log('[auth/bekreft] sesjon ok, type:', type, 'user:', data.user.id)
 
-  await ensureProfileForUser(data.user)
+  const { isNewUser } = await ensureProfileForUser(data.user)
+
+  // Samme regel som /auth/callback, samme ene kilde. Dette er stien de fleste
+  // ferske B2C-brukere faktisk kommer inn på: passord-signup og magic link går
+  // begge via en e-postlenke, ikke via PKCE.
+  //
+  // Uten WELCOME_ONBOARDING_ENABLED er `target === next`, headeren røres ikke,
+  // og responsen er bit-identisk med før — inkludert 303-statusen.
+  const target = postLoginPath({
+    isNewUser,
+    next,
+    enabled: welcomeOnboardingEnabled(process.env.WELCOME_ONBOARDING_ENABLED),
+  })
+
+  // Skriver på den eksisterende responsen: sesjons-cookiene fra verifyOtp ligger
+  // allerede i den, og en ny NextResponse.redirect ville mistet dem.
+  if (target !== next) {
+    response.headers.set('location', `${origin}${target}`)
+  }
 
   return response
 }
