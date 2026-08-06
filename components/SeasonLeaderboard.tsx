@@ -484,7 +484,15 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // Bruker session?.user?.id i dep-arrayen for å unngå ekstra re-fetch
   // ved token-refresh (samme bruker, nytt token).
   const sessionUserId = session?.user?.id ?? null
+  // Scopede kall (org/liga) venter til getSession() har svart: første fetch
+  // gikk ellers anonymt og får nå 401 fra scope-gaten i /api/toppliste — et
+  // blaff av «Logg inn»-kortet for ekte medlemmer ved hver sidelast, pluss et
+  // bortkastet kall. 'global' er konstant true slik at dep-en aldri endres og
+  // den offentlige topplisten er bevislig uendret (ingen ekstra re-fetch for
+  // anonyme når sessionChecked lander).
+  const scopedFetchReady = scope === 'global' ? true : sessionChecked
   useEffect(() => {
+    if (!scopedFetchReady) return // initial loading=true → skeleton står
     let cancelled = false
     setLoading(true)
     // Fjern data (vis skeleton) ved periode-/sidebytte og initial last.
@@ -520,7 +528,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     return () => { cancelled = true }
   // sessionUserId (ikke session) for å unngå re-fetch ved token-refresh
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, sessionUserId, scope, scopeId, browseMode, pageNo, search])
+  }, [period, sessionUserId, scope, scopeId, browseMode, pageNo, search, scopedFetchReady])
 
   // Reset historikk-cache + paginering når periode bytter. hist/histKey
   // trenger ikke nullstilles her lenger — de er URL-styrt, og setPeriod()
