@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchPremiumStatusFull, hydratePremiumStatus } from '@/lib/premium-status'
 import { type Loaded } from '@/lib/fetch-result'
 import { fetchMyOrgsResult } from '@/lib/my-orgs-fetch'
+import { toLoadedRow } from '@/lib/profile-load'
 
 // Én organisasjon brukeren er medlem av. Samme form som /api/org/my-orgs
 // returnerer, slik at konsumenter kan bruke context-verdien direkte.
@@ -129,7 +130,19 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         fetchMyOrgs(token),
       ])
 
-      setDisplayName(profileRes.data?.display_name ?? user.email?.split('@')[0] ?? null)
+      // Samme null-safe regel som premium under og myOrgs i applyMyOrgs: kun et
+      // BEKREFTET svar får endre contexten. `profileRes.data?.…` leste tidligere
+      // kun `.data`, så en spørringsfeil (RLS-avslag, 500, nettverksbrudd) ble
+      // umulig å skille fra «raden har ikke noe navn» — og hele appen fikk da
+      // e-postens lokaldel presentert som visningsnavn i UserMenu og NavAuth.
+      // Ved feil beholdes forrige verdi; en bruker som ser navnet sitt skal ikke
+      // se det bli til «dennisbusk81» fordi en re-henting feilet.
+      const nameRow = toLoadedRow<{ display_name: string | null }>(profileRes)
+      if (nameRow.ok) {
+        // Lokaldelen er fortsatt riktig fallback for en BEKREFTET tom rad —
+        // brukeren finnes, men har ikke satt navn ennå.
+        setDisplayName(nameRow.value?.display_name ?? user.email?.split('@')[0] ?? null)
+      }
       // Kun definitivt svar endrer premium — aldri nedgrader på null (feil).
       if (premium !== null) {
         setIsPremium(premium.isPremium)
