@@ -435,7 +435,10 @@ export default function HistorikkPage() {
       setLoadState('ready')
     }
 
-    load()
+    // Uten .catch ble en kastende fetch (offline, DNS, avbrutt forbindelse) en
+    // uhåndtert rejection, og loadState sto på 'loading' — spinner uten utvei.
+    // Samme mønster som load() i app/liga/page.tsx.
+    load().catch(() => { if (!cancelled) setLoadState('error') })
     return () => { cancelled = true }
   }, [router])
 
@@ -479,7 +482,17 @@ export default function HistorikkPage() {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
+        <div style={s.centered}>
+          <div style={{ textAlign: 'center' as const }}>
+            <p style={s.spinner}>Vi klarte ikke å hente historikken.</p>
+            <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
+              {/* Bevisst hard navigasjon, ikke <Link>: «Prøv igjen» peker på
+                  siden brukeren allerede står på. Full sidelast er hele poenget. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/historikk" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+            </p>
+          </div>
+        </div>
       </>
     )
   }
