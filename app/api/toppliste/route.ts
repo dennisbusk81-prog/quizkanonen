@@ -180,6 +180,40 @@ export async function GET(request: NextRequest) {
 
   userId = authResult.data.user?.id ?? null
 
+  // ── Scope-gate (6. august 2026) ─────────────────────────────────────────────
+  // Samme gating som /api/leagues/[id]/leaderboard og /api/org/[slug]/dashboard:
+  // org-/liga-topplister er interne rom, men denne ruten serverte de samme
+  // navngitte medlemmene (displayName, poeng, userId) anonymt — målt mot prod
+  // 6. august. Nøklet på VERDIEN scope !== 'global', ikke på om parameteren
+  // finnes: SeasonLeaderboard sender alltid scope=global eksplisitt for den
+  // offentlige topplisten, og den skal være bevislig uendret.
+  if (scope !== 'global') {
+    if ((scope !== 'league' && scope !== 'organization') || !scopeId) {
+      return NextResponse.json({ error: 'Ugyldig scope' }, { status: 400 })
+    }
+    if (!userId) {
+      return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
+    }
+    // Fersk maybeSingle, IKKE via getMemberSet-cachen: en nettopp fjernet
+    // ansatt skal ikke ha 30 s etterslep på selve gaten. Identisk 403 enten
+    // org/ligaen ikke finnes eller kalleren ikke er medlem — svaret skal ikke
+    // røpe at rommet eksisterer.
+    const { data: membership, error: memberError } = scope === 'league'
+      ? await supabaseAdmin.from('league_members').select('user_id')
+          .eq('league_id', scopeId).eq('user_id', userId).maybeSingle()
+      : await supabaseAdmin.from('organization_members').select('user_id')
+          .eq('organization_id', scopeId).eq('user_id', userId).maybeSingle()
+    // Fail-safe: kan medlemskap ikke avgjøres, avvis. Prisen er en midlertidig
+    // utilgjengelig org-/liga-toppliste som retter seg selv — alternativet er
+    // en lekkasje som ikke kan angres.
+    if (memberError) {
+      return NextResponse.json({ error: 'Kunne ikke bekrefte tilgang' }, { status: 503 })
+    }
+    if (!membership) {
+      return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+    }
+  }
+
   const excludedSet = new Set(
     (excludedResult.data ?? []).map((e: { user_id: string }) => e.user_id)
   )
