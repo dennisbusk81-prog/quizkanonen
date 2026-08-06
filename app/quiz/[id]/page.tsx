@@ -18,6 +18,7 @@ import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
 import { decidePlacementDisplay, globalExclusionReason, shouldOfferPlacementRetry } from '@/lib/placement-visibility'
+import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
@@ -2294,7 +2295,11 @@ export default function QuizPage() {
                 placement?: { rank: number; total: number; low: number; high: number } | null
               } = await stRes.json()
               if (Array.isArray(st.top3)) setTop3(st.top3)
-              if (st.placement && st.placement.total > 1) {
+              // Ingen total-terskel her: hva som skal VISES (også for en spiller
+              // som er alene i feltet) avgjøres av decideResultPlacementView i
+              // render. `total > 1`-guarden som lå her gjorde at spiller nr. 1
+              // fikk et helt tomt felt — se lib/result-placement.ts.
+              if (st.placement) {
                 setEstimatedPlacement({
                   rank: st.placement.rank,
                   low: st.placement.low,
@@ -2327,7 +2332,9 @@ export default function QuizPage() {
                 const lb: { userRank?: number | null; userEntry?: { rank: number } | null; guestRank?: number | null; totalCount?: number } = await lbRes.json()
                 const rank = lb.userRank ?? lb.userEntry?.rank ?? lb.guestRank ?? null
                 const total = lb.totalCount ?? 0
-                if (rank && total > 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
+                // total >= 1, ikke > 1: visningsbeslutningen (også for en
+                // spiller alene i feltet) bor i decideResultPlacementView.
+                if (rank && total >= 1) setEstimatedPlacement({ rank, low: rank, high: rank, total })
               }
             } catch { /* fallback feilet — la plassering være uoppgitt */ }
           }
@@ -3452,7 +3459,17 @@ export default function QuizPage() {
         </p>
       )}
 
-      {placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'unknown' && estimatedPlacement && estimatedPlacement.total > 1 && (() => {
+      {(() => {
+        // Hvem ser hva avgjøres av decideResultPlacementView (ren, testdekket —
+        // lib/result-placement.ts). Fram til 7. august 2026 lå det en
+        // `total > 1`-guard her OG ved begge fetch-stedene, så den aller første
+        // som leverte så et helt tomt felt — ikke engang venteteksten.
+        const placementView = decideResultPlacementView({
+          mode: placementDisplay.mode,
+          isPremium,
+          placement: estimatedPlacement,
+        })
+        if (placementView === 'hidden' || !estimatedPlacement) return null
         // Her lå `prosent`/`toppX` — samme feil nevner som premium-grenen under
         // (spilleren selv talt med i feltet hun sammenlignes mot), men utledet
         // av spennets `low`. De ble aldri vist noe sted: gratis-grenen viser
@@ -3466,7 +3483,7 @@ export default function QuizPage() {
         const rangeY = estimatedPlacement.total <= 10
           ? estimatedPlacement.total
           : Math.min(estimatedPlacement.total, tierStart + 9)
-        if (isPremium) {
+        if (placementView === 'premium-first' || placementView === 'premium-exact') {
           // Premium = EKSAKT plassering: bruk `rank` fra den delte lista (identisk
           // med Topp 3), ikke spennets `low`. Dette var Kevin-symptomet — en rang-2-
           // spiller viste "1. plass" fordi low = rank-2 ble vist som eksakt.
@@ -3492,9 +3509,18 @@ export default function QuizPage() {
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {estimatedPlacement.rank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
-              <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
-                av {estimatedPlacement.total} deltakere
-              </div>
+              {placementView === 'premium-first' ? (
+                // Alene i feltet: «av 1 deltakere» er hult. Konteksten er sann
+                // og forklarer hvorfor tallet er magert — og ingen spenn eller
+                // påstand om et felt som ikke finnes.
+                <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                  Foreløpig — du er først ute denne uken
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                  av {estimatedPlacement.total} deltakere
+                </div>
+              )}
               {/* Org-medlemmer i en org som deltar åpent ser BEGGE tall —
                   det interne i tillegg til (aldri i stedet for) det totale. */}
               {placementDisplay.mode === 'both' && internalPlacement != null
@@ -3526,7 +3552,8 @@ export default function QuizPage() {
         // — er totalen under 10, og et «estimat» som spenner hele feltet leser
         // som en ødelagt funksjon. Under grensen: ærlig ventetekst i stedet.
         // Premium-grenen over er upåvirket — eksakt plassering er korrekt
-        // uansett antall.
+        // uansett antall. Siden 7. august 2026 lander også total = 1 (spiller
+        // nr. 1, tidligere et helt tomt felt) i venteteksten her.
         const showSpan = estimatedPlacement.total >= 10
         return (
           <div className="qk-rsec" style={{
