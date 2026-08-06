@@ -17,7 +17,7 @@ import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
-import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
+import { decidePlacementDisplay, globalExclusionReason, shouldOfferPlacementRetry } from '@/lib/placement-visibility'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
@@ -965,7 +965,12 @@ export default function QuizPage() {
   // unngår et eget POST /api/org/my-orgs-kall (speiler OrgCard.tsx, df99071).
   // userId/myOrgsLoaded mater decidePlacementDisplay — samme kilde som myOrgs,
   // så «hvem er du» og «hvilke orger» aldri kommer fra to usynkrone svar.
-  const { isPremium, refreshProfile, myOrgs, myOrgsLoaded, userId: profileUserId } = useProfile()
+  // myOrgsError/refreshMyOrgs er utveien når org-svaret har FEILET og
+  // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
+  const {
+    isPremium, refreshProfile, myOrgs, myOrgsLoaded, userId: profileUserId,
+    myOrgsError, refreshMyOrgs,
+  } = useProfile()
   // Hvilken plassering denne spilleren skal se på resultatskjermen — se
   // lib/placement-visibility.ts. 'internal-only' (blokkert org/eget opt-out)
   // undertrykker det offentlige tallet i BÅDE plasseringskortet og begge
@@ -3355,6 +3360,28 @@ export default function QuizPage() {
           </p>
         )
       })()}
+
+      {/* ── Org-svaret feilet: plasseringen er ikke borte, den er uavklart ────
+          'unknown' skjuler plasseringen med rette mens svaret er underveis,
+          men et FEILET svar retter seg aldri selv (ProfileProvider setter
+          bevisst ikke myOrgsLoaded på feil). Uten denne knappen forsvant
+          spillerens egen plassering for resten av økta — se
+          shouldOfferPlacementRetry i lib/placement-visibility.ts. Dempet og
+          uten gull: skjermen har allerede sin ene gule flate. ── */}
+      {shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError }) && (
+        <p className="qk-rsec" style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
+          Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
+          <button
+            onClick={() => { void refreshMyOrgs() }}
+            style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+            }}
+          >
+            Prøv igjen
+          </button>
+        </p>
+      )}
 
       {placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'unknown' && estimatedPlacement && estimatedPlacement.total > 1 && (() => {
         // Her lå `prosent`/`toppX` — samme feil nevner som premium-grenen under
