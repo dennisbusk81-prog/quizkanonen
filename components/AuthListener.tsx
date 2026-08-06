@@ -1,16 +1,8 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { isValidDisplayName as isValidName, WELCOME_PATH } from '@/lib/welcome-onboarding'
 import type { User } from '@supabase/supabase-js'
-
-const NAME_RE = /^[\p{L}\s\-']{2,40}$/u
-
-function isValidName(name: string | null | undefined): boolean {
-  if (!name) return false
-  const trimmed = name.trim()
-  if (!NAME_RE.test(trimmed)) return false
-  return trimmed.includes(' ') || trimmed.includes('-')
-}
 
 // Henter session med timeout slik at auth-lock-konflikt ikke henger evig.
 // 1500ms holder rikelig: getSession() leser normalt cookie/localStorage på
@@ -88,6 +80,14 @@ export default function AuthListener() {
   useEffect(() => {
     const runOnce = (user: User) => {
       if (handledUserIdRef.current === user.id) return
+      // /velkommen spør selv om navn, i sitt eget felt. Uten denne sperren ville
+      // en fersk bruker uten navn fått BÅDE feltet og den blokkerende
+      // NameRequiredModal oppå det, samtidig — modalen ligger i root layout og
+      // vet ingenting om hvilken side den dekker over.
+      //
+      // Merk at ref-en IKKE settes her: hopper vi over, er brukeren fortsatt
+      // uhåndtert, og navnesjekken skal kjøre som vanlig på neste side.
+      if (typeof window !== 'undefined' && window.location.pathname === WELCOME_PATH) return
       handledUserIdRef.current = user.id
       checkAndFixDisplayName(user)
     }

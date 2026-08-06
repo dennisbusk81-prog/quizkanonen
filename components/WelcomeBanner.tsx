@@ -1,7 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { WELCOME_BANNER_SEEN_KEY } from '@/lib/welcome-onboarding'
 
-const STORAGE_KEY = 'qk_welcomed'
+// Nøkkelen deles med /velkommen, som stempler den før den navigerer videre:
+// en fersk bruker som nettopp har lest velkomstsiden skal ikke møte et banner
+// som sier omtrent det samme. Uendret oppførsel for alle andre.
+const STORAGE_KEY = WELCOME_BANNER_SEEN_KEY
 
 export default function WelcomeBanner() {
   const [visible, setVisible] = useState(false)
