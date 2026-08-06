@@ -22,6 +22,29 @@ import type { Loaded } from './fetch-result'
 
 export const WELCOME_PATH = '/velkommen'
 
+/**
+ * Skal AuthListener la være å fyre navnesjekken (og dermed NameRequiredModal)
+ * på denne pathnamen?
+ *
+ * To flater, én regel:
+ *  - /velkommen spør selv om navn, i sitt eget felt.
+ *  - Alt under /auth/ er ruter en ny bruker PASSERER på vei til velkomstsiden.
+ *    Verifisert i prod 7. august: en fersk konto med sesjon men uten navn fikk
+ *    modalen («Hva heter du?») på /auth/bekreft — FØR kontoen engang var
+ *    bekreftet, og deretter navnespørsmålet på nytt på /velkommen.
+ *
+ * Prefiks, ikke navngitte ruter: en framtidig /auth/-rute skal ikke kunne
+ * gjeninnføre bugen ved å mangle på en liste. /login og /sett-passord ligger
+ * bevisst UTENFOR — recovery-flyten ender på /sett-passord og går aldri videre
+ * til velkomstsiden, så der er modalen fortsatt riktig backstop.
+ *
+ * Kalleren skal IKKE sette dedupe-ref-en når denne sier true: brukeren er
+ * fortsatt uhåndtert, og navnesjekken skal kjøre som vanlig på neste side.
+ */
+export function suppressNameModalOnPath(pathname: string): boolean {
+  return pathname === WELCOME_PATH || pathname.startsWith('/auth/')
+}
+
 // Nøkkelen WelcomeBanner (forsiden) bruker for «har sett førstegangsbanneret».
 // Delt herfra slik at velkomstsiden kan stemple den før den navigerer videre —
 // ellers får en fersk bruker banneret rett etter velkomstsiden, som sier omtrent

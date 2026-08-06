@@ -38,11 +38,17 @@
 //
 // (Gamle mutasjon d gjaldt shouldAskForName, som er fjernet — M2 er dens
 // arvtaker med motsatt fasit: «vet ikke» skal nå VISES som plassholder.)
+//
+//   M3) suppressNameModalOnPath uten '/auth/'-prefikset (kun /velkommen)
+//       → 1 faller: «MUTASJONSBEVIS 3». Kjørt 7. august (32 tester i
+//         baseline). Prod-funnet samme dag: modalen fyrte på /auth/bekreft
+//         før kontoen var bekreftet, og navnet ble spurt to ganger.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   WELCOME_PATH,
   classifyNameSave,
+  suppressNameModalOnPath,
   decideNavigation,
   greetingName,
   isValidDisplayName,
@@ -217,6 +223,33 @@ test('hilsenen bruker fornavnet, og står uten navn når vi ikke har et', () => 
 test('åpen quiz → quizen, ingen åpen quiz → forsiden', () => {
   assert.equal(welcomeExitPath('abc-123'), '/quiz/abc-123')
   assert.equal(welcomeExitPath(null), '/')
+})
+
+// ── Modal-sperren ────────────────────────────────────────────────────────────
+
+test('MUTASJONSBEVIS 3: sperren dekker /auth/-rutene, ikke bare /velkommen', () => {
+  // Prod-funnet 7. august: modalen fyrte på /auth/bekreft FØR kontoen var
+  // bekreftet, og navnet ble spurt om igjen på /velkommen. En implementasjon
+  // der sperren kun dekker /velkommen felles av disse to.
+  assert.equal(suppressNameModalOnPath('/auth/bekreft'), true)
+  assert.equal(suppressNameModalOnPath('/auth/callback'), true)
+})
+
+test('sperren dekker /velkommen som før', () => {
+  assert.equal(suppressNameModalOnPath(WELCOME_PATH), true)
+})
+
+test('modalen er fortsatt backstop overalt ellers', () => {
+  // /sett-passord og /login ligger bevisst utenfor: recovery-flyten ender på
+  // /sett-passord og gaar aldri videre til velkomstsiden.
+  assert.equal(suppressNameModalOnPath('/'), false)
+  assert.equal(suppressNameModalOnPath('/login'), false)
+  assert.equal(suppressNameModalOnPath('/sett-passord'), false)
+  assert.equal(suppressNameModalOnPath('/quiz/abc-123'), false)
+  assert.equal(suppressNameModalOnPath('/toppliste'), false)
+  // Prefikset er '/auth/', ikke '/auth' — en side som HETER noe med auth skal
+  // ikke treffes ved et uhell.
+  assert.equal(suppressNameModalOnPath('/authors'), false)
 })
 
 // ── Statuslinjen ─────────────────────────────────────────────────────────────
