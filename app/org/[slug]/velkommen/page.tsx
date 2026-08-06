@@ -4,10 +4,22 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase, supabaseData } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
+import WelcomeShell from '@/components/WelcomeShell'
 import { isOrgLocked } from '@/lib/org-access'
 import type { Session } from '@supabase/supabase-js'
-
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
+// Stilene lå tidligere som lokale konstanter i denne filen. De er FLYTTET,
+// uendret, til lib/welcome-styles.ts slik at /velkommen (B2C) arver nøyaktig
+// samme utseende. Kun presentasjon er delt — tilstandsmodellen her er urørt.
+import {
+  WELCOME_FONT_IMPORT,
+  welcomeBodyText,
+  welcomeCard,
+  welcomeErrorBox,
+  welcomeHeading,
+  welcomeHintText,
+  welcomePrimaryButton,
+  welcomeStepLabel,
+} from '@/lib/welcome-styles'
 
 // ── Oppsett-siden for en fersk bedriftsadmin ─────────────────────────────────
 //
@@ -270,7 +282,7 @@ export default function OrgVelkommenPage() {
   if (session === undefined || loadState === 'loading') {
     return (
       <>
-        <style>{FONT}</style>
+        <style>{WELCOME_FONT_IMPORT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
             Henter bedriften din …
@@ -283,7 +295,7 @@ export default function OrgVelkommenPage() {
   if (loadState === 'error' || !data) {
     return (
       <>
-        <style>{FONT}</style>
+        <style>{WELCOME_FONT_IMPORT}</style>
         <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
           <div style={{ textAlign: 'center', maxWidth: 380 }}>
@@ -310,29 +322,20 @@ export default function OrgVelkommenPage() {
   }
 
   // ── Delte stiler ───────────────────────────────────────────────────────────
+  //
+  // Verdiene er flyttet til lib/welcome-styles.ts og deles nå med /velkommen.
+  // De lokale navnene beholdes som aliaser med vilje: da står JSX-en under
+  // BOKSTAVELIG uendret, og en gjennomgang trenger ikke lete etter om noe
+  // logikk fulgte med på flyttelasset. Vil org-siden en dag avvike visuelt, er
+  // det disse fem linjene som endres.
 
-  const card = {
-    background: '#21242e',
-    border: '1px solid #2a2d38',
-    borderRadius: 16,
-    padding: '28px 24px',
-    marginBottom: 16,
-  } as const
+  const card = welcomeCard
+  const stepLabel = welcomeStepLabel
+  const heading = welcomeHeading
+  const bodyText = welcomeBodyText
+  const hintText = welcomeHintText
 
-  const stepLabel = {
-    fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
-    textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 10,
-  } as const
-
-  const heading = {
-    fontFamily: "'Libre Baskerville', serif",
-    fontSize: 19, fontWeight: 700, color: '#ffffff',
-    lineHeight: 1.3, marginBottom: 8,
-  } as const
-
-  const bodyText = { fontSize: 14, color: '#e8e4dd', lineHeight: 1.65 } as const
-  const hintText = { fontSize: 13, color: '#918f8a', lineHeight: 1.6 } as const
-
+  // Org-spesifikk — /velkommen har ingen tidsfelt, så denne blir stående her.
   const timeInput = {
     width: '100%', background: '#1a1c23', border: '1px solid #2a2d38',
     borderRadius: 10, padding: '11px 14px', fontSize: 15, color: '#ffffff',
@@ -346,32 +349,21 @@ export default function OrgVelkommenPage() {
   // ── Siden ──────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <style>{FONT + ' * { box-sizing: border-box; }'}</style>
-      <UserMenuWrapper />
-
-      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
-        <div style={{ maxWidth: 620, margin: '0 auto', padding: '52px 20px 80px' }}>
-
-          {/* Hero */}
-          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10 }}>
-            Kom i gang
-          </p>
-          <h1 style={{
-            fontFamily: "'Libre Baskerville', serif",
-            fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff',
-            letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 10,
-          }}>
-            Velkommen, {data.org.name}
-          </h1>
-          {/* «Alt kan endres senere» står her, FØR valgene — ikke bare som
-              småtekst ved knappen. Det er den setningen som gjør begge valgene
-              ufarlige å ta, og da må den leses før man tar dem. */}
-          <p style={{ ...bodyText, marginBottom: 32 }}>
-            To korte valg, så er bedriften satt opp. Det tar et minutt — og alt
-            kan endres senere under Innstillinger i bedriftspanelet.
-          </p>
-
+    <WelcomeShell
+      styleExtra=" * { box-sizing: border-box; }"
+      nav={<UserMenuWrapper />}
+      eyebrow="Kom i gang"
+      title={<>Velkommen, {data.org.name}</>}
+      /* «Alt kan endres senere» står i INGRESSEN, FØR valgene — ikke bare som
+         småtekst ved knappen. Det er den setningen som gjør begge valgene
+         ufarlige å ta, og da må den leses før man tar dem. */
+      lead={
+        <>
+          To korte valg, så er bedriften satt opp. Det tar et minutt — og alt
+          kan endres senere under Innstillinger i bedriftspanelet.
+        </>
+      }
+    >
           {/* 1 — Forklaring, ingen valg */}
           <div style={card}>
             <p style={stepLabel}>Slik fungerer det</p>
@@ -516,26 +508,12 @@ export default function OrgVelkommenPage() {
 
           {/* 5 — Avslutning */}
           <div style={{ marginTop: 28 }}>
-            {error && (
-              <div style={{
-                fontSize: 13, color: '#f87171', background: 'rgba(248,113,113,0.08)',
-                border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10,
-                padding: '10px 14px', marginBottom: 14, lineHeight: 1.5,
-              }}>
-                {error}
-              </div>
-            )}
+            {error && <div style={welcomeErrorBox}>{error}</div>}
 
             <button
               onClick={save}
               disabled={!canSubmit}
-              style={{
-                width: '100%', background: '#c9a84c', color: '#1a1c23',
-                fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700,
-                padding: '13px', borderRadius: 10, border: 'none',
-                cursor: canSubmit ? 'pointer' : 'not-allowed',
-                opacity: canSubmit ? 1 : 0.4,
-              }}
+              style={welcomePrimaryButton(!canSubmit)}
             >
               {saving ? 'Lagrer …' : 'Lagre og gå til bedriftspanelet →'}
             </button>
@@ -550,9 +528,6 @@ export default function OrgVelkommenPage() {
               Alt kan endres senere i bedriftspanelet.
             </p>
           </div>
-
-        </div>
-      </div>
-    </>
+    </WelcomeShell>
   )
 }
