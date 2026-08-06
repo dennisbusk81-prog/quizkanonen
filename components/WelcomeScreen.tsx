@@ -2,21 +2,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import WelcomeShell from '@/components/WelcomeShell'
 import { supabase } from '@/lib/supabase'
+import { useProfile } from '@/components/ProfileProvider'
 import { fetchResult, type Loaded } from '@/lib/fetch-result'
-import { toLoadedRow } from '@/lib/profile-load'
-import { withTimeout, type TimedOutcome } from '@/lib/with-timeout'
+import { withTimeout } from '@/lib/with-timeout'
 import {
   WELCOME_BANNER_SEEN_KEY,
   classifyNameSave,
   decideNavigation,
   greetingName,
   isValidDisplayName,
-  shouldAskForName,
+  nameFieldState,
+  quizStatusLine,
   welcomeExitPath,
   type SaveOutcome,
 } from '@/lib/welcome-onboarding'
 import {
-  WELCOME_FONT_IMPORT,
   welcomeBodyText,
   welcomeCard,
   welcomeErrorBox,
@@ -26,27 +26,30 @@ import {
 
 // Velkomstskjermen for en helt fersk B2C-bruker. Én skjerm, ett valg, én knapp.
 //
-// HELE HENSIKTEN er linje e): fredagsvarselet. `profiles.email_reminders` er
-// opt-in (NOT NULL DEFAULT false), bryteren ligger på profilsiden der ingen
-// leter, og 133 av 145 profiler står derfor på false — altså har de fleste nye
-// brukere i praksis ingen vei tilbake til neste fredagsquiz. Denne siden spør om
+// HELE HENSIKTEN er fredagsvarselet: `profiles.email_reminders` er opt-in
+// (NOT NULL DEFAULT false), bryteren ligger på profilsiden der ingen leter, og
+// 133 av 145 profiler sto derfor på false — de fleste nye brukere hadde i
+// praksis ingen vei tilbake til neste fredagsquiz. Denne siden spør om
 // samtykket i det ene øyeblikket brukeren garantert er engasjert.
 //
-// YTELSESKONTRAKTEN (siden ligger midt i registreringsstien):
-//   - Ingen nye spørringer i selve registreringsflyten. «Er brukeren ny?» er et
-//     biprodukt av ensureProfileForUser, og den åpne quizen leses fra
-//     /api/quiz/active — en rute som allerede fantes.
-//   - Ingenting her kan henge. Hvert eneste await går gjennom withTimeout, og
-//     hvert eneste utfall har en definert fallback. Klarer vi ikke å slå opp
-//     den åpne quizen, går brukeren til forsiden i stedet for å vente.
-//   - Ingen henting BLOKKERER knappen. Feiler navneoppslaget, vises feltet ikke
-//     (og NameRequiredModal fanger opp saken på neste side); feiler skrivingen,
-//     slipper vi taket senest ved andre trykk.
+// INGEN EGEN OPPSTARTSHENTING (omskrevet 7. august 2026). Første versjon
+// gjorde getSession() + egen profiles-spørring ved montering — og ble dermed
+// en TREDJE getSession()-konkurrent bak auth-låsen på nettopp den siden der
+// sesjonen akkurat er skrevet (UserMenu og AuthListener kaller den også ved
+// montering). Timet noen av leddene ut, kollapset «vet ikke» til «har navn»,
+// feltet forsvant, og NameRequiredModal fanget navnet på NESTE side — den
+// doble navnespørringen AuthListener-unntaket skulle fjerne. Skjedde i prod
+// 6. august med support@-testkontoen.
+//
+// Nå leses alt fra useProfile(): ProfileProvider henter allerede nøyaktig
+// denne kolonnen bak ÉN delt auth-subscription. Null kall ved montering
+// utover /api/quiz/active (som også gir statuslinjen), og siden rendrer
+// UMIDDELBART — ingen «Gjør klar …»-vent.
+//
+// getSession() brukes fortsatt VED KNAPPETRYKK for access token — der virket
+// den beviselig også da oppstarten feilet (email_reminders ble lagret).
 
-// Navneoppslaget. Kort, fordi utfallet kun avgjør om ett felt vises — det er
-// bedre å la feltet være enn å la brukeren se på en spinner.
-const NAME_LOAD_MS = 2500
-// Sesjonsoppslaget. Samme størrelsesorden som AuthListener sin lock-ventil.
+// Sesjonsoppslaget ved knappetrykk.
 const SESSION_MS = 2000
 // Oppslaget av åpen quiz ved knappetrykk. Kallet startet ved montering, så
 // dette er nesten alltid en allerede oppfylt promise.
@@ -56,21 +59,11 @@ const SAVE_MS = 8000
 
 type NameSaveResult = { outcome: SaveOutcome; message: string | null }
 
-/** Profilrad → «har brukeren et gyldig navn?», som en BEKREFTET henting. */
-function toNameLoaded(outcome: TimedOutcome<{ data: unknown; error: unknown }>): Loaded<string | null> {
-  // Timeout og spørringsfeil kollapser bevisst til samme «vet ikke» — skjermen
-  // gjør det samme i begge tilfeller (skjuler feltet), og et skille ville bare
-  // fristet noen til å behandle det ene som «mangler navn».
-  if (!outcome.ok) return { ok: false }
-  const row = toLoadedRow<{ display_name: string | null }>(outcome.value)
-  if (!row.ok) return { ok: false }
-  return { ok: true, value: row.value?.display_name ?? null }
-}
-
 export default function WelcomeScreen() {
-  const [ready, setReady] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [nameLoad, setNameLoad] = useState<Loaded<string | null>>({ ok: false })
+  // displayNameRaw er den RÅ kolonneverdien. `displayName` fra samme context
+  // har fallback til e-postens lokaldel og skal ALDRI brukes her — se
+  // nameFieldState i lib/welcome-onboarding.ts og mutasjonsbeviset i testene.
+  const { userId, displayNameRaw, displayName, resolved } = useProfile()
 
   const [nameInput, setNameInput] = useState('')
   // Forhåndsvalgt PÅ. Det er hele grepet: alt er valgt, så det finnes ingenting
@@ -80,68 +73,50 @@ export default function WelcomeScreen() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Svaret fra /api/quiz/active — driver BÅDE statuslinjen og «Kom i gang»-
+  // målet. null = ikke landet ennå; statuslinjen viser da den nøytrale
+  // varianten og oppgraderes når svaret kommer. Aldri noen venting.
+  const [activeQuiz, setActiveQuiz] = useState<Loaded<string | null> | null>(null)
+  const activeQuizRef = useRef<Promise<Loaded<string | null>> | null>(null)
+
   // Antall trykk på «Kom i gang». Andre trykk navigerer ALLTID — se
   // decideNavigation. Ref, ikke state: verdien styrer ingen render.
   const attemptRef = useRef(0)
-  // Oppslaget av åpen quiz startes ved montering slik at det som regel er ferdig
-  // før brukeren rekker å trykke.
-  const activeQuizRef = useRef<Promise<Loaded<string | null>> | null>(null)
 
   useEffect(() => {
-    activeQuizRef.current = fetchResult(
+    const pending = fetchResult(
       () => fetch('/api/quiz/active'),
       json => (json as { id?: string | null } | null)?.id ?? null,
     )
-  }, [])
-
-  useEffect(() => {
+    activeQuizRef.current = pending
     let cancelled = false
-
-    ;(async () => {
-      const sessionOutcome = await withTimeout(supabase.auth.getSession(), { ms: SESSION_MS })
-      if (cancelled) return
-
-      // Bekreftet utlogget: denne siden har ingenting å tilby. Timeout er noe
-      // ANNET — da vet vi ikke, og da rendrer vi heller siden og prøver å hente
-      // sesjonen på nytt når brukeren trykker.
-      if (sessionOutcome.ok && !sessionOutcome.value.data.session) {
-        window.location.replace('/')
-        return
-      }
-
-      const session = sessionOutcome.ok ? sessionOutcome.value.data.session : null
-      if (!session) { setReady(true); return }
-
-      setUserId(session.user.id)
-
-      const rowOutcome = await withTimeout(
-        Promise.resolve(
-          supabase.from('profiles').select('display_name').eq('id', session.user.id).maybeSingle(),
-        ),
-        { ms: NAME_LOAD_MS },
-      )
-      if (cancelled) return
-
-      setNameLoad(toNameLoaded(rowOutcome))
-      setReady(true)
-    })()
-
+    pending.then(result => { if (!cancelled) setActiveQuiz(result) })
     return () => { cancelled = true }
   }, [])
 
-  const asksForName = shouldAskForName(nameLoad)
-  const knownName = nameLoad.ok ? nameLoad.value : null
-  const firstName = greetingName(knownName)
+  // Bekreftet utlogget → forsiden. `resolved` settes av ProfileProvider ved
+  // første auth-event; ingen egen getSession() her.
+  useEffect(() => {
+    if (resolved && !userId) window.location.replace('/')
+  }, [resolved, userId])
+
+  // 'show' | 'hide' | 'pending'. `displayName` sendes med KUN som dokumentert
+  // felle — funksjonen leser den ikke, og testene feller en versjon som gjør.
+  const fieldState = nameFieldState({ displayNameRaw, displayName })
+  const firstName = greetingName(displayNameRaw.ok ? displayNameRaw.value : null)
 
   const trimmedName = nameInput.trim()
-  const nameOk = !asksForName || isValidDisplayName(trimmedName)
-  const canSubmit = ready && nameOk && !saving
+  // Kun et SYNLIG felt kan kreve utfylling. 'pending' blokkerer aldri knappen:
+  // vet vi ikke om navnet mangler, får brukeren gå — NameRequiredModal er
+  // backstop, og å sperre en ny bruker på vår egen uvisshet er verst av alt.
+  const nameOk = fieldState !== 'show' || isValidDisplayName(trimmedName)
+  const canSubmit = nameOk && !saving
 
   // Feltet er utfylt og lovlig etter tegnsettet, men mangler etternavn. Egen
   // beskjed fordi /api/profile/upsert avviser nettopp dette med 400, og en
   // bruker som får «Kom i gang» grået ut uten forklaring ikke har noe å gå på.
   const showFullNameHint =
-    asksForName && trimmedName.length >= 2 && !isValidDisplayName(trimmedName)
+    fieldState === 'show' && trimmedName.length >= 2 && !isValidDisplayName(trimmedName)
 
   const accessToken = useCallback(async (): Promise<string | null> => {
     const outcome = await withTimeout(supabase.auth.getSession(), { ms: SESSION_MS })
@@ -200,7 +175,7 @@ export default function WelcomeScreen() {
     const token = await accessToken()
 
     const [nameResult] = await Promise.all([
-      token && userId && asksForName ? saveName(token, userId) : Promise.resolve(null),
+      token && userId && fieldState === 'show' ? saveName(token, userId) : Promise.resolve(null),
       token ? savePreference(token) : Promise.resolve(),
     ])
 
@@ -225,46 +200,29 @@ export default function WelcomeScreen() {
     } catch { /* privat modus e.l. — banneret er ikke verdt en feilskjerm */ }
 
     window.location.assign(await resolveExit())
-  }, [accessToken, asksForName, canSubmit, resolveExit, saveName, savePreference, userId])
-
-  if (!ready) {
-    return (
-      <>
-        <style>{WELCOME_FONT_IMPORT}</style>
-        <div style={{
-          minHeight: '100vh', background: '#1a1c23',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <p style={{
-            fontFamily: "'Libre Baskerville', serif", fontSize: 18,
-            color: '#918f8a', fontStyle: 'italic',
-          }}>
-            Gjør klar …
-          </p>
-        </div>
-      </>
-    )
-  }
+  }, [accessToken, canSubmit, fieldState, resolveExit, saveName, savePreference, userId])
 
   return (
     <WelcomeShell
       styleExtra=" * { box-sizing: border-box; }"
-      eyebrow="Velkommen"
-      title={firstName ? <>Hei, {firstName}</> : <>Velkommen inn</>}
-      lead={<>Ny quiz hver fredag. 15 spørsmål, én toppliste.</>}
+      eyebrow="Quizkanonen"
+      // Et UTSAGN, ikke et spørsmål: brukeren har nettopp fullført noe og skal
+      // få bekreftelse, ikke en ny oppgave. Med navn hilser vi — samme mønster
+      // som B2B-siden («Velkommen, Elkjøp Nordic»), men med fornavn.
+      title={firstName ? <>Velkommen, {firstName}.</> : <>Du er med.</>}
+      // Forankringen: noe ekte og unikt som ingen konkurrent kan kopiere.
+      lead={<>Fredagsquizen har gått hver uke siden 2019.</>}
     >
       <div style={welcomeCard}>
-        {/* Den ENE setningen om Premium. Ingen knapp, ingen pris, ingen paywall
-            — siste ledd tar trykket av i stedet for å legge det på. */}
-        <p style={{ ...welcomeBodyText, marginBottom: asksForName ? 24 : 20 }}>
-          Det er gratis å spille. Med Premium får du full historikk, egne ligaer
-          og mer — men det kan du se på senere.
+        {/* Statuslinjen — hva skjer NÅ. Det er den som gir knappen mening. */}
+        <p style={{ ...welcomeBodyText, color: '#ffffff', fontWeight: 600, marginBottom: fieldState === 'hide' ? 20 : 24 }}>
+          {quizStatusLine(activeQuiz)}
         </p>
 
-        {/* Navnefeltet vises KUN når vi vet at navnet mangler. Har brukeren
-            allerede navn (typisk fra Google), finnes feltet ikke i det hele
-            tatt — ingen forhåndsutfylt verdi å godkjenne. */}
-        {asksForName && (
+        {/* Navnefeltet — KUN når vi VET at navnet mangler. Har brukeren navn
+            (typisk fra Google), finnes feltet ikke — ingen forhåndsutfylt
+            verdi å godkjenne. */}
+        {fieldState === 'show' && (
           <div style={{ marginBottom: 20 }}>
             <label
               htmlFor="qk-welcome-name"
@@ -295,6 +253,23 @@ export default function WelcomeScreen() {
                 ? 'Bruk fornavn og etternavn — navnet vises på topplisten.'
                 : 'Navnet vises på topplisten.'}
             </p>
+          </div>
+        )}
+
+        {/* «Vet ikke» får sin egen visning og blir ALDRI til «har navn».
+            Plassholderen står i feltets område til contexten har landet —
+            ProfileProvider har en 3s sikkerhetsventil, så den blir ikke
+            stående. Blokkerer ikke knappen. */}
+        {fieldState === 'pending' && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{
+              background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10,
+              padding: '12px 14px',
+            }}>
+              <p style={{ ...welcomeHintText, fontSize: 13, margin: 0 }}>
+                Henter profilen din …
+              </p>
+            </div>
           </div>
         )}
 
@@ -341,8 +316,15 @@ export default function WelcomeScreen() {
         {saving ? 'Et øyeblikk …' : 'Kom i gang'}
       </button>
 
-      <p style={{ ...welcomeHintText, textAlign: 'center', marginTop: 12 }}>
-        Du kan endre dette når som helst på profilen din.
+      {/* Premium er en FOTNOTE, ikke hovedinnhold: det første en ny bruker
+          leser skal ikke handle om hva hen ikke har. Frøet er bevisst plantet,
+          men det plantes nederst, dempet. */}
+      <p style={{ ...welcomeHintText, textAlign: 'center', marginTop: 14 }}>
+        Det er gratis å spille. Med Premium får du full historikk, egne ligaer
+        og mer — men det kan du se på senere.
+      </p>
+      <p style={{ ...welcomeHintText, fontSize: 12, textAlign: 'center', marginTop: 10 }}>
+        Du kan endre valgene når som helst på profilen din.
       </p>
     </WelcomeShell>
   )
