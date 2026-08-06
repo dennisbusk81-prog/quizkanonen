@@ -206,12 +206,15 @@ export default function WelcomeScreen() {
     <WelcomeShell
       styleExtra=" * { box-sizing: border-box; }"
       eyebrow="Quizkanonen"
-      // Et UTSAGN, ikke et spørsmål: brukeren har nettopp fullført noe og skal
-      // få bekreftelse, ikke en ny oppgave. Med navn hilser vi — samme mønster
-      // som B2B-siden («Velkommen, Elkjøp Nordic»), men med fornavn.
-      title={firstName ? <>Velkommen, {firstName}.</> : <>Du er med.</>}
+      // Henvender seg til PERSONEN, ikke bare til situasjonen. Med navn hilser
+      // vi — samme mønster som B2B-siden («Velkommen, Elkjøp Nordic»), men med
+      // fornavn, som er varmere enn fullt navn.
+      title={firstName ? <>Velkommen til Quizkanonen, {firstName}</> : <>Velkommen til Quizkanonen</>}
       // Forankringen: noe ekte og unikt som ingen konkurrent kan kopiere.
-      lead={<>Fredagsquizen har gått hver uke siden 2019.</>}
+      // 2020 er året — /om forteller den samme historien («Da pandemien stengte
+      // alt ned i 2020, startet jeg en fredagsquiz»). Hele poenget med linjen er
+      // troverdighet, så årstallet må stemme med resten av produktet.
+      lead={<>Fredagsquizen har gått hver uke siden 2020. Nå spiller du med.</>}
     >
       <div style={welcomeCard}>
         {/* Statuslinjen — hva skjer NÅ. Det er den som gir knappen mening. */}
@@ -251,7 +254,7 @@ export default function WelcomeScreen() {
             <p style={{ ...welcomeHintText, fontSize: 12, marginTop: 8 }}>
               {showFullNameHint
                 ? 'Bruk fornavn og etternavn — navnet vises på topplisten.'
-                : 'Navnet vises på topplisten.'}
+                : 'Navnet vises på topplisten — andre spillere ser hvem de konkurrerer mot.'}
             </p>
           </div>
         )}
@@ -304,8 +307,12 @@ export default function WelcomeScreen() {
               </svg>
             )}
           </span>
+          {/* Sier bevisst IKKE «fredagsquizen»: det kan komme temaquizer på
+              andre dager, og varselet er et generelt løfte som må være sant for
+              alle quizer. Statuslinjen over kan nevne fredag, fordi den
+              beskriver den faktiske neste quizen. */}
           <span style={{ fontSize: 14, fontWeight: 600, color: '#ffffff' }}>
-            Få e-post når fredagsquizen åpner
+            Få e-post når en ny quiz åpner — så du aldri misser en
           </span>
         </div>
       </div>
