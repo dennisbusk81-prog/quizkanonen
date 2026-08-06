@@ -23,6 +23,15 @@ export interface MyOrg {
 interface ProfileContextValue {
   userId: string | null
   displayName: string | null
+  // Den RÅ verdien av profiles.display_name, som en BEKREFTET henting — i
+  // motsetning til `displayName` over, som er en VISNINGSVERDI med fallback til
+  // e-postens lokaldel og derfor aldri kan brukes som «har brukeren satt
+  // navn?»-signal (for support@quizkanonen.no «heter» brukeren support der).
+  // { ok: false } = ikke hentet/feilet; { ok: true, value: null } = bekreftet
+  // uten navn. Konsument: /velkommen sitt navnefelt (lib/welcome-onboarding.ts
+  // sin nameFieldState). Samme Loaded-invariant som myOrgsLoaded: et feilsvar
+  // er «vet ikke», aldri «mangler navn».
+  displayNameRaw: Loaded<string | null>
   isPremium: boolean
   hasStripeCustomer: boolean
   premiumSource: string | null
@@ -70,6 +79,7 @@ export function useProfile(): ProfileContextValue {
 export default function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null)
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const [displayNameRaw, setDisplayNameRaw] = useState<Loaded<string | null>>({ ok: false })
   const [isPremium, setIsPremium] = useState<boolean>(false)
   const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false)
   const [premiumSource, setPremiumSource] = useState<string | null>(null)
@@ -123,6 +133,9 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
     // blitt stående som gyldig gjennom hele hentingen.
     setMyOrgsLoaded(false)
     setMyOrgsError(false)
+    // Samme grunn: et bekreftet navn fra forrige bruker skal ikke stå som
+    // gyldig mens den nyes henting pågår.
+    setDisplayNameRaw({ ok: false })
     try {
       const [profileRes, premium, orgsResult] = await Promise.all([
         supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
@@ -142,6 +155,9 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         // Lokaldelen er fortsatt riktig fallback for en BEKREFTET tom rad —
         // brukeren finnes, men har ikke satt navn ennå.
         setDisplayName(nameRow.value?.display_name ?? user.email?.split('@')[0] ?? null)
+        // Den rå kolonneverdien, UTEN fallbacken over — settes kun her, på et
+        // bekreftet svar. Ved feil forblir den { ok: false } («vet ikke»).
+        setDisplayNameRaw({ ok: true, value: nameRow.value?.display_name ?? null })
       }
       // Kun definitivt svar endrer premium — aldri nedgrader på null (feil).
       if (premium !== null) {
@@ -193,6 +209,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         handledUserIdRef.current = null
         setUserId(null)
         setDisplayName(null)
+        setDisplayNameRaw({ ok: false })
         setIsPremium(false)
         setHasStripeCustomer(false)
         setPremiumSource(null)
@@ -255,7 +272,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
   return (
     <ProfileContext.Provider
       value={{
-        userId, displayName, isPremium, hasStripeCustomer, premiumSource,
+        userId, displayName, displayNameRaw, isPremium, hasStripeCustomer, premiumSource,
         myOrgs, myOrgsLoaded, myOrgsError,
         loading, resolved, refreshProfile, refreshMyOrgs,
       }}
