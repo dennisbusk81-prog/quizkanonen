@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -11,6 +11,7 @@ import PasswordInput from '@/components/PasswordInput'
 import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
+import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
 
@@ -128,9 +129,13 @@ export default function ProfilPage() {
   // hva bryteren «bør» vise: email_reminders er NOT NULL DEFAULT false (opt-in,
   // og send-reminders-cronen henter kun på `= true`), mens email_reengagement og
   // email_duel_notifications er nullable DEFAULT true (opt-out). Vis derfor AV
-  // for påminnelser og PÅ for de to andre når raden ikke er lest ennå — eller
-  // ikke ble lest i det hele tatt (profil-hentingen under faller tilbake på
-  // `{ data: null }` ved timeout).
+  // for påminnelser og PÅ for de to andre når raden ikke er lest ennå.
+  //
+  // Selve fallback-valget bor nå i `deriveProfileScreen` (lib/profile-load.ts),
+  // og gjelder KUN en bekreftet henting. Ble raden ikke lest i det hele tatt,
+  // rendres feilskjermen i stedet — verdiene her når aldri skjermen. Fram til
+  // 6. august gjaldt de begge tilfellene, og en feilet henting så ut som en tom
+  // konto.
   const [emailReminders, setEmailReminders] = useState(false)
   const [emailReengagement, setEmailReengagement] = useState(true)
   const [emailDuelNotifications, setEmailDuelNotifications] = useState(true)
@@ -166,6 +171,13 @@ export default function ProfilPage() {
   const [pwSuccess, setPwSuccess] = useState(false)
   const [resetSending, setResetSending] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  // «Prøv igjen» på feilskjermen — samme mønster som app/historikk/[attemptId].
+  const [retryKey, setRetryKey] = useState(0)
+  // Settes når den autoritative hentingen (loadProfile) har KONKLUDERT, uansett
+  // utfall. Mount-hentingen under leser bare 5 av de 9 feltene og skal derfor
+  // aldri kunne skrive oppå — eller etter — et fullstendig svar. Se kommentaren
+  // over mount-effekten.
+  const authoritativeSettledRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('PushManager' in window) || !('Notification' in window)) return
@@ -184,7 +196,19 @@ export default function ProfilPage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Rask mount-henting — fyrer umiddelbart uavhengig av auth events
+  // Rask mount-henting — fyrer umiddelbart uavhengig av auth events.
+  //
+  // Denne og loadProfile under skriver de samme fem state-variablene uten å
+  // vite om hverandre, og fram til 6. august kunne de overskrive hverandre
+  // begge veier: mount-hentingen lyktes på ~100 ms og skrev riktig navn,
+  // loadProfile timet ut på 5 s og skrev `''` oppå — brukeren så sitt eget navn
+  // forsvinne. Motsatt rekkefølge var også mulig, siden mount-hentingen ikke
+  // har noen tidsgrense.
+  //
+  // Samordningen: loadProfile er autoritativ (leser alle 9 feltene og eier
+  // `loadState`), og denne skriver kun så lenge den ikke har konkludert. Ved
+  // feil røres ingenting — et halvt svar er ikke bedre enn feilskjermen, det er
+  // bare et som ikke ser ut som en feil.
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) return
@@ -193,7 +217,7 @@ export default function ProfilPage() {
         .select('display_name, nickname, email_reminders, email_reengagement, email_duel_notifications')
         .eq('id', session.user.id)
         .single()
-      if (profile) {
+      if (profile && !authoritativeSettledRef.current) {
         setDisplayName(profile.display_name ?? '')
         setEditName(profile.display_name ?? '')
         setNickname(profile.nickname ?? '')
@@ -241,26 +265,37 @@ export default function ProfilPage() {
       setUserId(uid)
       setUserEmail(email)
 
-      const profileRes = await Promise.race([
+      // Utfallet er en Loaded<ProfileRow | null> — «vet» eller «vet ikke».
+      // Både timeout, spørringsfeil (RLS/500/nettverk) og en rejection gir
+      // { ok: false }. Fram til 6. august ble alt dette svelget av en
+      // `.catch(() => ({ data: null, error: null }))`, og siden gikk videre til
+      // 'ready' med fallback-verdier i alle ni felt. Se lib/profile-load.ts.
+      const loadedProfile = await loadProfileRow(
         supabase
           .from('profiles')
           .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color')
           .eq('id', uid)
           .maybeSingle(),
-        new Promise<{ data: null; error: Error }>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 5000)
-        ),
-      ]).catch(() => ({ data: null, error: null }))
+        { ms: 5000 },
+      )
+
+      // Den autoritative hentingen har konkludert — mount-hentingen skal ikke
+      // lenger kunne skrive. Settes FØR retur-grenene under, ellers ville et
+      // sent mount-svar kunne fylle inn halve profilen bak feilskjermen.
+      authoritativeSettledRef.current = true
 
       if (cancelled) return
 
-      const profile = (profileRes as { data: unknown }).data as {
-        display_name: string | null; nickname: string | null;
-        member_number: number | null; show_member_number: boolean | null;
-        email_reminders: boolean | null; email_reengagement: boolean | null;
-        email_duel_notifications: boolean | null; created_at: string | null;
-        avatar_color: string | null;
-      } | null
+      const screen = deriveProfileScreen(loadedProfile)
+      if (screen.state === 'error') {
+        // Ingen state-setter kjøres her. Det er ikke bare høflighet: skjemaet
+        // rendres ikke i feiltilstand, så skrivestien (savePref,
+        // handleSaveNickname, handleToggleShowMember) kan ikke sende
+        // fallback-verdier tilbake til serveren.
+        setLoadState('error')
+        return
+      }
+      const fields = screen.fields
 
       // has_password er ikke lenger en kolonne vi leser — den er avledet fra
       // auth.users.encrypted_password server-side. Egen forespørsel fordi
@@ -286,32 +321,20 @@ export default function ProfilPage() {
         })
         .catch(() => { /* behold false */ })
 
-      const name = profile?.display_name ?? ''
-      setDisplayName(name)
-      setEditName(name)
-      setNickname(profile?.nickname ?? '')
-      setEditNickname(profile?.nickname ?? '')
+      setDisplayName(fields.displayName)
+      setEditName(fields.displayName)
+      setNickname(fields.nickname)
+      setEditNickname(fields.nickname)
 
       // Premium/hasStripeCustomer kommer nå fra delt context (ProfileProvider).
       setAvatarUrl(avatarUrlFromMeta)
-      setAvatarColor(profile?.avatar_color ?? null)
-      setShowMemberNumber(profile?.show_member_number ?? false)
-
-      // Beregn medlemsnummer dynamisk basert på registreringsrekkefølge (created_at)
-      if (profile?.created_at) {
-        try {
-          const { count } = await supabase
-            .from('profiles')
-            .select('id', { count: 'exact', head: true })
-            .lt('created_at', profile.created_at)
-          if (!cancelled) setMemberNumber((count ?? 0) + 1)
-        } catch { /* behold null */ }
-      }
-      setEmailReminders(profile?.email_reminders ?? false)
-      setEmailReengagement(profile?.email_reengagement ?? true)
-      setEmailDuelNotifications(profile?.email_duel_notifications ?? true)
-      if (profile?.created_at) {
-        const d = new Date(profile.created_at)
+      setAvatarColor(fields.avatarColor)
+      setShowMemberNumber(fields.showMemberNumber)
+      setEmailReminders(fields.emailReminders)
+      setEmailReengagement(fields.emailReengagement)
+      setEmailDuelNotifications(fields.emailDuelNotifications)
+      if (fields.createdAt) {
+        const d = new Date(fields.createdAt)
         const day = d.getDate()
         const month = d.toLocaleDateString('no-NO', { month: 'long' })
         const year = d.getFullYear()
@@ -320,7 +343,24 @@ export default function ProfilPage() {
 
       // Stats (premium-only) hentes i egen effekt gated på isPremium fra context.
 
-      if (!cancelled) setLoadState('ready')
+      // 'ready' settes FØR medlemsnummer-tellingen under. Tellingen har ingen
+      // tidsgrense, og lå tidligere `await`-et foran denne linjen: hang den,
+      // sto siden i skjelett-skjermen for alltid. 8-sekunders-vakten lenger
+      // nede redder ikke — den sjekker `!loaded`, og `loaded` ble satt true
+      // øverst i funksjonen. Medlemsnummeret er dessuten pynt: begge stedene
+      // som viser det er allerede gated på `memberNumber !== null`.
+      setLoadState('ready')
+
+      // Beregn medlemsnummer dynamisk basert på registreringsrekkefølge (created_at)
+      if (fields.createdAt) {
+        try {
+          const { count } = await supabase
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .lt('created_at', fields.createdAt)
+          if (!cancelled) setMemberNumber((count ?? 0) + 1)
+        } catch { /* behold null */ }
+      }
     }
 
     // Primary: getSession() direkte — omgår lock hvis session er cachet
@@ -363,7 +403,10 @@ export default function ProfilPage() {
       clearTimeout(giveUp)
       window.removeEventListener('qk:profile-updated', onProfileUpdated)
     }
-  }, [router])
+    // retryKey: «Prøv igjen» på feilskjermen kjører hele effekten på nytt, med
+    // ferske `loaded`/`cancelled`-closures. Samme mønster som
+    // app/historikk/[attemptId]/page.tsx.
+  }, [router, retryKey])
 
   async function handleSave() {
     if (!userId || !editName.trim()) return
@@ -703,11 +746,36 @@ export default function ProfilPage() {
     )
   }
 
+  // Feilskjermen sier eksplisitt at vi ikke fikk LEST innstillingene, ikke bare
+  // at «noe gikk galt». Forskjellen er hele poenget: alternativet — og
+  // oppførselen fram til 6. august — var å vise skjemaet med defaultverdier,
+  // som påsto at kontoen var tom.
   if (loadState === 'error') {
     return (
       <>
         <style>{FONT_IMPORT}</style>
-        <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
+        <SiteNav />
+        <div style={s.wrap}>
+          <div style={{ ...s.page, paddingTop: 40 }}>
+            <div style={{ ...s.card, textAlign: 'center' }}>
+              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+                Vi fikk ikke hentet profilen din
+              </p>
+              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
+                Innstillingene dine er trygge — vi klarte bare ikke å lese dem akkurat nå.
+              </p>
+              <p style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.5, marginBottom: 20 }}>
+                Vi viser dem ikke før vi vet at de stemmer.
+              </p>
+              <button
+                onClick={() => { setLoadState('loading'); setRetryKey(k => k + 1) }}
+                style={s.pwBtn}
+              >
+                Prøv igjen
+              </button>
+            </div>
+          </div>
+        </div>
       </>
     )
   }
