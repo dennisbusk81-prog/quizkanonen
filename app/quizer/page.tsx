@@ -1,6 +1,7 @@
 ﻿import { supabaseAdmin } from '@/lib/supabase-admin'
 import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
+import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,6 +250,37 @@ export default async function QuizerPage() {
     for (const [qid, set] of perQuiz) participantCounts.set(qid, set.size)
   }
 
+  // ── Effektiv tidsgrense per quiz (7. august 2026) ────────────────────────────
+  // Kortet skrev tidligere `quiz.time_limit_seconds` rett ut, men spillingen
+  // bruker spørsmål-nivået med quiz-raden kun som fallback. Nivåene har
+  // divergert i prod (Fredagsquiz 19.06.2026: quiz=10, alle spørsmål=15), så
+  // lista lovet 10 sekunder på en quiz som ble spilt med 15.
+  //
+  // Dette er en serverkomponent med service_role, så grensene leses direkte —
+  // ingen ny rute. Feiler spørringen, faller hvert kort tilbake på quiz-nivået
+  // (samme tall som før), i stedet for at hele sida ryker.
+  const timeLimitLabels = new Map<string, string | null>()
+  if (quizIds.length > 0) {
+    // quizIds er lista over aktive quizer (13 i dag) — godt under .in()-taket
+    // på ~390 id-er, og samme liste som deltakertellingen over allerede bruker.
+    const { data: questionRows, error: questionError } = await supabaseAdmin
+      .from('questions')
+      .select('quiz_id, time_limit_seconds')
+      .in('quiz_id', quizIds)
+    if (questionError) console.error('[quizer] questions time limit query error:', questionError)
+    const perQuizLimits = new Map<string, (number | null)[]>()
+    for (const r of (questionRows ?? []) as { quiz_id: string; time_limit_seconds: number | null }[]) {
+      if (!perQuizLimits.has(r.quiz_id)) perQuizLimits.set(r.quiz_id, [])
+      perQuizLimits.get(r.quiz_id)!.push(r.time_limit_seconds)
+    }
+    for (const quiz of quizList) {
+      timeLimitLabels.set(
+        quiz.id,
+        describeQuestionTimeLimit(perQuizLimits.get(quiz.id) ?? [], quiz.time_limit_seconds),
+      )
+    }
+  }
+
   return (
     <>
       <style>{css}</style>
@@ -270,6 +302,7 @@ export default async function QuizerPage() {
               {quizList.map(quiz => {
                 const questionCount = quiz.questions[0]?.count ?? 0
                 const participantCount = participantCounts.get(quiz.id) ?? 0
+                const timeLimitLabel = timeLimitLabels.get(quiz.id) ?? null
                 const status = getQuizStatus(quiz.opens_at, quiz.closes_at, now)
                 const statusLabel = status === 'åpen' ? '● Åpen' : status === 'kommende' ? '○ Kommende' : '○ Stengt'
                 const statusClass = status === 'åpen' ? 'qz-tag' : status === 'kommende' ? 'qz-tag qz-tag-kommende' : 'qz-tag qz-tag-stengt'
@@ -291,7 +324,7 @@ export default async function QuizerPage() {
                       <div className="qz-details">
                         {questionCount > 0 && <span className="qz-detail">{questionCount} spørsmål</span>}
                         {participantCount > 0 && <span className="qz-detail">{participantCount} deltakere</span>}
-                        {quiz.time_limit_seconds && <span className="qz-detail">{quiz.time_limit_seconds}s per spørsmål</span>}
+                        {timeLimitLabel && <span className="qz-detail">{timeLimitLabel} per spørsmål</span>}
                       </div>
                       {timeNote && <p className="qz-status-time">{timeNote}</p>}
                     </div>
