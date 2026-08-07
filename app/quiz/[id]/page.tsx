@@ -20,6 +20,7 @@ import { placementPercentLine } from '@/lib/placement-percent'
 import { decidePlacementDisplay, globalExclusionReason, shouldOfferPlacementRetry } from '@/lib/placement-visibility'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
+import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -1044,7 +1045,7 @@ export default function QuizPage() {
   const [challengeError, setChallengeError] = useState<{ rivalId: string; message: string } | null>(null)
   const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
   const [top3, setTop3] = useState<Array<{ id: string; player_name: string; correct_answers: number; total_time_ms: number; nickname?: string | null }>>([])
-  const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[] } | null>(null)
+  const [socialProof, setSocialProof] = useState<{ totalPlayers: number; sampleNames: string[]; timeLimitLabel?: string | null } | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const [isSuspended, setIsSuspended] = useState(false)
   const [finishSaveError, setFinishSaveError] = useState<string | null>(null)
@@ -2863,7 +2864,18 @@ export default function QuizPage() {
         </button>
       </div>
 
-      <p className="qk-hint">{quiz.time_limit_seconds}s per spørsmål · Kun én gjennomspilling</p>
+      {/* Tidsgrensen leses fra SPØRSMÅLENE (via social-proof-ruten), ikke fra
+          quiz-raden: `getTimeLimit` lar spørsmål-nivået vinne, og de to
+          nivåene har divergert i prod. Landet ikke ruten ennå — eller feilet
+          den — faller vi tilbake på quiz-nivået, som er tallet flaten viste
+          før 7. august 2026. `describeQuestionTimeLimit` returnerer null når
+          ingen av kildene gir et tall; da utelates hele setningen i stedet for
+          å rendre «s per spørsmål» uten tall. */}
+      {(() => {
+        const label = socialProof?.timeLimitLabel
+          ?? describeQuestionTimeLimit([], quiz.time_limit_seconds)
+        return <p className="qk-hint">{label ? `${label} per spørsmål · ` : ''}Kun én gjennomspilling</p>
+      })()}
     </div></div></div></>
   )
 
