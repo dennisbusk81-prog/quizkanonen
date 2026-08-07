@@ -1,11 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 
-function emptyResponse() {
+// `timeLimitLabel` er den EFFEKTIVE tidsgrensen («15s», ev. «10–20s» ved sprik),
+// utledet fra spørsmålene — ikke fra quiz-raden. Den ligger her, og ikke i en
+// egen rute, fordi startskjermen allerede henter denne ruten og den allerede
+// slår opp quiz-raden: null ekstra rundturer for klienten.
+//
+// FALLGRUVE: alle emptyResponse()-utgangene under er NORMALTILFELLER, ikke feil
+// — «ingen har spilt ennå» er sannheten de første minuttene etter at en quiz
+// åpner. Etiketten må derfor følge med UT AV DEM også, ellers mister
+// startskjermen den nettopp når flest folk står på den. Derfor tar
+// emptyResponse etiketten som argument i stedet for å hardkode null.
+function emptyResponse(timeLimitLabel: string | null = null) {
   return NextResponse.json(
-    { totalPlayers: 0, sampleNames: [] },
+    { totalPlayers: 0, sampleNames: [], timeLimitLabel },
     { headers: { 'Cache-Control': 'public, s-maxage=60, max-age=0' } }
   )
+}
+
+// Spørsmålenes tidsgrenser. Egen funksjon fordi den skal feile MYKT: teksten på
+// startskjermen faller da tilbake på quiz-nivået (samme tall som før 7. august
+// 2026), i stedet for at hele social-proof-svaret ryker.
+async function effectiveTimeLimitLabel(
+  quizId: string,
+  quizLimit: number | null,
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('questions')
+      .select('time_limit_seconds')
+      .eq('quiz_id', quizId)
+    if (error) {
+      console.error('[social-proof] questions time limit query error:', error)
+      return describeQuestionTimeLimit([], quizLimit)
+    }
+    return describeQuestionTimeLimit((data ?? []).map(q => q.time_limit_seconds), quizLimit)
+  } catch (err) {
+    console.error('[social-proof] unexpected time limit error:', err)
+    return describeQuestionTimeLimit([], quizLimit)
+  }
 }
 
 function firstName(name: string): string {
@@ -31,11 +65,13 @@ export async function GET(request: NextRequest) {
     // Hent quiz-vinduet for å filtrere attempts til inneværende kjøring
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from('quizzes')
-      .select('opens_at, closes_at')
+      .select('opens_at, closes_at, time_limit_seconds')
       .eq('id', quizId)
       .single()
 
     if (quizError || !quiz) return emptyResponse()
+
+    const timeLimitLabel = await effectiveTimeLimitLabel(quizId, quiz.time_limit_seconds)
 
     let attemptsQuery = supabaseAdmin
       .from('attempts')
@@ -50,10 +86,10 @@ export async function GET(request: NextRequest) {
 
     if (attemptsError) {
       console.error('[social-proof] attempts query error:', attemptsError)
-      return emptyResponse()
+      return emptyResponse(timeLimitLabel)
     }
 
-    if (!attempts || attempts.length === 0) return emptyResponse()
+    if (!attempts || attempts.length === 0) return emptyResponse(timeLimitLabel)
 
     // Unike innloggede brukere og unike gjester (player_name uten user_id)
     const loggedInIds = [...new Set(
@@ -93,7 +129,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { totalPlayers, sampleNames },
+      { totalPlayers, sampleNames, timeLimitLabel },
       { headers: { 'Cache-Control': 'public, s-maxage=60, max-age=0' } }
     )
   } catch (err) {
