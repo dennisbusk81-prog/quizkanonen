@@ -127,10 +127,12 @@ folk på kontoret. Dette er altså en bevisst, begrunnet designbeslutning per
   bevisste re-sjekk-punktene på quiz-siden (quiz-start/-innsending) og
   leaderboard-siden (fane-fokus) — disse re-sjekkene skal IKKE fjernes eller
   endres, kun rutes gjennom `refreshProfile()` i stedet for egne kall.
-- `myOrgs` fra denne contexten er nå bekreftet supersett av
-  `/api/org/my-admin-orgs` (admin-orgs utledes med et `.filter(o => o.isAdmin)`
-  i `UserMenu.tsx` i stedet for et eget kall). `my-admin-orgs`-ruten kalles
-  ikke lenger fra klienten og skal ikke nevnes som et aktivt endepunkt.
+- `myOrgs` fra denne contexten er nå bekreftet supersett av den tidligere
+  `/api/org/my-admin-orgs`-ruten (admin-orgs utledes med et
+  `.filter(o => o.isAdmin)` i `UserMenu.tsx` i stedet for et eget kall).
+  Forgjengeren `/api/org/my-admin-orgs` er FJERNET fra repoet
+  (`app/api/org/my-admin-orgs/route.ts` finnes ikke lenger) og skal ikke
+  nevnes som et endepunkt eller gjeninnføres.
 
 ### Navigasjon
 - Én delt komponent, `components/SiteNav.tsx`, brukes på tvers av alle sider
