@@ -414,6 +414,8 @@ trusselbilder:
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`,
 `RESEND_API_KEY`, `ANTHROPIC_API_KEY`,
 `STRIPE_PRICE_FOUNDERS`,
+`STRIPE_PRICE_PREMIUM_MONTHLY`, `NEXT_PUBLIC_STRIPE_PRICE_PREMIUM_MONTHLY`
+(sistnevnte leses ikke av noen kode i repoet — ligger kun i Vercel),
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
 `STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`,
 `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`,
@@ -619,7 +621,8 @@ Månedlig leaderboard i quiz-kortet:
 - Stripe live-nøkler (er i **live mode** — ekte penger, ikke bytt til test uten beskjed)
 - RLS-policies i Supabase
 - `lib/supabase-admin.ts` (server-only, ikke eksporter til klient)
-- `FOUNDERS_ACTIVE`-konstanten i `app/quiz/[id]/page.tsx`
+- `FOUNDERS_ACTIVE`-konstanten i `app/page.tsx` (forsiden — eneste forekomst
+  i repoet; sto tidligere feilaktig oppført som `app/quiz/[id]/page.tsx`)
 - Autentiseringsflyt og OAuth callback (`app/auth/callback/route.ts`)
 
 `ranking_snapshots` har et EGET, mer presist unntak — se
