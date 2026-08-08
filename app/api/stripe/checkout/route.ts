@@ -6,6 +6,78 @@ import { getCodeCoverage } from '@/lib/premium-state-io'
 
 const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
 
+/**
+ * Kundens Stripe-kunde som checkouten skal bruke — den EKSISTERENDE når vi har
+ * en, ellers null (da lar vi Stripe opprette en via customer_email, som før).
+ *
+ * HVORFOR DENNE FINNES (8. august 2026)
+ * Ruten sendte tidligere kun `customer_email`. Stripe oppretter da en NY kunde
+ * for hvert kjøp, også for en bruker som allerede hadde en — og alle
+ * Founders-brukere har en, opprettet av founders-activate. Webhooken skrev
+ * deretter den nye kunde-id-en over profilen, og det gamle Founders-
+ * abonnementet ble hengende igjen på en kunde ingenting lenger peker på.
+ *
+ * Konsekvensen var ikke teoretisk: når det forlatte abonnementet nådde
+ * trial_end, fant `invoice.payment_failed` ingen profil på kunde-id-en, alle
+ * tre stale-vaktene i webhooken krever en profil for å undertrykke noe, og
+ * kunden som nettopp HADDE betalt fikk «Prøveperioden din er over».
+ *
+ * Samme mønster som reaktiveringsgrenen i org-checkout allerede bruker
+ * (`org.stripe_customer_id ? { customer } : { customer_email }`).
+ */
+async function resolveCustomerId(
+  stripe: Stripe,
+  userId: string,
+  email: string | null,
+): Promise<string | null> {
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('stripe_customer_id')
+    .eq('id', userId)
+    .maybeSingle()
+
+  const storedId = profile?.stripe_customer_id ?? null
+  if (!storedId) return null
+
+  // Er kunden fortsatt gyldig hos Stripe? En slettet kunde gir enten et objekt
+  // med `deleted: true` eller en `resource_missing`-feil, og begge ville ellers
+  // veltet checkouten med 500 på en bruker som bare ville betale.
+  try {
+    const customer = await stripe.customers.retrieve(storedId)
+    if (!(customer as { deleted?: boolean }).deleted) return storedId
+    console.warn(`[checkout] lagret Stripe-kunde ${storedId} er slettet — oppretter ny for ${userId}`)
+  } catch (err) {
+    if (!(err instanceof Stripe.errors.StripeInvalidRequestError && err.code === 'resource_missing')) {
+      // Ukjent feil (Stripe nede, nettverk). Da VET vi ikke at id-en er ugyldig,
+      // og å opprette en ny på det grunnlaget ville gjenskapt nøyaktig
+      // duplikat-kunde-buggen denne funksjonen finnes for å fjerne. Stol på
+      // databasen; er id-en likevel død, feiler sessions.create som før.
+      console.error(`[checkout] kunne ikke verifisere Stripe-kunde ${storedId} — bruker den likevel:`, err)
+      return storedId
+    }
+    console.warn(`[checkout] lagret Stripe-kunde ${storedId} finnes ikke i Stripe — oppretter ny for ${userId}`)
+  }
+
+  // Fail-safe: id-en er bekreftet ugyldig. Opprett en ny og pek profilen dit nå,
+  // ikke først når webhooken kommer — portal, /api/stripe/subscription og
+  // getStripeCoverage leser alle denne kolonnen imellom.
+  const created = await stripe.customers.create(
+    { email: email ?? undefined, metadata: { userId } },
+    { idempotencyKey: `checkout:customer:${userId}:${storedId}` },
+  )
+
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ stripe_customer_id: created.id })
+    .eq('id', userId)
+  if (error) {
+    // Ikke avbryt: kjøpet kan fullføres, og webhooken skriver samme id etterpå.
+    console.error(`[checkout] kunne ikke lagre ny stripe_customer_id for ${userId}:`, error.message)
+  }
+
+  return created.id
+}
+
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
@@ -70,10 +142,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Gjenbruk kundens eksisterende Stripe-kunde. Uten dette lager Stripe en ny
+    // for hvert kjøp — se resolveCustomerId for hva det koster.
+    const customerId = await resolveCustomerId(stripe, userId, email ?? null)
+
     const session = await stripe.checkout.sessions.create({
       mode,
       line_items: [{ price: resolvedPriceId, quantity: 1 }],
-      customer_email: email ?? undefined,
+      // customer_email er KUN for brukere uten kunde fra før. Stripe avviser at
+      // begge sendes samtidig, og customer_email på en eksisterende kunde ville
+      // uansett ikke bundet sesjonen til den.
+      ...(customerId
+        ? { customer: customerId }
+        : { customer_email: email ?? undefined }),
       metadata: { userId },
       ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,

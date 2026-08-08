@@ -399,12 +399,52 @@ export async function POST(request: NextRequest) {
         ? session.subscription
         : (session.subscription as Stripe.Subscription | null)?.id ?? null
 
+      // ── stripe_customer_id: aldri null over en eksisterende verdi (8. aug 2026) ──
+      // `session.customer as string ?? null` skrev NULL når feltet manglet — og en
+      // profil uten kunde-id har verken portal, abonnementsvisning eller
+      // premium-dekning, siden alle tre slår opp PÅ den kolonnen. I praksis setter
+      // Stripe alltid customer i mode:'subscription', men å kunne nulle den var
+      // aldri tilsiktet.
+      //
+      // En ENDRING logges høylytt. Etter at checkout begynte å gjenbruke kunden
+      // (se resolveCustomerId der) skal id-en normalt være uendret; en avvikende
+      // verdi betyr at det er opprettet en duplikat-kunde et sted, og det er
+      // nettopp det sporet som manglet da problemet oppsto. Vi skriver likevel:
+      // abonnementet kunden akkurat betalte for ligger på den NYE kunden, og
+      // nekter vi å følge etter, blir kjøpet usynlig for getStripeCoverage.
+      const checkoutCustomerId = typeof session.customer === 'string'
+        ? session.customer
+        : (session.customer as Stripe.Customer | null)?.id ?? null
+
+      if (checkoutCustomerId) {
+        const { data: existingProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('stripe_customer_id')
+          .eq('id', userId)
+          .maybeSingle()
+
+        const storedCustomerId = existingProfile?.stripe_customer_id ?? null
+        if (storedCustomerId && storedCustomerId !== checkoutCustomerId) {
+          console.error(
+            `[webhook] checkout.session.completed OVERSKRIVER stripe_customer_id for ` +
+            `userId=${userId}: ${storedCustomerId} → ${checkoutCustomerId}. ` +
+            `Den gamle kunden kan ha et forlatt abonnement som fortsatt fyrer ` +
+            `hendelser. session=${session.id}`
+          )
+        }
+      } else {
+        console.error(
+          `[webhook] checkout.session.completed UTEN customer for userId=${userId} — ` +
+          `beholder eksisterende stripe_customer_id. session=${session.id}`
+        )
+      }
+
       const { error: profileUpsertError } = await supabaseAdmin.from('profiles').upsert({
         id: userId,
         premium_status: true,
         premium_since: new Date().toISOString(),
-        stripe_customer_id: session.customer as string ?? null,
         premium_source: 'personal',
+        ...(checkoutCustomerId ? { stripe_customer_id: checkoutCustomerId } : {}),
         ...(checkoutSubId ? { personal_stripe_subscription_id: checkoutSubId } : {}),
       }, { onConflict: 'id' })
 
