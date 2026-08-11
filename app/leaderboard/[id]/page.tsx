@@ -662,12 +662,6 @@ export default function LeaderboardPage() {
   // Only lift the hide for Premium users who have played — free users still get placement card treatment
   const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !(isPremium && hasPlayed)
 
-  function handleGoToMyPlacement() {
-    if (!userAttempt) return
-    if (userAttempt.rank > visibleSoloCount) setVisibleSoloCount(userAttempt.rank + 5)
-    setScrollPending(true)
-  }
-
   const fastestSoloName = soloAttempts.length > 0
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
     : null

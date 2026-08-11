@@ -228,7 +228,6 @@ export default function OrgAdminPage() {
   const [removeMemberError, setRemoveMemberError] = useState<string | null>(null)
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
-  const [, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [copiedWinner, setCopiedWinner] = useState<false | WinnerPeriod>(false)
@@ -596,28 +595,6 @@ export default function OrgAdminPage() {
     }
   }
 
-  const deactivateInvite = async (id: string) => {
-    if (!session) return
-    setDeactivatingId(id)
-    setInviteError(null)
-    try {
-      const res = await fetch(`/api/org/invites/${id}/deactivate`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => null)
-        setInviteError(json?.error ?? 'Kunne ikke deaktivere invitasjonslenken. Prøv igjen.')
-        return
-      }
-      loadData(session)
-    } catch {
-      setInviteError('Kunne ikke deaktivere invitasjonslenken. Prøv igjen.')
-    } finally {
-      setDeactivatingId(null)
-    }
-  }
-
   // Deactivate old invite and immediately create a new one.
   // To kall etter hverandre: hvis det andre feiler står bedriften uten aktiv
   // lenke, og da må admin få vite akkurat det — ikke bare se en knapp som
@@ -753,31 +730,6 @@ export default function OrgAdminPage() {
       setPlanChangeError('Kunne ikke bytte plan. Prøv igjen.')
     } finally {
       setChangingPlan(null)
-    }
-  }
-
-  const saveSettings = async () => {
-    if (!session) return
-    setSavingSettings(true)
-    setSettingsSaved(false)
-    setSettingsError(null)
-    try {
-      const res = await fetch(`/api/org/${slug}/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ allow_global_league: allowGlobal }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => null)
-        setSettingsError(json?.error ?? 'Kunne ikke lagre innstillingen. Prøv igjen.')
-        return
-      }
-      setSettingsSaved(true)
-      setTimeout(() => setSettingsSaved(false), 2000)
-    } catch {
-      setSettingsError('Kunne ikke lagre innstillingen. Prøv igjen.')
-    } finally {
-      setSavingSettings(false)
     }
   }
 
