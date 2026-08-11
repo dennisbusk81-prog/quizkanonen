@@ -171,6 +171,47 @@ export function decideOrgSubscriptionEvent(input: OrgSubEventInput): OrgSubEvent
   return 'adopt'
 }
 
+// ── Stripes egen trial-utløps-kansellering (11. august 2026) ───────────────
+//
+// Når `trial_settings.end_behavior.missing_payment_method: 'cancel'` lar en
+// trial løpe ut, setter Stripe `cancellation_details.reason` til
+// 'cancellation_requested' — SAMME verdi som når en bruker selv sier opp.
+// Målt empirisk 11. august i både test-modus (fixture) og live-historikk
+// (org-trialene som løp ut 22. juli). Reason alene kan derfor ikke skille
+// «brukeren ba om det» fra «kortet manglet da trialen tok slutt».
+//
+// Auto-kanselleringen har derimot et presist fingeravtrykk i payloaden:
+//   * canceled_at === trial_end — EKSAKT samme epoch-sekund; Stripe stempler
+//     kanselleringen på trial-slutten selv når prosesseringen skjer minutter
+//     senere (målt: prosessert ~90 s etter, stemplet nøyaktig på trial_end)
+//   * cancel_at_period_end=false og cancel_at=null — brukeren hadde ikke
+//     planlagt noen kansellering; en oppsigelse underveis i trialen setter
+//     ett av disse, eller gir canceled_at < trial_end ved umiddelbar avslutning
+export type TrialAutoCancelFacts = {
+  /** subscription.canceled_at (epoch-sekunder) fra hendelses-payloaden. */
+  canceledAt?: number | null
+  /** subscription.trial_end (epoch-sekunder). */
+  trialEnd?: number | null
+  /** subscription.cancel_at_period_end. */
+  cancelAtPeriodEnd?: boolean | null
+  /** subscription.cancel_at (epoch-sekunder). */
+  cancelAt?: number | null
+}
+
+/**
+ * Er dette Stripes egen kansellering av en trial som løp ut — ikke noe noen
+ * har bedt om? Mangler feltene (gamle kallere, ufullstendig payload) er svaret
+ * `false`: da vet vi ingenting nytt, og kalleren beholder gammel oppførsel.
+ */
+export function isTrialAutoCancel(facts: TrialAutoCancelFacts): boolean {
+  const { canceledAt, trialEnd, cancelAtPeriodEnd, cancelAt } = facts
+  if (typeof canceledAt !== 'number' || typeof trialEnd !== 'number') return false
+  if (canceledAt !== trialEnd) return false
+  if (cancelAtPeriodEnd === true) return false
+  if (typeof cancelAt === 'number') return false
+  return true
+}
+
 export type CancellationEmailInput = {
   /** subscription.cancellation_details?.reason fra hendelsesobjektet. */
   cancellationReason: string | null | undefined
@@ -180,7 +221,7 @@ export type CancellationEmailInput = {
    * undertrykke et varsel om en ekte kansellering).
    */
   hasPaymentMethod: boolean | null
-}
+} & TrialAutoCancelFacts
 
 /**
  * Skal «Premium-abonnementet ditt er avsluttet» sendes?
@@ -207,7 +248,18 @@ export function shouldSendCancellationEmail(input: CancellationEmailInput): bool
   const { cancellationReason, hasPaymentMethod } = input
 
   // Brukeren ba selv om å avslutte — bekreftelsen skal alltid ut.
-  if (cancellationReason === 'cancellation_requested') return true
+  //
+  // MED ETT UNNTAK (11. august 2026): Stripe setter samme reason på sin egen
+  // auto-kansellering når en kortløs trial løper ut under
+  // `end_behavior.missing_payment_method: 'cancel'`. Det er ingen beslutning
+  // brukeren har tatt, og «Premium-abonnementet ditt er avsluttet» er da både
+  // misvisende og feil tone. Unntaket krever BÅDE auto-fingeravtrykket
+  // (se isTrialAutoCancel) OG bekreftet kortløshet — feiler kortoppslaget
+  // (null), sendes e-posten som før.
+  if (cancellationReason === 'cancellation_requested') {
+    if (hasPaymentMethod === false && isTrialAutoCancel(input)) return false
+    return true
+  }
 
   // Fail-safe: ukjent kortstatus behandles som «har kort».
   if (hasPaymentMethod !== false) return true

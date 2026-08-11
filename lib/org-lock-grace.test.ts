@@ -13,6 +13,12 @@
 //     `reason`, ikke bare `grace`.
 //   * Fjernes remindedAt-vakten i shouldRemindDuringGrace, feiler «påminnelsen
 //     sendes kun én gang».
+//   * (11. aug 2026) Fjernes isTrialAutoCancel-grenen i decideLockGrace, feiler
+//     begge «AUTO-KANSELLERT …»-testene (voluntary_cancel i stedet for
+//     trial_expired). Nøytraliseres canceled_at===trial_end-sjekken i
+//     isTrialAutoCancel, feiler «admin som sier opp UNDERVEIS»; nøytraliseres
+//     cancel_at_period_end-vakten, feiler «planlagt oppsigelse … ingen grace».
+//     Alle kjørt og verifisert 11. august 2026.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -112,6 +118,79 @@ test('admin sier opp MIDT i prøveperioden → fortsatt ingen grace', () => {
     now: NOW,
   })
   assert.equal(d.grace, false)
+})
+
+// ── Stripes egen trial-utløps-kansellering (11. august 2026) ───────────────
+// end_behavior 'cancel' merkes 'cancellation_requested' av Stripe selv —
+// målt i test-modus og i live (org-trialene 22. juli). Fingeravtrykket
+// (canceled_at === trial_end, ingen planlagt kansellering) skal gi grace som
+// trial_expired, IKKE voluntary_cancel.
+
+const TRIAL_END_EPOCH = 1_786_474_522
+
+test('AUTO-KANSELLERT trial-utløp med cancellation_requested → grace som trial_expired', () => {
+  // Uten fingeravtrykk-grenen klassifiseres dette voluntary_cancel: ansatte
+  // mister grace og admin får oppsigelsestekst for noe ingen sa opp.
+  const d = decideLockGrace({
+    previousOrgStatus: 'trialing',
+    stripeStatus: 'canceled',
+    cancellationReason: 'cancellation_requested',
+    canceledAt: TRIAL_END_EPOCH,
+    trialEnd: TRIAL_END_EPOCH,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+    now: NOW,
+  })
+  assert.equal(d.grace, true)
+  assert.equal(d.reason, 'trial_expired')
+})
+
+test('auto-kansellering gir trial_expired også når org-status allerede er noe annet', () => {
+  // deleted-etter-updated-sekvensen: org-en kan stå som 'locked' når deleted
+  // ankommer. Fingeravtrykket alene beviser trial-utløpet — previousOrgStatus
+  // trengs ikke, og 'trialing'-grenen lenger ned ville ikke fanget dette.
+  const d = decideLockGrace({
+    previousOrgStatus: 'locked',
+    stripeStatus: 'canceled',
+    cancellationReason: 'cancellation_requested',
+    canceledAt: TRIAL_END_EPOCH,
+    trialEnd: TRIAL_END_EPOCH,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+    now: NOW,
+  })
+  assert.equal(d.grace, true)
+  assert.equal(d.reason, 'trial_expired')
+})
+
+test('admin som sier opp UNDERVEIS i trialen får fortsatt ingen grace (canceled_at < trial_end)', () => {
+  const d = decideLockGrace({
+    previousOrgStatus: 'trialing',
+    stripeStatus: 'canceled',
+    cancellationReason: 'cancellation_requested',
+    canceledAt: TRIAL_END_EPOCH - 3600,
+    trialEnd: TRIAL_END_EPOCH,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+    now: NOW,
+  })
+  assert.equal(d.grace, false)
+  assert.equal(d.reason, 'voluntary_cancel')
+})
+
+test('planlagt oppsigelse (cancel_at_period_end) som lander på trial-slutten → ingen grace', () => {
+  const d = decideLockGrace({
+    previousOrgStatus: 'trialing',
+    stripeStatus: 'canceled',
+    cancellationReason: 'cancellation_requested',
+    canceledAt: TRIAL_END_EPOCH,
+    trialEnd: TRIAL_END_EPOCH,
+    cancelAtPeriodEnd: true,
+    cancelAt: null,
+    now: NOW,
+  })
+  assert.equal(d.grace, false)
+  assert.equal(d.reason, 'voluntary_cancel')
 })
 
 // ── Tvilstilfeller → grace (konservativt) ──────────────────────────────────

@@ -15,6 +15,8 @@
  * lib/premium-state-io.ts, og lib/subscription-lifecycle.ts.
  */
 
+import { isTrialAutoCancel, type TrialAutoCancelFacts } from './subscription-lifecycle'
+
 /** Hvor lenge ansattes Premium overlever en ufrivillig lås. */
 export const LOCK_GRACE_DAYS = 7
 
@@ -51,7 +53,7 @@ export type LockGraceInput = {
   /** `subscription.cancellation_details?.reason`. */
   cancellationReason: string | null | undefined
   now?: Date
-}
+} & TrialAutoCancelFacts
 
 /**
  * Skal de ansatte få grace når org-en låses nå?
@@ -60,10 +62,13 @@ export type LockGraceInput = {
  *
  *  A. `cancellation_details.reason`. Feltet finnes og er typet i API-versjonen
  *     vi kjører (2026-03-25.dahlia), og leses allerede av
- *     shouldSendCancellationEmail(). Men Stripe GARANTERER ikke at det er satt
- *     — særlig ikke for en trial som avsluttes automatisk av
- *     `trial_settings.end_behavior.missing_payment_method: 'cancel'`, som er
- *     nøyaktig slik org-trials opprettes i org-founders-activate.
+ *     shouldSendCancellationEmail(). Men det er UPÅLITELIG for skillet vi
+ *     trenger: en trial som avsluttes automatisk av
+ *     `trial_settings.end_behavior.missing_payment_method: 'cancel'` (nøyaktig
+ *     slik org-trials opprettes i org-founders-activate) merkes
+ *     'cancellation_requested' av Stripe SELV — målt empirisk 11. august 2026
+ *     i både test-modus og live. Derfor sjekkes auto-kanselleringsfingeravtrykket
+ *     (isTrialAutoCancel) FØR reason i decideLockGrace.
  *
  *  B. Org-ens egen status før hendelsen. Sto den som `trialing`, var dette en
  *     prøveperiode som tok slutt — uansett hva Stripe måtte ha fylt inn i A.
@@ -86,6 +91,19 @@ export function decideLockGrace(input: LockGraceInput): LockGraceDecision {
   // og det finnes ingen cancellation_details å tolke i det hele tatt.
   if (stripeStatus && DUNNING_STATUSES.includes(stripeStatus)) {
     return { grace: true, reason: 'payment_failed', until }
+  }
+
+  // Stripes EGEN kansellering av en trial som løp ut (11. august 2026):
+  // merkes 'cancellation_requested' av Stripe selv om ingen har bedt om noe —
+  // målt empirisk i både test-modus og live (org-trialene 22. juli). Uten
+  // denne grenen ville et rent trial-utløp klassifiseres som voluntary_cancel:
+  // ansatte mistet grace, og admin fikk oppsigelsesbekreftelse i stedet for
+  // trial-teksten. Fingeravtrykket (canceled_at === trial_end, ingen planlagt
+  // kansellering) skiller det fra en admin som faktisk sier opp — en
+  // oppsigelse underveis gir canceled_at < trial_end eller setter
+  // cancel_at/cancel_at_period_end, og treffer da grenen under.
+  if (isTrialAutoCancel(input)) {
+    return { grace: true, reason: 'trial_expired', until }
   }
 
   // Noen ba aktivt om å avslutte. Det eneste signalet som nekter grace.

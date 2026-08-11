@@ -569,6 +569,12 @@ export async function POST(request: NextRequest) {
         previousOrgStatus: org.subscription_status,
         stripeStatus: subscription.status,
         cancellationReason: subscription.cancellation_details?.reason ?? null,
+        // Auto-kanselleringsfakta — et trial-utløp merkes 'cancellation_requested'
+        // av Stripe selv, og skal gi grace, ikke voluntary_cancel.
+        canceledAt: subscription.canceled_at ?? null,
+        trialEnd: subscription.trial_end ?? null,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
+        cancelAt: subscription.cancel_at ?? null,
       })
       let graceUntil: string | null = null
       if (isLockTransition) {
@@ -717,12 +723,23 @@ export async function POST(request: NextRequest) {
         const cancellationReason = subscription.cancellation_details?.reason ?? null
         const hasPaymentMethod = await customerHasPaymentMethod(stripe, customerId)
 
-        if (!shouldSendCancellationEmail({ cancellationReason, hasPaymentMethod })) {
+        // Auto-kanselleringsfakta (11. august 2026): Stripe merker sitt eget
+        // trial-utløp under end_behavior 'cancel' som 'cancellation_requested',
+        // så reason alene kan ikke bære e-postbeslutningen. Se isTrialAutoCancel.
+        if (!shouldSendCancellationEmail({
+          cancellationReason,
+          hasPaymentMethod,
+          canceledAt: subscription.canceled_at ?? null,
+          trialEnd: subscription.trial_end ?? null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
+          cancelAt: subscription.cancel_at ?? null,
+        })) {
           console.log(
             `[webhook] subscription.deleted → premiumCancelledEmail UNDERTRYKT for profile ` +
             `${profileId}: ingen betalingsmetode og grunn=${cancellationReason ?? 'ukjent'} ` +
-            `(kortløs trial som løp ut — varslet allerede av invoice.payment_failed). ` +
-            `customer=${customerId} sub=${subscriptionId}`
+            `(kortløs trial som løp ut — under end_behavior 'create_invoice' er brukeren ` +
+            `allerede varslet av invoice.payment_failed; under 'cancel' finnes ingen faktura ` +
+            `og trial-utløpet varsles separat). customer=${customerId} sub=${subscriptionId}`
           )
         } else {
           getUserEmail(stripe, customerId)
@@ -1026,6 +1043,11 @@ export async function POST(request: NextRequest) {
                   previousOrgStatus: org.subscription_status,
                   stripeStatus: status,
                   cancellationReason: subscription.cancellation_details?.reason ?? null,
+                  // Samme auto-kanselleringsfakta som i deleted-grenen.
+                  canceledAt: subscription.canceled_at ?? null,
+                  trialEnd: subscription.trial_end ?? null,
+                  cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
+                  cancelAt: subscription.cancel_at ?? null,
                 }),
                 `sub.updated ${status} org=${org.id}`,
               )

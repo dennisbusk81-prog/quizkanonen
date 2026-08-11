@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   isStaleSubscriptionEvent,
   shouldSendCancellationEmail,
+  isTrialAutoCancel,
   decideOrgSubscriptionEvent,
   needsLiveSubscriptionLookup,
   LIVE_SUBSCRIPTION_STATUSES,
@@ -107,9 +108,108 @@ test('HULL 2 — kortløs + UKJENT grunn → undertrykk (Stripe garanterer ikke 
 })
 
 test('brukeren ba SELV om å avslutte → send alltid, også uten kort', () => {
+  // Uten auto-kanselleringsfakta (gamle kallere / ufullstendig payload) er
+  // oppførselen som før 11. august: reason='cancellation_requested' sender.
   assert.equal(shouldSendCancellationEmail({
     cancellationReason: 'cancellation_requested', hasPaymentMethod: false,
   }), true)
+})
+
+// ── Trial-utløp under end_behavior 'cancel' (11. august 2026) ───────────────
+// Stripe merker sin EGEN auto-kansellering som 'cancellation_requested' —
+// målt empirisk i test-modus (fixture 1A) og i live (org-trialene 22. juli).
+// Fingeravtrykket: canceled_at === trial_end eksakt, ingen planlagt
+// kansellering (cancel_at_period_end=false, cancel_at=null).
+//
+// MUTASJONSBEVIS (kjørt og verifisert 11. august 2026):
+//   * Byttes `return false` i undertrykkingsgrenen til `return true`, feiler
+//     «AUTO-KANSELLERING … UNDERTRYKK».
+//   * Nøytraliseres canceled_at===trial_end-sjekken i isTrialAutoCancel,
+//     feiler «EKTE oppsigelse MIDT i trialen … send bekreftelsen».
+//   * Nøytraliseres cancel_at_period_end-vakten, feiler «PLANLAGT oppsigelse
+//     … send».
+//   * Endres `hasPaymentMethod === false` til `!== true`, feiler
+//     «kortoppslaget FEILET (null) → send».
+
+const TRIAL_END = 1_786_474_522 // vilkårlig epoch — bare likheten betyr noe
+
+test('AUTO-KANSELLERING: trial løp ut uten kort → UNDERTRYKK, tross cancellation_requested', () => {
+  // Nøyaktig 1A-payloaden: dette er hendelsen som 15. august fyrer for
+  // hver eneste Founders-trial på listen.
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: false,
+    canceledAt: TRIAL_END,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+  }), false)
+})
+
+test('EKTE oppsigelse MIDT i trialen (canceled_at < trial_end) → send bekreftelsen', () => {
+  // Dennis-kravet: en bruker som aktivt avslutter skal fortsatt få e-posten.
+  // Umiddelbar kansellering underveis gir canceled_at før trial_end.
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: false,
+    canceledAt: TRIAL_END - 3600,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+  }), true)
+})
+
+test('PLANLAGT oppsigelse (cancel_at_period_end) som lander på trial-slutten → send', () => {
+  // Bruker valgte «avslutt ved periodeslutt» i trialen; perioden ER trialen,
+  // så canceled_at treffer trial_end — men flagget beviser at det var bestilt.
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: false,
+    canceledAt: TRIAL_END,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: true,
+    cancelAt: null,
+  }), true)
+})
+
+test('PLANLAGT oppsigelse via cancel_at som lander på trial-slutten → send', () => {
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: false,
+    canceledAt: TRIAL_END,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: false,
+    cancelAt: TRIAL_END,
+  }), true)
+})
+
+test('auto-fingeravtrykk men kunden HAR kort → send (undertrykk aldri betalende)', () => {
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: true,
+    canceledAt: TRIAL_END,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+  }), true)
+})
+
+test('auto-fingeravtrykk men kortoppslaget FEILET (null) → send (fail-safe som før)', () => {
+  assert.equal(shouldSendCancellationEmail({
+    cancellationReason: 'cancellation_requested',
+    hasPaymentMethod: null,
+    canceledAt: TRIAL_END,
+    trialEnd: TRIAL_END,
+    cancelAtPeriodEnd: false,
+    cancelAt: null,
+  }), true)
+})
+
+test('isTrialAutoCancel krever begge tidsstempler — manglende felt gir false', () => {
+  assert.equal(isTrialAutoCancel({ canceledAt: TRIAL_END, trialEnd: TRIAL_END, cancelAtPeriodEnd: false, cancelAt: null }), true)
+  assert.equal(isTrialAutoCancel({ canceledAt: null, trialEnd: TRIAL_END, cancelAtPeriodEnd: false, cancelAt: null }), false)
+  assert.equal(isTrialAutoCancel({ canceledAt: TRIAL_END, trialEnd: null, cancelAtPeriodEnd: false, cancelAt: null }), false)
+  assert.equal(isTrialAutoCancel({}), false)
 })
 
 test('har kort + payment_failed → send (ekte dunning-kansellering, ingen regresjon)', () => {
