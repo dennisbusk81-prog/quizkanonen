@@ -146,7 +146,7 @@ export default function AttemptDetailPage() {
   useLayoutEffect(() => {
     const CACHE_TTL = 10 * 60 * 1000
     try {
-      const raw = sessionStorage.getItem(`qk_attempt_${attemptId}`)
+      const raw = sessionStorage.getItem(`qk_attempt_v2_${attemptId}`)
       if (!raw) return
       const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
       if (Date.now() - cached.fetchedAt < CACHE_TTL) {
@@ -168,7 +168,7 @@ export default function AttemptDetailPage() {
 
   useEffect(() => {
     let cancelled = false
-    const CACHE_KEY = `qk_attempt_${attemptId}`
+    const CACHE_KEY = `qk_attempt_v2_${attemptId}`
     const CACHE_TTL = 10 * 60 * 1000 // 10 min — attempt data is immutable
     const controller = new AbortController()
     const fetchTimeout = setTimeout(() => controller.abort(), 12000)
@@ -340,7 +340,7 @@ export default function AttemptDetailPage() {
             <div style={s.heroDate}>{formatDate(detail.completed_at)}</div>
 
             <div style={s.statsRow}>
-              {detail.rank !== null && detail.total_players !== null ? (
+              {detail.rank != null && detail.total_players != null ? (
                 <div style={s.statCell}>
                   <div style={s.statBig}>#{detail.rank}</div>
                   <div style={s.statLbl}>Plassering</div>
@@ -365,7 +365,7 @@ export default function AttemptDetailPage() {
 
             <div style={s.heroSub}>
               {detail.correct_answers} av {detail.total_questions} riktige
-              {detail.rank !== null && detail.total_players !== null && (
+              {detail.rank != null && detail.total_players != null && (
                 <> · av {detail.total_players} deltakere</>
               )}
             </div>
