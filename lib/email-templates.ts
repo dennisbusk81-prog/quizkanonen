@@ -2520,6 +2520,113 @@ export function duelInviteEmail(challengerNameRaw: string, unsubscribeUrl?: stri
 // høflighetsmelding — den er selve beskjeden om at kunden IKKE blir trukket i
 // perioden, og at faktureringen starter igjen av seg selv etterpå.
 
+// Engangs-utsendelse til Founders-kohorten formiddag 15. august 2026, mens
+// Premium-tilgangen deres fortsatt er aktiv (se /api/admin/founders-farewell).
+// Teksten er Dennis' egen, godkjent 12. august — ordrett, ikke et utkast:
+//   * Emnet peker FREMOVER («Nå begynner den ordentlige sesongen») — aldri
+//     «utløper»/lignende bakoverskuende formuleringer, og det ordet emnet
+//     forbyr skal heller ikke forekomme i brødteksten.
+//   * Teksten ender på «Vi sees på fredagsquizen.» — ingen takke-setning
+//     etter CTA-knappen.
+//   * CTA til /premium — ikke /founders, det navnet fases ut.
+//   * Ingen kupong eller rabatt — kun tekst.
+export function foundersFarewellEmail(firstNameRaw?: string | null): string {
+  const firstName = firstNameRaw ? escapeHtml(firstNameRaw.trim().split(/\s+/)[0]) : null
+  const greeting = firstName ? `Hei ${firstName},` : 'Hei,'
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nå begynner den ordentlige sesongen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                N&aring; begynner den ordentlige sesongen
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                ${greeting}
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Du var en av de f&oslash;rste som ble med da fredagsquizen gikk fra
+                Facebook-gruppe til egen plattform. Som Founders-medlem har du hatt
+                full Premium-tilgang gratis mens vi bygget den &mdash; og du har
+                v&aelig;rt med p&aring; &aring; forme det Quizkanonen har blitt.
+                Takk for alle innspill underveis. Plattformen er fortsatt under
+                bygging, og tilbakemeldinger er like velkomne fremover &mdash; det
+                er s&aring;nn vi f&aring;r bygget en quizplattform vi alle er glade i.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                I dag, <strong style="color:#ffffff;">15. august</strong>, g&aring;r
+                Founders-perioden over i vanlig drift. Premium-tilgangen din varer
+                dagen ut, og du blir aldri trukket for noe &mdash; du la jo aldri
+                inn noe kort.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Fredagsquizen er gratis, akkurat som f&oslash;r. Vil du ha med deg
+                alle fordelene fra Premium videre &mdash; n&oslash;yaktig plassering,
+                historikk og statistikk, private ligaer og egen plass p&aring;
+                sesongtopplisten &mdash; koster det 49 kr i m&aring;neden og vil
+                bidra til at plattformen kan bli enda bedre i fremtiden.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="margin-top:28px;">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/premium"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Fortsett med Premium
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:28px 0 0;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Vi sees p&aring; fredagsquizen.
+              </p>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Du mottar denne e-posten fordi du har Founders Access p&aring; Quizkanonen.<br />
+                Sp&oslash;rsm&aring;l? Svar p&aring; denne e-posten.
+              </p>
+            </td>
+          </tr>
+          ${UNSUBSCRIBE_ROW}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
 function codeEmailShell(title: string, bodyRows: string): string {
   return `<!DOCTYPE html>
 <html lang="no">

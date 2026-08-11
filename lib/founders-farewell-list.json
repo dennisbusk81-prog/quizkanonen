@@ -1,0 +1,633 @@
+{
+  "generatedAt": "2026-08-11T18:15:49.026Z",
+  "foundersPriceId": "price_1ThaC3CuFvuZpvNY31Zfs6zr",
+  "counts": {
+    "foundersTrials": 75,
+    "mainList": 72,
+    "converted": 2,
+    "unmatched": 0,
+    "dennisExcluded": 1
+  },
+  "entries": [
+    {
+      "userId": "7cb619f6-2e6c-433b-aa33-97a440d4581a",
+      "email": "sstenham@gmail.com",
+      "displayName": "Sven Vidar Stenhammer",
+      "customerId": "cus_UjZTnttMiLNczG",
+      "subscriptionId": "sub_1TzL1yCuFvuZpvNYf9KJMVra",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "9ca03e5d-5d5f-4c48-8a63-9e1849733281",
+      "email": "skoelvo@hotmail.com",
+      "displayName": "Oddgeir Eddie Skøelv",
+      "customerId": "cus_UzIYr5RLVaJIgO",
+      "subscriptionId": "sub_1TzJwxCuFvuZpvNYwqhjOiaT",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "ea10a721-9d29-4c7b-a696-c74184cc1613",
+      "email": "magnus.rolstad@gmail.com",
+      "displayName": "Magnus Rolstad",
+      "customerId": "cus_UhAV6hO2ZObJPx",
+      "subscriptionId": "sub_1TyGQvCuFvuZpvNYOtsj9uUK",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "fd998f5f-fb5a-4eef-8e83-9c8b31acfabb",
+      "email": "tottiergud@gmail.com",
+      "displayName": "Martin Knudsen",
+      "customerId": "cus_UxSjzLllzM1IiE",
+      "subscriptionId": "sub_1TxXngCuFvuZpvNYqRcqBV26",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "b0ada7b7-d15b-4642-b40b-b20cc993bed1",
+      "email": "karianne.aamodt@gmail.com",
+      "displayName": "Karianne Aamodt",
+      "customerId": "cus_UwaXX16NsEAXfm",
+      "subscriptionId": "sub_1TwhMFCuFvuZpvNYOefdFhio",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "08caa4f6-7100-4b5b-869a-f0fd5d201f25",
+      "email": "endre.nedberg@gmail.com",
+      "displayName": "Endre Nedberg",
+      "customerId": "cus_UwGZb4IXh39Wyq",
+      "subscriptionId": "sub_1TwO22CuFvuZpvNYms6RALMD",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "2acf07a0-d6df-4428-a846-ee32a7c8a88d",
+      "email": "riiber67@gmail.com",
+      "displayName": "Bjørn Riiber",
+      "customerId": "cus_Uu5Lzdexl2IN7i",
+      "subscriptionId": "sub_1TuHAmCuFvuZpvNYzqP6bY1p",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "64f2216e-5133-48cf-a702-2ef0d5c14604",
+      "email": "petter.gullerud@gmail.com",
+      "displayName": "Petter Gullerud",
+      "customerId": "cus_Uu4431FhkhLWDT",
+      "subscriptionId": "sub_1TuFwTCuFvuZpvNYNkbjRUDc",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "3344c16d-594d-410d-89e4-86ec68ecf530",
+      "email": "emiliebusk14@gmail.com",
+      "displayName": "Emilie Busk",
+      "customerId": "cus_Uu3Q1n4X7GLYjG",
+      "subscriptionId": "sub_1TuFJlCuFvuZpvNY6lbhLOsA",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "a2ba2d29-1329-420e-acde-3fab2bda863a",
+      "email": "mk11nielsen@gmail.com",
+      "displayName": "Maj-Britt og Kurt Nielsen",
+      "customerId": "cus_UrTKDdXguLbWdq",
+      "subscriptionId": "sub_1TrkNjCuFvuZpvNYy0HY10eP",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "8257b0e0-78c4-40ee-bace-721ab93e24bd",
+      "email": "efuru95@gmail.com",
+      "displayName": "Espen Furu",
+      "customerId": "cus_UrM7woQWhE4UlS",
+      "subscriptionId": "sub_1TrdOxCuFvuZpvNYMYtFvDf8",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "81279e5f-3863-48e4-b02c-a64279c53ed0",
+      "email": "janne74@icloud.com",
+      "displayName": "Janne Lysø",
+      "customerId": "cus_UrKA8ExhlzEqRF",
+      "subscriptionId": "sub_1TrbVlCuFvuZpvNYKXqawJph",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "37097463-c098-437d-bc6e-5f26481d0a2d",
+      "email": "mateus.skolhall@gmail.com",
+      "displayName": "Mateus Skolhäll",
+      "customerId": "cus_UopeaeZ5H1nmBI",
+      "subscriptionId": "sub_1TpByrCuFvuZpvNYasztTZby",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "46161b6f-bd25-41a5-858d-4943dbd71df7",
+      "email": "trudeow@gmail.com",
+      "displayName": "Trude Øyre Westby",
+      "customerId": "cus_Uopdwd0nfm3ZMB",
+      "subscriptionId": "sub_1TpBy5CuFvuZpvNY3gUcCxc9",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "37093ffb-3947-43ef-836b-3626d741fd4c",
+      "email": "erlinghd@gmail.com",
+      "displayName": "Erling Dietrichson",
+      "customerId": "cus_UopDNwG0mXqp7b",
+      "subscriptionId": "sub_1TpBZDCuFvuZpvNYC2EkYPRi",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "1f7de0fa-b610-412a-9cc1-e433a740c4b0",
+      "email": "elin.turtle@gmail.com",
+      "displayName": "Elin Åmot",
+      "customerId": "cus_UonA7kzwUfhaZp",
+      "subscriptionId": "sub_1Tp9aSCuFvuZpvNYTDktmQgx",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "c94d1647-2961-4ecf-b66b-c64740305976",
+      "email": "lsimensen@hotmail.com",
+      "displayName": "Line Simensen",
+      "customerId": "cus_UommJkVFs9QqQC",
+      "subscriptionId": "sub_1Tp9CyCuFvuZpvNY1XUmiJUZ",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "920136b1-34e5-45bf-b4f9-c86035f47a33",
+      "email": "renate@fjellogfjord-konferanser.no",
+      "displayName": "Renate Ellingsen",
+      "customerId": "cus_UohdEd2I1u55zq",
+      "subscriptionId": "sub_1Tp4E5CuFvuZpvNYED4xh6IS",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "dcb88216-6030-463c-9d8a-47ba6a1152af",
+      "email": "siljeaarnes@yahoo.no",
+      "displayName": "Silje Aarnes",
+      "customerId": "cus_UohcHQvozuTQsd",
+      "subscriptionId": "sub_1Tp4D9CuFvuZpvNY4KXPqDjm",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "f128c205-5537-461c-84d9-4ad48039af0c",
+      "email": "celinebusk@gmail.com",
+      "displayName": "Celine busk",
+      "customerId": "cus_Uohbvfral4AnU0",
+      "subscriptionId": "sub_1Tp4C0CuFvuZpvNYkGMfpzHk",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "1821d890-ba6b-4bbb-9b4d-543076d49ee7",
+      "email": "kine.schulz@gmail.com",
+      "displayName": "Kine Schulz",
+      "customerId": "cus_UmDtXUd9A0RjDP",
+      "subscriptionId": "sub_1TmfS2CuFvuZpvNYVDNQMMdw",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "3b8e5059-02b5-49d6-a38e-2b97a17b0122",
+      "email": "hakonll93@gmail.com",
+      "displayName": "Håkon Lorentsen",
+      "customerId": "cus_UmDtuuqDxK9eZk",
+      "subscriptionId": "sub_1TmfRVCuFvuZpvNY7kzyPFMM",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "ee64ee57-a1c8-4609-9d81-972f78ff5900",
+      "email": "musichals@gmail.com",
+      "displayName": "Bjørn Tore Hals",
+      "customerId": "cus_UmDLk96tMZetbq",
+      "subscriptionId": "sub_1TmeumCuFvuZpvNYqbmoOs4e",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "e03e3c74-b93c-4dbf-86b4-5d6c6a9c80c1",
+      "email": "peter_lesemann@hotmail.com",
+      "displayName": "Peter Lesemann",
+      "customerId": "cus_UmCy0trWVNrMoo",
+      "subscriptionId": "sub_1TmeYGCuFvuZpvNYwQxfcO76",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "6e1b0452-1b4a-4832-94d3-5785ec967d45",
+      "email": "sandra-fuglsang@hotmail.com",
+      "displayName": "Sandra Lesemann",
+      "customerId": "cus_UmCwH4kHNoGpqA",
+      "subscriptionId": "sub_1TmeX4CuFvuZpvNYxYXXUsiB",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "740d3e76-3e14-40df-8ce7-900688e1581d",
+      "email": "sannerefsing@gmail.com",
+      "displayName": "Sanne Refsing",
+      "customerId": "cus_UmBhBXSJYCFfvC",
+      "subscriptionId": "sub_1TmdJvCuFvuZpvNYYpeNXtuH",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "68402a67-af83-4eb2-b70b-f8f14bf56de1",
+      "email": "benediktebergevik@gmail.com",
+      "displayName": "Benedikte Bergevik",
+      "customerId": "cus_UmAzvsBfzNpklm",
+      "subscriptionId": "sub_1TmcdjCuFvuZpvNYIwC16rXY",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "40133f28-0b42-4b0e-9fac-79443f34a833",
+      "email": "johnsrud.kenneth@gmail.com",
+      "displayName": "Kenneth Johnsrud",
+      "customerId": "cus_Um9bqUWegyDtFq",
+      "subscriptionId": "sub_1TmbIUCuFvuZpvNYX4V29pfX",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "2aa02b3a-4f45-4e50-9d55-ae780da52e71",
+      "email": "ptclay@gmail.com",
+      "displayName": "Paul Thomas Clay",
+      "customerId": "cus_Um8SA0Vpv7nhLA",
+      "subscriptionId": "sub_1TmaB9CuFvuZpvNYO2LrdgxY",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "58bc0d48-e59f-48cf-aabf-58904ec25d8e",
+      "email": "hakon.kruse.ludvigsen@gmail.com",
+      "displayName": "Håkon Kruse Ludvigsen",
+      "customerId": "cus_Um6d9umSOWfPL6",
+      "subscriptionId": "sub_1TmYQfCuFvuZpvNYKlScDlyw",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "2dc15f4d-9e2b-4e20-9a83-860509b26556",
+      "email": "andreas.jenssen.berg@gmail.com",
+      "displayName": "Andreas Jenssen Berg",
+      "customerId": "cus_Um53EWpGpxquRI",
+      "subscriptionId": "sub_1TmWt0CuFvuZpvNY3gd0NqqA",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "d25aa79f-36ed-4693-8fc5-3b1d718daf46",
+      "email": "ina_charlotte@msn.com",
+      "displayName": "Ina Charlotte",
+      "customerId": "cus_UjbBYhaoAiR1ue",
+      "subscriptionId": "sub_1Tk7z9CuFvuZpvNY5rVplQDM",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "e235d1ae-7d81-421e-82d4-3197b79053fe",
+      "email": "robindutta92@gmail.com",
+      "displayName": "Robin Dutta",
+      "customerId": "cus_Ujb9jQnslwBqlo",
+      "subscriptionId": "sub_1Tk7xKCuFvuZpvNYF7lEzm1o",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "f264b4ea-4dd9-4b70-8b8a-b2e0196b8ffd",
+      "email": "mschauseidler@gmail.com",
+      "displayName": "Mikkel S-Seidler",
+      "customerId": "cus_UjadKkL6JMTyL2",
+      "subscriptionId": "sub_1Tk7SgCuFvuZpvNYQgoKEm2F",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "4e6d1e34-5272-475c-b59b-41375e0bdd53",
+      "email": "stine@bakkevegen.com",
+      "displayName": "Stine-Elise Riiber",
+      "customerId": "cus_UjaTq7OyTnYKOJ",
+      "subscriptionId": "sub_1Tk7IjCuFvuZpvNYPGCKu760",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "0ed2639c-d1f2-4a2c-99d7-42fcd59ae0c3",
+      "email": "schmidt95147645@gmail.com",
+      "displayName": "Øystein Schmidt",
+      "customerId": "cus_UjaK6lLUrJlyKl",
+      "subscriptionId": "sub_1Tk7AACuFvuZpvNY8MaqmSEy",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "198bf154-6e48-4613-8f57-c73fcd943e14",
+      "email": "kri_eriks@yahoo.no",
+      "displayName": "Kristin Eriksen",
+      "customerId": "cus_UjZcwo0P9zRFFJ",
+      "subscriptionId": "sub_1Tk6TTCuFvuZpvNYoZ00e8iO",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "772db4df-ccfa-46fe-b439-c4e6c2a60981",
+      "email": "beccy49@hotmail.com",
+      "displayName": "Rebecca Warhaug",
+      "customerId": "cus_UjZHrl67VtKpds",
+      "subscriptionId": "sub_1Tk68yCuFvuZpvNYnWsse3NU",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "6423ef7e-7da0-4c18-9857-01b4022d0c11",
+      "email": "kathegul69@gmail.com",
+      "displayName": "Kathe Gulbrandsen",
+      "customerId": "cus_UjY8ePxPzJjy6f",
+      "subscriptionId": "sub_1Tk52MCuFvuZpvNYnUmUTE9s",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "b63b4447-a915-40e8-9da0-f14259c2e069",
+      "email": "jonasloug@gmail.com",
+      "displayName": "Bacon Lover",
+      "customerId": "cus_UjXwuIU0CcYsKI",
+      "subscriptionId": "sub_1Tk4r2CuFvuZpvNY9ERZgcSI",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "4efd9405-691b-4e14-ab1d-cbedcc0b3f2f",
+      "email": "tiril.stenhammer@hotmail.com",
+      "displayName": "Tiril Stenhammer",
+      "customerId": "cus_UjXcMZ8fqTY8SU",
+      "subscriptionId": "sub_1Tk4XcCuFvuZpvNYwJSCNAFf",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "5f5703e2-f0f4-457a-bdb0-307646ad7cfa",
+      "email": "sigurd.sollien@gmail.com",
+      "displayName": "Sigurd sollien",
+      "customerId": "cus_UjXYtPRO8Q14PP",
+      "subscriptionId": "sub_1Tk4T7CuFvuZpvNYeM1m4Ac3",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "ca157ba3-89ee-4a96-8c3e-9698fd127988",
+      "email": "idaaxelss@gmail.com",
+      "displayName": "Ida Axelsson",
+      "customerId": "cus_UjXU1j7i6jC5rL",
+      "subscriptionId": "sub_1Tk4Q0CuFvuZpvNYuiNgFrjT",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "b5ba0cb5-2c20-407a-b3d2-60189ecce180",
+      "email": "grunde.v@gmail.com",
+      "displayName": "Grunde Varting",
+      "customerId": "cus_UjWXWJh3dmJCf7",
+      "subscriptionId": "sub_1Tk3U5CuFvuZpvNYb1V15GfE",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "fb4d0f23-eb1c-498b-b204-405f28423917",
+      "email": "briansfuglsang@gmail.com",
+      "displayName": "Brian Fuglsang",
+      "customerId": "cus_UjWTv61Ov9H3d7",
+      "subscriptionId": "sub_1Tk3Q7CuFvuZpvNY8b7IIOEB",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "f5a7b7cf-b641-459e-8697-0ab9c9eaa5fe",
+      "email": "lars.eilefstad@gmail.com",
+      "displayName": "Lars E",
+      "customerId": "cus_UjVwOaKtBpj3ab",
+      "subscriptionId": "sub_1Tk2uDCuFvuZpvNYiExpvO1Z",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "37782646-0859-4805-8702-ff68530aba55",
+      "email": "thomasriggelsen@hotmail.com",
+      "displayName": "Thomas Riggelsen",
+      "customerId": "cus_UjVTG2IWpk7J4q",
+      "subscriptionId": "sub_1Tk2SeCuFvuZpvNYSYDl3MIV",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "e17e6054-07b8-4325-b326-be07f3767001",
+      "email": "fem1426293@yahoo.com",
+      "displayName": "Stitluss Sjo",
+      "customerId": "cus_UjVLCzfwUmCvXn",
+      "subscriptionId": "sub_1Tk2KpCuFvuZpvNYp1n2Zqn0",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "c99c7dac-0b13-44b1-9af9-b49bdedf8498",
+      "email": "gurokristoffersen@gmail.com",
+      "displayName": "Guro Kristoffersen",
+      "customerId": "cus_UjUeZKUiPXxkKP",
+      "subscriptionId": "sub_1Tk1fNCuFvuZpvNYV4T17oW0",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "cabb6b58-edfa-4ba9-8895-802f8dd6026a",
+      "email": "lampeguro@gmail.com",
+      "displayName": "Guro Lampe",
+      "customerId": "cus_UjUXVVzOmaSiSV",
+      "subscriptionId": "sub_1Tk1Y2CuFvuZpvNYBGdW1fxx",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "50a60886-2d79-41f3-bcea-a055b81aa7b3",
+      "email": "gl-sund@online.no",
+      "displayName": "Glenn Sundling",
+      "customerId": "cus_UjU9djKyF0sdSB",
+      "subscriptionId": "sub_1Tk1BaCuFvuZpvNYwZEOKJI1",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "51ff31c7-faeb-401c-875c-44774914a5a7",
+      "email": "reidar.buskenes@gmail.com",
+      "displayName": "Reidar Buskenes",
+      "customerId": "cus_UjU4wEWjB9HD7B",
+      "subscriptionId": "sub_1Tk15tCuFvuZpvNYJU3qTmT7",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "2d8f1e22-eeab-4c71-a386-11ac49c0ecfe",
+      "email": "janneevensen@yahoo.no",
+      "displayName": "Janne Evensen",
+      "customerId": "cus_UjTpfkN2UXMvwn",
+      "subscriptionId": "sub_1Tk0s9CuFvuZpvNYi2BQfy24",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "711b5771-2d5f-4014-acb3-c2c118ca33f5",
+      "email": "janbheiberg@gmail.com",
+      "displayName": "Jan Heiberg",
+      "customerId": "cus_UjTYDtQbxuQVE8",
+      "subscriptionId": "sub_1Tk0bjCuFvuZpvNYP7R94x5u",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "fd2cf52f-3d1f-4602-a637-1d4d49226f9c",
+      "email": "e-kvebek@hotmail.com",
+      "displayName": "Elisabeth Sandberg Kvebek",
+      "customerId": "cus_UjTOrsMYbRMXLb",
+      "subscriptionId": "sub_1Tk0RkCuFvuZpvNYBJxzJqOE",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "4337d615-6c38-480e-9896-94ab9dfb4b12",
+      "email": "jonas.b.lyso@gmail.com",
+      "displayName": "Jonas Lysø",
+      "customerId": "cus_UjTHLR9fjSq4On",
+      "subscriptionId": "sub_1Tk0KrCuFvuZpvNY45Jxkq1i",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "57fd653b-5a0a-4d34-9c15-54e5da5b3f81",
+      "email": "sundling.marianne@gmail.com",
+      "displayName": "Marianne Sundling",
+      "customerId": "cus_UjTAseufLHEug3",
+      "subscriptionId": "sub_1Tk0E6CuFvuZpvNYskxcnnTE",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "8b120408-a9a6-4962-9465-6249d134a0b2",
+      "email": "jonmjelde@gmail.com",
+      "displayName": "Jon Mjelde",
+      "customerId": "cus_UjT6OpjP74U9pD",
+      "subscriptionId": "sub_1Tk09qCuFvuZpvNYF2MhtLcw",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "5debe2ce-b098-4502-93c3-e90e59bc6e1f",
+      "email": "johannaandreassen@yahoo.no",
+      "displayName": "Johanna Andreassen",
+      "customerId": "cus_UjT5rFAjMrcjz4",
+      "subscriptionId": "sub_1Tk09gCuFvuZpvNYpIx4KBap",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "d8e2bddc-a141-423b-ae14-acca208192ac",
+      "email": "christib@vg.no",
+      "displayName": "Christian Brændshøi",
+      "customerId": "cus_UjSkfkYQRQM8n6",
+      "subscriptionId": "sub_1TjzpHCuFvuZpvNYrPqfdfcF",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "664c6ccd-d3f6-4646-a061-41e8b027d822",
+      "email": "ringstad.christian@gmail.com",
+      "displayName": "Christian Ringstad",
+      "customerId": "cus_UjSdqOymiP0Jr3",
+      "subscriptionId": "sub_1TjziXCuFvuZpvNY9D2NgmdX",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "6df12369-8520-4b68-bbd6-006b24df0a0f",
+      "email": "lineoddekalv@gmail.com",
+      "displayName": "Line Lauvsnes Oddekalv",
+      "customerId": "cus_UjSdXKfeeIMg2i",
+      "subscriptionId": "sub_1TjziGCuFvuZpvNYJx0U413h",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "64ec96b9-3168-4fb7-b0be-9995f79bde74",
+      "email": "invu99@gmail.com",
+      "displayName": "J-Dawg",
+      "customerId": "cus_UjScMEG2pJabjH",
+      "subscriptionId": "sub_1TjzhICuFvuZpvNYV6NRU7RE",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "33af5845-00b7-4b97-bc2e-1766237e86a8",
+      "email": "elise.murb@gmail.com",
+      "displayName": "Elise Murbræck",
+      "customerId": "cus_UjSZ91To4iIQ5u",
+      "subscriptionId": "sub_1TjzeWCuFvuZpvNYgvLl98Ay",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "77c4069b-d623-4652-af8e-155e8a896662",
+      "email": "jon.dahle@gmail.com",
+      "displayName": "Jon Dahle",
+      "customerId": "cus_UjPkdGIdcYldUp",
+      "subscriptionId": "sub_1Tjwv0CuFvuZpvNYofPSMKTq",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "5c312683-2010-46d5-8a9d-a3529ee2e285",
+      "email": "dennis.busk@elkjop.no",
+      "displayName": "Dennis Busk Elkjøp",
+      "customerId": "cus_UjPcVWpw3q57iw",
+      "subscriptionId": "sub_1TjwnNCuFvuZpvNYXmUjCkcL",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "92f9eab6-79b7-488e-9a71-e9abdbad3fa4",
+      "email": "holen57@gmail.com",
+      "displayName": "Anders Holen",
+      "customerId": "cus_UjEmMZJiyRQKx6",
+      "subscriptionId": "sub_1TjmJHCuFvuZpvNYErTq0zws",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "d8fafb41-0fdd-4823-a031-5e172f2f6e42",
+      "email": "martin.andresen89@gmail.com",
+      "displayName": "Martin Andresen",
+      "customerId": "cus_Uj65npSart0awo",
+      "subscriptionId": "sub_1TjdsuCuFvuZpvNYzydzYcJ1",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "23a63f29-ff86-4de3-9636-4cb5133c8a0f",
+      "email": "sundts@gmail.com",
+      "displayName": "Team Domino's",
+      "customerId": "cus_Uj4QptG1o6RRgW",
+      "subscriptionId": "sub_1TjcHpCuFvuZpvNYPACt2kgW",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "350e81c1-ce99-46b2-ba34-8803aa61f94c",
+      "email": "esjak74@gmail.com",
+      "displayName": "Espen Jakobsen",
+      "customerId": "cus_Uiq4fykYIG7BdP",
+      "subscriptionId": "sub_1TjOOXCuFvuZpvNY263ESXSk",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "4dcb50ad-f3d5-4399-91c7-dbc2a57b2c2b",
+      "email": "pluttisanna12@gmail.com",
+      "displayName": "Anna Johansson",
+      "customerId": "cus_UimNJOW26XkLxc",
+      "subscriptionId": "sub_1TjKp3CuFvuZpvNYwJ1QGkUK",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    },
+    {
+      "userId": "0eb22e68-e199-4653-a4e3-5da058055d9d",
+      "email": "anettefnielsen@hotmail.com",
+      "displayName": "Anette Fuglsang Nielsen",
+      "customerId": "cus_UiRNhV2YPV9SOM",
+      "subscriptionId": "sub_1Tj0URCuFvuZpvNYMW40k4nV",
+      "trialEnd": "2026-08-15T21:59:00.000Z"
+    }
+  ],
+  "excluded": {
+    "dennis": {
+      "userId": "c090eaa5-d3ab-47e6-bd7c-7c57d34bdfc8",
+      "email": "dennisbusk81@gmail.com",
+      "displayName": "Dennis Busk",
+      "customerId": "cus_UxSo4IdeNJwSXe",
+      "subscriptionId": "sub_1TxXsrCuFvuZpvNYmNEZ9PLC",
+      "trialEnd": "2026-08-15T21:59:00.000Z",
+      "pauseResumesAt": "2026-09-14T21:59:00.000Z"
+    },
+    "converted": [
+      {
+        "userId": "7d409684-fefb-4229-acdf-5020ed2dbcd6",
+        "email": "peterbakkaaber@gmail.com",
+        "displayName": "Peter Kaaber",
+        "customerId": "cus_UopJCiwHvyWJTB",
+        "subscriptionId": "sub_1TpBeSCuFvuZpvNYpT6tr6RZ",
+        "trialEnd": "2026-08-15T21:59:00.000Z",
+        "otherSubscriptions": [
+          {
+            "id": "sub_1U25qRCuFvuZpvNYvNDWeB0j",
+            "status": "active",
+            "priceId": "price_1ThaC3CuFvuZpvNYKmhfTey8"
+          }
+        ]
+      },
+      {
+        "userId": "841b27fa-b96e-4581-8c96-623a7f936945",
+        "email": "jhkorum@gmail.com",
+        "displayName": "Jørgen Korum",
+        "customerId": "cus_UjXdCn6oKzI73z",
+        "subscriptionId": "sub_1Tk4YACuFvuZpvNYEgeb3ogg",
+        "trialEnd": "2026-08-15T21:59:00.000Z",
+        "otherSubscriptions": [
+          {
+            "id": "sub_1U2AsGCuFvuZpvNYDPHsw1T9",
+            "status": "active",
+            "priceId": "price_1ThaC3CuFvuZpvNYKmhfTey8"
+          }
+        ]
+      }
+    ]
+  },
+  "unmatched": []
+}
