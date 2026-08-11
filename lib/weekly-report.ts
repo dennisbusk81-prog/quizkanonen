@@ -43,11 +43,15 @@ export async function computeWeeklySummary(orgId: string): Promise<WeeklySummary
   const memberIds = (orgMembers ?? []).map(m => m.user_id)
   if (memberIds.length === 0) return null
 
+  // is_test-guarden speiler varslingsrutene: «sist stengte quiz» ville ellers
+  // blitt en testquiz som stengte sist, org-medlemmene har ingen forsøk på den,
+  // og hele ukesrapporten undertrykkes stille (return null under).
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, closes_at')
     .lt('closes_at', new Date().toISOString())
     .not('closes_at', 'is', null)
+    .eq('is_test', false)
     .order('closes_at', { ascending: false })
     .limit(1)
     .maybeSingle()

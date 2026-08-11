@@ -60,7 +60,9 @@ export async function GET(request: NextRequest) {
     1,
   ))
 
-  const [{ data: profiles }, { data: rangeQuizzes }] = await Promise.all([
+  // is_test-guarden speiler poeng-cronene: en testquiz i en duellmåned ville
+  // ellers telt inn i computePointsByMonth og gitt kunstige duellpoeng.
+  const [profilesRes, rangeQuizzesRes] = await Promise.all([
     supabaseAdmin
       .from('profiles')
       .select('id, display_name, nickname')
@@ -70,8 +72,26 @@ export async function GET(request: NextRequest) {
       .select('id, closes_at')
       .gte('closes_at', rangeStart.toISOString())
       .lt('closes_at', rangeEnd.toISOString())
-      .lte('closes_at', now.toISOString()),
+      .lte('closes_at', now.toISOString())
+      .eq('is_test', false),
   ])
+
+  const { data: profiles, error: profilesError } = profilesRes
+  // Profil-feil er ikke fatal: navnefallbacken mot auth.users under dekker
+  // alle motstandere når profilkartet er tomt. Men den skal ikke være stille.
+  if (profilesError) {
+    console.error('[rivalries/my GET] profiles error:', profilesError.message)
+  }
+
+  // Quiz-feil ER fatal: uten quizlisten blir monthByQuizId tom og hver duell
+  // vises som 0-0 — feil data presentert som fasit. Da skal klienten heller få
+  // en feil den kan vise/prøve på nytt, samme håndtering som rivalries-
+  // oppslaget øverst i ruten.
+  const { data: rangeQuizzes, error: rangeQuizzesError } = rangeQuizzesRes
+  if (rangeQuizzesError) {
+    console.error('[rivalries/my GET] quiz range error:', rangeQuizzesError.message)
+    return NextResponse.json({ error: 'Noe gikk galt.' }, { status: 500 })
+  }
 
   const profileMap = new Map(
     (profiles ?? []).map((p: { id: string; display_name: string | null; nickname: string | null }) => [p.id, p])

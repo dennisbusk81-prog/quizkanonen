@@ -13,12 +13,18 @@ export async function GET(request: NextRequest) {
 
   const now = new Date().toISOString()
 
-  // Finn ubehandlede quizer som har stengt
+  // Finn ubehandlede quizer som har stengt. is_test-guarden speiler
+  // varslingsrutene (notify-subscribers/send-reminders/send-push): uten den
+  // får en testquiz som stenges season_scores-rader i global scope, og
+  // fixture-brukere havner på forsidens topp 3. is_active filtreres BEVISST
+  // ikke — en spilt quiz som skjules i admin etter stenging skal fortsatt
+  // gjøres opp, ellers mister spillerne poengene sine.
   const { data: quizzes, error: quizError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, closes_at')
     .lt('closes_at', now)
     .eq('season_points_awarded', false)
+    .eq('is_test', false)
     .order('closes_at', { ascending: true })
     .limit(BATCH_SIZE)
 

@@ -94,6 +94,30 @@ QK_4-lanseringsdokumentet ved behov.
   Dokumentert også i `.claude/QK_TESTQUIZ_OPPSKRIFT.md`; står her fordi
   gjeldslisten er stedet man leter.
 
+- **`quizzes.is_test` er NULLABLE — en rad med eksplisitt NULL er usynlig
+  for både poeng- og varslingsfiltrene (notert 11. august 2026).**
+  Alle syv `is_test`-guardene (tre varslingsruter, award-season-points,
+  publish-quiz sin stengt-quiz-seleksjon, rivalries/my, weekly-report) bruker
+  `.eq('is_test', false)`, som IKKE matcher NULL. Kolonnen har
+  `DEFAULT false` og admin-UI setter den aldri til NULL, så en NULL-rad kan
+  kun oppstå via manuell SQL med eksplisitt NULL. Prod verifisert 11. august:
+  13 quizer, 0 med NULL. Ikke et hull i dag — men en manuelt innsatt NULL-rad
+  ville verken fått sesongpoeng, telt i dueller eller blitt varslet, stille.
+  Billigste varige fiks er `ALTER TABLE quizzes ALTER COLUMN is_test SET NOT
+  NULL` (gratis så lenge 0 NULL-rader finnes).
+
+- **publish-quiz sin publiserings-UPDATE aktiverer også testquizer med
+  `scheduled_at` (notert 11. august 2026, bevisst ufikset).**
+  Selve publiseringssteget i
+  [app/api/cron/publish-quiz/route.ts](../app/api/cron/publish-quiz/route.ts)
+  (ca. linje 36–42, `update({ is_active: true })` på `scheduled_at <= now`)
+  har ikke `is_test`-filter — en testquiz med `scheduled_at` satt blir
+  auto-aktivert og dermed synlig på siden. Poeng- og varslingsflatene er nå
+  guardet (11. august), så konsekvensen er kun synlighet. Latt stå bevisst:
+  testquiz-oppskriften krever uansett `is_active=true` for
+  browser-verifisering, og oppskriften setter aldri `scheduled_at`. Legges
+  guard her, må oppskriften og admin-UI-ets testquiz-flyt vurderes samtidig.
+
 - **Analytics-sidens «Endre svar» kan ikke uttrykke multi-fasit — kollapser
   den ved skriving på uspilte quizer (notert 5. august 2026).**
   `saveCorrectAnswer()` i

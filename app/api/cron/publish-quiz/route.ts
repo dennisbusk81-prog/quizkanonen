@@ -56,11 +56,15 @@ export async function GET(request: NextRequest) {
   // for å vente opptil 5 minutter på neste award-season-points-kjøring.
   // award-season-points-cronen er idempotent (season_points_awarded-flagget), så
   // dobbel kjøring er ufarlig.
+  // Samme is_test-guard som i award-season-points-cronen — denne ruten kjører
+  // hvert minutt og ville ellers gjort opp en testquiz FØR 5-minutters-cronen
+  // i det hele tatt så den. is_active bevisst ikke filtrert, samme begrunnelse.
   const { data: closedQuizzes, error: closedError } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, closes_at')
     .lt('closes_at', now)
     .eq('season_points_awarded', false)
+    .eq('is_test', false)
     .order('closes_at', { ascending: true })
     .limit(5)
 
