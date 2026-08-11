@@ -119,6 +119,27 @@ QK_4-lanseringsdokumentet ved behov.
   **Ikke akutt i dag:** prod har 0 av 199 spørsmål med flere riktige svar.
   Blir akutt første gang et multi-svar-spørsmål lages.
 
+- **Supabase Realtime lastes ubrukt i klientbundelen — 52 KB, fjernbar via
+  Turbopack-alias (notert 11. august 2026, bevisst utsatt).**
+  Appen bruker ikke Realtime noe sted (verifisert med grep etter `.channel(`,
+  `.subscribe(`, `postgres_changes` m.fl. — de eneste subscribe-treffene er
+  Web Push), men supabase-js instansierer `RealtimeClient` ubetinget i
+  konstruktøren, så koden ligger i den delte Supabase-chunken på hver side.
+  Løsningen er bygget og verifisert (build + 1264 tester + nettleser):
+  `turbopack.resolveAlias` i `next.config.ts` som peker
+  `@supabase/realtime-js` til en lokal stubb der `channel()` kaster med
+  vilje. Bevisst IKKE committet: 52 KB er marginal gevinst mot en varig
+  vedlikeholdsforpliktelse — **aliaset må revurderes ved hver oppgradering
+  av supabase-js** (stubben speiler kallene supabase-js selv gjør, og
+  testene kjører mot ekte realtime-js under node, så en fremtidig
+  stubb-mismatch fanges ikke av testsuiten). Tas i samme økt som den ekte
+  ytelsesjobben etter 21. august (hero-tekst bak sekvensielle Supabase-kall
+  er den faktiske LCP-flaskehalsen), slik at effekten kan måles samlet.
+  **Tallkorreksjon til kartleggingen 7. august:** «~206 KB» var størrelsen
+  på HELE den delte Supabase-chunken (auth/postgrest/storage/functions
+  inkludert — alle i bruk), ikke Realtime alene. Realtimes reelle andel er
+  52 KB minifisert (chunken målt 204 KB → 152 KB med stubben).
+
 - **/toppliste er full klient-side rendering med session-check-waterfall
   før API-kall. Strukturell RSC-migrasjon vurdert, men utsatt pga
   auth/hydration-risiko rett før lansering.**
