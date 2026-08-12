@@ -18,10 +18,13 @@ export default function PendingActionRedirect() {
     )
 
     if (pending === 'founders_checkout') {
+      // Nøkkelen kan fortsatt ligge i localStorage hos brukere som startet
+      // Founders-flyten før avviklingen 12. august 2026. Vi rydder den og
+      // sender dem til /premium — /founders er nå kun en redirect dit.
       supabase.auth.getSession().then(({ data }) => {
         if (!data.session) return
         localStorage.removeItem(PENDING_ACTION_KEY)
-        router.push('/founders')
+        router.push('/premium')
       })
     } else if (pending.startsWith('liga_join:')) {
       // Fallback for when the OAuth ?next= param was lost and the user

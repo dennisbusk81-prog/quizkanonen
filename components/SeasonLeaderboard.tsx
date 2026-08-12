@@ -867,7 +867,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
                 Du er utenfor topp 10. Med Premium ser du din nøyaktige plassering og full statistikk.
               </p>
-              <Link href="/founders" style={s.btnOutline}>Oppgrader til Premium</Link>
+              <Link href="/premium" style={s.btnOutline}>Oppgrader til Premium</Link>
             </div>
           </>
         )

@@ -4,7 +4,6 @@ import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
-import { fetchPremiumStatus, hydratePremiumStatus } from '@/lib/premium-status'
 import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
 import { computeStrongCategory } from '@/lib/select-quiz-message'
 import { computeCategoryStats } from '@/lib/category-stats'
@@ -995,9 +994,6 @@ export default function QuizPage() {
     orgsLoaded: myOrgsLoaded,
     orgs: myOrgs,
   })
-  // max/remaining/daysFree er null når tallet ikke er innstilt i site_settings —
-  // da viser vi tekst uten tall framfor et oppdiktet antall (se /api/founders/count).
-  const [foundersData, setFoundersData] = useState<{ used: number; max: number | null; remaining: number | null; daysFree: number | null; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
@@ -1120,34 +1116,14 @@ export default function QuizPage() {
       }
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
       if (name) { setNameInput(name); setLoggedInDisplayName(name) }
-      // Premium-VISNING styres nå av delt context (ProfileProvider), som selv
-      // hydrerer fra sessionStorage og bekrefter mot serveren. Her henter vi kun
-      // et definitivt server-svar for å avgjøre om founders-CTA skal
-      // forhåndslastes (isP under) — samme kilde/utfall som før.
-      const hydrated = hydratePremiumStatus(session.user.id)
-      const serverPremium = await fetchPremiumStatus(session.access_token, session.user.id)
-      const isP = serverPremium !== null ? serverPremium : hydrated
-      // Hent founders-data for CTA — cache 5 min i sessionStorage
-      if (!isP) {
-        try {
-          const CACHE_KEY = 'qk_founders_count'
-          const CACHE_TTL = 5 * 60 * 1000
-          const cached = sessionStorage.getItem(CACHE_KEY)
-          if (cached) {
-            const { ts, data } = JSON.parse(cached) as { ts: number; data: typeof foundersData }
-            if (Date.now() - ts < CACHE_TTL) { setFoundersData(data); }
-            else {
-              const r = await fetch('/api/founders/count'); const d = await r.json()
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d }))
-              setFoundersData(d)
-            }
-          } else {
-            const r = await fetch('/api/founders/count'); const d = await r.json()
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d }))
-            setFoundersData(d)
-          }
-        } catch { /* founders-data er valgfri */ }
-      }
+      // Premium-VISNING styres av delt context (ProfileProvider), som selv
+      // hydrerer fra sessionStorage og bekrefter mot serveren.
+      //
+      // Her lå tidligere et definitivt server-svar (fetchPremiumStatus) hvis
+      // ENESTE formål var å avgjøre om founders-CTA-en skulle forhåndslastes,
+      // pluss selve hentingen av /api/founders/count. Begge falt bort da
+      // Founders-promoteringen ble avviklet 12. august 2026 — upsell-kortet
+      // under er nå statisk Premium-tekst uten dag-/plasstall å hente.
       if (prof?.age_confirmed_at) {
         setAgeAlreadyConfirmed(true)
         setAgeConfirmed(true)
@@ -3409,7 +3385,7 @@ export default function QuizPage() {
                 Plasseringen din hos {orgName} vises når flere av dere har levert.
               </div>
             )}
-            <a href="/founders" style={{
+            <a href="/premium" style={{
               display: 'inline-block',
               fontSize: 13, fontWeight: 600, color: '#c9a84c',
               textDecoration: 'none',
@@ -3602,7 +3578,7 @@ export default function QuizPage() {
                 Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
               </div>
             )}
-            <a href="/founders" style={{
+            <a href="/premium" style={{
               display: 'inline-block',
               fontSize: 13, fontWeight: 600, color: '#c9a84c',
               textDecoration: 'none',
@@ -3873,23 +3849,6 @@ export default function QuizPage() {
             borderRadius: 16,
             padding: 28,
           }}>
-            {/* Founders-badge */}
-            {foundersData?.isFounders && foundersData.remaining !== null && (
-              <div style={{ marginBottom: 12 }}>
-                <span style={{
-                  display: 'inline-block',
-                  background: '#c9a84c',
-                  color: '#1a1c23',
-                  borderRadius: 20,
-                  padding: '4px 12px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  fontFamily: "'Instrument Sans', sans-serif",
-                }}>
-                  Founders-tilbud · {foundersData.remaining} plasser igjen
-                </span>
-              </div>
-            )}
             <p style={{
               fontFamily: "'Libre Baskerville', serif",
               fontSize: 18,
@@ -3898,9 +3857,7 @@ export default function QuizPage() {
               lineHeight: 1.3,
               marginBottom: 8,
             }}>
-              {foundersData?.daysFree != null
-                ? `Prøv Premium gratis i ${foundersData.daysFree} dager`
-                : 'Følg fremgangen din uke etter uke'}
+              Følg fremgangen din uke etter uke
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
               {[
@@ -3914,7 +3871,7 @@ export default function QuizPage() {
                 </li>
               ))}
             </ul>
-            <a href="/founders" style={{
+            <a href="/premium" style={{
               display: 'inline-block',
               padding: '10px 28px',
               background: 'transparent',
@@ -3925,22 +3882,8 @@ export default function QuizPage() {
               color: '#e8e4dd',
               textDecoration: 'none',
             }}>
-              {foundersData?.daysFree == null
-                ? 'Prøv Premium gratis →'
-                : foundersData.isFounders
-                  ? `Aktiver ${foundersData.daysFree} dager gratis — ingen kortinfo →`
-                  : `Start ${foundersData.daysFree} dager gratis →`}
+              Oppgrader til Premium →
             </a>
-            {foundersData?.isFounders && foundersData.remaining !== null && (
-              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, textAlign: 'center' }}>
-                Kun {foundersData.remaining} plasser igjen
-              </p>
-            )}
-            {!foundersData?.isFounders && (
-              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, textAlign: 'center' }}>
-                Ingen kortinfo nødvendig
-              </p>
-            )}
           </div>
         )}
 

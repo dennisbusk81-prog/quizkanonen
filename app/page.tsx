@@ -15,7 +15,12 @@ import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
 
-const FOUNDERS_ACTIVE = true
+// Av siden 12. august 2026: Founders-programmet avvikles og trialene
+// kanselleres 14.–15. august. Seksjonen under (qk-founders) inviterte aktivt
+// med «N av 250 plasser igjen» og «Aktiver gratis tilgang» — begge deler er
+// usanne fra og med nedstengningen. Beholdt som flagg framfor å slette
+// markupen, siden en ny prøveperiode-inngang bygges oppå denne flaten.
+const FOUNDERS_ACTIVE = false
 
 type QuizRow = {
   id: string
@@ -2127,7 +2132,7 @@ export default async function Home() {
                 {foundersSettingsResult.remaining} av {foundersSettingsResult.max} plasser igjen
               </p>
             )}
-            <Link href="/founders" className="qk-founders-btn">Aktiver gratis tilgang →</Link>
+            <Link href="/premium" className="qk-founders-btn">Aktiver gratis tilgang →</Link>
           </div>
           </div>
         )}

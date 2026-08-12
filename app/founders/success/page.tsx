@@ -107,7 +107,7 @@ export default async function FoundersSuccessPage() {
     .eq('id', user.id)
     .single()
 
-  if (!profile?.premium_status) redirect('/founders')
+  if (!profile?.premium_status) redirect('/premium')
 
   return (
     <div style={s.page}>
