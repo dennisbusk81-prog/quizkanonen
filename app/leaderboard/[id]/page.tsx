@@ -555,6 +555,13 @@ export default function LeaderboardPage() {
       .catch(() => { if (!cancelled) setBrowseData(null) })
       .finally(() => { if (!cancelled) setBrowseLoading(false) })
     return () => { cancelled = true }
+  // Hele session-OBJEKTET som dep er trygt HER, i motsetning til /premium,
+  // /bedrift/success og org/[slug]/velkommen: beskyttelsen bor hos SKRIVEREN,
+  // ikke i dep-lista. `loadSession` er eneste sted som setter `session`, og
+  // onAuthStateChange kaller den kun når getSessionIdentity faktisk har endret
+  // seg (lastSessionIdentityRef) — så samme logiske sesjon gir aldri to ULIKE
+  // referanser. Vurdert 12. august 2026 og bevisst latt stå; effekten er
+  // dessuten gatet på browseMode, som er av ved mount.
   }, [browseMode, activeTab, browsePage, browseSearch, quizId, session, orgSlug])
 
   // Activate podium animation when quiz is closed and data is loaded

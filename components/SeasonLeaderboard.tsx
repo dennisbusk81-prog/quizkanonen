@@ -453,6 +453,13 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       } catch { /* ikke kritisk */ }
     })()
     return () => { cancelled = true }
+  // Hele session-OBJEKTET som dep er trygt HER, i motsetning til /premium,
+  // /bedrift/success og org/[slug]/velkommen: beskyttelsen bor hos SKRIVEREN,
+  // ikke i dep-lista. `applySession` over returnerer forrige objekt når
+  // access_token er uendret, så de to mount-skriverne (getSession() og
+  // onAuthStateChange sin INITIAL_SESSION) gir aldri to ULIKE referanser for
+  // samme logiske sesjon. Vurdert 12. august 2026 og bevisst latt stå — å bytte
+  // til getSessionIdentity her ville ikke fjernet et eneste kall.
   }, [session])
 
   useEffect(() => {

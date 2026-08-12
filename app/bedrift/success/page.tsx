@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
+import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
@@ -45,13 +46,29 @@ function SuccessContent() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Dep-en er den STABILE identiteten, ikke session-objektet — se
+  // lib/session-identity.ts, samme grep som /premium og org/[slug]/admin.
+  // `session` settes av to skrivere (getSession().then over, og
+  // onAuthStateChange sin INITIAL_SESSION) som leverer SAMME logiske sesjon som
+  // to ULIKE objekter. Med objektet i dep-lista kan React ikke bail-e ut på
+  // referanselikhet, og effekten kjørte to ganger for en innlogget kunde — to
+  // samtidige kall mot admin-data, som er en tung samlerute, rett etter
+  // betaling. Utlogget passerer begge `null` — referanselik — så feilen bet
+  // kun innloggede.
+  //
+  // `session` leses fortsatt friskt inne i effekten; identiteten avgjør kun NÅR
+  // den kjører. Vakten under er uendret i semantikk: 'unchecked' er nøyaktig
+  // det `session === undefined` betydde.
+  const sessionIdentity = getSessionIdentity(session)
   useEffect(() => {
-    if (session === undefined || !orgSlug) return
+    if (sessionIdentity === 'unchecked' || !orgSlug) return
     // Avslutter laste-tilstanden når sesjonssjekken er ferdig og ga «ikke
     // innlogget». `session === undefined` (uavklart) og `null` (avklart, ingen)
     // er to ulike tilstander; uten dette ville siden stått og lastet for en
-    // utlogget bruker.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // utlogget bruker. (Den tidligere `eslint-disable-next-line
+    // react-hooks/set-state-in-effect` her er FJERNET fordi den ble ubrukt da
+    // dep-en byttet til sessionIdentity — regelen fyrer ikke lenger på denne
+    // linja, og en ubrukt direktiv er selv en advarsel.)
     if (!session) { setLoading(false); return }
 
     fetch(`/api/org/${orgSlug}/admin-data`, {
@@ -60,7 +77,8 @@ function SuccessContent() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setData(d) })
       .finally(() => setLoading(false))
-  }, [session, orgSlug])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionIdentity, orgSlug])
 
   const activeInvite = data?.invites.find(i => i.is_active)
   const inviteUrl = activeInvite

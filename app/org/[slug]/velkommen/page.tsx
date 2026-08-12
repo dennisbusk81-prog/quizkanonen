@@ -6,6 +6,7 @@ import { supabase, supabaseData } from '@/lib/supabase'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import WelcomeShell from '@/components/WelcomeShell'
 import { isOrgLocked } from '@/lib/org-access'
+import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
 // Stilene lå tidligere som lokale konstanter i denne filen. De er FLYTTET,
 // uendret, til lib/welcome-styles.ts slik at /velkommen (B2C) arver nøyaktig
@@ -148,8 +149,26 @@ export default function OrgVelkommenPage() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Dep-en er den STABILE identiteten, ikke session-objektet — se
+  // lib/session-identity.ts, samme grep som /premium og org/[slug]/admin.
+  // `session` settes av to skrivere (getSession().then over, og
+  // onAuthStateChange sin INITIAL_SESSION) som leverer SAMME logiske sesjon som
+  // to ULIKE objekter. Med objektet i dep-lista kan React ikke bail-e ut på
+  // referanselikhet, og effekten kjørte to ganger for en innlogget admin: to
+  // samtidige kall mot admin-data, som er en tung samlerute, pluss to
+  // redirect-forsøk i 403-/låst-grenene under. Utlogget passerer begge `null`
+  // — referanselik — så feilen bet kun innloggede.
+  //
+  // `session` leses fortsatt friskt inne i effekten; identiteten avgjør kun NÅR
+  // den kjører. Effekten fyrer derfor fortsatt på ekte endring (innlogging,
+  // bytte av bruker, utlogging), men ikke på et nytt objekt for samme bruker
+  // (TOKEN_REFRESHED ved fane-fokus).
+  //
+  // Vakten under er uendret i semantikk: 'unchecked' er nøyaktig det
+  // `session === undefined` betydde.
+  const sessionIdentity = getSessionIdentity(session)
   useEffect(() => {
-    if (session === undefined) return
+    if (sessionIdentity === 'unchecked') return
     if (!session) { router.push(`/login?next=/org/${slug}/velkommen`); return }
 
     let cancelled = false
@@ -181,7 +200,8 @@ export default function OrgVelkommenPage() {
       .catch(() => { if (!cancelled) setLoadState('error') })
 
     return () => { cancelled = true }
-  }, [session, slug, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionIdentity, slug, router])
 
   // Det globale quiz-vinduet, lest fra siste ukesquiz. Vises som ramme rundt
   // tidsvalget — org-tidene kan aldri utvide vinduet, kun snevre det inn.
