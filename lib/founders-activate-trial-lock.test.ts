@@ -226,7 +226,15 @@ mock.module('@/lib/email', {
 })
 
 mock.module('@/lib/email-templates', {
-  namedExports: { foundersWelcomeEmail: () => '<html>velkommen</html>' },
+  // trialWelcomeEmail er malen ruten faktisk sender fra 12. august 2026.
+  // foundersWelcomeEmail beholdes i mocken fordi modulen fortsatt eksporterer
+  // den — importerer ruten en gang noe mocken ikke har, feiler HELE fila med
+  // «does not provide an export named …», og testene her kjører ikke i det
+  // hele tatt (de forsvinner stille fra totalen, de rapporteres ikke røde).
+  namedExports: {
+    trialWelcomeEmail: () => '<html>velkommen</html>',
+    foundersWelcomeEmail: () => '<html>velkommen</html>',
+  },
 })
 
 // Speiler Stripes feilform slik ruten skiller på den: `instanceof

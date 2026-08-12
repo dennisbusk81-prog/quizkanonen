@@ -17,7 +17,15 @@ export default function PendingActionRedirect() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
 
-    if (pending === 'founders_checkout') {
+    if (pending === 'trial_activate') {
+      // Brukeren trykket «Prøv gratis» utlogget og havnet på forsiden i stedet
+      // for /premium (OAuth-flyten kan miste ?next=). Nøkkelen beholdes her —
+      // det er /premium som fjerner den og kjører aktiveringen.
+      supabase.auth.getSession().then(({ data }) => {
+        if (!data.session) return
+        router.push('/premium')
+      })
+    } else if (pending === 'founders_checkout') {
       // Nøkkelen kan fortsatt ligge i localStorage hos brukere som startet
       // Founders-flyten før avviklingen 12. august 2026. Vi rydder den og
       // sender dem til /premium — /founders er nå kun en redirect dit.

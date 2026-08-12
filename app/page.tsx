@@ -14,6 +14,7 @@ import NotifyForm from '@/components/NotifyForm'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
+import { decideTrialOffer, isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
 // kanselleres 14.–15. august. Seksjonen under (qk-founders) inviterte aktivt
@@ -122,6 +123,11 @@ type SharedHomeData = {
   lastClosedQuiz: { id: string; title: string; questionsCount: number } | null
   nextQuizAt: string | null
   founders: { remaining: number; max: number } | null
+  // Lengden på den gratis prøveperioden (site_settings.founders_new_trial_days).
+  // null = ikke satt/ugyldig → Premium-CTA-ene under viser sin vanlige tekst
+  // uten dagtall, aldri et gjettet «14». Delt og upersonlig, derfor trygt i
+  // den cachede bundelen; selve KVALIFISERINGEN hentes per bruker utenfor den.
+  trialDays: number | null
   monthlyStandings: StandingRow[]
   participantCount: number
   lastQuizTop3: Top3Row[]
@@ -139,7 +145,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 
   type RawSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
-  const [activeRes, upcomingRes, lastClosedRes, nextSettingRes, foundersRes, seasonRes] = await Promise.all([
+  const [activeRes, upcomingRes, lastClosedRes, nextSettingRes, foundersRes, seasonRes, trialDaysRes] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select(QUIZ_CARD_COLS)
@@ -200,6 +206,11 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
       .is('scope_id', null)
       .gte('closes_at', monthStart)
       .lt('closes_at', monthEnd),
+    supabaseAdmin
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'founders_new_trial_days')
+      .maybeSingle(),
   ])
 
   const activeQuiz = ((activeRes.data as QuizRow[] | null) ?? [])[0] ?? null
@@ -212,6 +223,9 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 
   const nextQuizAt = (nextSettingRes.data as { value: string } | null)?.value ?? null
   const founders = foundersRes
+  // Samme parsing som /api/premium/trial-offer og founders-activate krever
+  // (positivt heltall) — ellers kunne forsiden lovet en lengde ruten avviser.
+  const trialDays = parseTrialDays((trialDaysRes.data as { value: string } | null)?.value)
 
   // Aggreger månedlig global toppliste (offentlig). Behold rader med tomt/null
   // navn som '—' slik at innlogget rang er identisk med tidligere; anon-visning
@@ -264,14 +278,24 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
     })
   }
 
-  return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, monthlyStandings, participantCount, lastQuizTop3 }
+  return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, trialDays, monthlyStandings, participantCount, lastQuizTop3 }
 }
 
 // tags gjør cachen eksplisitt invaliderbar via revalidateTag (kalt fra
 // cron/publish-quiz hvert minutt) i stedet for å stole alene på at
 // revalidate-vinduet faktisk trigger en fullført bakgrunnsrevalidering på
 // Vercel sin serverless-plattform — se cron/publish-quiz for begrunnelse.
-const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v2'], { revalidate: 60, tags: ['home-shared-data'] })
+// v2 → v3 fordi returformen fikk et nytt felt (trialDays). Uten bumpen ville
+// allerede lagrede v2-objekter blitt servert videre uten feltet, og
+// `undefined` leses av decideTrialOffer som «ingen dagangivelse» — CTA-ene
+// ville stått med gammel tekst helt til cachen tilfeldigvis rullet.
+//
+// Halen `897f64cc` er et FINGERAVTRYKK av feltsettet funksjonen returnerer,
+// ikke en tilfeldig streng. lib/home-shared-cache.test.ts regner den ut fra
+// den faktiske returen og krever at nøkkelen her stemmer — endrer du
+// feltsettet, ryker testen med den nye halen i feilmeldingen, og bumpen kan
+// ikke glemmes. Det er den mekaniske versjonen av regelen i kommentaren over.
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v3-897f64cc'], { revalidate: 60, tags: ['home-shared-data'] })
 
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
@@ -1251,7 +1275,7 @@ export default async function Home() {
     const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, orgMembershipResult] = await Promise.all([
       supabaseAdmin
         .from('profiles')
-        .select('display_name, premium_status')
+        .select('display_name, premium_status, has_used_trial')
         .eq('id', user.id)
         .maybeSingle(),
       supabaseAdmin
@@ -1283,6 +1307,20 @@ export default async function Home() {
     // Profile
     const profile = profileResult.data
     const isPremium = profile?.premium_status === true
+    // Prøveperiode-tilbudet for DENNE brukeren. Avgjort server-side her — vi
+    // har allerede profilraden, så CTA-ene under trenger verken en
+    // klient-komponent eller et ekstra kall.
+    //
+    // Feilet oppslaget (`profile` er null) er `eligible` bevisst null = UKJENT,
+    // ikke false: da vises tilbudet, og founders-activate — som er fail-CLOSED
+    // på samme rad — avviser om den må. Klientsjekken er visning, ruten er
+    // gaten.
+    const trialOffer = decideTrialOffer({
+      trialDays: shared.trialDays,
+      eligible: profile
+        ? isTrialEligible({ isPremium, hasUsedTrial: profile.has_used_trial === true })
+        : null,
+    })
     const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
     const firstName = displayName.split(' ')[0]
 
@@ -1642,7 +1680,7 @@ export default async function Home() {
               </Link>
               {!isPremium && (
                 <Link href="/premium" className="qk-btn-outline-gold" style={{ fontSize: 13, padding: '7px 18px' }}>
-                  Oppgrader til Premium
+                  {trialOffer.show ? `Prøv Premium gratis i ${trialOffer.days} dager` : 'Oppgrader til Premium'}
                 </Link>
               )}
             </div>
@@ -1689,7 +1727,10 @@ export default async function Home() {
               </span>
               {isPremium
                 ? <span className="qkp-shortcut-arrow">→</span>
-                : <span className="qkp-lock-badge">Premium</span>
+                // Lås-merket, ikke en CTA — derfor den korte varianten. En full
+                // «Prøv Premium gratis i N dager» ville brukket over flere
+                // linjer i flisa; her endres kun ordet, ikke layouten.
+                : <span className="qkp-lock-badge">{trialOffer.show ? 'Prøv gratis' : 'Premium'}</span>
               }
             </Link>
           </div>
@@ -1740,7 +1781,7 @@ export default async function Home() {
                 textDecoration: 'none',
                 fontFamily: "'Instrument Sans', sans-serif",
               }}>
-                Se Premium →
+                {trialOffer.show ? `Prøv Premium gratis i ${trialOffer.days} dager →` : 'Se Premium →'}
               </Link>
             </div>
           )}

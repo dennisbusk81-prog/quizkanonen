@@ -5,6 +5,8 @@ import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
+import { fetchTrialOffer } from '@/lib/trial-offer-fetch'
+import type { TrialOffer } from '@/lib/trial-offer'
 import { computeStrongCategory } from '@/lib/select-quiz-message'
 import { computeCategoryStats } from '@/lib/category-stats'
 import { pluralNo } from '@/lib/plural-no'
@@ -997,6 +999,11 @@ export default function QuizPage() {
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
+  // Prøveperiode-tilbudet i upsell-kortet nederst på resultatskjermen. Hentes
+  // først når kortet faktisk kan vises (finished + innlogget + ikke Premium) —
+  // spillestien skal ikke betale for et kall den aldri bruker. `null` = ikke
+  // hentet ennå → kortet viser sin vanlige Premium-tekst.
+  const [trialOffer, setTrialOffer] = useState<TrialOffer | null>(null)
   const [questionKey, setQuestionKey] = useState(0)
   const [interPhase, setInterPhase] = useState<'hidden' | 'in' | 'out'>('hidden')
   const [interLow, setInterLow] = useState<number | null>(null)
@@ -1312,6 +1319,17 @@ export default function QuizPage() {
       } catch { /* ikke kritisk */ }
     })
   }, [phase, isLoggedIn])
+
+  // Samme betingelse som upsell-kortet selv rendres på, pluss `finished`.
+  useEffect(() => {
+    if (phase !== 'finished' || !isLoggedIn || isPremium) return
+    let cancelled = false
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const offer = await fetchTrialOffer(session?.access_token)
+      if (!cancelled) setTrialOffer(offer)
+    })
+    return () => { cancelled = true }
+  }, [phase, isLoggedIn, isPremium])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -3857,7 +3875,9 @@ export default function QuizPage() {
               lineHeight: 1.3,
               marginBottom: 8,
             }}>
-              Følg fremgangen din uke etter uke
+              {trialOffer?.show
+                ? `Prøv Premium gratis i ${trialOffer.days} dager`
+                : 'Følg fremgangen din uke etter uke'}
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
               {[
@@ -3882,7 +3902,7 @@ export default function QuizPage() {
               color: '#e8e4dd',
               textDecoration: 'none',
             }}>
-              Oppgrader til Premium →
+              {trialOffer?.show ? 'Prøv gratis — ingen kortinfo →' : 'Oppgrader til Premium →'}
             </a>
           </div>
         )}

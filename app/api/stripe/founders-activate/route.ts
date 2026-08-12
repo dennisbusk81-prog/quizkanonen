@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
-import { foundersWelcomeEmail } from '@/lib/email-templates'
+import { trialWelcomeEmail } from '@/lib/email-templates'
 
 const FOUNDERS_PRICE_ID = process.env.STRIPE_PRICE_FOUNDERS!
 
@@ -284,13 +284,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
     }
 
-    // Send founders-aktiveringsbekreftelse — fire-and-forget
+    // Send aktiveringsbekreftelse — fire-and-forget.
+    //
+    // Var foundersWelcomeEmail («Founders Access aktivert», «Du er blant de
+    // første») fram til 12. august 2026. Founders ble avviklet som
+    // brukersynlig inngang i 526b9dc, så den teksten viste til et program
+    // mottakeren aldri hadde vært del av.
+    //
+    // `trialPeriodDays` sendes med i tillegg til `trial_end`: det er samme tall
+    // ruten nettopp opprettet abonnementet med, lest fra site_settings — altså
+    // samme kilde som knappeteksten brukeren klikket på. Malen hardkoder ingen
+    // lengde.
     if (user.email) {
       sendEmail({
         to: user.email,
-        subject: 'Founders Access aktivert — Quizkanonen',
-        html: foundersWelcomeEmail(subscription.trial_end),
-      }).catch(err => console.error('[founders-activate] foundersWelcomeEmail failed:', err))
+        subject: 'Prøveperioden din er i gang — Quizkanonen',
+        html: trialWelcomeEmail(subscription.trial_end, trialPeriodDays),
+      }).catch(err => console.error('[founders-activate] trialWelcomeEmail failed:', err))
     }
 
     return NextResponse.json({ success: true })

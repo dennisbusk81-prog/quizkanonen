@@ -295,7 +295,7 @@ export function welcomeFreeEmail(firstNameRaw: string): string {
               <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Nysgjerrig på mer? Med Premium får du nøyaktig plassering, historikk, statistikk,
                 private ligaer og sesongtoppliste. Du kan
-                <a href="https://www.quizkanonen.no/founders" style="color:#e8e4dd;text-decoration:underline;">prøve gratis</a>
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">prøve gratis</a>
                 — ingen kortinfo nødvendig.
               </p>
 
@@ -1165,6 +1165,154 @@ export function orgPaymentFailedEmail(orgNameRaw: string, orgSlug: string): stri
 </html>`
 }
 
+/**
+ * Bekreftelse på at en gratis prøveperiode er startet.
+ *
+ * Erstatter foundersWelcomeEmail som aktiveringsmal (12. august 2026). Den
+ * gamle het «Founders Access aktivert» og åpnet med «Du er blant de første.
+ * Det betyr noe.» — sant for Founders-kohorten våren 2026, men Founders ble
+ * avviklet som brukersynlig inngang i 526b9dc. Hver ny bruker fikk dermed en
+ * bekreftelse som viste til et program som ikke finnes lenger.
+ *
+ * LENGDEN SKRIVES ALDRI HARDKODET. To kilder, i prioritert rekkefølge:
+ *   1. `trialEnd` — abonnementets faktiske `trial_end` fra Stripe. Den
+ *      sterkeste kilden: en dato brukeren kan holde oss til, og den kan ikke
+ *      drifte fra det som faktisk er opprettet.
+ *
+ *   2. `trialDays` — `site_settings.founders_new_trial_days`, samme verdi
+ *      ruten brukte da den opprettet abonnementet, og samme verdi flatene i
+ *      appen viser (se lib/trial-offer.ts).
+ * Mangler begge, står det «i prøveperioden». Et gjettet tall her ville blitt
+ * usant i samme øyeblikk lengden endres — nøyaktig grunnen til at verken
+ * founders-activate eller decideTrialOffer har en innebygd fallback.
+ *
+ * KLOKKESLETTET ER MED, OG DET ER IKKE PYNT. Målt mot live-kontoen 12. august
+ * 2026: `trial_period_days` gir `trial_end = trial_start + N×24t` på sekundet
+ * (sub_1U0PNI: start 17:10:04 → slutt 17:10:04 fjorten dager etter). Stripe
+ * runder IKKE av til døgnslutt. De eldre abonnementene som alle slutter
+ * 21:59 UTC er kampanjen med fast sluttdato, opprettet med et eksplisitt
+ * `trial_end` — en annen mekanikk enn den denne ruten bruker.
+ *
+ * «Til og med 26. august» ville derfor lovet et helt døgn brukeren ikke har.
+ * Konkret utslag: aktiverer man kl. 09:00, er Premium borte kl. 09:00 på
+ * dag 14 — før fredagsquizen åpner kl. 12:00. Klokkeslettet er forskjellen
+ * på en riktig og en gal forventning den dagen.
+ *
+ * Formateringen er eksplisitt Europe/Oslo. `trial_end` er et UTC-instant, og
+ * Vercel kjører i UTC: uten tidssone ville en prøveperiode som slutter
+ * 26. august 22:30 UTC blitt skrevet som «26. august», mens den i Norge
+ * slutter 27. august kl. 00:30. lib/oslo-time.ts brukes bevisst ikke — den
+ * går motsatt vei (norsk veggklokke → UTC-instant), mens vi her har
+ * instantet og skal vise det. `Intl` med `timeZone` er det direkte svaret.
+ *
+ * Ingen brukerstyrte felt, så ingenting å escape her. Kommer det en gang et
+ * navn inn, skal det følge husmønsteret: ta parameteren som `xRaw` og lag en
+ * escapet lokal variabel øverst.
+ */
+export function trialWelcomeEmail(trialEnd?: number | null, trialDays?: number | null): string {
+  const sluttTidspunkt = trialEnd
+    ? (() => {
+      const d = new Date(trialEnd * 1000)
+      const dato = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' }).format(d)
+      const klokke = new Intl.DateTimeFormat('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' }).format(d)
+      return `${dato} kl. ${klokke}`
+    })()
+    : null
+  const dager = Number.isInteger(trialDays) && (trialDays as number) > 0 ? trialDays as number : null
+
+  // «fram til», ikke «til og med»: sluttpunktet er et klokkeslett midt i
+  // døgnet, ikke døgnslutt. Se kommentaren over.
+  const lengdeLinje = sluttTidspunkt && dager
+    ? `Du har full tilgang til Premium i ${dager} dager — fram til ${sluttTidspunkt}.`
+    : sluttTidspunkt
+      ? `Du har full tilgang til Premium fram til ${sluttTidspunkt}.`
+      : dager
+        ? `Du har full tilgang til Premium i ${dager} dager.`
+        : 'Du har full tilgang til Premium i prøveperioden.'
+
+  return `<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prøveperioden din er i gang — Quizkanonen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-family:'Libre Baskerville',Georgia,serif;font-size:22px;font-weight:700;color:#c9a84c;letter-spacing:0.04em;">
+                Quizkanonen
+              </span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
+                Prøveperioden din er i gang
+              </p>
+
+              <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                ${lengdeLinje} Du har ikke lagt inn kortinformasjon, og det trengs ikke.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering på topplisten</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Quizhistorikk og statistikk</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Private ligaer</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Sesong-leaderboard</td></tr>
+              </table>
+
+              <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                Prøveperioden går ut av seg selv, og du blir ikke trukket for noe. Vil du
+                fortsette etterpå, koster Premium kr 49 i måneden &mdash;
+                <a href="https://www.quizkanonen.no/premium" style="color:#c9a84c;text-decoration:none;">quizkanonen.no/premium</a>
+              </p>
+
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#c9a84c;border-radius:10px;">
+                    <a href="https://www.quizkanonen.no/toppliste"
+                       style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
+                      Se plasseringen din &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+// BEHOLDT, men ikke lenger i bruk fra noen kodesti (12. august 2026):
+// aktiveringsruten sender trialWelcomeEmail over. Malen står igjen fordi
+// Founders-kohorten fortsatt refererer til den i historikk og support-saker.
 export function foundersWelcomeEmail(trialEnd?: number | null): string {
   // Vis konkret sluttdato basert på abonnementets faktiske trial_end (Unix-sekunder).
   // Kjenner vi den ikke, sier vi «i prøveperioden» — aldri et gjettet dagtall, som
