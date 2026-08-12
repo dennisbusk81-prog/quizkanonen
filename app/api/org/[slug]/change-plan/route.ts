@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { decidePlanChange, getPlan } from '@/lib/org-plan'
 import { priceIdForPlan } from '@/lib/org-plan-prices'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
+import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 
 // POST /api/org/[slug]/change-plan — org-admin bytter plan opp eller ned.
 //
@@ -147,6 +148,19 @@ export async function POST(
       `org=${org.id}. Webhookens price_id-mapping retter dette ved neste subscription.updated:`,
       planWriteErr.message,
     )
+    // Selvhelingen over er en ANTAKELSE: den forutsetter at webhooken kommer
+    // fram og at price_id-mappingen kjenner prisen. Holder den ikke, står
+    // organizations.plan feil for alltid — feil MRR, feil medlemsgrense, feil
+    // gating av ukesrapporten — og admin fikk `ok: true`, så ingen sier fra.
+    reportMoneyPathFailure({
+      operation: 'change-plan:persist-plan',
+      consequence:
+        'Kunden er fakturert for ny plan hos Stripe, men organizations.plan står ' +
+        'på den gamle. Retter seg selv hvis subscription.updated kommer fram — ' +
+        'bekreft at den gjorde det, ellers skriv kolonnen manuelt.',
+      err: planWriteErr,
+      context: { orgId: org.id, fra: decision.from, til: decision.to },
+    })
     return NextResponse.json({
       ok: true,
       plan: decision.to,

@@ -168,7 +168,7 @@ export function decidePremiumState(input: PremiumStateInput): PremiumState {
 // ── Innløsningsbeslutning ────────────────────────────────────────────────────
 
 export type RedemptionDecision =
-  | { action: 'reject'; reason: 'org_covered' | 'code_active'; message: string }
+  | { action: 'reject'; reason: 'org_covered' | 'code_active' | 'permanent_code_paid_sub'; message: string }
   | {
       action: 'grant'
       /** Når kode-perioden starter. Stables etter eksisterende dekning. */
@@ -180,6 +180,19 @@ export type RedemptionDecision =
     }
 
 const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Gir koden Premium på ubestemt tid?
+ *
+ * ÉN definisjon, brukt både av rad G-vakten og av utregningen av `expiresAt`
+ * lenger nede. Det er med vilje: dette er nettopp paret som ikke må kunne drive
+ * fra hverandre. Ble vakten skrevet som `durationDays === null` alene, ville
+ * `duration_days = 0` — som `expiresAt`-utregningen også regner som permanent —
+ * sluppet forbi og pauset et betalende abonnement for alltid.
+ */
+export function isPermanentCode(durationDays: number | null): boolean {
+  return !(durationDays && durationDays > 0)
+}
 
 function formatNorwegianDate(iso: string): string {
   return new Date(iso).toLocaleDateString('nb-NO', {
@@ -197,6 +210,7 @@ function formatNorwegianDate(iso: string): string {
  *   D  betalt abonnement      → stables på periodeslutt, abonnementet pauses
  *   E  (håndteres i checkout, ikke her)
  *   F  org-medlemskap         → avvis, koden bevares
+ *   G  permanent kode + levende abonnement → avvis, koden bevares
  *
  * B og D er bevisst ÉN regel: begge stabler fra slutten av den dekningen
  * abonnementet allerede gir, og pauser innkrevingen fram til kodens slutt. At
@@ -230,6 +244,34 @@ export function decideRedemption(
     }
   }
 
+  // G — permanent kode oppå et levende abonnement. AVVIS.
+  //
+  // Dette er den ene kombinasjonen som ikke har noe riktig mekanisk utfall.
+  // «Permanent gratis» over et løpende abonnement ville måttet uttrykkes som
+  // enten (a) en pause uten `resumes_at` — abonnementet står da evig pauset,
+  // usynlig i MRR-en, og gjenopptar innkrevingen stille hvis noen rører
+  // pause_collection i Stripe; (b) å gi koden uten å pause, altså la kunden
+  // betale for noe de samtidig får gratis; eller (c) å kansellere, som bryter
+  // invarianten «pause_collection, aldri kansellering» som hele B/D-stablingen
+  // hviler på.
+  //
+  // Ingen av de tre er riktige, og det er selve begrunnelsen: valget hører
+  // hjemme hos Dennis, ikke i en gjetning her. Koden bevares — avvisningen skjer
+  // før RPC-en, så ingen plass brennes.
+  //
+  // Vakten står ETTER rad C og F: dekkes brukeren allerede av org eller en aktiv
+  // kode, er DET den riktige (og mer presise) beskjeden.
+  if (isPermanentCode(durationDays) && state.sources.stripe) {
+    return {
+      action: 'reject',
+      reason: 'permanent_code_paid_sub',
+      message:
+        'Denne koden gir Premium på ubestemt tid, og den kan ikke kombineres med ' +
+        'abonnementet du allerede har. Koden er ikke brukt opp — ta kontakt med oss, ' +
+        'så ordner vi det for deg.',
+    }
+  }
+
   // B og D — stable oppå eksisterende abonnementsdekning.
   const sub = state.sources.stripe
   const existingEnd = sub ? stripeCoverageEnd(sub) : null
@@ -237,9 +279,9 @@ export function decideRedemption(
     ? new Date(existingEnd)
     : now
 
-  const expiresAt = durationDays && durationDays > 0
-    ? new Date(startsAt.getTime() + durationDays * DAY_MS)
-    : null
+  const expiresAt = isPermanentCode(durationDays)
+    ? null
+    : new Date(startsAt.getTime() + durationDays! * DAY_MS)
 
   return {
     action: 'grant',

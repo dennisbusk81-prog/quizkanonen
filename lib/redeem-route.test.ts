@@ -47,6 +47,12 @@ const state: {
   misses: MissRow[]
   /** Settes for å simulere at admin_actions ikke kan leses. */
   missCountFails: boolean
+  /** Settes for å simulere at Stripe avviser pause-kallet. */
+  stripeUpdateFails: Error | null
+  /** Varsler ruten har sendt via lib/money-path-alert. */
+  moneyAlerts: Array<{ operation: string; consequence: string; context?: Record<string, unknown> }>
+  /** E-poster ruten har sendt — malvalget er en del av oppførselen. */
+  emails: Array<{ subject: string; html: string }>
 } = {
   code: null,
   redemptions: new Set(),
@@ -56,6 +62,9 @@ const state: {
   stripeCalls: [],
   misses: [],
   missCountFails: false,
+  stripeUpdateFails: null,
+  moneyAlerts: [],
+  emails: [],
 }
 
 const IN_FUTURE = new Date(Date.now() + 86_400_000).toISOString()
@@ -112,7 +121,15 @@ function builder(table: string) {
 mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
-      auth: { getUser: async () => ({ data: { user: { id: state.currentUser } }, error: null }) },
+      // E-postadressen MÅ være med: ruten sender kun bekreftelse bak
+      // `if (user.email)`, så uten den ville e-post-testene under målt taushet
+      // som «riktig mal valgt».
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: state.currentUser, email: `${state.currentUser}@example.test` } },
+          error: null,
+        }),
+      },
       from: (table: string) => builder(table),
       // Speiler redeem_access_code i
       // supabase/migrations/20260732000000_access_code_types_and_redemptions.sql
@@ -139,7 +156,11 @@ mock.module('@/lib/rate-limit', {
 })
 
 mock.module('@/lib/email', {
-  namedExports: { sendEmail: async () => {} },
+  namedExports: {
+    sendEmail: async (opts: { subject: string; html: string }) => {
+      state.emails.push({ subject: opts.subject, html: opts.html })
+    },
+  },
 })
 
 // Premium-tilstanden styres per test. Selve reglene (decideRedemption) kjøres
@@ -158,11 +179,20 @@ mock.module('@/lib/premium-state-io', {
 
 // Stripe-klienten ruten oppretter selv. Vi fanger pause-kallet for å bekrefte at
 // abonnementet faktisk pauses — og at det ALDRI kanselleres.
+mock.module('@/lib/money-path-alert', {
+  namedExports: {
+    reportMoneyPathFailure: (f: { operation: string; consequence: string; context?: Record<string, unknown> }) => {
+      state.moneyAlerts.push(f)
+    },
+  },
+})
+
 mock.module('stripe', {
   defaultExport: class FakeStripe {
     subscriptions = {
       update: async (id: string, params: unknown) => {
         state.stripeCalls.push({ id, params })
+        if (state.stripeUpdateFails) throw state.stripeUpdateFails
         return {}
       },
       cancel: async () => {
@@ -216,6 +246,9 @@ beforeEach(() => {
   state.stripeCalls = []
   state.misses = []
   state.missCountFails = false
+  state.stripeUpdateFails = null
+  state.moneyAlerts = []
+  state.emails = []
 })
 
 test('delt kode stopper når maks antall innløsninger er nådd', async () => {
@@ -373,14 +406,34 @@ test('RAD B — Founders-trial: koden stables på trial-slutt, abonnementet paus
   assert.equal(state.stripeCalls[0]?.id, 'sub_founders')
 })
 
-test('permanent kode over et abonnement pauser uten gjenopptaksdato', async () => {
+test('RAD G — permanent kode over et abonnement avvises, og koden brennes ikke', async () => {
+  // ERSTATTER «permanent kode over et abonnement pauser uten gjenopptaksdato»,
+  // som slo fast at pausen ble satt UTEN resumes_at — altså at innkrevingen
+  // stoppet for alltid. Den testen låste feilen på plass.
   state.code = sharedCode({ duration_days: null })
   state.premiumSources.stripe = paidSub()
 
   const res = await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.equal(res.status, 409)
+  const json = await res.json()
+  assert.equal(json.reason, 'permanent_code_paid_sub')
+  assert.equal(state.stripeCalls.length, 0, 'abonnementet ble rørt på tross av avvisningen')
+  assert.equal(state.code?.used_count, 0, 'en plass ble brent på et avvist forsøk')
+  assert.equal(state.redemptions.size, 0, 'innløsning registrert på tross av avvisningen')
+  assert.equal(state.premiumByUser.get('user-a'), undefined)
+})
+
+test('RAD G — permanent kode uten abonnement går gjennom som før', async () => {
+  // Vakten skal treffe kombinasjonen, ikke permanente koder. Dette er den
+  // vanlige, legitime bruken — og nøyaktig FREDAG2025-scenariet.
+  state.code = sharedCode({ duration_days: null })
+
+  const res = await redeem('FREDAGSQUIZ', 'user-a')
+
   assert.equal(res.status, 200)
-  const params = state.stripeCalls[0].params as { pause_collection?: { resumes_at?: number } }
-  assert.equal(params.pause_collection?.resumes_at, undefined)
+  assert.equal((await res.json()).expiresAt, null)
+  assert.equal(state.code?.used_count, 1)
 })
 
 test('uten abonnement gjøres ingen Stripe-kall i det hele tatt', async () => {
@@ -388,6 +441,137 @@ test('uten abonnement gjøres ingen Stripe-kall i det hele tatt', async () => {
   assert.equal(res.status, 200)
   assert.equal((await res.json()).pausedSubscription, false)
   assert.equal(state.stripeCalls.length, 0)
+})
+
+// ── Når pausen FEILER (12. august 2026) ─────────────────────────────────────
+// Pausen er det eneste som hindrer at kunden trekkes kr 49 for en periode de
+// samtidig får gratis. Feiler den, er koden allerede gitt, brukeren får 200, og
+// ingen sier fra — `console.error` når ikke fram, fordi Sentry-oppsettet ikke
+// har noen captureConsole-integrasjon.
+//
+// MUTASJONSBEVIS (kjørt 12. august 2026):
+//   • reportMoneyPathFailure-kallet fjernet fra catch-en → «varsler» ryker
+//   • catch-en gjort om til `throw err`                  → «koden gis likevel» ryker
+//   • varselet flyttet ut av catch (altså alltid)        → «vellykket pause er stille» ryker
+
+test('pausen feiler → koden gis LIKEVEL, kontrollflyten er uendret', async () => {
+  state.premiumSources.stripe = paidSub()
+  state.stripeUpdateFails = new Error('No such subscription: sub_paid')
+
+  const res = await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.equal(res.status, 200, 'innløsningen ble rullet tilbake av en Stripe-feil')
+  assert.equal(state.code?.used_count, 1, 'plassen skal være brukt — koden ER gitt')
+  assert.equal(state.premiumByUser.get('user-a'), true, 'brukeren mistet Premium på en pause-feil')
+})
+
+test('pausen feiler → varsel med subscription-id og konsekvens for pengene', async () => {
+  state.premiumSources.stripe = paidSub()
+  state.stripeUpdateFails = new Error('No such subscription: sub_paid')
+
+  await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.equal(state.moneyAlerts.length, 1, 'trekket ville vært helt stille')
+  const alert = state.moneyAlerts[0]
+  assert.equal(alert.operation, 'codes/redeem:pause-subscription')
+  assert.equal(alert.context?.subscriptionId, 'sub_paid', 'uten id-en kan ingen rette opp manuelt')
+  assert.equal(alert.context?.userId, 'user-a')
+  assert.match(alert.consequence, /kr 49/, 'varselet sier ikke hva som skjer med pengene')
+})
+
+test('vellykket pause varsler INGENTING', async () => {
+  state.premiumSources.stripe = paidSub()
+
+  const res = await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.equal(res.status, 200)
+  assert.equal(state.stripeCalls.length, 1, 'pausen ble faktisk forsøkt')
+  assert.equal(state.moneyAlerts.length, 0, 'normal drift støyer i Sentry')
+})
+
+test('uten abonnement å pause finnes det ingenting å varsle om', async () => {
+  await redeem('FREDAGSQUIZ', 'user-a')
+  assert.equal(state.moneyAlerts.length, 0)
+})
+
+// ── `pausedSubscription` er BEKREFTELSE, ikke intensjon (12. august 2026) ────
+// Feltet speilet tidligere `decision.pause` — om vi SKULLE pause — så en feilet
+// pause ga `pausedSubscription: true`, og profilsiden fortalte en kunde som
+// faktisk ble trukket at de ikke ble det. Testene under låser de tre tilstandene
+// fra hverandre.
+//
+// MUTASJONSBEVIS:
+//   • `pausedSubscription: pauseSucceeded` → `!!decision.pause`  → «feilet pause
+//     rapporteres ikke som pauset» ryker
+//   • `pauseSucceeded = true` fjernet fra try-blokken            → «vellykket
+//     pause rapporteres som pauset» ryker
+//   • `pauseFailed`-feltet fjernet fra svaret                    → «klienten kan
+//     skille de tre tilstandene» ryker
+//   • e-postvalget tilbake til `decision.pause`                  → «feilet pause
+//     sender ikke pause-e-posten» ryker
+
+test('feilet pause rapporteres IKKE som pauset', async () => {
+  state.premiumSources.stripe = paidSub()
+  state.stripeUpdateFails = new Error('No such subscription: sub_paid')
+
+  const json = await (await redeem('FREDAGSQUIZ', 'user-a')).json()
+
+  assert.equal(json.pausedSubscription, false, 'svaret påstår pause som aldri skjedde')
+  assert.equal(json.pauseFailed, true, 'klienten kan ikke se at forsøket feilet')
+  assert.equal(json.resumesAt, null)
+})
+
+test('vellykket pause rapporteres som pauset, med dato', async () => {
+  state.premiumSources.stripe = paidSub()
+
+  const json = await (await redeem('FREDAGSQUIZ', 'user-a')).json()
+
+  assert.equal(json.pausedSubscription, true)
+  assert.equal(json.pauseFailed, false)
+  assert.equal(json.resumesAt, json.expiresAt, 'gjenopptas når koden utløper')
+})
+
+test('uten abonnement er BEGGE flaggene false — ikke «feilet»', async () => {
+  // Skillet klienten trenger: «ingenting å pause» skal tie om abonnementet,
+  // «vi prøvde og feilet» skal si fra. Kollapser de to, går profilsiden fra å
+  // lyve til å tie — og kunden blir trukket uten å vite hvorfor.
+  const json = await (await redeem('FREDAGSQUIZ', 'user-a')).json()
+
+  assert.equal(json.pausedSubscription, false)
+  assert.equal(json.pauseFailed, false)
+})
+
+test('feilet pause sender IKKE e-posten som lover at kunden ikke trekkes', async () => {
+  // Søsken til feltet over, i samme blokk: malvalget hang på samme intensjons-
+  // flagg. codeActivatedPausedEmail sier «Du blir ikke trukket» — på skrift, i
+  // kundens innboks.
+  state.premiumSources.stripe = paidSub()
+  state.stripeUpdateFails = new Error('No such subscription: sub_paid')
+
+  await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.equal(state.emails.length, 1, 'kunden skal fortsatt få aktiveringsbekreftelse')
+  assert.match(state.emails[0].subject, /Premium er aktivert/)
+  assert.ok(
+    !/pause/i.test(state.emails[0].subject),
+    `pause-e-posten ble sendt etter en feilet pause: ${state.emails[0].subject}`,
+  )
+  // Emnet og KROPPEN velges på hver sin linje i ruten. Uten denne assert-en
+  // overlever en mutasjon som setter riktig emne på feil mal — kunden får da
+  // «Premium er aktivert» med «Du blir ikke trukket» inni.
+  assert.ok(
+    !/ikke trukket/i.test(state.emails[0].html),
+    'e-postkroppen lover at kunden ikke trekkes, etter en feilet pause',
+  )
+})
+
+test('vellykket pause sender pause-e-posten, med pause-løftet i kroppen', async () => {
+  state.premiumSources.stripe = paidSub()
+
+  await redeem('FREDAGSQUIZ', 'user-a')
+
+  assert.match(state.emails[0].subject, /satt på pause/)
+  assert.match(state.emails[0].html, /ikke trukket/i, 'pause-malen ble ikke brukt')
 })
 
 // ── Bremsing av gjetting ────────────────────────────────────────────────────

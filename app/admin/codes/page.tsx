@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn } from '@/lib/admin-auth'
 import { adminFetch } from '@/lib/admin-fetch'
+import { resolveCodeDuration } from '@/lib/access-code-duration'
 import Link from 'next/link'
 
 type Code = {
@@ -315,6 +316,15 @@ export default function AdminCodes() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [codeType, setCodeType] = useState<'shared' | 'personal'>('shared')
   const [form, setForm] = useState({ code: '', description: '', duration_days: '60', valid_until_date: defaultValidUntil(), max_uses: '100' })
+  // «Permanent Premium» er nå et EKSPLISITT valg, ikke et tomt felt.
+  //
+  // Fram til 12. august ble permanens utledet av fravær: tomt varighetsfelt →
+  // `duration_days: null`. To problemer med det. For det første kan
+  // duration_days ikke endres etter opprettelse (PATCHABLE_ACCESS_CODE_FIELDS),
+  // så en bom er permanent. For det andre — og verre — gikk enhver ugyldig
+  // verdi samme vei: `parseInt('seksti')` er NaN, og linja under sendte da
+  // `null`. En skrivefeil ble stille til en permanent kode.
+  const [permanent, setPermanent] = useState(false)
   const [mounted, setMounted] = useState(false)
   // Nyopprettet privat kode vises én gang her — den genereres på serveren og
   // står ellers bare i tabellen.
@@ -360,6 +370,14 @@ export default function AdminCodes() {
       if (!form.valid_until_date) { showFeedback('error', 'Delte koder må ha en utløpsdato.'); return }
       if (!(parseInt(form.max_uses) > 0)) { showFeedback('error', 'Delte koder må ha et maks antall innløsninger.'); return }
     }
+    // Varigheten avgjøres ett sted (lib/access-code-duration.ts), og samme svar
+    // brukes både til valideringen her og til payloaden under — de kan da ikke
+    // drive fra hverandre.
+    const duration = resolveCodeDuration(permanent, form.duration_days)
+    if (!duration.ok) {
+      showFeedback('error', duration.error)
+      return
+    }
     setSaving(true)
     setGenerated(null)
     try {
@@ -367,8 +385,6 @@ export default function AdminCodes() {
       const validUntil = form.valid_until_date
         ? new Date(`${form.valid_until_date}T23:59:59`).toISOString()
         : null
-      // Varigheten er valgfri. Tom eller 0 = permanent Premium.
-      const durationDays = parseInt(form.duration_days)
       const res = await adminFetch('/api/admin/codes', {
         method: 'POST',
         body: JSON.stringify({
@@ -376,7 +392,7 @@ export default function AdminCodes() {
           code: codeType === 'shared' ? form.code.trim().toUpperCase() : undefined,
           description: form.description.trim(),
           valid_until: validUntil,
-          duration_days: Number.isFinite(durationDays) && durationDays > 0 ? durationDays : null,
+          duration_days: duration.durationDays,
           max_uses: codeType === 'shared' ? parseInt(form.max_uses) : 1,
         }),
       })
@@ -388,6 +404,7 @@ export default function AdminCodes() {
         if (codeType === 'personal') setGenerated(saved)
         showFeedback('success', 'Kode opprettet: ' + saved)
         setForm(emptyForm())
+        setPermanent(false)
         setShowForm(false)
         fetchCodes()
       }
@@ -466,6 +483,11 @@ export default function AdminCodes() {
                     onClick={() => {
                       setCodeType(opt.value)
                       setGenerated(null)
+                      // Begge forhåndsvalgene under setter et dagtall. Uten
+                      // denne ville en avkrysset «permanent» blitt stående og
+                      // gjort forhåndsvalget virkningsløst — feltet ville vist
+                      // 365 mens koden fortsatt ble permanent.
+                      setPermanent(false)
                       if (opt.value === 'personal') {
                         setForm(f => ({ ...f, code: '', duration_days: '365', max_uses: '1', description: f.description || 'Gave til ' }))
                       } else {
@@ -533,14 +555,40 @@ export default function AdminCodes() {
             <div className="ac-field ac-grid-2">
               <div>
                 <label className="ac-label">Premium varer i dager</label>
-                <input type="number" value={form.duration_days}
+                <input type="number" value={permanent ? '' : form.duration_days}
                   onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}
-                  placeholder="Tom = permanent"
-                  className="ac-input" />
-                <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
-                  Hvor lenge brukeren har Premium etter at koden er løst inn.<br />
-                  La feltet stå tomt for å gi permanent Premium.
-                </p>
+                  disabled={permanent}
+                  placeholder={permanent ? 'Permanent' : 'F.eks. 60'}
+                  className="ac-input"
+                  style={permanent ? { opacity: 0.45, cursor: 'not-allowed' } : undefined} />
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  marginTop: 10, cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={permanent}
+                    onChange={e => setPermanent(e.target.checked)}
+                    style={{ marginTop: 2, accentColor: '#c9a84c', cursor: 'pointer' }} />
+                  <span style={{ fontSize: 12, color: '#e8e4dd', lineHeight: 1.5 }}>
+                    Permanent Premium
+                  </span>
+                </label>
+                {permanent ? (
+                  <p style={{
+                    fontSize: 11, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6,
+                    background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.35)',
+                    borderRadius: 10, padding: '10px 12px',
+                  }}>
+                    Premium varer for alltid, og varigheten kan ikke endres senere.
+                    En slik kode kan ikke løses inn av noen som allerede betaler for
+                    Premium — de får en beskjed om å ta kontakt i stedet.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 11, color: '#918f8a', marginTop: 6, lineHeight: 1.5 }}>
+                    Hvor lenge brukeren har Premium etter at koden er løst inn.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="ac-label">Maks innløsninger</label>
@@ -619,7 +667,7 @@ export default function AdminCodes() {
                   <p className="ac-code-meta">
                     <strong>{personal ? 'Privat' : 'Delt'}</strong>
                     {' — '}{usage}
-                    {' · '}gir {code.duration_days ? `${code.duration_days} dager Premium` : 'permanent Premium'}
+                    {' · '}gir {code.duration_days ? `${code.duration_days} dager Premium` : 'permanent Premium — ikke til betalende kunder'}
                     {' · '}{code.valid_until ? `siste frist ${formatDate(code.valid_until)}` : 'ingen frist'}
                   </p>
                   <div className="ac-usage-bar-track">

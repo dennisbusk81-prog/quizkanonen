@@ -76,8 +76,11 @@ type LoadState = 'loading' | 'ready' | 'error'
 type RedeemResult = {
   startsAt?: string
   expiresAt?: string | null
+  /** BEKREFTET pauset — ikke «vi hadde tenkt å pause». Se rutens kommentar. */
   pausedSubscription?: boolean
   resumesAt?: string | null
+  /** Vi forsøkte å pause abonnementet, men Stripe avviste det. */
+  pauseFailed?: boolean
 }
 
 const longDate = (iso: string) =>
@@ -101,6 +104,17 @@ function buildCodeSuccessMessage(data: RedeemResult): string {
         : 'Abonnementet ditt er satt på pause — du blir ikke trukket mens koden gjelder.',
     )
     parts.push('Vi har sendt deg en e-post med detaljene.')
+  } else if (data.pauseFailed) {
+    // Tredje tilstand, og den må finnes. `pausedSubscription: false` alene
+    // betyr «det var ingenting å pause», og da sier vi ingenting om
+    // abonnementet — helt riktig for en bruker uten et. Men når vi PRØVDE og
+    // ikke fikk det til, ville taushet vært like villedende som påstanden om
+    // pause var før: kunden blir faktisk trukket. De skal vite at vi vet.
+    parts.push(
+      'Vi fikk ikke satt abonnementet ditt på pause automatisk, så du kan bli ' +
+      'trukket som vanlig denne perioden. Vi har fått beskjed og ordner det — ' +
+      'du beholder Premium uansett.',
+    )
   }
 
   return parts.join(' ')

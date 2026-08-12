@@ -164,10 +164,89 @@ test('RAD D — abonnementet pauses fram til kodens slutt, ikke kansellert', () 
   assert.deepEqual(d.pause, { subscriptionId: 'sub_paid', resumesAt: daysFromNow(42) })
 })
 
-test('RAD D — permanent kode pauser abonnementet uten gjenopptaksdato', () => {
+// ── Rad G: permanent kode + levende abonnement ──────────────────────────────
+//
+// Denne raden ERSTATTER en tidligere test som het «RAD D — permanent kode pauser
+// abonnementet uten gjenopptaksdato» og som slo fast at `pause.resumesAt` skulle
+// være null. Den oppførselen var buggen: en pause uten gjenopptaksdato stopper
+// innkrevingen for ALLTID. Den gamle testen låste altså feilen på plass.
+//
+// MUTASJONSBEVIS: fjernes rad G-blokken i decideRedemption, faller kallet
+// tilbake til B/D-stablingen og svarer `grant` med `pause.resumesAt: null` —
+// da ryker alle testene under.
+
+test('RAD G — permanent kode over et betalende abonnement AVVISES', () => {
   const d = decideRedemption(state({ stripe: paidSub() }), null, NOW)
+  assert.equal(d.action, 'reject')
+  if (d.action !== 'reject') throw new Error('forventet reject')
+  assert.equal(d.reason, 'permanent_code_paid_sub')
+})
+
+test('RAD G — abonnementet pauses IKKE, verken med eller uten gjenopptaksdato', () => {
+  // Kjernen i saken: en `grant` her ville satt pause_collection uten resumes_at
+  // i ruten, og kunden hadde sluttet å betale for godt uten at noen så det.
+  const d = decideRedemption(state({ stripe: paidSub() }), null, NOW)
+  assert.ok(!('pause' in d), 'en avvisning skal ikke bære med seg et pause-oppdrag')
+})
+
+test('RAD G — treffer også duration_days = 0, ikke bare null', () => {
+  // 0 regnes som permanent av expiresAt-utregningen. Ble vakten skrevet som
+  // `durationDays === null` alene, ville nøyaktig denne verdien sluppet forbi og
+  // pauset abonnementet for alltid. isPermanentCode er delt for å hindre det.
+  const d = decideRedemption(state({ stripe: paidSub() }), 0, NOW)
+  assert.equal(d.action, 'reject')
+  if (d.action !== 'reject') throw new Error('forventet reject')
+  assert.equal(d.reason, 'permanent_code_paid_sub')
+})
+
+test('RAD G — gjelder også en Founders-trial, ikke bare et betalt abonnement', () => {
+  // `state.sources.stripe` er satt for både 'active' og 'trialing'. En trial som
+  // senere konverterer til betalende ville arvet den evige pausen.
+  const d = decideRedemption(state({ stripe: foundersTrial() }), null, NOW)
+  assert.equal(d.action, 'reject')
+})
+
+test('RAD G — meldingen er rolig og forklarende, uten teknikk', () => {
+  const d = decideRedemption(state({ stripe: paidSub() }), null, NOW)
+  if (d.action !== 'reject') throw new Error('forventet reject')
+
+  assert.match(d.message, /ubestemt tid/)
+  assert.match(d.message, /ikke brukt opp/, 'brukeren må få vite at koden er i behold')
+  assert.match(d.message, /ta kontakt/i, 'brukeren må få en vei videre')
+  // Ingen lekkasje av interne begreper — samme tone som rad F.
+  assert.ok(
+    !/pause_collection|Stripe|subscription|duration_days|null/i.test(d.message),
+    `teknisk begrep lekket til brukeren: ${d.message}`,
+  )
+})
+
+test('RAD G — koden er permanent, men brukeren har INGEN dekning: grant som før', () => {
+  // Vakten skal treffe kombinasjonen, ikke permanente koder som sådan. Rad A
+  // med en permanent kode er den vanlige, legitime bruken.
+  const d = decideRedemption(state({}), null, NOW)
+  assert.equal(d.action, 'grant')
   if (d.action !== 'grant') throw new Error('forventet grant')
-  assert.deepEqual(d.pause, { subscriptionId: 'sub_paid', resumesAt: null })
+  assert.equal(d.expiresAt, null, 'permanent kode gir fortsatt permanent Premium')
+  assert.equal(d.pause, null, 'ingenting å pause')
+})
+
+test('RAD G — tidsbegrenset kode over et abonnement er UPÅVIRKET (rad D lever)', () => {
+  const d = decideRedemption(state({ stripe: paidSub() }), 30, NOW)
+  assert.equal(d.action, 'grant')
+  if (d.action !== 'grant') throw new Error('forventet grant')
+  assert.deepEqual(d.pause, { subscriptionId: 'sub_paid', resumesAt: daysFromNow(42) })
+})
+
+test('RAD G viker for rad F — org-dekning gir den mer presise beskjeden', () => {
+  const d = decideRedemption(state({ stripe: paidSub(), org: orgCover() }), null, NOW)
+  if (d.action !== 'reject') throw new Error('forventet reject')
+  assert.equal(d.reason, 'org_covered', 'rekkefølgen i tabellen er snudd')
+})
+
+test('RAD G viker for rad C — aktiv kode gir den mer presise beskjeden', () => {
+  const d = decideRedemption(state({ stripe: paidSub(), code: code() }), null, NOW)
+  if (d.action !== 'reject') throw new Error('forventet reject')
+  assert.equal(d.reason, 'code_active', 'rekkefølgen i tabellen er snudd')
 })
 
 test('RAD D — et abonnement som allerede har utløpt periode stabler ikke bakover', () => {

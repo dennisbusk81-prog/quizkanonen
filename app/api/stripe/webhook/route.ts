@@ -9,6 +9,7 @@ import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { syncPremiumCache } from '@/lib/premium-state-io'
 import { planFromPriceId } from '@/lib/org-plan-prices'
+import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import {
   LIVE_SUBSCRIPTION_STATUSES,
   isStaleSubscriptionEvent,
@@ -384,6 +385,21 @@ export async function POST(request: NextRequest) {
           `amount_total=${session.amount_total ?? 'ukjent'} ` +
           `event=${event.id}`
         )
+        // 400 går til STRIPE, ikke til kunden — de ser en fullført betaling og
+        // venter på Premium som aldri kommer. Stripe gir opp etter sine retries,
+        // og da er loggen eneste spor på at noen har betalt for ingenting.
+        reportMoneyPathFailure({
+          operation: 'webhook/checkout:missing-user-id',
+          consequence:
+            'Kunden HAR betalt, men får aldri Premium — vi vet ikke hvem de er. ' +
+            'Finn dem via session/customer i Stripe og tildel manuelt.',
+          context: {
+            sessionId: session.id,
+            customerId: typeof session.customer === 'string' ? session.customer : null,
+            amountTotal: session.amount_total,
+            eventId: event.id,
+          },
+        })
         await releaseIdempotencyStamp(event.id)
         return NextResponse.json({ error: 'Mangler userId' }, { status: 400 })
       }
@@ -1184,6 +1200,19 @@ export async function POST(request: NextRequest) {
         `[webhook] charge.refunded: full refusjon UTEN customer — premium ikke fjernet. ` +
         `charge=${charge.id} amount_refunded=${charge.amount_refunded}. Må sjekkes manuelt.`
       )
+      // Den stilleste av dem alle: pengene er betalt tilbake, brukeren beholder
+      // Premium, og den eneste som kunne meldt fra er den som tjener på det.
+      reportMoneyPathFailure({
+        operation: 'webhook/refund:no-customer',
+        consequence:
+          'Full refusjon utbetalt, men Premium er ikke fjernet — vi finner ikke ' +
+          'kunden fra charge-en. Slå opp charge-en i Stripe og rekalkuler manuelt.',
+        context: {
+          chargeId: charge.id,
+          amountRefunded: charge.amount_refunded,
+          eventId: event.id,
+        },
+      })
       await releaseIdempotencyStamp(event.id)
       return NextResponse.json({ received: true })
     }

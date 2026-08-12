@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { checkMemberCapacity } from '@/lib/org-plan'
+import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import {
   requireUnlockedOrg,
   ORG_LOCKED_CODE,
@@ -329,6 +330,20 @@ export async function POST(
         `Brukeren har org-premium og BETALER FORTSATT personlig:`,
         err
       )
+      // Ruten svarer 200 og brukeren er inne i org-en — de merker ingenting og
+      // sier derfor aldri fra. Trekket løper videre hver måned til noen rydder.
+      reportMoneyPathFailure({
+        operation: 'org/join:cancel-personal-subscription',
+        consequence:
+          'Brukeren betaler kr 49/mnd for et personlig abonnement de nå får dekket ' +
+          'gjennom org-en. Løper til det kanselleres manuelt i Stripe.',
+        err,
+        context: {
+          personalCustomerId,
+          userId: user.id,
+          orgId: invite.organization_id,
+        },
+      })
     }
   }
 

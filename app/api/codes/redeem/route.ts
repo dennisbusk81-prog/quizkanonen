@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { sendEmail } from '@/lib/email'
 import { codeActivatedEmail, codeActivatedPausedEmail } from '@/lib/email-templates'
 import { decideRedemption, type PremiumState } from '@/lib/premium-state'
+import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import { getPremiumState, syncPremiumCache } from '@/lib/premium-state-io'
 import {
   REDEEM_MISS_ACTION,
@@ -201,7 +202,13 @@ export async function POST(request: NextRequest) {
   // Koden er allerede gitt på dette punktet. Feiler pausen, er riktig utfall at
   // brukeren beholder Premium og at VI får vite det — ikke at innløsningen
   // rulles tilbake. Derfor logges det høylytt i stedet for å kaste.
+  //
+  // `pauseSucceeded` er BEKREFTELSE, ikke intensjon. Fram til 12. august svarte
+  // ruten `pausedSubscription: !!decision.pause` — altså om vi SKULLE pause —
+  // og profilsiden fortalte da en kunde som faktisk ble trukket at de ikke ble
+  // det. Det som skal ut av denne blokken er hva vi rakk å gjøre.
   let pausedUntil: string | null = null
+  let pauseSucceeded = false
   if (decision.pause) {
     try {
       await stripe.subscriptions.update(decision.pause.subscriptionId, {
@@ -213,12 +220,28 @@ export async function POST(request: NextRequest) {
         },
       })
       pausedUntil = decision.pause.resumesAt
+      pauseSucceeded = true
     } catch (err) {
       console.error(
         `[codes/redeem] KRITISK: kunne ikke pause abonnement ${decision.pause.subscriptionId} ` +
         `for user=${user.id} — kunden risikerer å bli belastet i kode-perioden:`,
         err,
       )
+      // Loggen alene når ikke fram: Sentry har ingen captureConsole-integrasjon,
+      // og brukeren får 200 og merker ingenting. Uten dette varselet oppdages
+      // trekket først på kundens kontoutskrift — hvis de sier fra.
+      reportMoneyPathFailure({
+        operation: 'codes/redeem:pause-subscription',
+        consequence:
+          'Kunden trekkes kr 49 for en periode de fikk gratis via verdikode. ' +
+          'Sett pause_collection manuelt i Stripe, med resumes_at = kodens sluttdato.',
+        err,
+        context: {
+          subscriptionId: decision.pause.subscriptionId,
+          userId: user.id,
+          resumesAt: decision.pause.resumesAt,
+        },
+      })
     }
   }
 
@@ -227,13 +250,19 @@ export async function POST(request: NextRequest) {
 
   // Varsle kunden. Ved pause er dette ikke en høflighetsmelding, men selve
   // beskjeden om at de ikke blir trukket — den skal være tydelig.
+  //
+  // Gatet på `pauseSucceeded`, ikke `decision.pause`: pause-malen sier rett ut
+  // «du blir ikke trukket». Feilet pausen, ville den setningen vært usann i en
+  // e-post kunden har på skrift. Den vanlige aktiveringsmalen er derimot sann
+  // uansett — Premium ER aktivert — så den er riktig fallback. Dennis får
+  // Sentry-varselet og retter pausen manuelt; da stemmer teksten igjen.
   if (user.email) {
-    const html = decision.pause
+    const html = pauseSucceeded
       ? codeActivatedPausedEmail(decision.startsAt, expiresAt, pausedUntil)
       : codeActivatedEmail(decision.startsAt, expiresAt)
     sendEmail({
       to: user.email,
-      subject: decision.pause
+      subject: pauseSucceeded
         ? 'Koden er aktivert — abonnementet ditt er satt på pause'
         : 'Premium er aktivert — Quizkanonen',
       html,
@@ -244,7 +273,11 @@ export async function POST(request: NextRequest) {
     success: true,
     startsAt: decision.startsAt,
     expiresAt,
-    pausedSubscription: !!decision.pause,
+    pausedSubscription: pauseSucceeded,
     resumesAt: pausedUntil,
+    // Eget felt, ikke bare fravær av `pausedSubscription`: uten det kan ikke
+    // klienten skille «det fantes ingenting å pause» fra «vi prøvde og feilet»,
+    // og ville gått fra å lyve til å tie. Se app/profil/page.tsx.
+    pauseFailed: !!decision.pause && !pauseSucceeded,
   })
 }
