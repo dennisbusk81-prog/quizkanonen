@@ -20,6 +20,26 @@
 import { test, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { decideAdminRedirect, adminFetch } from './admin-fetch'
+import { adminLoginPath } from './admin-session'
+
+// ── De to veiene til innlogging skal gi SAMME URL ───────────────────────────
+//
+// Dette er testen som ville fanget bommen 12. august. `next` ble lagt til her,
+// i 401-grenen, mens sidenes egen vakt (`isAdminLoggedIn()` false → naken
+// /admin/login) fortsatte uendret på tretten sider. Vei 2 var grønn, vei 1 var
+// den man faktisk går, og forskjellen var usynlig fordi ingenting sammenlignet
+// dem.
+//
+// Bygges URL-en to steder igjen, ryker denne.
+test('401-veien og sidenes vakt gir IDENTISK URL', () => {
+  for (const sti of ['/admin/codes', '/admin/quizzes?fane=arkiv', '/admin/users/abc']) {
+    assert.equal(
+      decideAdminRedirect(401, sti),
+      adminLoginPath(sti),
+      `de to veiene spriker for ${sti}`,
+    )
+  }
+})
 
 // ── Den rene regelen ────────────────────────────────────────────────────────
 

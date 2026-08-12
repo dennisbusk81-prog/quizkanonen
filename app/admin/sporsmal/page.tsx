@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 
 type BankQuestion = {
@@ -176,7 +176,7 @@ export default function SporsmalPage() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.replace('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
     Promise.all([
       adminFetch('/api/admin/questions').then(r => r.json()),
       adminFetch('/api/admin/quizzes').then(r => r.json()),

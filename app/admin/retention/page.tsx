@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import Link from 'next/link'
 
@@ -158,7 +158,7 @@ export default function AdminRetention() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     fetchRetention()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

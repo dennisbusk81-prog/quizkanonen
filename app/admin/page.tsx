@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn, logoutAdmin } from '@/lib/admin-session'
+import { isAdminLoggedIn, logoutAdmin, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import Link from 'next/link'
 
@@ -369,7 +369,7 @@ export default function AdminHome() {
   const [foundersSaved, setFoundersSaved] = useState(false)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     fetchAll()
     fetchNextQuiz()
     fetchFounders()

@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'
@@ -378,7 +378,7 @@ export default function AdminQuizzes() {
 
   useEffect(() => {
     setMounted(true)
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     loadInitial()
   }, [])
 

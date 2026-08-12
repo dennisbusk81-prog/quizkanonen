@@ -28,7 +28,7 @@
 
 import { test, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { readTokenExpiry, isAdminLoggedIn, getAdminToken, setAdminToken, logoutAdmin, safeNextPath } from './admin-session'
+import { readTokenExpiry, isAdminLoggedIn, getAdminToken, setAdminToken, logoutAdmin, safeNextPath, adminLoginPath, isAdminLoginPath } from './admin-session'
 
 // ── Minimal nettleser-lagring ───────────────────────────────────────────────
 // Nok til å kjøre den ekte modulen. `window` må finnes for at vaktene i
@@ -214,4 +214,54 @@ test('tomt next gir null, ikke krasj', () => {
   assert.equal(safeNextPath(null), null)
   assert.equal(safeNextPath(undefined), null)
   assert.equal(safeNextPath(''), null)
+})
+
+// ── adminLoginPath — ÉN formulering, brukt av BEGGE veiene ──────────────────
+//
+// BAKGRUNN (12. august 2026, andre runde)
+// `next` ble lagt til i adminFetch sin 401-gren alene. De tretten sidene hadde
+// sin EGEN vei til innlogging — `isAdminLoggedIn()` false → naken
+// `/admin/login` — og det er den man nesten alltid går, siden den utløses av at
+// nettleseren har vært lukket. Fiksen så komplett ut og virket ikke i praksis.
+//
+// Testene under dekker vei 1 (sidenes vakt). Vei 2 ligger i admin-fetch.test.ts
+// og bygger nå URL-en med NØYAKTIG samme funksjon.
+
+test('bærer sti og spørrestreng tilbake', () => {
+  assert.equal(adminLoginPath('/admin/codes'), '/admin/login?next=%2Fadmin%2Fcodes')
+  assert.equal(
+    adminLoginPath('/admin/quizzes?fane=arkiv'),
+    '/admin/login?next=%2Fadmin%2Fquizzes%3Ffane%3Darkiv',
+  )
+})
+
+test('sender ALDRI innloggingssiden til seg selv', () => {
+  // safeNextPath alene stopper ikke dette: «/admin/login» begynner med
+  // «/admin/», så uten den egne vakten ville vi bygget
+  // /admin/login?next=%2Fadmin%2Flogin og låst brukeren i en runddans.
+  assert.equal(adminLoginPath('/admin/login'), '/admin/login')
+  assert.equal(adminLoginPath('/admin/login?next=%2Fadmin%2Fcodes'), '/admin/login')
+})
+
+test('en sti utenfor /admin gir naken innlogging, ikke en videresending', () => {
+  assert.equal(adminLoginPath('/profil'), '/admin/login')
+  assert.equal(adminLoginPath(''), '/admin/login')
+})
+
+test('uten nettleser (server-render) gir naken innlogging', () => {
+  delete g.window
+  assert.equal(adminLoginPath(), '/admin/login')
+})
+
+test('leser stien fra nettleseren når den ikke får en', () => {
+  g.window = { location: { pathname: '/admin/users', search: '?side=2' } }
+  assert.equal(adminLoginPath(), '/admin/login?next=%2Fadmin%2Fusers%3Fside%3D2')
+})
+
+test('isAdminLoginPath kjenner igjen innloggingssiden, med og uten parametere', () => {
+  assert.equal(isAdminLoginPath('/admin/login'), true)
+  assert.equal(isAdminLoginPath('/admin/login?next=%2Fadmin'), true)
+  assert.equal(isAdminLoginPath('/admin/codes'), false)
+  // Ikke la en side som bare BEGYNNER likt bli forvekslet med innloggingen.
+  assert.equal(isAdminLoginPath('/admin/login-historikk'), false)
 })

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import ResultsTable from '@/components/ResultsTable'
 import Link from 'next/link'
@@ -321,7 +321,7 @@ export default function QuizResults() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     ;(async () => {
       try {
         const res = await adminFetch(`/api/admin/quizzes/${quizId}/results`)

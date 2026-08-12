@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz, Question } from '@/lib/supabase'
 import { readStoredKey } from '@/lib/answer-key-correction'
@@ -470,7 +470,7 @@ export default function QuizAnalytics() {
   const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     fetchData()
   }, [])
 

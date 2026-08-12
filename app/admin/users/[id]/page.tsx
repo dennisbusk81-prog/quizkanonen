@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
@@ -269,7 +269,7 @@ export default function UserDetailPage() {
   const [resetFeedback, setResetFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])

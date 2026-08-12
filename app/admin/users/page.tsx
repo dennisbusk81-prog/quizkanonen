@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
@@ -213,7 +213,7 @@ export default function AdminUsersPage() {
   const [sortKey, setSortKey] = useState<SortKey>('newest')
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
     loadInitial()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])

@@ -20,7 +20,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import WeeklyActivityChart, { type WeekPoint } from '@/components/WeeklyActivityChart'
 
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     ;(async () => {
       try {
         const res = await adminFetch('/api/admin/dashboard')

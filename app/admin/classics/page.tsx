@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 
 type ClassicQuestion = {
@@ -113,7 +113,7 @@ export default function ClassicsPage() {
   const copyInFlightRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) { router.replace('/admin/login'); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
     Promise.all([
       adminFetch('/api/admin/classics').then(r => r.json()),
       adminFetch('/api/admin/quizzes').then(r => r.json()),

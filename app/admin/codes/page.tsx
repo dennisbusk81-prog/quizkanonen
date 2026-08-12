@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-session'
+import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { resolveCodeDuration } from '@/lib/access-code-duration'
 import Link from 'next/link'
@@ -334,7 +334,7 @@ export default function AdminCodes() {
 
   useEffect(() => {
     setMounted(true)
-    if (!isAdminLoggedIn()) { router.push('/admin/login'); setLoading(false); return }
+    if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
     fetchCodes()
   }, [])
 

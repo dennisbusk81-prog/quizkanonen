@@ -158,3 +158,43 @@ export function safeNextPath(raw: string | null | undefined): string | null {
 
   return raw
 }
+
+const ADMIN_LOGIN = '/admin/login'
+
+/** Er dette selve innloggingssiden? Delt vakt mot å sende den til seg selv. */
+export function isAdminLoginPath(path: string): boolean {
+  return path === ADMIN_LOGIN || path.startsWith(ADMIN_LOGIN + '?')
+}
+
+/**
+ * URL-en til innloggingssiden, med veien tilbake hit.
+ *
+ * ÉN formulering av «hvor er innloggingen, og hvor skal jeg tilbake til».
+ * Brukes av BEGGE veiene dit:
+ *
+ *   1. Sidenes egen vakt — `isAdminLoggedIn()` er false, altså ingen token i
+ *      det hele tatt. Dette er den VANLIGE veien: nettleseren har vært lukket.
+ *   2. `decideAdminRedirect` i lib/admin-fetch.ts — serveren avviste et token
+ *      vi hadde. Sjeldnere: utløp mens fanen sto åpen, eller rotert passord.
+ *
+ * At det var to veier er nettopp grunnen til at denne funksjonen finnes.
+ * 12. august ble `next` lagt til i vei 2 alene, mens de tretten sidene i vei 1
+ * fortsatte å sende en naken `/admin/login`. Fiksen så komplett ut i rapporten
+ * og virket ikke i praksis, fordi vei 1 er den man nesten alltid går.
+ *
+ * Kalles uten argument fra nettleseren; `currentPath` finnes for tester.
+ */
+export function adminLoginPath(currentPath?: string): string {
+  const here = currentPath ?? browserPath()
+  // Ingen sti å vende tilbake til (server-side render), eller vi står allerede
+  // på innloggingssiden — da ville `next` pekt på siden selv.
+  if (!here || isAdminLoginPath(here)) return ADMIN_LOGIN
+
+  const next = safeNextPath(here)
+  return next ? `${ADMIN_LOGIN}?next=${encodeURIComponent(next)}` : ADMIN_LOGIN
+}
+
+function browserPath(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.location.pathname + window.location.search
+}

@@ -1,4 +1,4 @@
-import { getAdminToken } from './admin-session'
+import { getAdminToken, adminLoginPath, isAdminLoginPath } from './admin-session'
 
 // Sender det signerte sesjonstokenet, ikke lenger selve admin-passordet.
 // Header-navnet er nytt (x-admin-token), men verifyAdminRequest godtar fortsatt
@@ -22,6 +22,10 @@ import { getAdminToken } from './admin-session'
  *
  * Ren funksjon, skilt fra selve navigeringen slik at regelen kan testes uten
  * DOM. Samme deling som `decidePremiumState` / `syncPremiumCache`.
+ *
+ * Selve URL-en bygges av `adminLoginPath` — samme funksjon som sidenes egen
+ * vakt bruker. To formuleringer av «hvor skal jeg tilbake til» var akkurat det
+ * som gjorde at `next` virket her og manglet på de tretten sidene.
  */
 export function decideAdminRedirect(status: number, currentPath: string): string | null {
   // KUN 401. En 403 betyr «autentisert, men ikke lov», og en 500 betyr at
@@ -29,12 +33,12 @@ export function decideAdminRedirect(status: number, currentPath: string): string
   // ville skjult den ekte feilen bak en irrelevant innloggingsside.
   if (status !== 401) return null
 
-  // Er vi allerede på innloggingssiden, ville en redirect dit vært en løkke.
-  // Innloggingen kaller riktignok ikke adminFetch i dag (den går via en server
-  // action), men vakten koster ingenting og fjerner hele feilklassen.
-  if (currentPath === '/admin/login' || currentPath.startsWith('/admin/login?')) return null
+  // Er vi allerede på innloggingssiden, skal vi ikke navigere I DET HELE TATT —
+  // ikke bare unngå `next`. Innloggingen kaller riktignok ikke adminFetch i dag
+  // (den går via en server action), men vakten koster ingenting.
+  if (isAdminLoginPath(currentPath)) return null
 
-  return `/admin/login?next=${encodeURIComponent(currentPath)}`
+  return adminLoginPath(currentPath)
 }
 
 /** Byttes ut i tester. Ellers en full sidenavigering. */
