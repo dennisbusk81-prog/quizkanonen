@@ -1,0 +1,50 @@
+-- ============================================================
+-- prevent_self_unsuspend — search_path-herding (etterslep)
+--
+-- HVORFOR DENNE FILEN FINNES
+-- `SET search_path` på public.prevent_self_unsuspend() ble satt MANUELT i prod,
+-- utenom migrasjonene. Opphavsfilen 20260614000010_prevent_self_unsuspend.sql
+-- setter den ikke, og ingen annen migrasjon ALTER-er funksjonen (grep-verifisert
+-- over hele supabase/migrations 12. august 2026). Prod og repoet var altså ute
+-- av takt på denne ene attributten.
+--
+-- Det er ikke en kosmetisk forskjell. `CREATE OR REPLACE FUNCTION` TILBAKESTILLER
+-- attributter som ikke er navngitt i setningen, så et re-run av 20260614000010
+-- mot prod ville FJERNET search_path fra funksjonen igjen. Stille: funksjonen
+-- fortsetter å virke akkurat som før, ingen feilmelding, ingen loggspor — og
+-- SECURITY DEFINER-funksjonen står plutselig uten herding.
+--
+-- Filnavnet er datert i dag nettopp for å sortere ETTER 20260614000010. Kjøres
+-- migrasjonene i rekkefølge i et nytt miljø, oppretter opphavsfilen funksjonen
+-- uten search_path, og denne filen setter den — sluttilstanden blir prods
+-- nåværende tilstand. Kjøres 20260614000010 på nytt en gang i framtiden, må
+-- denne kjøres etter, og da er strippingen reparert.
+--
+-- Funnet 12. august 2026 under etterslepsarbeidet med trial-sperren, som traff
+-- samme feilklasse på søsterfunksjonen: prevent_self_trial_unmark manglet
+-- search_path helt i prod (rettet samme kveld, beskrevet i 20260812000001).
+-- Samme feil, én fil unna — se ARBEIDSREGEL «en feil har som regel søsken» i
+-- .claude/CLAUDE.md.
+--
+-- HVORFOR TOM STRENG, IKKE 'public'
+-- Samme begrunnelse som 20260734000000: kroppen til prevent_self_unsuspend slår
+-- ikke opp ett skjemakvalifisert objekt — den leser NEW/OLD og kaller
+-- current_setting(), som ligger i pg_catalog og alltid er i søkestien. En tom
+-- search_path kan derfor ikke brekke funksjonen, og den fjerner et hvert skjema
+-- en angriper med CREATE-rettighet kunne lagt tidlig i stien.
+--
+-- Idempotent: ALTER FUNCTION ... SET er en ren overskriving av samme verdi, og
+-- endrer ingenting annet enn search_path-konfigurasjonen. Kjørt mot prod slik
+-- den står i kveld er den et rent no-op — den beskriver tilstand som finnes.
+--
+-- 20260614000010 er BEVISST ikke redigert: den har kjørt i alle miljøer, og
+-- historikken skal vise hva som faktisk ble kjørt da.
+--
+-- Verifiser etter kjøring (proconfig skal vise search_path="" for BEGGE):
+--   SELECT p.proname, p.prosecdef, p.proconfig
+--   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+--   WHERE n.nspname = 'public'
+--     AND p.proname IN ('prevent_self_unsuspend', 'prevent_self_trial_unmark');
+-- ============================================================
+
+ALTER FUNCTION public.prevent_self_unsuspend() SET search_path = '';

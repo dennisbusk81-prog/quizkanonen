@@ -1,0 +1,67 @@
+-- ============================================================
+-- site_settings: founders_new_trial_days — lengden på engangs-prøveperioden
+--
+-- ETTERSLEPS-MIGRASJON. Raden ble lagt inn manuelt i prod 12. august 2026
+-- kl. 08:38 UTC (commit ce6ccb5) UTEN migrasjonsfil.
+--
+-- HVORFOR EN EGEN NØKKEL, OG IKKE founders_days_free
+-- /api/stripe/founders-activate leser bevisst IKKE `founders_days_free` (=30),
+-- som styrte det gamle, ubegrensede tilbudet. Gjenbruk ville koblet
+-- engangs-prøven til et tall satt for en helt annen mekanikk.
+--
+-- HVORFOR RADEN MÅ FINNES
+-- Ruten har med vilje INGEN innebygd fallback. Mangler raden, svarer den 503
+-- («Vi får ikke satt opp prøveperioden akkurat nå») for ALLE brukere — en
+-- hardkodet «14» ville lovet en lengde ingen har bestemt, på selve flaten som
+-- starter abonnementet. Et nytt miljø uten denne raden har altså en
+-- Founders-aktivering som er helt død, ikke delvis.
+--
+-- Verdien leses også av /api/founders/count.
+--
+-- MÅLT I PROD 12. august 2026: value = '14' (TEXT), updated_at
+-- 2026-08-12T08:38:39.907387+00.
+--
+-- Idempotent: ON CONFLICT (key) DO NOTHING — `key` er primærnøkkel (bekreftet
+-- i prods OpenAPI-spec). Samme mønster som 20260621000001_org_trial_site_settings.
+-- En eksisterende verdi endres ALDRI av denne filen: står prod på et annet
+-- tall enn 14 fordi noen har justert prøveperioden, skal filen ikke overstyre
+-- det.
+-- ============================================================
+
+INSERT INTO public.site_settings (key, value)
+  VALUES ('founders_new_trial_days', '14')
+  ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================
+-- KJENT SKJEMAAVVIK — IKKE RYDDET HER, OG IKKE VED ET UHELL
+--
+-- site_settings har i dag BÅDE key/value-rader OG tre levningskolonner:
+--
+--   20260611000001_founders_site_settings.sql la founders-innstillingene til
+--   som KOLONNER på site_settings (founders_max_slots, founders_days_free,
+--   founders_trial_days), mens ALL kode i repoet leser dem som key/value-rader
+--   via `.eq('key', ...)`. Begge deler finnes derfor i prod samtidig:
+--
+--   Kolonner (målt 12. aug 2026, PostgREST OpenAPI — alle nullable, ubrukt):
+--     founders_max_slots   integer DEFAULT 250
+--     founders_days_free   integer DEFAULT 30
+--     founders_trial_days  integer DEFAULT 7
+--
+--   Rader (målt samme dag, 6 stk. — dette er det koden faktisk bruker):
+--     founders_max_slots       = '250'
+--     founders_days_free       = '30'
+--     founders_trial_days      = '7'
+--     org_trial_days           = '14'
+--     next_quiz_at             = '2026-08-14T10:00:00.000Z'
+--     founders_new_trial_days  = '14'   ← raden denne filen beskriver
+--
+--   Fordi kolonnene har DEFAULTS, bærer HVER rad i tabellen verdiene
+--   250/30/7 med seg — også `next_quiz_at`-raden. Det er støy, ikke data,
+--   men det er lesbar støy: en framtidig leser som treffer kolonnen i stedet
+--   for raden får et tall som ser plausibelt ut. Det er den egentlige
+--   risikoen ved avviket.
+--
+--   Å DROPPE kolonnene er en egen beslutning og gjøres ikke her: et DROP
+--   COLUMN er irreversibelt i prod, og denne filen skal kunne kjøres mot prod
+--   uten å endre noe som helst.
+-- ============================================================
