@@ -1824,6 +1824,16 @@ export default async function Home() {
   const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
   const lastQuizTop3 = shared.lastQuizTop3
 
+  // Prøveperiode-tilbudet på den UTLOGGEDE forsiden. `eligible: null` er ikke en
+  // mangel her — det er den riktige verdien: uten sesjon finnes det ingen profil
+  // å lese `has_used_trial` fra, og `decideTrialOffer` viser da tilbudet og lar
+  // founders-activate være gaten (se toppkommentaren i lib/trial-offer.ts).
+  // Dagtallet er samme kilde som den innloggede grenen bruker
+  // (site_settings.founders_new_trial_days, allerede i home-shared-bundelen —
+  // en global verdi, ikke brukerspesifikk, så ingen ekstra oppslag). Mangler
+  // tallet, faller linja tilbake til «★ Premium kr 49/mnd».
+  const anonTrialOffer = decideTrialOffer({ trialDays: shared.trialDays, eligible: null })
+
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -1865,7 +1875,15 @@ export default async function Home() {
           <div className="qk-hero-status">
             <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google, e-post eller passord</span></span>
             <span style={{ color: '#918f8a' }}>·</span>
-            <span><span style={{ color: '#c9a84c' }}>★</span> <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span></span>
+            <span><span style={{ color: '#c9a84c' }}>★</span>{' '}
+              {anonTrialOffer.show ? (
+                <Link href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                  Prøv Premium gratis i {anonTrialOffer.days} dager →
+                </Link>
+              ) : (
+                <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span>
+              )}
+            </span>
           </div>
           <div className="qk-steps">
             {([
