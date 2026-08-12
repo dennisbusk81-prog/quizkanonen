@@ -6,6 +6,7 @@ import type { Session } from '@supabase/supabase-js'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 import { fetchTrialOffer } from '@/lib/trial-offer-fetch'
+import { getSessionIdentity } from '@/lib/session-identity'
 import type { TrialOffer } from '@/lib/trial-offer'
 import { activationLogLevel, decideActivationNotice } from '@/lib/trial-activation-notice'
 
@@ -55,14 +56,35 @@ export default function PremiumPage() {
   // Hent tilbudet så snart sesjonstilstanden er avgjort — med token når vi har
   // et, uten når vi ikke har (da svarer ruten `eligible: null` = ukjent, og
   // tilbudet vises likevel).
+  //
+  // Dep-en er den STABILE identiteten, ikke session-objektet — se
+  // lib/session-identity.ts, samme grep som org/[slug]/admin. Målt 12. august
+  // 2026, i BÅDE `next dev` og produksjonsbygg: en innlogget sidelast gav TO
+  // kall hit, 2 ms fra hverandre, med identisk Authorization-header. De to
+  // skriverne av `session` (getSession().then under, og onAuthStateChange sin
+  // INITIAL_SESSION) leverer samme logiske sesjon som to ULIKE objekter, så
+  // React kunne ikke bail-e ut på referanselikhet. Utlogget passerer begge
+  // `null` — referanselik — og gav derfor alltid ett kall; buggen bet kun
+  // innloggede. StrictMode var ikke forklaringen: prod-bygget gav samme to.
+  //
+  // Duplikatet var ikke bare et ekstra kall: de to kjørte samtidig og målte
+  // 1883 og 3001 ms mot ~500 ms alene. Knappen venter på dette svaret, så
+  // kallet betalte sin egen dobling i ventetid.
+  //
+  // `session` leses fortsatt friskt inne i effekten — identiteten avgjør KUN
+  // når den skal kjøre. Effekten fyrer derfor fortsatt på ekte endring
+  // (utlogget → innlogget, bytte av bruker, innlogget → utlogget), men ikke
+  // på et nytt objekt for samme bruker (TOKEN_REFRESHED ved fane-fokus).
+  const sessionIdentity = getSessionIdentity(session)
   useEffect(() => {
-    if (session === undefined) return
+    if (sessionIdentity === 'unchecked') return
     let cancelled = false
     fetchTrialOffer(session?.access_token).then(offer => {
       if (!cancelled) setTrialOffer(offer)
     })
     return () => { cancelled = true }
-  }, [session])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionIdentity])
 
   const runActivate = useCallback(async (accessToken: string, days: number | null) => {
     setTrialPhase('running')
@@ -111,6 +133,15 @@ export default function PremiumPage() {
   // logget inn, og er nå tilbake. Kjører aktiveringen uten et nytt klikk.
   // Nøkkelen fjernes FØR kallet — en feil skal ikke kunne gi en løkke der hver
   // sidelast forsøker på nytt.
+  //
+  // Denne beholder BEVISST hele `session` i dep-lista, i motsetning til
+  // effekten over. Samme form, annen klasse: `pendingHandledRef` låser ved
+  // første gjennomkjøring og pending-nøkkelen fjernes før kallet, begge
+  // synkront i samme kropp — et duplikat-objekt for samme bruker koster her én
+  // no-op-kjøring, ikke et kall. `trialOffer` i dep-lista er dessuten ekte
+  // sekvensering (vent til dagtallet har landet), ikke et staleness-artefakt.
+  // Vurdert og forkastet 12. august 2026: å bytte dep her ville flyttet
+  // `session` inn i en closure uten å fjerne noe målbart.
   useEffect(() => {
     if (session === undefined || !session?.access_token) return
     if (pendingHandledRef.current) return
