@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { setAdminSession, setAdminToken } from '@/lib/admin-auth'
+import { setAdminToken, safeNextPath } from '@/lib/admin-session'
 import { verifyAdminPassword } from '@/lib/admin-actions'
 
 const STYLES = `
@@ -154,10 +154,20 @@ export default function AdminLogin() {
     try {
       const result = await verifyAdminPassword(password)
       if (result.ok) {
-        setAdminSession()
-        // Kun det signerte tokenet lagres — passordet forlater aldri dette skjemaet.
+        // Kun det signerte tokenet lagres — passordet forlater aldri dette
+        // skjemaet. Det tidligere localStorage-flagget (`setAdminSession`) er
+        // borte: tokenet bærer sitt eget utløp, og to lagre med hver sin
+        // levetid var nettopp feilen. Se lib/admin-session.ts.
         setAdminToken(result.token)
-        router.push('/admin')
+
+        // Ble du sendt hit av en 401 midt i noe, skal du tilbake dit — ikke til
+        // forsiden av admin. `next` leses her og ikke via useSearchParams for å
+        // slippe en Suspense-grense i en side som ellers ikke trenger en.
+        //
+        // safeNextPath er ikke pynt: verdien kommer fra URL-en, så uten
+        // filtreringen ville innloggingssiden vært en åpen viderekobling.
+        const next = safeNextPath(new URLSearchParams(window.location.search).get('next'))
+        router.push(next ?? '/admin')
       } else {
         // Serveren skiller mellom feil passord og utestengelse etter for mange forsøk.
         setError(result.error)

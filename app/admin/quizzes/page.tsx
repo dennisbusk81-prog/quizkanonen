@@ -1,7 +1,7 @@
 ﻿'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { isAdminLoggedIn } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz } from '@/lib/supabase'
 import Link from 'next/link'

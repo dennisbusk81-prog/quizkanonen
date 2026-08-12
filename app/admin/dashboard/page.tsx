@@ -20,7 +20,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { isAdminLoggedIn } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import WeeklyActivityChart, { type WeekPoint } from '@/components/WeeklyActivityChart'
 

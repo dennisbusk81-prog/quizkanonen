@@ -104,14 +104,48 @@ folk på kontoret. Dette er altså en bevisst, begrunnet designbeslutning per
 - Supabase auth med Google OAuth + magic link + **passord** (se under)
 - `lib/auth.ts` for signIn, signOut, getSession, getProfile
 - `lib/supabase-admin.ts` er server-only (service role)
-- Admin-auth: se egen seksjon under (rate-limitet + signert token, ikke lenger
-  klartekst-passord i sessionStorage — endret 19. juli)
+- Admin-auth: se «Admin-sesjon» rett under (rate-limitet + signert token, ikke
+  lenger klartekst-passord i sessionStorage — endret 19. juli)
 - `lib/session-identity.ts` (`getSessionIdentity()`, fra 22. juli 2026): gir en
   stabil identitet (`'unchecked' | 'anon' | userId`) å sammenligne mot i stedet
   for hele Supabase-session-objektet, som skifter referanse ved hver
   `TOKEN_REFRESHED`. Brukt i `app/leaderboard/[id]/page.tsx` og
   `app/org/[slug]/admin/page.tsx` for å unngå en flash/re-last-bug ved
   fane-fokus.
+
+### Admin-sesjon — én kilde, og PARITET med serveren (12. august 2026)
+`lib/admin-session.ts` (klient, ingen krypto-import) eier alt nettleseren vet om
+admin-sesjonen. `lib/admin-auth.ts` er server-only og har én eksport,
+`verifyAdminRequest`. Ikke slå dem sammen igjen: klientdelen ble importert av 14
+sider mens filen også leste `ADMIN_PASSWORD`, og at hemmeligheten ikke havnet i
+nettleserbundelen skyldtes tree-shaking — en optimalisering, ikke en garanti.
+
+**Sesjonen har ÉN kilde: tokenet.** `isAdminLoggedIn()` leser utløpet ut av
+tokenet i sessionStorage. `qk_admin`/`qk_admin_time` i localStorage er FJERNET
+og skal ikke gjeninnføres — de var en kopi av noe tokenet allerede bærer, og de
+to lagrene døde på hver sin måte: sessionStorage tømmes når fanen lukkes,
+localStorage ikke. Resultatet var en admin som var «innlogget» ifølge det som
+styrte redirecten og utlogget ifølge det som styrte kallene — siden lot deg bli,
+kallene svarte 401, og listen viste «Ingen koder ennå» med to koder i basen.
+
+**REGELEN, og den gjelder videre enn admin:** når klient og server tolker samme
+verdi, må de tolke den IDENTISK — ikke bare «riktig». `readTokenExpiry` speiler
+`verifyAdminToken` helt ned på tegnnivå: splitt på FØRSTE punktum, `Number()`,
+heltallskrav. Den er derfor med vilje like slepphendt som serveren (` 123 ` og
+`123.45.abc` godtas begge steder). Tolker klienten strengere, sendes brukeren
+til innlogging selv om kallene ville gått gjennom; tolker den mildere, vises en
+side der hvert kall avvises. Begge er den samme uenigheten som ble fjernet over,
+bare flyttet ned på tegnnivå. Slingringsmonn er ufarlig så lenge det er DELT —
+serveren verifiserer signaturen uansett.
+
+Klientsjekken er VISNING og ruting; `verifyAdminRequest` er porten. Samme skille
+som `eligible` i prøveperiode-flyten.
+
+**401 håndteres ett sted:** `decideAdminRedirect` i `lib/admin-fetch.ts` sender
+til `/admin/login?next=<sti>` — kun på 401 (403/500 skal vise den ekte feilen),
+aldri fra `/admin/login` selv, og `next` renses av `safeNextPath` (hviteliste på
+`/admin`) fordi verdien kommer fra URL-en og ellers gjør innloggingssiden til en
+åpen viderekobling. Ikke legg 401-håndtering i de 72 kallstedene.
 
 ### ProfileProvider (delt profil-/premium-/org-context)
 - `components/ProfileProvider.tsx` sitter i `app/layout.tsx` (root layout) og

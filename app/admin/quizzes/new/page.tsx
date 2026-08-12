@@ -2,7 +2,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminLoggedIn } from '@/lib/admin-auth'
+import { isAdminLoggedIn } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'

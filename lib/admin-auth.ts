@@ -53,67 +53,17 @@ export function verifyAdminRequest(req: Request): boolean {
   return safeEqual(provided, expected)
 }
 
-export function setAdminSession(): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem('qk_admin', 'true')
-    localStorage.setItem('qk_admin_time', Date.now().toString())
-  } catch {
-    // Ignorer feil (f.eks. privat modus eller quota)
-  }
-}
-
-export function isAdminLoggedIn(): boolean {
-  if (typeof window === 'undefined') return false
-  try {
-    const isAdmin = localStorage.getItem('qk_admin')
-    const loginTime = localStorage.getItem('qk_admin_time')
-    if (!isAdmin || !loginTime) return false
-    const eightHours = 8 * 60 * 60 * 1000
-    return Date.now() - parseInt(loginTime) < eightHours
-  } catch {
-    return false
-  }
-}
-
-// Lagrer det signerte sesjonstokenet fra innloggingen. Erstatter den tidligere
-// setAdminPassword(), som la SELVE passordet i klartekst i sessionStorage —
-// lesbart ved enhver DevTools-tilgang eller XSS, og gyldig i all fremtid.
-// Tokenet er signert, utløper av seg selv, og kan ikke brukes til å utlede
-// passordet.
-export function setAdminToken(token: string): void {
-  if (typeof window === 'undefined') return
-  try {
-    sessionStorage.setItem('qk_admin_token', token)
-    // Rydd bort et eventuelt klartekst-passord fra en tidligere økt, slik at det
-    // ikke blir liggende igjen etter at denne endringen er deployet.
-    sessionStorage.removeItem('qk_admin_pw')
-  } catch {
-    // Ignorer feil (f.eks. privat modus eller quota)
-  }
-}
-
-// Returnerer sesjonstokenet. Faller tilbake på det gamle klartekst-passordet
-// hvis det ligger igjen fra en økt som startet før denne endringen — da
-// fortsetter adminFetch å virke til neste innlogging, uten avbrudd.
-// Fallbacken kan fjernes når alle økter er fornyet.
-export function getAdminToken(): string | null {
-  if (typeof window === 'undefined') return null
-  try {
-    return sessionStorage.getItem('qk_admin_token') ?? sessionStorage.getItem('qk_admin_pw')
-  } catch {
-    return null
-  }
-}
-
-export function logoutAdmin(): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.removeItem('qk_admin')
-    localStorage.removeItem('qk_admin_time')
-    sessionStorage.removeItem('qk_admin_token')
-    sessionStorage.removeItem('qk_admin_pw')
-  } catch {
-    // ignore
-  }
-}
+// ── Klientdelen er FLYTTET til lib/admin-session.ts (12. august 2026) ────────
+//
+// `setAdminSession`, `isAdminLoggedIn`, `setAdminToken`, `getAdminToken` og
+// `logoutAdmin` lå her, i samme fil som `verifyAdminRequest`. Denne filen
+// importerer `node:crypto` og leser `ADMIN_PASSWORD`, mens de fem funksjonene
+// ble importert av fjorten klientkomponenter. At hemmeligheten ikke havnet i
+// nettleserbundelen skyldtes tree-shaking — en optimalisering, ikke en garanti.
+//
+// `setAdminSession` finnes ikke lenger i det hele tatt: localStorage-flagget
+// den satte (`qk_admin`) var en andre kilde til en sannhet tokenet allerede
+// bærer, og de to kunne dø hver for seg. Se lib/admin-session.ts.
+//
+// Denne filen er nå server-only og har én eksport. De 37 API-rutene som bruker
+// `verifyAdminRequest` er upåvirket.
