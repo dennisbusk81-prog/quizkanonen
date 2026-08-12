@@ -7,19 +7,35 @@ import { foundersWelcomeEmail } from '@/lib/email-templates'
 
 const FOUNDERS_PRICE_ID = process.env.STRIPE_PRICE_FOUNDERS!
 
-// B2C Founders-tilbudet er forlenget til 15. august 2026 kl 23:59 Europe/Oslo
-// (CEST, +02:00). Frem til denne datoen får nye Founders-signups en trial som
-// utløper på den faste datoen. ETTER datoen faller vi tilbake til den gamle
-// trial_period_days-logikken (dynamisk fra site_settings) — behold som fallback,
-// det permanente tilbudet bestemmes i en egen økt.
-const FOUNDERS_TRIAL_END = Math.floor(new Date('2026-08-15T23:59:00+02:00').getTime() / 1000)
+// Prøveperiodens lengde bor i site_settings, under en EGEN nøkkel — bevisst ikke
+// `founders_days_free` (= 30), som styrte det gamle, ubegrensede tilbudet.
+// Gjenbruk av den ville koblet engangs-prøven til en verdi satt for en helt
+// annen mekanikk.
+//
+// Det finnes med vilje INGEN innebygd fallback. En hardkodet «14» ville truffet
+// hver gang nøkkelen manglet, og ruten ville da lovet en lengde ingen har
+// bestemt — en gjettet verdi presentert som fakta, på flaten som starter
+// abonnementet. Mangler tallet, aktiverer vi ikke.
+const TRIAL_DAYS_SETTING_KEY = 'founders_new_trial_days'
+
+/**
+ * «Abonnementet finnes ikke lenger» — det ENESTE tilfellet der en feilet
+ * Stripe-oppslag trygt kan tolkes som «ingen dekning». Alt annet (nedetid,
+ * nettverksfeil, ugyldig nøkkel) betyr at vi ikke VET, og da kan sperren ikke
+ * åpne seg.
+ */
+function isMissingSubscription(err: unknown): boolean {
+  return (
+    err instanceof Stripe.errors.StripeInvalidRequestError &&
+    (err.code === 'resource_missing' || /no such subscription/i.test(err.message))
+  )
+}
 
 export async function POST(request: NextRequest) {
   if (!FOUNDERS_PRICE_ID) {
     return NextResponse.json({ error: 'Founders price not configured' }, { status: 500 })
   }
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = await rateLimitShared(`founders-activate:${ip}`, 5, 60_000)
   if (!rl.success) {
@@ -37,32 +53,129 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
     }
 
-    const { data: profile } = await supabaseAdmin
+    // ── Profiloppslaget er FAIL-CLOSED ────────────────────────────────────────
+    // Feilen ble tidligere ikke destrukturert i det hele tatt: ved en transient
+    // DB-feil ble `profile` undefined, og hver vakt under hoppet stille over.
+    //
+    // Fail-closed er riktig NETTOPP her, i motsetning til rate-limiteringen
+    // rundt (som faller åpent med vilje): en rate-limit er polstring rundt en
+    // handling brukeren har RETT til, mens trial-sperren ER selve
+    // rettighetssjekken. En feilaktig nekting koster én irritert bruker som
+    // prøver igjen om et minutt. En feilaktig innvilgelse er nøyaktig hullet
+    // denne sperren finnes for å lukke — en ny gratisperiode, i løkke.
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_customer_id, premium_status, personal_stripe_subscription_id')
+      .select('stripe_customer_id, premium_status, personal_stripe_subscription_id, has_used_trial')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
-    // Per-bruker-sperre mot flere aktive Founders-trials. Speiler per-bruker-grensen
-    // i org-founders-activate (som tillater kun én 'trialing'/'active' org per bruker),
-    // men sjekker her den FAKTISKE Stripe-statusen på brukerens personlige abonnement
-    // — ikke bare det denormaliserte premium_status-flagget, som kan drifte.
-    if (profile?.personal_stripe_subscription_id) {
+    if (profileError || !profile) {
+      console.error(
+        '[founders-activate] kunne ikke lese profilen — avbryter (fail-closed):',
+        profileError ?? 'ingen profilrad for bruker ' + user.id,
+      )
+      return NextResponse.json(
+        { error: 'Vi får ikke bekreftet kontoen din akkurat nå. Prøv igjen om et par minutter.' },
+        { status: 503 },
+      )
+    }
+
+    // ── VAKT 1: prøveperioden er én gang per konto, for alltid ────────────────
+    // Ruten målte tidligere bare NÅ-tilstand (premium_status +
+    // personal_stripe_subscription_id). Etter at Founders-trialene stenges er
+    // begge tomme for hele kohorten, og alle vaktene åpner seg igjen.
+    // `has_used_trial` er det varige merket, og databasetriggeren
+    // prevent_self_trial_unmark hindrer at det kan nulles av andre enn
+    // service_role. Lesevakten her er brukeropplevelse — den ærlige
+    // forklaringen; selve SIKKERHETEN ligger i det atomiske claimet under.
+    if (profile.has_used_trial === true) {
+      return NextResponse.json(
+        {
+          error: 'Du har allerede hatt en gratis prøveperiode på denne kontoen. ' +
+            'Prøveperioden kan brukes én gang per konto, men du kan starte et ' +
+            'vanlig Premium-abonnement når du vil.',
+        },
+        { status: 409 },
+      )
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
+
+    // ── VAKT 2 (sekundær): levende abonnement hos Stripe ─────────────────────
+    // Beholdt som ekstra sperre. Catch-en fortsatte tidligere ved ENHVER feil,
+    // så Stripe-nedetid åpnet sperren. Nå fortsetter vi kun når abonnementet
+    // beviselig er borte.
+    if (profile.personal_stripe_subscription_id) {
+      let existing: Stripe.Subscription | null = null
       try {
-        const existing = await stripe.subscriptions.retrieve(profile.personal_stripe_subscription_id)
-        if (existing.status === 'trialing' || existing.status === 'active') {
+        existing = await stripe.subscriptions.retrieve(profile.personal_stripe_subscription_id)
+      } catch (err) {
+        if (!isMissingSubscription(err)) {
+          console.error('[founders-activate] Stripe-oppslag feilet — avbryter (fail-closed):', err)
           return NextResponse.json(
-            { error: 'Du har allerede en aktiv Founders-prøveperiode.' },
-            { status: 409 },
+            { error: 'Vi får ikke kontakt med betalingsleverandøren akkurat nå. Prøv igjen om et par minutter.' },
+            { status: 503 },
           )
         }
-      } catch (err) {
-        // Abonnementet finnes ikke i Stripe lenger (f.eks. slettet) — trygt å fortsette.
-        console.warn('[founders-activate] kunne ikke hente eksisterende abonnement, fortsetter:', err)
+        console.warn('[founders-activate] abonnementet finnes ikke i Stripe lenger, fortsetter:', err)
+      }
+
+      // Et slettet objekt er også «borte» — men bare når flagget faktisk står.
+      if ((existing as { deleted?: boolean } | null)?.deleted === true) {
+        existing = null
+      }
+
+      if (existing && (existing.status === 'trialing' || existing.status === 'active')) {
+        return NextResponse.json(
+          { error: 'Du har allerede en aktiv Founders-prøveperiode.' },
+          { status: 409 },
+        )
       }
     }
 
-    let customerId = profile?.stripe_customer_id ?? null
+    // ── Trial-lengde: fail-closed, ingen gjettet fallback ────────────────────
+    // Plass-/isFull-logikken og 30/7-fallbackene er fjernet sammen med det gamle
+    // tilbudet. Samme begrunnelse som profiloppslaget over: kan vi ikke lese hvor
+    // lang prøveperioden skal være, må vi ikke opprette en. Å nekte koster én
+    // irritert bruker som prøver igjen; å gjette gir et abonnement med en lengde
+    // ingen har bestemt. Sjekken ligger FØR kunde-opprettelsen, så en avvist
+    // forespørsel ikke etterlater spor hos Stripe.
+    const { data: settingRow, error: settingError } = await supabaseAdmin
+      .from('site_settings')
+      .select('value')
+      .eq('key', TRIAL_DAYS_SETTING_KEY)
+      .maybeSingle()
+
+    const trialLengthUnavailable = () => NextResponse.json(
+      { error: 'Vi får ikke satt opp prøveperioden akkurat nå. Prøv igjen om et par minutter.' },
+      { status: 503 },
+    )
+
+    if (settingError) {
+      console.error(
+        `[founders-activate] kunne ikke lese ${TRIAL_DAYS_SETTING_KEY} — avbryter (fail-closed):`,
+        settingError,
+      )
+      return trialLengthUnavailable()
+    }
+    if (!settingRow) {
+      console.error(
+        `[founders-activate] ${TRIAL_DAYS_SETTING_KEY} mangler i site_settings — avbryter (fail-closed). ` +
+        'Raden må legges inn før Founders-aktivering kan brukes.',
+      )
+      return trialLengthUnavailable()
+    }
+
+    const trialPeriodDays = Number(settingRow.value ?? NaN)
+    if (!Number.isInteger(trialPeriodDays) || trialPeriodDays <= 0) {
+      console.error(
+        `[founders-activate] ${TRIAL_DAYS_SETTING_KEY} = ${JSON.stringify(settingRow.value)} ` +
+        'er ikke et positivt heltall — avbryter (fail-closed).',
+      )
+      return trialLengthUnavailable()
+    }
+
+    let customerId = profile.stripe_customer_id ?? null
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -72,45 +185,24 @@ export async function POST(request: NextRequest) {
         idempotencyKey: `founders-activate:customer:${user.id}`,
       })
       customerId = customer.id
-      await supabaseAdmin
+      const { error: customerIdError } = await supabaseAdmin
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', user.id)
+      if (customerIdError) {
+        // Ikke blokkerende: id-en vi nettopp opprettet brukes videre i denne
+        // forespørselen, og `idempotencyKey` gjør at et nytt forsøk får SAMME
+        // kunde tilbake fra Stripe i stedet for en duplikat. Men den skal
+        // logges som feil — går den tapt, mangler profilen kunde-koblingen.
+        console.error('[founders-activate] kunne ikke lagre stripe_customer_id:', customerIdError)
+      }
     }
 
-    // Hent dynamisk prøvetid fra site_settings (key/value-tabell)
-    const { data: settingsRows } = await supabaseAdmin
-      .from('site_settings')
-      .select('key, value')
-      .in('key', ['founders_max_slots', 'founders_days_free', 'founders_trial_days'])
-
-    const settingsMap = Object.fromEntries(
-      (settingsRows ?? []).map(r => [r.key, parseInt(r.value as string)])
-    )
-    const maxSlots  = settingsMap.founders_max_slots  ?? 250
-    const daysFree  = settingsMap.founders_days_free  ?? 30
-    const trialDays = settingsMap.founders_trial_days ?? 7
-
-    const { count } = await supabaseAdmin
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .in('premium_source', ['founders', 'code'])
-      .eq('premium_status', true)
-
-    const isFull = (count ?? 0) >= maxSlots
-    const trialPeriodDays = isFull ? trialDays : daysFree
-
-    // Frem til 15. august 2026: Founders-signups (når det er ledige plasser) får
-    // fast trial_end på tilbudsdatoen. Er tilbudet fullt, eller er vi forbi datoen,
-    // beholdes den eksisterende trial_period_days-logikken uendret som fallback.
-    const beforeDeadline = Date.now() < FOUNDERS_TRIAL_END * 1000
-    const useFixedTrialEnd = beforeDeadline && !isFull
-
-    // Atomisk claim: hindrer TOCTOU der samtidige forespørsler (knapp, mount-sjekk
-    // og OAuth-callback kan alle passere en enkel check-then-act-sjekk) alle
-    // oppretter hvert sitt Stripe-abonnement for samme bruker. Speiler
-    // org-trial-code-claimet i org-founders-activate. Claimer FØR Stripe-kallet;
-    // rulles tilbake under hvis selve Stripe-kallet feiler.
+    // ── Atomisk claim = den ekte sperren ─────────────────────────────────────
+    // `.eq('has_used_trial', false)` gjør engangs-regelen race-sikker uavhengig
+    // av lesevakten over: to samtidige kall kan aldri begge matche raden, så
+    // bare én kan opprette et abonnement. Claimer FØR Stripe-kallet; rulles
+    // tilbake under hvis Stripe feiler.
     const { data: claimedProfile, error: claimError } = await supabaseAdmin
       .from('profiles')
       .update({
@@ -118,9 +210,11 @@ export async function POST(request: NextRequest) {
         premium_since: new Date().toISOString(),
         premium_source: 'founders',
         trial_reminder_sent_at: null,
+        has_used_trial: true,
       })
       .eq('id', user.id)
       .not('premium_status', 'is', true)
+      .eq('has_used_trial', false)
       .select('id')
       .maybeSingle()
 
@@ -130,7 +224,30 @@ export async function POST(request: NextRequest) {
     }
 
     if (!claimedProfile) {
+      // Enten har brukeren alt Premium, eller et samtidig kall vant claimet.
       return NextResponse.json({ error: 'Du har allerede Premium' }, { status: 400 })
+    }
+
+    // Rollback av claimet. `has_used_trial` MÅ med: merket betyr «har HATT en
+    // prøveperiode», ikke «har trykket på knappen». Uten dette ville et
+    // mislykket Stripe-kall låst brukeren ute fra prøveperioden for godt.
+    const rollbackClaim = async (reason: string) => {
+      const { error: rollbackError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+          premium_status: false,
+          premium_source: null,
+          premium_since: null,
+          has_used_trial: false,
+        })
+        .eq('id', user.id)
+      if (rollbackError) {
+        console.error(
+          `[founders-activate] ROLLBACK FEILET etter ${reason} for ${user.id} — ` +
+          'profilen kan stå med premium_status=true og has_used_trial=true uten dekning:',
+          rollbackError,
+        )
+      }
     }
 
     let subscription: Stripe.Subscription
@@ -138,28 +255,33 @@ export async function POST(request: NextRequest) {
       subscription = await stripe.subscriptions.create({
         customer: customerId,
         items: [{ price: FOUNDERS_PRICE_ID }],
-        ...(useFixedTrialEnd
-          ? { trial_end: FOUNDERS_TRIAL_END }
-          : { trial_period_days: trialPeriodDays }),
+        trial_period_days: trialPeriodDays,
         payment_settings: { save_default_payment_method: 'off' },
       }, {
         idempotencyKey: `founders-activate:${user.id}`,
       })
     } catch (stripeErr) {
       console.error('[founders-activate] Stripe-abonnement feilet, ruller tilbake claim:', stripeErr)
-      await supabaseAdmin
-        .from('profiles')
-        .update({ premium_status: false, premium_source: null, premium_since: null })
-        .eq('id', user.id)
+      await rollbackClaim('feilet subscriptions.create')
       return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
     }
 
+    // Feilet denne skrivingen tidligere, ble den bare logget og svelget — og da
+    // hadde VAKT 2 ingenting å slå opp ved neste kall. Behandles nå som en
+    // feilet aktivering.
     const { error: subIdError } = await supabaseAdmin
       .from('profiles')
       .update({ personal_stripe_subscription_id: subscription.id })
       .eq('id', user.id)
     if (subIdError) {
-      console.error('[founders-activate] kunne ikke lagre personal_stripe_subscription_id:', subIdError)
+      console.error(
+        '[founders-activate] kunne ikke lagre personal_stripe_subscription_id — ' +
+        `behandles som feilet aktivering. Abonnement ${subscription.id} (kunde ${customerId}) ` +
+        'er opprettet hos Stripe og må ryddes manuelt:',
+        subIdError,
+      )
+      await rollbackClaim('feilet lagring av personal_stripe_subscription_id')
+      return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })
     }
 
     // Send founders-aktiveringsbekreftelse — fire-and-forget
