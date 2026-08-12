@@ -8,12 +8,14 @@ import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
 import type { Session } from '@supabase/supabase-js'
 
+// max/remaining/daysFree er null når tallet ikke er innstilt i site_settings —
+// da viser vi tekst uten tall i stedet for å oppgi et oppdiktet antall.
 type FoundersCount = {
   used: number
-  max: number
-  remaining: number
+  max: number | null
+  remaining: number | null
   isFull: boolean
-  daysFree: number
+  daysFree: number | null
   isFounders: boolean
 }
 
@@ -297,21 +299,17 @@ export default function FoundersPage() {
   }
 
   const fd = foundersData
-  const daysFree = fd?.daysFree ?? 30
-  const isFounders = fd?.isFounders ?? true
-
-  // Founders-tilbudet er forlenget til 15. august 2026 (23:59 Europe/Oslo).
-  // Frem til da viser vi konkret sluttdato; etter datoen (eller når tilbudet er
-  // fullt) faller vi tilbake til «dager gratis»-teksten — i tråd med fallbacken
-  // i /api/stripe/founders-activate.
-  const beforeDeadline = Date.now() < new Date('2026-08-15T23:59:00+02:00').getTime()
-  const showDeadline = beforeDeadline && isFounders
-  const DEADLINE_LABEL = '15. august'
+  // Lengden på prøveperioden leses fra site_settings via /api/founders/count.
+  // Er den ikke innstilt, sier vi «gratis» uten å oppgi et antall dager — teksten
+  // skal ikke kunne bli usann av at kampanjen endres.
+  const daysFree = fd?.daysFree ?? null
+  const isFounders = fd?.isFounders ?? false
+  const periodLabel = daysFree !== null ? `${daysFree} dager` : 'prøveperioden'
 
   const btnLabel = loading
     ? 'Aktiverer...'
-    : showDeadline
-      ? `Aktiver gratis til ${DEADLINE_LABEL} →`
+    : daysFree === null
+      ? 'Aktiver gratis tilgang →'
       : isFounders
         ? `Aktiver ${daysFree} dager gratis →`
         : `Start ${daysFree} dager gratis →`
@@ -333,18 +331,18 @@ export default function FoundersPage() {
               {fd.isFounders ? 'Founders-tilbud' : 'Prøv gratis'}
             </p>
             <p style={s.countdownTitle}>
-              {fd.isFounders
+              {fd.isFounders && fd.remaining !== null
                 ? `${fd.remaining} av ${fd.max} plasser igjen`
-                : `${fd.daysFree} dager gratis`}
+                : daysFree !== null
+                  ? `${daysFree} dager gratis`
+                  : 'Prøv Premium gratis'}
             </p>
             <p style={s.countdownSub}>
-              {fd.isFounders
-                ? (showDeadline
-                    ? `Gratis til ${DEADLINE_LABEL} — ingen kortinfo nødvendig`
-                    : `${fd.daysFree} dager gratis — ingen kortinfo nødvendig`)
+              {daysFree !== null
+                ? `${daysFree} dager gratis — ingen kortinfo nødvendig`
                 : 'Ingen kortinfo nødvendig'}
             </p>
-            {fd.isFounders && (
+            {fd.isFounders && fd.max !== null && (
               <>
                 <div style={s.progressTrack}>
                   <div style={{
@@ -367,9 +365,9 @@ export default function FoundersPage() {
 
           <ul style={s.checkList}>
             {[
-              showDeadline
-                ? `Gratis til ${DEADLINE_LABEL} — ingen kortinfo nødvendig`
-                : `${daysFree} dager gratis — ingen kortinfo nødvendig`,
+              daysFree !== null
+                ? `${daysFree} dager gratis — ingen kortinfo nødvendig`
+                : 'Gratis prøveperiode — ingen kortinfo nødvendig',
               'Tilgang til alle Premium-funksjoner',
               'For deg som er tidlig ute og vil forme produktet.',
             ].map(perk => (
@@ -416,7 +414,7 @@ export default function FoundersPage() {
           )}
 
           <p style={{ fontSize: 12, color: '#e8e4dd', fontStyle: 'italic', textAlign: 'center', lineHeight: 1.6 }}>
-            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette {showDeadline ? `etter ${DEADLINE_LABEL}` : `etter ${daysFree} dager`}.
+            Ingen binding. Ingen automatisk trekk — du velger selv om du vil fortsette etter {periodLabel}.
           </p>
         </div>
       </div>
@@ -425,7 +423,7 @@ export default function FoundersPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         next="/founders"
-        description="Logg inn for å aktivere din gratis Founders-måned — ingen kortinfo nødvendig."
+        description="Logg inn for å aktivere gratis tilgang — ingen kortinfo nødvendig."
       />
     </div>
     </>

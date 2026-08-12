@@ -995,7 +995,9 @@ export default function QuizPage() {
     orgsLoaded: myOrgsLoaded,
     orgs: myOrgs,
   })
-  const [foundersData, setFoundersData] = useState<{ used: number; max: number; remaining: number; daysFree: number; isFounders: boolean } | null>(null)
+  // max/remaining/daysFree er null når tallet ikke er innstilt i site_settings —
+  // da viser vi tekst uten tall framfor et oppdiktet antall (se /api/founders/count).
+  const [foundersData, setFoundersData] = useState<{ used: number; max: number | null; remaining: number | null; daysFree: number | null; isFounders: boolean } | null>(null)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
@@ -3872,7 +3874,7 @@ export default function QuizPage() {
             padding: 28,
           }}>
             {/* Founders-badge */}
-            {foundersData?.isFounders && (
+            {foundersData?.isFounders && foundersData.remaining !== null && (
               <div style={{ marginBottom: 12 }}>
                 <span style={{
                   display: 'inline-block',
@@ -3896,7 +3898,7 @@ export default function QuizPage() {
               lineHeight: 1.3,
               marginBottom: 8,
             }}>
-              {foundersData
+              {foundersData?.daysFree != null
                 ? `Prøv Premium gratis i ${foundersData.daysFree} dager`
                 : 'Følg fremgangen din uke etter uke'}
             </p>
@@ -3923,13 +3925,13 @@ export default function QuizPage() {
               color: '#e8e4dd',
               textDecoration: 'none',
             }}>
-              {foundersData?.isFounders
-                ? `Aktiver ${foundersData.daysFree} dager gratis — ingen kortinfo →`
-                : foundersData
-                  ? `Start ${foundersData.daysFree} dager gratis →`
-                  : 'Prøv gratis i 30 dager →'}
+              {foundersData?.daysFree == null
+                ? 'Prøv Premium gratis →'
+                : foundersData.isFounders
+                  ? `Aktiver ${foundersData.daysFree} dager gratis — ingen kortinfo →`
+                  : `Start ${foundersData.daysFree} dager gratis →`}
             </a>
-            {foundersData?.isFounders && (
+            {foundersData?.isFounders && foundersData.remaining !== null && (
               <p style={{ fontSize: 12, color: '#918f8a', marginTop: 10, textAlign: 'center' }}>
                 Kun {foundersData.remaining} plasser igjen
               </p>

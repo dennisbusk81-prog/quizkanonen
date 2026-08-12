@@ -290,11 +290,13 @@ export function welcomeFreeEmail(firstNameRaw: string): string {
                 </tr>
               </table>
 
-              <!-- MIDLERTIDIG: Founders Access-nevnelse — fjern når kampanjen avsluttes -->
+              <!-- Premium-nevnelse. Ingen dagtall/sluttdato her: e-posten leses lenge
+                   etter at den ble sendt, og prøveperiodens lengde er en innstilling. -->
               <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
-                Nysgjerrig på mer? Med
-                <a href="https://www.quizkanonen.no/founders" style="color:#e8e4dd;text-decoration:underline;">Founders Access</a>
-                får du 30 dager med full tilgang — nøyaktig plassering, historikk, statistikk, private ligaer og sesongtoppliste — helt gratis, ingen kortinfo nødvendig.
+                Nysgjerrig på mer? Med Premium får du nøyaktig plassering, historikk, statistikk,
+                private ligaer og sesongtoppliste. Du kan
+                <a href="https://www.quizkanonen.no/founders" style="color:#e8e4dd;text-decoration:underline;">prøve gratis</a>
+                — ingen kortinfo nødvendig.
               </p>
 
               <p style="margin:0;font-size:15px;color:#e8e4dd;line-height:1.7;">
@@ -1050,7 +1052,7 @@ export function trialEndedNoCardEmail(): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Founders-prøveperioden din er nå ferdig. Du la aldri inn kort, så du er ikke
+                Den gratis prøveperioden din er nå ferdig. Du la aldri inn kort, så du er ikke
                 blitt trukket for noe — og det skjer ikke automatisk heller.
               </p>
 
@@ -1164,12 +1166,12 @@ export function orgPaymentFailedEmail(orgNameRaw: string, orgSlug: string): stri
 }
 
 export function foundersWelcomeEmail(trialEnd?: number | null): string {
-  // Vis konkret sluttdato basert på abonnementets faktiske trial_end (Unix-sekunder)
-  // i stedet for en hardkodet «30 dager». Faller tilbake til «30 dager» hvis vi ikke
-  // kjenner trial_end.
+  // Vis konkret sluttdato basert på abonnementets faktiske trial_end (Unix-sekunder).
+  // Kjenner vi den ikke, sier vi «i prøveperioden» — aldri et gjettet dagtall, som
+  // ville blitt usant så snart lengden på prøveperioden endres.
   const accessLine = trialEnd
     ? `Du er blant de første. Det betyr noe. Full tilgang gratis til ${new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' }).format(new Date(trialEnd * 1000))} — ingen kortinfo, ingen forpliktelse. Bare spill.`
-    : 'Du er blant de første. Det betyr noe. 30 dager med full tilgang — ingen kortinfo, ingen forpliktelse. Bare spill.'
+    : 'Du er blant de første. Det betyr noe. Full tilgang gratis i prøveperioden — ingen kortinfo, ingen forpliktelse. Bare spill.'
   return `<!DOCTYPE html>
 <html lang="no">
 <head>

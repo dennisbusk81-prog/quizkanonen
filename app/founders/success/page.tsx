@@ -118,8 +118,8 @@ export default async function FoundersSuccessPage() {
         </h1>
 
         <div style={s.card}>
-          <h2 style={s.heading}>Velkommen som Founder!</h2>
-          <p style={s.activated}>30 dager gratis tilgang er aktivert</p>
+          <h2 style={s.heading}>Velkommen om bord!</h2>
+          <p style={s.activated}>Gratis tilgang er aktivert</p>
 
           {/* Feature list */}
           <div style={{ background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', marginBottom: 28, textAlign: 'left' as const }}>
@@ -146,7 +146,7 @@ export default async function FoundersSuccessPage() {
               <strong style={{ color: '#e8e4dd' }}>Ingen automatisk trekk</strong> — du bestemmer selv om du vil fortsette etter prøveperioden.
             </p>
             <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, margin: 0 }}>
-              Vi sender deg en påminnelse på e-post før de 30 dagene utløper.
+              Vi sender deg en påminnelse på e-post før prøveperioden utløper.
             </p>
           </div>
 

@@ -172,7 +172,11 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
           .select('key, value')
           .in('key', ['founders_max_slots'])
         const rows = (settingsRows ?? []) as { key: string; value: string }[]
-        const maxSlots = parseInt(rows.find(r => r.key === 'founders_max_slots')?.value ?? '250')
+        // Uten et innstilt tak i site_settings har vi ingen plassramme å vise —
+        // returner null i stedet for et oppdiktet tall (plasslinjen skjules da).
+        const rawMax = rows.find(r => r.key === 'founders_max_slots')?.value
+        const maxSlots = rawMax != null ? parseInt(rawMax) : NaN
+        if (!Number.isFinite(maxSlots)) return null
         const { count } = await supabaseAdmin
           .from('profiles')
           .select('id', { count: 'exact', head: true })
@@ -2109,7 +2113,7 @@ export default async function Home() {
           <div className="qk-narrow-wrap">
           <div className="qk-founders">
             <p className="qk-founders-eyebrow">Founders Access</p>
-            <h2 className="qk-founders-title">Prøv Premium gratis til 15. august</h2>
+            <h2 className="qk-founders-title">Prøv Premium gratis</h2>
             <p className="qk-founders-sub">Ingen kortinfo. Ingen automatisk trekk. Vi minner deg på e-post før perioden utløper.</p>
             {foundersSettingsResult && (
               <p style={{

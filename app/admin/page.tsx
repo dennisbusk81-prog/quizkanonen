@@ -362,7 +362,8 @@ export default function AdminHome() {
   const [resetting, setResetting] = useState(false)
   const [resetDone, setResetDone] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
-  const [foundersCount, setFoundersCount] = useState<{ used: number; max: number; remaining: number; isFounders: boolean } | null>(null)
+  // max/remaining er null når founders_max_slots ikke er innstilt (se /api/founders/count)
+  const [foundersCount, setFoundersCount] = useState<{ used: number; max: number | null; remaining: number | null; isFounders: boolean } | null>(null)
   const [foundersSettings, setFoundersSettings] = useState({ max: 250, daysFree: 30, trialDays: 7 })
   const [foundersSaving, setFoundersSaving] = useState(false)
   const [foundersSaved, setFoundersSaved] = useState(false)
@@ -674,12 +675,16 @@ export default function AdminHome() {
           {/* Live status */}
           <div style={{ marginBottom: 16 }}>
             <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 8 }}>
-              {foundersCount ? `${foundersCount.used} av ${foundersCount.max} plasser brukt` : '0 av 250 plasser brukt'}
+              {foundersCount == null
+                ? 'Laster …'
+                : foundersCount.max === null
+                  ? `${foundersCount.used} plasser brukt — tak ikke innstilt`
+                  : `${foundersCount.used} av ${foundersCount.max} plasser brukt`}
             </p>
             <div style={{ height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', width: '100%', marginTop: 8 }}>
               <div style={{
                 height: '100%',
-                width: foundersCount ? `${Math.min(100, (foundersCount.used / foundersCount.max) * 100)}%` : '0%',
+                width: foundersCount?.max ? `${Math.min(100, (foundersCount.used / foundersCount.max) * 100)}%` : '0%',
                 background: '#c9a84c',
                 borderRadius: 4,
                 transition: 'width 0.6s ease',
