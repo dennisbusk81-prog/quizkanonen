@@ -3175,7 +3175,13 @@ export default function QuizPage() {
       <div className="qk-side">
         <div className="qk-side-card">
           <p className="qk-side-label">Akkurat nå</p>
-          {rankingSnapshot && (
+          {/* totalPlayers > 0: serveren teller nå kun LEVERTE forsøk (rival-
+              rutens buildRankingSnapshot), så 0 betyr «ingen har levert» —
+              da finnes ingen leder, og blokken skjules i stedet for å vise
+              «Ukjent / 0 riktige». Klientsjekk framfor endret svarform:
+              responsens fasong er uendret, så en gammel fane under deploy
+              møter aldri et felt den ikke kjenner. */}
+          {rankingSnapshot && rankingSnapshot.totalPlayers > 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3189,7 +3195,7 @@ export default function QuizPage() {
               </div>
             </div>
           )}
-          <div style={{ borderTop: rankingSnapshot ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot ? 14 : 0 }}>
+          <div style={{ borderTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? 14 : 0 }}>
             {interLow !== null && interHigh !== null ? (
               <>
                 <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 4 }}>Din plass</div>
@@ -3198,9 +3204,23 @@ export default function QuizPage() {
                 </div>
                 <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginTop: 2 }}>estimert</div>
               </>
-            ) : (
+            ) : answers.length < MIN_ANSWERED_FOR_PLACEMENT ? (
+              // Under terskelen: sant — det er faktisk antall besvarte som
+              // mangler. Nøklet på answers.length (antall besvarte), IKKE på
+              // interLow: interLow er null også over terskelen når spennet
+              // uteble (én spiller i feltet, eller feilet kall), og da var
+              // «Svar på minst 3» en usann forklaring til en som hadde svart
+              // på fire (VINDU D, 13. august 2026).
               <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
                 Svar på minst {MIN_ANSWERED_FOR_PLACEMENT} spørsmål for å se din estimerte plass.
+              </div>
+            ) : (
+              // Over terskelen uten spenn. Årsaken kan ikke skilles her uten
+              // å røre goToNext (der low/high settes): «for få har levert» og
+              // «kallet feilet» ender i samme tilstand. Ordlyden er derfor
+              // årsaksnøytral — sann i begge — i stedet for å påstå en av dem.
+              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
+                Ingen estimert plass ennå.
               </div>
             )}
           </div>

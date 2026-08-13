@@ -31,6 +31,9 @@ async function buildSuggestions(quizId: string, excludeUserId: string) {
     .eq('quiz_id', quizId)
     .eq('is_team', false)
     .not('user_id', 'is', null)
+    // Kun leverte — en som bare har STARTET skal ikke foreslås som
+    // duell-motstander med 0 riktige (samme filter som resten av filen).
+    .not('submitted_at', 'is', null)
     .neq('user_id', excludeUserId)
     .limit(60)
 
@@ -60,12 +63,22 @@ async function buildSuggestions(quizId: string, excludeUserId: string) {
 }
 
 async function buildRankingSnapshot(quizId: string) {
+  // KUN LEVERTE forsøk — samme ferdig-definisjon som getOrBuildSnapshot
+  // (lib/ranking-snapshot.ts) og findRival under. Manglet her fra fødselen
+  // (10f7c6b): start-attempt oppretter raden med correct_answers=0 og
+  // submitted_at=null, og submit skriver tallet først ved innsending. Uten
+  // filteret ble en spiller som bare hadde STARTET «I tet … 0 riktige» i
+  // sidepanelet — synlig hver fredag kveld før første innlevering, og
+  // gjennom hele quizen for en spiller alene. totalPlayers/top10MinCorrect
+  // telles fra samme leverte felt, så mellomskjermens «Du er i topp 10»
+  // regnes ikke lenger mot uferdige nuller.
   const [{ data: top11 }, { count: totalCount }] = await Promise.all([
     supabaseAdmin
       .from('attempts')
       .select('user_id, correct_answers, total_time_ms')
       .eq('quiz_id', quizId)
       .eq('is_team', false)
+      .not('submitted_at', 'is', null)
       .order('correct_answers', { ascending: false })
       .order('total_time_ms', { ascending: true })
       .limit(11),
@@ -73,7 +86,8 @@ async function buildRankingSnapshot(quizId: string) {
       .from('attempts')
       .select('*', { count: 'exact', head: true })
       .eq('quiz_id', quizId)
-      .eq('is_team', false),
+      .eq('is_team', false)
+      .not('submitted_at', 'is', null),
   ])
 
   const top11List = top11 ?? []
