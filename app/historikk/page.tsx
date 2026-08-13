@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { hasSettledPlays } from '@/lib/has-settled-plays'
-import { pluralNo } from '@/lib/plural-no'
+import { decideHero, decideRecords, pickBesteResultat } from '@/lib/historikk-oversikt'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
@@ -41,7 +41,7 @@ type ProgMsg = { tekst: string; variant: ProgVariant }
 
 function toProgMsg(p: Progresjon): ProgMsg {
   if (p.type === 'first') {
-    return { tekst: 'Godt start! Kom tilbake neste uke for å se utviklingen din', variant: 'neutral' }
+    return { tekst: 'God start! Kom tilbake neste uke for å se utviklingen din', variant: 'neutral' }
   }
   if (p.diff > 0) {
     return {
@@ -84,7 +84,11 @@ const s = {
   heroEyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 4 },
   heroNum:      { fontFamily: "'Libre Baskerville', serif", fontSize: 64, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
   heroNumLabel: { fontSize: 12, color: '#918f8a', letterSpacing: '0.06em', marginBottom: 10 },
-  heroSub:      { fontSize: 13, color: '#918f8a' },
+  // `lineHeight` og `maxWidth` er ikke pynt: underteksten var før en kort
+  // tallinje («7 quizer spilt · snitt 62%»), men bærer nå hele setninger på opp
+  // mot 65 tegn. På mobil brekker de over to–tre linjer, og uten linjeavstand
+  // klumper de seg. maxWidth holder linjelengden lesbar på desktop.
+  heroSub:      { fontSize: 13, color: '#918f8a', lineHeight: 1.5, maxWidth: 420, margin: '0 auto' },
   heroRule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 12 },
 
   // Graph card — progresjon msg inside
@@ -96,22 +100,23 @@ const s = {
   progNeutral:  { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(106,104,96,0.1)', border: '1px solid #2a2d38', color: '#918f8a' },
   graphEmpty:   { padding: '20px 0', textAlign: 'center' as const, fontSize: 13, color: '#918f8a', fontStyle: 'italic' as const },
 
-  // Stats — featured row + small grid
-  featuredRow:  { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 },
-  featuredCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
-  featuredNum:  { fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
   featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#918f8a', marginBottom: 2 },
   featuredCtx:  { fontSize: 10, color: '#918f8a', lineHeight: 1.4 },
 
-  smallGrid:    { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 },
-  smallCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '12px 8px', textAlign: 'center' as const },
-  smallNum:     { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 },
-  smallLbl:     { fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 },
+  // Rekorder — én rad per rekord, verdien til høyre. Radform framfor et
+  // rutenett av tall: hver rekord bærer sin egen kontekst («13 av 15 ·
+  // Fredagsquiz 24.07»), og kontekst trenger bredde, ikke en rute.
+  //
+  // Tallene her er HVITE, ikke gull. Heroen er sidens ene gull-element øverst;
+  // et rekordkort i gull rett under ville gitt to gull-flater på samme skjerm.
+  recCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 10 },
+  recHeader:    { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 14 },
+  recRow:       { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '9px 0' },
+  recRowFirst:  { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '0 0 9px' },
+  recLbl:       { fontSize: 12, color: '#918f8a', flexShrink: 0 },
+  recVal:       { fontSize: 13, fontWeight: 600, color: '#ffffff', textAlign: 'right' as const, minWidth: 0 },
+  recDivider:   { height: 1, background: '#2a2d38' },
 
-  // Deltakelsesrekke + kategori-styrke. Egne kort framfor en femte kolonne i
-  // smallGrid: tallet her kommer aldri alene (rekorden står under det), og
-  // kategoriene er ord, ikke tall — begge trenger mer bredde enn 1/4 rad.
-  streakCard:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px', marginBottom: 10 },
   catRow:       { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 },
   catCard:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px' },
   catVal:       { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1.2, marginBottom: 4, overflowWrap: 'break-word' as const },
@@ -501,6 +506,37 @@ export default function HistorikkPage() {
 
   const progMsg = stats?.progresjon ? toProgMsg(stats.progresjon) : null
 
+  const hero = stats
+    ? decideHero({
+        totalAttempts: stats.total_attempts,
+        deltakelsesrekke: stats.deltakelsesrekke,
+        lengsteDeltakelsesrekke: stats.lengste_deltakelsesrekke,
+      })
+    : { kind: 'empty' as const }
+
+  // «Beste resultat» finnes IKKE i PlayerStats og kan bare utledes av
+  // `history` — som er paginert med 50 rader per side. Regnes den på en delvis
+  // liste, blir raden «beste av de 50 siste» uten at noe ser galt ut, og den
+  // ville bommet for nettopp de mest trofaste spillerne, som er de eneste som
+  // noen gang passerer 50 quizer.
+  //
+  // Vakten er eksakt, ikke et anslag: `total` er radantallet i basen (count
+  // exact fra API-et), `history.length` er det vi faktisk holder. Er de like,
+  // har vi alt. Ellers sendes null, og decideRecords utelater raden — helt til
+  // brukeren trykker «Last inn flere», og den dukker opp av seg selv.
+  const historikkErKomplett = total > 0 && history.length >= total
+  const besteResultat = historikkErKomplett ? pickBesteResultat(history) : null
+
+  const recordRows = stats
+    ? decideRecords({
+        besteResultat,
+        bestStreak: stats.best_streak,
+        lengsteDeltakelsesrekke: stats.lengste_deltakelsesrekke,
+        totalAttempts: stats.total_attempts,
+        heroViserRekke: hero.kind === 'rekke',
+      })
+    : []
+
   if (historyLocked) {
     return (
       <>
@@ -542,23 +578,30 @@ export default function HistorikkPage() {
             <Link href="/" style={s.back}>← Tilbake til forsiden</Link>
           </div>
 
-          {/* Hero */}
+          {/* Hero — tilstandsstyrt, all beslutningslogikk i
+              lib/historikk-oversikt.ts (decideHero).
+
+              Her sto til 13. august 2026 «#N — din beste plassering» i 64px
+              gull. Tallet ble regnet live over attempts i stedet for å leses
+              fra season_scores, så det kunne oppstå også for spillere som ikke
+              har noen global plassering i det hele tatt. Og det pekte bakover
+              for de fleste: av 75 spillere med minst 3 quizer har bare 11 sin
+              beste plassering fra siste quiz.
+
+              Rangering hører hjemme på topplista, som er laget for det.
+              Heroen svarer nå på «kommer jeg tilbake?» — det spørsmålet
+              /historikk faktisk er til for. */}
           <div style={s.hero}>
             <div style={s.heroEyebrow}>Din historikk · Premium</div>
-            {stats && stats.beste_plassering !== null ? (
+            {hero.kind !== 'empty' ? (
               <>
-                <div style={s.heroNum}>#{stats.beste_plassering}</div>
-                <div style={s.heroNumLabel}>din beste plassering</div>
+                <div style={s.heroNum}>{hero.tall}</div>
+                <div style={s.heroNumLabel}>{hero.label}</div>
+                <div style={s.heroSub}>{hero.sub}</div>
               </>
             ) : (
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 10 }}>
                 Din historikk
-              </div>
-            )}
-            {stats && stats.total_attempts > 0 && (
-              <div style={s.heroSub}>
-                {stats.total_attempts} {pluralNo(stats.total_attempts, 'quiz spilt', 'quizer spilt')}
-                {' · '}snitt {stats.avg_score_pct}%
               </div>
             )}
             <div style={s.heroRule} />
@@ -582,9 +625,18 @@ export default function HistorikkPage() {
             )}
           </div>
 
-          {/* Ferske tall først: deltakelsesrekke og kategoristyrke sier noe om
-              hvor spilleren står NÅ, og står derfor over den bakoverskuende
-              statistikken (utvikling, persentiler, totaler).
+          {/* Kategoristyrken sier noe om hvor spilleren står NÅ, og står derfor
+              over den bakoverskuende statistikken.
+
+              DET EGNE DELTAKELSESREKKE-KORTET ER FJERNET (13. august 2026).
+              Det viste rekken som tall og rekorden som kontekstlinje — begge
+              deler bor nå ett sted hver: rekken i heroen, rekorden i heroens
+              undertekst når heroen viser rekken, ellers i Rekorder-kortet
+              under. Beholdt man kortet, ville rekorden stått to steder på
+              samme skjerm i nøyaktig de tilstandene der heroen viser totalen.
+              Kortets «0 nå»-tilstand er samtidig den typen bare nulltall denne
+              omskrivingen finnes for å fjerne — at rekken er brutt sier
+              heroens undertekst nå med ord.
 
               Samme betingelse som blokken lenger ned — `stats.total_attempts > 0`
               — står bevisst to steder framfor at ScoreGraph flyttes inn i den:
@@ -592,33 +644,6 @@ export default function HistorikkPage() {
               for under to quizer. */}
           {stats && stats.total_attempts > 0 && (
             <>
-              {/* Deltakelsesrekke — fredagsquizer på rad. Ikke det samme som
-                  «Beste streak» lenger ned, som er riktige svar på rad inne i ÉN
-                  quiz. Rekken skal aldri stå som et bart 0-tall: når den er brutt
-                  er rekorden hele poenget, så den flyttes opp i selve tallinja. */}
-              <div style={s.streakCard}>
-                {stats.deltakelsesrekke > 0 ? (
-                  <>
-                    <div style={s.featuredNum}>{stats.deltakelsesrekke}</div>
-                    <div style={s.featuredLbl}>Fredagsquizer på rad</div>
-                    <div style={s.featuredCtx}>
-                      {stats.lengste_deltakelsesrekke > stats.deltakelsesrekke
-                        ? `Rekorden din er ${stats.lengste_deltakelsesrekke}`
-                        : 'Dette er rekorden din'}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={s.featuredNum}>0 nå</div>
-                    <div style={s.featuredLbl}>Fredagsquizer på rad</div>
-                    <div style={s.featuredCtx}>
-                      {stats.lengste_deltakelsesrekke > 0
-                        ? `Rekorden din er ${stats.lengste_deltakelsesrekke} — spill neste fredagsquiz, så starter en ny rekke`
-                        : 'Spill neste fredagsquiz, så starter rekken din'}
-                    </div>
-                  </>
-                )}
-              </div>
 
               {/* Kategoristyrke settes alltid samlet av getPlayerStats — begge
                   er null, eller ingen er det. Er de null, vises ingenting;
@@ -653,47 +678,45 @@ export default function HistorikkPage() {
           {/* Graph with inline progresjon */}
           <ScoreGraph history={history} progMsg={progMsg} />
 
-          {/* Stats — featured + small */}
-          {stats && stats.total_attempts > 0 && (
-            <>
-              <div style={s.featuredRow}>
-                <div style={s.featuredCard}>
-                  <div style={s.featuredNum}>
-                    {stats.bedre_enn_prosent !== null ? `${stats.bedre_enn_prosent}%` : '—'}
-                  </div>
-                  <div style={s.featuredLbl}>Bedre enn andre</div>
-                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
-                </div>
-                <div style={s.featuredCard}>
-                  <div style={s.featuredNum}>
-                    {stats.raskere_enn_prosent !== null ? `${stats.raskere_enn_prosent}%` : '—'}
-                  </div>
-                  <div style={s.featuredLbl}>Raskere enn andre</div>
-                  <div style={s.featuredCtx}>av alle deltakere siste 3 mnd</div>
-                </div>
-              </div>
+          {/* Rekorder — erstatter det gamle 4-rutersnettet.
 
-              <div style={s.smallGrid}>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.total_attempts}</div>
-                  <div style={s.smallLbl}>Quizer spilt</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.avg_score_pct}%</div>
-                  <div style={s.smallLbl}>Snitt score</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>{stats.best_streak}</div>
-                  <div style={s.smallLbl}>Beste streak</div>
-                </div>
-                <div style={s.smallCard}>
-                  <div style={s.smallNum}>
-                    {stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—'}
+              HER LÅ «BEDRE ENN ANDRE» / «RASKERE ENN ANDRE». Begge er fjernet
+              13. august 2026, uten erstatning. Ikke bygg dem tilbake:
+
+              • Tempo-persentilen målte ingenting. Korrelasjonen mellom tempo
+                og treffsikkerhet er 0,06 over de 77 spillerne med minst 3
+                quizer i prod — altså null. Raskeste spiller ligger på 53 %
+                snitt, tregeste på 36 %, og de beste ligger midt i tempofeltet.
+                Tallet så ut som en ferdighet og var det ikke.
+              • Score-persentilen sammenlignet brukerens ALL-TIME-snitt mot
+                ENKELTFORSØK siste 90 dager — to ulike nivåer og to ulike
+                tidsvinduer i samme sammenligning.
+              • De to sto side om side med hver sin nevner, og «2 % bedre» over
+                ordet «bedre» leses som en prestasjon når det i praksis betyr
+                nest sist.
+
+              Feltene `bedre_enn_prosent` og `raskere_enn_prosent` beregnes
+              fortsatt i getPlayerStats og ligger i API-svaret; de har bare
+              ingen leser lenger. De ryddes når API-et uansett skal endres.
+
+              «Beste plassering» er BEVISST IKKE flyttet hit. Den skal komme
+              fra season_scores.rank, ikke fra den live-beregnede rangeringen i
+              computeRanks() som kan gi en plassering til spillere som ikke har
+              noen global plassering i det hele tatt. Et fabrikkert tall skal
+              ikke flyttes, det skal vente. */}
+          {recordRows.length > 0 && (
+            <div style={s.recCard}>
+              <div style={s.recHeader}>Rekorder</div>
+              {recordRows.map((rad, i) => (
+                <div key={rad.label}>
+                  {i > 0 && <div style={s.recDivider} />}
+                  <div style={i === 0 ? s.recRowFirst : s.recRow}>
+                    <span style={s.recLbl}>{rad.label}</span>
+                    <span style={s.recVal}>{rad.verdi}</span>
                   </div>
-                  <div style={s.smallLbl}>Beste plassering</div>
                 </div>
-              </div>
-            </>
+              ))}
+            </div>
           )}
 
           {/* Quiz list */}
