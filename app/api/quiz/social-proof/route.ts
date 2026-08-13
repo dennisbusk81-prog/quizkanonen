@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
+import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
+
+// GLOBAL SYNLIGHETS-GATE (13. august 2026): brukere blokkert fra den åpne
+// konkurransen (org med allow_global_league=false, eller eget opt-out —
+// lib/globally-blocked-set.ts, samme delte sett som /api/leaderboard/[id],
+// prev-rank og standings) vises IKKE som navnepiller og telles IKKE i
+// totalPlayers. Svaret går til helt anonyme kallere og er CDN-cachet — uten
+// gaten kunne ansatte i en org som har valgt «hold resultatene internt» dukke
+// opp som navnepille for hvem som helst.
+//
+// Gjester (user_id null) kan ikke blokkeres og berøres aldri av gaten.
+//
+// BEVISST getGloballyBlockedSet direkte, IKKE lib/public-snapshot.ts: denne
+// ruten teller PÅBEGYNTE forsøk i quiz-vinduet (ingen submitted_at-filter —
+// en egen, kjent inkonsistens som ikke skal endres her), mens snapshoten bak
+// public-snapshot-helperen kun inneholder LEVERTE. Å hente populasjonen fra
+// helperen ville stille endret hva totalPlayers teller. Ingen rangering
+// finnes her, så helperens re-rank-steg har uansett ingenting å gjøre.
+//
+// Fail-stengt følger med fra lib-en: klarer den ikke avgjøre hvem som er
+// blokkert, returnerer den HELE den spurte lista — da vises kun gjester.
+// Admin-flatene er upåvirket: de leser attempts direkte med supabaseAdmin
+// (admin/dashboard, admin/quizzes/[id] m.fl.), aldri denne ruten.
+//
+// Cache-headeren (public, s-maxage=60) står uendret: svaret inneholder ikke
+// lenger blokkerte data, så CDN-caching av det er like trygt som før. En
+// fersk utmelding kan henge igjen i inntil ~90s (60s CDN + 30s blocked-
+// cache) — akseptert.
 
 // `timeLimitLabel` er den EFFEKTIVE tidsgrensen («15s», ev. «10–20s» ved sprik),
 // utledet fra spørsmålene — ikke fra quiz-raden. Den ligger her, og ikke i en
@@ -65,7 +93,7 @@ export async function GET(request: NextRequest) {
     // Hent quiz-vinduet for å filtrere attempts til inneværende kjøring
     const { data: quiz, error: quizError } = await supabaseAdmin
       .from('quizzes')
-      .select('opens_at, closes_at, time_limit_seconds')
+      .select('opens_at, closes_at, time_limit_seconds, season_points_awarded')
       .eq('id', quizId)
       .single()
 
@@ -98,13 +126,25 @@ export async function GET(request: NextRequest) {
     const guestNames = [...new Set(
       attempts.filter(a => !a.user_id && a.player_name).map(a => a.player_name as string)
     )]
-    const totalPlayers = loggedInIds.length + guestNames.length
+
+    // Synlighets-gaten — se toppkommentaren. Gjelder kun innloggede; gjestene
+    // over har per definisjon ingen user_id å blokkere på. Lib-en kortslutter
+    // selv på tom liste (ingen DB-rundtur), og kaster aldri: ved feil svarer
+    // den med hele den spurte lista (fail-stengt), slik at kun gjester vises.
+    const blocked = await getGloballyBlockedSet(
+      quizId,
+      loggedInIds,
+      quiz.season_points_awarded === true,
+    )
+    const visibleLoggedInIds = loggedInIds.filter(id => !blocked.has(id))
+
+    const totalPlayers = visibleLoggedInIds.length + guestNames.length
 
     // Hent opptil 3 tilfeldige display_name fra profiles
     const sampleNames: string[] = []
 
-    if (loggedInIds.length > 0) {
-      const sample = shuffle(loggedInIds).slice(0, 3)
+    if (visibleLoggedInIds.length > 0) {
+      const sample = shuffle(visibleLoggedInIds).slice(0, 3)
       const { data: profiles, error: profilesError } = await supabaseAdmin
         .from('profiles')
         .select('display_name')
