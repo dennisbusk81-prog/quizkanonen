@@ -734,3 +734,45 @@ test('siste svar på ukjent questionId (hull i questions) → null', () => {
 test('tom answers-liste → null', () => {
   assert.equal(computeStrongCategory([], [q('a', 'Sport')]), null)
 })
+
+// ── Under terskelen kan streakShownElsewhere aldri endre meldingen ───────────
+// QuizInterlude skjuler score-linja når plasseringsblokken viser scoren under
+// terskelen (subThresholdScoreShown, 13. august 2026). Da blir
+// scoreLineShowsStreak — og dermed streakShownElsewhere — false i tilstander
+// der den før var true. Denne testen beviser at det ikke kan endre hvilken
+// melding som velges: flagget leses KUN i streak-grenen (streak >= 5), og med
+// maks 2 besvarte er streak <= correctSoFar <= 2 — grenen er strukturelt
+// uoppnåelig. Gjenåpner noen flagget i en gren som er nåbar under terskelen,
+// feiler denne testen (vern mot regresjon av streak-tallet-to-steder-buggen).
+test('under terskelen (<=2 besvarte) er meldingen uavhengig av streakShownElsewhere', () => {
+  for (const questionIndex of [0, 1]) {
+    const answered = questionIndex + 1
+    // Invariant fra spillsiden: streak <= correctSoFar <= besvarte.
+    for (let correctSoFar = 0; correctSoFar <= answered; correctSoFar++) {
+      for (let streak = 0; streak <= correctSoFar; streak++) {
+        for (const wrongInARow of [0, 1, 2]) {
+          for (const strongCategory of [null, 'Sport']) {
+            for (const seed of ['a:0', 'b:1', 'c:2']) {
+              const base: QuizMessageState = {
+                streak,
+                wrongInARow,
+                correctSoFar,
+                totalQuestions: 15,
+                questionIndex,
+                rival: null,
+                strongCategory,
+                streakShownElsewhere: false,
+              }
+              const uten = selectQuizMessage(base, seed)
+              const med = selectQuizMessage({ ...base, streakShownElsewhere: true }, seed)
+              assert.deepEqual(
+                med, uten,
+                `avvik ved qIdx=${questionIndex} correct=${correctSoFar} streak=${streak} wrong=${wrongInARow} cat=${strongCategory} seed=${seed}`
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+})

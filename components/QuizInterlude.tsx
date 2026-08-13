@@ -142,11 +142,25 @@ export default function QuizInterlude({
   const answeredSoFar = questionIndex + 1
   const placementReady = answeredSoFar >= MIN_ANSWERED_FOR_PLACEMENT
 
+  // Under terskelen viser plasseringsblokken spillerens score («X av k
+  // riktige») i stedet for venteteksten. Score-linja nederst skjules da —
+  // samme tall skal ikke stå to steder på samme skjerm. Gjelder kun
+  // innloggede (gjester har ikke blokken) og kun når det finnes en score å
+  // vise (answeredSoFar >= 1; 0-tilstanden er urekkelig i dag, men defensiv).
+  const subThresholdScoreShown = !!isLoggedIn && !placementReady && answeredSoFar >= 1
+
   // Score-linja nederst vises når det ikke finnes et rangeringsspenn å vise i
   // stedet, og tar da med «· N på rad» fra og med streak 2. Begge uttrykkene
   // under mater BÅDE renderingen og meldingsvalget, slik at de to ikke kan
   // komme i utakt: viser score-linja tallet, skal headlinen ikke gjenta det.
-  const scoreLineVisible = low === null
+  //
+  // subThresholdScoreShown kan ikke stille gjenåpne streak-tallet-to-steder-
+  // buggen: den er kun sann ved answeredSoFar <= 2, og streak-grenen i
+  // meldingsvalget krever streak >= 5 — strukturelt uoppnåelig med maks to
+  // besvarte. streakShownElsewhere leses ingen andre steder. Testdekket i
+  // lib/select-quiz-message.test.ts («under terskelen kan
+  // streakShownElsewhere aldri endre meldingen»).
+  const scoreLineVisible = low === null && !subThresholdScoreShown
   const scoreLineShowsStreak = scoreLineVisible && streak >= 2
 
   const msgState: QuizMessageState = {
@@ -275,25 +289,50 @@ export default function QuizInterlude({
           </p>
         )}
 
-        {/* Del 3 — for tidlig til et meningsfylt anslag. Nøytral tilstand, slik at
-            plasseringen ikke bare forsvinner og dukker opp igjen uforklart.
-
-            Teksten sa fram til 1. august 2026 «Beregner posisjon…», som lovet
-            noe den ikke holdt: ingenting beregnes her. Under terskelen gjør
+        {/* Del 3 — for tidlig til et meningsfylt anslag. Under terskelen gjør
             page.tsx (goToNext) bevisst ikke rangeringskallet i det hele tatt —
-            visningen venter kun på at nok spørsmål er besvart. En spiller som
-            sto fast av andre grunner hadde dermed en «pågår»-tekst foran seg
-            som aldri kunne bli ferdig. Nå sier den hva som faktisk mangler. */}
+            visningen venter kun på at nok spørsmål er besvart.
+
+            Teksten sa fram til 1. august 2026 «Beregner posisjon…» (lovet en
+            pågående beregning som ikke fantes), deretter en ren ventetekst.
+            Fra 13. august 2026 viser blokken i stedet spillerens egne tall —
+            «X av k riktige» — pluss når plasseringen kommer. Score-linja
+            nederst skjules samtidig (subThresholdScoreShown), så tallet står
+            ett sted. Eyebrow-en er «Så langt», IKKE «Din plassering»: blokken
+            viser score, og en plassering-etikett ville lovet et tall som ikke
+            står der.
+
+            Hver tidslinje-variant er sann i sin tilstand: «etter neste
+            spørsmål» kun ved 2 besvarte, «etter to spørsmål til» ved 1.
+            Kortquiz-vakten (totalQuestions < 3): terskelen på 3 kan da aldri
+            nås underveis, så plasseringen kommer først på resultatsiden —
+            begge de andre variantene ville vært usanne. 0-tilstanden er
+            urekkelig i dag (mellomskjermen rendres kun etter et registrert
+            svar), men defensiv: en framtidig flytendring skal ikke kunne
+            rendre «0 av 0» eller en løgn om timing. */}
         {isLoggedIn && !placementReady && (
           <div className="qk-il-block" style={{ marginBottom: 18 }}>
-            <p style={{
-              fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
-            }}>
-              Din plassering
-            </p>
+            {answeredSoFar >= 1 && (
+              <>
+                <p style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
+                  textTransform: 'uppercase', color: '#918f8a', marginBottom: 6,
+                }}>
+                  Så langt
+                </p>
+                <p style={{ fontSize: 15, fontWeight: 600, color: '#e8e4dd', marginBottom: 6 }}>
+                  {score} av {answeredSoFar} {pluralNo(score, 'riktig', 'riktige')}
+                </p>
+              </>
+            )}
             <p style={{ fontSize: 13, color: '#918f8a' }}>
-              Vises når du har svart på {MIN_ANSWERED_FOR_PLACEMENT} spørsmål
+              {totalQuestions < MIN_ANSWERED_FOR_PLACEMENT
+                ? 'Plasseringen din kommer på resultatsiden'
+                : answeredSoFar >= 2
+                  ? 'Plasseringen din kommer etter neste spørsmål'
+                  : answeredSoFar === 1
+                    ? 'Plasseringen din kommer etter to spørsmål til'
+                    : 'Plasseringen din kommer underveis i quizen'}
             </p>
           </div>
         )}
