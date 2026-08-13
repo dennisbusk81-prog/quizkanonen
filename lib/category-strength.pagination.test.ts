@@ -51,6 +51,10 @@ function builder(table: string) {
     gte() { return b },
     lte() { return b },
     in() { return b },
+    // `.is('scope_id', null)` — fetchFrozenRanks avgrenser season_scores til
+    // global scope. Uinteressant for kategoristyrken denne filen tester, men
+    // spørringen kjøres i samme getPlayerStats-kall.
+    is() { return b },
     range(f: number, t: number) { from = f; to = t; return b },
     single() { return Promise.resolve({ data: null, error: null }) },
     then(res: (v: unknown) => unknown, rej: (e: unknown) => unknown) {

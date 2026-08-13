@@ -837,7 +837,13 @@ export default function ProfilPage() {
               {[
                 { val: isPremium && stats ? String(stats.total_attempts) : '—', lbl: 'Quizer spilt' },
                 { val: isPremium && stats ? `${stats.avg_score_pct}%` : '—', lbl: 'Snitt score' },
-                { val: isPremium && stats ? (stats.beste_plassering !== null ? `#${stats.beste_plassering}` : '—') : '—', lbl: 'Beste plassering' },
+                // Fra season_scores.rank (frossen, samme tall som topplista),
+                // ikke fra en live-beregnet rangering. Byttet 13. august 2026
+                // sammen med /historikk — samme felt, samme kilde, måtte
+                // endres i samme operasjon. «—» betyr nå at spilleren ikke har
+                // noen global plassering, f.eks. fordi hen har meldt seg ut av
+                // den åpne konkurransen, og ikke lenger et fabrikkert tall.
+                { val: isPremium && stats?.beste_plassering ? `#${stats.beste_plassering.rank}` : '—', lbl: 'Beste plassering' },
                 { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
               ].map(({ val, lbl }) => (
                 <div key={lbl} style={{ textAlign: 'center' }}>

@@ -162,6 +162,19 @@ export type RecordsInput = {
   totalAttempts: number
   /** True når heroen alt viser deltakelsesrekken — se Hero.kind. */
   heroViserRekke: boolean
+  /**
+   * Beste frosne plassering fra `season_scores`, med quiz og feltstørrelse.
+   *
+   * `null` når spilleren ikke har noen global plassering — f.eks. fordi hen
+   * har meldt seg ut av den åpne konkurransen. Da vises INGEN plasseringsrad;
+   * det finnes ingen fallback til en live-beregnet rangering.
+   *
+   * Denne raden ble bevisst holdt ute av kortet 13. august (bolk 1), fordi
+   * kilden den gang var `computeRanks()`, som fabrikkerte en plassering også
+   * for spillere som ikke hadde noen. Et fabrikkert tall skulle ikke flyttes,
+   * det skulle vente på riktig kilde. Nå har det det.
+   */
+  bestePlassering?: { rank: number; total_players: number; quiz_title: string } | null
 }
 
 export type RecordRow = { label: string; verdi: string }
@@ -212,6 +225,18 @@ export function decideRecords(input: RecordsInput): RecordRow[] {
     rows.push({
       label: 'Lengste deltakelsesrekke',
       verdi: `${rekord} fredager på rad`,
+    })
+  }
+
+  // Nederst: plasseringen er den eneste raden som måler mot andre, og skal
+  // ikke lede kortet. Feltstørrelsen står med, fordi «#4» betyr helt ulike
+  // ting i et felt på 48 og et på 75 — og quiztittelen, fordi en rekord uten
+  // anledning er et løsrevet tall.
+  const bp = input.bestePlassering
+  if (bp && typeof bp.rank === 'number' && typeof bp.total_players === 'number') {
+    rows.push({
+      label: 'Beste plassering',
+      verdi: `#${bp.rank} av ${bp.total_players} · ${bp.quiz_title}`,
     })
   }
 

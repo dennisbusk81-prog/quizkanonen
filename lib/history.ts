@@ -8,6 +8,14 @@ import {
   type FieldProgress,
 } from './field-relative-progress'
 import {
+  buildFrozenRanks,
+  countPlayersByQuiz,
+  pickBestePlassering,
+  type BestePlassering,
+  type FrozenRank,
+  type SeasonRankRow,
+} from './frozen-rank'
+import {
   computeCategoryStats,
   pickCategoryStrength,
   type CategoryStrength,
@@ -39,7 +47,15 @@ export type PlayerStats = {
   total_questions: number
   best_streak: number
   avg_score_pct: number
-  beste_plassering: number | null
+  /**
+   * Beste frosne plassering fra `season_scores` i global scope, med hvilken
+   * quiz den ble satt på og hvor mange som spilte den.
+   *
+   * `null` når spilleren ikke har noen global plassering i det hele tatt —
+   * f.eks. fordi hen har meldt seg ut av den åpne konkurransen. Da vises
+   * ingen plasseringsrad noe sted, hverken her eller på /profil.
+   */
+  beste_plassering: BestePlassering | null
   /**
    * Ferdig formulert progresjonstekst, målt mot feltet — ikke mot spillerens
    * egen rå score. Se lib/field-relative-progress.ts for hvorfor.
@@ -116,73 +132,34 @@ export type PlayerHistoryResult = {
   pageSize?: number
 }
 
-// ─── Internal types ───────────────────────────────────────────────────────────
-
-type RawAttemptForRank = {
-  id: string
-  quiz_id: string
-  correct_answers: number
-  total_time_ms: number
-}
-
-type AttemptRank = {
-  rank: number
-  total_players: number
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function pct(correct: number, total: number): number {
   return total > 0 ? Math.round((correct / total) * 100) : 0
 }
 
-/**
- * For each attempt in userAttempts, compute rank and total_players by fetching
- * all completed attempts for the relevant quiz_ids in one query.
- * Rank = number of attempts that beat this one + 1.
- * Tie-breaking: higher correct_answers wins; equal correct_answers, lower total_time_ms wins.
- */
-async function computeRanks(
-  userAttempts: RawAttemptForRank[]
-): Promise<Map<string, AttemptRank>> {
-  if (userAttempts.length === 0) return new Map()
-
-  const quizIds = [...new Set(userAttempts.map((a) => a.quiz_id))]
-
-  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — en .limit()
-  // over 1000 gjør ingenting og ga tidligere falsk trygghet her. Spørringen er
-  // altså IKKE beskyttet mot vekst: over 1000 attempts på tvers av quizIds blir
-  // rangeringen feil. TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
-  const { data } = await supabaseAdmin
-    .from('attempts')
-    .select('quiz_id, correct_answers, total_time_ms')
-    .in('quiz_id', quizIds)
-    .not('correct_streak', 'is', null)
-
-  if (!data) return new Map()
-
-  // Group all attempts by quiz_id
-  const byQuiz = new Map<string, Array<{ correct_answers: number; total_time_ms: number }>>()
-  for (const row of data) {
-    const list = byQuiz.get(row.quiz_id) ?? []
-    list.push({ correct_answers: row.correct_answers, total_time_ms: row.total_time_ms })
-    byQuiz.set(row.quiz_id, list)
-  }
-
-  const result = new Map<string, AttemptRank>()
-  for (const attempt of userAttempts) {
-    const all = byQuiz.get(attempt.quiz_id) ?? []
-    const betterCount = all.filter(
-      (a) =>
-        a.correct_answers > attempt.correct_answers ||
-        (a.correct_answers === attempt.correct_answers &&
-          a.total_time_ms < attempt.total_time_ms)
-    ).length
-    result.set(attempt.id, { rank: betterCount + 1, total_players: all.length })
-  }
-
-  return result
-}
+// HER LÅ `computeRanks()`, som regnet rangering LIVE over `attempts` hver gang
+// historikken ble lest. Fjernet 13. august 2026. Den hadde to feil:
+//
+//  1. Den fabrikkerte en plassering for spillere som ikke har noen. 17 av 488
+//     forsøk fordelt på 7 brukere, hvorav seks er Elkjøp-ansatte med opt-out —
+//     de hadde valgt seg vekk fra den åpne konkurransen og fikk likevel en
+//     plassering i den vist på sin egen historikkside.
+//  2. Den var upaginert og kuttet stille ved 1000 rader (F3 i
+//     .claude/QK_LASTMALING_5AUGUST.md, anslått til å bite ved ~3 quizer per
+//     historikkside). Byttet fjerner den risikoen fra lesestien helt.
+//
+// Plasseringen leses nå fra `season_scores.rank` i global scope — samme
+// autoritative, frosne tall topplista viser. Se lib/frozen-rank.ts, som også
+// forklarer hvorfor NEVNEREN må komme fra antall forsøk og ikke fra antall
+// season_scores-rader.
+//
+// UOPPGJORTE QUIZER FÅR INGEN PLASSERING, og det er et bevisst valg framfor å
+// beholde en «foreløpig» live-beregning: vinduet er timene mellom at man
+// leverer og at cronen gjør opp, spilleren har akkurat sett plasseringen sin på
+// resultatskjermen, og en rad som viser score og tid uten plassering er sann.
+// Å holde liv i en andre rangeringskilde for det vinduet ville gjeninnført
+// begge feilene over.
 
 type FieldRow = { quiz_id: string; correct_answers: number }
 
@@ -205,8 +182,10 @@ type FieldRow = { quiz_id: string; correct_answers: number }
  * overlappe eller hoppe over rader mellom seg, og et snitt regnet på et
  * resultatsett med hull ser helt normalt ut.
  */
-async function fetchFieldAverages(quizIds: string[]): Promise<Record<string, number>> {
-  if (quizIds.length === 0) return {}
+async function fetchFieldStats(
+  quizIds: string[]
+): Promise<{ snitt: Record<string, number>; deltakere: Record<string, number> }> {
+  if (quizIds.length === 0) return { snitt: {}, deltakere: {} }
 
   const rows = await fetchAllRowsChunked<FieldRow>(quizIds, (chunk, from, to) =>
     supabaseAdmin
@@ -218,7 +197,40 @@ async function fetchFieldAverages(quizIds: string[]): Promise<Record<string, num
       .range(from, to)
   )
 
-  return averageCorrectByQuiz(rows)
+  // Ett sett rader, to avledninger: snittet mater progresjonsteksten og
+  // feltlinja i grafen, antallet er NEVNEREN i «#12 av 63». Antallet MÅ komme
+  // herfra og ikke fra season_scores — se lib/frozen-rank.ts.
+  return { snitt: averageCorrectByQuiz(rows), deltakere: countPlayersByQuiz(rows) }
+}
+
+/**
+ * Brukerens frosne plassering per quiz, fra `season_scores` i global scope.
+ *
+ * `scope_id IS NULL` settes eksplisitt selv om `scope_type = 'global'` allerede
+ * innebærer det (bekreftet mot prod: 0 av 471 globale rader har scope_id, og 0
+ * av de ikke-globale mangler den). Filteret koster ingenting og gjør
+ * invarianten synlig på stedet.
+ */
+async function fetchFrozenRanks(
+  userId: string,
+  quizIds: string[],
+  deltakere: Record<string, number>
+): Promise<Record<string, FrozenRank>> {
+  if (quizIds.length === 0) return {}
+
+  const rows = await fetchAllRowsChunked<SeasonRankRow>(quizIds, (chunk, from, to) =>
+    supabaseAdmin
+      .from('season_scores')
+      .select('user_id, quiz_id, rank')
+      .eq('scope_type', 'global')
+      .is('scope_id', null)
+      .eq('user_id', userId)
+      .in('quiz_id', chunk)
+      .order('quiz_id', { ascending: true })
+      .range(from, to)
+  )
+
+  return buildFrozenRanks(rows, deltakere, userId)
 }
 
 function resolveTitle(raw: unknown): string {
@@ -413,17 +425,15 @@ export async function getPlayerHistory(
 
   if (error || !data) return { items: [], total: 0 }
 
-  const ranks = await computeRanks(
-    data.map((r) => ({
-      id: r.id,
-      quiz_id: r.quiz_id,
-      correct_answers: r.correct_answers,
-      total_time_ms: r.total_time_ms,
-    }))
-  )
+  // Frossen plassering fra season_scores. Feltstørrelsen hentes fra forsøkene
+  // i samme slengen — den kan IKKE telles fra season_scores-rader, se
+  // lib/frozen-rank.ts.
+  const quizIds = [...new Set(data.map((r) => r.quiz_id))]
+  const { deltakere } = await fetchFieldStats(quizIds)
+  const frosne = await fetchFrozenRanks(userId, quizIds, deltakere)
 
   const items = data.map((row) => {
-    const r = ranks.get(row.id)
+    const f = frosne[row.quiz_id]
     return {
       id: row.id,
       quiz_id: row.quiz_id,
@@ -433,8 +443,8 @@ export async function getPlayerHistory(
       total_time_ms: row.total_time_ms,
       correct_streak: row.correct_streak ?? null,
       completed_at: row.completed_at,
-      rank: r?.rank ?? null,
-      total_players: r?.total_players ?? null,
+      rank: f?.rank ?? null,
+      total_players: f?.total_players ?? null,
     }
   })
 
@@ -471,12 +481,19 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   const { data: userAttempts } = await supabaseAdmin
     .from('attempts')
     .select(
-      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at'
+      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes(title)'
     )
     .eq('user_id', userId)
     .not('correct_streak', 'is', null)
 
   if (!userAttempts || userAttempts.length === 0) return EMPTY
+
+  // Tittelen følger med den spørringen som uansett kjører — «Beste plassering»
+  // skal vise hvilken quiz den ble satt på, og et eget oppslag for det ville
+  // vært en rundtur til ingen nytte.
+  const quizTitleById = new Map<string, string>(
+    userAttempts.map((a) => [a.quiz_id, resolveTitle(a.quizzes)])
+  )
 
   // Core aggregates
   const total_attempts = userAttempts.length
@@ -490,22 +507,29 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   // at den ikke koster en ekstra seriell rundtur. Den ligger her og ikke i
   // første Promise.all fordi den da ville blitt betalt også for brukere som
   // returnerer EMPTY over.
-  const [ranks, categoryStrength, participation, felt_snitt_riktige] = await Promise.all([
-    computeRanks(
-      userAttempts.map((a) => ({
-        id: a.id,
-        quiz_id: a.quiz_id,
-        correct_answers: a.correct_answers,
-        total_time_ms: a.total_time_ms,
-      }))
-    ),
+  const quizIds = [...new Set(userAttempts.map((a) => a.quiz_id))]
+
+  const [categoryStrength, participation, feltStats] = await Promise.all([
     fetchCategoryStrength(userId),
     fetchParticipationStreak(userId),
-    fetchFieldAverages([...new Set(userAttempts.map((a) => a.quiz_id))]),
+    fetchFieldStats(quizIds),
   ])
+  const felt_snitt_riktige = feltStats.snitt
 
-  const allRankValues = [...ranks.values()].map((r) => r.rank)
-  const beste_plassering = allRankValues.length > 0 ? Math.min(...allRankValues) : null
+  // Beste plassering leses fra season_scores, ikke fra en live-beregning. Den
+  // vises på /historikk (Rekorder-kortet) OG i statistikkraden på /profil — to
+  // flater, samme kilde. En spiller som har meldt seg ut av den åpne
+  // konkurransen får null her, som er det riktige svaret for noen som ikke
+  // deltar i den.
+  const frosne = await fetchFrozenRanks(userId, quizIds, feltStats.deltakere)
+  const beste_plassering = pickBestePlassering(
+    userAttempts.map((a) => ({
+      quiz_id: a.quiz_id,
+      quiz_title: quizTitleById.get(a.quiz_id) ?? 'Ukjent quiz',
+      completed_at: a.completed_at,
+    })),
+    frosne
+  )
 
   // Progresjon målt mot FELTET, ikke mot spillerens egen rå score. En quiz kan
   // være vanskelig for alle — feltets snitt svinger fra 6,43 til 10,32 riktige
@@ -588,16 +612,13 @@ export async function getAttemptDetail(
     questionMap.set(q.id, q as QuestionRow)
   }
 
-  // Compute rank
-  const ranks = await computeRanks([
-    {
-      id: attempt.id,
-      quiz_id: attempt.quiz_id,
-      correct_answers: attempt.correct_answers,
-      total_time_ms: attempt.total_time_ms,
-    },
-  ])
-  const rank = ranks.get(attempt.id)
+  // Frossen plassering — SAMME kilde som lista på /historikk. De to flatene
+  // viser samme tall om samme forsøk, og måtte derfor bytte kilde i samme
+  // operasjon: en bruker som ser «ingen plassering» i lista og «#71 av 71» når
+  // hen klikker seg inn, ville hatt god grunn til å tro at én av dem lyver.
+  const { deltakere } = await fetchFieldStats([attempt.quiz_id])
+  const frosne = await fetchFrozenRanks(userId, [attempt.quiz_id], deltakere)
+  const rank = frosne[attempt.quiz_id]
 
   const mappedAnswers: AttemptAnswerDetail[] = (answers ?? []).map((a) => {
     const q = questionMap.get(a.question_id) ?? null

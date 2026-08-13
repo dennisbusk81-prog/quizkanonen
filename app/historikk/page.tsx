@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { hasSettledPlays } from '@/lib/has-settled-plays'
 import { decideHero, decideRecords, pickBesteResultat } from '@/lib/historikk-oversikt'
+import { decideSisteQuiz, settPersonligRekord } from '@/lib/siste-quiz'
 import type { FieldProgress } from '@/lib/field-relative-progress'
 import type { HistoryAttempt, PlayerStats } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
@@ -87,6 +88,20 @@ const s = {
   featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#918f8a', marginBottom: 2 },
   featuredCtx:  { fontSize: 10, color: '#918f8a', lineHeight: 1.4 },
 
+  // Din siste quiz. Resultatet er kortets eneste store tall og står i hvitt —
+  // heroen rett over eier gullet, og to gull-flater på samme skjerm er
+  // forbudt. Plasseringen er dempet: den måler mot andre, og det er ikke det
+  // kortet handler om.
+  sisteCard:       { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 10, marginTop: 10 },
+  sisteEyebrow:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
+  sisteTittel:     { fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700, color: '#ffffff', lineHeight: 1.3, marginBottom: 2 },
+  sisteDato:       { fontSize: 12, color: '#918f8a', marginBottom: 12 },
+  sisteResultat:   { fontFamily: "'Libre Baskerville', serif", fontSize: 24, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 5 },
+  sisteFelt:       { fontSize: 13, color: '#918f8a', marginBottom: 2 },
+  sistePlassering: { fontSize: 13, color: '#918f8a' },
+  sisteLenker:     { display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginTop: 14, paddingTop: 12, borderTop: '1px solid #2a2d38' },
+  sisteLenke:      { fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.02em' },
+
   // Rekorder — én rad per rekord, verdien til høyre. Radform framfor et
   // rutenett av tall: hver rekord bærer sin egen kontekst («13 av 15 ·
   // Fredagsquiz 24.07»), og kontekst trenger bredde, ikke en rute.
@@ -153,7 +168,12 @@ const API_PAGE_SIZE = 50
 //        tekst, `felt_snitt_riktige` kom til, og persentilfeltene forsvant. Et
 //        v2-blob ville gitt en graf uten feltlinje og ingen progresjonstekst —
 //        ikke et krasj, men stille feil data, som er verre.
-const CACHE_VERSION = 'v3'
+//   v4 = 13. august 2026. `beste_plassering` gikk fra `number` til et objekt
+//        {rank, total_players, quiz_title}, og `rank`/`total_players` på
+//        historikkradene kommer nå fra season_scores i stedet for en
+//        live-beregning. Et v3-blob ville gitt «#[object Object]» i
+//        Rekorder-kortet og de gamle fabrikkerte plasseringene i lista.
+const CACHE_VERSION = 'v4'
 
 // SVG graph dimensions
 const GW = 600
@@ -373,6 +393,38 @@ export default function HistorikkPage() {
   // brukeren fram til fetchen rettet det opp. Skjelettet er billigere enn det.
   //
   // Ikke gjeninnfør en pre-paint-lesning uten en synkron, pålitelig bruker-id.
+
+  // ── Siden skal alltid åpne på toppen ──────────────────────────────────────
+  // Innholdet her får høyde LENGE etter første paint: skjelettet er kort, og
+  // den ekte siden vokser når API-svaret kommer — grafen alene er en SVG med
+  // `height: auto`, som først får høyde når nettleseren har regnet ut
+  // aspektforholdet. Nettleseren gjenoppretter lagret scroll-posisjon når
+  // dokumentet vokser, og lander da et stykke nede i en side brukeren nettopp
+  // åpnet.
+  //
+  // `scrollRestoration = 'manual'` slår av den gjenopprettingen mens siden er
+  // montert, og settes tilbake ved unmount — verdien er global for dokumentet,
+  // så en side som skrur den av må rydde etter seg.
+  //
+  // Scrollen settes to ganger med vilje: én gang ved montering (før innholdet
+  // finnes) og én gang når `loadState` blir 'ready' (når det har fått høyde).
+  // Bare den første er ikke nok, for det er nettopp veksten som utløser
+  // gjenopprettingen.
+  useEffect(() => {
+    const forrige =
+      typeof window !== 'undefined' && 'scrollRestoration' in window.history
+        ? window.history.scrollRestoration
+        : null
+    if (forrige !== null) window.history.scrollRestoration = 'manual'
+    window.scrollTo(0, 0)
+    return () => {
+      if (forrige !== null) window.history.scrollRestoration = forrige
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loadState === 'ready') window.scrollTo(0, 0)
+  }, [loadState])
 
   // Background prefetch: after list is shown, silently cache the 3 most recent
   // attempt details so clicking a row opens instantly.
@@ -602,8 +654,35 @@ export default function HistorikkPage() {
         lengsteDeltakelsesrekke: stats.lengste_deltakelsesrekke,
         totalAttempts: stats.total_attempts,
         heroViserRekke: hero.kind === 'rekke',
+        // Kommer fra season_scores, ikke fra en live-beregning. Er den null,
+        // har spilleren ingen global plassering — da vises ingen rad.
+        bestePlassering: stats.beste_plassering ?? null,
       })
     : []
+
+  // «Din siste quiz» — history er sortert på completed_at DESC, så [0] er det
+  // ferskeste forsøket. Rekord-påstanden krever hele historikken; er den ikke
+  // lastet, sendes null videre og kortet viser den nøytrale eyebrowen framfor
+  // å påstå noe vi ikke har dekning for.
+  const sisteForsok = history[0] ?? null
+  const sisteQuiz = sisteForsok
+    ? decideSisteQuiz({
+        quizTittel: sisteForsok.quiz_title,
+        riktige: sisteForsok.correct_answers,
+        totalt: sisteForsok.total_questions,
+        feltSnittRiktige: stats?.felt_snitt_riktige?.[sisteForsok.quiz_id] ?? null,
+        plassering:
+          sisteForsok.rank !== null && sisteForsok.total_players !== null
+            ? { rank: sisteForsok.rank, total_players: sisteForsok.total_players }
+            : null,
+        erPersonligRekord: settPersonligRekord(historikkErKomplett ? history : null),
+      })
+    : null
+
+  // Lista starter på det NEST ferskeste forsøket: det ferskeste står allerede i
+  // kortet over, med de samme tallene. Uten dette ville «11 av 15 riktige» og
+  // «#12 av 63» stått to steder på samme skjerm.
+  const listeRader = history.slice(1)
 
   if (historyLocked) {
     return (
@@ -673,25 +752,38 @@ export default function HistorikkPage() {
               </div>
             )}
             <div style={s.heroRule} />
-            {/* Lenken het «Se ukens leaderboard», men `history` er sortert på
-                completed_at DESC, så history[0] er brukerens SIST SPILTE quiz —
-                ikke ukens. For en som ikke spilte denne uka pekte den på en
-                gammel quiz (Dennis' egen side pekte på 3. juli). Teksten
-                beskriver nå det lenken faktisk gjør, og er sann uansett når
-                brukeren sist spilte. Skal den peke på ukens quiz, må klienten
-                få vite hvilken quiz det ER — et nytt datapunkt, ikke en
-                tekstendring. */}
-            {history.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <Link
-                  href={`/leaderboard/${history[0].quiz_id}`}
-                  style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.02em' }}
-                >
-                  Se leaderboard for din siste quiz →
+          </div>
+
+          {/* Din siste quiz — det brukerne faktisk kommer for etter fredag.
+              Leaderboard-lenken lå tidligere i heroen; den hører hjemme her,
+              sammen med quizen den gjelder.
+
+              Kortet heter IKKE «Sist fredag»: spilleren kan sist ha spilt for
+              tre uker siden, og da ville tittelen vært usann. Datoen står
+              under, så leseren ser selv når det var. */}
+          {sisteQuiz && sisteForsok && (
+            <div style={s.sisteCard}>
+              <div style={s.sisteEyebrow}>{sisteQuiz.eyebrow}</div>
+              <div style={s.sisteTittel}>{sisteQuiz.tittel}</div>
+              <div style={s.sisteDato}>{formatDate(sisteForsok.completed_at)}</div>
+              <div style={s.sisteResultat}>{sisteQuiz.resultat}</div>
+              {/* Feltlinja bruker samme nevner som resultatlinja over — «11 av
+                  15» og «8,2 av 15». Det er derfor feltet oppgis i riktige
+                  svar og ikke i prosent. */}
+              {sisteQuiz.felt && <div style={s.sisteFelt}>{sisteQuiz.felt}</div>}
+              {sisteQuiz.plassering && (
+                <div style={s.sistePlassering}>{sisteQuiz.plassering}</div>
+              )}
+              <div style={s.sisteLenker}>
+                <Link href={`/historikk/${sisteForsok.id}`} style={s.sisteLenke}>
+                  Se hele quizen →
+                </Link>
+                <Link href={`/leaderboard/${sisteForsok.quiz_id}`} style={s.sisteLenke}>
+                  Se leaderboard →
                 </Link>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Kategoristyrken sier noe om hvor spilleren står NÅ, og står derfor
               over den bakoverskuende statistikken.
@@ -767,11 +859,11 @@ export default function HistorikkPage() {
               fortsatt i getPlayerStats og ligger i API-svaret; de har bare
               ingen leser lenger. De ryddes når API-et uansett skal endres.
 
-              «Beste plassering» er BEVISST IKKE flyttet hit. Den skal komme
-              fra season_scores.rank, ikke fra den live-beregnede rangeringen i
-              computeRanks() som kan gi en plassering til spillere som ikke har
-              noen global plassering i det hele tatt. Et fabrikkert tall skal
-              ikke flyttes, det skal vente.
+              «Beste plassering» KOM HIT 13. august 2026, da kilden ble byttet
+              til season_scores.rank. Den ble holdt ute til da fordi
+              computeRanks() fabrikkerte en plassering også for spillere som
+              ikke har noen — et fabrikkert tall skulle ikke flyttes, det
+              skulle vente på riktig kilde.
 
               SKJULES UNDER TO RADER, ikke under én: et kort med én rad ser ut
               som en feil, ikke som en tilstand — det bruker full kortramme,
@@ -802,23 +894,27 @@ export default function HistorikkPage() {
               <p style={s.emptySub}>Spill en quiz mens du er innlogget, så dukker den opp her.</p>
               <Link href="/" style={s.btnGold}>Finn en quiz</Link>
             </div>
-          ) : (
+          ) : listeRader.length === 0 ? null : (
             <>
-              {/* Tellepillen er ENESTE visning av totalen her. Under lå tidligere
-                  «{total} quizer totalt», som viste nøyaktig samme tall rett under
-                  pillen — og ubøyd, så én spilt quiz ga «1 quizer totalt». Pillen
-                  er beholdt framfor setningen fordi den er mønsteret alle de andre
-                  seksjonsoverskriftene bruker (liga, historikk/[attemptId], to
-                  steder i leaderboard/[id]), ingen av dem med en setning ved siden
-                  av. Seksjonsetiketten til venstre bærer substantivet, så tallet
-                  trenger det ikke. */}
+              {/* «TIDLIGERE quizer», ikke «Siste quizer»: det aller siste
+                  forsøket står i kortet øverst, og lista begynner på det nest
+                  ferskeste. Uten det skillet ville de samme tallene stått to
+                  steder på samme skjerm.
+
+                  Tellepillen viser antall rader i LISTA, altså totalen minus
+                  det ene som er løftet ut. Den er ENESTE visning av tallet
+                  her; under lå tidligere «{total} quizer totalt», som viste
+                  samme tall rett under pillen — og ubøyd, så én spilt quiz ga
+                  «1 quizer totalt». */}
               <div style={s.sectionHeader}>
-                <span style={s.sectionText}>Siste quizer</span>
+                <span style={s.sectionText}>Tidligere quizer</span>
                 <div style={s.sectionLine} />
-                <span style={s.sectionCount}>{total > 0 ? total : history.length}</span>
+                <span style={s.sectionCount}>
+                  {total > 0 ? total - 1 : listeRader.length}
+                </span>
               </div>
 
-              {history.map((attempt) => {
+              {listeRader.map((attempt) => {
                 const pct = scorePct(attempt.correct_answers, attempt.total_questions)
                 const isHovered = hoveredRowId === attempt.id
                 return (
@@ -839,10 +935,14 @@ export default function HistorikkPage() {
                       </div>
                     </div>
                     <div style={s.rowRight}>
-                      {attempt.rank !== null && attempt.total_players !== null ? (
+                      {/* Uten frossen plassering utelates linja HELT. Her sto
+                          tidligere «11/15» som reserve, rett over «11 av 15
+                          riktige» — samme tall to ganger i samme rad. Det var
+                          sjeldent så lenge rangeringen ble fabrikkert for alle;
+                          nå er det den normale tilstanden for de som har meldt
+                          seg ut av den åpne konkurransen. */}
+                      {attempt.rank !== null && attempt.total_players !== null && (
                         <div style={s.rowRank}>#{attempt.rank} av {attempt.total_players}</div>
-                      ) : (
-                        <div style={s.rowRank}>{attempt.correct_answers}/{attempt.total_questions}</div>
                       )}
                       <div style={s.rowScore}>
                         {attempt.correct_answers} av {attempt.total_questions} riktige

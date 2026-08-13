@@ -96,7 +96,8 @@ function builder(table: string) {
     switch (table) {
       case 'attempts':
         // To ulike spørringer mot samme tabell: forsøksraden (.single()) og
-        // computeRanks sin rangeringsspørring.
+        // fetchFieldStats, som teller deltakere per quiz (nevneren i
+        // «#12 av 63»).
         return select.includes('quizzes(title)')
           ? {
               id: 'a-1',
@@ -107,7 +108,11 @@ function builder(table: string) {
               completed_at: '2026-08-01T18:00:00.000Z',
               quizzes: { title: 'Testquiz' },
             }
-          : [{ quiz_id: 'z-1', correct_answers: 1, total_time_ms: 8000 }]
+          : [{ quiz_id: 'z-1', correct_answers: 1 }]
+      case 'season_scores':
+        // Frossen plassering. Irrelevant for fasitvisningen som testes her,
+        // men spørringen kjøres, så mocken må svare på den.
+        return [{ user_id: 'u-1', quiz_id: 'z-1', rank: 1 }]
       case 'attempt_answers':
         return [
           // Spilleren svarte D på multi-spørsmålet — ett av to riktige.
@@ -129,7 +134,10 @@ function builder(table: string) {
     },
     eq: () => chain,
     in: () => chain,
+    is: () => chain,
     not: () => chain,
+    order: () => chain,
+    range: () => chain,
     single: async () => ({ data: data(), error: null }),
     then: (
       res: (v: { data: unknown; error: null }) => unknown,
