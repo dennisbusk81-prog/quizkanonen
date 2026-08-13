@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { hasSettledPlays } from '@/lib/has-settled-plays'
 import type { AttemptDetail, AttemptAnswerDetail } from '@/lib/history'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -216,7 +217,16 @@ export default function AttemptDetailPage() {
         if (cancelled) return
 
         if (res.status === 401) { router.replace(`/login?next=/historikk/${attemptId}`); return }
-        if (res.status === 403) { router.replace('/premium'); return }
+        if (res.status === 403) {
+          // Samme skille som /historikk sin 403-gren (lib/has-settled-plays.ts):
+          // en bruker MED historikk (eller der sjekken feiler — 'unknown')
+          // skal ikke kastes til en salgsside. De sendes til /historikk, som
+          // eier låseskjermen — denne siden dupliserer den ikke. Kun en
+          // bekreftet aldri-spilt-bruker sendes til /premium som før.
+          const played = await hasSettledPlays(session.user.id)
+          router.replace(played === 'no' ? '/premium' : '/historikk')
+          return
+        }
         if (res.status === 404) { setLoadState('not-found'); return }
         if (!res.ok) { setLoadState('error'); return }
 

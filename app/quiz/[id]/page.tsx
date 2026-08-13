@@ -3375,7 +3375,15 @@ export default function QuizPage() {
           bedriften/den ansatte har sagt de ikke stiller — se
           lib/placement-visibility.ts. Data fra /api/leaderboard/[id]?org=
           (samme rute og Premium-gate som org-visningen av leaderboardet). ── */}
-      {placementDisplay.mode === 'internal-only' && internalPlacement && internalPlacement.total > 1 && (() => {
+      {/* Ingen total > 1-ytterguard — med vilje (13. august 2026). Den var
+          kopiert fra den globale resultatskjermens guard, som 16e8539 fjernet
+          7. august fordi den ga førstemann et helt tomt felt (fossil fra den
+          slettede prosentformelen). Dette kortet var søsknet fiksen glemte:
+          førstemann i bedriften så ingenting. total = 1 håndteres nå av
+          grenene under — Premium får plasseringen med «først ute»-kontekst,
+          gratis faller i den eksisterende venteteksten (showSpan-terskelen
+          på 10 står urørt). */}
+      {placementDisplay.mode === 'internal-only' && internalPlacement && (() => {
         const orgName = placementDisplay.org.orgName
         if (isPremium && internalPlacement.exactRank != null) {
           return (
@@ -3393,9 +3401,18 @@ export default function QuizPage() {
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {internalPlacement.exactRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
-              <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
-                av {internalPlacement.total} deltakere
-              </div>
+              {internalPlacement.total === 1 ? (
+                // Alene i org-rommet: «av 1 deltakere» er hult — samme
+                // 'premium-first'-grep som 16e8539 på den globale varianten.
+                // Org-navnet står allerede i etiketten over, gjentas ikke.
+                <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                  Foreløpig — du er først ute denne uken
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+                  av {internalPlacement.total} deltakere
+                </div>
+              )}
             </div>
           )
         }

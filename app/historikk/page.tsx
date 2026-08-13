@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { hasSettledPlays } from '@/lib/has-settled-plays'
 import { pluralNo } from '@/lib/plural-no'
 import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
@@ -403,19 +404,20 @@ export default function HistorikkPage() {
       if (res.status === 403) {
         // Har brukeren spilt noe i det hele tatt? season_scores skrives av
         // processQuiz for ALLE innloggede deltakere, uavhengig av Premium
-        // (lib/award-season-points.ts), så en treffer her betyr «har spilt minst
+        // (lib/award-season-points.ts), så et treff her betyr «har spilt minst
         // én gjort opp quiz innlogget» — IKKE «har hatt Premium». Teksten under
         // må derfor ikke påstå en tidligere Premium-tilstand; se kortet i
         // `historyLocked`-grenen.
-        const { count } = await supabase
-          .from('season_scores')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', session.user.id)
-          .eq('scope_type', 'global')
-        if ((count ?? 0) > 0) {
-          if (!cancelled) { setHistoryLocked(true); setLoadState('ready') }
-        } else {
+        //
+        // Sjekken bor i lib/has-settled-plays.ts (delt med enkeltforsøk-siden):
+        // ALLE scopes — ikke bare 'global', som kastet org-blokkerte brukere
+        // (hele Elkjøp) til /premium med full historikk — og 'unknown' ved
+        // feil, som vises som låseskjerm, aldri som utkastelse.
+        const played = await hasSettledPlays(session.user.id)
+        if (played === 'no') {
           router.replace('/premium')
+        } else {
+          if (!cancelled) { setHistoryLocked(true); setLoadState('ready') }
         }
         return
       }
