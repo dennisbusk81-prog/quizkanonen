@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { hasSettledPlays } from '@/lib/has-settled-plays'
 import { decideHero, decideRecords, pickBesteResultat } from '@/lib/historikk-oversikt'
-import type { HistoryAttempt, PlayerStats, Progresjon } from '@/lib/history'
+import type { FieldProgress } from '@/lib/field-relative-progress'
+import type { HistoryAttempt, PlayerStats } from '@/lib/history'
 import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -34,37 +35,10 @@ function scorePct(correct: number, total: number): number {
   return total > 0 ? Math.round((correct / total) * 100) : 0
 }
 
-// ─── Progresjon text ──────────────────────────────────────────────────────────
-
-type ProgVariant = 'positive' | 'negative' | 'neutral'
-type ProgMsg = { tekst: string; variant: ProgVariant }
-
-function toProgMsg(p: Progresjon): ProgMsg {
-  if (p.type === 'first') {
-    return { tekst: 'God start! Kom tilbake neste uke for å se utviklingen din', variant: 'neutral' }
-  }
-  if (p.diff > 0) {
-    return {
-      tekst: p.type === 'early'
-        ? `Du er ${p.diff}% bedre enn da du startet`
-        : `Du har blitt ${p.diff}% bedre de siste 4 ukene`,
-      variant: 'positive',
-    }
-  }
-  if (p.diff < 0) {
-    const abs = Math.abs(p.diff)
-    return {
-      tekst: p.type === 'early'
-        ? `Du er ${abs}% dårligere enn da du startet`
-        : `Du har blitt ${abs}% dårligere de siste 4 ukene`,
-      variant: 'negative',
-    }
-  }
-  return {
-    tekst: p.type === 'early' ? 'Du er på samme nivå som da du startet' : 'Stabilt nivå de siste 4 ukene',
-    variant: 'neutral',
-  }
-}
+// Progresjonsteksten kommer nå ferdig formulert fra serveren
+// (lib/field-relative-progress.ts). Her lå tidligere `toProgMsg`, som gjorde om
+// en rå prosentdifferanse til «Du har blitt 11% dårligere de siste 4 ukene» —
+// en setning som i praksis beskrev hvor vanskelige quizene tilfeldigvis var.
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -93,12 +67,22 @@ const s = {
 
   // Graph card — progresjon msg inside
   graphCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '16px 20px 10px', marginBottom: 10, marginTop: 10 },
-  graphHeader:  { marginBottom: 10 },
+  graphHeader:  { marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' as const },
   graphLabel:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a' },
+
+  // Forklaring til de to linjene. Uten den er den grå linja et uforklart
+  // element. Swatchene er linjeprøver i samme farge som kurvene de beskriver,
+  // ikke egne fargeflater — gull-swatchen er den samme gull-linja, ikke et
+  // nytt gull-element.
+  legend:           { display: 'flex', alignItems: 'center', gap: 12 },
+  legendItem:       { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#918f8a' },
+  legendSwatchDeg:  { display: 'inline-block', width: 12, height: 2, background: '#c9a84c', borderRadius: 1 },
+  legendSwatchFelt: { display: 'inline-block', width: 12, height: 0, borderTop: '1.5px dashed #918f8a' },
   progPositive: { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(76,175,77,0.08)', border: '1px solid rgba(76,175,77,0.2)', color: '#4caf7d' },
   progNegative: { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(201,76,76,0.08)', border: '1px solid rgba(201,76,76,0.2)', color: '#c94c4c' },
   progNeutral:  { marginTop: 8, borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 500, background: 'rgba(106,104,96,0.1)', border: '1px solid #2a2d38', color: '#918f8a' },
-  graphEmpty:   { padding: '20px 0', textAlign: 'center' as const, fontSize: 13, color: '#918f8a', fontStyle: 'italic' as const },
+  // `graphEmpty` er fjernet sammen med tom-tilstanden den stylet («Spill flere
+  // quizer for å se utviklingen din»). Kortet skjules nå helt under to quizer.
 
   featuredLbl:  { fontSize: 11, fontWeight: 600, color: '#918f8a', marginBottom: 2 },
   featuredCtx:  { fontSize: 10, color: '#918f8a', lineHeight: 1.4 },
@@ -163,8 +147,13 @@ const API_PAGE_SIZE = 50
 // en spiller som har en rekke gående.
 //
 // Versjonen i NØKKELEN, ikke i verdien: en gammel nøkkel blir da aldri lest,
-// i stedet for å bli lest og forkastet. v2 = feltene lagt til 4. august 2026.
-const CACHE_VERSION = 'v2'
+// i stedet for å bli lest og forkastet.
+//   v2 = feltene lagt til 4. august 2026.
+//   v3 = 13. august 2026. `progresjon` byttet form fra {type, diff} til ferdig
+//        tekst, `felt_snitt_riktige` kom til, og persentilfeltene forsvant. Et
+//        v2-blob ville gitt en graf uten feltlinje og ingen progresjonstekst —
+//        ikke et krasj, men stille feil data, som er verre.
+const CACHE_VERSION = 'v3'
 
 // SVG graph dimensions
 const GW = 600
@@ -173,9 +162,45 @@ const GP = { top: 16, right: 16, bottom: 40, left: 40 }
 
 // ─── Score graph ──────────────────────────────────────────────────────────────
 
-type GraphPoint = { x: number; y: number; score: number; title: string; date: string }
+type GraphPoint = {
+  x: number
+  y: number
+  score: number
+  title: string
+  date: string
+  /** Feltets snitt på samme quiz, i prosent — null når snittet mangler. */
+  feltY: number | null
+  feltScore: number | null
+}
 
-function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: ProgMsg | null }) {
+/**
+ * Utviklingskortet. To linjer: spillerens score i gull, feltets snitt i dempet
+ * grått.
+ *
+ * HVORFOR FELTLINJEN FINNES: uten den leses et fall i gull-linja som «jeg ble
+ * dårligere». Feltets snitt svinger fra 6,43 til 10,32 riktige av 15 mellom
+ * uker i prod, så 17. juli falt ALLE — og med begge linjene tegnet ser man med
+ * én gang at de faller sammen.
+ *
+ * Returnerer null under to punkter: et kort som kun inneholder «spill flere
+ * quizer» ser ut som en feil, ikke som en tilstand. Oppfordringen til den nye
+ * spilleren ligger i heroens undertekst (lib/historikk-oversikt.ts, B1/B4).
+ *
+ * ENHETENE ER MED VILJE ULIKE her og i progresjonsteksten: grafen tegner
+ * prosent fordi det er den eneste aksen som er sann på tvers av quizer med
+ * ulikt antall spørsmål, mens teksten teller riktige svar fordi «prosentpoeng
+ * over snittet» er sjargong. Aksemerkene er en skala, ikke en påstand — det er
+ * setningen som bærer tallet leseren skal ta med seg.
+ */
+function ScoreGraph({
+  history,
+  progMsg,
+  feltSnitt,
+}: {
+  history: HistoryAttempt[]
+  progMsg: FieldProgress | null
+  feltSnitt: Record<string, number>
+}) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
   const chrono = [...history]
@@ -191,13 +216,29 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
   const getY = (score: number): number =>
     GP.top + (1 - score / 100) * plotH
 
-  const points: GraphPoint[] = chrono.map((a, i) => ({
-    x: getX(i),
-    y: getY(scorePct(a.correct_answers, a.total_questions)),
-    score: scorePct(a.correct_answers, a.total_questions),
-    title: a.quiz_title,
-    date: formatDateShort(a.completed_at),
-  }))
+  const points: GraphPoint[] = chrono.map((a, i) => {
+    // Feltsnittet lagres som antall riktige og regnes om her, med RADENS egen
+    // total_questions. Det er den eneste nevneren som er sann for nøyaktig den
+    // quizen — en hardkodet 15 ville vært et faktum om i dag, ikke om
+    // datamodellen.
+    const feltRiktige = feltSnitt?.[a.quiz_id]
+    const feltScore =
+      typeof feltRiktige === 'number' && a.total_questions > 0
+        ? Math.round((feltRiktige / a.total_questions) * 100)
+        : null
+    return {
+      x: getX(i),
+      y: getY(scorePct(a.correct_answers, a.total_questions)),
+      score: scorePct(a.correct_answers, a.total_questions),
+      title: a.quiz_title,
+      date: formatDateShort(a.completed_at),
+      feltY: feltScore !== null ? getY(feltScore) : null,
+      feltScore,
+    }
+  })
+
+  // Under to punkter finnes det ingen utvikling å tegne — kortet skjules helt.
+  if (n < 2) return null
 
   const gridYValues = [0, 50, 100]
   const labelEvery = Math.max(1, Math.ceil(n / 6))
@@ -210,21 +251,36 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
     `${(GW - GP.right).toFixed(1)},${areaBottomY}`,
   ].join(' ')
 
-  const TW = 140, TH = 42
+  // Feltlinja tegnes kun over de punktene som FAKTISK har et snitt. Et hull
+  // hoppes over i stedet for å trekke en rett strek gjennom det, som ville
+  // påstått en måling som ikke finnes.
+  const feltPts = points
+    .filter((p) => p.feltY !== null)
+    .map((p) => `${p.x.toFixed(1)},${(p.feltY as number).toFixed(1)}`)
+    .join(' ')
+  const harFeltlinje = points.filter((p) => p.feltY !== null).length >= 2
+
+  const TW = 152, TH = 56
   const tooltip = hoveredIdx !== null ? (() => {
     const p = points[hoveredIdx]
     const tx = Math.max(0, Math.min(p.x - TW / 2, GW - TW))
-    const ty = p.y < GP.top + 56 ? p.y + 12 : p.y - TH - 8
-    const label = p.title.length > 20 ? p.title.slice(0, 18) + '…' : p.title
+    const ty = p.y < GP.top + 70 ? p.y + 12 : p.y - TH - 8
+    const label = p.title.length > 22 ? p.title.slice(0, 20) + '…' : p.title
     return (
       <g style={{ pointerEvents: 'none' }}>
         <rect x={tx} y={ty} width={TW} height={TH} rx={6} fill="#21242e" stroke="#c9a84c" strokeWidth={1} />
-        <text x={tx + TW / 2} y={ty + 13} textAnchor="middle" fontSize={10} fill="#918f8a"
+        <text x={tx + TW / 2} y={ty + 14} textAnchor="middle" fontSize={10} fill="#918f8a"
           style={{ fontFamily: "'Instrument Sans', sans-serif" }}>{label}</text>
-        <text x={tx + TW / 2} y={ty + 30} textAnchor="middle" fontSize={13} fill="#c9a84c"
+        <text x={tx + TW / 2} y={ty + 31} textAnchor="middle" fontSize={13} fill="#c9a84c"
           style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}>
           {p.score}% · {p.date}
         </text>
+        {p.feltScore !== null && (
+          <text x={tx + TW / 2} y={ty + 46} textAnchor="middle" fontSize={10} fill="#918f8a"
+            style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+            Feltet: {p.feltScore}%
+          </text>
+        )}
       </g>
     )
   })() : null
@@ -237,41 +293,53 @@ function ScoreGraph({ history, progMsg }: { history: HistoryAttempt[]; progMsg: 
     <div style={s.graphCard}>
       <div style={s.graphHeader}>
         <span style={s.graphLabel}>Utvikling</span>
+        {harFeltlinje && (
+          <div style={s.legend}>
+            <span style={s.legendItem}>
+              <span style={s.legendSwatchDeg} />Deg
+            </span>
+            <span style={s.legendItem}>
+              <span style={s.legendSwatchFelt} />Feltet
+            </span>
+          </div>
+        )}
       </div>
-      {n < 2 ? (
-        <div style={s.graphEmpty}>Spill flere quizer for å se utviklingen din</div>
-      ) : (
-        <svg viewBox={`0 0 ${GW} ${GH}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
-          {gridYValues.map((v) => (
-            <g key={v}>
-              <line x1={GP.left} y1={getY(v)} x2={GW - GP.right} y2={getY(v)} stroke="#2a2d38" strokeWidth={1} />
-              <text x={GP.left - 6} y={getY(v)} textAnchor="end" dominantBaseline="middle"
-                fontSize={9} fill="#918f8a" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-                {v}%
-              </text>
-            </g>
-          ))}
-          {points.map((p, i) =>
-            (i % labelEvery === 0 || i === n - 1) ? (
-              <text key={i} x={p.x} y={GH - GP.bottom + 14} textAnchor="middle"
-                fontSize={9} fill="#918f8a" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
-                {p.date}
-              </text>
-            ) : null
-          )}
-          <polygon points={areaPts} fill="rgba(201,168,76,0.06)" stroke="none" />
-          <polyline points={linePts} fill="none" stroke="#c9a84c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-          {points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={hoveredIdx === i ? 5 : 3}
-              fill={hoveredIdx === i ? '#c9a84c' : '#21242e'} stroke="#c9a84c" strokeWidth={2}
-              style={{ cursor: 'pointer' }}
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
-            />
-          ))}
-          {tooltip}
-        </svg>
-      )}
+      <svg viewBox={`0 0 ${GW} ${GH}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
+        {gridYValues.map((v) => (
+          <g key={v}>
+            <line x1={GP.left} y1={getY(v)} x2={GW - GP.right} y2={getY(v)} stroke="#2a2d38" strokeWidth={1} />
+            <text x={GP.left - 6} y={getY(v)} textAnchor="end" dominantBaseline="middle"
+              fontSize={9} fill="#918f8a" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+              {v}%
+            </text>
+          </g>
+        ))}
+        {points.map((p, i) =>
+          (i % labelEvery === 0 || i === n - 1) ? (
+            <text key={i} x={p.x} y={GH - GP.bottom + 14} textAnchor="middle"
+              fontSize={9} fill="#918f8a" style={{ fontFamily: "'Instrument Sans', sans-serif" }}>
+              {p.date}
+            </text>
+          ) : null
+        )}
+        <polygon points={areaPts} fill="rgba(201,168,76,0.06)" stroke="none" />
+        {/* Feltlinja tegnes FØR spillerens linje, så gull ligger øverst der de
+            krysser — det er spillerens egen kurve leseren følger. */}
+        {harFeltlinje && (
+          <polyline points={feltPts} fill="none" stroke="#918f8a" strokeWidth={1.5}
+            strokeDasharray="4 3" strokeLinejoin="round" strokeLinecap="round" />
+        )}
+        <polyline points={linePts} fill="none" stroke="#c9a84c" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={hoveredIdx === i ? 5 : 3}
+            fill={hoveredIdx === i ? '#c9a84c' : '#21242e'} stroke="#c9a84c" strokeWidth={2}
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+          />
+        ))}
+        {tooltip}
+      </svg>
       {progMsg && <div style={progStyle}>{progMsg.tekst}</div>}
     </div>
   )
@@ -504,7 +572,7 @@ export default function HistorikkPage() {
     )
   }
 
-  const progMsg = stats?.progresjon ? toProgMsg(stats.progresjon) : null
+  const progMsg = stats?.progresjon ?? null
 
   const hero = stats
     ? decideHero({
@@ -675,8 +743,8 @@ export default function HistorikkPage() {
             </>
           )}
 
-          {/* Graph with inline progresjon */}
-          <ScoreGraph history={history} progMsg={progMsg} />
+          {/* Utvikling — rendrer null under to quizer, se ScoreGraph. */}
+          <ScoreGraph history={history} progMsg={progMsg} feltSnitt={stats?.felt_snitt_riktige ?? {}} />
 
           {/* Rekorder — erstatter det gamle 4-rutersnettet.
 
@@ -703,8 +771,13 @@ export default function HistorikkPage() {
               fra season_scores.rank, ikke fra den live-beregnede rangeringen i
               computeRanks() som kan gi en plassering til spillere som ikke har
               noen global plassering i det hele tatt. Et fabrikkert tall skal
-              ikke flyttes, det skal vente. */}
-          {recordRows.length > 0 && (
+              ikke flyttes, det skal vente.
+
+              SKJULES UNDER TO RADER, ikke under én: et kort med én rad ser ut
+              som en feil, ikke som en tilstand — det bruker full kortramme,
+              overskrift og luft på å si ett tall. Gjelder 4 av 137 spillere i
+              prod (3 uten rader, 1 med én). */}
+          {recordRows.length >= 2 && (
             <div style={s.recCard}>
               <div style={s.recHeader}>Rekorder</div>
               {recordRows.map((rad, i) => (

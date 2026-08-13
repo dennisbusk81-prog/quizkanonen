@@ -1,7 +1,12 @@
 // Server-only — never import this in 'use client' components.
 import { supabaseAdmin } from './supabase-admin'
 import { readStoredKey } from './answer-key-correction'
-import { fetchAllRows } from './paginate'
+import { fetchAllRows, fetchAllRowsChunked } from './paginate'
+import {
+  averageCorrectByQuiz,
+  computeFieldProgress,
+  type FieldProgress,
+} from './field-relative-progress'
 import {
   computeCategoryStats,
   pickCategoryStrength,
@@ -28,11 +33,6 @@ export type HistoryAttempt = {
   total_players: number | null
 }
 
-export type Progresjon =
-  | { type: 'first'; diff: number }
-  | { type: 'early'; diff: number }
-  | { type: 'trend'; diff: number }
-
 export type PlayerStats = {
   total_attempts: number
   total_correct: number
@@ -40,9 +40,22 @@ export type PlayerStats = {
   best_streak: number
   avg_score_pct: number
   beste_plassering: number | null
-  bedre_enn_prosent: number | null
-  raskere_enn_prosent: number | null
-  progresjon: Progresjon | null
+  /**
+   * Ferdig formulert progresjonstekst, målt mot feltet — ikke mot spillerens
+   * egen rå score. Se lib/field-relative-progress.ts for hvorfor.
+   * `null` ved færre enn to forsøk; utviklingskortet skjules da helt.
+   */
+  progresjon: FieldProgress | null
+  /**
+   * Feltets gjennomsnittlige antall RIKTIGE per quiz, for hver quiz spilleren
+   * har spilt. Nøkkel er quiz_id.
+   *
+   * Antall riktige og ikke prosent: grafen regner om med sin egen
+   * `total_questions` per rad, som er den eneste nevneren som er sann for
+   * nøyaktig den quizen. Lagres prosent her, låses nevneren til det som var
+   * sant da snittet ble regnet.
+   */
+  felt_snitt_riktige: Record<string, number>
   // Sterkeste/svakeste kategori på tvers av ALL brukerens historikk — ikke én
   // quiz. Begge er null når færre enn to kategorier klarer terskelen; se
   // pickCategoryStrength() i lib/category-stats.ts for reglene.
@@ -171,65 +184,41 @@ async function computeRanks(
   return result
 }
 
+type FieldRow = { quiz_id: string; correct_answers: number }
+
 /**
- * Computes score progression based on attempt history:
- * - 'first'  — only 1 attempt played
- * - 'early'  — 2–3 attempts; diff = last score% − first score%
- * - 'trend'  — 4+ attempts; diff = avg score% last 4 weeks − avg score% previous 4 weeks
- *              (falls back to last − first if one period has no data)
+ * Feltets gjennomsnittlige antall riktige på hver av quizene spilleren har
+ * spilt. Ren aggregering ligger i lib/field-relative-progress.ts; denne
+ * funksjonen gjør kun uthentingen.
+ *
+ * POPULASJONEN ER DEN SAMME som resten av getPlayerStats bruker —
+ * `correct_streak IS NOT NULL` = fullført forsøk. Bruker man en annen
+ * populasjon her enn i tellingen spilleren sammenlignes mot, sammenligner man
+ * to ulike ting og kaller det utvikling.
+ *
+ * `fetchAllRowsChunked` og ikke `fetchAllRows`: spørringen filtrerer på en
+ * LISTE med quiz-id-er, og da treffer man ~390-grensen på URL-lengde FØR
+ * 1000-radstaket (se lib/paginate.ts). En trofast spiller passerer 390 quizer
+ * først etter mange år, men grensen er gratis å dekke når helperen finnes.
+ *
+ * `.order('id')` er ikke pynt: uten et deterministisk totalorden kan to sider
+ * overlappe eller hoppe over rader mellom seg, og et snitt regnet på et
+ * resultatsett med hull ser helt normalt ut.
  */
-function computeProgresjon(
-  attempts: Array<{
-    correct_answers: number
-    total_questions: number
-    completed_at: string
-  }>
-): Progresjon {
-  const sorted = [...attempts].sort(
-    (a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
+async function fetchFieldAverages(quizIds: string[]): Promise<Record<string, number>> {
+  if (quizIds.length === 0) return {}
+
+  const rows = await fetchAllRowsChunked<FieldRow>(quizIds, (chunk, from, to) =>
+    supabaseAdmin
+      .from('attempts')
+      .select('quiz_id, correct_answers')
+      .in('quiz_id', chunk)
+      .not('correct_streak', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, to)
   )
 
-  if (sorted.length === 1) {
-    return { type: 'first', diff: 0 }
-  }
-
-  if (sorted.length <= 3) {
-    const firstPct = pct(sorted[0].correct_answers, sorted[0].total_questions)
-    const lastPct = pct(
-      sorted[sorted.length - 1].correct_answers,
-      sorted[sorted.length - 1].total_questions
-    )
-    return { type: 'early', diff: lastPct - firstPct }
-  }
-
-  const nowMs = Date.now()
-  const fourWeeksMs = 28 * 24 * 60 * 60 * 1000
-
-  const recentAttempts = sorted.filter(
-    (a) => nowMs - new Date(a.completed_at).getTime() < fourWeeksMs
-  )
-  const prevAttempts = sorted.filter((a) => {
-    const ageMs = nowMs - new Date(a.completed_at).getTime()
-    return ageMs >= fourWeeksMs && ageMs < 2 * fourWeeksMs
-  })
-
-  if (recentAttempts.length > 0 && prevAttempts.length > 0) {
-    const avgRecent =
-      recentAttempts.reduce((sum, a) => sum + pct(a.correct_answers, a.total_questions), 0) /
-      recentAttempts.length
-    const avgPrev =
-      prevAttempts.reduce((sum, a) => sum + pct(a.correct_answers, a.total_questions), 0) /
-      prevAttempts.length
-    return { type: 'trend', diff: Math.round(avgRecent - avgPrev) }
-  }
-
-  // Fallback: last attempt vs first attempt
-  const firstPct = pct(sorted[0].correct_answers, sorted[0].total_questions)
-  const lastPct = pct(
-    sorted[sorted.length - 1].correct_answers,
-    sorted[sorted.length - 1].total_questions
-  )
-  return { type: 'trend', diff: lastPct - firstPct }
+  return averageCorrectByQuiz(rows)
 }
 
 function resolveTitle(raw: unknown): string {
@@ -460,9 +449,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     best_streak: 0,
     avg_score_pct: 0,
     beste_plassering: null,
-    bedre_enn_prosent: null,
-    raskere_enn_prosent: null,
     progresjon: null,
+    felt_snitt_riktige: {},
     sterkeste_kategori: null,
     svakeste_kategori: null,
     sterkeste_kategori_prosent: null,
@@ -475,27 +463,18 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     lengste_deltakelsesrekke: 0,
   }
 
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-
-  // Fetch user attempts and global 90-day attempts in parallel
-  const [{ data: userAttempts }, { data: globalAttempts }] = await Promise.all([
-    supabaseAdmin
-      .from('attempts')
-      .select(
-        'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at'
-      )
-      .eq('user_id', userId)
-      .not('correct_streak', 'is', null),
-    // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
-    // .limit(10_000) gjorde ingenting. Snitt-tallene under regnes derfor i
-    // praksis på maks 1000 av 90-dagers-attemptene og er IKKE beskyttet mot
-    // vekst. TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
-    supabaseAdmin
-      .from('attempts')
-      .select('correct_answers, total_questions, total_time_ms')
-      .not('correct_streak', 'is', null)
-      .gte('completed_at', ninetyDaysAgo),
-  ])
+  // HER LÅ EN 90-DAGERS SPØRRING over ALLE brukeres forsøk, som matet
+  // persentilene «Bedre enn andre» og «Raskere enn andre». Begge er fjernet
+  // fra siden (se app/historikk/page.tsx), og spørringen med dem: den var
+  // upaginert og kuttet stille ved 1000 rader, altså allerede feil, og den
+  // leste hele tabellen for å svare på noe siden ikke lenger spør om.
+  const { data: userAttempts } = await supabaseAdmin
+    .from('attempts')
+    .select(
+      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at'
+    )
+    .eq('user_id', userId)
+    .not('correct_streak', 'is', null)
 
   if (!userAttempts || userAttempts.length === 0) return EMPTY
 
@@ -511,7 +490,7 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   // at den ikke koster en ekstra seriell rundtur. Den ligger her og ikke i
   // første Promise.all fordi den da ville blitt betalt også for brukere som
   // returnerer EMPTY over.
-  const [ranks, categoryStrength, participation] = await Promise.all([
+  const [ranks, categoryStrength, participation, felt_snitt_riktige] = await Promise.all([
     computeRanks(
       userAttempts.map((a) => ({
         id: a.id,
@@ -522,45 +501,29 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     ),
     fetchCategoryStrength(userId),
     fetchParticipationStreak(userId),
+    fetchFieldAverages([...new Set(userAttempts.map((a) => a.quiz_id))]),
   ])
 
   const allRankValues = [...ranks.values()].map((r) => r.rank)
   const beste_plassering = allRankValues.length > 0 ? Math.min(...allRankValues) : null
 
-  // Global percentiles vs all attempts in last 90 days
-  let bedre_enn_prosent: number | null = null
-  let raskere_enn_prosent: number | null = null
-
-  if (globalAttempts && globalAttempts.length > 0) {
-    // Score percentile: % of global attempts that the user scores higher than
-    const globalScores = globalAttempts.map((a) =>
-      pct(a.correct_answers ?? 0, a.total_questions ?? 0)
-    )
-    const worseCount = globalScores.filter((s) => s < avg_score_pct).length
-    bedre_enn_prosent = Math.round((worseCount / globalScores.length) * 100)
-
-    // Speed percentile: % of global attempts that are slower than the user
-    const userTotalTime = userAttempts.reduce((sum, a) => sum + (a.total_time_ms ?? 0), 0)
-    if (total_questions > 0) {
-      const userTimePerQ = userTotalTime / total_questions
-      const globalTimesPerQ = globalAttempts
-        .filter((a) => (a.total_questions ?? 0) > 0)
-        .map((a) => (a.total_time_ms ?? 0) / (a.total_questions as number))
-      const slowerCount = globalTimesPerQ.filter((t) => t > userTimePerQ).length
-      raskere_enn_prosent =
-        globalTimesPerQ.length > 0
-          ? Math.round((slowerCount / globalTimesPerQ.length) * 100)
-          : null
-    }
-  }
-
-  // Progression
-  const progresjon = computeProgresjon(
-    userAttempts.map((a) => ({
-      correct_answers: a.correct_answers,
-      total_questions: a.total_questions,
-      completed_at: a.completed_at,
-    }))
+  // Progresjon målt mot FELTET, ikke mot spillerens egen rå score. En quiz kan
+  // være vanskelig for alle — feltets snitt svinger fra 6,43 til 10,32 riktige
+  // av 15 mellom uker i prod — og den gamle beregningen tilskrev hele den
+  // svingningen spilleren.
+  //
+  // Forsøk på quizer uten feltsnitt hoppes over framfor å regnes mot 0: et
+  // manglende snitt ville ellers gitt en diff på spillerens fulle score, som
+  // ser ut som en voldsom framgang.
+  const progresjon = computeFieldProgress(
+    userAttempts
+      .filter((a) => felt_snitt_riktige[a.quiz_id] !== undefined)
+      .map((a) => ({
+        correct: a.correct_answers,
+        fieldAvgCorrect: felt_snitt_riktige[a.quiz_id],
+        completedAt: a.completed_at,
+      })),
+    Date.now()
   )
 
   return {
@@ -570,9 +533,8 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
     best_streak,
     avg_score_pct,
     beste_plassering,
-    bedre_enn_prosent,
-    raskere_enn_prosent,
     progresjon,
+    felt_snitt_riktige,
     sterkeste_kategori: categoryStrength.sterkeste,
     svakeste_kategori: categoryStrength.svakeste,
     sterkeste_kategori_prosent: categoryStrength.sterkesteProsent,
