@@ -3068,7 +3068,13 @@ export default function QuizPage() {
         </div>
 
         <div className="qk-score-row">
-          <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713' : '\u2013'} {correctSoFar} {pluralNo(correctSoFar, 'riktig', 'riktige')}</span>
+          {/* Null-tilstanden har INGEN glyf \u2014 med vilje. Fram til 13. august
+              2026 sto det en tankestrek (\u2013) som plassholder for haken,
+              men en strek foran et tall i en gr\u00f8nn pille leses som FORTEGN:
+              \u00ab\u2212 0 riktige\u00bb (VINDU D). Ikke legg streken tilbake som
+              \u00abmanglende symmetri\u00bb \u2014 og ikke bytt den mot haken: \u2713 foran null
+              antyder noe oppn\u00e5dd som ikke er det. */}
+          <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713 ' : ''}{correctSoFar} {pluralNo(correctSoFar, 'riktig', 'riktige')}</span>
           {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
         </div>
 
