@@ -107,6 +107,32 @@ export function decideHero(input: HeroInput): Hero {
   const label = pluralNo(total, 'quiz spilt', 'quizer spilt')
   const base = { kind: 'total' as const, tall: total, label }
 
+  // ── B-TILSTANDENE: heroen viser TOTALEN, ikke rekken ──────────────────────
+  //
+  // Underteksten her har én jobb utover å peke framover: den skal forklare
+  // hvorfor tallet over er en total og ikke en rekke. Uten det leser man «2
+  // quizer spilt» rett over en graf med fire ukers hull mellom punktene, og
+  // ingenting forbinder de to.
+  //
+  // INGEN TALLORD I DISSE GRENENE — heller ikke skrevet med bokstaver.
+  // Teksten sa til 13. august 2026 «har du to på rad», og 7 av de 18 spillerne
+  // i grenen har `total === 2`. Heroen viste da «2» og underteksten «to»:
+  // samme størrelse med to helt ulike betydninger, rett under hverandre. Den
+  // uttømmende testen fanget det ikke, fordi den lette etter sifre og «to» er
+  // bokstaver. Derfor sier grenene «en rekke på gang» i stedet for å telle —
+  // og «en» er artikkel, ikke tallord.
+  //
+  // TERSKELEN «rekke» = 2 er den samme som i decideRecords(): en rekke på 1 er
+  // ikke en rekke, det er én gang. Derfor kan en spiller med rekke 1 fortsatt
+  // få høre at hen får «en rekke på gang» ved å spille neste.
+  //
+  // DATOEN FOR SISTE SPILTE QUIZ ER BEVISST IKKE HER. Kortet «Din siste quiz»
+  // står rett under heroen og bærer både quiztittel og full dato; å gjenta
+  // datoen i underteksten ville sagt det samme to ganger innenfor samme
+  // skjermhøyde. Dessuten har 4 spillere i prod et nyeste forsøk som aldri ble
+  // levert inn — for dem ville «du spilte sist ...» vært en påstand om noe de
+  // ikke gjorde.
+
   // rekke === 1: rekken ER startet. Ingen av grenene her får si «så starter
   // rekken din» — det ville vært direkte usant for 22 av 137 spillere i prod.
   if (rekke === 1) {
@@ -114,8 +140,8 @@ export function decideHero(input: HeroInput): Hero {
       ...base,
       sub:
         total === 1
-          ? 'Du er i gang — spiller du neste fredag også, har du to på rad'
-          : 'Du er i gang igjen — spiller du neste fredag også, har du to på rad',
+          ? 'Du er i gang. Spiller du neste fredagsquiz også, har du en rekke på gang'
+          : 'Du er i gang igjen etter et opphold. Spill neste fredagsquiz, så har du en rekke på gang',
     }
   }
 
@@ -126,7 +152,18 @@ export function decideHero(input: HeroInput): Hero {
   if (rekord > 0) {
     // Har hatt en rekke som er brutt. «Så starter en ny rekke» ville lovet noe
     // som allerede har skjedd og gikk i stykker.
-    return { ...base, sub: 'Spill neste fredagsquiz, så er du i gang igjen' }
+    //
+    // Delt på om rekorden var en ekte rekke: 27 spillere i prod har rekord ≥ 2
+    // og har altså faktisk hatt en rekke som brakk, mens 45 har rekord 1 og
+    // aldri har spilt to fredager etter hverandre. «Rekken din er brutt» ville
+    // vært en merkelig påstand til den andre gruppa — de har aldri hatt en.
+    return {
+      ...base,
+      sub:
+        rekord >= 2
+          ? 'Rekken din er brutt. Spill neste fredagsquiz, så er du i gang igjen'
+          : 'Du har ikke fått en rekke på gang ennå. Spill neste fredagsquiz, så er du i gang',
+    }
   }
   if (total === 1) {
     return { ...base, sub: 'Velkommen — spill neste fredagsquiz, så starter rekken din' }

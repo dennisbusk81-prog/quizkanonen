@@ -64,21 +64,34 @@ test('B1 — første quiz, rekken er i gang (4 spillere)', () => {
   assert.equal(h.kind, 'total')
   assert.equal(h.tall, 1)
   assert.equal(h.label, 'quiz spilt')
-  assert.equal(h.sub, 'Du er i gang — spiller du neste fredag også, har du to på rad')
+  assert.equal(h.sub, 'Du er i gang. Spiller du neste fredagsquiz også, har du en rekke på gang')
 })
 
 test('B2 — tilbake etter opphold (18 spillere)', () => {
   const h = synlig(hero({ totalAttempts: 5, deltakelsesrekke: 1, lengsteDeltakelsesrekke: 2 }))
   assert.equal(h.kind, 'total')
   assert.equal(h.label, 'quizer spilt')
-  assert.equal(h.sub, 'Du er i gang igjen — spiller du neste fredag også, har du to på rad')
+  assert.equal(
+    h.sub,
+    'Du er i gang igjen etter et opphold. Spill neste fredagsquiz, så har du en rekke på gang',
+  )
 })
 
-test('B3 — brutt rekke, største gruppa (72 spillere)', () => {
+test('B3a — brutt rekke etter en ekte rekke (27 spillere)', () => {
   const h = synlig(hero({ totalAttempts: 7, deltakelsesrekke: 0, lengsteDeltakelsesrekke: 7 }))
   assert.equal(h.kind, 'total')
   assert.equal(h.tall, 7)
-  assert.equal(h.sub, 'Spill neste fredagsquiz, så er du i gang igjen')
+  assert.equal(h.sub, 'Rekken din er brutt. Spill neste fredagsquiz, så er du i gang igjen')
+})
+
+test('B3b — har aldri hatt en rekke (45 spillere)', () => {
+  // rekord 1 er ikke en rekke, det er én gang. «Rekken din er brutt» ville
+  // vært en merkelig paastand til noen som aldri har hatt en.
+  const h = synlig(hero({ totalAttempts: 4, deltakelsesrekke: 0, lengsteDeltakelsesrekke: 1 }))
+  assert.equal(
+    h.sub,
+    'Du har ikke fått en rekke på gang ennå. Spill neste fredagsquiz, så er du i gang',
+  )
 })
 
 test('B4 — ett forsøk, ingen rekord (3 spillere)', () => {
@@ -111,6 +124,45 @@ test('en løpende rekke får ALDRI høre at rekken skal starte', () => {
 test('en brutt rekke får ikke løfte om at en ny rekke starter', () => {
   const h = synlig(hero({ totalAttempts: 6, deltakelsesrekke: 0, lengsteDeltakelsesrekke: 4 }))
   assert.equal(h.sub.includes('starter en ny rekke'), false)
+})
+
+test('«rekken din er brutt» sies bare til noen som faktisk har hatt en rekke', () => {
+  // rekord 1 er ikke en rekke. Uttømmende over alle B-tilstandene.
+  for (let total = 1; total <= 12; total++) {
+    for (let rekord = 0; rekord <= Math.min(1, total); rekord++) {
+      const h = hero({
+        totalAttempts: total,
+        deltakelsesrekke: 0,
+        lengsteDeltakelsesrekke: rekord,
+      })
+      if (h.kind === 'empty') continue
+      assert.equal(
+        /rekken din er brutt/i.test(h.sub),
+        false,
+        `påstår brutt rekke ved rekord=${rekord}: «${h.sub}»`,
+      )
+    }
+  }
+})
+
+test('B-tilstandene nevner aldri datoen for siste spilte quiz', () => {
+  // Kortet «Din siste quiz» rett under heroen bærer både tittel og full dato.
+  // Å gjenta datoen her ville sagt det samme to ganger på samme skjermhøyde —
+  // og for de 4 spillerne i prod med et nyeste forsøk som aldri ble levert
+  // inn, ville «du spilte sist ...» dessuten vært usant.
+  for (let total = 1; total <= 12; total++) {
+    for (let rekke = 0; rekke <= Math.min(1, total); rekke++) {
+      for (let rekord = rekke; rekord <= total; rekord++) {
+        const h = hero({
+          totalAttempts: total,
+          deltakelsesrekke: rekke,
+          lengsteDeltakelsesrekke: rekord,
+        })
+        if (h.kind !== 'total') continue
+        assert.equal(/spilte sist|sist spilte/i.test(h.sub), false, h.sub)
+      }
+    }
+  }
 })
 
 test('ordet «kveld» står ikke i noen hero-tekst', () => {
@@ -175,6 +227,46 @@ test('ingen hero-tekst gjentar tallet heroen selv viser', () => {
       }
     }
   }
+})
+
+// ── REGRESJON: tallord skrevet med BOKSTAVER ────────────────────────────────
+// Loekken over lette etter sifre, og slapp derfor gjennom teksten «har du to
+// paa rad» under et hero-tall paa 2 — samme stoerrelse med to helt ulike
+// betydninger, rett under hverandre. Det gjaldt 7 av de 18 B2-spillerne i
+// prod, og var akkurat den forvirringen omskrivingen 13. august skulle fjerne.
+
+const TALLORD = ['én', 'ett', 'to', 'tre', 'fire', 'fem', 'seks', 'sju', 'syv', 'åtte', 'ni', 'ti']
+
+test('B-tilstandene bruker ingen tallord — heller ikke skrevet med bokstaver', () => {
+  // Gjelder KUN grenene der heroen viser totalen. A-tilstandene har med vilje
+  // tall i teksten («7 quizer til sammen · rekorden din er 4»), og de er
+  // sifre, som loekken over allerede holder i sjakk.
+  for (let total = 1; total <= 12; total++) {
+    for (let rekke = 0; rekke <= Math.min(1, total); rekke++) {
+      for (let rekord = rekke; rekord <= total; rekord++) {
+        const h = hero({
+          totalAttempts: total,
+          deltakelsesrekke: rekke,
+          lengsteDeltakelsesrekke: rekord,
+        })
+        if (h.kind !== 'total') continue
+        for (const ord of TALLORD) {
+          assert.equal(
+            new RegExp(`\\b${ord}\\b`, 'i').test(h.sub),
+            false,
+            `tallordet «${ord}» i «${h.sub}» (total=${total} rekke=${rekke} rekord=${rekord})`,
+          )
+        }
+      }
+    }
+  }
+})
+
+test('«en» som ARTIKKEL er tillatt — det er «én» som er tallordet', () => {
+  // «har du en rekke på gang» skal ikke felles av regelen over.
+  const h = synlig(hero({ totalAttempts: 1, deltakelsesrekke: 1, lengsteDeltakelsesrekke: 1 }))
+  assert.match(h.sub, /en rekke på gang/)
+  assert.equal(/\bén\b/.test(h.sub), false)
 })
 
 test('sub-teksten gjentar heller ikke et tall inni seg selv', () => {
