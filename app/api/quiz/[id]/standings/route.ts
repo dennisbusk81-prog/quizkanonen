@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot, computePlacement, type SnapshotEntry } from '@/lib/ranking-snapshot'
 import { decideStandingsCache } from '@/lib/standings-cache'
-import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
+import { filterSnapshotToPublic } from '@/lib/public-snapshot'
 
 // ── Ett felles endepunkt for resultatskjermen ────────────────────────────────
 // Returnerer BÅDE topp-3 OG spillerens egen plassering, utledet fra ÉN felles
@@ -98,26 +98,19 @@ export async function GET(
   })
 
   // ── Global synlighets-gate — samme delte sett som leaderboard-ruten ────────
-  // Gjester (user_id null) berøres aldri. Blocked-settet er 30s-cachet per
-  // quiz-id i lib-en (modul-lokal Map, delt med leaderboard-ruten innenfor
-  // samme serverless-instans), så trafikk-toppen ved quiz-slutt koster ikke en
-  // medlemskaps-spørring per spiller. Feil er åpent: lib-en returnerer tomt
-  // sett framfor å skjule spillere på feil grunnlag.
-  const attemptUserIds = [...new Set(
-    snapshot.map(e => e.user_id).filter((id): id is string => !!id)
-  )]
-  const blocked = attemptUserIds.length > 0
-    ? await getGloballyBlockedSet(quizId, attemptUserIds, seasonPointsAwarded)
-    : new Set<string>()
-
-  // Posisjonell re-rank er korrekt fordi snapshoten allerede ER den totalordnede
-  // lista (rankQuizAttempts, uten delte plasseringer) og filter bevarer
-  // rekkefølgen — gjenværende starter på 1 uten hull.
-  const publicSnapshot: SnapshotEntry[] = blocked.size > 0
-    ? snapshot
-        .filter(e => e.user_id == null || !blocked.has(e.user_id))
-        .map((e, i) => ({ ...e, rank: i + 1 }))
-    : snapshot
+  // Filter + posisjonell re-rank bor i lib/public-snapshot.ts, ikke her: tre
+  // andre flater (social-proof, rival, live-ranking) skal gates senere, og en
+  // håndskrevet kopi per flate er tre sjanser til å avvike. `snapshot` er
+  // fortsatt det UFILTRERTE feltet — se egen plassering nederst.
+  //
+  // Snapshoten hentes bevisst utenfor helperen (Promise.all over) fordi
+  // `season_points_awarded` kommer fra samme quiz-rad som `closes_at`; en
+  // `getPublicSnapshot(quizId)` her ville gjort de to rundturene serielle.
+  const { publicSnapshot, blocked } = await filterSnapshotToPublic(
+    quizId,
+    snapshot,
+    seasonPointsAwarded,
+  )
 
   // ── Topp 3 fra den SYNLIGE delen av den delte lista ─────────────────────────
   const top3Entries = publicSnapshot.slice(0, 3)
