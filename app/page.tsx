@@ -300,6 +300,12 @@ const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-da
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
   try {
+    // Embedden brukes KUN som eksistensfilter («har minst ett svar»), men
+    // aggregerte tidligere hele undertreet — ~1100 UUID-er / 54,5 kB JSON som
+    // ble kastet (målt mot prod 16. august 2026). limit(1) på begge nivåene
+    // gjør den til et rent EXISTS-oppslag; INNER JOIN-semantikken (hvilken
+    // quiz som velges) er uendret. Samme mønster som toppliste-ruten og
+    // org/quiz-scores.
     const { data: closedQuizRow } = await supabaseAdmin
       .from('quizzes')
       .select('id, attempts!inner(id, attempt_answers!inner(id))')
@@ -307,6 +313,8 @@ async function computePageInsights(): Promise<PageInsights | null> {
       .lt('closes_at', now.toISOString())
       .not('closes_at', 'is', null)
       .order('closes_at', { ascending: false })
+      .limit(1, { referencedTable: 'attempts' })
+      .limit(1, { referencedTable: 'attempts.attempt_answers' })
       .limit(1)
       .maybeSingle()
 

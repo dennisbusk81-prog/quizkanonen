@@ -42,13 +42,23 @@ export async function GET(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Ingen medlemmer' }, { status: 404 })
   }
 
-  // Most recent closed quiz that actually has attempt_answers
+  // Most recent closed quiz that actually has attempt_answers.
+  // Embedden er kun et eksistensfilter — limit(1) på begge nivåene gjør den
+  // til et rent EXISTS-oppslag i stedet for en json_agg over hele undertreet
+  // (samme mønster som toppliste-ruten og quiz-scores i samme mappe).
+  // is_test=false: uten det kunne en stengt testquiz blitt valgt og vist
+  // testdata i bedriftspanelet. is_active filtreres BEVISST IKKE — «Skjul» i
+  // admin skal ikke fjerne resultater folk allerede har spilt (samme
+  // presedens som award-season-points).
   const { data: closedQuiz } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, attempts!inner(id, attempt_answers!inner(id))')
+    .eq('is_test', false)
     .lt('closes_at', new Date().toISOString())
     .not('closes_at', 'is', null)
     .order('closes_at', { ascending: false })
+    .limit(1, { referencedTable: 'attempts' })
+    .limit(1, { referencedTable: 'attempts.attempt_answers' })
     .limit(1)
     .maybeSingle()
 
