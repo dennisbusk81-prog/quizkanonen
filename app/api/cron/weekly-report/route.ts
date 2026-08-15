@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { weeklyReportEmail } from '@/lib/email-templates'
 import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
-import { computeWeeklySummary, buildWeeklyShareText } from '@/lib/weekly-report'
+import { computeWeeklySummary, buildWeeklyShareText, getLatestClosedQuiz } from '@/lib/weekly-report'
+import type { LatestClosedQuiz } from '@/lib/weekly-report'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest) {
   let sent = 0
   const errors: string[] = []
 
+  // «Sist stengte quiz» er global (ikke per org) — hentes derfor maks én gang
+  // per kjøring, og kun hvis en after_quiz-org faktisk finnes.
+  // undefined = ikke hentet ennå.
+  let latestClosed: LatestClosedQuiz | null | undefined
+
   for (const org of orgs ?? []) {
     const timing = org.weekly_report_timing ?? 'monday_morning'
     const sentAt = org.weekly_report_sent_at ? new Date(org.weekly_report_sent_at) : null
@@ -54,7 +60,17 @@ export async function GET(request: NextRequest) {
     } else if (timing === 'monday_morning') {
       timeMatches = weekday === 'Mon' && hour >= 8 && (!sentAt || osloParts(sentAt).dateKey !== dateKey)
     } else if (timing === 'after_quiz') {
-      timeMatches = true // avgjøres mot quiz-stengetid nedenfor
+      // Duplikatvakten ligger HER — før computeWeeklySummary — ikke etter.
+      // Tidligere sto den etter beregningen, så en after_quiz-org kjørte hele
+      // den tunge beregningen (organization_members + attempts + profiles)
+      // hvert 15. minutt hele uken, og kastet nesten alltid resultatet.
+      // Samme betingelser som før, bare flyttet: quizen må ha stengt, og vi
+      // må ikke allerede ha sendt for den.
+      if (latestClosed === undefined) latestClosed = await getLatestClosedQuiz()
+      if (latestClosed) {
+        const closesAt = new Date(latestClosed.closes_at)
+        timeMatches = closesAt <= now && (!sentAt || sentAt < closesAt)
+      }
     }
     if (!timeMatches) continue
 
@@ -62,7 +78,10 @@ export async function GET(request: NextRequest) {
       const summary = await computeWeeklySummary(org.id)
       if (!summary) continue
 
-      // For after_quiz: send kun når quizen har stengt og vi ikke alt har sendt for den.
+      // Backstop for after_quiz: skulle en quiz stenge mellom vakt-oppslaget
+      // over og beregningen, gjelder fortsatt samme regel mot beregningens
+      // egen quiz. Primærvakten er timeMatches-grenen — denne er billig og
+      // nås kun når en sending faktisk er underveis.
       if (timing === 'after_quiz') {
         const closesAt = new Date(summary.closesAt)
         if (closesAt > now) continue

@@ -13,23 +13,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Eksplisitt cache-invalidering av forsidens delte data hvert minutt (denne
-  // cronen kjører allerede hvert minutt uansett). Forsidens "quiz er åpen"-
-  // status styres av opens_at/closes_at-tidsstempler alene (ingen is_active-
-  // avhengighet), så unstable_cache sitt 60s revalidate-vindu ALENE holdt ikke
-  // dette ferskt i praksis — en kvalifiserende quiz forble usynlig på forsiden
-  // i over 12 minutter i en verifisering, til tross for at spørringen fant den
-  // korrekt ved direkte DB-oppslag. Mest sannsynlige årsak: unstable_cache sin
-  // stale-while-revalidate-bakgrunnsjobb kan bli kuttet før den fullfører på
-  // Vercel sin serverless-plattform, siden den ikke kjøres i en garantert
-  // waitUntil-kontekst. Fremfor å stole på at den passive tidsbaserte
-  // revalideringen faktisk fullfører, tvinger vi en fersk cache hvert minutt
-  // her — uavhengig av om noen quiz faktisk endret status denne kjøringen.
-  // { expire: 0 } = purg umiddelbart (denne Next.js-versjonen krever en
-  // cache-life-profil som andre argument til revalidateTag).
-  revalidateTag('home-shared-data', { expire: 0 })
-  revalidateTag('home-page-insights', { expire: 0 })
-
   const now = new Date().toISOString()
 
   // ── Publiser quizer som er klare til å åpne ───────────────────────────────
@@ -49,6 +32,50 @@ export async function GET(request: NextRequest) {
   const count = data?.length ?? 0
   if (count > 0) {
     console.log('[cron/publish-quiz] published:', data?.map(q => q.title).join(', '))
+  }
+
+  // ── Betinget cache-invalidering av forsidens delte data ───────────────────
+  // Forsidens "quiz er åpen"-status styres av opens_at/closes_at-tidsstempler
+  // alene (ingen is_active-avhengighet), så unstable_cache sitt 60s
+  // revalidate-vindu ALENE holdt ikke dette ferskt i praksis — en
+  // kvalifiserende quiz forble usynlig på forsiden i over 12 minutter i en
+  // verifisering (se a32dff9). Mest sannsynlige årsak: unstable_cache sin
+  // stale-while-revalidate-bakgrunnsjobb kan bli kuttet før den fullfører på
+  // Vercel sin serverless-plattform. Derfor tvinger denne cronen (hvert
+  // minutt) en fersk cache — men KUN når forsidedataene faktisk kan ha endret
+  // seg siden forrige kjøring:
+  //   1. UPDATE-en over publiserte minst én quiz, ELLER
+  //   2. en ekte quiz er åpen NÅ (participantCount er live sosialt bevis som
+  //      tikker mens quizen pågår, og selve overgangen ved opens_at skjer uten
+  //      at noen rad skrives), ELLER
+  //   3. en ekte quiz stengte i løpet av de siste 10 minuttene (topp 3 fra
+  //      sist stengte quiz, månedstopplisten etter processQuiz-poengtildeling
+  //      og innsikts-cachen endrer seg alle rett ETTER stengetid).
+  // Utenfor disse vinduene — altså mesteparten av uken — får cachen leve, og
+  // forsidens tyngste spørringer (nestet embed quizzes→attempts→
+  // attempt_answers over inntil 500 forsøk) rekomputeres ikke for hvert
+  // bot-/menneskebesøk. Sakte-bevegelige admin-endringer (f.eks. redigert
+  // "neste quiz"-tekst) propagerer da via det ordinære 60s-vinduet i stedet.
+  // Oppslaget speiler forsidens activeQuiz-filter (is_test=false, opens_at
+  // passert, closes_at null eller ikke passert) med stengegrensen skjøvet 10
+  // minutter bakover. Ved oppslagsfeil purger vi (fail-open = dagens atferd).
+  // { expire: 0 } = purg umiddelbart (denne Next.js-versjonen krever en
+  // cache-life-profil som andre argument til revalidateTag).
+  const purgeWindowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  const { data: liveQuizzes, error: liveError } = await supabaseAdmin
+    .from('quizzes')
+    .select('id')
+    .eq('is_test', false)
+    .lte('opens_at', now)
+    .or(`closes_at.is.null,closes_at.gte.${purgeWindowStart}`)
+    .limit(1)
+
+  if (liveError) {
+    console.error('[cron/publish-quiz] live-quiz lookup error (purger likevel):', liveError.message)
+  }
+  if (count > 0 || liveError !== null || (liveQuizzes?.length ?? 0) > 0) {
+    revalidateTag('home-shared-data', { expire: 0 })
+    revalidateTag('home-page-insights', { expire: 0 })
   }
 
   // ── Tildel sesongpoeng for quizer som nettopp har stengt ──────────────────

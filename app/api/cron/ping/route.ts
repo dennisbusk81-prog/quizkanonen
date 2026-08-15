@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
-// Keep-alive endpoint for Supabase free tier.
+// OVERFLØDIG SIDEN 14. JUNI 2026 (Supabase Pro pauses aldri). Kandidat for
+// sletting, se QK_4. Ikke fjernet ennå i tilfelle brukt til ekstern
+// overvåkning — cron-jobben i cron-job.org deaktiveres separat (utenfor
+// kodebasen).
+//
+// Opprinnelig formål: keep-alive endpoint for Supabase free tier.
 // Call every 5 minutes from an external cron service to prevent the project from pausing.
 //
 // Required environment variable (add in Vercel → Settings → Environment Variables):

@@ -81,6 +81,7 @@ function builder(table: string) {
     lt(col: string, val: string) { ltCol = col; ltVal = val; return b },
     lte() { return b },
     not() { return b },
+    or() { return b },
     order(_col: string, opts?: { ascending?: boolean }) { orderAsc = opts?.ascending !== false; return b },
     limit(n: number) { limitN = n; return b },
     then(resolve: (v: unknown) => void) {

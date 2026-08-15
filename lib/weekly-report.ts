@@ -32,6 +32,30 @@ function pickBetter(a: RawAttempt, b: RawAttempt): RawAttempt {
   return a
 }
 
+export type LatestClosedQuiz = { id: string; title: string; closes_at: string }
+
+// Sist stengte ekte quiz — ett billig én-rads-oppslag. Delt av
+// computeWeeklySummary (selve beregningen) og cron/weekly-report (som billig
+// duplikatvakt FØR den tunge beregningen kalles i det hele tatt). Én kilde,
+// slik at vakten og beregningen aldri kan peke på hver sin quiz.
+//
+// is_test-guarden speiler varslingsrutene: «sist stengte quiz» ville ellers
+// blitt en testquiz som stengte sist, org-medlemmene har ingen forsøk på den,
+// og hele ukesrapporten undertrykkes stille (return null i beregningen).
+export async function getLatestClosedQuiz(): Promise<LatestClosedQuiz | null> {
+  const { data: quiz } = await supabaseAdmin
+    .from('quizzes')
+    .select('id, title, closes_at')
+    .lt('closes_at', new Date().toISOString())
+    .not('closes_at', 'is', null)
+    .eq('is_test', false)
+    .order('closes_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return (quiz as LatestClosedQuiz | null) ?? null
+}
+
 // Beregner ukens oppsummering for ÉN organisasjon basert på sist stengte quiz.
 // Bare forsøk fra org-medlemmer telles — ingen data fra andre orger lekker.
 export async function computeWeeklySummary(orgId: string): Promise<WeeklySummary | null> {
@@ -43,19 +67,7 @@ export async function computeWeeklySummary(orgId: string): Promise<WeeklySummary
   const memberIds = (orgMembers ?? []).map(m => m.user_id)
   if (memberIds.length === 0) return null
 
-  // is_test-guarden speiler varslingsrutene: «sist stengte quiz» ville ellers
-  // blitt en testquiz som stengte sist, org-medlemmene har ingen forsøk på den,
-  // og hele ukesrapporten undertrykkes stille (return null under).
-  const { data: quiz } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title, closes_at')
-    .lt('closes_at', new Date().toISOString())
-    .not('closes_at', 'is', null)
-    .eq('is_test', false)
-    .order('closes_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
+  const quiz = await getLatestClosedQuiz()
   if (!quiz) return null
 
   const { data: attempts } = await supabaseAdmin
