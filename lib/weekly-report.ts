@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabase-admin'
+import { fetchAllRows, fetchAllRowsChunked } from './paginate'
 
 export type WeeklyEntry = { displayName: string; correct: number; total: number }
 
@@ -59,48 +60,69 @@ export async function getLatestClosedQuiz(): Promise<LatestClosedQuiz | null> {
 // Beregner ukens oppsummering for ÉN organisasjon basert på sist stengte quiz.
 // Bare forsøk fra org-medlemmer telles — ingen data fra andre orger lekker.
 export async function computeWeeklySummary(orgId: string): Promise<WeeklySummary | null> {
-  const { data: orgMembers } = await supabaseAdmin
-    .from('organization_members')
-    .select('user_id')
-    .eq('organization_id', orgId)
+  // Paginert, ikke ett rått .select(): PostgREST kutter stille på 1000 rader,
+  // og medlemslisten er IKKE strukturelt begrenset — cron-ruten filtrerer på
+  // plan='standard' (maks 50), men org-admin-ruten (weekly-summary) gater ikke
+  // på plan, og Pro/Enterprise har memberLimit: null i lib/org-plan.ts.
+  const orgMembers = await fetchAllRows<{ user_id: string }>((from, to) =>
+    supabaseAdmin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', orgId)
+      .order('user_id', { ascending: true })
+      .range(from, to)
+  )
 
-  const memberIds = (orgMembers ?? []).map(m => m.user_id)
+  const memberIds = orgMembers.map(m => m.user_id)
   if (memberIds.length === 0) return null
 
   const quiz = await getLatestClosedQuiz()
   if (!quiz) return null
 
-  const { data: attempts } = await supabaseAdmin
-    .from('attempts')
-    .select('user_id, player_name, correct_answers, total_questions, total_time_ms, correct_streak')
-    .eq('quiz_id', quiz.id)
-    .eq('is_team', false)
-    .in('user_id', memberIds)
-    .not('user_id', 'is', null)
-    // Samme filter som percentile-ruten (commit 859e529, 25. juli): uten dette
-    // teller en påbegynt, aldri innsendt quiz med i «X ansatte deltok»-tallet i
-    // den ukentlige B2B-e-posten — kunstig oppblåst sosialt-bevis-tall.
-    .not('submitted_at', 'is', null)
+  // Chunket: `.in()` legger hver id i URL-en og brekker rundt 390 id-er — en
+  // LAVERE grense enn radtaket på 1000, altså den vi treffer først. Samme
+  // mønster som send-reminders; se lib/paginate.ts.
+  const attempts = await fetchAllRowsChunked<RawAttempt>(memberIds, (chunk, from, to) =>
+    supabaseAdmin
+      .from('attempts')
+      .select('user_id, player_name, correct_answers, total_questions, total_time_ms, correct_streak')
+      .eq('quiz_id', quiz.id)
+      .eq('is_team', false)
+      .in('user_id', chunk)
+      .not('user_id', 'is', null)
+      // Samme filter som percentile-ruten (commit 859e529, 25. juli): uten dette
+      // teller en påbegynt, aldri innsendt quiz med i «X ansatte deltok»-tallet i
+      // den ukentlige B2B-e-posten — kunstig oppblåst sosialt-bevis-tall.
+      .not('submitted_at', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, to)
+  )
 
-  if (!attempts || attempts.length === 0) return null
+  if (attempts.length === 0) return null
 
   const bestByUser = new Map<string, RawAttempt>()
-  for (const a of attempts as RawAttempt[]) {
+  for (const a of attempts) {
     if (!a.user_id) continue
     const existing = bestByUser.get(a.user_id)
     bestByUser.set(a.user_id, existing ? pickBetter(existing, a) : a)
   }
   if (bestByUser.size === 0) return null
 
+  // Samme .in()-tak som attempts-oppslaget over: id-listen er avledet av
+  // medlemslisten og kan være like lang.
   const ids = [...bestByUser.keys()]
-  const { data: profiles } = await supabaseAdmin
-    .from('profiles')
-    .select('id, display_name')
-    .in('id', ids)
-
-  const nameMap = new Map(
-    ((profiles ?? []) as { id: string; display_name: string | null }[]).map(p => [p.id, p.display_name])
+  const profiles = await fetchAllRowsChunked<{ id: string; display_name: string | null }>(
+    ids,
+    (chunk, from, to) =>
+      supabaseAdmin
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', chunk)
+        .order('id', { ascending: true })
+        .range(from, to)
   )
+
+  const nameMap = new Map(profiles.map(p => [p.id, p.display_name]))
 
   const ranked = [...bestByUser.entries()]
     .map(([uid, a]) => ({

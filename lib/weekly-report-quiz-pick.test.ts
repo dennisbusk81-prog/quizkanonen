@@ -40,8 +40,11 @@ function builder(table: string) {
   let inCol: string | null = null, inVals: string[] = []
   let ltVal: string | null = null
   const notNullCols: string[] = []
-  let orderDesc = false
+  let orderCol: string | null = null
+  let orderAsc = true
   let limitN: number | null = null
+  let rangeFrom: number | null = null
+  let rangeTo = 0
 
   const source = (): Record<string, unknown>[] => {
     switch (table) {
@@ -61,7 +64,12 @@ function builder(table: string) {
       for (const c of notNullCols) if (r[c] === null || r[c] === undefined) return false
       return true
     })
-    if (orderDesc) out = [...out].sort((a, b) => String(b.closes_at).localeCompare(String(a.closes_at)))
+    if (orderCol !== null) {
+      const col = orderCol
+      out = [...out].sort((a, b) => String(a[col] ?? '').localeCompare(String(b[col] ?? '')))
+      if (!orderAsc) out.reverse()
+    }
+    if (rangeFrom !== null) out = out.slice(rangeFrom, rangeTo + 1)
     if (limitN !== null) out = out.slice(0, limitN)
     return out
   }
@@ -75,8 +83,9 @@ function builder(table: string) {
       if (op === 'is' && val === null) notNullCols.push(col)
       return b
     },
-    order(_col: string, opts?: { ascending?: boolean }) { orderDesc = opts?.ascending === false; return b },
+    order(col: string, opts?: { ascending?: boolean }) { orderCol = col; orderAsc = opts?.ascending !== false; return b },
     limit(n: number) { limitN = n; return b },
+    range(from: number, to: number) { rangeFrom = from; rangeTo = to; return b },
     maybeSingle() { return Promise.resolve({ data: rows()[0] ?? null, error: null }) },
     then(resolve: (v: unknown) => void) { return resolve({ data: rows(), error: null }) },
   }
