@@ -57,6 +57,17 @@ let pending: Promise<unknown>[] = []
 mock.module('@vercel/functions', {
   namedExports: { waitUntil: (p: Promise<unknown>) => { pending.push(p) } },
 })
+// ── dødsone-deteksjonen: mocket bort her ───────────────────────────────────
+// Den er ren lesing og rapportering, har ingen innvirkning på hva denne ruten
+// sender, og felles av lib/notify-dead-zone.test.ts — inkludert at alle tre
+// rutene faktisk kaller den. Å la den kjøre her ville krevd at den falske
+// klienten kjente tabeller ruten selv aldri rører.
+mock.module('@/lib/notify-dead-zone', {
+  namedExports: {
+    detectNotifyDeadZone: async () => ({ kandidater: 0, funn: [], feilet: false }),
+  },
+})
+
 
 // ── web-push: ingen ekte varsler ───────────────────────────────────────────
 let vapidCalls = 0
@@ -77,10 +88,30 @@ mock.module('web-push', {
 })
 
 // ── Supabase ───────────────────────────────────────────────────────────────
+// PostgREST-uttrykket i `.or(...)`. Termene splittes på de TO FØRSTE punktumene
+// — en ISO-tidsstempel inneholder selv et punktum (millisekundene), så
+// `split('.')` ville delt verdien i filler.
+function orMatch(uttrykk: string, rad: Record<string, unknown>): boolean {
+  return uttrykk.split(',').some(term => {
+    const i1 = term.indexOf('.')
+    const i2 = term.indexOf('.', i1 + 1)
+    const col = term.slice(0, i1)
+    const op = term.slice(i1 + 1, i2)
+    const val = term.slice(i2 + 1)
+    const raa = rad[col]
+    if (op === 'is') return val === 'null' ? (raa === null || raa === undefined) : false
+    if (raa === null || raa === undefined) return false
+    if (op === 'gte') return String(raa) >= val
+    if (op === 'lte') return String(raa) <= val
+    throw new Error(`ukjent or-operator i mock: ${op}`)
+  })
+}
+
 function builder(table: string) {
   const eqs: Record<string, unknown> = {}
   let lteCol: string | null = null, lteVal: string | null = null
   let gteCol: string | null = null, gteVal: string | null = null
+  let orExpr: string | null = null
   let isNullCol: string | null = null
   let inCol: string | null = null, inVals: string[] = []
   let limitN: number | null = null
@@ -110,6 +141,7 @@ function builder(table: string) {
       for (const [k, v] of Object.entries(eqs)) if (r[k] !== v) return false
       if (lteCol && lteVal !== null && String(r[lteCol]) > lteVal) return false
       if (gteCol && gteVal !== null && String(r[gteCol]) < gteVal) return false
+      if (orExpr && !orMatch(orExpr, r)) return false
       if (isNullCol && r[isNullCol] !== null && r[isNullCol] !== undefined) return false
       if (inCol && !inVals.includes(String(r[inCol]))) return false
       for (const col of notNulls) if (r[col] === null || r[col] === undefined) return false
@@ -148,6 +180,7 @@ function builder(table: string) {
     update() { if (table === 'quizzes') db.quizWrites++; return b },
     delete() { deleting = true; return b },
     upsert(vals: LogRow[]) { upserting = vals; return b },
+    or(uttrykk: string) { orExpr = uttrykk; return b },
     maybeSingle() { return Promise.resolve({ data: rows()[0] ?? null, error: null }) },
     then(resolve: (v: unknown) => void) {
       if (upserting) {

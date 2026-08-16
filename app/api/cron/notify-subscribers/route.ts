@@ -8,6 +8,7 @@ import { quizOpenedEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 import { findOpenedQuizToNotify } from '@/lib/opened-quiz-lookup'
+import { detectNotifyDeadZone } from '@/lib/notify-dead-zone'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,13 @@ export async function GET(request: NextRequest) {
   // Feilen ble dessuten svelget: oppslaget leste kun `data`, så en DB-feil så ut
   // som «ingen quiz åpnet i vinduet». Nå svarer ruten 500 på feil.
   const lookup = await findOpenedQuizToNotify('cron/notify-subscribers')
+
+  // Dødsone-deteksjon: ser etter quizer som falt UT av vinduet uten å bli
+  // varslet av noen. Leser og rapporterer til Sentry — sender aldri, stempler
+  // aldri, og kan derfor ikke gi noen et dobbelt varsel. I `waitUntil` fordi
+  // den ikke skal legge latency på cron-svaret, og FØR forgreningen under
+  // fordi den er uavhengig av hva dette kallet fant. Se lib/notify-dead-zone.ts.
+  waitUntil(detectNotifyDeadZone('cron/notify-subscribers'))
 
   if (lookup.status === 'error') {
     return NextResponse.json({ error: lookup.message }, { status: 500 })

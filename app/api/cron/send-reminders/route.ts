@@ -9,6 +9,7 @@ import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 import { findOpenedQuizToNotify, quizHasQuestions } from '@/lib/opened-quiz-lookup'
+import { detectNotifyDeadZone } from '@/lib/notify-dead-zone'
 import {
   NOTIFY_CHANNEL,
   fetchAlreadyNotified,
@@ -85,6 +86,11 @@ export async function GET(request: NextRequest) {
   //
   // Dedupen ligger nå i quiz_notification_log, per mottaker.
   const lookup = await findOpenedQuizToNotify('cron/send-reminders', now)
+
+  // Dødsone-deteksjon — leser og rapporterer, sender aldri. Sjekker ALLE
+  // kanaler, ikke bare e-post, slik at denne ruten kan oppdage at push-rutens
+  // cron-jobb står stille. Se lib/notify-dead-zone.ts.
+  waitUntil(detectNotifyDeadZone('cron/send-reminders', now))
 
   if (lookup.status === 'error') {
     return NextResponse.json({ error: lookup.message }, { status: 500 })

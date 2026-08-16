@@ -5,6 +5,7 @@ import webpush from 'web-push'
 import { fetchAllRows } from '@/lib/paginate'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 import { findOpenedQuizToNotify } from '@/lib/opened-quiz-lookup'
+import { detectNotifyDeadZone } from '@/lib/notify-dead-zone'
 import {
   NOTIFY_CHANNEL,
   fetchAlreadyNotified,
@@ -51,6 +52,11 @@ export async function GET(request: NextRequest) {
   // bli stemplet som varslet, og dermed hindre at den ekte quizens push noen
   // gang ble sendt — stille.
   const lookup = await findOpenedQuizToNotify('cron/send-push')
+
+  // Dødsone-deteksjon — leser og rapporterer, sender aldri. Sjekker ALLE
+  // kanaler, ikke bare push: er det e-postrutens cron-jobb som er slått av, er
+  // det denne ruten som må oppdage det. Se lib/notify-dead-zone.ts.
+  waitUntil(detectNotifyDeadZone('cron/send-push'))
 
   if (lookup.status === 'error') {
     return NextResponse.json({ error: lookup.message }, { status: 500 })
