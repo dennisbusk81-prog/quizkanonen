@@ -9,6 +9,12 @@ import { buildAccessCodePatch, type AccessCodeType } from '@/lib/access-code'
 // buildAccessCodePatch, som er ren og testdekket: kun is_active, description,
 // max_uses og valid_until kan endres, og reglene er de samme som ved
 // opprettelse (delte koder beholder tak og frist, private beholder max_uses=1).
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

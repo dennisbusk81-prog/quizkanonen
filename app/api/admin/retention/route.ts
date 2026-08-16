@@ -6,6 +6,12 @@ import { fetchRetentionRows } from '@/lib/retention'
 // /api/admin/dashboard. Den delingen er poenget: retention-tabellen her og
 // retention-kortet på dashboardet må aldri kunne vise ulike prosenter for
 // samme quiz.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export type { RetentionRow } from '@/lib/retention'
 
 export async function GET(request: NextRequest) {

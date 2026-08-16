@@ -6,6 +6,12 @@ import { readStoredKey } from '@/lib/answer-key-correction'
 import { selectEasiestAndHardest, type QuestionDifficulty } from '@/lib/question-difficulty'
 import { isUserPremium } from '@/lib/premium-check'
 
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export const dynamic = 'force-dynamic'
 
 // Antall spørsmål vist på hver side (lettest/vanskeligst) til Premium-brukere.
