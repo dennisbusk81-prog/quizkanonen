@@ -10,11 +10,23 @@
 //     på nytt til folk som alt hadde fått den.
 //
 // INGEN EKTE E-POST OG INGEN EKTE STRIPE: `lib/email` og `stripe` er mocket.
+// Stripe-mocken simulerer nettverkslatens (STRIPE_LATENCY_MS per kall) og
+// teller kall — det er det som gjør batch-mutasjonene målbare.
 //
 // MUTASJONSBEVIS: settes sendingen tilbake til én samlet Promise.allSettled
 // med stempling etter, feiler «stemplingen skrives per batch» (1 skriving i
 // stedet for 3). Fjernes `.is(trial_reminder_sent_at, null)` fra
 // kandidatspørringen, feiler «alt påminnet bruker hoppes over».
+//
+// MUTASJONSBEVIS for batch-listekallet (16. august — kandidatfasen gjorde
+// tidligere ett sekvensielt subscriptions.retrieve PER kandidat, som ved 58
+// kandidater 8. august tok ~25–40 s og fikk cron-job.org til å deaktivere
+// jobben som Timeout):
+//   • Settes kandidatfasen tilbake til retrieve per kandidat, feiler
+//     «58 kandidater …» både på kall-telleren (58 retrieve i stedet for
+//     1 list) og på tidsmålingen (58 × latens ≫ 2 s).
+//   • Fjernes has_more-løkken, feiler «paginering …»: med 120 trialing-
+//     abonnementer ligger kandidat 101–120 på side 2 og forsvinner stille.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -47,12 +59,42 @@ mock.module('@/lib/email', {
 })
 
 // ── Stripe ──────────────────────────────────────────────────────────────────
+// Simulert nettverkslatens per Stripe-kall. Uten den er et sekvensielt kall
+// per kandidat like raskt som ett listekall i test, og batch-mutasjonen kan
+// ikke felles med en tidsmåling. 150 ms er i underkant av de ~450–500 ms
+// som ble målt mot ekte Stripe 16. august — konservativt nok til at testen
+// ikke blir treg, stort nok til at 58 sekvensielle kall (8,7 s) rives.
+const STRIPE_LATENCY_MS = 150
+const stripeCalls = { list: 0, retrieve: 0 }
+const stripeDelay = () => new Promise(resolve => setTimeout(resolve, STRIPE_LATENCY_MS))
+
 class MockStripe {
   subscriptions = {
+    // Beholdt med vilje, med samme latens og teller: en mutasjon tilbake til
+    // retrieve-per-kandidat skal KOMPILERE og KJØRE — og så felles av
+    // kall-telleren og tidsmålingen, ikke av en manglende mock.
     retrieve: async (id: string) => {
+      stripeCalls.retrieve++
+      await stripeDelay()
       const s = db.subs[id]
       if (!s) throw new Error(`no such subscription: ${id}`)
       return { id, status: s.status, trial_end: s.trial_end }
+    },
+    // Som ekte Stripe: default limit 10, maks 100, paginering via
+    // starting_after/has_more. Insertion-rekkefølgen i db.subs er sidenes
+    // rekkefølge — stabil, som Stripes kronologiske sortering.
+    list: async (params: { status?: string; limit?: number; starting_after?: string } = {}) => {
+      stripeCalls.list++
+      await stripeDelay()
+      const limit = Math.min(params.limit ?? 10, 100)
+      const all = Object.entries(db.subs)
+        .filter(([, s]) => !params.status || s.status === params.status)
+        .map(([id, s]) => ({ id, status: s.status, trial_end: s.trial_end }))
+      const start = params.starting_after
+        ? all.findIndex(s => s.id === params.starting_after) + 1
+        : 0
+      const data = all.slice(start, start + limit)
+      return { data, has_more: start + limit < all.length }
     },
   }
 }
@@ -176,6 +218,8 @@ beforeEach(() => {
   db.authEmails = {}
   db.sentTo = []
   db.updates = []
+  stripeCalls.list = 0
+  stripeCalls.retrieve = 0
 })
 
 test('ruten setter maxDuration eksplisitt', () => {
@@ -247,4 +291,36 @@ test('stemplingen skrives per batch, ikke som én skriving til slutt', async () 
   assert.equal(db.updates.length, 3, 'én skriving per batch')
   assert.deepEqual(db.updates.map(u => u.length), [8, 8, 4])
   assert.equal(db.sentTo.length, 20)
+})
+
+test('58 kandidater (som 8. august): ett listekall, ingen retrieve, under 2 sekunder', async () => {
+  // Scenarioet fra 8. august 2026: 58 kandidater i 6–8-dagersvinduet. Den
+  // gamle kandidatfasen gjorde 58 sekvensielle retrieve (~25–40 s mot ekte
+  // Stripe; 58 × 150 ms = 8,7 s mot mocken) — her skal den være ETT listekall.
+  // Dry-run brukes med vilje: den stopper før dispatchInBatches, så målingen
+  // er kandidatfasen alene, uten 1 s-pacingen mellom e-postbatcher.
+  for (let i = 0; i < 58; i++) candidate(`p${i}`)
+
+  const t0 = Date.now()
+  const res = await call('?dry-run=1')
+  const elapsed = Date.now() - t0
+  const body = await res.json() as { b2cWouldSend: number }
+
+  assert.equal(body.b2cWouldSend, 58, 'alle 58 står i vinduet og ville fått påminnelse')
+  assert.equal(stripeCalls.list, 1, '58 abonnementer er én side — nøyaktig ett listekall')
+  assert.equal(stripeCalls.retrieve, 0, 'ingen retrieve per kandidat')
+  assert.ok(elapsed < 2_000, `kandidatfasen tok ${elapsed} ms — skal være under 2 s`)
+})
+
+test('paginering: kandidater på side 2 (over 100 trialing-abonnementer) blir med', async () => {
+  // Stripe leverer maks 100 per side. 120 trialing-abonnementer = 2 sider;
+  // uten has_more-løkken forsvinner kandidat 101–120 stille — ingen feil,
+  // ingen logg, bare 20 mottakere som aldri får påminnelsen.
+  for (let i = 0; i < 120; i++) candidate(`p${String(i).padStart(3, '0')}`)
+
+  const res = await call('?dry-run=1')
+  const body = await res.json() as { b2cWouldSend: number }
+
+  assert.equal(body.b2cWouldSend, 120, 'også kandidatene på side 2 er med')
+  assert.equal(stripeCalls.list, 2, '120 abonnementer = nøyaktig to listekall')
 })
