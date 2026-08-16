@@ -57,6 +57,23 @@ export function buildCounterCommands(key: string, windowMs: number): string[][] 
   ]
 }
 
+/**
+ * Som buildCounterCommands, men med INCRBY: en reservasjon kan gjelde flere
+ * plasser i samme rundtur (brukt av det delte Resend-sendebudsjettet i
+ * lib/resend-budget.ts). Semantikken er ellers identisk — SET … NX sørger for
+ * at teller og levetid oppstår i samme transaksjon, se blokkommentaren øverst.
+ *
+ * Svaret tolkes av parseCounterResponse uendret: INCRBY returnerer
+ * tellerstanden etter økningen, nøyaktig som INCR.
+ */
+export function buildBudgetCommands(key: string, windowMs: number, by: number): string[][] {
+  const rk = redisKeyFor(key)
+  return [
+    ['SET', rk, '0', 'PX', String(Math.max(1, Math.floor(windowMs))), 'NX'],
+    ['INCRBY', rk, String(Math.max(1, Math.floor(by)))],
+  ]
+}
+
 export type ParsedCounter =
   | { ok: true; count: number }
   | { ok: false; reason: string }

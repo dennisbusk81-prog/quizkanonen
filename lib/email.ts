@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import * as Sentry from '@sentry/nextjs'
+import { acquireResendSlot } from '@/lib/resend-budget'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -51,6 +52,27 @@ export async function sendEmail({
   from = 'Quizkanonen <hei@quizkanonen.no>',
   replyTo,
 }: SendEmailOptions): Promise<void> {
+  // ── Delt 10/s-budsjett mot Resend (lib/resend-budget.ts) ──────────────────
+  //
+  // Gaten ligger HER og ikke i dispatchInBatches, fordi 21 av 25 kallsteder
+  // går utenom batchehjelperen (sendEmailToMany, send-invite med opptil 50
+  // samtidige, Stripe-webhooken, alle enkeltsendingene). Ved sinket arver alle
+  // den — samme mønster som Sentry-rapporteringen under.
+  //
+  // Er sekundet fullt, VENTER acquireResendSlot til neste sekundgrense (maks
+  // ~10 s, se MAX_WAIT_ROUNDS). Gir den opp, kaster vi samme feilform som et
+  // Resend-429 gir i dag — kallernes håndtering (ikke stemple, prøv neste
+  // kjøring) er dermed uendret, bare at feilen nå oppstår FØR kallet i stedet
+  // for som avvisning fra Resend.
+  const slot = await acquireResendSlot()
+  if (!slot.ok) {
+    const err = new Error(
+      'Failed to send email: delt Resend-budsjett (10/s) fortsatt fullt etter maks venting'
+    )
+    rapporter(err, subject, { kilde: 'resend-budsjett gav opp' })
+    throw err
+  }
+
   let error: { message: string; name?: string } | null = null
 
   try {
