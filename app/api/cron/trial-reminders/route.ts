@@ -53,7 +53,7 @@ async function sendOrgTrialReminders(now: number, dryRun: boolean): Promise<numb
       continue
     }
 
-    const { sent: okCount } = await sendToOrgAdmins(
+    const { delivered } = await sendToOrgAdmins(
       emails,
       {
         subject: `Prøveperioden er snart over — ${org.name}`,
@@ -62,8 +62,26 @@ async function sendOrgTrialReminders(now: number, dryRun: boolean): Promise<numb
       `cron/trial-reminders org=${org.id}`,
     )
 
-    if (okCount === 0) {
+    if (delivered.length === 0) {
       console.error('[cron/trial-reminders] ingen av', emails.length, 'admin-e-poster gikk gjennom for', org.slug)
+      continue
+    }
+
+    // Stempelet er per ORG, men sendingene er per ADMIN (16. august 2026).
+    // Fram til nå holdt det at ÉN av admin-ene fikk e-posten: orgen ble
+    // stemplet, og de øvrige ble aldri forsøkt igjen — kandidatspørringen
+    // filtrerer på `trial_reminder_sent_at IS NULL`, så en stemplet org er
+    // usynlig for alle senere kjøringer. Derfor stemples det KUN ved full
+    // leveranse. Ved delvis leveranse står stempelet, og neste kjøring tar
+    // hele orgen på nytt — de som alt fikk e-posten kan da få den én gang
+    // til. Duplikat til 1–2 admins er den billige feilen; en admin som aldri
+    // får vite at prøveperioden løper ut er den dyre. Samme avveining som
+    // grace-påminnelsen i expire-grace-periods.
+    if (delivered.length < emails.length) {
+      console.error(
+        `[cron/trial-reminders] delvis leveranse (${delivered.length}/${emails.length} admins) for`,
+        org.slug, '— stempler IKKE; hele orgen tas på nytt neste kjøring',
+      )
       continue
     }
 

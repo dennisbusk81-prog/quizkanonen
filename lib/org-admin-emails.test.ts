@@ -130,6 +130,10 @@ test('én feilende mottaker stopper ikke de andre', async () => {
 
   assert.equal(result.sent, 2)
   assert.equal(result.failed, 1)
+  // `delivered` skal inneholde nøyaktig adressene som lyktes — det er dette
+  // kallstedene sammenligner mot før stempling (16. august 2026). En mutasjon
+  // som fyller delivered fra input-listen i stedet for resultatene felles her.
+  assert.deepEqual(result.delivered.sort(), ['admin1@elkjop.test', 'admin3@elkjop.test'])
   assert.deepEqual(state.sent.map(s => s.to).sort(), ['admin1@elkjop.test', 'admin3@elkjop.test'])
   assert.ok(state.errors.some(e => e.includes('sending feilet for admin2@elkjop.test')))
 })
@@ -177,6 +181,6 @@ test('sendToOrgAdmins med tom liste sender ingenting og kaster ikke', async () =
   const result = await sendToOrgAdmins([], { subject: 'Test', html: '<p>x</p>' }, 'test')
   restoreConsole()
 
-  assert.deepEqual(result, { sent: 0, failed: 0 })
+  assert.deepEqual(result, { sent: 0, failed: 0, delivered: [] })
   assert.equal(state.sent.length, 0)
 })

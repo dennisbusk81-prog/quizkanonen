@@ -98,6 +98,6 @@ export async function sendToOrgAdmins(
   message: { subject: string; html: string; from?: string },
   context: string,
 ): Promise<BulkSendResult> {
-  if (emails.length === 0) return { sent: 0, failed: 0 }
+  if (emails.length === 0) return { sent: 0, failed: 0, delivered: [] }
   return sendEmailToMany(emails, message, context)
 }

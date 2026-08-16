@@ -12,7 +12,19 @@
 import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 
-export type BulkSendResult = { sent: number; failed: number }
+export type BulkSendResult = {
+  sent: number
+  failed: number
+  /**
+   * Adressene som faktisk ble levert (16. august 2026). Informasjonen lå
+   * allerede i Promise.allSettled-resultatene, men ble kastet — og da kunne
+   * kallstedene bare gate på «minst én lyktes». Det stemplet bort mottakere
+   * som fikk 429 i samme kjøring (trial-reminders org-grenen og
+   * remindOrgGrace i expire-grace-periods). Stempling skal sammenlignes mot
+   * `delivered`, aldri mot `sent > 0`.
+   */
+  delivered: string[]
+}
 
 /**
  * Sender samme melding til alle mottakerne, i batcher.
@@ -29,6 +41,7 @@ export async function sendEmailToMany(
 ): Promise<BulkSendResult> {
   let sent = 0
   let failed = 0
+  const delivered: string[] = []
 
   for (let i = 0; i < recipients.length; i += EMAIL_BATCH_SIZE) {
     const batch = recipients.slice(i, i + EMAIL_BATCH_SIZE)
@@ -38,6 +51,7 @@ export async function sendEmailToMany(
     results.forEach((r, idx) => {
       if (r.status === 'fulfilled') {
         sent++
+        delivered.push(batch[idx])
       } else {
         failed++
         console.error(`[send-email-many] sending feilet for ${batch[idx]} (${context}):`, r.reason)
@@ -45,5 +59,5 @@ export async function sendEmailToMany(
     })
   }
 
-  return { sent, failed }
+  return { sent, failed, delivered }
 }
