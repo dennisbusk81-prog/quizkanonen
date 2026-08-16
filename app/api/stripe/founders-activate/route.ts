@@ -261,6 +261,10 @@ export async function POST(request: NextRequest) {
         items: [{ price: FOUNDERS_PRICE_ID }],
         trial_period_days: trialPeriodDays,
         payment_settings: { save_default_payment_method: 'off' },
+        // Uten denne kan trialen konvertere til automatisk trekk på et kort som
+        // ligger igjen fra et TIDLIGERE kjøp på samme Stripe-kunde — uten at
+        // brukeren aktivt har valgt betaling. Samme oppførsel som org-ruten.
+        trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
       }, {
         idempotencyKey: `founders-activate:${user.id}`,
       })

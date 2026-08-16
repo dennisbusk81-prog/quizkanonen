@@ -402,6 +402,22 @@ test('trial er 14 dager, og plass-/30-dagers-logikken er borte', async () => {
   )
 })
 
+test('trial uten betalingsvalg AVSLUTTES ved trial_end — konverterer aldri automatisk', async () => {
+  // Målt mot prod 16. august 2026: en Stripe-kunde kan ha et kort liggende fra
+  // et TIDLIGERE kjøp. Uten trial_settings ville trial_end da utløst automatisk
+  // trekk på det kortet, uten at brukeren aktivt valgte betaling.
+  //
+  // MUTASJONSBEVIS: fjern `trial_settings` fra subscriptions.create i ruten,
+  // og denne testen ryker — parameteren må faktisk SENDES, samme mønster som
+  // org-founders-activate allerede har.
+  await activate()
+  assert.deepEqual(
+    state.createdSubscriptions[0].trial_settings,
+    { end_behavior: { missing_payment_method: 'cancel' } },
+    'uten end_behavior=cancel kan trialen konvertere til trekk på et gammelt kort',
+  )
+})
+
 test('ruten leser en NY site_settings-nøkkel — aldri founders_days_free', async () => {
   await activate()
   assert.deepEqual(state.settingsKeysRequested, ['founders_new_trial_days'])
