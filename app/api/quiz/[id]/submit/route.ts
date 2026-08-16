@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { calculateStreak } from '@/lib/ranking'
 import { rateLimit } from '@/lib/rate-limit'
@@ -296,6 +297,23 @@ export async function POST(
     )
     if (ansErr) {
       console.error('[submit] attempt_answers insert feilet:', ansErr.message)
+      // Scoren på attempts-raden er allerede lagret (UPDATE-en over), så ruten
+      // fortsetter bevisst med 200 — men per-spørsmål-detaljene mangler da for
+      // dette forsøket, og historikk/svarfordeling blir tomme for det. Klienten
+      // leser ikke answersWarning (beslutning 16. august 2026: ikke vis noe til
+      // spilleren — det er ingenting hen kan gjøre), så uten dette varselet var
+      // console.error over eneste spor. Samme «stille feil med 200»-klasse som
+      // lib/money-path-alert.ts, men uten penger involvert — derfor et direkte
+      // kall her i stedet for den sinken. Fast meldingstekst så Sentry teller
+      // forekomster på ÉN sak; id-ene ligger i extra. Kaster aldri: innsendingen
+      // er allerede vellykket og skal ikke kunne velte på et varsel.
+      try {
+        Sentry.captureMessage('submit: attempt_answers-insert feilet — score lagret, detaljer mangler', {
+          level: 'error',
+          tags: { area: 'quiz-submit' },
+          extra: { attemptId, quizId, errorMessage: ansErr.message, errorCode: ansErr.code },
+        })
+      } catch { /* varselet skal aldri kunne påvirke innsendingen */ }
       answersWarning = true
     }
   }
