@@ -14,6 +14,8 @@ import NotifyForm from '@/components/NotifyForm'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
+import { headers } from 'next/headers'
+import type { User } from '@supabase/supabase-js'
 import { decideTrialOffer, isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
@@ -1261,12 +1263,30 @@ export default async function Home() {
 
   // ── Session check via cookie-based Supabase SSR client ──
   // Middleware (middleware.ts) already called getUser() on this same request,
-  // which validates + refreshes the token cookie. Reading getSession() here is a
-  // local cookie read (no extra GoTrue round-trip) — the JWT is Supabase-signed,
-  // so the user.id is trustworthy for personalizing content.
-  const supabaseServer = await createSupabaseServer()
-  const { data: { session } } = await supabaseServer.auth.getSession()
-  const user = session?.user ?? null
+  // which validates + refreshes the token cookie. Reading getSession() here is
+  // then a local cookie read — the JWT is Supabase-signed, so the user.id is
+  // trustworthy for personalizing content. MEN «lokal lesing» gjelder bare når
+  // middleware nettopp lyktes: på et UTLØPT token gjør getSession() sitt eget
+  // refresh-kall mot GoTrue, og auth-js har ingen fetch-timeout.
+  //
+  // Derfor: satte middleware `x-qk-auth: unknown` (getUser() fikk ikke svar
+  // innen fristen, eller cookie-vakten blokkerte en utlogging), hoppes
+  // getSession() over HELT — å spørre selv ville gjentatt nøyaktig det
+  // hengende kallet, med render-budsjettet (300 s, målt 14. august 2026) i
+  // stedet for middlewarens 25 s. Ukjent er en TREDJE tilstand, ikke «gjest»:
+  // gjeste-oppsettet rendres, men uten påstandene om at brukeren er utlogget
+  // (se authUnknown-forgreningene i JSX-en). Samme prinsipp som
+  // lib/has-settled-plays.ts — når vi ikke VET, handler vi ikke som om vi
+  // visste det verste. Headeren kan ikke settes utenfra: middleware stripper
+  // innkommende `x-qk-auth` ubetinget før den eventuelt setter sin egen.
+  const authUnknown = (await headers()).get('x-qk-auth') === 'unknown'
+
+  let user: User | null = null
+  if (!authUnknown) {
+    const supabaseServer = await createSupabaseServer()
+    const { data: { session } } = await supabaseServer.auth.getSession()
+    user = session?.user ?? null
+  }
 
   // ══════════════════════════════════════════════════════════
   // PERSONALIZED VIEW — logged-in users
@@ -1864,7 +1884,14 @@ export default async function Home() {
           </p>
           <div className="qk-hero-actions">
             {activeQuiz ? (
-              <Link href={`/login?next=/quiz/${activeQuiz.id}`} className="qk-btn-primary">
+              // Ukjent auth: hopp over /login-omveien — «Logg inn og spill» er
+              // en påstand om at brukeren er utlogget, og det vet vi ikke.
+              // Quiz-siden håndterer auth selv (samme mål som «Spill nå»-
+              // knappen i quiz-kortet lenger ned).
+              <Link
+                href={authUnknown ? `/quiz/${activeQuiz.id}` : `/login?next=/quiz/${activeQuiz.id}`}
+                className="qk-btn-primary"
+              >
                 Spill ukens quiz
               </Link>
             ) : lastQuiz ? (
@@ -1880,6 +1907,16 @@ export default async function Home() {
               Slik fungerer det →
             </Link>
           </div>
+          {authUnknown ? (
+            /* Ukjent-linjen står der innloggings- og premium-påstandene ellers
+               ville stått. Ordlyd godkjent av Dennis 16. august 2026 — endre
+               den ikke uten ny godkjenning. */
+            <div className="qk-hero-status">
+              <span style={{ color: '#918f8a' }}>
+                Vi får ikke kontakt med innloggingen akkurat nå. Er du innlogget, er du det fortsatt — last siden på nytt om litt.
+              </span>
+            </div>
+          ) : (
           <div className="qk-hero-status">
             <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google, e-post eller passord</span></span>
             <span style={{ color: '#918f8a' }}>·</span>
@@ -1893,6 +1930,7 @@ export default async function Home() {
               )}
             </span>
           </div>
+          )}
           <div className="qk-steps">
             {([
               { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12 (norsk tid). Svar raskt — tid teller.' },
@@ -2031,11 +2069,14 @@ export default async function Home() {
             <p className="qk-card-date">
               Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
             </p>
-            <div className="qk-card-actions">
-              <Link href="/login" className="qk-btn-outline-dark">
-                Få påminnelse på e-post →
-              </Link>
-            </div>
+            {/* /login-lenke = påstand om utlogget bruker — skjules ved ukjent */}
+            {!authUnknown && (
+              <div className="qk-card-actions">
+                <Link href="/login" className="qk-btn-outline-dark">
+                  Få påminnelse på e-post →
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           <div className="qk-card">
@@ -2055,8 +2096,10 @@ export default async function Home() {
         )}
         </div>
 
-        {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz */}
-        {!user && !activeQuiz && (
+        {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz.
+            Ved ukjent auth skjules den også: å invitere en (muligens
+            innlogget) bruker til besøks-varsling er en utlogget-påstand. */}
+        {!user && !activeQuiz && !authUnknown && (
           <div className="qk-narrow-wrap">
           <div id="varsle-meg" style={{
             background: '#21242e',
@@ -2180,8 +2223,9 @@ export default async function Home() {
           <AccordionSection />
         </div>
 
-        {/* ── Founders ── */}
-        {FOUNDERS_ACTIVE && (
+        {/* ── Founders ── (ved ukjent auth: «Aktiver gratis tilgang» er et
+            tilbud til utloggede/gratis-brukere — vises ikke når vi ikke vet) */}
+        {FOUNDERS_ACTIVE && !authUnknown && (
           <div className="qk-narrow-wrap">
           <div className="qk-founders">
             <p className="qk-founders-eyebrow">Founders Access</p>
