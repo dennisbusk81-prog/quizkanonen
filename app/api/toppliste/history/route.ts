@@ -29,10 +29,10 @@ function getCurrentPeriodKey(period: string): string {
 }
 
 // GET /api/toppliste/history?period=month|quarter|year|last_quiz&scope=global&scope_id=<uuid>
-// MIDLERTIDIG 30, ikke 15: Sak B — 12 s lasting rapportert på topplisten,
-// aldri reprodusert. Settes tilbake til 15 (klassen for rene DB-lesere)
-// når Sak B er lukket. Beslutning: Dennis, 16. august 2026.
-export const maxDuration = 30
+// 15 = klassen for rene DB-lesere. Sto midlertidig på 30 under Sak B
+// (rapportert 12 s lasting, aldri reprodusert) — lukket 16. august 2026
+// etter kartlegging i ro: ingen hale funnet.
+export const maxDuration = 15
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
