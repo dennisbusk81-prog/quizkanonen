@@ -5,6 +5,11 @@ import Stripe from 'stripe'
 
 type QuizRow = { id: string; title: string; opens_at: string | null }
 
+// Samme vakt som start-attempt/questions/cleanup-orgs: id-en kommer rått fra
+// URL-stien, og en ikke-UUID (f.eks. en e-postadresse limt inn i adressefeltet)
+// ville ellers nådd Postgres som 22P02 — sett i prod-loggen 15. august 2026.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
 // slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
 export const maxDuration = 60
@@ -15,6 +20,7 @@ export async function GET(
 ) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
+  if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Ugyldig bruker-id' }, { status: 400 })
 
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
@@ -214,6 +220,7 @@ export async function DELETE(
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  if (!UUID_RE.test(id)) return NextResponse.json({ error: 'Ugyldig bruker-id' }, { status: 400 })
 
   // Server-side bekreftelse, ikke bare en klient-side skriv-for-å-bekrefte-
   // sperre: klienten sender e-posten admin skrev inn, og vi validerer den mot
