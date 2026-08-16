@@ -147,6 +147,45 @@ aldri fra `/admin/login` selv, og `next` renses av `safeNextPath` (hviteliste p�
 `/admin`) fordi verdien kommer fra URL-en og ellers gjør innloggingssiden til en
 åpen viderekobling. Ikke legg 401-håndtering i de 72 kallstedene.
 
+### Middleware — vakt: aldri slette sesjons-cookies (16. august 2026)
+`middleware.ts` kaller `supabase.auth.getUser()` KUN for å fornye tokenet —
+returverdien brukes ikke, og middleware gater ingenting (hver gatet flate
+reverifiserer selv med Bearer-token). Men feiler fornyelsen med en status
+auth-js regner som ikke-retryable — **500 og 429 står begge UTENFOR
+`NETWORK_ERROR_CODES`, også i nyeste versjon, så en oppgradering er ikke
+fiksen** — kaller biblioteket `_removeSession()` og sender slette-cookies inn
+i `setAll`. En degradert Supabase ville da logget ut alle innloggede: stille,
+med 200 OK, uten loggspor (den stien har ingen `console.error` i biblioteket).
+
+`filterSessionDeletions()` i `lib/middleware-cookie-guard.ts` filtrerer derfor
+slettinger av `sb-<ref>-auth-token` (+ chunks `.0`, `.1`, …) ut av batchen.
+Samme prinsipp som `lib/has-settled-plays.ts`: ikke fått svar betyr UKJENT,
+aldri «utlogget». Filteret står FØR begge skrivingene i `setAll` — både
+responsen (nettleseren) og `request.cookies` + `NextResponse.next({ request })`
+(kanalen server-renderingen nedstrøms faktisk leser, f.eks. `getSession()` i
+`app/page.tsx`). En vakt som bare beskytter responsen splitter de to.
+
+- **Unntak som MÅ bestå — chunk-krymping:** en VELLYKKET fornyelse kan slette
+  en foreldet `.1`-chunk i samme batch som den setter `.0` (nytt token kortere
+  enn gammelt). Blokkeres den, blir en utdatert chunk liggende og cookien
+  settes sammen feil. Kun slettinger uten samtidig fornyelse av samme
+  lagringsnøkkel blokkeres.
+- `-code-verifier` og `-user` røres ikke — PKCE-flyten er avhengig av å kunne
+  slette verifieren.
+- Vakten hviler på INTERNE detaljer i @supabase/ssr (sletteform
+  `value: "" + maxAge: 0`; navnemønsteret fra `defaultStorageKey`).
+  **Reverifiser ved hver oppgradering av @supabase/ssr eller supabase-js**,
+  og kjør da den gatede bibliotekstesten: `QK_SLOW_TESTS=1 npm test`
+  (25-sekunderstesten som måler at 503 fortsatt er retryable).
+- **ÆRLIG HULL, ikke bare en fotnote:** koblingen vakt↔kallsted er IKKE
+  testdekket. `filterSessionDeletions` kan fjernes fra `setAll` i
+  `middleware.ts` uten at én eneste test blir rød — testene i
+  `lib/middleware-cookie-guard.test.ts` feller kun den rene logikken (og at
+  BIBLIOTEKET fortsatt oppfører seg som vakten antar — de driver en ekte
+  `createServerClient`). Beviset på at vakten griper i produksjon er
+  empirisk: grep etter `[middleware-cookie-guard]` i Vercel-loggen. Flyttes
+  eller fjernes filteret fra kallstedet, må den verifiseringen gjøres på nytt.
+
 ### ProfileProvider (delt profil-/premium-/org-context)
 - `components/ProfileProvider.tsx` sitter i `app/layout.tsx` (root layout) og
   wrapper hele appen. Eksponeres via `useProfile()`.
