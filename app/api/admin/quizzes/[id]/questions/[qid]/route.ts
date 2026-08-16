@@ -192,13 +192,63 @@ export async function PATCH(
   return NextResponse.json({ ok: true, updated: Object.keys(update), ignored })
 }
 
+// ── Sletting: en quiz må beholde minst ett spørsmål ─────────────────────────
+//
+// Sperren fantes tidligere KUN i klienten, og kun i den ene av de to editorene
+// (app/admin/quizzes/new/page.tsx: «Kan ikke slette det eneste spørsmålet»).
+// Spørsmålsoversikten (app/admin/quizzes/[id]/questions/page.tsx) sletter uten
+// noen slik sjekk, så det var fullt mulig å tømme en quiz helt. Resultatet ble
+// liggende med `is_active = true`, og de tre varslingsrutene ville annonsert
+// den som en hvilken som helst annen quiz. Det er den ene realistiske veien til
+// en quiz med NULL spørsmålsrader — placeholder-radene fra importruten gjør at
+// alle andre veier ender med tomme rader, ikke ingen.
+//
+// FEILRETNING: fail-CLOSED. Får vi ikke telt, sletter vi ikke. Motsatt av
+// innholdsvakten i lib/opened-quiz-lookup.ts, og med vilje: her er den dyre
+// utgangen en tømt quiz, der er den en uteblitt varsling. En admin som får 500
+// kan prøve igjen; en tømt quiz oppdages først når noen spiller den.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; qid: string }> }
 ) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { qid } = await params
-  const { error } = await supabaseAdmin.from('questions').delete().eq('id', qid)
+  const { id: quizId, qid } = await params
+
+  const { count, error: countError } = await supabaseAdmin
+    .from('questions')
+    .select('id', { count: 'exact', head: true })
+    .eq('quiz_id', quizId)
+
+  if (countError) {
+    console.error('[questions DELETE] kunne ikke telle spørsmål:', { quizId, message: countError.message })
+    return NextResponse.json(
+      { error: 'Kunne ikke sjekke hvor mange spørsmål quizen har. Ingenting er slettet — prøv igjen.' },
+      { status: 500 },
+    )
+  }
+
+  if ((count ?? 0) <= 1) {
+    return NextResponse.json({
+      error: 'Kan ikke slette det eneste spørsmålet. En quiz må ha minst ett spørsmål — ' +
+        'ellers blir den publisert og varslet om uten innhold.',
+      code: 'last_question',
+    }, { status: 409 })
+  }
+
+  // `.eq('quiz_id', quizId)` er nytt: uten den kunne tellingen gjelde én quiz og
+  // slettingen en annen, og da hadde vakten over ikke betydd noe.
+  //
+  // ÆRLIG HULL: tellingen og slettingen er to kall, så to samtidige slettinger
+  // på en quiz med nøyaktig to spørsmål kan begge se `count = 2` og tømme den.
+  // Å lukke det krever en RPC eller en constraint i databasen. Flaten er
+  // admin-only med én operatør i dag, og risikoen står bevisst åpen — men den
+  // er ikke oversett.
+  const { error } = await supabaseAdmin
+    .from('questions')
+    .delete()
+    .eq('id', qid)
+    .eq('quiz_id', quizId)
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

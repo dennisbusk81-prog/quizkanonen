@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import webpush from 'web-push'
 import { fetchAllRows } from '@/lib/paginate'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
+import { findOpenedQuizToNotify } from '@/lib/opened-quiz-lookup'
 import {
   NOTIFY_CHANNEL,
   fetchAlreadyNotified,
@@ -24,12 +25,10 @@ const WORK_BUDGET_MS = 50_000
 const PUSH_BATCH_SIZE = 20
 const BATCH_INTERVAL_MS = 500
 
-// Samme vindu og samme begrunnelse som send-reminders: det gamle
-// 10-minutters-vinduet var en kompensasjon for at stemplingen var feil, ikke
-// en egen beskyttelse. Ekstra trygt her, fordi en hardt feilende mottaker
-// (410/404) slettes og dermed forsvinner av seg selv i stedet for å bli
-// forsøkt i en time.
-const NOTIFY_WINDOW_MS = 60 * 60 * 1000
+// Vinduet (60 min) og guardene — is_test, is_active og «har quizen spørsmål» —
+// eies av lib/opened-quiz-lookup.ts, delt med de to e-postrutene. Det brede
+// vinduet er ekstra trygt her, fordi en hardt feilende mottaker (410/404)
+// slettes og dermed forsvinner av seg selv i stedet for å bli forsøkt i en time.
 
 type PushTarget = { id: string; endpoint: string; p256dh: string; auth: string }
 
@@ -40,45 +39,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const now = Date.now()
-  const windowStart = new Date(now - NOTIFY_WINDOW_MS).toISOString()
-
-  // Finn en quiz som nettopp åpnet.
+  // Finn en quiz som nettopp åpnet. Oppslaget bor i lib/opened-quiz-lookup.ts.
   //
-  // To ting er endret her:
-  //  • `.is('push_sent_at', null)` er FJERNET. Det filteret var
-  //    alt-eller-intet-sjekken; sammen med stempling per mottaker ville det
-  //    byttet dobbeltsending mot stille undersending. Dedupen ligger nå i
-  //    quiz_notification_log, per abonnement.
-  //  • `is_test`/`is_active`-guardene er LAGT TIL. Uten dem kunne en testquiz
-  //    som åpnet senere enn den ekte vinne `order('opens_at', desc)`, bli
-  //    stemplet som varslet, og dermed hindre at den ekte quizens push noen
-  //    gang ble sendt — stille. Nøyaktig samme feil som er dokumentert og
-  //    rettet i org-grenen i send-reminders.
+  // Historikk som fortsatt gjelder: `.is('push_sent_at', null)` er FJERNET
+  // herfra. Det filteret var alt-eller-intet-sjekken; sammen med stempling per
+  // mottaker ville det byttet dobbeltsending mot stille undersending. Dedupen
+  // ligger nå i quiz_notification_log, per abonnement.
   //
-  // Vinduet ligger i spørringen i stedet for i en etterfølgende JS-sjekk, så
-  // en gammel, uvarslet quiz ikke lenger kan legge beslag på oppslaget.
-  const { data: quiz, error: quizError } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title, opens_at')
-    .eq('is_test', false)
-    .eq('is_active', true)
-    .lte('opens_at', new Date(now).toISOString())
-    .gte('opens_at', windowStart)
-    .order('opens_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // is_test/is_active lå tidligere som to linjer i selectet her. Uten dem kunne
+  // en testquiz som åpnet senere enn den ekte vinne `order('opens_at', desc)`,
+  // bli stemplet som varslet, og dermed hindre at den ekte quizens push noen
+  // gang ble sendt — stille.
+  const lookup = await findOpenedQuizToNotify('cron/send-push')
 
-  if (quizError) {
-    console.error('[cron/send-push] quiz lookup error:', quizError.message)
-    return NextResponse.json({ error: quizError.message }, { status: 500 })
+  if (lookup.status === 'error') {
+    return NextResponse.json({ error: lookup.message }, { status: 500 })
   }
-
-  if (!quiz) {
+  if (lookup.status === 'empty') {
+    return NextResponse.json({
+      sent: 0,
+      reason: 'quiz uten spørsmål — varsling holdt tilbake',
+      quizId: lookup.quizId,
+    })
+  }
+  if (lookup.status === 'none') {
     return NextResponse.json({ sent: 0, reason: 'no quiz to notify' })
   }
 
-  const quizSnapshot = quiz
+  const quizSnapshot = lookup.quiz
   const target = { quizId: quizSnapshot.id, channel: NOTIFY_CHANNEL.quizOpenPush }
 
   waitUntil(

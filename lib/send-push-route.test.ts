@@ -34,9 +34,11 @@ type QuizRow = {
 }
 type SubRow = { id: string; endpoint: string; p256dh: string; auth: string }
 type LogRow = { quiz_id: string; channel: string; scope_id: string; recipient_id: string }
+type QuestionRow = { id: string; quiz_id: string; question_text: string | null }
 
 const db: {
   quizzes: QuizRow[]
+  questions: QuestionRow[]
   subs: SubRow[]
   log: LogRow[]
   pushedTo: string[]
@@ -45,7 +47,7 @@ const db: {
   deletedEndpoints: string[]
   quizWrites: number
 } = {
-  quizzes: [], subs: [], log: [], pushedTo: [],
+  quizzes: [], questions: [], subs: [], log: [], pushedTo: [],
   failWith: new Map(), upserts: [], deletedEndpoints: [], quizWrites: 0,
 }
 
@@ -86,12 +88,19 @@ function builder(table: string) {
   let orderCol: string | null = null
   let upserting: LogRow[] | null = null
   let deleting = false
+  // Innholdsvakten i lib/opened-quiz-lookup.ts filtrerer med
+  // `.not('question_text','is',null).neq('question_text','')`. Begge er
+  // implementert ekte her — en mock som bare godtar signaturen ville vært like
+  // grønn med og uten filtrene, og da måler den ingenting.
+  const notNulls: string[] = []
+  const neqs: Array<[string, unknown]> = []
 
   const source = (): Record<string, unknown>[] => {
     switch (table) {
       case 'quizzes':               return db.quizzes as unknown as Record<string, unknown>[]
       case 'push_subscriptions':    return db.subs as unknown as Record<string, unknown>[]
       case 'quiz_notification_log': return db.log as unknown as Record<string, unknown>[]
+      case 'questions':             return db.questions as unknown as Record<string, unknown>[]
       default: throw new Error(`ukjent tabell i mock: ${table}`)
     }
   }
@@ -103,6 +112,8 @@ function builder(table: string) {
       if (gteCol && gteVal !== null && String(r[gteCol]) < gteVal) return false
       if (isNullCol && r[isNullCol] !== null && r[isNullCol] !== undefined) return false
       if (inCol && !inVals.includes(String(r[inCol]))) return false
+      for (const col of notNulls) if (r[col] === null || r[col] === undefined) return false
+      for (const [col, val] of neqs) if (r[col] === val) return false
       return true
     })
 
@@ -120,6 +131,11 @@ function builder(table: string) {
     select() { return b },
     eq(col: string, val: unknown) { eqs[col] = val; return b },
     is(col: string, val: unknown) { if (val === null) isNullCol = col; return b },
+    not(col: string, op: string, val: unknown) {
+      if (op === 'is' && val === null) notNulls.push(col)
+      return b
+    },
+    neq(col: string, val: unknown) { neqs.push([col, val]); return b },
     lte(col: string, val: string) { lteCol = col; lteVal = val; return b },
     gte(col: string, val: string) { gteCol = col; gteVal = val; return b },
     in(col: string, vals: string[]) { inCol = col; inVals = vals.map(String); return b },
@@ -188,8 +204,21 @@ const logged = (recipientId: string, over: Partial<LogRow> = {}): LogRow => ({
 
 const subs = (n: number) => Array.from({ length: n }, (_, i) => sub(`s${i}`))
 
+/** Ferdige spørsmål med tekst — det normale for en quiz som skal varsles. */
+const spørsmål = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: `Spørsmål ${i}`,
+  }))
+
+/** Radene admin-editoren lager på tittel-blur: de FINNES, men er tomme. */
+const placeholders = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: '',
+  }))
+
 beforeEach(() => {
   db.quizzes = [quiz()]
+  db.questions = [...spørsmål(QUIZ_ID), ...spørsmål(TEST_QUIZ)]
   db.subs = []
   db.log = []
   db.pushedTo = []
@@ -374,4 +403,48 @@ test('stemplingen skrives per batch, ikke som én skriving til slutt', async () 
   assert.equal(db.upserts.length, 3, 'én skriving per batch')
   assert.deepEqual(db.upserts.map(u => u.length), [20, 20, 5])
   assert.equal(db.pushedTo.length, 45)
+})
+
+// ── Quiz uten spørsmål ──────────────────────────────────────────────────────
+//
+// Vakten bor i lib/opened-quiz-lookup.ts og er enhetstestet der. Testene under
+// binder den til DETTE kallstedet: inlines oppslaget igjen, er lib-testene
+// fortsatt grønne mens ruten pusher om en tom quiz.
+
+test('quiz med bare placeholder-spørsmål gir ingen push', async () => {
+  // Radene FINNES (admin-editoren lager dem på tittel-blur) — en count-vakt
+  // ville sluppet denne rett gjennom til alle registrerte enheter.
+  db.questions = placeholders(QUIZ_ID)
+  db.subs = subs(3)
+
+  const res = await call()
+  const body = await res.json() as { sent?: number; reason?: string; quizId?: string }
+
+  assert.deepEqual(db.pushedTo, [], 'ingen enhet skal få push om en tom quiz')
+  assert.deepEqual(db.upserts, [], 'og ingen skal stemples som varslet')
+  assert.equal(body.quizId, QUIZ_ID)
+  assert.match(String(body.reason), /spørsmål/i)
+})
+
+test('«tom quiz» rapporteres ikke som «no quiz to notify»', async () => {
+  db.questions = placeholders(QUIZ_ID)
+  db.subs = subs(1)
+  const tom = await (await call()).json() as { reason?: string }
+
+  db.quizzes = []
+  const ingen = await (await call()).json() as { reason?: string }
+
+  assert.notEqual(tom.reason, ingen.reason)
+})
+
+test('ett ekte spørsmål blant placeholders → push sendes', async () => {
+  db.questions = [
+    ...placeholders(QUIZ_ID, 14),
+    { id: 'ekte', quiz_id: QUIZ_ID, question_text: 'Hva heter Norges høyeste fjell?' },
+  ]
+  db.subs = subs(2)
+
+  await call()
+
+  assert.equal(db.pushedTo.length, 2)
 })

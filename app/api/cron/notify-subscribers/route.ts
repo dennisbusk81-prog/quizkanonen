@@ -7,6 +7,7 @@ import { fetchAllRows } from '@/lib/paginate'
 import { quizOpenedEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
+import { findOpenedQuizToNotify } from '@/lib/opened-quiz-lookup'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,26 +27,15 @@ const WORK_BUDGET_MS = 50_000
 // på ~8/s. EMAIL_BATCH_SIZE alene holder IKKE grensen — se lib/email-batch.ts.
 const BATCH_INTERVAL_MS = 1_000
 
-// Hvor lenge etter åpning en quiz fortsatt kan varsles om.
+// Vinduet (60 min) og de tre guardene — is_test, is_active og «har quizen
+// spørsmål i det hele tatt» — eies av lib/opened-quiz-lookup.ts, delt med
+// send-reminders og send-push.
 //
-// Vinduet var 10 minutter, og var da den ENESTE beskyttelsen mot at noen fikk
-// e-posten to ganger: stemplingen skjedde først etter hele løkken, så et
-// avbrudd etterlot ingen spor, og et smalt vindu begrenset hvor mange ganger
-// det kunne gjenta seg. Nå som hver mottaker stemples fortløpende OG
-// abonnenthentingen filtrerer bort de som alt er varslet for denne quizen, er
-// gjentatte kjøringer trygge — de plukker opp nøyaktig restene.
-//
-// Da blir det smale vinduet i stedet en begrensning: med ~400 e-poster per
-// kjøring og cron hvert 5. minutt rakk to kjøringer aldri en liste på et par
-// tusen. 60 minutter gir ~12 kjøringer, altså rikelig margin for
-// annonseringslisten på ~2500.
-//
-// Prisen er at en mottaker som feiler HARDT (ugyldig adresse) forsøkes på nytt
-// hver kjøring i inntil en time i stedet for i ti minutter. Det er bevisst:
+// Prisen på det brede vinduet er at en mottaker som feiler HARDT (ugyldig
+// adresse) forsøkes på nytt hver kjøring i inntil en time. Det er bevisst:
 // alternativet er å stemple feilede sendinger, og det ville gjenåpne hullet
 // som 17946e3 lukket — en forbigående Resend-feil ville da permanent frata
 // mottakeren e-posten.
-const NOTIFY_WINDOW_MS = 60 * 60 * 1000
 
 type Subscriber = { id: string; email: string }
 
@@ -56,38 +46,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const now = new Date()
-  const windowStart = new Date(now.getTime() - NOTIFY_WINDOW_MS).toISOString()
-
-  // is_test/is_active-guardene: uten dem plukket oppslaget ENHVER quiz-rad som
-  // åpnet i vinduet — også en testquiz eller en som var skjult i admin
-  // («Skjul» setter is_active=false). Det slo til i prod 5. august 2026: en
-  // etterlatt testquiz åpnet 22:46, og kjøringen 23:00 annonserte
-  // «[TEST – ikke ekte] finishQuiz-timeout» til påmeldingslisten.
+  // Oppslag + guards i lib/opened-quiz-lookup.ts. Her lå tidligere en egen kopi
+  // av selectet, og kopiene drev fra hverandre: is_test/is_active kom inn i
+  // søsterrutene i 28d74c9, mens denne beholdt hullet og annonserte
+  // «[TEST – ikke ekte] …» til påmeldingslisten 5. august (7c81c0a).
   //
-  // Skaden var én e-post fordi listen har én rad i dag. Ved annonsering er
-  // den samme feilen et par tusen e-poster om en testquiz — eller om en quiz
-  // som bevisst er skjult, noe som er verre.
-  //
-  // Søsterrutene send-reminders og send-push har hatt de samme to linjene
-  // siden 28d74c9. Denne ruten fyrer på nøyaktig samme hendelse (en quiz
-  // åpner) og skal ha samme guard.
-  const { data: quiz } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title, opens_at')
-    .eq('is_test', false)
-    .eq('is_active', true)
-    .lte('opens_at', now.toISOString())
-    .gte('opens_at', windowStart)
-    .order('opens_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Feilen ble dessuten svelget: oppslaget leste kun `data`, så en DB-feil så ut
+  // som «ingen quiz åpnet i vinduet». Nå svarer ruten 500 på feil.
+  const lookup = await findOpenedQuizToNotify('cron/notify-subscribers')
 
-  if (!quiz) {
+  if (lookup.status === 'error') {
+    return NextResponse.json({ error: lookup.message }, { status: 500 })
+  }
+  if (lookup.status === 'empty') {
+    // Egen tekst, ikke «ingen quiz i vinduet»: den meldingen er normaltilstanden
+    // nesten hele tiden, og å gjemme en tilbakeholdt varsling bak den ville
+    // gjort funnet usynlig i loggen. Alt rapportert til Sentry av vakten.
+    return NextResponse.json({
+      skipped: true,
+      reason: 'Quizen som åpnet har ingen spørsmål — varsling holdt tilbake',
+      quizId: lookup.quizId,
+    })
+  }
+  if (lookup.status === 'none') {
     return NextResponse.json({ skipped: true, reason: 'Ingen quiz åpnet i vinduet' })
   }
 
-  const quizSnapshot = quiz
+  const quizSnapshot = lookup.quiz
 
   // MERK: her lå tidligere en «er denne quizen allerede varslet?»-sjekk som
   // hoppet over hele kjøringen så snart ÉN rad var stemplet med denne
