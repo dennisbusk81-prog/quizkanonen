@@ -16,6 +16,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 //   GET https://<your-domain>/api/cron/ping
 //   Authorization: Bearer <CRON_SECRET>
 
+// Ren varmholder — gjør ingen jobb. Uten eksplisitt tak arves plattform-
+// defaulten på 300 s (Pro + Fluid, målt 14. august 2026).
+export const maxDuration = 10
+
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
   const secret = process.env.CRON_SECRET
