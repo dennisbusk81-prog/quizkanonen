@@ -8,8 +8,11 @@ import { hasActiveOrgPremium } from '@/lib/org-premium'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 
-// Ruten slår opp abonnementer i Stripe per kandidat FØR den sender, så den er
-// tyngre enn de andre e-post-cronene. Den manglet maxDuration helt.
+// Kandidatfasen henter Stripe-status i ETT listekall (se sendB2CTrialReminders),
+// ikke lenger ett retrieve per kandidat — 8. august tok 58 sekvensielle kall
+// ~25–40 s alene, hele kjøringen brøt cron-job.orgs 30 s-kutt, og jobben ble
+// deaktivert med Timeout-symptomet. maxDuration beholdes som takhøyde for
+// utsendingsfasen (dispatchInBatches har eget 50 s-budsjett).
 // Org-grenen under stempler allerede per organisasjon, inne i løkken — det er
 // B2C-grenen som hadde stemplingen etter løkken.
 export const maxDuration = 60
@@ -118,19 +121,50 @@ async function sendB2CTrialReminders(now: number, dryRun: boolean): Promise<B2CR
 
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
 
-  // For hver kandidat: hent abonnementet fra Stripe, behold kun de som fortsatt er
-  // 'trialing' og hvis trial_end ligger 6–8 dager frem i tid.
+  // ALLE trialing-abonnementer i 1–2 listekall, i stedet for ett retrieve per
+  // kandidat. Fram til 16. august gjorde løkken under `subscriptions.retrieve`
+  // sekvensielt per kandidat (~450–500 ms hver): 8. august ga 58 kandidater
+  // ~25–40 s kandidatfase, kjøringen brøt cron-job.orgs 30 s-klientkutt, og
+  // jobben ble deaktivert som «Timeout». Listekallet henter nøyaktig de samme
+  // to feltene (status via filteret, trial_end på objektet) uansett kohort-
+  // størrelse. Paginering via has_more, samme mønster som listAllSubscriptions
+  // i scripts/backfill-has-used-trial.mjs — limit er 100 per side hos Stripe,
+  // så uten løkken forsvinner kandidat nr. 101+ stille.
+  const trialingBySubId = new Map<string, Stripe.Subscription>()
+  let startingAfter: string | undefined
+  while (true) {
+    let page: Stripe.ApiList<Stripe.Subscription>
+    try {
+      page = await stripe.subscriptions.list({
+        status: 'trialing',
+        limit: 100,
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      })
+    } catch (err) {
+      // Feiler listekallet, vet vi ingenting om noen kandidat. Å sende
+      // ingenting er trygt (ingen stempling → neste kjøring prøver på nytt),
+      // og feilen skal synes: GET-en svarer 500 når error er satt.
+      console.error('[cron/trial-reminders] subscriptions.list failed:', err)
+      return {
+        candidates: profiles.length, recipients: [], sent: 0, failed: 0,
+        error: 'stripe subscriptions.list failed',
+      }
+    }
+    for (const sub of page.data) trialingBySubId.set(sub.id, sub)
+    if (!page.has_more || page.data.length === 0) break
+    startingAfter = page.data[page.data.length - 1].id
+  }
+
+  // Behold kun kandidater som fortsatt er 'trialing' og hvis trial_end ligger
+  // 6–8 dager frem i tid.
   const recipients: B2CRecipient[] = []
   for (const p of profiles) {
     const subId = p.personal_stripe_subscription_id as string
-    let sub: Stripe.Subscription
-    try {
-      sub = await stripe.subscriptions.retrieve(subId)
-    } catch (err) {
-      console.error('[cron/trial-reminders] failed to retrieve sub', subId, err)
-      continue
-    }
-    if (sub.status !== 'trialing' || !sub.trial_end) continue
+    // Ikke i trialing-listen = ikke lenger 'trialing' (konvertert, kansellert
+    // eller ukjent id) — samme semantikk som forgjengerens status-sjekk per
+    // kandidat, bare uten Stripe-kall.
+    const sub = trialingBySubId.get(subId)
+    if (!sub || !sub.trial_end) continue
 
     const daysLeft = (sub.trial_end * 1000 - now) / DAY_MS
     if (daysLeft < REMINDER_MIN_DAYS || daysLeft > REMINDER_MAX_DAYS) continue
