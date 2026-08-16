@@ -71,7 +71,22 @@ export type OpenedQuizResult =
 // liste. 60 minutter gir ~12 kjøringer.
 //
 // Tallet sto tidligere som tre identiske konstanter, én per rute (3a27619).
+//
+// BEVISST IKKE UTVIDET (16. august 2026). Kartleggingen målte at hele halen
+// ligger godt innenfor: verste observerte mottaker ble stemplet 25,3 minutter
+// etter opens_at (07.08-quizen), og 14.08 var ferdig etter 5,3. Vinduet er
+// altså ikke bindende for kapasitet i dag. Dødsonen utenfor vinduet er i
+// stedet gjort SYNLIG — se lib/notify-dead-zone.ts — i stedet for å flyttes
+// noen timer lenger ut, der den ville truffet sjeldnere og fortsatt vært
+// stille.
 export const NOTIFY_WINDOW_MS = 60 * 60 * 1000
+
+// Hvor mange kandidater oppslaget henter for å kunne SE at det var flere enn
+// én. Behandlingen tar fortsatt kun den første — se `findOpenedQuizToNotify`.
+//
+// Tallet er et lesetak, ikke en grense på hva som er lov: treffer vi det, sier
+// rapporten «minst N» i stedet for å påstå et eksakt antall.
+const CANDIDATE_PROBE_LIMIT = 5
 
 /**
  * Rapporterer at en varsling ble holdt tilbake, eller at vakten selv sviktet.
@@ -84,7 +99,7 @@ export const NOTIFY_WINDOW_MS = 60 * 60 * 1000
  * tolv nye saker i timen. Id og tittel ligger i `extra`, der de er nyttige.
  * Quiz-tittelen er vår egen tekst, ikke en personopplysning.
  */
-function varsle(
+export function varsleNotifyGuard(
   melding: string,
   nivå: 'error' | 'warning',
   ekstra: Record<string, string | number | null | undefined>,
@@ -120,7 +135,7 @@ export async function quizHasQuestions(quizId: string, context: string): Promise
 
   if (error) {
     console.error(`[opened-quiz-lookup] innholdssjekk feilet for quiz ${quizId} (${context}) — antar spillbar:`, error.message)
-    varsle('innholdssjekken feilet', 'warning', {
+    varsleNotifyGuard('innholdssjekken feilet', 'warning', {
       context,
       quizId,
       consequence: 'Vakten kunne ikke avgjøre om quizen har spørsmål. Varselet ble sendt (fail-open) — sjekk at quizen faktisk er ferdig.',
@@ -146,29 +161,81 @@ export async function findOpenedQuizToNotify(
   now: number = Date.now(),
 ): Promise<OpenedQuizResult> {
   const windowStart = new Date(now - NOTIFY_WINDOW_MS).toISOString()
+  const nowIso = new Date(now).toISOString()
 
   // is_test/is_active-guardene: uten dem plukker oppslaget ENHVER quiz-rad som
   // åpnet i vinduet — også en testquiz eller en som er skjult i admin («Skjul»
   // setter is_active=false). En testquiz som åpnet sist vinner dessuten
   // order('opens_at', desc).
+  //
+  // closes_at-vakten (16. august 2026): oppslaget HENTET closes_at, men
+  // filtrerte aldri på den. En quiz som allerede hadde stengt kunne derfor
+  // utløse «Fredagsquizen er nå åpen» — e-post og push om noe som er over. At
+  // det ikke har skjedd skyldes utelukkende at hver quiz i prod varer 10–23
+  // timer, altså mye lengre enn vinduet. Det er en egenskap ved dataene, ikke
+  // ved koden, og den holder kun så lenge ingen lager en kort quiz.
+  //
+  // `gte` og ikke `gt`: «stengt» er definert som `closes_at < nå` av
+  // oppgjørsstien (cron/publish-quiz og cron/award-season-points bruker begge
+  // `.lt('closes_at', now)`). Med `gte` her er de to nøyaktig komplementære —
+  // ingen glippe, ingen overlapp. Velger man `gt`, finnes det ett millisekund
+  // der en quiz hverken er åpen nok til å varsles om eller stengt nok til å
+  // gjøres opp.
+  //
+  // NULL closes_at = ingen stengetid = fortsatt åpen. Samme lesning som
+  // forsidens activeQuiz-filter i cron/publish-quiz.
   const { data, error } = await supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at, closes_at')
     .eq('is_test', false)
     .eq('is_active', true)
-    .lte('opens_at', new Date(now).toISOString())
+    .lte('opens_at', nowIso)
     .gte('opens_at', windowStart)
+    .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
     .order('opens_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    .limit(CANDIDATE_PROBE_LIMIT)
 
   if (error) {
     console.error(`[opened-quiz-lookup] quiz-oppslaget feilet (${context}):`, error.message)
     return { status: 'error', message: error.message }
   }
 
-  const quiz = data as OpenedQuiz | null
-  if (!quiz) return { status: 'none' }
+  const kandidater = (data ?? []) as OpenedQuiz[]
+  if (kandidater.length === 0) return { status: 'none' }
+
+  const quiz = kandidater[0]
+
+  // ── Flere kvalifiserende quizer samtidig ───────────────────────────────────
+  // Vi behandler fortsatt kun den ene — hele sende-maskineriet nedstrøms er
+  // bygget rundt ÉN quiz-snapshot, og å varsle om to samtidig ville dessuten
+  // sendt to «quizen er åpen»-e-poster til samme person i samme minutt.
+  //
+  // Det som er endret er at de andre ikke lenger forsvinner STILLE. Fram til nå
+  // tok `.limit(1)` den nyeste og de øvrige fikk aldri varsel fra noen kanal,
+  // uten en linje i loggen eller en hendelse i Sentry.
+  //
+  // Rapporteres FØR innholdssjekken under, med vilje: er den nyeste en tom
+  // placeholder-quiz, returnerer vi `empty` og kommer aldri hit — og da ville
+  // nettopp den eldre, ekte quizen vært den som forsvant.
+  if (kandidater.length > 1) {
+    const øvrige = kandidater.slice(1)
+    console.error(
+      `[opened-quiz-lookup] ${kandidater.length} quizer kvalifiserte samtidig (${context}) — ` +
+      `behandler "${quiz.title}" (${quiz.id}), lar ${øvrige.length} ligge`
+    )
+    varsleNotifyGuard('flere quizer kvalifiserte samtidig', 'error', {
+      context,
+      antall: kandidater.length,
+      antallEksakt: kandidater.length < CANDIDATE_PROBE_LIMIT ? 'ja' : `nei — minst ${CANDIDATE_PROBE_LIMIT}`,
+      behandletQuizId: quiz.id,
+      behandletTittel: quiz.title,
+      behandletOpensAt: quiz.opens_at,
+      ubehandlede: øvrige.map(q => `${q.id} "${q.title}" opens_at=${q.opens_at}`).join(' | '),
+      consequence:
+        'Kun den nyest åpnede quizen varsles. De øvrige får INGEN e-post og INGEN push fra denne kanalen, ' +
+        'og vil heller ikke bli plukket opp senere — vinduet lukker seg. Vurder å varsle manuelt.',
+    })
+  }
 
   if (!(await quizHasQuestions(quiz.id, context))) {
     // Høylytt, ikke stille: quizen står LIVE og tom for alle som finner den på
@@ -178,7 +245,7 @@ export async function findOpenedQuizToNotify(
       `[opened-quiz-lookup] quiz "${quiz.title}" (${quiz.id}) åpnet UTEN spørsmål — ` +
       `varsling holdt tilbake (${context})`
     )
-    varsle('quiz åpnet uten spørsmål', 'error', {
+    varsleNotifyGuard('quiz åpnet uten spørsmål', 'error', {
       context,
       quizId: quiz.id,
       quizTitle: quiz.title,

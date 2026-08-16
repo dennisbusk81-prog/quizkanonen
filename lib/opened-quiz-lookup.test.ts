@@ -26,6 +26,20 @@
 //     rapporteres» ryker, og funnet ville vært usynlig i prod.
 //   • `status: 'empty'` byttet til `'none'` → «empty og none er ulike svar»
 //     ryker (kalleren ville rapportert normaldrift).
+//
+// MUTASJONSBEVIS, runde 2 — closes_at-vakten og limit(1)-hullet (16. august):
+//   • `.or(closes_at…)` fjernet → «en quiz som ALLEREDE HAR STENGT varsles
+//     ikke» ryker. Dette var en ekte defekt: oppslaget HENTET closes_at, men
+//     filtrerte aldri på den.
+//   • `gte` → `gt` i or-uttrykket → «grensen er komplementær med
+//     oppgjørsstien» ryker, og bare den. (Or-parseren under støtter `gt`/`lt`
+//     nettopp for at denne mutasjonen skal felle ÉN test og ikke hele filen.)
+//   • NULL-leddet fjernet fra or-uttrykket → «en quiz UTEN stengetid regnes
+//     som åpen» ryker — motsatt feilretning, like stille.
+//   • `.limit(CANDIDATE_PROBE_LIMIT)` → `.limit(1)` → alle tre flertallstestene
+//     ryker.
+//   • `varsleNotifyGuard(...)` fjernet fra flertallsgrenen → samme tre ryker:
+//     flertallet oppdages, men forsvinner like stille som før.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -34,22 +48,53 @@ import { join } from 'node:path'
 const QUIZ = 'cccccccc-1111-2222-3333-444444444444'
 const NOW = Date.parse('2026-08-21T10:05:00.000Z')
 
-type QuizRow = { id: string; title: string | null; opens_at: string; closes_at: string | null }
+type QuizRow = {
+  id: string; title: string | null; opens_at: string; closes_at: string | null
+  is_test: boolean; is_active: boolean
+}
 type QuestionRow = { id: string; quiz_id: string; question_text: string | null }
 type Filter = { op: string; col: string; val: unknown }
 type Capture = { melding: string; ctx: { level: string; extra: Record<string, unknown> } }
 
 const state: {
-  quiz: QuizRow | null
+  quizzes: QuizRow[]
   quizError: { message: string } | null
   questions: QuestionRow[]
   questionsError: { message: string } | null
   quizFilters: Filter[]
   questionQueries: number
 } = {
-  quiz: null, quizError: null, questions: [], questionsError: null,
+  quizzes: [], quizError: null, questions: [], questionsError: null,
   quizFilters: [], questionQueries: 0,
 }
+
+/**
+ * Tolker PostgREST-uttrykket i `.or(...)` som et ekte predikat.
+ *
+ * Termene splittes på de TO FØRSTE punktumene, ikke på alle: en ISO-tidsstempel
+ * inneholder selv et punktum (millisekundene), så `split('.')` ville delt
+ * verdien i filler.
+ */
+const orPredikat = (uttrykk: string) => (rad: QuizRow): boolean =>
+  uttrykk.split(',').some(term => {
+    const i1 = term.indexOf('.')
+    const i2 = term.indexOf('.', i1 + 1)
+    const col = term.slice(0, i1) as keyof QuizRow
+    const op = term.slice(i1 + 1, i2)
+    const val = term.slice(i2 + 1)
+    const rå = rad[col]
+    if (op === 'is') return val === 'null' ? rå === null : false
+    if (rå === null) return false
+    // `gt`/`lt` støttes selv om koden ikke bruker dem: uten det ville en
+    // mutasjon fra `gte` til `gt` fått parseren til å KASTE, og da ryker hele
+    // testfilen i stedet for nettopp den testen som skal felle grensen. En
+    // mutasjon som feller alt beviser ingenting om hvilken linje som gjelder.
+    if (op === 'gte') return Date.parse(String(rå)) >= Date.parse(val)
+    if (op === 'gt') return Date.parse(String(rå)) > Date.parse(val)
+    if (op === 'lte') return Date.parse(String(rå)) <= Date.parse(val)
+    if (op === 'lt') return Date.parse(String(rå)) < Date.parse(val)
+    throw new Error(`ukjent or-operator: ${op}`)
+  })
 
 const captured: Capture[] = []
 
@@ -64,17 +109,49 @@ mock.module('@/lib/supabase-admin', {
     supabaseAdmin: {
       from(table: string) {
         if (table === 'quizzes') {
+          // Filtrene brukes FAKTISK på radene, ikke bare registreres. Uten det
+          // ville en fjernet `.or(closes_at...)`-linje gitt nøyaktig samme
+          // resultat, og testen under hadde vært grønn med og uten vakten.
+          const preds: Array<(r: QuizRow) => boolean> = []
+          let take = Infinity
+          let synkende = false
           const b = {
             select() { return b },
-            eq(col: string, val: unknown) { state.quizFilters.push({ op: 'eq', col, val }); return b },
-            lte(col: string, val: unknown) { state.quizFilters.push({ op: 'lte', col, val }); return b },
-            gte(col: string, val: unknown) { state.quizFilters.push({ op: 'gte', col, val }); return b },
-            order() { return b },
-            limit() { return b },
-            maybeSingle: async () =>
-              state.quizError
-                ? { data: null, error: state.quizError }
-                : { data: state.quiz, error: null },
+            eq(col: string, val: unknown) {
+              state.quizFilters.push({ op: 'eq', col, val })
+              preds.push(r => (r as unknown as Record<string, unknown>)[col] === val)
+              return b
+            },
+            lte(col: string, val: unknown) {
+              state.quizFilters.push({ op: 'lte', col, val })
+              preds.push(r => Date.parse(String((r as unknown as Record<string, unknown>)[col])) <= Date.parse(String(val)))
+              return b
+            },
+            gte(col: string, val: unknown) {
+              state.quizFilters.push({ op: 'gte', col, val })
+              preds.push(r => Date.parse(String((r as unknown as Record<string, unknown>)[col])) >= Date.parse(String(val)))
+              return b
+            },
+            or(uttrykk: string) {
+              state.quizFilters.push({ op: 'or', col: '', val: uttrykk })
+              preds.push(orPredikat(uttrykk))
+              return b
+            },
+            order(_col: string, opts?: { ascending?: boolean }) {
+              synkende = opts?.ascending === false
+              return b
+            },
+            limit(n: number) { take = n; return b },
+            then(resolve: (v: unknown) => void) {
+              if (state.quizError) return resolve({ data: null, error: state.quizError })
+              const rows = state.quizzes
+                .filter(r => preds.every(p => p(r)))
+                .sort((x, y) => synkende
+                  ? Date.parse(y.opens_at) - Date.parse(x.opens_at)
+                  : Date.parse(x.opens_at) - Date.parse(y.opens_at))
+                .slice(0, take)
+              return resolve({ data: rows, error: null })
+            },
           }
           return b
         }
@@ -118,9 +195,11 @@ mock.module('@/lib/supabase-admin', {
 const { findOpenedQuizToNotify, quizHasQuestions, NOTIFY_WINDOW_MS } =
   await import('@/lib/opened-quiz-lookup')
 
-const åpenQuiz = (): QuizRow => ({
+const åpenQuiz = (over: Partial<QuizRow> = {}): QuizRow => ({
   id: QUIZ, title: 'Fredagsquiz 21.08.2026',
   opens_at: '2026-08-21T10:00:00.000Z', closes_at: '2026-08-22T10:00:00.000Z',
+  is_test: false, is_active: true,
+  ...over,
 })
 
 const ekteSpørsmål = (n: number): QuestionRow[] =>
@@ -133,7 +212,7 @@ const placeholderSpørsmål = (n: number): QuestionRow[] =>
   Array.from({ length: n }, (_, i) => ({ id: `q${i}`, quiz_id: QUIZ, question_text: '' }))
 
 beforeEach(() => {
-  state.quiz = åpenQuiz()
+  state.quizzes = [åpenQuiz()]
   state.quizError = null
   state.questions = ekteSpørsmål(15)
   state.questionsError = null
@@ -203,7 +282,7 @@ test('empty og none er ULIKE svar', async () => {
   state.questions = placeholderSpørsmål(3)
   const tom = await findOpenedQuizToNotify('test', NOW)
 
-  state.quiz = null
+  state.quizzes = []
   const ingen = await findOpenedQuizToNotify('test', NOW)
 
   assert.equal(tom.status, 'empty')
@@ -213,7 +292,7 @@ test('empty og none er ULIKE svar', async () => {
 // ── Oppslaget selv ──────────────────────────────────────────────────────────
 
 test('ingen quiz i vinduet → innholdssjekken kjøres ikke', async () => {
-  state.quiz = null
+  state.quizzes = []
 
   const res = await findOpenedQuizToNotify('test', NOW)
 
@@ -234,6 +313,113 @@ test('guardene ligger i spørringen, ikke i etterkant', async () => {
 
   const nedre = state.quizFilters.find(f => f.op === 'gte' && f.col === 'opens_at')
   assert.equal(Date.parse(String(nedre?.val)), NOW - NOTIFY_WINDOW_MS)
+})
+
+// ── closes_at-vakten (punkt 1) ──────────────────────────────────────────────
+
+test('en quiz som ALLEREDE HAR STENGT varsles ikke', async () => {
+  // Kjernen i punkt 1. Oppslaget hentet closes_at, men filtrerte aldri på den,
+  // så «Fredagsquizen er nå åpen» kunne gå ut om noe som var over. At det ikke
+  // har skjedd skyldes at hver prod-quiz varer 10–23 timer — en egenskap ved
+  // dataene, ikke ved koden.
+  state.quizzes = [åpenQuiz({ closes_at: '2026-08-21T10:04:00.000Z' })] // stengte for ett minutt siden
+
+  const res = await findOpenedQuizToNotify('test', NOW)
+
+  assert.equal(res.status, 'none')
+  assert.equal(state.questionQueries, 0, 'en stengt quiz skal ikke engang koste en innholdssjekk')
+})
+
+test('en quiz UTEN stengetid regnes som åpen', async () => {
+  // NULL closes_at = ingen stengetid. Vakten må ikke filtrere bort disse —
+  // gjør den det, forsvinner varslingen for enhver quiz uten sluttidspunkt.
+  state.quizzes = [åpenQuiz({ closes_at: null })]
+
+  const res = await findOpenedQuizToNotify('test', NOW)
+
+  assert.equal(res.status, 'found')
+})
+
+test('grensen er komplementær med oppgjørsstien: closes_at === nå er fortsatt åpen', async () => {
+  // Oppgjøret bruker `.lt('closes_at', now)` for «stengt». Med `gte` her er de
+  // to nøyaktig komplementære. Byttes dette til `gt`, finnes det ett
+  // millisekund der quizen hverken kan varsles om eller gjøres opp.
+  state.quizzes = [åpenQuiz({ closes_at: new Date(NOW).toISOString() })]
+
+  const res = await findOpenedQuizToNotify('test', NOW)
+
+  assert.equal(res.status, 'found')
+})
+
+// ── limit(1)-hullet (punkt 2) ───────────────────────────────────────────────
+
+const ANNEN_QUIZ = 'dddddddd-1111-2222-3333-444444444444'
+
+test('to kvalifiserende quizer → den eldste forsvinner IKKE stille', async () => {
+  // Fram til nå tok `.limit(1)` den nyeste, og den eldre fikk aldri varsel fra
+  // noen kanal — uten en linje i loggen eller en hendelse i Sentry.
+  state.quizzes = [
+    åpenQuiz(),
+    åpenQuiz({ id: ANNEN_QUIZ, title: 'Bedriftsquiz', opens_at: '2026-08-21T09:40:00.000Z' }),
+  ]
+  state.questions = [...ekteSpørsmål(5), { id: 'x', quiz_id: ANNEN_QUIZ, question_text: 'Ekte' }]
+
+  const res = await findOpenedQuizToNotify('cron/send-push', NOW)
+
+  assert.equal(res.status, 'found')
+  assert.equal(res.status === 'found' && res.quiz.id, QUIZ, 'nyeste opens_at behandles fortsatt')
+
+  const rapport = captured.find(c => /flere quizer kvalifiserte/.test(c.melding))
+  assert.ok(rapport, 'den ubehandlede quizen forsvant stille')
+  assert.equal(rapport.ctx.level, 'error')
+  assert.equal(rapport.ctx.extra.antall, 2)
+  assert.equal(rapport.ctx.extra.behandletQuizId, QUIZ)
+  assert.match(String(rapport.ctx.extra.ubehandlede), new RegExp(ANNEN_QUIZ))
+  assert.match(String(rapport.ctx.extra.ubehandlede), /Bedriftsquiz/)
+})
+
+test('ÉN quiz i vinduet rapporterer ingenting — vakten skal ikke bli støy', async () => {
+  const res = await findOpenedQuizToNotify('test', NOW)
+
+  assert.equal(res.status, 'found')
+  assert.deepEqual(captured, [])
+})
+
+test('flertallet rapporteres selv når den nyeste er en tom placeholder', async () => {
+  // Rekkefølgen er poenget: rapporteres flertallet FØR innholdssjekken, ser vi
+  // det også når den nyeste faller ut som `empty`. Gjøres det etterpå, er det
+  // nettopp i dette tilfellet — der en ekte, eldre quiz står og venter — at
+  // rapporten uteblir.
+  state.quizzes = [
+    åpenQuiz({ title: 'Halvferdig kladd' }),
+    åpenQuiz({ id: ANNEN_QUIZ, title: 'Ekte fredagsquiz', opens_at: '2026-08-21T09:40:00.000Z' }),
+  ]
+  state.questions = [
+    ...placeholderSpørsmål(3),
+    { id: 'x', quiz_id: ANNEN_QUIZ, question_text: 'Ekte spørsmål' },
+  ]
+
+  const res = await findOpenedQuizToNotify('cron/notify-subscribers', NOW)
+
+  assert.equal(res.status, 'empty')
+  assert.ok(
+    captured.some(c => /flere quizer kvalifiserte/.test(c.melding)),
+    'den eldre, ekte quizen forsvant stille bak en tom kladd',
+  )
+})
+
+test('kandidattaket gjør rapporten ærlig, ikke presis-på-liksom', async () => {
+  // Treffer vi lesetaket, vet vi ikke det eksakte antallet og skal ikke påstå
+  // det heller.
+  state.quizzes = Array.from({ length: 6 }, (_, i) =>
+    åpenQuiz({ id: `q-${i}`, opens_at: `2026-08-21T09:${String(10 + i * 5).padStart(2, '0')}:00.000Z` }))
+  state.questions = state.quizzes.map(q => ({ id: `s-${q.id}`, quiz_id: q.id, question_text: 'Ekte' }))
+
+  await findOpenedQuizToNotify('test', NOW)
+
+  const rapport = captured.find(c => /flere quizer kvalifiserte/.test(c.melding))
+  assert.ok(rapport)
+  assert.match(String(rapport.ctx.extra.antallEksakt), /^nei — minst 5$/)
 })
 
 test('quiz-oppslaget feiler → error, ikke «ingen quiz»', async () => {

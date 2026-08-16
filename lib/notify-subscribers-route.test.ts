@@ -55,6 +55,17 @@ let pending: Promise<unknown>[] = []
 mock.module('@vercel/functions', {
   namedExports: { waitUntil: (p: Promise<unknown>) => { pending.push(p) } },
 })
+// ── dødsone-deteksjonen: mocket bort her ───────────────────────────────────
+// Den er ren lesing og rapportering, har ingen innvirkning på hva denne ruten
+// sender, og felles av lib/notify-dead-zone.test.ts — inkludert at alle tre
+// rutene faktisk kaller den. Å la den kjøre her ville krevd at den falske
+// klienten kjente tabeller ruten selv aldri rører.
+mock.module("@/lib/notify-dead-zone", {
+  namedExports: {
+    detectNotifyDeadZone: async () => ({ kandidater: 0, funn: [], feilet: false }),
+  },
+})
+
 
 // ── e-post: ingen ekte utsending ───────────────────────────────────────────
 mock.module('@/lib/email', {
