@@ -1,8 +1,9 @@
 // Kjøres med:  npm test
 // (krever --experimental-test-module-mocks, se package.json)
 //
-// INTEGRASJONSTEST av B2C-grenen i trial-reminders-cronen. To feil av samme
-// klasse som F4 i notify-subscribers:
+// INTEGRASJONSTEST av trial-reminders-cronen — B2C-grenen og (fra 16. august)
+// org-grenens stemplingsvilkår. To feil av samme klasse som F4 i
+// notify-subscribers:
 //   • ALLE mottakere gikk av gårde i ÉN Promise.allSettled — ingen batching,
 //     så Resends grense på 10 forespørsler i sekundet kunne sprenges i ett jafs.
 //   • `trial_reminder_sent_at` ble skrevet én gang, etter at alt var sendt. Et
@@ -43,18 +44,34 @@ type ProfileRow = {
   trial_reminder_sent_at: string | null
 }
 
+type OrgRow = {
+  id: string
+  name: string
+  slug: string
+  stripe_period_end: string | null
+  subscription_status: string
+  trial_reminder_sent_at: string | null
+}
+
 const db: {
   profiles: ProfileRow[]
+  orgs: OrgRow[]
   subs: Record<string, { status: string; trial_end: number | null }>
   authEmails: Record<string, string>
+  adminEmails: string[]
+  failEmailsTo: string[]
   sentTo: string[]
   updates: string[][]
-} = { profiles: [], subs: {}, authEmails: {}, sentTo: [], updates: [] }
+} = { profiles: [], orgs: [], subs: {}, authEmails: {}, adminEmails: [], failEmailsTo: [], sentTo: [], updates: [] }
 
 // ── e-post ──────────────────────────────────────────────────────────────────
 mock.module('@/lib/email', {
   namedExports: {
-    sendEmail: async ({ to }: { to: string }) => { db.sentTo.push(to); return { id: 'mock' } },
+    sendEmail: async ({ to }: { to: string }) => {
+      if (db.failEmailsTo.includes(to)) throw new Error(`Resend 429 for ${to}`)
+      db.sentTo.push(to)
+      return { id: 'mock' }
+    },
   },
 })
 
@@ -100,12 +117,18 @@ class MockStripe {
 }
 mock.module('stripe', { defaultExport: MockStripe })
 
-// Org-grenen er allerede korrekt (stempler per organisasjon inne i løkken) og
-// er ikke det denne filen tester — den kortsluttes bort.
+// Org-grenen drives via db.orgs/db.adminEmails. sendToOrgAdmins delegerer til
+// den EKTE sendEmailToMany (mot den mockede sendEmail over), slik at
+// `delivered`-plumbingen som stemplingen avhenger av faktisk testes — en mock
+// som fant på sitt eget delivered-svar ville bevist ingenting.
 mock.module('@/lib/org-admin-emails', {
   namedExports: {
-    getOrgAdminEmails: async () => ({ emails: [] }),
-    sendToOrgAdmins: async () => ({ sent: 0 }),
+    getOrgAdminEmails: async () => ({ emails: [...db.adminEmails], orgName: 'Org', orgSlug: 'org' }),
+    sendToOrgAdmins: async (emails: string[], message: { subject: string; html: string }, context: string) => {
+      if (emails.length === 0) return { sent: 0, failed: 0, delivered: [] }
+      const { sendEmailToMany } = await import('@/lib/send-email-many')
+      return sendEmailToMany(emails, message, context)
+    },
   },
 })
 mock.module('@/lib/org-premium', {
@@ -134,9 +157,10 @@ function builder(table: string) {
   }
 
   const rows = (): Record<string, unknown>[] => {
-    // organizations returnerer tomt — org-grenen testes ikke her.
     const source: Record<string, unknown>[] =
-      table === 'profiles' ? (db.profiles as unknown as Record<string, unknown>[]) : []
+      table === 'profiles' ? (db.profiles as unknown as Record<string, unknown>[])
+      : table === 'organizations' ? (db.orgs as unknown as Record<string, unknown>[])
+      : []
 
     return source.filter(r => {
       for (const [k, v] of Object.entries(eqs)) if (r[k] !== v) return false
@@ -163,6 +187,12 @@ function builder(table: string) {
         db.updates.push([...inVals])
         for (const p of db.profiles) {
           if (inVals.includes(p.id)) p.trial_reminder_sent_at = updating.trial_reminder_sent_at
+        }
+        return resolve({ error: null })
+      }
+      if (updating && table === 'organizations' && typeof eqs.id === 'string') {
+        for (const o of db.orgs) {
+          if (o.id === eqs.id) o.trial_reminder_sent_at = updating.trial_reminder_sent_at
         }
         return resolve({ error: null })
       }
@@ -212,10 +242,26 @@ function candidate(id: string, over: Partial<ProfileRow> = {}, daysLeft = 7) {
   db.authEmails[id] = `${id}@example.com`
 }
 
+/** Org i påminnelsesvinduet (trialing, utløper om 1 dag, ikke påminnet). */
+function orgCandidate(adminEmails: string[]) {
+  db.orgs.push({
+    id: 'org-1',
+    name: 'Testorg',
+    slug: 'testorg',
+    stripe_period_end: new Date(Date.now() + DAY).toISOString(),
+    subscription_status: 'trialing',
+    trial_reminder_sent_at: null,
+  })
+  db.adminEmails = adminEmails
+}
+
 beforeEach(() => {
   db.profiles = []
+  db.orgs = []
   db.subs = {}
   db.authEmails = {}
+  db.adminEmails = []
+  db.failEmailsTo = []
   db.sentTo = []
   db.updates = []
   stripeCalls.list = 0
@@ -310,6 +356,65 @@ test('58 kandidater (som 8. august): ett listekall, ingen retrieve, under 2 seku
   assert.equal(stripeCalls.list, 1, '58 abonnementer er én side — nøyaktig ett listekall')
   assert.equal(stripeCalls.retrieve, 0, 'ingen retrieve per kandidat')
   assert.ok(elapsed < 2_000, `kandidatfasen tok ${elapsed} ms — skal være under 2 s`)
+})
+
+// ── Org-grenen: stempling krever FULL leveranse (16. august 2026) ───────────
+//
+// MUTASJONSBEVIS: endres vilkåret i sendOrgTrialReminders tilbake til
+// `delivered.length > 0` (eller gamle `okCount > 0`), feiler «delvis leveranse
+// stempler ikke orgen» — orgen ville blitt stemplet med bare 2 av 3 admins
+// varslet, og «neste kjøring tar hele orgen på nytt» ville funnet 0 kandidater.
+
+test('full leveranse til alle admins stempler orgen', async () => {
+  orgCandidate(['a1@org.test', 'a2@org.test', 'a3@org.test'])
+
+  const res = await call()
+  const body = await res.json() as { orgSent: number }
+
+  assert.equal(body.orgSent, 1)
+  assert.deepEqual(db.sentTo.sort(), ['a1@org.test', 'a2@org.test', 'a3@org.test'])
+  assert.notEqual(db.orgs[0].trial_reminder_sent_at, null, 'orgen skal stemples ved full leveranse')
+})
+
+test('delvis leveranse stempler ikke orgen — neste kjøring tar den på nytt', async () => {
+  orgCandidate(['a1@org.test', 'a2@org.test', 'a3@org.test'])
+  db.failEmailsTo = ['a2@org.test']
+
+  const res1 = await call()
+  const body1 = await res1.json() as { orgSent: number }
+
+  assert.equal(body1.orgSent, 0, 'delvis leveranse teller ikke som sendt')
+  assert.deepEqual(db.sentTo.sort(), ['a1@org.test', 'a3@org.test'], '2 av 3 gikk gjennom')
+  assert.equal(db.orgs[0].trial_reminder_sent_at, null, 'orgen skal IKKE stemples ved delvis leveranse')
+
+  // Neste kjøring: Resend har friskmeldt seg. Hele orgen tas på nytt — a2 får
+  // endelig e-posten, a1/a3 får et duplikat (den bevisste, billige feilen).
+  db.failEmailsTo = []
+  const res2 = await call()
+  const body2 = await res2.json() as { orgSent: number }
+
+  assert.equal(body2.orgSent, 1)
+  assert.ok(db.sentTo.includes('a2@org.test'), 'den som feilet får e-posten ved neste kjøring')
+  assert.notEqual(db.orgs[0].trial_reminder_sent_at, null, 'nå stemples orgen')
+})
+
+test('null leveranse stempler ikke orgen', async () => {
+  orgCandidate(['a1@org.test', 'a2@org.test'])
+  db.failEmailsTo = ['a1@org.test', 'a2@org.test']
+
+  const res = await call()
+  const body = await res.json() as { orgSent: number }
+
+  assert.equal(body.orgSent, 0)
+  assert.equal(db.orgs[0].trial_reminder_sent_at, null)
+})
+
+test('allerede stemplet org er ikke kandidat', async () => {
+  orgCandidate(['a1@org.test'])
+  db.orgs[0].trial_reminder_sent_at = new Date().toISOString()
+
+  await call()
+  assert.deepEqual(db.sentTo, [], 'ingen e-post til en stemplet org')
 })
 
 test('paginering: kandidater på side 2 (over 100 trialing-abonnementer) blir med', async () => {

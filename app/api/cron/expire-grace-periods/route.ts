@@ -39,6 +39,10 @@ type ProfileGraceResult = {
   expired: number
   keptViaOtherSource: number
   sent: number
+  /** Sendinger som feilet transient — markøren står, neste kjøring prøver igjen. */
+  emailFailed: number
+  /** Rader ryddet uten e-post: utløpet er eldre enn GRACE_ENDED_EMAIL_MAX_AGE_DAYS. */
+  clearedWithoutEmail: number
   error?: string
 }
 
@@ -48,7 +52,29 @@ type OrgGraceResult = {
   lostPremium: number
   keptViaOtherSource: number
   cleanedStale: number
+  /** Utløpte orgs som IKKE ble gjort helt opp — stempelet står, tas på nytt neste kjøring. */
+  retrying: number
   error?: string
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Hvor gammelt et grace-utløp kan være og fortsatt utløse «Premium-tilgangen
+ * din er avsluttet»-e-posten. Grace-feltet er nå også retry-markøren for
+ * e-posten (se expireProfileGrace/expireOrgGrace), og en markør uten
+ * aldersgrense har to problemer: rader som lå igjen fra før denne endringen
+ * ville fått beskjeden uker på etterskudd ved første deploy, og en
+ * permanent uleverbar mottaker ville holdt markøren åpen for alltid — med
+ * daglige duplikater til alle andre i samme org som pris. 14 dager er rom
+ * nok for enhver transient Resend-feil, og gammelt nok til at e-posten ikke
+ * lenger informerer om noe brukeren ikke alt har oppdaget.
+ */
+const GRACE_ENDED_EMAIL_MAX_AGE_DAYS = 14
+
+function expiredTooLongAgo(graceUntil: string | null, now: Date): boolean {
+  if (!graceUntil) return false
+  return now.getTime() - new Date(graceUntil).getTime() > GRACE_ENDED_EMAIL_MAX_AGE_DAYS * DAY_MS
 }
 
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
@@ -79,56 +105,106 @@ export async function GET(request: NextRequest) {
 
 async function expireProfileGrace(now: Date): Promise<ProfileGraceResult> {
   const nowIso = now.toISOString()
+  const empty: ProfileGraceResult = {
+    expired: 0, keptViaOtherSource: 0, sent: 0, emailFailed: 0, clearedWithoutEmail: 0,
+  }
 
-  // Profiler der grace har utløpt og som fortsatt er markert Premium.
-  // `personal_stripe_subscription_id IS NULL` er FJERNET som vakt: kolonnen ble
-  // kun satt av Founders-flyten, så en vanlig betalende B2C-kunde passerte den.
-  // Hver kandidat rekalkuleres mot alle kilder under i stedet.
+  // Kandidat = markøren står: grace er satt og har utløpt.
+  //
+  // `premium_status = true`-filteret er FJERNET (16. august 2026): feltet er
+  // nå også markøren for «avslutnings-e-posten er ikke bekreftet levert», og
+  // en bruker som ble nedgradert i forrige kjøring — eller av en hvilken som
+  // helst annen syncPremiumCache i mellomtiden — har premium_status=false.
+  // Filteret ville gjemt nøyaktig radene retry-en finnes for. (Hullet fantes
+  // også FØR denne endringen: rakk en annen sync å sette false mellom utløp
+  // og cron, ble raden liggende for alltid og e-posten aldri sendt.)
+  //
+  // `personal_stripe_subscription_id IS NULL` er fortsatt fjernet som vakt:
+  // kolonnen ble kun satt av Founders-flyten, så en vanlig betalende
+  // B2C-kunde passerte den. Hver kandidat rekalkuleres mot alle kilder under.
   const { data: profiles, error } = await supabaseAdmin
     .from('profiles')
-    .select('id')
-    .eq('premium_status', true)
+    .select('id, org_premium_grace_until')
     .not('org_premium_grace_until', 'is', null)
     .lt('org_premium_grace_until', nowIso)
 
   if (error) {
     console.error('[cron/expire-grace-periods] query error:', error.message)
-    return { expired: 0, keptViaOtherSource: 0, sent: 0, error: error.message }
+    return { ...empty, error: error.message }
   }
 
-  if (!profiles || profiles.length === 0) {
-    return { expired: 0, keptViaOtherSource: 0, sent: 0 }
-  }
+  if (!profiles || profiles.length === 0) return empty
 
-  const ids = profiles.map(p => p.id)
-
-  // Nullstill grace-stempelet, og rekalkuler Premium per bruker i stedet for å
-  // slå det av blindt: en verdikode eller et eget abonnement skal overleve at
-  // org-grace-perioden løper ut.
-  const { error: updateError } = await supabaseAdmin
-    .from('profiles')
-    .update({ org_premium_grace_until: null })
-    .in('id', ids)
-
-  if (updateError) {
-    console.error('[cron/expire-grace-periods] update error:', updateError.message)
-    return { expired: 0, keptViaOtherSource: 0, sent: 0, error: updateError.message }
-  }
-
-  const lostPremium: string[] = []
+  // REKKEFØLGEN er selve fiksen (16. august 2026). Fram til nå ble markøren
+  // nullstilt FØRST og e-posten sendt til slutt — en 429 fra Resend kunne da
+  // aldri tas igjen: brukeren mistet Premium og fikk aldri beskjed, og ingen
+  // senere kjøring så raden. Nå:
+  //
+  //   1. NEDGRADERINGEN skjer først og UBETINGET (syncPremiumCache per
+  //      bruker). Den venter aldri på e-posten. Det er trygt å la markøren
+  //      stå under og etter rekalkuleringen: alle dekningslesere er
+  //      utløps-bevisste (isOrgActive, getLockGraceUntil, premium-check,
+  //      premium-status og trial-offer sjekker alle `> now`), så en
+  //      utløpt-men-fortsatt-satt grace gir ingen tilgang noe sted.
+  //   2. E-post sendes til dem som faktisk mistet Premium.
+  //   3. Markøren nullstilles ETTERPÅ, kun for rader som er gjort opp:
+  //      beholdt via annen kilde, bekreftet levert, uleverbar (ingen
+  //      adresse), eller eldre enn GRACE_ENDED_EMAIL_MAX_AGE_DAYS. Feilet
+  //      sending lar markøren stå — neste kjøring prøver igjen.
+  const clearIds: string[] = []
+  const lostRecent: string[] = []
   let keptViaOtherSource = 0
-  for (const id of ids) {
+  let clearedWithoutEmail = 0
+
+  for (const p of profiles) {
     try {
-      const state = await syncPremiumCache(id)
-      if (state.isPremium) keptViaOtherSource++
-      else lostPremium.push(id)
+      const state = await syncPremiumCache(p.id)
+      if (state.isPremium) {
+        keptViaOtherSource++
+        clearIds.push(p.id)
+      } else if (expiredTooLongAgo(p.org_premium_grace_until, now)) {
+        // «Tilgangen din er avsluttet» uker på etterskudd forvirrer mer enn
+        // den informerer — rydd markøren uten e-post, men si det i loggen.
+        console.error(
+          `[cron/expire-grace-periods] grace utløp for over ${GRACE_ENDED_EMAIL_MAX_AGE_DAYS} ` +
+          `dager siden for ${p.id} — rydder uten e-post`,
+        )
+        clearedWithoutEmail++
+        clearIds.push(p.id)
+      } else {
+        lostRecent.push(p.id)
+      }
     } catch (err) {
-      console.error('[cron/expire-grace-periods] hoppet over', id, '— kunne ikke avgjøre tilstand:', err)
+      // Vet ikke tilstanden — markøren står, neste kjøring prøver igjen.
+      console.error('[cron/expire-grace-periods] hoppet over', p.id, '— kunne ikke avgjøre tilstand:', err)
     }
   }
 
-  const sent = await sendGraceEndedEmails(lostPremium)
-  return { expired: lostPremium.length, keptViaOtherSource, sent }
+  const emails = await sendGraceEndedEmails(lostRecent)
+  clearIds.push(...emails.delivered, ...emails.unreachable)
+
+  if (clearIds.length > 0) {
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ org_premium_grace_until: null })
+      .in('id', clearIds)
+
+    if (updateError) {
+      // Markørene står igjen; neste kjøring gjør jobben på nytt, med mulige
+      // duplikat-e-poster til de leverte. Det er den billige feilen.
+      console.error('[cron/expire-grace-periods] update error:', updateError.message)
+      return {
+        expired: lostRecent.length, keptViaOtherSource,
+        sent: emails.delivered.length, emailFailed: emails.failed, clearedWithoutEmail,
+        error: updateError.message,
+      }
+    }
+  }
+
+  return {
+    expired: lostRecent.length, keptViaOtherSource,
+    sent: emails.delivered.length, emailFailed: emails.failed, clearedWithoutEmail,
+  }
 }
 
 // ── 2. Lås-grace på organisasjoner (29. juli 2026) ───────────────────────────
@@ -136,6 +212,7 @@ async function expireProfileGrace(now: Date): Promise<ProfileGraceResult> {
 async function runOrgLockGrace(now: Date): Promise<OrgGraceResult> {
   const result: OrgGraceResult = {
     reminded: 0, expiredOrgs: 0, lostPremium: 0, keptViaOtherSource: 0, cleanedStale: 0,
+    retrying: 0,
   }
 
   const { data: orgs, error } = await supabaseAdmin
@@ -164,11 +241,14 @@ async function runOrgLockGrace(now: Date): Promise<OrgGraceResult> {
     }
 
     if (isGraceExpired(graceUntil, now)) {
-      const expired = await expireOrgGrace(org)
+      const expired = await expireOrgGrace(org, now)
       if (expired) {
-        result.expiredOrgs++
+        if (expired.cleared) result.expiredOrgs++
+        else result.retrying++
         result.lostPremium += expired.lost
         result.keptViaOtherSource += expired.kept
+      } else {
+        result.retrying++
       }
       continue
     }
@@ -196,24 +276,42 @@ type OrgGraceRow = {
 }
 
 /**
- * Grace-perioden er over: fjern stempelet og rekalkuler hvert medlem.
+ * Grace-perioden er over: rekalkuler hvert medlem, varsle dem som mistet
+ * Premium, og fjern stempelet SIST.
  *
- * Stempelet ryddes FØR rekalkuleringen — det er nettopp det som gjør at
- * getOrgCoverage() slutter å telle org-en som dekning. Feiler ryddingen,
- * avbryter vi hele org-en i stedet for å rekalkulere mot en tilstand vi ikke
- * fikk skrevet: da beholder de ansatte tilgangen ett døgn ekstra og vi prøver
- * igjen i morgen, i stedet for å skru av Premium på et halvskrevet grunnlag.
+ * REKKEFØLGEN ble snudd 16. august 2026. Fram til da ble stempelet ryddet
+ * FØRST, begrunnet med at det var ryddingen som fikk getOrgCoverage() til å
+ * slutte å telle org-en som dekning. Det var upresist: getLockGraceUntil
+ * filtrerer på `member_grace_until > now`, så en UTLØPT grace teller aldri
+ * som dekning — ryddet eller ei. Prisen for den gamle rekkefølgen var
+ * derimot reell: feilet medlemshentingen eller en e-post ETTER ryddingen,
+ * fantes det ingenting igjen som fikk neste kjøring til å prøve på nytt.
+ * Medlemmene mistet Premium uten å få vite det, for alltid.
+ *
+ * Nå er stempelet selve markøren for «denne utløpingen er ikke gjort opp»:
+ *
+ *   1. Nedgraderingen (syncPremiumCache per medlem) skjer først og venter
+ *      aldri på e-post.
+ *   2. E-post til dem som mistet Premium — med mindre utløpet er eldre enn
+ *      GRACE_ENDED_EMAIL_MAX_AGE_DAYS, da er beskjeden foreldet.
+ *   3. Stempelet ryddes KUN når alt er gjort opp: hvert medlem rekalkulert
+ *      og hver e-post levert eller uleverbar. Ellers står det, og neste
+ *      kjøring tar org-en på nytt — de som alt fikk e-posten kan da få den
+ *      igjen. Duplikat er den billige feilen; en ansatt som mistet Premium
+ *      uten beskjed er den dyre.
  */
-async function expireOrgGrace(org: OrgGraceRow): Promise<{ lost: number; kept: number } | null> {
-  const cleared = await clearOrgGrace(org.id, 'grace utløpt')
-  if (!cleared) return null
-
+async function expireOrgGrace(
+  org: OrgGraceRow,
+  now: Date,
+): Promise<{ lost: number; kept: number; cleared: boolean } | null> {
   const { data: members, error: membersError } = await supabaseAdmin
     .from('organization_members')
     .select('user_id')
     .eq('organization_id', org.id)
 
   if (membersError) {
+    // Stempelet står — org-en tas på nytt i morgen. (Før 16. august var
+    // stempelet allerede ryddet her, og hele org-en falt stille ut.)
     console.error(
       `[cron/expire-grace-periods] kunne ikke hente medlemmer for utløpt grace org=${org.id}:`,
       membersError.message,
@@ -221,15 +319,20 @@ async function expireOrgGrace(org: OrgGraceRow): Promise<{ lost: number; kept: n
     return null
   }
 
+  const emailTooOld = expiredTooLongAgo(org.member_grace_until, now)
   const lostPremium: string[] = []
+  let lostWithoutEmail = 0
   let kept = 0
+  let syncFailures = 0
   for (const m of members ?? []) {
     const userId = m.user_id as string
     try {
       const state = await syncPremiumCache(userId)
       if (state.isPremium) kept++
+      else if (emailTooOld) lostWithoutEmail++
       else lostPremium.push(userId)
     } catch (err) {
+      syncFailures++
       console.error(
         `[cron/expire-grace-periods] hoppet over ${userId} i org=${org.id} — kunne ikke avgjøre tilstand:`,
         err,
@@ -237,13 +340,34 @@ async function expireOrgGrace(org: OrgGraceRow): Promise<{ lost: number; kept: n
     }
   }
 
-  const sent = await sendGraceEndedEmails(lostPremium)
+  if (lostWithoutEmail > 0) {
+    console.error(
+      `[cron/expire-grace-periods] grace utløp for over ${GRACE_ENDED_EMAIL_MAX_AGE_DAYS} dager ` +
+      `siden for org=${org.id} — ${lostWithoutEmail} medlem(mer) nedgradert uten e-post`,
+    )
+  }
+
+  const emails = await sendGraceEndedEmails(lostPremium)
+  const lost = lostPremium.length + lostWithoutEmail
   console.log(
     `[cron/expire-grace-periods] lås-grace utløpt org=${org.id} (${org.name ?? 'uten navn'}) — ` +
-    `${lostPremium.length} mistet Premium, ${kept} dekket av annen kilde, ${sent} varslet`
+    `${lost} mistet Premium, ${kept} dekket av annen kilde, ${emails.delivered.length} varslet`
   )
 
-  return { lost: lostPremium.length, kept }
+  const allSettledUp = syncFailures === 0
+    && emails.delivered.length + emails.unreachable.length === lostPremium.length
+
+  if (!allSettledUp) {
+    console.error(
+      `[cron/expire-grace-periods] lås-grace org=${org.id} IKKE gjort helt opp ` +
+      `(${syncFailures} rekalkuleringer og ${emails.failed} e-poster feilet) — ` +
+      `stempelet står, org-en tas på nytt neste kjøring`,
+    )
+    return { lost, kept, cleared: false }
+  }
+
+  const cleared = await clearOrgGrace(org.id, 'grace utløpt')
+  return { lost, kept, cleared }
 }
 
 /**
@@ -259,6 +383,18 @@ async function expireOrgGrace(org: OrgGraceRow): Promise<{ lost: number; kept: n
  * gjentas i morgen — men vinduet er kun to dager, så en gjentakelse er
  * begrenset til et par e-poster. Motsatt rekkefølge kunne gitt null varsel i
  * det hele tatt, og det er den dyrere feilen her.
+ *
+ * STEMPLING KREVER FULL LEVERANSE (16. august 2026). Stempelet
+ * `member_grace_reminded_at` er ETT felt som dekker BÅDE ansatte og admins,
+ * mens sendingene er per person. Fram til nå holdt det at noe som helst ble
+ * SENDT — admin-grenen satte til og med flagget uten å se på resultatet, så
+ * én forsøkt (ikke engang levert) admin-e-post stemplet bort alle ansatte
+ * som fikk 429 i samme kjøring. Nå stemples det kun når alt som skulle
+ * sendes faktisk ble levert; ellers står stempelet, og neste kjøring tar
+ * hele orgen på nytt. De som alt fikk påminnelsen kan da få den én gang til
+ * — samme avveining som over, og gjentakelsen er begrenset av det samme
+ * to-dagersvinduet. (Å stemple ansatte og admins hver for seg krever en ny
+ * kolonne og er en egen sak.)
  */
 async function remindOrgGrace(org: OrgGraceRow): Promise<boolean> {
   const graceUntil = org.member_grace_until
@@ -271,18 +407,21 @@ async function remindOrgGrace(org: OrgGraceRow): Promise<boolean> {
   }
 
   let anythingSent = false
+  let allDelivered = true
 
   // 1. De ansatte.
   const lookup = await getOrgMemberEmails(org.id, { excludeAdmins: true })
   if (lookup === null) {
     console.error(`[cron/expire-grace-periods] påminnelse til ansatte HOPPET OVER — oppslag feilet. org=${org.id}`)
+    allDelivered = false
   } else if (lookup.memberCount > 0 && lookup.emails.length === 0) {
     console.error(
       `[cron/expire-grace-periods] påminnelse til ansatte HOPPET OVER — ingen e-postadresser for ` +
       `${lookup.memberCount} medlem(mer). org=${org.id}`
     )
+    allDelivered = false
   } else if (lookup.emails.length > 0) {
-    const { sent } = await sendEmailToMany(
+    const { delivered } = await sendEmailToMany(
       lookup.emails,
       {
         subject: `Premium gjennom ${org.name} utløper snart — Quizkanonen`,
@@ -290,14 +429,18 @@ async function remindOrgGrace(org: OrgGraceRow): Promise<boolean> {
       },
       `grace-reminder org=${org.id}`,
     )
-    if (sent > 0) anythingSent = true
-    console.log(`[cron/expire-grace-periods] grace-påminnelse til ${sent}/${lookup.emails.length} ansatte org=${org.id}`)
+    if (delivered.length > 0) anythingSent = true
+    if (delivered.length < lookup.emails.length) allDelivered = false
+    console.log(
+      `[cron/expire-grace-periods] grace-påminnelse til ${delivered.length}/${lookup.emails.length} ansatte org=${org.id}`,
+    )
   }
+  // (memberCount === 0: org uten ordinære ansatte er normalt — blokkerer ikke stempling.)
 
   // 2. Administratorene.
   const { emails: adminEmails, orgName, orgSlug } = await getOrgAdminEmails(org.id)
   if (adminEmails.length > 0 && orgName && orgSlug) {
-    await sendToOrgAdmins(
+    const { delivered } = await sendToOrgAdmins(
       adminEmails,
       {
         subject: `De ansatte mister Premium snart — ${orgName}`,
@@ -305,15 +448,25 @@ async function remindOrgGrace(org: OrgGraceRow): Promise<boolean> {
       },
       `grace-reminder-admin org=${org.id}`,
     )
-    anythingSent = true
+    if (delivered.length > 0) anythingSent = true
+    if (delivered.length < adminEmails.length) allDelivered = false
   } else {
     console.error(
       `[cron/expire-grace-periods] admin-påminnelse HOPPET OVER — ingen mottakere eller manglende felt. ` +
       `org=${org.id}, orgName=${orgName ?? 'null'}, orgSlug=${orgSlug ?? 'null'}`
     )
+    allDelivered = false
   }
 
   if (!anythingSent) return false
+
+  if (!allDelivered) {
+    console.error(
+      `[cron/expire-grace-periods] delvis leveranse av grace-påminnelsen org=${org.id} — ` +
+      `stempler IKKE; hele orgen tas på nytt neste kjøring`,
+    )
+    return false
+  }
 
   const { error } = await supabaseAdmin
     .from('organizations')
@@ -346,28 +499,49 @@ async function clearOrgGrace(organizationId: string, why: string): Promise<boole
   return true
 }
 
+type GraceEmailOutcome = {
+  /** Bruker-id-er der sendEmail bekreftet lyktes. */
+  delivered: string[]
+  /**
+   * Bruker-id-er uten e-postadresse. Kan aldri leveres, så de regnes som
+   * gjort opp — å la dem holde markøren åpen ville gitt daglige duplikater
+   * til alle andre i samme kjøring, uten at noen retry noensinne kan lykkes.
+   */
+  unreachable: string[]
+  /** Antall transiente feil (oppslag eller sending) — disse skal prøves igjen. */
+  failed: number
+}
+
 /**
  * «Premium-tilgangen din er avsluttet» til dem som faktisk mistet den. Delt av
  * begge grace-kildene — samme beskjed, samme mal.
+ *
+ * Returnerer HVEM som ble levert, ikke bare et antall (16. august 2026):
+ * kallerne bruker utfallet til å avgjøre hvilke markører som kan ryddes, og
+ * et rent antall kan ikke skille «disse to fikk den» fra «de to andre».
  */
-async function sendGraceEndedEmails(userIds: string[]): Promise<number> {
-  if (userIds.length === 0) return 0
+async function sendGraceEndedEmails(userIds: string[]): Promise<GraceEmailOutcome> {
+  const outcome: GraceEmailOutcome = { delivered: [], unreachable: [], failed: 0 }
+  if (userIds.length === 0) return outcome
 
   const html = gracePeriodEndedEmail()
   const subject = 'Premium-tilgangen din er avsluttet'
-  let sent = 0
 
   for (const id of userIds) {
     try {
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(id)
-      if (user?.email) {
-        await sendEmail({ to: user.email, subject, html })
-        sent++
+      if (!user?.email) {
+        console.error('[cron/expire-grace-periods] ingen e-postadresse for', id, '— varselet kan ikke leveres')
+        outcome.unreachable.push(id)
+        continue
       }
+      await sendEmail({ to: user.email, subject, html })
+      outcome.delivered.push(id)
     } catch (err) {
+      outcome.failed++
       console.error('[cron/expire-grace-periods] sendEmail feil for', id, err)
     }
   }
 
-  return sent
+  return outcome
 }
