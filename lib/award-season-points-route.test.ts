@@ -30,7 +30,14 @@ type QuizRow = {
   season_points_awarded: boolean; is_test: boolean; is_active: boolean
 }
 
-const db: { quizzes: QuizRow[]; processed: string[] } = { quizzes: [], processed: [] }
+// failFor: quiz-id → feilmelding processQuiz skal returnere for den quizen.
+// quizError: feil på selve quiz-OPPSLAGET (Supabase nede — 14. august-formen).
+const db: {
+  quizzes: QuizRow[]
+  processed: string[]
+  failFor: Map<string, string>
+  quizError: string | null
+} = { quizzes: [], processed: [], failFor: new Map(), quizError: null }
 
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString()
 
@@ -48,7 +55,8 @@ mock.module('@/lib/award-season-points', {
   namedExports: {
     processQuiz: async (quizId: string) => {
       db.processed.push(quizId)
-      return { rows: 1, error: null }
+      const failure = db.failFor.get(quizId)
+      return failure ? { rows: 0, error: failure } : { rows: 1, error: null }
     },
   },
 })
@@ -88,6 +96,7 @@ function builder(table: string) {
       // publish-quiz sin publiserings-UPDATE (scheduled_at) er ikke tema her —
       // den svarer alltid tomt.
       if (updating) return resolve({ data: [], error: null })
+      if (db.quizError) return resolve({ data: null, error: { message: db.quizError } })
       return resolve({ data: rows(), error: null })
     },
   }
@@ -120,6 +129,8 @@ const quiz = (over: Partial<QuizRow> = {}): QuizRow => ({
 beforeEach(() => {
   db.quizzes = []
   db.processed = []
+  db.failFor = new Map()
+  db.quizError = null
 })
 
 // ── Rammeverk ───────────────────────────────────────────────────────────────
@@ -171,6 +182,82 @@ test('allerede oppgjort quiz behandles ikke på nytt', async () => {
 
   await call(awardGET)
   assert.deepEqual(db.processed, [])
+})
+
+// ── Statuskoden må kunne varsles på ─────────────────────────────────────────
+// Dennis slår på feilvarsling i cron-job.org for denne ruten. Varslingen er
+// verdiløs hvis en kjøring der ingenting ble gjort opp svarer 200.
+//
+// MUTASJONSBEVIS (verifisert): byttes `status: failed > 0 ? 503 : 200` tilbake
+// til en ubetinget 200, feiler de tre 503-testene under. Byttes terskelen til
+// «alle feilet» (failed === results.length), feiler «delvis feil gir OGSÅ 503».
+
+test('quiz som feiler gir 503, ikke 200', async () => {
+  db.quizzes = [quiz()]
+  db.failFor.set(REAL_QUIZ, 'upstream request timeout')
+
+  const res = await call(awardGET)
+  assert.equal(res.status, 503)
+
+  const body = await res.json() as { processed: number; failed: number }
+  assert.equal(body.processed, 1)
+  assert.equal(body.failed, 1)
+})
+
+test('delvis feil gir OGSÅ 503 — en quiz som lyktes skjuler ikke en som ikke gjorde det', async () => {
+  // Terskelen er «minst én feilet», ikke «alle feilet». Med «alle» ville denne
+  // kjøringen svart 200 mens TEST_QUIZ-raden sto uoppgjort.
+  db.quizzes = [quiz(), quiz({ id: TEST_QUIZ, closes_at: minutesAgo(10) })]
+  db.failFor.set(TEST_QUIZ, 'Ingen rader funnet i season_scores etter upsert')
+
+  const res = await call(awardGET)
+  assert.equal(res.status, 503)
+
+  const body = await res.json() as { processed: number; failed: number }
+  assert.equal(body.processed, 2)
+  assert.equal(body.failed, 1)
+  // Begge ble faktisk forsøkt — 503-en er ikke en tidlig retur.
+  assert.deepEqual([...db.processed].sort(), [REAL_QUIZ, TEST_QUIZ].sort())
+})
+
+test('feil på selve quiz-oppslaget gir 503 (Supabase nede)', async () => {
+  db.quizzes = [quiz()]
+  db.quizError = '<!DOCTYPE html><html>521: Web server is down</html>'
+
+  const res = await call(awardGET)
+  assert.equal(res.status, 503)
+  assert.deepEqual(db.processed, [])
+})
+
+test('ingenting å gjøre gir 200 — normaltilstanden skal ALDRI varsle', async () => {
+  // Dette er svaret nesten hver eneste kjøring (målt: 0 ubehandlede quizer).
+  // Blir denne 503, får Dennis et varsel hvert 30. minutt for godt vær.
+  db.quizzes = []
+
+  const res = await call(awardGET)
+  assert.equal(res.status, 200)
+
+  const body = await res.json() as { processed: number; totalRows: number }
+  assert.equal(body.processed, 0)
+  assert.equal(body.totalRows, 0)
+})
+
+test('alle quizer OK gir 200 med failed=0', async () => {
+  db.quizzes = [quiz(), quiz({ id: TEST_QUIZ, closes_at: minutesAgo(10) })]
+
+  const res = await call(awardGET)
+  assert.equal(res.status, 200)
+
+  const body = await res.json() as { failed: number; processed: number }
+  assert.equal(body.failed, 0)
+  assert.equal(body.processed, 2)
+})
+
+test('maxDuration er satt — ruten arver ikke lenger 300 s-defaulten', async () => {
+  // Ankeret er den ekte eksporten, ikke en regex mot filen: en utkommentert
+  // linje ville ikke bestått denne.
+  const mod = await import('@/app/api/cron/award-season-points/route')
+  assert.equal((mod as { maxDuration?: number }).maxDuration, 60)
 })
 
 // ── publish-quiz (samme hendelse, kjører hvert minutt) ──────────────────────
