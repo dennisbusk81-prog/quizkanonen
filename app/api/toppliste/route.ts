@@ -140,11 +140,10 @@ function getPeriodStart(period: string): string {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
-// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
-// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
-// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
-// plattformdefaulten på 300 s.
-export const maxDuration = 15
+// MIDLERTIDIG 30, ikke 15: Sak B — 12 s lasting rapportert på topplisten,
+// aldri reprodusert. Settes tilbake til 15 (klassen for rene DB-lesere)
+// når Sak B er lukket. Beslutning: Dennis, 16. august 2026.
+export const maxDuration = 30
 
 export async function GET(request: NextRequest) {
   const t0 = Date.now()
