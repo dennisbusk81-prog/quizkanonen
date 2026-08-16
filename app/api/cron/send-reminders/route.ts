@@ -8,6 +8,7 @@ import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
 import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
+import { findOpenedQuizToNotify, quizHasQuestions } from '@/lib/opened-quiz-lookup'
 import {
   NOTIFY_CHANNEL,
   fetchAlreadyNotified,
@@ -25,20 +26,8 @@ const WORK_BUDGET_MS = 50_000
 // batch-startene blir vedvarende rate ~32/s. Se lib/email-batch.ts.
 const BATCH_INTERVAL_MS = 1_000
 
-// Hvor lenge etter åpning en quiz fortsatt kan varsles om.
-//
-// Vinduet var 10 minutter, og var da en KOMPENSASJON for at stemplingen var
-// feil: `reminder_sent_at` ble skrevet én gang etter hele løkken, så et
-// avbrudd etterlot ingen spor, og et smalt vindu begrenset hvor mange ganger
-// alle kunne få e-posten på nytt.
-//
-// Nå som hver mottaker stemples fortløpende i quiz_notification_log, er
-// gjentatte kjøringer trygge — de plukker opp nøyaktig restene. Da blir det
-// smale vinduet i stedet en kapasitetsgrense: med cron hvert 5. minutt rakk
-// to kjøringer aldri en stor liste. 60 minutter gir ~12 kjøringer.
-//
-// Samme tall og samme resonnement som notify-subscribers (3a27619).
-const NOTIFY_WINDOW_MS = 60 * 60 * 1000
+// Vinduet (60 min) og guardene — is_test, is_active og «har quizen spørsmål» —
+// eies av lib/opened-quiz-lookup.ts, delt med notify-subscribers og send-push.
 
 type EmailTarget = { userId: string; email: string }
 
@@ -84,7 +73,7 @@ export async function GET(request: NextRequest) {
   const now = Date.now()
 
   // Finn en quiz som nettopp åpnet. E-posten sendes NÅR quizen er åpen — ikke
-  // en time før.
+  // en time før. Oppslaget bor i lib/opened-quiz-lookup.ts.
   //
   // MERK: her sto tidligere `.is('reminder_sent_at', null)`. Det filteret var
   // alt-eller-intet-sjekken, og det kan ikke bli stående sammen med stempling
@@ -95,24 +84,16 @@ export async function GET(request: NextRequest) {
   // som er den normale meldingen nesten hele tiden.
   //
   // Dedupen ligger nå i quiz_notification_log, per mottaker.
-  const windowStart = new Date(now - NOTIFY_WINDOW_MS).toISOString()
-  const nowIso      = new Date(now).toISOString()
+  const lookup = await findOpenedQuizToNotify('cron/send-reminders', now)
 
-  const { data: nextQuiz, error: quizError } = await supabaseAdmin
-    .from('quizzes')
-    .select('id, title, opens_at, closes_at')
-    .eq('is_test', false)
-    .eq('is_active', true)
-    .lte('opens_at', nowIso)
-    .gte('opens_at', windowStart)
-    .order('opens_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (quizError) {
-    console.error('[cron/send-reminders] quiz lookup error:', quizError.message)
-    return NextResponse.json({ error: quizError.message }, { status: 500 })
+  if (lookup.status === 'error') {
+    return NextResponse.json({ error: lookup.message }, { status: 500 })
   }
+
+  // `empty` faller gjennom til org-seksjonen under, som er uavhengig og har sin
+  // egen innholdssjekk. Quiz-påminnelsen er allerede holdt tilbake og
+  // rapportert av vakten.
+  const nextQuiz = lookup.status === 'found' ? lookup.quiz : null
 
   // Quiz-påminnelser kjøres kun når en quiz nettopp åpnet. Org-close-
   // påminnelsene lenger ned er en egen, uavhengig seksjon som skal kjøre
@@ -238,7 +219,19 @@ export async function GET(request: NextRequest) {
     console.error('[cron/send-reminders] active quiz lookup error:', activeQuizError.message)
   }
 
-  if (activeQuiz) {
+  // Innholdssjekken må gjentas HER, ikke arves fra oppslaget over: org-grenen
+  // finner quizen sin med en annen spørring (aktiv nå, sortert på closes_at),
+  // så `findOpenedQuizToNotify` har aldri sett denne raden. Samme hendelse,
+  // annen kodesti — å rette bare det ene stedet ville etterlatt et hull som ser
+  // lukket ut i rapporten.
+  //
+  // `quizHasQuestions` feiler åpent (se lib/opened-quiz-lookup.ts), så en
+  // DB-feil her stopper ikke «en time igjen»-påminnelsen.
+  const activeQuizPlayable = activeQuiz
+    ? await quizHasQuestions(activeQuiz.id, 'cron/send-reminders org-close')
+    : false
+
+  if (activeQuiz && activeQuizPlayable) {
     // Orgene med egen stengetid. `org_close_reminder_quiz_id` leses IKKE
     // lenger: det var et alt-eller-intet-stempel per org, med nøyaktig samme
     // feilform som quiz-stempelet over — ble sendingen avbrutt midt i en

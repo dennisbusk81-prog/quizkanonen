@@ -37,9 +37,11 @@ type QuizRow = {
   is_test: boolean; is_active: boolean; reminder_sent_at: string | null
 }
 type LogRow = { quiz_id: string; channel: string; scope_id: string; recipient_id: string }
+type QuestionRow = { id: string; quiz_id: string; question_text: string | null }
 
 const db: {
   quizzes: QuizRow[]
+  questions: QuestionRow[]
   profiles: { id: string; email_reminders: boolean }[]
   orgs: { id: string; name: string; org_quiz_closes_at: string | null; org_close_reminder_quiz_id: string | null }[]
   members: { organization_id: string; user_id: string }[]
@@ -51,7 +53,7 @@ const db: {
   orgWrites: number
   quizWrites: number
 } = {
-  quizzes: [], profiles: [], orgs: [], members: [], log: [],
+  quizzes: [], questions: [], profiles: [], orgs: [], members: [], log: [],
   sentTo: [], subjects: [], sendFailsFor: new Set(), upserts: [],
   orgWrites: 0, quizWrites: 0,
 }
@@ -91,6 +93,9 @@ function builder(table: string) {
   let rangeFrom = 0, rangeTo = Number.MAX_SAFE_INTEGER
   let upserting: LogRow[] | null = null
   let deleting = false
+  // Innholdsvakten i lib/opened-quiz-lookup.ts bruker `.neq('question_text','')`
+  // i tillegg til `.not(...is null)`. Også dette filteret er implementert ekte.
+  const neqs: Array<[string, unknown]> = []
 
   const source = (): Record<string, unknown>[] => {
     switch (table) {
@@ -99,6 +104,7 @@ function builder(table: string) {
       case 'organizations':          return db.orgs as unknown as Record<string, unknown>[]
       case 'organization_members':   return db.members as unknown as Record<string, unknown>[]
       case 'quiz_notification_log':  return db.log as unknown as Record<string, unknown>[]
+      case 'questions':              return db.questions as unknown as Record<string, unknown>[]
       default: throw new Error(`ukjent tabell i mock: ${table}`)
     }
   }
@@ -111,6 +117,7 @@ function builder(table: string) {
       if (notNullCol && (r[notNullCol] === null || r[notNullCol] === undefined)) return false
       if (isNullCol && r[isNullCol] !== null && r[isNullCol] !== undefined) return false
       if (inCol && !inVals.includes(String(r[inCol]))) return false
+      for (const [col, val] of neqs) if (r[col] === val) return false
       return true
     })
     if (limitN !== null) out = out.slice(0, limitN)
@@ -122,6 +129,7 @@ function builder(table: string) {
     eq(col: string, val: unknown) { eqs[col] = val; return b },
     is(col: string, val: unknown) { if (val === null) isNullCol = col; return b },
     not(col: string, op: string, val: unknown) { if (op === 'is' && val === null) notNullCol = col; return b },
+    neq(col: string, val: unknown) { neqs.push([col, val]); return b },
     lte(col: string, val: string) { lteCol = col; lteVal = val; return b },
     gte(col: string, val: string) { gteCol = col; gteVal = val; return b },
     in(col: string, vals: string[]) { inCol = col; inVals = vals.map(String); return b },
@@ -196,8 +204,21 @@ const logged = (recipientId: string, over: Partial<LogRow> = {}): LogRow => ({
 const subscribers = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `p${i}`, email_reminders: true }))
 
+/** Ferdige spørsmål med tekst — det normale for en quiz som skal varsles. */
+const spørsmål = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: `Spørsmål ${i}`,
+  }))
+
+/** Radene admin-editoren lager på tittel-blur: de FINNES, men er tomme. */
+const placeholders = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: '',
+  }))
+
 beforeEach(() => {
   db.quizzes = [quiz()]
+  db.questions = spørsmål(QUIZ_ID)
   db.profiles = []
   db.orgs = []
   db.members = []
@@ -494,4 +515,73 @@ test('to kjøringer i org-vinduet gir nøyaktig én e-post per medlem', async ()
   await call()
 
   assert.deepEqual(db.sentTo.sort(), ['p0@example.com', 'p1@example.com'])
+})
+
+// ── Quiz uten spørsmål ──────────────────────────────────────────────────────
+//
+// Vakten bor i lib/opened-quiz-lookup.ts og er enhetstestet der. Testene under
+// binder den til DE TO kallstedene i denne ruten. Merk at gren A (quizen åpnet)
+// og gren B (org-stengetid) finner quizen med HVERT SITT oppslag — gren B
+// arver ingenting av vakten i gren A, og trenger derfor sin egen test.
+//
+// MUTASJONSBEVIS (16. august 2026): `quizHasQuestions`-kallet i org-grenen
+// byttet mot `true` → «org-stengepåminnelsen sendes ikke for en tom quiz» og
+// den strukturelle «org-stengevarselet har sin EGEN innholdssjekk» ryker, mens
+// alle testene for gren A blir stående grønne. Det er nettopp den formen et
+// halvfikset søskenhull tar.
+
+test('quiz med bare placeholder-spørsmål gir ingen åpningspåminnelse', async () => {
+  db.questions = placeholders(QUIZ_ID)
+  db.profiles = subscribers(3)
+
+  await call()
+
+  assert.deepEqual(db.sentTo, [], 'ingen påmeldt skal få e-post om en tom quiz')
+  assert.deepEqual(db.upserts, [], 'og ingen skal stemples som varslet')
+})
+
+test('org-stengepåminnelsen sendes ikke for en tom quiz', async () => {
+  // SØSKENET. Dette oppslaget (aktiv nå, sortert på closes_at) er en annen
+  // kodesti enn åpningsvarselet, og ville sendt «en time igjen» om en quiz uten
+  // et eneste spørsmål. Rettes bare det ene stedet, ser hullet lukket ut i
+  // rapporten mens denne stien fortsatt står åpen.
+  setUpOrgScenario([ORG_A])
+  db.questions = placeholders(QUIZ_ID)
+  db.profiles = subscribers(3)
+  db.members = [
+    { organization_id: ORG_A, user_id: 'p0' },
+    { organization_id: ORG_A, user_id: 'p1' },
+  ]
+
+  await call()
+
+  assert.deepEqual(db.sentTo, [])
+  assert.deepEqual(db.upserts, [])
+})
+
+test('org-stengepåminnelsen går som normalt når quizen har innhold', async () => {
+  // Kontrollen til testen over: uten denne ville en vakt som ALLTID blokkerer
+  // sett like grønn ut.
+  setUpOrgScenario([ORG_A])
+  db.profiles = subscribers(3)
+  db.members = [
+    { organization_id: ORG_A, user_id: 'p0' },
+    { organization_id: ORG_A, user_id: 'p1' },
+  ]
+
+  await call()
+
+  assert.deepEqual(db.sentTo.sort(), ['p0@example.com', 'p1@example.com'])
+})
+
+test('ett ekte spørsmål blant placeholders → påminnelsen sendes', async () => {
+  db.questions = [
+    ...placeholders(QUIZ_ID, 14),
+    { id: 'ekte', quiz_id: QUIZ_ID, question_text: 'Hva heter Norges høyeste fjell?' },
+  ]
+  db.profiles = subscribers(1)
+
+  await call()
+
+  assert.deepEqual(db.sentTo, ['p0@example.com'])
 })

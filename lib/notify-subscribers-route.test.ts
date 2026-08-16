@@ -37,13 +37,16 @@ type QuizRow = {
   is_test: boolean; is_active: boolean
 }
 
+type QuestionRow = { id: string; quiz_id: string; question_text: string | null }
+
 const db: {
   quizzes: QuizRow[]
+  questions: QuestionRow[]
   subs: SubRow[]
   sentTo: string[]
   sendFailsFor: Set<string>
   updates: { ids: string[]; quizId: string }[]
-} = { quizzes: [], subs: [], sentTo: [], sendFailsFor: new Set(), updates: [] }
+} = { quizzes: [], questions: [], subs: [], sentTo: [], sendFailsFor: new Set(), updates: [] }
 
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString()
 
@@ -74,6 +77,12 @@ function builder(table: string) {
   let rangeFrom = 0, rangeTo = Number.MAX_SAFE_INTEGER
   let updating: Record<string, string> | null = null
   let inCol: string | null = null, inVals: string[] = []
+  // Innholdsvakten (lib/opened-quiz-lookup.ts) filtrerer med
+  // `.not('question_text','is',null).neq('question_text','')`. Begge er
+  // implementert ekte her — en mock som bare godtar signaturen ville vært like
+  // grønn med og uten filtrene, og da måler den ingenting.
+  const notNulls: string[] = []
+  const neqs: Array<[string, unknown]> = []
   // `.eq` brukes ikke av ruten slik den står nå. Mocken støtter den likevel,
   // slik at mutasjonsbevis (a) — å sette den gamle alt-eller-intet-sjekken
   // tilbake — måler ruten og ikke en manglende mock-metode.
@@ -95,12 +104,15 @@ function builder(table: string) {
     const source: Record<string, unknown>[] =
       table === 'quizzes' ? (db.quizzes as unknown as Record<string, unknown>[])
       : table === 'quiz_notifications' ? (db.subs as unknown as Record<string, unknown>[])
+      : table === 'questions' ? (db.questions as unknown as Record<string, unknown>[])
       : []
 
     let out = source.filter(r => {
       for (const [k, v] of Object.entries(eqs)) if (r[k] !== v) return false
       if (lteCol && lteVal !== null && String(r[lteCol]) > lteVal) return false
       if (gteCol && gteVal !== null && String(r[gteCol]) < gteVal) return false
+      for (const col of notNulls) if (r[col] === null || r[col] === undefined) return false
+      for (const [col, val] of neqs) if (r[col] === val) return false
       if (!matchesOr(r)) return false
       return true
     })
@@ -121,6 +133,11 @@ function builder(table: string) {
     lte(col: string, val: string) { lteCol = col; lteVal = val; return b },
     gte(col: string, val: string) { gteCol = col; gteVal = val; return b },
     or(expr: string) { orExpr = expr; return b },
+    not(col: string, op: string, val: unknown) {
+      if (op === 'is' && val === null) notNulls.push(col)
+      return b
+    },
+    neq(col: string, val: unknown) { neqs.push([col, val]); return b },
     order(col: string, opts?: { ascending?: boolean }) {
       orderCol = col; orderDesc = opts?.ascending === false; return b
     },
@@ -176,8 +193,21 @@ const quiz = (over: Partial<QuizRow> = {}): QuizRow => ({
   ...over,
 })
 
+/** Ferdige spørsmål med tekst — det normale for en quiz som skal annonseres. */
+const spørsmål = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: `Spørsmål ${i}`,
+  }))
+
+/** Radene admin-editoren lager på tittel-blur: de FINNES, men er tomme. */
+const placeholders = (quizId: string, n = 15): QuestionRow[] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `${quizId}-q${i}`, quiz_id: quizId, question_text: '',
+  }))
+
 beforeEach(() => {
   db.quizzes = [quiz()]
+  db.questions = [...spørsmål(QUIZ_ID), ...spørsmål(ANNEN_QUIZ)]
   db.subs = []
   db.sentTo = []
   db.sendFailsFor = new Set()
@@ -346,4 +376,61 @@ test('stemplingen skrives per batch, ikke som én skriving til slutt', async () 
   assert.deepEqual(db.updates.map(u => u.ids.length), [8, 8, 4])
   assert.equal(db.updates.every(u => u.quizId === QUIZ_ID), true)
   assert.equal(db.sentTo.length, 20)
+})
+
+// ── Quiz uten spørsmål ──────────────────────────────────────────────────────
+//
+// Vakten bor i lib/opened-quiz-lookup.ts og er enhetstestet der. Testene under
+// binder den til DETTE kallstedet: fjernes `findOpenedQuizToNotify` herfra til
+// fordel for et inlinet oppslag, er lib-testene fortsatt grønne mens ruten
+// annonserer en tom quiz.
+//
+// MUTASJONSBEVIS (16. august 2026): hele ruten rullet tilbake til versjonen på
+// `main` (altså det inlinede oppslaget uten innholdssjekk) → «quiz med bare
+// placeholder-spørsmål annonseres ikke» og «tom quiz rapporteres ikke som ingen
+// quiz i vinduet» ryker, sammen med de to strukturelle testene i
+// lib/opened-quiz-lookup.test.ts.
+
+test('quiz med bare placeholder-spørsmål annonseres ikke', async () => {
+  // Admin har skrevet tittelen og fått quiz-raden opprettet (is_active=true,
+  // opens_at satt), men ikke fylt inn spørsmålene. Radene FINNES — en
+  // count-vakt ville sluppet denne gjennom til hele påmeldingslisten.
+  db.questions = placeholders(QUIZ_ID)
+  db.subs = [sub('a'), sub('b')]
+
+  const res = await call()
+  const body = await res.json() as { skipped?: boolean; reason?: string; quizId?: string }
+
+  assert.deepEqual(db.sentTo, [], 'ingen skal få e-post om en tom quiz')
+  assert.deepEqual(db.updates, [], 'og ingen skal stemples som varslet')
+  assert.equal(body.skipped, true)
+  assert.equal(body.quizId, QUIZ_ID)
+})
+
+test('«tom quiz» rapporteres ikke som «ingen quiz i vinduet»', async () => {
+  // De to tilstandene må være synlig forskjellige i svaret. «Ingen quiz åpnet i
+  // vinduet» er normalmeldingen nesten hele tiden — gjemmer vi funnet bak den,
+  // er det stille undersending forkledd som normaldrift.
+  db.questions = placeholders(QUIZ_ID)
+  db.subs = [sub('a')]
+  const tom = await (await call()).json() as { reason?: string }
+
+  db.quizzes = []
+  const ingen = await (await call()).json() as { reason?: string }
+
+  assert.notEqual(tom.reason, ingen.reason)
+  assert.match(String(tom.reason), /spørsmål/i)
+})
+
+test('ett ekte spørsmål blant placeholders → quizen annonseres', async () => {
+  // Vakten krever ikke en ferdig quiz, bare at den ikke er helt tom.
+  db.questions = [
+    ...placeholders(QUIZ_ID, 14),
+    { id: 'ekte', quiz_id: QUIZ_ID, question_text: 'Hva heter Norges høyeste fjell?' },
+  ]
+  db.subs = [sub('a')]
+
+  await call()
+
+  assert.deepEqual(db.sentTo, ['a@example.com'])
 })
