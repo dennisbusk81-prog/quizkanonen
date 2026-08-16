@@ -13,6 +13,12 @@ function readSetting(rows: { key: string; value: string }[], key: string): numbe
   return Number.isInteger(n) && n > 0 ? n : null
 }
 
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function GET() {
   // Hent founders-innstillinger fra site_settings (key/value-tabell)
   //

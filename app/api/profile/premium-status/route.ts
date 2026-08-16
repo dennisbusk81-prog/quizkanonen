@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function GET(req: NextRequest) {
   // Sak 2.3 — kun ratelimit når vi faktisk kan identifisere klienten. Uten
   // x-forwarded-for kan vi ikke skille klienter fra hverandre; å dele én global

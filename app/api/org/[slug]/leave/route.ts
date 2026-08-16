@@ -21,6 +21,12 @@ type Params = { params: Promise<{ slug: string }> }
 // et medlem (members/[id]/remove rører dem heller ikke): poengene er en del av
 // bedriftens sesonghistorikk, ikke brukerens eiendom alene. Å slette dem ville
 // skrevet om en allerede avsluttet sesong for alle de andre.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`org-leave:${ip}`, 10, 60_000).success) {

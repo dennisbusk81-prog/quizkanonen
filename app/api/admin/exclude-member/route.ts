@@ -5,6 +5,12 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 // POST /api/admin/exclude-member
 // Body: { scope_type, scope_id, user_id, action: 'exclude'|'unexclude' }
 // Auth: admin-passord, eller token med liga-eier / org-admin-rettigheter
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function POST(request: NextRequest) {
   let body: { scope_type?: string; scope_id?: string; user_id?: string; action?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Ugyldig JSON' }, { status: 400 }) }

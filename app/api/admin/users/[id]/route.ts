@@ -5,6 +5,10 @@ import Stripe from 'stripe'
 
 type QuizRow = { id: string; title: string; opens_at: string | null }
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

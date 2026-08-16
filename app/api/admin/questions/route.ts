@@ -7,6 +7,12 @@ import { fetchAllRows } from '@/lib/paginate'
 // dem merket is_classic (det er /api/admin/classics, som filtrerer på det
 // flagget og forblir urørt/ubrukt av denne siden). Filtrering på "kun
 // klassikere" gjøres client-side i /admin/sporsmal ved å lese is_classic her.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function GET(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

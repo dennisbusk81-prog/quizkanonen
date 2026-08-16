@@ -4,6 +4,10 @@ import { sendEmail } from '@/lib/email'
 import { orgWelcomeEmail } from '@/lib/email-templates'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const access_token: string | undefined = body?.access_token

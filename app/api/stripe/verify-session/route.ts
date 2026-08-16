@@ -5,6 +5,10 @@ import { rateLimit } from '@/lib/rate-limit'
 
 // Verifiserer en checkout-session direkte mot Stripe så success-siden ikke er
 // avhengig av at webhooken har rukket å sette premium_status i DB.
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function GET(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
 

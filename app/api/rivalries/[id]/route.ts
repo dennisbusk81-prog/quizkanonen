@@ -5,6 +5,12 @@ import { rateLimit } from '@/lib/rate-limit'
 type Params = { params: Promise<{ id: string }> }
 
 // PATCH /api/rivalries/[id] — accept or decline (only rival_id can do this)
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function PATCH(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = rateLimit(`rivalries-patch:${ip}`, 10, 60_000)

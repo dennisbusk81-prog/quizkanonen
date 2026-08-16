@@ -13,6 +13,10 @@ import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 //     -H "Content-Type: application/json" \
 //     -d '{"slug":"<org-slug>"}'
 
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

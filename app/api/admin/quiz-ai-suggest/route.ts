@@ -20,6 +20,10 @@ Returner KUN JSON uten annen tekst:
   "explanation": string (maks 20 ord)
 }`
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   if (!verifyAdminRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

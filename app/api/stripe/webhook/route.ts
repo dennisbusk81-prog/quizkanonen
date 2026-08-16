@@ -258,6 +258,10 @@ async function sendOrgPurchaseConfirmation(organizationId: string): Promise<void
   )
 }
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const body = await request.text()

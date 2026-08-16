@@ -21,6 +21,10 @@ import { isDuelExpired, PENDING_REPLY_WINDOW_MS } from '@/lib/duel-expiry'
 // Krever at CHECK-constrainten på rivalries.status tillater 'expired'
 // (se docs/sql/2026-07-28-duell.sql). Gjør den ikke det, feiler
 // oppdateringen synlig her i stedet for å gå stille galt.
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')

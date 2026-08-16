@@ -30,6 +30,12 @@ const myOrgsCache = new Map<string, { orgs: OrgResult[]; expires: number }>()
 // ekte ansatt, ikke bare et glimt. Kun et faktisk oppslag får returnere en
 // liste; alt annet er en feil, og en tom liste betyr nå entydig «ingen
 // medlemskap». Samme invariant som lib/fetch-result.ts.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const access_token: string | undefined = body?.access_token

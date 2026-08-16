@@ -6,6 +6,12 @@ type Params = { params: Promise<{ id: string }> }
 
 // DELETE /api/admin/org-trial-codes/[id] — slett en ubrukt engangskode.
 // Avviser sletting hvis koden allerede er innløst (used_at IS NOT NULL).
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function DELETE(request: NextRequest, { params }: Params) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -78,6 +78,10 @@ async function resolveCustomerId(
   return created.id
 }
 
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'

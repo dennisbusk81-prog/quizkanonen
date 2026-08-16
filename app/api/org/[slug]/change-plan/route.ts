@@ -15,6 +15,10 @@ import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 // medlemmene deres. Portalen krever dessuten like mye kode uansett — uten en
 // price_id → plan-mapping i webhooken blir `organizations.plan` stående feil.
 // (Den mappingen finnes nå også, som sikkerhetsnett — se lib/org-plan-prices.)
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },

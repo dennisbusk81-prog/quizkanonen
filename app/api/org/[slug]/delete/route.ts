@@ -13,6 +13,10 @@ type Params = { params: Promise<{ slug: string }> }
 // kontoer eller individuell spillhistorikk. Kun org-spesifikke rader fjernes —
 // profiles, attempts, attempt_answers, played_log, globale/liga-season_scores,
 // leagues og league_members beholdes. Ansatte fortsetter som vanlige B2C-brukere.
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`org-delete:${ip}`, 5, 60_000).success) {

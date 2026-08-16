@@ -1,7 +1,14 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createSupabaseServer } from '@/lib/supabase-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { withTimeout } from '@/lib/with-timeout'
 import Link from 'next/link'
+
+// Samme frist som middleware.ts bruker på getUser() — se begrunnelsen der.
+// Render-budsjettet er 300 s (målt 14. august 2026); uten frist ville et
+// hengende Supabase-kall holdt siden til plattformen dreper funksjonen.
+const AUTH_TIMEOUT_MS = 3000
 
 const s = {
   page: {
@@ -93,19 +100,78 @@ const features = [
   { label: 'Private ligaer med venner og kolleger' },
 ]
 
-export default async function FoundersSuccessPage() {
-  const supabase = await createSupabaseServer()
-  const { data: { user } } = await supabase.auth.getUser()
+// «Ukjent»-visningen: samme ramme som suksess-siden, men ingen påstander —
+// verken «velkommen om bord» eller en redirect til /login//premium. Teksten
+// er den samme som forsiden bruker ved ukjent auth (ordlyd godkjent av
+// Dennis 16. august 2026).
+function UkjentView() {
+  return (
+    <div style={s.page}>
+      <div style={s.inner}>
+        <p style={s.eyebrow}>Den ukentlige quizen</p>
+        <h1 style={s.logo}>
+          Quiz<em style={s.logoEm}>kanonen</em>
+        </h1>
+        <div style={s.card}>
+          <p style={s.body}>
+            Vi får ikke kontakt med innloggingen akkurat nå. Er du innlogget, er du det fortsatt — last siden på nytt om litt.
+          </p>
+          <div>
+            <Link href="/" style={s.btnBack}>← Tilbake til forsiden</Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  if (!user) redirect('/login')
+export default async function FoundersSuccessPage() {
+  // Satte middleware `x-qk-auth: unknown`, fikk getUser() der aldri svar —
+  // da skal ikke denne siden spørre GoTrue selv og gjenta det hengende
+  // kallet. Samme regel som app/page.tsx: ukjent er en tredje tilstand,
+  // aldri «utlogget». Headeren kan ikke settes utenfra (middleware stripper
+  // innkommende verdi ubetinget).
+  const authUnknown = (await headers()).get('x-qk-auth') === 'unknown'
+  if (authUnknown) return <UkjentView />
+
+  const supabase = await createSupabaseServer()
+  // getUser() her er alltid et nettverkskall mot GoTrue (også med ferskt
+  // token — det er hele poenget med metoden). Henger det, skal siden gi opp
+  // og vise ukjent — ikke vente på render-budsjettet.
+  const userOutcome = await withTimeout(supabase.auth.getUser(), { ms: AUTH_TIMEOUT_MS })
+  if (!userOutcome.ok) return <UkjentView />
+
+  const { data: { user }, error: userError } = userOutcome.value
+  if (!user) {
+    // Skillet som manglet fram til 16. august: `user === null` har TO
+    // årsaker, og bare den ene betyr utlogget. Ingen sesjons-cookie
+    // (AuthSessionMissingError) → ekte utlogget → /login som før. Alt annet
+    // (500/429/nettverksfeil fra GoTrue) betyr «fikk ikke svar» — å
+    // redirecte en innlogget bruker til /login på det var samme feilform
+    // som forsiden viste «gjest» på.
+    if (!userError || userError.name === 'AuthSessionMissingError') redirect('/login')
+    return <UkjentView />
+  }
 
   // Les premium_status med service role — RLS blokkerer kolonnen for
   // anon/bruker-klienten (gir undefined), så vi bruker supabaseAdmin her.
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('premium_status')
-    .eq('id', user.id)
-    .single()
+  // maybeSingle, ikke single: «rad mangler» er et definitivt svar (ikke
+  // premium → /premium), mens en FEIL fra spørringen ikke er det — den
+  // sendte tidligere en betalende founders-bruker til salgssiden.
+  // `Promise.resolve(...)` fordi byggeren er en thenable, ikke et Promise.
+  const profileOutcome = await withTimeout(
+    Promise.resolve(
+      supabaseAdmin
+        .from('profiles')
+        .select('premium_status')
+        .eq('id', user.id)
+        .maybeSingle()
+    ),
+    { ms: AUTH_TIMEOUT_MS }
+  )
+  if (!profileOutcome.ok) return <UkjentView />
+  const { data: profile, error: profileError } = profileOutcome.value
+  if (profileError) return <UkjentView />
 
   if (!profile?.premium_status) redirect('/premium')
 

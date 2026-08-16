@@ -7,6 +7,12 @@ const VALID_PACKAGES = ['starter', 'standard', 'pro'] as const
 
 // POST /api/admin/org-trial-codes/generate — opprett en ny engangskode for B2B-trial.
 // Body: { package, trial_days, note?, code? }. Genererer kode hvis ingen oppgis.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

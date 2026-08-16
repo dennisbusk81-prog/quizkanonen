@@ -15,6 +15,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const INVITE_ACTION = 'org_invite_email'
 const DAY_MS = 24 * 60 * 60 * 1000
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }

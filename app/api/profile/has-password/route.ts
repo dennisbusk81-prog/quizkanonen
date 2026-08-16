@@ -18,6 +18,12 @@ import { rateLimit } from '@/lib/rate-limit'
 //
 // GET, ikke POST, av samme grunn som avmeldingslenkene ble lagt om 1. august:
 // formen på ruten skal fortelle sannheten om hva den gjør.
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function GET(request: NextRequest) {
   // Samme mønster som premium-status: brems kun når vi faktisk kan skille
   // klienter fra hverandre. Uten x-forwarded-for ville alle delt én bøtte.

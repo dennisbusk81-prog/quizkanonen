@@ -36,6 +36,12 @@ function getPeriodStart(period: string): string {
 // GET /api/org/[slug]/members-activity?period=month|quarter|year&format=csv
 // Returnerer aktivitetsdata for alle org-medlemmer. Krever org-admin.
 // orgId er UUID her, ikke en slug — kun param-navn er endret for Next.js routing-konsistens
+// Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
+// p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
+// og dreper et hengende Supabase-kall tidlig — i stedet for å arve
+// plattformdefaulten på 300 s.
+export const maxDuration = 15
+
 export async function GET(request: NextRequest, { params }: Params) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })

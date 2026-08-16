@@ -16,6 +16,10 @@ import { executeScheduledRemovals } from '@/lib/org-member-removal'
 // som flere av de eldre cronene. Grunnen er at denne fjerner tilgang på en dato
 // en admin har lovet en ansatt — en cron som aldri ble registrert manuelt ville
 // betydd at ingen planlagt fjerning noensinne skjedde, uten et eneste feilspor.
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
