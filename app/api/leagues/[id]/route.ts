@@ -5,6 +5,10 @@ import { rateLimit } from '@/lib/rate-limit'
 type Params = { params: Promise<{ id: string }> }
 
 // GET /api/leagues/[id] — hent ligainfo + medlemsliste (krever medlemskap)
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function GET(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`league-get:${ip}`, 30, 60_000).success) {

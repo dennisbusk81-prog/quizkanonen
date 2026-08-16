@@ -13,6 +13,10 @@ import { syncPremiumCache } from '@/lib/premium-state-io'
 // abonnement. En bruker som senere kjøper Premium selv får premium_source
 // 'personal'/'org' og faller dermed ut av spørringen, selv om en gammel
 // premium_expires_at fortsatt skulle ligge igjen på raden.
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')

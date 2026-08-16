@@ -5,6 +5,10 @@ import { rateLimit } from '@/lib/rate-limit'
 type Params = { params: Promise<{ id: string }> }
 
 // POST /api/leagues/[id]/reset — sett reset_at = now() (krever eierskap)
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`league-reset:${ip}`, 10, 60_000).success) {

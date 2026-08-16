@@ -5,6 +5,10 @@ import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }

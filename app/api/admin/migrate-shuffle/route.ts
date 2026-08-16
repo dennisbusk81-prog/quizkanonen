@@ -4,6 +4,10 @@ import { verifyAdminRequest } from '@/lib/admin-auth'
 
 const MIGRATION_SQL = `ALTER TABLE questions ADD COLUMN IF NOT EXISTS shuffle_options boolean NOT NULL DEFAULT false;`
 
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

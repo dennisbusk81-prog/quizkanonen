@@ -6,6 +6,10 @@ import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 type Params = { params: Promise<{ slug: string }> }
 
 // POST /api/org/[slug]/reset-season — slett season_scores for denne organisasjonen (krever org-admin)
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   if (!rateLimit(`org-season-reset:${ip}`, 5, 60_000).success) {

@@ -13,6 +13,10 @@ import {
 } from '@/lib/duel-quota'
 
 // POST /api/rivalries — send a duel challenge to another user
+// Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
+// slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = rateLimit(`rivalries-create:${ip}`, 5, 60_000)
