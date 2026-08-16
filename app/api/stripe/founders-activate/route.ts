@@ -31,6 +31,10 @@ function isMissingSubscription(err: unknown): boolean {
   )
 }
 
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   if (!FOUNDERS_PRICE_ID) {
     return NextResponse.json({ error: 'Founders price not configured' }, { status: 500 })

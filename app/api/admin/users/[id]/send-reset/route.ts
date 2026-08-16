@@ -8,6 +8,10 @@ import { verifyAdminRequest } from '@/lib/admin-auth'
 // Denne ruten gjenbruker SAMME Supabase-mekanisme og SAMME redirect-mål, kalt
 // server-side på vegne av brukeren av en admin. Selve e-posten Supabase
 // sender er identisk uansett hvilken vei den ble trigget fra.
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

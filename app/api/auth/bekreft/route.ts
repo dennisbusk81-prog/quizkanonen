@@ -21,6 +21,10 @@ import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboardin
 // verifyOtp (token_hash) krever heller ingen PKCE-verifier, i motsetning til
 // exchangeCodeForSession i /auth/callback. Lenken virker derfor i en HVILKEN SOM
 // HELST nettleser — å be om lenken på PC og åpne e-posten på mobil fungerer nå.
+// Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
+// alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   const { origin } = new URL(request.url)
 
