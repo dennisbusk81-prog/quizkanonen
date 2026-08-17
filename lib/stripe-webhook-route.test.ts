@@ -42,6 +42,8 @@ const state: {
   profileUpdates: Array<Record<string, unknown>>
   recomputed: string[]
   listCalls: number
+  /** profiles.personal_grace_until slik den står i «databasen». */
+  existingGrace: string | null
 } = {
   event: {},
   storedSubId: null,
@@ -51,6 +53,7 @@ const state: {
   profileUpdates: [],
   recomputed: [],
   listCalls: 0,
+  existingGrace: null,
 }
 
 // ── Stripe-SDK ─────────────────────────────────────────────────────────────
@@ -124,6 +127,9 @@ mock.module('@/lib/email', {
 mock.module('@/lib/premium-state-io', {
   namedExports: {
     syncPremiumCache: async (id: string) => { state.recomputed.push(id) },
+    // Karensperioden (17. august 2026). Webhooken leser den for å avgjøre om en
+    // ny skal gis eller om en allerede løper.
+    getPersonalGrace: async () => state.existingGrace,
   },
 })
 
@@ -176,6 +182,99 @@ beforeEach(() => {
   state.profileUpdates = []
   state.recomputed = []
   state.listCalls = 0
+  state.existingGrace = null
+})
+
+// ── Karensperiode ved ufrivillig betalingsfeil (17. august 2026) ───────────
+//
+// Beviser KOBLINGEN, ikke reglene: at webhooken faktisk skriver stempelet, at
+// den slutter å behandle past_due som en kansellering, og at den rydder igjen.
+// Reglene i seg selv ligger i lib/personal-grace.test.ts.
+
+function updatedEvent(status: string, subId = SUB_TRIAL) {
+  return {
+    id: `evt_upd_${Math.random()}`,
+    type: 'customer.subscription.updated',
+    data: { object: { id: subId, customer: CUSTOMER, status } },
+  }
+}
+
+const graceWrite = () =>
+  state.profileUpdates.find(u => 'personal_grace_until' in u && u.personal_grace_until !== null)
+const graceClear = () =>
+  state.profileUpdates.find(u => 'personal_grace_until' in u && u.personal_grace_until === null)
+const subIdNulled = () =>
+  state.profileUpdates.find(u => u.personal_stripe_subscription_id === null)
+
+test('past_due MED kort → karensperiode stemples, og abonnementet regnes IKKE som kansellert', async () => {
+  state.paymentMethods = 1
+  state.event = updatedEvent('past_due')
+  await call()
+
+  const written = graceWrite()
+  assert.ok(written, 'past_due skal skrive en karensdato')
+  assert.equal(written.personal_grace_reason, 'payment_failed')
+  // 14 dager fram, med romslig slingringsmonn for kjøretid.
+  const days = (new Date(written.personal_grace_until as string).getTime() - Date.now()) / 86_400_000
+  assert.ok(days > 13.9 && days < 14.1, `forventet ~14 dager, fikk ${days}`)
+
+  assert.equal(subIdNulled(), undefined, 'abonnementet lever — id-en skal IKKE nulles')
+  assert.deepEqual(state.recomputed, [PROFILE_ID], 'premium skal rekalkuleres med karensen inne')
+})
+
+test('unpaid MED kort behandles likt past_due', async () => {
+  state.paymentMethods = 1
+  state.event = updatedEvent('unpaid')
+  await call()
+  assert.ok(graceWrite(), 'unpaid skal også gi karens')
+  assert.equal(subIdNulled(), undefined)
+})
+
+test('purring nr. 2 forlenger ikke en løpende karensperiode', async () => {
+  state.paymentMethods = 1
+  state.existingGrace = new Date(Date.now() + 9 * 86_400_000).toISOString()
+  state.event = updatedEvent('unpaid')
+  await call()
+
+  assert.equal(graceWrite(), undefined, 'ingen ny dato skal skrives')
+  assert.deepEqual(state.recomputed, [PROFILE_ID], 'premium rekalkuleres likevel')
+})
+
+test('betalingen går gjennom i karensperioden → karensen ryddes (krav 2)', async () => {
+  state.paymentMethods = 1
+  state.existingGrace = new Date(Date.now() + 9 * 86_400_000).toISOString()
+  state.event = updatedEvent('active')
+  await call()
+
+  const cleared = graceClear()
+  assert.ok(cleared, 'reaktivering skal rydde karensen')
+  assert.equal(cleared.personal_grace_reason, null)
+})
+
+test('Stripe kansellerer etter 14 dager → karensen ryddes FØR rekalkuleringen (krav 3)', async () => {
+  // Rekkefølgen er hele poenget: rydder vi etter at premium er regnet ut, ville
+  // den utgåtte karensen gitt Premium én runde til.
+  state.paymentMethods = 1
+  state.storedSubId = SUB_TRIAL
+  state.existingGrace = new Date(Date.now() + 1 * 86_400_000).toISOString()
+  state.event = deletedEvent('payment_failed')
+  await call()
+
+  const clearIdx = state.profileUpdates.findIndex(u => u.personal_grace_until === null)
+  const nullIdx = state.profileUpdates.findIndex(u => u.personal_stripe_subscription_id === null)
+  assert.ok(clearIdx >= 0, 'karensen skal ryddes ved kansellering')
+  assert.ok(nullIdx >= 0, 'abonnements-id-en skal nulles ved kansellering')
+  assert.ok(clearIdx < nullIdx, 'ryddingen skjer først')
+  assert.deepEqual(state.recomputed, [PROFILE_ID])
+})
+
+test('frivillig oppsigelse gir ingen karens — den går rett til kansellering (krav 1)', async () => {
+  state.paymentMethods = 1
+  state.event = updatedEvent('canceled')
+  await call()
+
+  assert.equal(graceWrite(), undefined, 'en oppsigelse skal aldri gi karens')
+  assert.ok(subIdNulled(), 'og skal fortsatt rydde abonnements-id-en')
 })
 
 // ── Magnus-sekvensen ───────────────────────────────────────────────────────

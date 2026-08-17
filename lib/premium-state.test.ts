@@ -38,8 +38,24 @@ const paidSub = (over: Partial<StripeCoverage> = {}): StripeCoverage =>
 const orgCover = (over: Partial<OrgCoverage> = {}): OrgCoverage =>
   ({ orgIds: ['org-1'], orgNames: ['Elkjøp Nordic'], graceUntil: null, ...over })
 
-const state = (input: { code?: CodeCoverage | null; stripe?: StripeCoverage | null; org?: OrgCoverage | null }) =>
-  decidePremiumState({ code: input.code ?? null, stripe: input.stripe ?? null, org: input.org ?? null, now: NOW })
+const state = (input: {
+  code?: CodeCoverage | null
+  stripe?: StripeCoverage | null
+  org?: OrgCoverage | null
+  personalGrace?: string | null
+}) =>
+  decidePremiumState({
+    code: input.code ?? null,
+    stripe: input.stripe ?? null,
+    org: input.org ?? null,
+    personalGrace: input.personalGrace ?? null,
+    now: NOW,
+  })
+
+// En kunde midt i dunning: abonnementet lever hos Stripe, men er ikke `active`
+// eller `trialing`, så getStripeCoverage finner det ikke. Karensen er da den
+// eneste dekningen som står igjen.
+const dunningGrace = () => daysFromNow(14)
 
 // ── Tilstandsutledning ──────────────────────────────────────────────────────
 
@@ -90,6 +106,77 @@ test('effectiveUntil er den lengstvarende kilden', () => {
   // Koden varer til dag 30, abonnementet til dag 12.
   const s = state({ code: code(), stripe: paidSub() })
   assert.equal(s.effectiveUntil, daysFromNow(30))
+})
+
+// ── Karensperiode ved ufrivillig betalingsfeil (17. august 2026) ────────────
+//
+// MUTASJONSBEVIS for hele blokken: fjernes `|| personalGraceActive` fra
+// isPremium i decidePremiumState, feiler de tre første testene her. Fjernes
+// `personalGraceActive` fra candidates-listen, feiler effectiveUntil-testen.
+// Settes `sources.stripe` til abonnementet også under karens, feiler
+// «karens gjør IKKE abonnementet levende for kode-stabling».
+
+test('karensperiode alene gir Premium — det er hele poenget', () => {
+  const s = state({ personalGrace: dunningGrace() })
+  assert.equal(s.isPremium, true)
+  assert.equal(s.sources.personalGrace, dunningGrace())
+})
+
+test('utløpt karensperiode gir INGEN dekning — tilgangen opphører faktisk', () => {
+  // Krav 3: når Stripe gir opp etter 14 dager, skal tilgangen ta slutt.
+  const s = state({ personalGrace: daysFromNow(-1) })
+  assert.equal(s.isPremium, false)
+  assert.equal(s.sources.personalGrace, null)
+})
+
+test('ingen karens = uendret oppførsel for alle som ikke er i dunning', () => {
+  const s = state({ personalGrace: null })
+  assert.equal(s.isPremium, false)
+  assert.equal(s.sources.personalGrace, null)
+})
+
+test('karensen er effectiveUntil når den er eneste dekning', () => {
+  const s = state({ personalGrace: dunningGrace() })
+  assert.equal(s.effectiveUntil, daysFromNow(14))
+  assert.equal(s.whatHappensAtExpiry, 'loses_premium')
+})
+
+test('betaler brukeren underveis, er det abonnementet som gjelder — ikke karensen', () => {
+  // Krav 2: tilgangen fortsetter uten avbrudd. Webhooken rydder karensen ved
+  // reaktivering, men selv om ryddingen skulle feile, skal ikke en gjenstående
+  // karensdato overstyre abonnementets egen periode.
+  const s = state({ stripe: paidSub(), personalGrace: dunningGrace() })
+  assert.equal(s.isPremium, true)
+  assert.equal(s.effectiveUntil, daysFromNow(12), 'abonnementets periode, ikke karensen')
+  assert.equal(s.whatHappensAtExpiry, 'nothing')
+})
+
+test('karens gjør IKKE abonnementet levende for kode-stabling', () => {
+  // Uten dette skillet ville rad D slått inn under en betalingsfeil: koden
+  // hadde stablet seg etter en periode som ikke blir betalt, og vi ville
+  // pauset innkrevingen på et abonnement Stripe akkurat prøver å redde.
+  const s = state({ personalGrace: dunningGrace() })
+  assert.equal(s.sources.stripe, null)
+
+  const d = decideRedemption(s, 60, NOW)
+  assert.equal(d.action, 'grant')
+  if (d.action !== 'grant') return
+  assert.equal(d.startsAt, NOW.toISOString(), 'koden starter nå, ikke etter karensen')
+  assert.equal(d.pause, null, 'ingenting skal pauses')
+})
+
+test('kode og org overstyrer fortsatt — karensen endrer ingenting for dem', () => {
+  // Krav 4: en bruker med annen dekning er upåvirket av karens-mekanismen.
+  const withCode = state({ code: code(), personalGrace: dunningGrace() })
+  assert.equal(withCode.effectiveUntil, daysFromNow(30), 'koden varer lengst')
+
+  const withOrg = state({ org: orgCover(), personalGrace: dunningGrace() })
+  assert.equal(withOrg.isPremium, true)
+  assert.equal(withOrg.effectiveUntil, null, 'org-medlemskap er ubestemt dekning')
+  assert.equal(withOrg.whatHappensAtExpiry, 'nothing')
+
+  const orgRejection = decideRedemption(withOrg, 60, NOW)
+  assert.equal(orgRejection.action, 'reject', 'rad F er uendret')
 })
 
 // ── Rad A: ingen dekning + kode ─────────────────────────────────────────────

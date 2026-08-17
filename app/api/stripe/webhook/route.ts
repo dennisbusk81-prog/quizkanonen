@@ -7,7 +7,8 @@ import { shouldNotifyMembersOfLock, shouldNotifyAdminsOfDunningLock, notifyMembe
 import { decideLockGrace, CLEARED_GRACE, type LockGraceDecision } from '@/lib/org-lock-grace'
 import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
 import { hasActiveOrgPremium } from '@/lib/org-premium'
-import { syncPremiumCache } from '@/lib/premium-state-io'
+import { syncPremiumCache, getPersonalGrace } from '@/lib/premium-state-io'
+import { decidePersonalGrace, PERSONAL_DUNNING_STATUSES } from '@/lib/personal-grace'
 import { planFromPriceId } from '@/lib/org-plan-prices'
 import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import {
@@ -134,6 +135,79 @@ async function clearLockGrace(organizationId: string, context: string): Promise<
   if (error) {
     console.error(
       `[webhook] kunne ikke rydde lås-grace org=${organizationId} (${context}):`,
+      error.code, error.message,
+    )
+  }
+}
+
+// ── Karensperiode ved ufrivillig B2C-betalingsfeil (17. august 2026) ─────────
+// Speiler applyLockGrace/clearLockGrace for bedrifter, med samme bevisste valg:
+// skrivingen ligger UTENFOR assertCriticalWrite. Er migrasjonen
+// 20260817000000_personal_payment_grace ikke kjørt ennå, ville en kritisk
+// skriving gjort hver eneste betalingsfeil til en kastet 500 og en evig
+// Stripe-retry. Feiler den her i stedet, faller vi tilbake til oppførselen fra
+// før karensen fantes — brukeren mister tilgangen med én gang, som før — og
+// feilen logges høylytt. Det er riktig vei å feile.
+async function applyPersonalGrace(
+  profileId: string,
+  stripeStatus: string,
+  context: string,
+): Promise<string | null> {
+  const existing = await getPersonalGrace(profileId)
+  const decision = decidePersonalGrace({ stripeStatus, existingGraceUntil: existing })
+
+  if (!decision.grace) {
+    console.log(
+      `[webhook] INGEN ny karensperiode (${decision.reason}) profile=${profileId} (${context})` +
+      (decision.reason === 'already_running' ? ` — løper allerede til ${existing}` : '')
+    )
+    // Løper en karens allerede, er DEN fortsatt svaret — purring nr. 2 skal
+    // ikke skyve datoen, men heller ikke rydde den.
+    return decision.reason === 'already_running' ? existing : null
+  }
+
+  const { error } = await supabaseAdmin.from('profiles')
+    .update({ personal_grace_until: decision.until, personal_grace_reason: decision.reason })
+    .eq('id', profileId)
+
+  if (error) {
+    console.error(
+      `[webhook] kunne IKKE gi karensperiode — brukeren mister Premium umiddelbart. ` +
+      `profile=${profileId} (${context}):`, error.code, error.message,
+    )
+    return null
+  }
+
+  console.log(
+    `[webhook] karensperiode til ${decision.until} (${decision.reason}) profile=${profileId} (${context})`
+  )
+  return decision.until
+}
+
+// Rydder karensen. Kalles ved BÅDE reaktivering og kansellering: i det første
+// tilfellet dekker abonnementet brukeren igjen, i det andre skal tilgangen
+// faktisk opphøre. Ikke-kritisk av samme grunn som applyPersonalGrace, men her
+// er en etterlatt dato ikke harmløs slik den er for org-lås — getPersonalGrace
+// leser den uten å sjekke abonnementsstatus — så feilen logges som en feil.
+//
+// Nøkkelkolonnen er en parameter fordi de tre kallstedene finner brukeren på
+// hver sin måte: kanselleringsgrenene har en profil-id, mens reaktiveringen
+// treffer profilen på stripe_customer_id — og på personal_stripe_subscription_id
+// i fallback-tilfellet der kunde-id-en aldri ble lagret. Ryddet vi kun etter
+// rader den første skrivingen returnerte, ville nettopp fallback-brukeren
+// beholdt en karensdato som ikke lenger gjaldt.
+async function clearPersonalGrace(
+  column: 'id' | 'stripe_customer_id' | 'personal_stripe_subscription_id',
+  value: string,
+  context: string,
+): Promise<void> {
+  const { error } = await supabaseAdmin.from('profiles')
+    .update({ personal_grace_until: null, personal_grace_reason: null })
+    .eq(column, value)
+
+  if (error) {
+    console.error(
+      `[webhook] kunne ikke rydde karensperiode ${column}=${value} (${context}):`,
       error.code, error.message,
     )
   }
@@ -719,6 +793,12 @@ export async function POST(request: NextRequest) {
       } else if (profileId) {
         // Abonnements-id-en ryddes, men Premium rekalkuleres — brukeren kan ha
         // en aktiv verdikode eller org-dekning som overlever kanselleringen.
+        //
+        // Karensen ryddes FØR rekalkuleringen. Dette er stedet Stripe lander
+        // når den gir opp etter 14 dagers purring, og da SKAL tilgangen faktisk
+        // opphøre (krav 3) — en gjenstående karensdato ville ellers holdt
+        // Premium i live noen timer eller dager etter at abonnementet var borte.
+        await clearPersonalGrace('id', profileId, 'sub.deleted')
         const { error: b2cDeleteError } = await supabaseAdmin.from('profiles')
           .update({ personal_stripe_subscription_id: null })
           .eq('id', profileId)
@@ -916,15 +996,35 @@ export async function POST(request: NextRequest) {
             }).catch(err => console.error('[webhook] trialEndedNoCardEmail failed:', err))
           }
         } else {
+          // Karensperioden stemples HER OGSÅ, ikke bare i subscription.updated.
+          // De to hendelsene kommer i vilkårlig rekkefølge, og e-posten under
+          // skal kunne oppgi en dato som faktisk står i databasen — ikke en vi
+          // regner ut på nytt og håper stemmer. Stemplingen er idempotent:
+          // løper en karens allerede, returneres den uendret (already_running).
+          let graceUntil: string | null = null
+          if (profileForFailed && PERSONAL_DUNNING_STATUSES.includes(subStatus)) {
+            graceUntil = await applyPersonalGrace(
+              profileForFailed.id,
+              subStatus,
+              `invoice.payment_failed faktura=${invoice.id}`,
+            )
+            await recomputePremium(
+              [profileForFailed.id],
+              `invoice.payment_failed profile=${profileForFailed.id}`,
+              stripe,
+            )
+          }
+
           console.log(
             `[webhook] invoice.payment_failed → EKTE betalingsfeil (kort avvist) ` +
-            `customer=${customerId} sub=${subscriptionId ?? 'ukjent'} status=${subStatus} → paymentFailedEmail`
+            `customer=${customerId} sub=${subscriptionId ?? 'ukjent'} status=${subStatus} ` +
+            `karens=${graceUntil ?? 'ingen'} → paymentFailedEmail`
           )
           if (email) {
             sendEmail({
               to: email,
               subject: 'Betalingen feilet — Quizkanonen Premium',
-              html: paymentFailedEmail(),
+              html: paymentFailedEmail(graceUntil),
             }).catch(err => console.error('[webhook] paymentFailedEmail failed:', err))
           }
         }
@@ -1132,6 +1232,19 @@ export async function POST(request: NextRequest) {
             .eq('personal_stripe_subscription_id', subscription.id)
           assertCriticalWrite(b2cFallbackError, `sub.updated B2C premium-aktivering (fallback) sub=${subscription.id}`)
         }
+
+        // Betalingen gikk gjennom — rydd en eventuell karensperiode. Tilgangen
+        // fortsetter uten avbrudd (krav 2): abonnementet er levende igjen, så
+        // dekningen kommer nå fra Stripe i stedet for fra karensen, og
+        // premium_status har vært true hele veien.
+        //
+        // EGEN skriving, utenfor assertCriticalWrite over, slik at en manglende
+        // grace-kolonne ikke kan gjøre en vellykket betaling til en 500. Samme
+        // to nøkler som premium-skrivingene rett over, i samme rekkefølge.
+        await clearPersonalGrace('stripe_customer_id', customerId, `sub.updated ${subscription.status}`)
+        if (!updatedRows?.length) {
+          await clearPersonalGrace('personal_stripe_subscription_id', subscription.id, `sub.updated ${subscription.status} (fallback)`)
+        }
       } else {
         // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
         const subscriptionId = subscription.id
@@ -1167,12 +1280,41 @@ export async function POST(request: NextRequest) {
           if (profileBySub) profileId = profileBySub.id
         }
 
+        // Karensperiode skal KUN gis ved en ekte betalingsfeil. En kortløs
+        // Founders-trial som løper ut går innom past_due den også — Stripe
+        // lager faktura og finner ingen betalingsmetode — men det er en
+        // prøveperiode som tok slutt etter planen, ikke et kort som sviktet.
+        // Samme skille, og samme fail-safe (null ⇒ regnes som «har kort»), som
+        // invoice.payment_failed-grenen gjør for e-postvalget.
+        const isDunning = PERSONAL_DUNNING_STATUSES.includes(subscription.status)
+        const hasCardForGrace = isDunning && profileId && isCurrentPersonalSub
+          ? (await customerHasPaymentMethod(stripe, customerId)) !== false
+          : false
+
         if (profileId && !isCurrentPersonalSub) {
           console.log(
             `[webhook] subscription.updated (canceled) ignorert for profile ${profileId} — ` +
             `stale sub ${subscriptionId}, gjeldende er annerledes`
           )
+        } else if (profileId && isDunning && hasCardForGrace) {
+          // ── Ufrivillig betalingsfeil — IKKE en kansellering ──────────────
+          // past_due/unpaid falt tidligere i grenen under og ble behandlet som
+          // om abonnementet var borte: sub-id-en ble nullet og Premium slått av
+          // i samme minutt som første trekk feilet. Abonnementet lever fortsatt,
+          // Stripe purrer i 14 dager til, og brukeren har ikke bestemt noe.
+          // Se lib/personal-grace.ts.
+          //
+          // Sub-id-en beholdes bevisst her: den peker på et abonnement som
+          // faktisk finnes, og er det profile/delete trenger for å kunne
+          // kansellere det hvis brukeren sletter kontoen sin underveis.
+          await applyPersonalGrace(profileId, subscription.status, `sub.updated ${subscription.status}`)
+          await recomputePremium([profileId], `sub.updated ${subscription.status} profile=${profileId}`, stripe)
         } else if (profileId) {
+          // Kansellering — enten brukerens egen, eller Stripes etter endt
+          // dunning. Karensen ryddes FØR rekalkuleringen, ellers ville en
+          // gjenstående karensdato holdt Premium kunstig i live etter at
+          // abonnementet faktisk tok slutt (krav 3).
+          await clearPersonalGrace('id', profileId, `sub.updated ${subscription.status}`)
           const { error: b2cCancelError } = await supabaseAdmin.from('profiles')
             .update({ personal_stripe_subscription_id: null })
             .eq('id', profileId)

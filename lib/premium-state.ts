@@ -16,6 +16,8 @@
 // spørringer, men autoritative beslutninger — innløsning, utløp, pause — tas mot
 // decidePremiumState().
 
+import { isPersonalGraceActive } from './personal-grace'
+
 export type PremiumSourceKind = 'code' | 'stripe' | 'org'
 
 /** Aktiv kode-periode. expiresAt = null betyr permanent. */
@@ -52,6 +54,15 @@ export type PremiumStateInput = {
   code: CodeCoverage | null
   stripe: StripeCoverage | null
   org: OrgCoverage | null
+  /**
+   * `profiles.personal_grace_until` — karensperiode etter en ufrivillig
+   * betalingsfeil på brukerens EGET abonnement. Se lib/personal-grace.ts.
+   * Bevisst et eget felt og ikke en utvidelse av StripeCoverage: et abonnement
+   * i dunning skal IKKE regnes som levende (isStripeLive), for da ville
+   * kode-innløsningen begynt å stable seg på og pause et abonnement som ikke
+   * blir betalt. Karensen gir tilgang; den gjør ikke abonnementet friskt.
+   */
+  personalGrace?: string | null
   now?: Date
 }
 
@@ -61,6 +72,15 @@ export type PremiumState = {
     code: CodeCoverage | null
     stripe: StripeCoverage | null
     org: OrgCoverage | null
+    /**
+     * Levende karensperiode etter betalingsfeil (ISO), ellers null.
+     *
+     * Merk at `stripe` fortsatt er null når kun karensen dekker brukeren.
+     * Det er med vilje: decideRedemption leser `sources.stripe` som «har et
+     * levende abonnement å stable etter og pause», og et abonnement i dunning
+     * er ingen av delene.
+     */
+    personalGrace: string | null
   }
   /** Når den nåværende dekningen løper ut. null = ingen kjent utløpsdato. */
   effectiveUntil: string | null
@@ -113,8 +133,12 @@ export function decidePremiumState(input: PremiumStateInput): PremiumState {
   const codeActive = isCodeActive(code, now)
   const stripeLive = isStripeLive(stripe)
   const orgActive = isOrgActive(org, now)
+  // Karensperioden er en FJERDE dekningskilde, sidestilt med de tre andre i
+  // spørsmålet «har brukeren Premium nå», men bevisst usynlig for reglene som
+  // spør «har brukeren et abonnement å stable en kode på» (rad B/D/E/G).
+  const personalGraceActive = isPersonalGraceActive(input.personalGrace, now)
 
-  const isPremium = codeActive || stripeLive || orgActive
+  const isPremium = codeActive || stripeLive || orgActive || personalGraceActive
 
   // Utløpet som gjelder er den kilden som varer lengst.
   const candidates: string[] = []
@@ -124,6 +148,12 @@ export function decidePremiumState(input: PremiumStateInput): PremiumState {
     if (end) candidates.push(end)
   }
   if (orgActive && org?.orgIds.length === 0 && org.graceUntil) candidates.push(org.graceUntil)
+  // Samme behandling som org-grace: tidsbegrenset dekning, teller som kandidat
+  // — men kun når abonnementet ikke allerede er friskt igjen. Betaler brukeren
+  // på dag 3, er det abonnementets egen periode som gjelder, ikke karensen.
+  if (personalGraceActive && !stripeLive && input.personalGrace) {
+    candidates.push(input.personalGrace)
+  }
 
   // Ubestemt dekning: en kode uten utløp, eller et aktivt org-MEDLEMSKAP.
   // En grace-periode teller ikke — den er nettopp tidsbegrenset.
@@ -159,7 +189,12 @@ export function decidePremiumState(input: PremiumStateInput): PremiumState {
 
   return {
     isPremium,
-    sources: { code: codeActive ? code : null, stripe: stripeLive ? stripe : null, org: orgActive ? org : null },
+    sources: {
+      code: codeActive ? code : null,
+      stripe: stripeLive ? stripe : null,
+      org: orgActive ? org : null,
+      personalGrace: personalGraceActive ? (input.personalGrace ?? null) : null,
+    },
     effectiveUntil,
     whatHappensAtExpiry,
   }

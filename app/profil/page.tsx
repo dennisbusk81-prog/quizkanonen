@@ -1214,16 +1214,32 @@ export default function ProfilPage() {
             {pwSuccess && <p style={s.saveSuccess}>Passord oppdatert!</p>}
           </div>
 
-          {/* Abonnement — kun for Premium-brukere */}
-          {isPremium && (
+          {/* Abonnement — vises for Premium-brukere OG for alle som har en
+              Stripe-kunde hos oss, uavhengig av premium_status.
+              Gaten sto tidligere på `isPremium` alene. Det gjorde knappen
+              usynlig for nøyaktig den brukeren som trenger den: når et kort
+              avvises, slås Premium av i samme minutt (webhooken), mens
+              betalingsfeil-e-posten vår sender brukeren hit for å oppdatere
+              kortet. Ruten /api/stripe/portal har hele tiden gatet på
+              stripe_customer_id — det var kun visningen som var feil. */}
+          {(isPremium || hasStripeCustomer) && (
             <div style={{ ...s.card, marginBottom: 10 }}>
               <p style={s.sectionLabel}>Abonnement</p>
               {hasStripeCustomer ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                     <div>
-                      <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — aktivt</p>
-                      <p style={{ fontSize: 12, color: '#918f8a' }}>kr 49/mnd · Avslutt når du vil</p>
+                      {isPremium ? (
+                        <>
+                          <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — aktivt</p>
+                          <p style={{ fontSize: 12, color: '#918f8a' }}>kr 49/mnd · Avslutt når du vil</p>
+                        </>
+                      ) : (
+                        <>
+                          <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — ikke aktivt</p>
+                          <p style={{ fontSize: 12, color: '#918f8a' }}>Gikk kortet ikke gjennom, kan du oppdatere det her</p>
+                        </>
+                      )}
                     </div>
                     <button
                       onClick={handlePortal}

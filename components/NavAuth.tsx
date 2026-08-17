@@ -495,21 +495,28 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 Quizhistorikk
               </a>
             )}
-            {profileLoaded && isPremium && (
+            {/* Samme utvidelse som i UserMenu.tsx og /profil: inngangen til
+                Stripe-portalen henger på hasStripeCustomer, ikke på isPremium.
+                Denne filen sto ikke i bestillingen, men er den tredje kopien av
+                nøyaktig samme gate — en bruker med avvist kort ville ellers
+                fortsatt vært uten vei til kortoppdateringen herfra. */}
+            {profileLoaded && (
               <>
                 {!hasStripeCustomer ? (
-                  <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
-                    <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
-                      Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
-                    </p>
-                    <a
-                      href="/premium"
-                      onClick={() => setDropdownOpen(false)}
-                      style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
-                    >
-                      Se Premium-funksjoner →
-                    </a>
-                  </div>
+                  isPremium && (
+                    <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
+                      <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
+                        Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
+                      </p>
+                      <a
+                        href="/premium"
+                        onClick={() => setDropdownOpen(false)}
+                        style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
+                      >
+                        Se Premium-funksjoner →
+                      </a>
+                    </div>
+                  )
                 ) : (
                   <>
                     <button

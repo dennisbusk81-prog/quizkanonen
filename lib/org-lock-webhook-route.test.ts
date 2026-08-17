@@ -168,6 +168,9 @@ mock.module('@/lib/email', {
 mock.module('@/lib/premium-state-io', {
   namedExports: {
     syncPremiumCache: async () => { state.trace.push('recompute') },
+    // Se samme mock i stripe-webhook-route.test.ts — denne filen dekker
+    // org-grenen, som aldri rører den personlige karensperioden.
+    getPersonalGrace: async () => null,
   },
 })
 mock.module('@/lib/org-premium', { namedExports: { hasActiveOrgPremium: async () => false } })

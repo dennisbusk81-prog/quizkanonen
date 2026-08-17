@@ -290,7 +290,7 @@ export default function UserMenu() {
                 >
                   Sesong-topplisten →
                 </a>
-                {profileLoaded && isPremium ? (
+                {profileLoaded && isPremium && (
                   <>
                     {/* Bevisst hard navigasjon, ikke <Link>: fersk server-data
                         i stedet for Next sin router-cache. Samme mønster som
@@ -312,59 +312,67 @@ export default function UserMenu() {
                     >
                       Quizhistorikk
                     </a>
-                    {!hasStripeCustomer ? (
-                      <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
-                        <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
-                          Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
-                        </p>
-                        <a
-                          href="/premium"
-                          onClick={() => setDropdownOpen(false)}
-                          style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
-                        >
-                          Se Premium-funksjoner →
-                        </a>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={handlePortal}
-                          style={{
-                            display: 'block', width: '100%', textAlign: 'left',
-                            padding: '8px 10px', background: 'none', border: 'none',
-                            borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                            fontFamily: "'Instrument Sans', sans-serif",
-                            cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                        >
-                          Mitt abonnement
-                        </button>
-                        {portalError && (
-                          <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
-                            {portalError}
-                          </p>
-                        )}
-                      </>
-                    )}
                   </>
-                ) : (
-                  <a
-                    href="/premium"
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '8px 10px', background: 'none', border: 'none',
-                      borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                      fontFamily: "'Instrument Sans', sans-serif",
-                      textDecoration: 'none', transition: 'background 0.12s',
-                      boxSizing: 'border-box', whiteSpace: 'nowrap',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                  >
-                    Oppgrader til Premium
-                  </a>
+                )}
+                {/* Abonnementslinja henger på hasStripeCustomer, IKKE på
+                    isPremium. En bruker hvis kort nettopp ble avvist har
+                    premium_status = false i samme minutt, og var da uten
+                    inngang til Stripe-portalen fra hele UI-et — nøyaktig når
+                    hun trengte den. Quizhistorikk over er fortsatt
+                    Premium-gatet; det er kun denne linja som er utvidet. */}
+                {profileLoaded && (
+                  hasStripeCustomer ? (
+                    <>
+                      <button
+                        onClick={handlePortal}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '8px 10px', background: 'none', border: 'none',
+                          borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                          fontFamily: "'Instrument Sans', sans-serif",
+                          cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                      >
+                        Mitt abonnement
+                      </button>
+                      {portalError && (
+                        <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+                          {portalError}
+                        </p>
+                      )}
+                    </>
+                  ) : isPremium ? (
+                    <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
+                      <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
+                        Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
+                      </p>
+                      <a
+                        href="/premium"
+                        onClick={() => setDropdownOpen(false)}
+                        style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
+                      >
+                        Se Premium-funksjoner →
+                      </a>
+                    </div>
+                  ) : (
+                    <a
+                      href="/premium"
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 10px', background: 'none', border: 'none',
+                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                        fontFamily: "'Instrument Sans', sans-serif",
+                        textDecoration: 'none', transition: 'background 0.12s',
+                        boxSizing: 'border-box', whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      Oppgrader til Premium
+                    </a>
+                  )
                 )}
                 <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
                 <button

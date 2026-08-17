@@ -92,7 +92,33 @@ export async function getStripeCoverage(
 }
 
 /**
- * Full premium-tilstand for én bruker, satt sammen av alle fire kildene.
+ * Karensperioden etter en ufrivillig betalingsfeil på brukerens EGET
+ * abonnement (17. august 2026). Se lib/personal-grace.ts for regelen.
+ *
+ * EGEN SPØRRING, ikke en kolonne til i profil-oppslaget over — samme bevisste
+ * valg som getLockGraceUntil i lib/org-premium.ts. Legges kolonnen i
+ * select-lista og migrasjonen ikke er kjørt, feiler HELE oppslaget (42703), og
+ * da mister enhver bruker all dekning fra alle fire kildene samtidig. Feiler
+ * denne, faller vi i stedet tilbake til nøyaktig dagens oppførsel: ingen
+ * karensperiode. Det er den ene feilen vi har råd til her.
+ */
+export async function getPersonalGrace(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .select('personal_grace_until')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[premium-state] kunne ikke lese karensperiode:', error.code, error.message)
+    return null
+  }
+
+  return (data?.personal_grace_until as string | null) ?? null
+}
+
+/**
+ * Full premium-tilstand for én bruker, satt sammen av alle kildene.
  * Brukes av innløsning, checkout, cron og webhookenes nedgraderingsgrener.
  */
 export async function getPremiumState(userId: string, stripeClient?: Stripe): Promise<PremiumState> {
@@ -102,13 +128,14 @@ export async function getPremiumState(userId: string, stripeClient?: Stripe): Pr
     .eq('id', userId)
     .maybeSingle()
 
-  const [code, stripe, org] = await Promise.all([
+  const [code, stripe, org, personalGrace] = await Promise.all([
     getCodeCoverage(userId),
     getStripeCoverage(profile?.stripe_customer_id ?? null, stripeClient),
     getOrgCoverage(userId),
+    getPersonalGrace(userId),
   ])
 
-  return decidePremiumState({ code, stripe, org })
+  return decidePremiumState({ code, stripe, org, personalGrace })
 }
 
 /**
@@ -122,9 +149,13 @@ export async function getPremiumState(userId: string, stripeClient?: Stripe): Pr
 export async function syncPremiumCache(userId: string, stripeClient?: Stripe): Promise<PremiumState> {
   const state = await getPremiumState(userId, stripeClient)
 
+  // Karensperioden regnes som 'personal': dekningen kommer fra brukerens eget
+  // abonnement, det er bare betalingen som henger. Alternativet — å la source
+  // være null mens premium_status er true — ville lagt brukeren i samme
+  // kategori som en Founders-trial for filtrene som leser kolonnen.
   const source = state.sources.code ? 'code'
     : state.sources.org ? 'org'
-    : state.sources.stripe ? 'personal'
+    : (state.sources.stripe || state.sources.personalGrace) ? 'personal'
     : null
 
   const { error } = await supabaseAdmin

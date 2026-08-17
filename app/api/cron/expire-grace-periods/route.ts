@@ -57,6 +57,16 @@ type OrgGraceResult = {
   error?: string
 }
 
+type PaymentGraceResult = {
+  /** Utløpte karensperioder funnet i denne kjøringen. */
+  expired: number
+  /** Av dem: hvor mange som faktisk mistet Premium. */
+  lostPremium: number
+  /** Av dem: hvor mange som beholdt Premium via kode eller org. */
+  keptViaOtherSource: number
+  error?: string
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -96,9 +106,75 @@ export async function GET(request: NextRequest) {
   // profil-graceen skal fortsatt ryddes som før.
   const profileGrace = await expireProfileGrace(now)
   const orgGrace = await runOrgLockGrace(now)
+  const paymentGrace = await expirePersonalPaymentGrace(now)
 
-  const failed = !!profileGrace.error || !!orgGrace.error
-  return NextResponse.json({ profileGrace, orgGrace }, { status: failed ? 500 : 200 })
+  const failed = !!profileGrace.error || !!orgGrace.error || !!paymentGrace.error
+  return NextResponse.json({ profileGrace, orgGrace, paymentGrace }, { status: failed ? 500 : 200 })
+}
+
+// ── 3. Karensperiode etter betalingsfeil (B2C, 17. august 2026) ──────────────
+//
+// BACKSTOP, ikke hovedmekanismen. Normalveien er at Stripe kansellerer
+// abonnementet når dunning-vinduet er ute, webhooken rydder karensen og
+// rekalkulerer — se clearPersonalGrace i stripe-webhooken. Denne finnes fordi
+// /api/profile/premium-status leser CACHEN (profiles.premium_status) og ikke
+// regner tilstanden ut på nytt: uteblir `subscription.deleted` — mistet
+// webhook, eller dunning satt til noe annet enn «cancel» i dashbordet — ville
+// cachen stått igjen på true i det uendelige, og karensen blitt permanent
+// Premium. Selve DEKNINGEN er allerede utløps-bevisst (isPersonalGraceActive
+// sjekker `> now`), så dette retter cachen, ikke en åpen tilgangsvei.
+//
+// INGEN e-post herfra, med vilje: brukeren har fått betalingsfeil-e-posten med
+// datoen i, og selve avslutningen varsles av subscription.deleted-grenen.
+// Derfor trenger denne heller ingen retry-markør — markøren kan ryddes med én
+// gang, i motsetning til de to seksjonene over.
+async function expirePersonalPaymentGrace(now: Date): Promise<PaymentGraceResult> {
+  const empty: PaymentGraceResult = { expired: 0, lostPremium: 0, keptViaOtherSource: 0 }
+
+  const { data: profiles, error } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .not('personal_grace_until', 'is', null)
+    .lt('personal_grace_until', now.toISOString())
+
+  if (error) {
+    // Typisk migrasjon 20260817000000 ikke kjørt ennå. Da finnes ingen
+    // karensperioder å utløpe heller, så de to seksjonene over er upåvirket.
+    console.error('[cron/expire-grace-periods] betalingskarens — query error:', error.code, error.message)
+    return { ...empty, error: error.message }
+  }
+
+  if (!profiles || profiles.length === 0) return empty
+
+  let lostPremium = 0
+  let keptViaOtherSource = 0
+
+  for (const p of profiles) {
+    try {
+      // Rekalkuler FØR markøren ryddes: en bruker kan ha verdikode eller
+      // org-dekning som overlever betalingsfeilen, og den skal ikke ryke med.
+      const state = await syncPremiumCache(p.id)
+      if (state.isPremium) keptViaOtherSource++
+      else lostPremium++
+
+      const { error: clearError } = await supabaseAdmin
+        .from('profiles')
+        .update({ personal_grace_until: null, personal_grace_reason: null })
+        .eq('id', p.id)
+      if (clearError) {
+        console.error(
+          `[cron/expire-grace-periods] kunne ikke rydde betalingskarens for ${p.id}:`,
+          clearError.code, clearError.message,
+        )
+      }
+    } catch (err) {
+      // Stripe nede under syncPremiumCache. Markøren står, og neste kjøring
+      // tar raden på nytt — dekningen er utløpt uansett.
+      console.error(`[cron/expire-grace-periods] betalingskarens feilet for ${p.id}:`, err)
+    }
+  }
+
+  return { expired: profiles.length, lostPremium, keptViaOtherSource }
 }
 
 // ── 1. Profil-grace (uendret oppførsel) ──────────────────────────────────────

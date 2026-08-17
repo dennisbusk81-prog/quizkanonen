@@ -944,7 +944,36 @@ export function orgInviteEmail(senderNameRaw: string, orgNameRaw: string, invite
 </html>`
 }
 
-export function paymentFailedEmail(): string {
+/**
+ * Til B2C-kunden når et kortrekk feiler.
+ *
+ * ARBEIDSDELINGEN MED STRIPE (17. august 2026): Stripes egen
+ * betalingsfeil-e-post er slått på og dekker pengesiden — beløp, korttype,
+ * siste fire og en knapp til Stripes hostede kortoppdatering. Det skal vi ikke
+ * gjenta. Det eneste Stripe ikke vet noe om, er TILGANGEN: at Premium beholdes
+ * mens de prøver på nytt, hvor lenge, og hva som skjer når fristen går ut.
+ * Det er derfor denne e-posten finnes, og det er alt den skal si.
+ *
+ * `graceUntilIso` er slutten på karensperioden (lib/personal-grace.ts). Kjenner
+ * vi den ikke — grace-skrivingen feilet, eller abonnementet er ikke i dunning —
+ * faller teksten tilbake til en formulering uten dato. Aldri et gjettet dagtall:
+ * det ville blitt usant i nøyaktig det tilfellet der karensen ikke ble gitt, og
+ * da ville vi lovet en tilgang brukeren ikke har.
+ */
+export function paymentFailedEmail(graceUntilIso?: string | null): string {
+  const graceDate = graceUntilIso ? new Date(graceUntilIso) : null
+  const hasDate = !!graceDate && !isNaN(graceDate.getTime())
+  const graceText = hasDate
+    ? `Du beholder Premium-tilgangen din til <strong style="color:#ffffff;">${
+        graceDate!.toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Oslo' })
+      }</strong> mens vi prøver å trekke på nytt. Går betalingen gjennom før det, skjer ingenting — tilgangen fortsetter som før.`
+    : 'Du beholder Premium-tilgangen din mens vi prøver å trekke på nytt. Går betalingen gjennom, skjer ingenting — tilgangen fortsetter som før.'
+  // Uten dato finnes det ingen «frist» å vise til, og da skal teksten heller
+  // ikke late som om den nettopp har nevnt en.
+  const consequenceText = hasDate
+    ? 'Ordner det seg ikke innen fristen, avsluttes abonnementet og du mister Premium.'
+    : 'Ordner det seg ikke, avsluttes abonnementet og du mister Premium.'
+
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -978,11 +1007,16 @@ export function paymentFailedEmail(): string {
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Vi klarte ikke å trekke betaling for Premium-abonnementet ditt.
-                Abonnementet kan bli avsluttet hvis betalingen ikke ordnes.
+                Det skjer som regel fordi kortet er utløpt eller sperret.
+              </p>
+
+              <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
+                ${graceText}
               </p>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Oppdater betalingsinformasjonen din for å beholde tilgangen.
+                ${consequenceText} Historikk, poeng og profil beholder du
+                uansett — og du kan starte igjen når du vil.
               </p>
 
               <table cellpadding="0" cellspacing="0">
@@ -990,7 +1024,7 @@ export function paymentFailedEmail(): string {
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
                     <a href="https://www.quizkanonen.no/profil"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Oppdater betalingsinformasjon &rarr;
+                      Oppdater betalingskortet &rarr;
                     </a>
                   </td>
                 </tr>
