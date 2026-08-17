@@ -94,8 +94,12 @@ export default function LoginPage() {
       <div className="login-screen">
         <div className="login-panel">
           <p className="login-eyebrow">Quizkanonen</p>
-          <h1 className="login-title">Logg <em>inn</em></h1>
-          <p className="login-sub">Logg inn, eller opprett en konto</p>
+          {/* Nøytral overskrift, med vilje uten modus-logikk: siden nås både
+              fra «Bli med» (forsiden) og «Logg inn» (toppnav), og AuthForm
+              starter alltid i login-modus. Overskriften må ikke motsi noen av
+              inngangene (N9, 17. august 2026). */}
+          <h1 className="login-title">Bli med i <em>Quizkanonen</em></h1>
+          <p className="login-sub">Logg inn eller opprett konto</p>
           <div className="login-rule" />
 
           <AuthForm variant="page" />

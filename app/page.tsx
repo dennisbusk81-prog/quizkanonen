@@ -308,10 +308,15 @@ async function computePageInsights(): Promise<PageInsights | null> {
     // gjør den til et rent EXISTS-oppslag; INNER JOIN-semantikken (hvilken
     // quiz som velges) er uendret. Samme mønster som toppliste-ruten og
     // org/quiz-scores.
+    // is_active her AVVIKER bevisst fra award-season-points-presedensen (som
+    // 5cbf976 lente seg på): en skjult quiz skal fortsatt gjøres OPP, men
+    // ikke stilles UT — «Skjul» i admin skal fjerne spørsmålene fra forsiden.
+    // Besluttet av Dennis 17. august 2026, gjelder både innlogget og utlogget.
     const { data: closedQuizRow } = await supabaseAdmin
       .from('quizzes')
       .select('id, attempts!inner(id, attempt_answers!inner(id))')
       .eq('is_test', false)
+      .eq('is_active', true)
       .lt('closes_at', now.toISOString())
       .not('closes_at', 'is', null)
       .order('closes_at', { ascending: false })
@@ -1635,7 +1640,9 @@ export default async function Home() {
             </Link>
           </div>
 
-          {/* Ukens fakta — quiz insights (only when last quiz is closed) */}
+          {/* Ukens fakta — quiz insights. Vises så snart en stengt quiz har
+              nok svar — også fredag mens en quiz er åpen (innholdet er da fra
+              forrige stengte quiz). */}
           {pageInsights && (
             <div style={{
               marginTop: 16, marginBottom: 4, textAlign: 'center',
@@ -1649,7 +1656,7 @@ export default async function Home() {
                 {pageInsights.easiest.correctPct}% svarte riktig på ukens letteste:{' '}
                 <span style={{ fontStyle: 'italic' }}>{pageInsights.easiest.questionText}</span>
               </p>
-              <p style={{ fontSize: 14, color: '#c94c4c', lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: '#c9a84c', lineHeight: 1.6 }}>
                 Kun {pageInsights.hardest.correctPct}% klarte:{' '}
                 <span style={{ fontStyle: 'italic' }}>{pageInsights.hardest.questionText}</span>
               </p>
@@ -1835,6 +1842,10 @@ export default async function Home() {
 
   const shared = await getSharedHomeData()
 
+  // Ukens fakta — samme delte unstable_cache-bundel som den innloggede grenen
+  // (60 s), så dette er en cache-lesing, ikke en ny spørring.
+  const pageInsights = await getPageInsights()
+
   const activeQuiz   = shared.activeQuiz
   const upcomingQuiz = shared.upcomingQuiz
   const activeParticipantCount = shared.participantCount
@@ -1884,6 +1895,11 @@ export default async function Home() {
           </p>
           <div className="qk-hero-actions">
             {activeQuiz ? (
+              // Fredag (åpen quiz): spilling er primærhandlingen, ikke
+              // registrering — og lenken går allerede via /login for
+              // utloggede, så «å bli med» skjer på veien inn i quizen.
+              // Ingen egen «Bli med»-knapp denne dagen (aldri to gull).
+              //
               // Ukjent auth: hopp over /login-omveien — «Logg inn og spill» er
               // en påstand om at brukeren er utlogget, og det vet vi ikke.
               // Quiz-siden håndterer auth selv (samme mål som «Spill nå»-
@@ -1894,14 +1910,33 @@ export default async function Home() {
               >
                 Spill ukens quiz
               </Link>
-            ) : lastQuiz ? (
-              <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-primary">
-                Se resultatene
-              </Link>
             ) : (
-              <a href="#varsle-meg" className="qk-btn-primary">
-                Varsle meg
-              </a>
+              <>
+                {/* Stengte dager: «Bli med» er gull-primær — men den er også
+                    en påstand om at brukeren er utlogget, så ved ukjent auth
+                    skjules den og «Se resultatene» beholder gullrollen som
+                    før (samme prinsipp som hero-statuslinjen under). */}
+                {!authUnknown && (
+                  <Link href="/login" className="qk-btn-primary">
+                    Bli med
+                  </Link>
+                )}
+                {lastQuiz ? (
+                  <Link
+                    href={`/leaderboard/${lastQuiz.id}`}
+                    className={authUnknown ? 'qk-btn-primary' : 'qk-btn-outline-dark'}
+                  >
+                    Se resultatene
+                  </Link>
+                ) : (
+                  <a
+                    href="#varsle-meg"
+                    className={authUnknown ? 'qk-btn-primary' : 'qk-btn-outline-dark'}
+                  >
+                    Varsle meg
+                  </a>
+                )}
+              </>
             )}
             <Link href="/slik-fungerer-det" className="qk-btn-outline-dark">
               Slik fungerer det →
@@ -2095,6 +2130,33 @@ export default async function Home() {
           </div>
         )}
         </div>
+
+        {/* Ukens fakta — quiz insights, samme innhold som innlogget gren.
+            Vises så snart en stengt quiz har nok svar — også fredag mens en
+            quiz er åpen (innholdet er da fra forrige stengte quiz). Trygt
+            uinnlogget: innlogget GRATIS ser det samme, så uinnlogget får
+            aldri mer enn innlogget gratis (N3-prinsippet). */}
+        {pageInsights && (
+          <div className="qk-narrow-wrap">
+          <div style={{
+            marginBottom: 8, textAlign: 'center',
+            background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
+            padding: '20px 24px',
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10 }}>
+              Ukens fakta
+            </p>
+            <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
+              {pageInsights.easiest.correctPct}% svarte riktig på ukens letteste:{' '}
+              <span style={{ fontStyle: 'italic' }}>{pageInsights.easiest.questionText}</span>
+            </p>
+            <p style={{ fontSize: 14, color: '#c9a84c', lineHeight: 1.6 }}>
+              Kun {pageInsights.hardest.correctPct}% klarte:{' '}
+              <span style={{ fontStyle: 'italic' }}>{pageInsights.hardest.questionText}</span>
+            </p>
+          </div>
+          </div>
+        )}
 
         {/* E-postvarsling — kun for uinnloggede, kun uten aktiv quiz.
             Ved ukjent auth skjules den også: å invitere en (muligens
