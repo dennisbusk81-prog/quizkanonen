@@ -452,6 +452,52 @@ gjenbrukes her: `LIVE_STRIPE_STATUSES = ['active', 'trialing']` — et
 `trialing`-abonnement (som Elkjøp Nordic reelt står i) regnes som levende
 dekning, ikke som «ikke betalende».
 
+**Karensperiode ved ufrivillig B2C-betalingsfeil (17. august 2026).**
+`past_due` står bevisst UTENFOR `LIVE_STRIPE_STATUSES` — men fram til nå
+falt den også i webhookens «canceled»-gren, så et avvist kort slo av Premium
+i samme minutt som første trekk feilet, mens Stripe purret videre i 14 dager
+og e-posten vår sa at tilgangen bestod. `lib/personal-grace.ts` (ren,
+mutasjonstestet) + kolonnen `profiles.personal_grace_until` er svaret, og
+speiler `lib/org-lock-grace.ts` for bedrifter: et avvist kort er ikke en
+beslutning noen har tatt.
+
+- **14 dager, ikke sju som for org** (`PERSONAL_GRACE_DAYS`). Karensen må
+  ikke utløpe mens Stripe fortsatt prøver å trekke — ellers mister brukeren
+  tilgangen på dag 7 og får e-post på dag 9 om at betalingen forsøkes igjen.
+  **Endres dunning-vinduet i Stripe-dashbordet, skal tallet følge etter.**
+- **To betingelser, ikke én:** status `past_due`/`unpaid` OG kunde med kort
+  på fil (`customerHasPaymentMethod`). En kortløs Founders-trial som løper ut
+  går innom `past_due` den også — Stripe lager faktura og finner ingen
+  betalingsmetode — men det er en prøveperiode som tok slutt etter planen.
+  Uten kort-sjekken ville hver utløpt gratis-trial fått 14 dagers ekstra
+  Premium. Samme skille som `invoice.payment_failed` gjør for e-postvalget.
+- **Karensen gjør IKKE abonnementet levende.** `sources.stripe` settes
+  fortsatt kun for `active`/`trialing`, så `decideRedemption` (rad B/D/E/G)
+  ser ingen forskjell: en kode skal ikke stables på en periode som ikke blir
+  betalt, og innkrevingen skal ikke pauses på et abonnement Stripe akkurat
+  prøver å redde. Ikke slå de to sammen.
+- **`past_due` nuller ikke lenger `personal_stripe_subscription_id`** —
+  abonnementet finnes jo fortsatt, og `profile/delete` trenger id-en for å
+  kunne kansellere det hvis brukeren sletter kontoen underveis.
+- **Ryddes tre steder:** ved reaktivering (`sub.updated → active`) og ved
+  kansellering (`sub.deleted` + kanselleringsgrenen). Ved kansellering skjer
+  ryddingen FØR rekalkuleringen — ellers holder en gjenstående karensdato
+  Premium i live etter at abonnementet faktisk tok slutt.
+- **Backstop i `cron/expire-grace-periods`.** Nødvendig fordi
+  `/api/profile/premium-status` leser CACHEN `profiles.premium_status` og
+  ikke regner ut på nytt: uteblir `subscription.deleted` — mistet webhook,
+  eller dunning satt til noe annet enn «cancel» — ville karensen blitt
+  permanent Premium. Selve dekningen er utløps-bevisst uansett.
+- **E-posten** (`paymentFailedEmail(graceUntil)`) sier det Stripe ikke kan
+  si: at tilgangen består, til hvilken dato, og hva som skjer etterpå.
+  Beløp, korttype og kortoppdaterings-knapp dekkes av Stripes egen mal, som
+  ble slått på 16. august 2026 — ikke gjenta dem.
+
+Migrasjon `20260817000000_personal_payment_grace` (kjørt i prod 17. august
+2026). Alle grace-skrivinger ligger UTENFOR `assertCriticalWrite`: feiler de,
+faller vi tilbake til oppførselen fra før karensen fantes i stedet for å
+gjøre hver betalingsfeil til en kastet 500 og en evig Stripe-retry.
+
 Nye databaseobjekter (migrasjon `20260732000000` + `20260733000000`, begge
 allerede kjørt i prod): tabellen `access_code_redemptions` (én rad per
 konto+kode-innløsning, UNIQUE på `(code_id, user_id)`, autoritativ
