@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
-import { fetchAllRows } from '@/lib/paginate'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 
 type AttemptRaw = {
   id: string
@@ -38,16 +38,31 @@ export async function GET(
   const err = e1 ?? e2 ?? e3
   if (err) return NextResponse.json({ error: err.message }, { status: 500 })
 
-  // Kallenavn for alle innloggede spillere i quizen (admin ser hvem som er hvem)
+  // Kallenavn for alle innloggede spillere i quizen (admin ser hvem som er hvem).
+  // Chunket: .in() legger hver id i URL-en og brekker rundt ~390 id-er (målt,
+  // se lib/paginate.ts). Facebook-gruppa har 400 medlemmer, så én godt spilt
+  // quiz er innenfor rekkevidde — ikke et teoretisk tak.
+  // Feiler MYKT med loggspor: kallenavn er en tilleggsopplysning, og et tapt
+  // oppslag skal ikke ta ned hele analytics-siden etter en fredagsquiz.
+  // Tidligere ble error ikke lest i det hele tatt, så en feil her var helt stille.
   const allUserIds = [...new Set(((attempts ?? []) as AttemptRaw[]).map(a => a.user_id).filter((uid): uid is string => !!uid))]
   const nickByUser = new Map<string, string | null>()
   if (allUserIds.length > 0) {
-    const { data: nickRows } = await supabaseAdmin
-      .from('profiles')
-      .select('id, nickname')
-      .in('id', allUserIds)
-    for (const p of (nickRows ?? []) as { id: string; nickname: string | null }[]) {
-      nickByUser.set(p.id, p.nickname ?? null)
+    try {
+      const nickRows = await fetchAllRowsChunked<{ id: string; nickname: string | null }>(
+        allUserIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('profiles')
+            .select('id, nickname')
+            .in('id', chunk)
+            .range(from, to)
+      )
+      for (const p of nickRows) {
+        nickByUser.set(p.id, p.nickname ?? null)
+      }
+    } catch (nickErr) {
+      console.error('analytics: kallenavn-oppslag feilet:', nickErr)
     }
   }
 
@@ -62,12 +77,14 @@ export async function GET(
     // quizen 26. juli 2026).
     let answerData: { question_id: string; is_correct: boolean; selected_answer: string | null; time_ms: number; attempt_id: string }[]
     try {
-      answerData = await fetchAllRows((from, to) =>
-        supabaseAdmin
-          .from('attempt_answers')
-          .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
-          .in('attempt_id', ids)
-          .range(from, to)
+      answerData = await fetchAllRowsChunked(
+        ids,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('attempt_answers')
+            .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
+            .in('attempt_id', chunk)
+            .range(from, to)
       )
     } catch (e4) {
       return NextResponse.json({ error: e4 instanceof Error ? e4.message : 'Kunne ikke hente svar' }, { status: 500 })
@@ -89,35 +106,68 @@ export async function GET(
     }))
   }
 
-  // Top 10 with emails (solo only, sorted best first)
-  const soloAttempts = ((attempts ?? []) as AttemptRaw[]).filter(a => !a.is_team)
-  const top10 = [...soloAttempts]
+  // ALLE solo-deltakere, rangert best først — ikke et utvalg.
+  // Lista hadde .slice(0, 50) fram til 18. august 2026. Grensen var en ekte
+  // «topp N»-visning da den ble satt (10 → 50 i 7e4cb05, 17. juni), men da
+  // radene senere fikk en «Fjern»-knapp ble lista et administrasjonsverktøy:
+  // deltaker 51 og nedover kunne ikke fjernes fordi de ikke fantes på skjermen.
+  // Målt i prod 18. august: 69 innsendte forsøk, 50 rader synlige — mens
+  // «Deltakere totalt» over og Scorefordelingen under begge viste 69, siden de
+  // leser attempts uavkortet. Gjeninnfør ikke en grense her uten samtidig å
+  // vise brukeren at lista er kuttet.
+  const soloRanked = ((attempts ?? []) as AttemptRaw[])
+    .filter(a => !a.is_team)
     .sort((a, b) => b.correct_answers - a.correct_answers || a.total_time_ms - b.total_time_ms)
-    .slice(0, 50)
 
-  // Resolve display names from profiles
-  const top10UserIds = [...new Set(top10.map(a => a.user_id).filter((uid): uid is string => !!uid))]
+  // Resolve display names from profiles (chunket, samme grunn som kallenavn over)
+  const rankedUserIds = [...new Set(soloRanked.map(a => a.user_id).filter((uid): uid is string => !!uid))]
   const profileMap = new Map<string, string>()
-  if (top10UserIds.length > 0) {
-    const { data: profileRows } = await supabaseAdmin
-      .from('profiles')
-      .select('id, display_name')
-      .in('id', top10UserIds)
-    for (const p of (profileRows ?? []) as { id: string; display_name: string | null }[]) {
-      if (p.display_name) profileMap.set(p.id, p.display_name)
+  if (rankedUserIds.length > 0) {
+    try {
+      const profileRows = await fetchAllRowsChunked<{ id: string; display_name: string | null }>(
+        rankedUserIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('profiles')
+            .select('id, display_name')
+            .in('id', chunk)
+            .range(from, to)
+      )
+      for (const p of profileRows) {
+        if (p.display_name) profileMap.set(p.id, p.display_name)
+      }
+    } catch (nameErr) {
+      console.error('analytics: display_name-oppslag feilet:', nameErr)
     }
   }
 
-  // Resolve emails via auth.admin API (service role only)
+  // Resolve emails via auth.admin API (service role only).
+  // ÉN paginert listUsers, ikke ett getUserById per bruker — samme mønster som
+  // app/api/admin/users/route.ts. Det gamle kallet skalerte med deltakerantallet,
+  // og .slice(0, 50) over var i praksis det eneste som holdt tallet nede: uten
+  // den ville 50 parallelle GoTrue-kall blitt 69, og ~400 ved full oppslutning
+  // i Facebook-gruppa — mot maxDuration = 15 øverst i filen.
+  // Feiler mykt med loggspor: e-post er en tilleggsopplysning i lista.
   const emailMap = new Map<string, string>()
-  if (top10UserIds.length > 0) {
-    const results = await Promise.all(top10UserIds.map(uid => supabaseAdmin.auth.admin.getUserById(uid)))
-    for (const { data } of results) {
-      if (data?.user?.email) emailMap.set(data.user.id, data.user.email)
+  if (rankedUserIds.length > 0) {
+    const wanted = new Set(rankedUserIds)
+    let listPage = 1
+    for (;;) {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+        page: listPage,
+        perPage: 1000,
+      })
+      if (authError) { console.error('analytics: auth.admin.listUsers feilet:', authError); break }
+      const batch = authData?.users ?? []
+      for (const u of batch) {
+        if (u.email && wanted.has(u.id)) emailMap.set(u.id, u.email)
+      }
+      if (batch.length < 1000) break
+      listPage++
     }
   }
 
-  const topPlayers = top10.map((a, i) => ({
+  const topPlayers = soloRanked.map((a, i) => ({
     rank: i + 1,
     attempt_id: a.id,
     name: (a.user_id && profileMap.get(a.user_id)) ?? a.player_name ?? '?',
@@ -134,11 +184,23 @@ export async function GET(
   let orgCount = 0
   let orgBreakdown: { name: string; count: number }[] = []
   if (participantUserIds.length > 0) {
-    const { data: orgMembers } = await supabaseAdmin
-      .from('organization_members')
-      .select('user_id, organization_id')
-      .in('user_id', participantUserIds)
-    if (orgMembers && orgMembers.length > 0) {
+    // Chunket, samme ~390-grense som oppslagene over. Feiler mykt: uten
+    // org-radene vises «Fra bedrifter 0» i stedet for at hele siden faller.
+    let orgMembers: { user_id: string; organization_id: string }[] = []
+    try {
+      orgMembers = await fetchAllRowsChunked<{ user_id: string; organization_id: string }>(
+        participantUserIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('organization_members')
+            .select('user_id, organization_id')
+            .in('user_id', chunk)
+            .range(from, to)
+      )
+    } catch (orgErr) {
+      console.error('analytics: org-medlemsoppslag feilet:', orgErr)
+    }
+    if (orgMembers.length > 0) {
       const orgUserIds = new Set(orgMembers.map(m => m.user_id as string))
       orgCount = orgUserIds.size
       const orgIds = [...new Set(orgMembers.map(m => m.organization_id as string))]
