@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
+import { fetchSettledSeasonAttempts } from '@/lib/season-attempts'
 import { planSeasonResync, type SeasonResyncChange, type StoredSeasonRow } from '@/lib/season-resync-plan'
 import type { SeasonAttempt } from '@/lib/season-points'
 
@@ -47,16 +48,10 @@ export async function resyncSeasonScoresForQuiz(quizId: string): Promise<SeasonR
     // den kjører. Bevisst no-op — vi setter aldri inn rader herfra.
     if (storedRows.length === 0) return empty
 
-    attempts = await fetchAllRows<SeasonAttempt>((from, to) =>
-      supabaseAdmin
-        .from('attempts')
-        .select('user_id, correct_answers, total_time_ms, correct_streak')
-        .eq('quiz_id', quizId)
-        .eq('is_team', false)
-        .not('user_id', 'is', null)
-        .order('id', { ascending: true })
-        .range(from, to)
-    )
+    // Samme populasjonsdefinisjon som processQuiz (lib/season-attempts.ts) —
+    // rekalkuleringen MÅ regne over samme felt som skrivingen, ellers «retter»
+    // den plasseringer mot en annen populasjon enn den som skrev dem.
+    attempts = await fetchSettledSeasonAttempts(quizId)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[resync-season-scores] lesing feilet for quiz ${quizId}:`, message)

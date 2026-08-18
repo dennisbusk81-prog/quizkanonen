@@ -8,7 +8,8 @@
 // i august 2026. Tallene over er målt i Vercel-loggen 16. august — sjekk loggen
 // på nytt før du bygger noe som avhenger av dem.
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
+import { fetchAllRowsChunked } from '@/lib/paginate'
+import { fetchSettledSeasonAttempts } from '@/lib/season-attempts'
 import {
   getSeasonPoints as getPoints,
   pickBestSeasonAttempt as pickBestAttempt,
@@ -41,27 +42,13 @@ export async function processQuiz(
   quizId: string,
   closesAt: string
 ): Promise<{ rows: number; error: string | null }> {
-  // PAGINERT: uten eksplisitt range() kutter PostgREST stille ved 1000 rader.
-  // Dette er den ALVORLIGSTE avkuttingen i kodebasen: hver rad her er en
-  // innlogget spiller som skal ha sesongpoeng. Ved >1000 spillere ville de
-  // overskytende ikke bare fått feil poeng — de ville ikke fått NOEN rad i
-  // season_scores, og alle andres rank ville blitt regnet mot en delvis
-  // populasjon. Og fordi upsertScores bruker ignoreDuplicates: true, ville en
-  // ny kjøring ALDRI rettet det opp (se lib/season-resync-plan.ts) — tapet er
-  // permanent. .order('id') gjør sidene deterministiske; rankBestAttempts gjør
-  // sin egen totalordning, så resultatet er uendret.
+  // Populasjonen — LEVERTE solo-forsøk fra innloggede, paginert — er definert
+  // ETT sted: lib/season-attempts.ts, delt med resync-season-scores. Se
+  // kommentaren der for hvorfor submitted_at-filteret og pagineringen begge er
+  // kritiske, og hvorfor definisjonen ikke skal kopieres inn hit igjen.
   let rawAttempts: RawAttempt[]
   try {
-    rawAttempts = await fetchAllRows<RawAttempt>((from, to) =>
-      supabaseAdmin
-        .from('attempts')
-        .select('user_id, correct_answers, total_time_ms, correct_streak')
-        .eq('quiz_id', quizId)
-        .eq('is_team', false)
-        .not('user_id', 'is', null)
-        .order('id', { ascending: true })
-        .range(from, to)
-    )
+    rawAttempts = await fetchSettledSeasonAttempts(quizId)
   } catch (err) {
     return { rows: 0, error: err instanceof Error ? err.message : String(err) }
   }
