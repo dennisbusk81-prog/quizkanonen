@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
       .from('attempt_answers')
       .select('attempt_id, question_id, is_correct')
       .in('attempt_id', attemptIds)
+      .order('id', { ascending: true })
       .range(from, to)
   )
   // Nye totaler per forsøk. Tellingen og streak-beregningen ligger i

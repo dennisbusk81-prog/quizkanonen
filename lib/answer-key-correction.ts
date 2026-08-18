@@ -141,10 +141,12 @@ export type AttemptTotals = { correctAnswers: number; correctStreak: number }
  * (attempts.question_order er NULL for alle rader i prod, så order_index er
  * den faktiske rekkefølgen.)
  *
- * correct_answers telles over RÅ rader. Bevisst: noen få forsøk har duplikate
- * svarrader, og å telle distinkt her ville endret lagrede poengsummer — og
- * dermed plasseringer — som en utilsiktet bieffekt av en fasitretting.
- * Duplikatene håndteres som egen sak.
+ * correct_answers telles over RÅ rader. Det var opprinnelig et bevisst valg
+ * fordi noen få forsøk HADDE duplikate svarrader, og å telle distinkt ville
+ * endret lagrede poengsummer — og dermed plasseringer — som en utilsiktet
+ * bieffekt av en fasitretting. Duplikatene er nå ryddet, og UNIQUE-indeksen
+ * attempt_answers_attempt_question_unique gjør nye umulige, så rått og
+ * distinkt gir samme tall. Skillet er dermed uten praktisk betydning.
  */
 export function planAttemptTotals(
   rows: AttemptAnswerRow[],
@@ -161,8 +163,12 @@ export function planAttemptTotals(
   for (const [attemptId, attemptRows] of byAttempt) {
     const correctAnswers = attemptRows.filter(r => r.is_correct).length
 
-    // Siste rad vinner ved duplikater — samme rad-sett som telles over, så
-    // streaken kan ikke bli lengre enn antall riktige.
+    // Én rad per (attempt_id, question_id) er garantert av UNIQUE-indeksen
+    // attempt_answers_attempt_question_unique (migrasjon
+    // 20260728000000_attempt_answers_unique.sql, bekreftet anvendt i prod
+    // 18. august 2026). Map-en kan derfor aldri få to rader å velge mellom,
+    // og den bygges over samme rad-sett som telles over — streaken kan ikke
+    // bli lengre enn antall riktige.
     const gradeByQuestion = new Map(attemptRows.map(r => [r.question_id, r.is_correct]))
     const correctStreak = calculateStreak(
       orderedQuestionIds.map(qid => ({ is_correct: gradeByQuestion.get(qid) === true })),
