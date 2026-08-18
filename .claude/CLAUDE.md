@@ -354,7 +354,13 @@ verre enn dobbeltsending fordi den aldri oppdages.
 ### Sesong-leaderboard-arkitektur
 - `season_scores`: scope_type IN ('global', 'league', 'organization')
 - Global: scope_type='global', scope_id=NULL
-- Poeng skrives av `/api/cron/award-season-points` hvert 5. minutt
+- Poeng skrives av `processQuiz()` (`lib/award-season-points.ts`), som kalles
+  fra TO cron-ruter: `/api/cron/award-season-points` **hvert 30. minutt** og
+  `/api/cron/publish-quiz` **hvert minutt** (sistnevnte i `waitUntil`, rett
+  etter at en quiz stenger — så det er den som i praksis gjør opp først).
+  Begge kadensene ligger hos **cron-job.org**, ikke i `vercel.json`, og de er
+  endret to ganger i august 2026. Tallene er målt i Vercel-loggen 16. august;
+  mål på nytt før du bygger noe som avhenger av dem.
 - `SeasonLeaderboard.tsx` er delt komponent — brukes av /toppliste, /liga/[slug], /org/[slug]
 - Forsiden viser månedens globale topp 3 fra season_scores (ikke fra attempts)
 

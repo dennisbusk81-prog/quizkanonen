@@ -1,6 +1,12 @@
 // Delt logikk for tildeling av sesongpoeng — brukes av:
-//   - /api/cron/award-season-points  (poller hvert 5. minutt)
-//   - /api/cron/publish-quiz         (kaller umiddelbart når en quiz stenges)
+//   - /api/cron/award-season-points  (poller hvert 30. minutt)
+//   - /api/cron/publish-quiz         (kaller umiddelbart når en quiz stenges —
+//                                     kjører hvert minutt, så det er DENNE som
+//                                     i praksis gjør opp en fersk quiz først)
+//
+// Kadensene ligger hos cron-job.org, ikke i vercel.json, og er endret to ganger
+// i august 2026. Tallene over er målt i Vercel-loggen 16. august — sjekk loggen
+// på nytt før du bygger noe som avhenger av dem.
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import {
@@ -97,7 +103,8 @@ export async function processQuiz(
     // global_league_opt_out feilaktig fikk globale poeng. fetchAllRowsChunked
     // KASTER ved feil, så catch-en nedenfor fanger det og returnerer feilen i
     // stedet. Det er trygt: cronen setter aldri season_points_awarded ved feil,
-    // så quizen prøves på nytt hvert 5. minutt.
+    // så quizen prøves på nytt ved neste kjøring (hvert 30. minutt, og hvert
+    // minutt via publish-quiz).
     //
     // CHUNKED: .in('user_id', userIds) legger hver id i URL-en. Målt mot prod
     // sprekker den mellom 380 og 400 id-er — altså FØR 1000-rads-taket. Se

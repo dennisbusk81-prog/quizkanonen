@@ -3,10 +3,10 @@
 //
 // INTEGRASJONSTEST av quiz-UTVALGET i begge rutene som tildeler sesongpoeng
 // på «quiz stengte»-hendelsen:
-//   - /api/cron/award-season-points  (hvert 5. minutt)
+//   - /api/cron/award-season-points  (hvert 30. minutt)
 //   - /api/cron/publish-quiz         (hvert minutt — samme processQuiz, så en
 //                                     testquiz ville blitt gjort opp HER før
-//                                     5-minutters-cronen i det hele tatt så den)
+//                                     30-minutters-cronen i det hele tatt så den)
 //
 // `mock.module` bytter ut supabase-admin og processQuiz — rutene selv kjøres
 // uendret. processQuiz-mocken registrerer hvilke quiz-id-er som faktisk
