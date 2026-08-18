@@ -2,6 +2,7 @@
 import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
+import { fetchParticipantCounts } from '@/lib/quiz-participant-counts'
 
 export const dynamic = 'force-dynamic'
 
@@ -222,33 +223,10 @@ export default async function QuizerPage() {
 
   const quizList = (quizzes as QuizRow[] | null) ?? []
 
-  // Antall deltakere — samme tellelogikk som /toppliste og forsiden:
-  // distinkte innloggede spillere (is_team=false, user_id ikke null), minus ekskluderte.
-  const participantCounts = new Map<string, number>()
+  // Antall deltakere — delt tellelogikk i lib/quiz-participant-counts.ts,
+  // paginert forbi både URL-taket på .in() (~390 id-er) og 1000-radstaket.
   const quizIds = quizList.map(q => q.id)
-  if (quizIds.length > 0) {
-    const [{ data: attemptRows }, { data: excludedRows }] = await Promise.all([
-      supabaseAdmin
-        .from('attempts')
-        .select('quiz_id, user_id')
-        .in('quiz_id', quizIds)
-        .eq('is_team', false)
-        .not('user_id', 'is', null),
-      supabaseAdmin
-        .from('excluded_members')
-        .select('user_id')
-        .eq('scope_type', 'global')
-        .is('scope_id', null),
-    ])
-    const excludedSet = new Set(((excludedRows ?? []) as { user_id: string }[]).map(e => e.user_id))
-    const perQuiz = new Map<string, Set<string>>()
-    for (const r of (attemptRows ?? []) as { quiz_id: string; user_id: string }[]) {
-      if (excludedSet.has(r.user_id)) continue
-      if (!perQuiz.has(r.quiz_id)) perQuiz.set(r.quiz_id, new Set())
-      perQuiz.get(r.quiz_id)!.add(r.user_id)
-    }
-    for (const [qid, set] of perQuiz) participantCounts.set(qid, set.size)
-  }
+  const participantCounts = await fetchParticipantCounts(quizIds)
 
   // ── Effektiv tidsgrense per quiz (7. august 2026) ────────────────────────────
   // Kortet skrev tidligere `quiz.time_limit_seconds` rett ut, men spillingen

@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { rankAttempts } from '@/lib/ranking'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -71,12 +72,30 @@ export async function GET(
   //   2. Nyeste quiz etter created_at (samme kriterium som før).
   //   3. Hent KUN den quizens medlems-attempts (målrettet via quiz_id-indeks).
   // Output er identisk med før — kun mindre data leses.
-  const { data: memberQuizRows } = await supabaseAdmin
-    .from('attempts')
-    .select('quiz_id')
-    .in('user_id', memberUserIds)
+  // Steg 1 går via fetchAllRowsChunked: .in()-listen over medlemmer treffer
+  // URL-taket ved ~390 id-er, og radene (én per forsøk) kuttes ellers stille
+  // ved 1000 (PostgREST db-max-rows). Spørringen hadde dessuten ingen order,
+  // så et kutt kunne la en GAMMEL quiz vinne som «siste» — det eneste av
+  // paginerings-funnene 18. august 2026 med en annen feilretning enn «for
+  // lavt tall». [...new Set()] er idempotent, så pagineringen endrer ikke
+  // resultatet; .order('id') er kun der for stabile pagineringsvinduer.
+  const memberQuizRows = await fetchAllRowsChunked<{ quiz_id: string | null }>(
+    memberUserIds,
+    (chunk, from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('quiz_id')
+        .in('user_id', chunk)
+        .order('id')
+        .range(from, to)
+  ).catch((err): { quiz_id: string | null }[] => {
+    // Samme degradering som før (feil ble ignorert → tom liste → quiz: null),
+    // nå med loggspor. Aldri et DELVIS sett: feiler en senere side, forkastes alt.
+    console.error('[org-dashboard] attempts-oppslag feilet:', err)
+    return []
+  })
 
-  const playedQuizIds = [...new Set((memberQuizRows ?? []).map(r => r.quiz_id as string).filter(Boolean))]
+  const playedQuizIds = [...new Set(memberQuizRows.map(r => r.quiz_id as string).filter(Boolean))]
 
   let quiz: { id: string; title: string; is_active: boolean } | null = null
   let attempts: unknown[] = []
@@ -94,12 +113,23 @@ export async function GET(
       quiz = { id: latest.id, title: latest.title, is_active: latest.is_active }
       // Samme kolonner og samme populasjon (ingen is_team-filter) som før, kun
       // begrenset til siste quiz — så rankAttempts gir identisk resultat.
-      const { data: latestAttempts } = await supabaseAdmin
-        .from('attempts')
-        .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size')
-        .eq('quiz_id', latest.id)
-        .in('user_id', memberUserIds)
-      attempts = latestAttempts ?? []
+      // Chunket av samme grunn som steg 1: det er den SAMME medlemslisten i
+      // .in(), så hvis steg 1 kunne sprenge URL-taket, kunne dette også.
+      const latestAttempts = await fetchAllRowsChunked<Record<string, unknown>>(
+        memberUserIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('attempts')
+            .select('id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, user_id, completed_at, is_team, team_size')
+            .eq('quiz_id', latest.id)
+            .in('user_id', chunk)
+            .order('id')
+            .range(from, to)
+      ).catch((err): Record<string, unknown>[] => {
+        console.error('[org-dashboard] latest-attempts-oppslag feilet:', err)
+        return []
+      })
+      attempts = latestAttempts
     }
   }
 

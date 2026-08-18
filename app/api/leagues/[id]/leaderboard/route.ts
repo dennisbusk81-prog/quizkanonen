@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -61,39 +62,57 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const memberIds = members.map((m) => m.user_id)
 
-  // Hent display_names
-  const { data: profiles } = await supabaseAdmin
-    .from('profiles')
-    .select('id, display_name')
-    .in('id', memberIds)
+  // Hent display_names — samme medlemsliste som attempts-oppslaget under, og
+  // dermed samme URL-tak på .in() (~390 id-er). Én rad per medlem, så det er
+  // listelengden — ikke radtallet — som biter her. Feil ble ignorert før
+  // (alle ble «Ukjent»); .catch beholder den degraderingen.
+  const profiles = await fetchAllRowsChunked<{ id: string; display_name: string | null }>(
+    memberIds,
+    (chunk, from, to) =>
+      supabaseAdmin
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', chunk)
+        .order('id')
+        .range(from, to)
+  ).catch((): { id: string; display_name: string | null }[] => [])
 
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name ?? 'Ukjent']))
+  const profileMap = new Map(profiles.map((p) => [p.id, p.display_name ?? 'Ukjent']))
 
-  // Hent attempts for alle medlemmer (respekter reset_at)
-  let query = supabaseAdmin
-    .from('attempts')
-    .select('id, quiz_id, user_id, correct_answers, total_questions, total_time_ms, completed_at')
-    .in('user_id', memberIds)
-    .eq('is_team', false)
-
-  if (league.reset_at) {
-    query = query.gte('completed_at', league.reset_at)
+  // Hent attempts for alle medlemmer (respekter reset_at) — paginert via
+  // fetchAllRowsChunked: .in()-listen over medlemmer treffer URL-taket ved
+  // ~390 id-er, og radene ville ellers kuttes stille ved 1000 (PostgREST
+  // db-max-rows; det gamle .limit(5000) gjorde ingenting). Nedstrøms er
+  // rekkefølgeuavhengig — «siste quiz» finnes via maks completed_at i løkken
+  // under, ikke via radrekkefølgen — så .order('id') er kun der for at
+  // pagineringsvinduene skal være stabile radsett.
+  type MemberAttempt = {
+    id: string
+    quiz_id: string
+    user_id: string
+    correct_answers: number
+    total_questions: number
+    total_time_ms: number
+    completed_at: string
   }
-
-  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
-  // .limit(5000) gjorde ingenting (og regnestykket i den gamle kommentaren
-  // landet uansett på 3120, over taket). Spørringen er IKKE beskyttet mot
-  // vekst: over 1000 attempts i ligaen mister vi de eldste radene.
-  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
-  query = query.order('completed_at', { ascending: false })
-
-  const { data: attempts, error: attemptsError } = await query
-
-  if (attemptsError) {
+  let allAttempts: MemberAttempt[]
+  try {
+    allAttempts = await fetchAllRowsChunked<MemberAttempt>(memberIds, (chunk, from, to) => {
+      let q = supabaseAdmin
+        .from('attempts')
+        .select('id, quiz_id, user_id, correct_answers, total_questions, total_time_ms, completed_at')
+        .in('user_id', chunk)
+        .eq('is_team', false)
+      if (league.reset_at) {
+        q = q.gte('completed_at', league.reset_at)
+      }
+      return q.order('id').range(from, to)
+    })
+  } catch {
+    // Samme 500 som attemptsError ga før — en feil skal ikke se ut som en
+    // tom liga. Aldri et DELVIS felt: feiler en senere side, forkastes alt.
     return NextResponse.json({ error: 'Kunne ikke hente resultater.' }, { status: 500 })
   }
-
-  const allAttempts = attempts ?? []
 
   // ── Siste quiz ────────────────────────────────────────────────────────────────
   // Finn quizen med nyeste completed_at blant alle forsøk
