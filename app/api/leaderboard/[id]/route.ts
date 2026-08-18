@@ -5,6 +5,7 @@ import { resolveOrgMembership } from '@/lib/org-membership'
 import { isUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
+import { fetchAllRows } from '@/lib/paginate'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -135,16 +136,26 @@ export async function GET(
   // ── Delt rangerings-helper (service role) ────────────────────────────────────
   // Henter rader for rommet (solo/lag), filtrerer på submitted, dedup'er per
   // spiller og rangerer med 4-nøkkels tiebreak. Søk/paginering skjer i JS etterpå.
-  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
-  // .limit(5000) gjorde ingenting, og «alle rader» stemmer kun opp til 1000
-  // attempts per quiz. Spørringen er IKKE beskyttet mot vekst.
-  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
-  const [{ data: allRowsRaw }, quizRes] = await Promise.all([
-    supabaseAdmin
-      .from('attempts')
-      .select(SELECT_COLS)
-      .eq('quiz_id', quizId)
-      .eq('is_team', isTeam),
+  // Paginert via fetchAllRows (18. august 2026): PostgREST kutter stille ved
+  // 1000 rader (db-max-rows), og det gamle .limit(5000) gjorde ingenting.
+  // Dedup/rangering er rekkefølgeuavhengig gitt at ALLE radene er der —
+  // .order('id') er kun for stabile pagineringsvinduer. .catch beholder dagens
+  // synlige oppførsel ved feil (tom liste, ikke 500 — fail-safen på quizRes
+  // holder uansett en skjult stilling lukket), nå med loggspor — og aldri et
+  // DELVIS felt: feiler en senere side, forkastes alt.
+  const [allRows, quizRes] = await Promise.all([
+    fetchAllRows<RawRow>((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select(SELECT_COLS)
+        .eq('quiz_id', quizId)
+        .eq('is_team', isTeam)
+        .order('id')
+        .range(from, to)
+    ).catch((err): RawRow[] => {
+      console.error('[leaderboard] attempts-oppslag feilet:', err)
+      return []
+    }),
     supabaseAdmin
       .from('quizzes')
       .select('closes_at, hide_leaderboard_until_closed, show_leaderboard, season_points_awarded')
@@ -156,8 +167,8 @@ export async function GET(
   // regnes automatisk om relativt til org-undersettet av den delte helperen.
   const memberIdSet = orgMemberIds ? new Set(orgMemberIds) : null
   const scopedRows = memberIdSet
-    ? ((allRowsRaw ?? []) as RawRow[]).filter(r => r.user_id != null && memberIdSet.has(r.user_id))
-    : ((allRowsRaw ?? []) as RawRow[])
+    ? allRows.filter(r => r.user_id != null && memberIdSet.has(r.user_id))
+    : allRows
 
   // ── Global synlighets-gate (nasjonal sti, solo-rommet) ──────────────────────
   // Brukere blokkert fra den åpne konkurransen (org med allow_global_league=

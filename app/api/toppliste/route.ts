@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
+import { fetchAllRows } from '@/lib/paginate'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -40,21 +41,31 @@ async function getLastQuizAttempts(quizId: string): Promise<LastQuizRow[]> {
   const cached = lastQuizAttemptsCache.get(quizId)
   if (cached && cached.expires > now) return cached.rows
 
-  // OBS: PostgREST kutter stille ved 1000 rader (db-max-rows) — det gamle
-  // .limit(5000) gjorde ingenting. Spørringen er IKKE beskyttet mot vekst:
-  // over 1000 attempts på én quiz blir topplisten feil.
-  // TODO(paginering): bruk fetchAllRows fra lib/paginate.ts.
-  const { data, error } = await supabaseAdmin
-    .from('attempts')
-    .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
-    .eq('quiz_id', quizId)
-    .not('user_id', 'is', null)
-    .eq('is_team', false)
-
-  // Cach IKKE en feilrespons — unngår å servere tomt i 30s ved en transient feil.
-  if (error || !data) return []
-
-  const rows = data as LastQuizRow[]
+  // Paginert via fetchAllRows (18. august 2026): PostgREST kutter stille ved
+  // 1000 rader (db-max-rows), og det gamle .limit(5000) gjorde ingenting.
+  // Dedup/rangering nedstrøms (rankQuizAttempts) er rekkefølgeuavhengig gitt
+  // at ALLE radene er der — .order('id') er kun for stabile pagineringsvinduer.
+  let rows: LastQuizRow[]
+  try {
+    rows = await fetchAllRows<LastQuizRow>((from, to) =>
+      supabaseAdmin
+        .from('attempts')
+        .select('id, user_id, player_name, correct_answers, total_time_ms, correct_streak, submitted_at')
+        .eq('quiz_id', quizId)
+        .not('user_id', 'is', null)
+        .eq('is_team', false)
+        .order('id')
+        .range(from, to)
+    )
+  } catch (err) {
+    // Samme synlige oppførsel som før pagineringen: en transient feil gir tom
+    // liste for DENNE forespørselen — men caches IKKE (returen under skjer før
+    // cache-skrivingen), så feilen varer aldri 30 s etter at basen er frisk.
+    // Nå med loggspor, og aldri et DELVIS felt: feiler en senere side,
+    // forkastes alt i stedet for å gjenskape den stille avkuttingen.
+    console.error('[toppliste] last_quiz attempts-oppslag feilet:', err)
+    return []
+  }
   // Enkel opprydding så Map-en ikke vokser ubegrenset (utløpte quiz-nøkler).
   if (lastQuizAttemptsCache.size > 50) {
     for (const [k, v] of lastQuizAttemptsCache) if (v.expires <= now) lastQuizAttemptsCache.delete(k)

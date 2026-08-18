@@ -84,8 +84,13 @@ function attemptsBuilder() {
     select() { return b },
     eq() { return b },
     limit() { return b },
-    then(resolve: (r: { data: FakeRow[] }) => unknown) {
-      return Promise.resolve({ data: state.attempts }).then(resolve)
+    // Hovedruten henter attempts via fetchAllRows (paginert 18. august 2026)
+    // — .order()/.range() må finnes. Fixturene er små (< pageSize), så én
+    // side holder og hele settet kan returneres uavhengig av vinduet.
+    order() { return b },
+    range() { return b },
+    then(resolve: (r: { data: FakeRow[]; error: null }) => unknown) {
+      return Promise.resolve({ data: state.attempts, error: null }).then(resolve)
     },
   }
   return b

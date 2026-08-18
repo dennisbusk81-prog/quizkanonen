@@ -89,6 +89,11 @@ function attemptsBuilder() {
     eq() { return b },
     not() { return b },
     in() { return b },
+    // getLastQuizAttempts går via fetchAllRows (paginert 18. august 2026) —
+    // .order()/.range() må finnes. Fixturene er små (< pageSize), så én side
+    // holder og hele settet kan returneres uavhengig av vinduet.
+    order() { return b },
+    range() { return b },
     ...thenable(state.attempts),
   }
   return b
