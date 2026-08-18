@@ -1050,6 +1050,10 @@ const SHARED_CSS = `
     .qk-btn-primary,
     .qk-btn-outline-dark {
       text-align: center;
+      /* qk-btn-primary er inline-flex: text-align sentrerer ikke flex-innhold,
+         så fullbredde-varianten trenger justify-content (synlig først på kort
+         tekst som «Bli med»). Harmløs for outline-knappene (inline-block). */
+      justify-content: center;
       width: 100%;
     }
 
