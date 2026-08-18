@@ -9,6 +9,7 @@ import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
+import { isTransientAuthStatus } from '@/lib/auth-transient'
 
 // ── Service-role scoring for ukens quiz ──────────────────────────────────────
 // Klienten sender KUN rå svar (selectedAnswer + timeMs per spørsmål). Serveren
@@ -58,7 +59,25 @@ export async function POST(
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   let tokenUserId: string | null = null
   if (token) {
-    const { data: authData } = await supabaseAdmin.auth.getUser(token)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token)
+    // En TRANSIENT GoTrue-feil (nettverk, 5xx, 429) er ikke et ugyldig token.
+    // Uten dette skillet ble spilleren stille behandlet som anonym: rate-
+    // limiten falt ned i anon-bøtta (delt per IP — 29 kolleger bak ett
+    // kontornett spiser hverandres kvote) og eierskapssjekken under svarte
+    // 403 om et forsøk spilleren eier. 503 er ærlig: prøv igjen om litt,
+    // ingenting er tapt. Et faktisk ugyldig token (401/403 fra GoTrue) går
+    // som før til anon-behandling og 403 — se lib/auth-transient.ts.
+    if (authError && isTransientAuthStatus(authError.status)) {
+      console.error('[submit] auth-oppslag feilet transient:', { quizId, status: authError.status, message: authError.message })
+      try {
+        Sentry.captureMessage('submit: auth-oppslag feilet transient — avvist med 503, ingenting lagret', {
+          level: 'error',
+          tags: { area: 'quiz-submit' },
+          extra: { quizId, authStatus: authError.status ?? null, errorMessage: authError.message },
+        })
+      } catch { /* varselet skal aldri kunne påvirke responsen */ }
+      return NextResponse.json({ error: 'Kunne ikke bekrefte innloggingen. Prøv igjen om et øyeblikk.' }, { status: 503 })
+    }
     tokenUserId = authData.user?.id ?? null
   }
 
@@ -110,7 +129,13 @@ export async function POST(
     .eq('id', attemptId)
     .maybeSingle()
 
-  if (attErr || !attempt) {
+  // Splittet med vilje: en transient DB-feil er ikke «forsøket finnes ikke».
+  // 404 lot en lesefeil se ut som feil diagnose; 503 sier prøv igjen.
+  if (attErr) {
+    console.error('[submit] attempt-oppslag feilet:', { attemptId, quizId, errorMessage: attErr.message })
+    return NextResponse.json({ error: 'Kunne ikke hente forsøket. Prøv igjen om et øyeblikk.' }, { status: 503 })
+  }
+  if (!attempt) {
     return NextResponse.json({ error: 'Forsøk ikke funnet' }, { status: 404 })
   }
   if (attempt.quiz_id !== quizId) {
@@ -163,13 +188,43 @@ export async function POST(
   }
 
   // ── 2. Hent quiz + spørsmål (fasit) ─────────────────────────────────────────
-  const [{ data: quiz }, { data: questionRows }] = await Promise.all([
+  const [quizRes, questionsRes] = await Promise.all([
     supabaseAdmin.from('quizzes').select('time_limit_seconds').eq('id', quizId).maybeSingle(),
     supabaseAdmin
       .from('questions')
       .select('id, correct_answer, correct_answers, time_limit_seconds')
       .eq('quiz_id', quizId),
   ])
+  const { data: quiz, error: quizErr } = quizRes
+  const { data: questionRows, error: questionsErr } = questionsRes
+
+  // Disse to lesingene er alt scoringen hviler på, og feilen deres fantes
+  // tidligere ikke som konsept i ruten: en feilet questions-spørring ga tom
+  // qMap → hvert svar «ukjent» → 0 riktige STEMPLET med submitted_at, og
+  // dobbel-scoring-vernet gjorde nullen permanent. En feilet quiz-spørring
+  // ga fallback 30 s tidsgrense — som ingen quiz i prod faktisk har (målt
+  // 18. august: 15 s × 12, 10 s × 1), så taket på svartidene ble feil og
+  // total_time_ms (tiebreakeren) skrevet galt, like permanent. 503 FØR noen
+  // skriving: raden er ustemplet, klienten kan prøve på nytt, ingenting tapt.
+  if (quizErr || questionsErr) {
+    console.error('[submit] quiz-/fasit-oppslag feilet:', {
+      attemptId, quizId,
+      quizError: quizErr?.message ?? null,
+      questionsError: questionsErr?.message ?? null,
+    })
+    try {
+      Sentry.captureMessage('submit: quiz-/fasit-oppslag feilet — avvist med 503, ingenting lagret', {
+        level: 'error',
+        tags: { area: 'quiz-submit' },
+        extra: {
+          attemptId, quizId,
+          quizError: quizErr?.message ?? null,
+          questionsError: questionsErr?.message ?? null,
+        },
+      })
+    } catch { /* varselet skal aldri kunne påvirke responsen */ }
+    return NextResponse.json({ error: 'Kunne ikke hente quizdata. Prøv igjen om et øyeblikk.' }, { status: 503 })
+  }
 
   const quizTimeLimit = quiz?.time_limit_seconds ?? 30
   const qMap = new Map<string, QuestionRow>(
@@ -196,6 +251,29 @@ export async function POST(
 
     reported.push({ timeMs: a.timeMs, limitMs: (q.time_limit_seconds ?? quizTimeLimit) * 1000 })
     scored.push({ questionId: a.questionId, selectedAnswer: a.selectedAnswer, isCorrect, timeMs: 0 })
+  }
+
+  // ── INVARIANT-VAKT: svar inn, men INGENTING kunne scores → aldri stemple ──
+  // Vakten over feller årsaken vi FANT (lesefeil); denne feller symptomet,
+  // uansett framtidig årsak: enhver vei til tom/feil qMap (spørsmål slettet
+  // midt i spilling, endret kolonneform, en ny kodesti) ender her i stedet
+  // for som en permanent 0-er. En ærlig klient har id-ene sine fra
+  // questions-ruten for nettopp denne quizen, så minst ett svar treffer
+  // alltid når fasiten finnes — scored helt tom med svar til stede er per
+  // konstruksjon en systemfeil, aldri en spiller. Står FØR skrivingen:
+  // dobbel-scoring-vernet og den atomiske submitted_at-vakten er urørt.
+  if (answers.length > 0 && scored.length === 0) {
+    console.error('[submit] ingen svar traff fasiten:', {
+      attemptId, quizId, answers: answers.length, fasitRader: (questionRows ?? []).length,
+    })
+    try {
+      Sentry.captureMessage('submit: ingen svar traff fasiten — avvist med 503, ingenting lagret', {
+        level: 'error',
+        tags: { area: 'quiz-submit' },
+        extra: { attemptId, quizId, answers: answers.length, fasitRader: (questionRows ?? []).length },
+      })
+    } catch { /* varselet skal aldri kunne påvirke responsen */ }
+    return NextResponse.json({ error: 'Kunne ikke score svarene. Prøv igjen om et øyeblikk.' }, { status: 503 })
   }
 
   // Tak (tidsgrensen) OG gulv på hver enkelt tid, pluss gulv på SUMMEN med

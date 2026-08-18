@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
+import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 
@@ -38,7 +40,24 @@ export async function POST(request: NextRequest) {
   let userId: string | null = null
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (token) {
-    const { data: authData } = await supabaseAdmin.auth.getUser(token)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token)
+    // Samme vakt som i submit: en TRANSIENT GoTrue-feil (nettverk, 5xx, 429)
+    // er ikke et ugyldig token. Uten skillet ble en innlogget spiller stille
+    // behandlet som gjest — anon-rate-limit-bøtte (delt per IP), og verre:
+    // attempt-raden ville blitt opprettet med user_id = NULL, utenfor både
+    // replay-sperren og unik-indeksen. Ugyldig token (401/403) går som før
+    // til gjeste-behandling. Se lib/auth-transient.ts.
+    if (authError && isTransientAuthStatus(authError.status)) {
+      console.error('[start-attempt] auth-oppslag feilet transient:', { status: authError.status, message: authError.message })
+      try {
+        Sentry.captureMessage('start-attempt: auth-oppslag feilet transient — avvist med 503', {
+          level: 'error',
+          tags: { area: 'quiz-start-attempt' },
+          extra: { authStatus: authError.status ?? null, errorMessage: authError.message },
+        })
+      } catch { /* varselet skal aldri kunne påvirke responsen */ }
+      return NextResponse.json({ error: 'Kunne ikke bekrefte innloggingen. Prøv igjen om et øyeblikk.' }, { status: 503 })
+    }
     userId = authData.user?.id ?? null
   }
 
