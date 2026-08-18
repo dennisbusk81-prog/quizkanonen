@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // Verifiserer en checkout-session direkte mot Stripe så success-siden ikke er
 // avhengig av at webhooken har rukket å sette premium_status i DB.
@@ -13,7 +14,9 @@ export async function GET(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`verify-session:${ip}`, 10, 60_000).success) {
+  const rlKey = `verify-session:${ip}`
+  if (!rateLimit(rlKey, 10, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ paid: false, error: 'For mange forespørsler' }, { status: 429 })
   }
 

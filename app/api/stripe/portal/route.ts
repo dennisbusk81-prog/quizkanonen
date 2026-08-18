@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 // Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
@@ -10,8 +11,10 @@ export const maxDuration = 30
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`stripe-portal:${ip}`, 10, 60_000)
+  const rlKey = `stripe-portal:${ip}`
+  const rl = rateLimit(rlKey, 10, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

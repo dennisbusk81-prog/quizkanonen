@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { decidePlanChange, getPlan } from '@/lib/org-plan'
 import { priceIdForPlan } from '@/lib/org-plan-prices'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
@@ -24,7 +25,9 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-change-plan:${ip}`, 10, 60_000).success) {
+  const rlKey = `org-change-plan:${ip}`
+  if (!rateLimit(rlKey, 10, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

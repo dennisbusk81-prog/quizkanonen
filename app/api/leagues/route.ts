@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { z } from 'zod'
 
 function toSlug(name: string): string {
@@ -24,7 +25,9 @@ export const maxDuration = 15
 
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`leagues-get:${ip}`, 30, 60_000).success) {
+  const rlKey = `leagues-get:${ip}`
+  if (!rateLimit(rlKey, 30, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 
@@ -85,7 +88,9 @@ const createSchema = z.object({
 // POST /api/leagues — opprett ny liga (krever Premium)
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`leagues-post:${ip}`, 5, 60_000).success) {
+  const rlKey = `leagues-post:${ip}`
+  if (!rateLimit(rlKey, 5, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 

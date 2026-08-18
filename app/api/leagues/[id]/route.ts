@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -11,7 +12,9 @@ export const maxDuration = 60
 
 export async function GET(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`league-get:${ip}`, 30, 60_000).success) {
+  const rlKey = `league-get:${ip}`
+  if (!rateLimit(rlKey, 30, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 
@@ -84,7 +87,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // DELETE /api/leagues/[id] — slett liga (krever eierskap)
 export async function DELETE(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`league-delete:${ip}`, 10, 60_000).success) {
+  const rlKey = `league-delete:${ip}`
+  if (!rateLimit(rlKey, 10, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 

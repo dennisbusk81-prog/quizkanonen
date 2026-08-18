@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { ipScopeId } from '@/lib/redeem-throttle'
 import {
   CHECK_EMAIL_ACTION,
@@ -34,7 +35,9 @@ export async function POST(request: NextRequest) {
   // Førstelag: billig burst-brems i minnet. Denne ALENE er ikke grensen vi
   // lener oss på — Map-en lever per serverless-instans — men den holder
   // rå-flooding unna DB-arbeidet under.
-  if (!rateLimit(`check-email:${ip}`, 10, 60_000).success) {
+  const rlKey = `check-email:${ip}`
+  if (!rateLimit(rlKey, 10, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

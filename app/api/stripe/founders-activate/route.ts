@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { trialWelcomeEmail } from '@/lib/email-templates'
@@ -41,8 +42,10 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = await rateLimitShared(`founders-activate:${ip}`, 5, 60_000)
+  const rlKey = `founders-activate:${ip}`
+  const rl = await rateLimitShared(rlKey, 5, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

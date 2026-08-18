@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { randomBytes } from 'crypto'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
@@ -12,7 +13,9 @@ export const maxDuration = 15
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-invites:${ip}`, 10, 60_000).success) {
+  const rlKey = `org-invites:${ip}`
+  if (!rateLimit(rlKey, 10, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

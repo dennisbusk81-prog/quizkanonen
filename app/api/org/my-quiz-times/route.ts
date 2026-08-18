@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
@@ -15,7 +16,9 @@ export const dynamic = 'force-dynamic'
 // combined with the quiz's date so the client can compare against now().
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`my-quiz-times:${ip}`, 30, 60_000).success) {
+  const rlKey = `my-quiz-times:${ip}`
+  if (!rateLimit(rlKey, 30, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000, quizId: request.nextUrl.searchParams.get('quizId') ?? undefined })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

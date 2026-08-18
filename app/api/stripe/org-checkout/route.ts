@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { randomBytes } from 'crypto'
 import { validateOrgName } from '@/lib/org-name'
 import { PLAN_PRICES } from '@/lib/org-plan-prices'
@@ -13,7 +14,9 @@ export const maxDuration = 30
 export async function POST(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`org-checkout:${ip}`, 5, 60_000)).success) {
+  const rlKey = `org-checkout:${ip}`
+  if (!(await rateLimitShared(rlKey, 5, 60_000)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

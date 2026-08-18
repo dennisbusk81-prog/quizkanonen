@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { sendEmail } from '@/lib/email'
 import { duelInviteEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
@@ -19,8 +20,10 @@ export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`rivalries-create:${ip}`, 5, 60_000)
+  const rlKey = `rivalries-create:${ip}`
+  const rl = rateLimit(rlKey, 5, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Vent litt.' }, { status: 429 })
   }
 

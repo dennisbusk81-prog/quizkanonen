@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // POST /api/org/[slug]/league-preference
 // Body: { opt_out: boolean }
@@ -19,7 +20,9 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`league-pref:${ip}`, 20, 60_000).success) {
+  const rlKey = `league-pref:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

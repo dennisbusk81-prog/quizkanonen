@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
@@ -18,7 +19,9 @@ export async function POST(
 
   // Conservative rate limit — this sends emails
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`send-reminder:${ip}`, 5, 3_600_000)).success) {
+  const rlKey = `send-reminder:${ip}`
+  if (!(await rateLimitShared(rlKey, 5, 3_600_000)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: 5, windowMs: 3_600_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

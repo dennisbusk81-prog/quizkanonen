@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { getOptionCountsByQuestions } from '@/lib/attempt-answer-stats'
 import { readStoredKey } from '@/lib/answer-key-correction'
 import { selectEasiestAndHardest, type QuestionDifficulty } from '@/lib/question-difficulty'
@@ -38,7 +39,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`answer-dist:${ip}`, 30, 60_000).success) {
+  const rlKey = `answer-dist:${ip}`
+  if (!rateLimit(rlKey, 30, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000, quizId: (await params).id })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

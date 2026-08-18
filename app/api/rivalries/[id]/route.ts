@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -13,8 +14,12 @@ export const maxDuration = 15
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`rivalries-patch:${ip}`, 10, 60_000)
-  if (!rl.success) return NextResponse.json({ error: 'For mange forespørsler.' }, { status: 429 })
+  const rlKey = `rivalries-patch:${ip}`
+  const rl = rateLimit(rlKey, 10, 60_000)
+  if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
+    return NextResponse.json({ error: 'For mange forespørsler.' }, { status: 429 })
+  }
 
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })
@@ -72,8 +77,12 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 // active: both challenger and rival can cancel
 export async function DELETE(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`rivalries-delete:${ip}`, 10, 60_000)
-  if (!rl.success) return NextResponse.json({ error: 'For mange forespørsler.' }, { status: 429 })
+  const rlKey = `rivalries-delete:${ip}`
+  const rl = rateLimit(rlKey, 10, 60_000)
+  if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
+    return NextResponse.json({ error: 'For mange forespørsler.' }, { status: 429 })
+  }
 
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })

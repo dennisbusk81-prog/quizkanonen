@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
 // slettinger. Samme budsjett som de eksisterende cron-rutene (konvensjon 60).
@@ -14,7 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-admin-data:${ip}`, 30, 60_000).success) {
+  const rlKey = `org-admin-data:${ip}`
+  if (!rateLimit(rlKey, 30, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

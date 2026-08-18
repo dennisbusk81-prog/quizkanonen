@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -12,7 +13,9 @@ export const maxDuration = 60
 
 export async function POST(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-season-reset:${ip}`, 5, 60_000).success) {
+  const rlKey = `org-season-reset:${ip}`
+  if (!rateLimit(rlKey, 5, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 

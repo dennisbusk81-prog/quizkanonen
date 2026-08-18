@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
 
 // Leser de to opplysningene klientflatene trenger for å tilby den gratis
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest) {
   // skille klienter fra hverandre. Uten x-forwarded-for ville alle delt én
   // bøtte, og tilfeldige brukere kunne spist hverandres kvote.
   const ip = request.headers.get('x-forwarded-for')
-  if (ip && !rateLimit(`trial-offer:${ip}`, 60, 60_000).success) {
+  const rlKey = `trial-offer:${ip}`
+  if (ip && !rateLimit(rlKey, 60, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 60, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

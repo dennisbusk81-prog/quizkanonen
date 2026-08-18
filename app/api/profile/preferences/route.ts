@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -10,7 +11,9 @@ export const maxDuration = 15
 
 export async function PATCH(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`profile-prefs:${ip}`, 20, 60_000).success) {
+  const rlKey = `profile-prefs:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

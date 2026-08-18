@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { ipScopeId } from '@/lib/redeem-throttle'
 import {
   ORG_TRIAL_CODE_MISS_ACTION,
@@ -21,7 +22,9 @@ export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
   // Førstelag: burst-brems i minnet. Lever per serverless-instans, så den er
   // ikke grensen vi lener oss på — kun et billig filter foran DB-arbeidet.
-  if (!rateLimit(`trial-code-validate:${ip}`, 15, 60_000).success) {
+  const rlKey = `trial-code-validate:${ip}`
+  if (!rateLimit(rlKey, 15, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 15, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forsøk. Prøv igjen om litt.' }, { status: 429 })
   }
 

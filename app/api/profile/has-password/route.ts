@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // Avledet erstatning for det skrivbare feltet profiles.has_password.
 //
@@ -28,7 +29,9 @@ export async function GET(request: NextRequest) {
   // Samme mønster som premium-status: brems kun når vi faktisk kan skille
   // klienter fra hverandre. Uten x-forwarded-for ville alle delt én bøtte.
   const ip = request.headers.get('x-forwarded-for')
-  if (ip && !rateLimit(`has-password:${ip}`, 60, 60_000).success) {
+  const rlKey = `has-password:${ip}`
+  if (ip && !rateLimit(rlKey, 60, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 60, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

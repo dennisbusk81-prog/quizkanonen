@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 const bodySchema = z.object({
   id: z.string().uuid('id must be a valid UUID'),
@@ -31,8 +32,10 @@ export const maxDuration = 15
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`profile-upsert:${ip}`, 10, 60_000)
+  const rlKey = `profile-upsert:${ip}`
+  const rl = rateLimit(rlKey, 10, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 

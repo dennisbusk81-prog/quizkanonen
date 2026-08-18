@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { planLeagueOwnership } from '@/lib/account-deletion'
 
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
@@ -11,8 +12,10 @@ export const maxDuration = 60
 export async function DELETE(request: NextRequest) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-03-25.dahlia' })
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`profile-delete:${ip}`, 5, 60_000)
+  const rlKey = `profile-delete:${ip}`
+  const rl = rateLimit(rlKey, 5, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

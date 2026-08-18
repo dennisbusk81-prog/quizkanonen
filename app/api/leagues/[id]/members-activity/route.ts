@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -41,7 +42,9 @@ export const maxDuration = 15
 
 export async function GET(request: NextRequest, { params }: Params) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`league-members-activity:${ip}`, 20, 60_000).success) {
+  const rlKey = `league-members-activity:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Prøv igjen om litt.' }, { status: 429 })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -12,7 +13,9 @@ export const maxDuration = 15
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`notify-subscribe:${ip}`, 5, 60_000)).success) {
+  const rlKey = `notify-subscribe:${ip}`
+  if (!(await rateLimitShared(rlKey, 5, 60_000)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

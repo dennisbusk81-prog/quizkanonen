@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { checkMemberCapacity } from '@/lib/org-plan'
 import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import {
@@ -55,7 +56,9 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`org-join:${ip}`, 10, 60_000)).success) {
+  const rlKey = `org-join:${ip}`
+  if (!(await rateLimitShared(rlKey, 10, 60_000)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: 10, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

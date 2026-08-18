@@ -3,6 +3,7 @@
 import { headers } from 'next/headers'
 import { timingSafeEqual } from 'crypto'
 import { rateLimitShared } from './rate-limit-shared'
+import { logRateLimitHit } from './rate-limit-log'
 import { createAdminToken } from './admin-token'
 
 // ── Admin-innlogging ─────────────────────────────────────────────────────────
@@ -40,7 +41,9 @@ export async function verifyAdminPassword(password: string): Promise<AdminLoginR
   const hdrs = await headers()
   const ip = hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
-  if (!(await rateLimitShared(`admin-login:${ip}`, MAX_ATTEMPTS, WINDOW_MS)).success) {
+  const rlKey = `admin-login:${ip}`
+  if (!(await rateLimitShared(rlKey, MAX_ATTEMPTS, WINDOW_MS)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', limit: MAX_ATTEMPTS, windowMs: WINDOW_MS })
     return {
       ok: false,
       lockedOut: true,

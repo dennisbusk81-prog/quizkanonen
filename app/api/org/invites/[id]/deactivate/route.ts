@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
@@ -14,7 +15,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-invite-deactivate:${ip}`, 20, 60_000).success) {
+  const rlKey = `org-invite-deactivate:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { validateOrgName } from '@/lib/org-name'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
@@ -15,7 +16,9 @@ export async function PATCH(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-settings:${ip}`, 20, 60_000).success) {
+  const rlKey = `org-settings:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

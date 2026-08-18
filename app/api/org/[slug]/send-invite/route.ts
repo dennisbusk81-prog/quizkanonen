@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { orgInviteEmail } from '@/lib/email-templates'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { resolveInviteQuota } from '@/lib/invite-quota'
 import { checkMemberCapacity } from '@/lib/org-plan'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
@@ -27,7 +28,9 @@ export async function POST(
   const { slug: organizationId } = await params
 
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`send-invite:${ip}`, 5, 60_000).success) {
+  const rlKey = `send-invite:${ip}`
+  if (!rateLimit(rlKey, 5, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 
@@ -38,7 +41,9 @@ export async function POST(
   if (authErr || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
   // Per-bruker i tillegg til per-IP: IP-er roteres billig, bruker-id-er ikke.
-  if (!rateLimit(`send-invite-user:${user.id}`, 5, 60_000).success) {
+  const rlUserKey = `send-invite-user:${user.id}`
+  if (!rateLimit(rlUserKey, 5, 60_000).success) {
+    logRateLimitHit(rlUserKey, { lag: 'lokal', limit: 5, windowMs: 60_000, innlogget: true })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { resolveOrgAdminAction, removeOrgMemberById } from '@/lib/org-member-removal'
 
 // Fjern et org-medlem NÅ.
@@ -20,7 +21,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-member-remove:${ip}`, 20, 60_000).success) {
+  const rlKey = `org-member-remove:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
   }
 

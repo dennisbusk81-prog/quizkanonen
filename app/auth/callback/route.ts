@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { AUTH_LINK_RATE_LIMIT } from '@/lib/auth-rate-limit'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboarding'
@@ -19,7 +20,9 @@ import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboardin
 // e-postlenker som allerede er sendt ut med gammel mal.
 export async function GET(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!(await rateLimitShared(`auth-callback:${ip}`, AUTH_LINK_RATE_LIMIT.limit, AUTH_LINK_RATE_LIMIT.windowMs)).success) {
+  const rlKey = `auth-callback:${ip}`
+  if (!(await rateLimitShared(rlKey, AUTH_LINK_RATE_LIMIT.limit, AUTH_LINK_RATE_LIMIT.windowMs)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', ...AUTH_LINK_RATE_LIMIT })
     // Målet må være /login, ikke forsiden: `?error=` leses kun av AuthForm, som
     // lever på /login og i AuthModal. Fram til 31. juli 2026 pekte denne til
     // `/?error=rate_limit`, og forsiden leser ikke parameteren i det hele tatt —

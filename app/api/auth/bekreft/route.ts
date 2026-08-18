@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { AUTH_LINK_RATE_LIMIT } from '@/lib/auth-rate-limit'
 import { ensureProfileForUser, safeNextPath } from '@/lib/auth-post-login'
 import { postLoginPath, welcomeOnboardingEnabled } from '@/lib/welcome-onboarding'
@@ -32,7 +33,9 @@ export async function POST(request: NextRequest) {
   // Delt grense med /auth/callback — se lib/auth-rate-limit.ts. IP er det
   // eneste vi har her: brukeren er per definisjon ikke innlogget ennå, så
   // per-bruker-nøkling (lib/play-rate-limit.ts) er ikke mulig på denne flaten.
-  if (!(await rateLimitShared(`auth-verify:${ip}`, AUTH_LINK_RATE_LIMIT.limit, AUTH_LINK_RATE_LIMIT.windowMs)).success) {
+  const rlKey = `auth-verify:${ip}`
+  if (!(await rateLimitShared(rlKey, AUTH_LINK_RATE_LIMIT.limit, AUTH_LINK_RATE_LIMIT.windowMs)).success) {
+    logRateLimitHit(rlKey, { lag: 'delt', ...AUTH_LINK_RATE_LIMIT })
     return NextResponse.redirect(`${origin}/login?error=rate_limit`, 303)
   }
 

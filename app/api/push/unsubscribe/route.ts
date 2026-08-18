@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -10,8 +11,12 @@ export const maxDuration = 15
 
 export async function DELETE(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`push-unsubscribe:${ip}`, 10, 60_000)
-  if (!rl.success) return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
+  const rlKey = `push-unsubscribe:${ip}`
+  const rl = rateLimit(rlKey, 10, 60_000)
+  if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 10, windowMs: 60_000 })
+    return NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 })
+  }
 
   const token = request.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Ikke innlogget' }, { status: 401 })

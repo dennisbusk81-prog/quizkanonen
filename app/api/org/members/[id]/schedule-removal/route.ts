@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { resolveOrgAdminAction } from '@/lib/org-member-removal'
 import { validateScheduledRemovalDate, formatRemovalDate } from '@/lib/scheduled-removal'
 
@@ -19,7 +20,9 @@ type Params = { params: Promise<{ id: string }> }
 
 async function authorize(request: NextRequest, membershipId: string) {
   const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
-  if (!rateLimit(`org-schedule-removal:${ip}`, 20, 60_000).success) {
+  const rlKey = `org-schedule-removal:${ip}`
+  if (!rateLimit(rlKey, 20, 60_000).success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 20, windowMs: 60_000 })
     return { error: NextResponse.json({ error: 'For mange forespørsler' }, { status: 429 }) } as const
   }
 

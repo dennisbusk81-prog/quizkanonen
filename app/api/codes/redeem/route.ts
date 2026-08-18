@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { sendEmail } from '@/lib/email'
 import { codeActivatedEmail, codeActivatedPausedEmail } from '@/lib/email-templates'
 import { decideRedemption, type PremiumState } from '@/lib/premium-state'
@@ -26,8 +27,10 @@ export async function POST(request: NextRequest) {
   // lener oss på — Map-en lever per serverless-instans — men den holder
   // rå-flooding unna auth-oppslaget under. Den autoritative tellingen ligger i
   // admin_actions lenger nede.
-  const rl = rateLimit(`codes-redeem:${ip}`, 5, 60_000)
+  const rlKey = `codes-redeem:${ip}`
+  const rl = rateLimit(rlKey, 5, 60_000)
   if (!rl.success) {
+    logRateLimitHit(rlKey, { lag: 'lokal', limit: 5, windowMs: 60_000 })
     return NextResponse.json({ error: 'For mange forespørsler. Vent litt og prøv igjen.' }, { status: 429 })
   }
 
