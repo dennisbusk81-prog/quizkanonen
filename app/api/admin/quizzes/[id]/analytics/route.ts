@@ -56,6 +56,7 @@ export async function GET(
             .from('profiles')
             .select('id, nickname')
             .in('id', chunk)
+            .order('id')
             .range(from, to)
       )
       for (const p of nickRows) {
@@ -75,6 +76,16 @@ export async function GET(
     // attempt_answers kan lett passere PostgREST sin stille 1000-rads-grense
     // for én quiz (bekreftet: 1437 rader på 75 forsøk for den mest spilte
     // quizen 26. juli 2026).
+    //
+    // .order() ER PÅKREVD, ikke pynt. .range() blir LIMIT/OFFSET, og uten
+    // ORDER BY garanterer Postgres ingen rekkefølge mellom de to sidene —
+    // planen bestemmer, og planen avhenger blant annet av SELECT-lista.
+    // MÅLT mot prod 18. august 2026 på quiz 94409bbb (1035 rader, 69 forsøk):
+    // uten .order() ga side 2 tilbake 35 rader som ALLEREDE lå i side 1, mens
+    // de 35 ekte restradene aldri ble hentet — 1035 rader, men bare 1000
+    // unike, og to spillere manglet svar helt i «Per spørsmål». Reproduserbart
+    // over flere kjøringer. Med .order() er alle 1035 unike, 69/69 forsøk.
+    // Samme fallgruve gjelder alle .range()-paginerte spørringer uten sortering.
     let answerData: { question_id: string; is_correct: boolean; selected_answer: string | null; time_ms: number; attempt_id: string }[]
     try {
       answerData = await fetchAllRowsChunked(
@@ -84,6 +95,8 @@ export async function GET(
             .from('attempt_answers')
             .select('question_id, is_correct, selected_answer, time_ms, attempt_id')
             .in('attempt_id', chunk)
+            .order('attempt_id')
+            .order('question_id')
             .range(from, to)
       )
     } catch (e4) {
@@ -131,6 +144,7 @@ export async function GET(
             .from('profiles')
             .select('id, display_name')
             .in('id', chunk)
+            .order('id')
             .range(from, to)
       )
       for (const p of profileRows) {
@@ -195,6 +209,8 @@ export async function GET(
             .from('organization_members')
             .select('user_id, organization_id')
             .in('user_id', chunk)
+            .order('user_id')
+            .order('organization_id')
             .range(from, to)
       )
     } catch (orgErr) {
