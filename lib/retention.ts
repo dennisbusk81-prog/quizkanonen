@@ -118,6 +118,7 @@ export async function fetchRetentionRows(): Promise<RetentionRow[]> {
       .select('quiz_id, user_id')
       .not('user_id', 'is', null)
       .not('submitted_at', 'is', null)
+      .order('id', { ascending: true })
       .range(from, to)
   )
 

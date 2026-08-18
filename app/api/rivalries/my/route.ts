@@ -158,6 +158,7 @@ export async function GET(request: NextRequest) {
         .eq('is_team', false)
         .not('user_id', 'is', null)
         .not('submitted_at', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to)
     )
 

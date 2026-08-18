@@ -40,6 +40,7 @@ export async function getQuestionStatsByAttempts(
       .from('attempt_answers')
       .select('question_id, is_correct')
       .in('attempt_id', attemptIds)
+      .order('id', { ascending: true })
       .range(from, to)
   )
   for (const a of rows) {
@@ -79,6 +80,7 @@ export async function getOptionCountsByQuestions(
       .from('attempt_answers')
       .select('question_id, selected_answer')
       .in('question_id', questionIds)
+      .order('id', { ascending: true })
       .range(from, to)
   )
   for (const a of rows) {
@@ -108,6 +110,7 @@ export async function countActivePlayersSince(sinceIso: string): Promise<number>
       .eq('is_team', false)
       .not('user_id', 'is', null)
       .gte('completed_at', sinceIso)
+      .order('id', { ascending: true })
       .range(from, to)
   )
   return new Set(rows.map(r => r.user_id)).size

@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         .from('attempts')
         .select('user_id')
         .not('user_id', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to)
     )
   } catch (e) {
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin
         .from('organization_members')
         .select('user_id')
+        .order('id', { ascending: true })
         .range(from, to)
     )
   } catch (e) {

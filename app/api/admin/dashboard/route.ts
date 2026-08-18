@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       // 26. juli. I dag er tallet énsifret, men et tak som gjør MRR-tallet
       // STILLE feil ved vekst skal ikke ligge og vente i en økonomivisning.
       fetchAllRows<{ plan: string | null; subscription_status: string }>((from, to) =>
-        supabaseAdmin.from('organizations').select('plan, subscription_status').range(from, to)
+        supabaseAdmin.from('organizations').select('plan, subscription_status').order('id', { ascending: true }).range(from, to)
       ),
 
       supabaseAdmin

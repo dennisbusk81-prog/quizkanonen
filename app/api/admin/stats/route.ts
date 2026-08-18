@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
         .from('profiles')
         .select('premium_source')
         .eq('premium_status', true)
+        .order('id', { ascending: true })
         .range(from, to)
     ),
   ])

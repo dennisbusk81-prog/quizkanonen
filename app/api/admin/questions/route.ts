@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin
         .from('attempt_answers')
         .select('question_id, is_correct')
+        .order('id', { ascending: true })
         .range(from, to)
     )
   } catch (e) {

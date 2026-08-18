@@ -200,7 +200,7 @@ export async function GET(request: NextRequest) {
       .select('user_id, points, closes_at')
       .eq('scope_type', scope)
     q = scopeId ? q.eq('scope_id', scopeId) : q.is('scope_id', null)
-    return q.lt('closes_at', cutoff).range(from, to)
+    return q.lt('closes_at', cutoff).order('id', { ascending: true }).range(from, to)
   })
 
   if (scores.length === 0) {

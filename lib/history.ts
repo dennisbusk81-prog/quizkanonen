@@ -282,6 +282,7 @@ async function fetchCategoryStrength(userId: string): Promise<CategoryStrength> 
       .select('question_id, is_correct, attempts!inner(user_id, correct_streak), questions(category)')
       .eq('attempts.user_id', userId)
       .not('attempts.correct_streak', 'is', null)
+      .order('id', { ascending: true })
       .range(from, to)
   )
 
