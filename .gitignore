@@ -47,3 +47,6 @@ next-env.d.ts
 # sentry — kan inneholde auth-token i klartekst (.env* dekker
 # .env.sentry-build-plugin, men ikke denne)
 .sentryclirc
+
+# QK-dokumentene lastes ned på nytt daglig og er arbeidskopier, ikke kilde
+qk-docs-temp/
