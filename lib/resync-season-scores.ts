@@ -37,6 +37,7 @@ export async function resyncSeasonScoresForQuiz(quizId: string): Promise<SeasonR
         .from('season_scores')
         .select('id, user_id, scope_type, scope_id, points, rank')
         .eq('quiz_id', quizId)
+        .order('id', { ascending: true })
         .range(from, to)
     )
 
@@ -53,6 +54,7 @@ export async function resyncSeasonScoresForQuiz(quizId: string): Promise<SeasonR
         .eq('quiz_id', quizId)
         .eq('is_team', false)
         .not('user_id', 'is', null)
+        .order('id', { ascending: true })
         .range(from, to)
     )
   } catch (err) {

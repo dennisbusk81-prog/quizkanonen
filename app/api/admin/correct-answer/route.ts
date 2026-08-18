@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       .from('attempt_answers')
       .select('id, attempt_id, selected_answer')
       .eq('question_id', questionId)
+      .order('id', { ascending: true })
       .range(from, to)
   )
 
