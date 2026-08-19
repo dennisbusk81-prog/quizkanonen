@@ -69,10 +69,18 @@ export async function POST(request: NextRequest) {
   }
 
   // Sjekk at ligaen ikke er full (maks 6 medlemmer)
-  const { count: memberCount } = await supabaseAdmin
+  const { count: memberCount, error: memberCountError } = await supabaseAdmin
     .from('league_members')
     .select('user_id', { count: 'exact', head: true })
     .eq('league_id', league.id)
+
+  // Kan vi ikke lese antallet, vet vi ikke om ligaen har 1 eller 6 medlemmer.
+  // `?? 0` ville lest feilen som «tom liga» og sluppet innmeldingen gjennom —
+  // en DB-feil skal ikke være omveien rundt grensen.
+  if (memberCountError) {
+    console.error('[leagues/join] kunne ikke telle medlemmer:', memberCountError.message)
+    return NextResponse.json({ error: 'Kunne ikke melde deg inn akkurat nå. Prøv igjen om litt.' }, { status: 503 })
+  }
 
   if ((memberCount ?? 0) >= MAX_LEAGUE_MEMBERS) {
     return NextResponse.json({ error: 'Denne ligaen er full — maks 6 medlemmer.' }, { status: 403 })
@@ -88,10 +96,23 @@ export async function POST(request: NextRequest) {
 
   // Post-insert re-sjekk — beskytter mot TOCTOU-race der to samtidige joins
   // begge passerte pre-sjekken. Rulles tilbake hvis grensen er brutt.
-  const { count: postCount } = await supabaseAdmin
+  const { count: postCount, error: postCountError } = await supabaseAdmin
     .from('league_members')
     .select('user_id', { count: 'exact', head: true })
     .eq('league_id', league.id)
+
+  // Samme klasse som pre-sjekken, men her finnes raden allerede: fail-closed
+  // betyr å rulle den tilbake, ikke å la et ubekreftet medlemskap bli stående.
+  // Uten dette falt BEGGE sjekkene samtidig ved samme DB-feil.
+  if (postCountError) {
+    console.error('[leagues/join] kunne ikke re-telle medlemmer:', postCountError.message)
+    await supabaseAdmin
+      .from('league_members')
+      .delete()
+      .eq('league_id', league.id)
+      .eq('user_id', user.id)
+    return NextResponse.json({ error: 'Kunne ikke melde deg inn akkurat nå. Prøv igjen om litt.' }, { status: 503 })
+  }
 
   if ((postCount ?? 0) > MAX_LEAGUE_MEMBERS) {
     await supabaseAdmin

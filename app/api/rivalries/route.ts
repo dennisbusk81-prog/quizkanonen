@@ -74,11 +74,23 @@ export async function POST(request: NextRequest) {
   // PostgREST-filter. Volumet er en håndfull rader per bruker.
   const openStatuses = ['pending', 'active']
 
-  const { data: myRows } = await supabaseAdmin
+  const { data: myRows, error: myRowsError } = await supabaseAdmin
     .from('rivalries')
     .select('id, status, created_at')
     .or(`challenger_id.eq.${user.id},rival_id.eq.${user.id}`)
     .in('status', openStatuses)
+
+  // Samme linje som døgnkvoten under: en DB-feil skal ikke være omveien rundt
+  // grensen. Uten denne vakten ga et feilet oppslag et tomt sett, som leses som
+  // «ingen blokkerende duell» — og regelen «maks én åpen duell» faller åpen
+  // uten et eneste spor.
+  if (myRowsError) {
+    console.error('[rivalries POST] kunne ikke lese egne åpne dueller:', myRowsError.message)
+    return NextResponse.json(
+      { error: 'Kunne ikke sende utfordringen akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   if ((myRows ?? []).some(r => blocksNewDuel(r, nowForCheck))) {
     return NextResponse.json(
@@ -87,11 +99,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { data: rivalRows } = await supabaseAdmin
+  const { data: rivalRows, error: rivalRowsError } = await supabaseAdmin
     .from('rivalries')
     .select('id, status, created_at')
     .or(`challenger_id.eq.${rivalId},rival_id.eq.${rivalId}`)
     .in('status', openStatuses)
+
+  // Samme begrunnelse som over — sperren gjelder motstanderens åpne dueller.
+  if (rivalRowsError) {
+    console.error('[rivalries POST] kunne ikke lese motstanderens åpne dueller:', rivalRowsError.message)
+    return NextResponse.json(
+      { error: 'Kunne ikke sende utfordringen akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   if ((rivalRows ?? []).some(r => blocksNewDuel(r, nowForCheck))) {
     const name = rivalProfile.display_name ?? 'Motstanderen'
@@ -139,12 +160,22 @@ export async function POST(request: NextRequest) {
   // allerede kostet mottakeren en e-post og teller derfor med — det er nettopp
   // løkken utfordre → kanseller → utfordre denne sperren finnes for.
   const cooldownSince = new Date(nowForCheck.getTime() - SAME_RECIPIENT_WINDOW_MS).toISOString()
-  const { data: recentToRival } = await supabaseAdmin
+  const { data: recentToRival, error: recentToRivalError } = await supabaseAdmin
     .from('rivalries')
     .select('created_at')
     .eq('challenger_id', user.id)
     .eq('rival_id', rivalId)
     .gte('created_at', cooldownSince)
+
+  // Feiler tellingen, vet vi ikke om dette er utfordring nr. 1 eller nr. 20 mot
+  // samme mottaker — nøyaktig samme situasjon som døgnkvoten over, og samme svar.
+  if (recentToRivalError) {
+    console.error('[rivalries POST] kunne ikke telle utfordringer mot mottakeren:', recentToRivalError.message)
+    return NextResponse.json(
+      { error: 'Kunne ikke sende utfordringen akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   if (hasExhaustedChallengesToRecipient((recentToRival ?? []).map(r => r.created_at), nowForCheck)) {
     const name = rivalProfile.display_name ?? 'denne spilleren'
@@ -175,7 +206,7 @@ export async function POST(request: NextRequest) {
   // slått til her i stedet, slettet den ferske raden og gjeninnført dødlåsen
   // fra FUNN 2.2 i en verre form (utfordringen ville sett ut til å bli sendt,
   // for så å forsvinne).
-  const { data: conflictRows } = await supabaseAdmin
+  const { data: conflictRows, error: conflictRowsError } = await supabaseAdmin
     .from('rivalries')
     .select('id, status, created_at')
     .or(
@@ -185,6 +216,20 @@ export async function POST(request: NextRequest) {
       `and(rival_id.eq.${rivalId},status.in.(pending,active))`
     )
     .neq('id', rivalry.id)
+
+  // Race-vakten er selv en sperre, og faller åpen på samme måte som de tre over
+  // hvis oppslaget feiler. Her finnes det allerede en rad, så fail-closed betyr
+  // å rulle den tilbake — ikke å la den bli stående ubekreftet. Slettingen er
+  // best-effort, samme som i konflikt-grenen under. Kvoten bokføres først
+  // lenger nede, så et rullet tilbake forsøk koster heller ingen kvote.
+  if (conflictRowsError) {
+    console.error('[rivalries POST] kunne ikke re-sjekke mot race:', conflictRowsError.message)
+    await supabaseAdmin.from('rivalries').delete().eq('id', rivalry.id)
+    return NextResponse.json(
+      { error: 'Kunne ikke sende utfordringen akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   const conflict = (conflictRows ?? []).filter(r => blocksNewDuel(r, nowForCheck))
 

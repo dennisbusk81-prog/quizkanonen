@@ -15,6 +15,9 @@
 //     alltid, taket slår aldri inn. Samme 3 tester ryker.
 //   • Byttes `sentCountError`-grenen til å slippe gjennom → «fail closed»-testen
 //     ryker (utfordringen sendes selv om forbruket ikke kan bekreftes).
+//   • Fjernes én av de fire `…Error`-vaktene på rivalries-oppslagene (19. august
+//     2026) → den tilhørende «FAIL CLOSED: rivalries-oppslag N feiler»-testen
+//     ryker med 201/429 i stedet for 503. Verifisert for alle fire.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -34,7 +37,16 @@ const state: {
   nextId: number
   /** Settes for å simulere at admin_actions-tellingen feiler. */
   countFails: boolean
-} = { rows: [], actions: [], sent: [], nextId: 1, countFails: false }
+  /**
+   * Hvilket rivalries-SELECT (1-indeksert, i kallrekkefølge) som skal feile.
+   * Rekkefølgen i ruten er: 1 egne åpne dueller, 2 motstanderens åpne dueller,
+   * 3 cooldown mot samme mottaker, 4 race-re-sjekken etter insert. Nøkles på
+   * teller og ikke på filterform fordi det er nettopp KALLSTEDET, ikke
+   * spørringen, som skal ha hver sin vakt.
+   */
+  failRivalriesSelect: number | null
+  rivalriesSelects: number
+} = { rows: [], actions: [], sent: [], nextId: 1, countFails: false, failRivalriesSelect: null, rivalriesSelects: 0 }
 
 const timerSiden = (t: number) => new Date(Date.now() - t * 3600_000).toISOString()
 
@@ -113,6 +125,10 @@ function builder(table: string) {
         return resolve({ data: counting ? null : hits, count: hits.length, error: null })
       }
       if (table !== 'rivalries') return resolve({ data: [], error: null })
+      state.rivalriesSelects++
+      if (state.failRivalriesSelect === state.rivalriesSelects) {
+        return resolve({ data: null, error: { message: 'simulert DB-feil' } })
+      }
       let out = state.rows
       if (orFilter) out = out.filter(orFilter)
       for (const f of filters) out = out.filter(f as (r: Row) => boolean)
@@ -169,6 +185,8 @@ beforeEach(() => {
   state.sent = []
   state.nextId = 1
   state.countFails = false
+  state.failRivalriesSelect = null
+  state.rivalriesSelects = 0
 })
 
 test('SPAM-LØKKE PÅ TVERS AV MOTTAKERE: taket stopper løkken etter døgnkvoten', async () => {
@@ -277,4 +295,47 @@ test('TILLEGG, IKKE ERSTATNING: mottaker-sperren på 3 står urørt', async () =
     'meldingen skal fortsatt være den mottaker-spesifikke'
   )
   assert.equal(state.sent.length, 3)
+})
+
+// ── FAIL CLOSED på rivalries-oppslagene (19. august 2026) ──────────────────
+// De fire sperrene i ruten leste tidligere aldri `error`. Feilet spørringen,
+// ga PostgREST `data: null`, `?? []` gjorde det til et tomt sett, og sperren
+// leste det som «ingen blokkerende duell» — regelen «maks én åpen duell» falt
+// åpen uten et eneste spor. Samme linje som døgnkvoten: en DB-feil skal ikke
+// være omveien rundt grensen.
+//
+// Testene nøkles på KALLSTEDET (rekkefølgenummer), ikke på spørringens form,
+// fordi poenget er at hvert av de fire stedene har sin egen vakt — ikke at
+// «en rivalries-spørring et sted» er beskyttet.
+const RIVALRIES_SELECTS: Array<[number, string]> = [
+  [1, 'egne åpne dueller'],
+  [2, 'motstanderens åpne dueller'],
+  [3, 'cooldown mot samme mottaker'],
+]
+
+for (const [n, hva] of RIVALRIES_SELECTS) {
+  test(`FAIL CLOSED: rivalries-oppslag ${n} (${hva}) feiler → 503, ingen duell`, async () => {
+    state.failRivalriesSelect = n
+
+    const res = await utfordre(rival(7))
+
+    assert.equal(res.status, 503, 'en DB-feil skal ikke være omveien rundt sperren')
+    assert.equal(state.rows.length, 0, 'ingen duell-rad opprettet')
+    assert.equal(state.sent.length, 0, 'ingen e-post sendt')
+    assert.equal(state.actions.length, 0, 'ingen kvote bokført for et forsøk som ikke gikk gjennom')
+  })
+}
+
+test('FAIL CLOSED: race-re-sjekken (oppslag 4) feiler → raden rulles tilbake', async () => {
+  // Her er raden allerede satt inn når vakten slår til. Fail-closed betyr da å
+  // rulle den tilbake — ikke å la et ubekreftet forsøk bli stående og blokkere
+  // begge parter for nye dueller.
+  state.failRivalriesSelect = 4
+
+  const res = await utfordre(rival(8))
+
+  assert.equal(res.status, 503)
+  assert.equal(state.rows.length, 0, 'den innsatte raden skal være slettet igjen')
+  assert.equal(state.sent.length, 0, 'ingen e-post sendt')
+  assert.equal(state.actions.length, 0, 'ingen kvote bokført')
 })
