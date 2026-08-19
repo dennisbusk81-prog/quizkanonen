@@ -54,7 +54,7 @@ export async function PATCH(
   const lock = await requireUnlockedOrg({ slug })
   if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
-  let body: { name?: unknown; allow_global_league?: boolean; admin_can_see_answers?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null; onboarding_completed?: boolean }
+  let body: { name?: unknown; allow_global_league?: boolean; weekly_report_timing?: string; org_quiz_opens_at?: string | null; org_quiz_closes_at?: string | null; onboarding_completed?: boolean }
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Ugyldig body' }, { status: 400 })
   }
@@ -89,7 +89,6 @@ export async function PATCH(
   }
 
   if (typeof body.allow_global_league === 'boolean') update.allow_global_league = body.allow_global_league
-  if (typeof body.admin_can_see_answers === 'boolean') update.admin_can_see_answers = body.admin_can_see_answers
   if (typeof body.weekly_report_timing === 'string' && WEEKLY_TIMINGS.includes(body.weekly_report_timing)) {
     update.weekly_report_timing = body.weekly_report_timing
   }

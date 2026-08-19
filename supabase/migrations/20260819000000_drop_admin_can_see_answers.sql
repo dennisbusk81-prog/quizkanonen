@@ -1,0 +1,45 @@
+-- ============================================================
+-- organizations — DROP COLUMN admin_can_see_answers
+--
+-- ⚠️ STATUS: IKKE KJØRT. Denne linjen er den eneste kilden til om
+--    migrasjonen er anvendt. Kjører du den, ERSTATT linjen med
+--    «STATUS: KJØRT I PROD <dato>» i samme commit som kjøringen.
+--
+--    Bakgrunn for det kravet: 20260728000000_attempt_answers_unique.sql
+--    står med «⚠️ KAN IKKE KJØRES ENNÅ (status 25. juli 2026)» og ER
+--    likevel anvendt i prod. En statusmerknad frosset til en dato i
+--    fortiden er verre enn ingen merknad — den leses som gjeldende.
+--
+-- FORMÅL:
+-- Fjerne en innstilling som aldri ble koblet til noe.
+--
+-- BAKGRUNN:
+-- Kolonnen ble aldri opprettet av noen migrasjon i dette repoet (grep over
+-- supabase/migrations gir null treff) — den er lagt til utenfor
+-- migrasjonssporet. Fram til 19. august 2026 hadde den nøyaktig fire
+-- kallsteder, og ingen av dem var en gate:
+--   app/api/org/[slug]/admin-data/route.ts  — leste kolonnen, returnerte den
+--   app/api/org/[slug]/settings/route.ts    — tok imot og skrev den
+-- Ingen kodesti leste verdien for å bestemme noe. Ingen UI-flate viste den.
+-- En org-admin kunne altså sette et flagg som ikke gjorde noe.
+--
+-- Faren var ikke teknisk, men retorisk: navnet lover at innsyn i fasit er
+-- en innstilling. Det er det ikke, og det skal det ikke være. Den faktiske
+-- garantien ligger ett sted — closes_at-gaten i
+-- app/api/org/[slug]/quiz-insights/route.ts, som kun velger stengte quizer.
+-- Den flaten er UENDRET og skal ikke røres; «Ukens innsikt» er ønsket
+-- funksjonalitet.
+--
+-- BESLUTNING (Dennis, 19. august 2026): fjernes, ikke bygges ferdig.
+--
+-- REKKEFØLGE — MÅ OVERHOLDES:
+-- Koden som leser og skriver kolonnen er fjernet FØRST (se commit som
+-- bærer denne filen). Grunnen er konkret: admin-data navngir kolonnen i
+-- sin .select()-liste, og PostgREST svarer 400 / 42703 «column does not
+-- exist» på hele spørringen hvis kolonnen forsvinner mens en deployet
+-- versjon fortsatt ber om den. Da faller HELE bedriftspanelet ut — ikke
+-- bare feltet. Drop den derfor først når den nye koden er live i prod.
+-- ============================================================
+
+ALTER TABLE public.organizations
+  DROP COLUMN IF EXISTS admin_can_see_answers;
