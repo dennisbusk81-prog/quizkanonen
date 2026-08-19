@@ -17,6 +17,7 @@ import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import { describeRetry } from '@/lib/retry-affordance'
+import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
 
@@ -160,10 +161,15 @@ export default function LeaderboardPage() {
     myOrgsError, myOrgsRefreshing, refreshMyOrgs,
   } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
-  // Org-lenke der sesjonsoppslaget ikke svarte i tide: vi viser den nasjonale
-  // listen i stedet for å bli stående på spinneren, og SIER at det er det som
-  // vises. Se fetchData under.
-  const [orgScopeDegraded, setOrgScopeDegraded] = useState(false)
+  // Org-scopet hentingen FAKTISK brukte — ikke «feilet det?», men «hva ligger
+  // her nå?». Skrives ett sted (fetchData) og leses av decideOrgScopeNotice.
+  //
+  // Var tidligere en boolean `orgScopeDegraded`. Den var klebrig og kunne bli
+  // foreldet når auth kom seg. Å nullstille den ved gjenoppretting var den
+  // nærliggende fiksen og ville vært en regresjon: «Resultater blant kollegene
+  // dine» er gatet på det samme flagget, så uten en ny henting hadde vi lovet
+  // kolleger over den nasjonale lista. Se lib/org-scope-notice.ts.
+  const [servedOrgSlug, setServedOrgSlug] = useState<string | null>(null)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
@@ -297,7 +303,6 @@ export default function LeaderboardPage() {
             // brukeren til /login ville PÅSTÅTT at hen er utlogget — vi vet det
             // ikke. Vi faller derfor til nasjonal visning, som er tilgjengelig
             // uten token, og sier i UI-et at kollega-lista mangler.
-            setOrgScopeDegraded(true)
             scopedOrg = null
           } else {
             const sess = outcome.value
@@ -308,6 +313,10 @@ export default function LeaderboardPage() {
             authHeader = { Authorization: `Bearer ${sess.access_token}` }
           }
         }
+        // Samme setning som bestemmer URL-en bestemmer hva vi sier om den.
+        // Skriver de to hver for seg, kan de drifte fra hverandre — og da lyver
+        // enten teksten eller lista.
+        setServedOrgSlug(scopedOrg)
         const orgQS = scopedOrg ? `&org=${encodeURIComponent(scopedOrg)}` : ''
 
         // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
@@ -998,6 +1007,9 @@ export default function LeaderboardPage() {
   // Org-kontekst: matcher slug-en mot brukerens org-medlemskap (allerede lastet
   // i loadSession). Gir org-navn til header uten ekstra kall.
   const orgContext = orgSlug ? userOrgs.find(o => o.orgSlug === orgSlug) ?? null : null
+  // Én kilde for BEGGE org-linjene i headeren. De to kan derfor ikke motsi
+  // hverandre, og ingen av dem kan motsi lista de står over.
+  const orgNotice = decideOrgScopeNotice({ requestedOrg: orgSlug, servedOrg: servedOrgSlug })
 
   return (
     <>
@@ -1025,7 +1037,7 @@ export default function LeaderboardPage() {
             <p style={s.eyebrow}>{orgContext?.orgName ?? 'Quizkanonen'}</p>
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>
-            {orgSlug && !orgScopeDegraded && (
+            {orgNotice === 'colleagues' && (
               <p style={{ fontSize: 13, color: '#918f8a', marginTop: 8 }}>
                 Resultater blant kollegene dine
               </p>
@@ -1033,7 +1045,7 @@ export default function LeaderboardPage() {
             {/* Org-scopet falt bort fordi sesjonsoppslaget ikke svarte. Linja
                 må si hvilken liste som FAKTISK vises — ellers leser brukeren
                 den nasjonale toppen som kollegenes. */}
-            {orgScopeDegraded && (
+            {orgNotice === 'degraded' && (
               <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6 }}>
                 Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
                 dette er den nasjonale topplisten.{' '}
