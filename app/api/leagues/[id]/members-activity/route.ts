@@ -74,11 +74,19 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   // Hent alle liga-medlemmer
-  const { data: leagueMembers } = await supabaseAdmin
+  const { data: leagueMembers, error: membersErr } = await supabaseAdmin
     .from('league_members')
     .select('user_id, joined_at')
     .eq('league_id', leagueId)
     .order('joined_at', { ascending: true })
+
+  // Uten denne ble en feilet spørring til «ligaen har ingen medlemmer» — en
+  // tom liste, eller en CSV med bare overskriftsraden. Ikke tom er ikke det
+  // samme som ikke lest.
+  if (membersErr) {
+    console.error('[league-members-activity] medlemsoppslag feilet:', membersErr.message)
+    return NextResponse.json({ error: 'Kunne ikke hente aktivitetsdata.' }, { status: 500 })
+  }
 
   if (!leagueMembers || leagueMembers.length === 0) {
     return format === 'csv'

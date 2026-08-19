@@ -28,7 +28,9 @@ const state: {
   failCount: 1 | 2 | null
   countCalls: number
   members: Array<{ league_id: string; user_id: string }>
-} = { memberCount: 2, failCount: null, countCalls: 0, members: [] }
+  /** true = «er du allerede medlem?»-oppslaget feiler. */
+  membershipCheckFails: boolean
+} = { memberCount: 2, failCount: null, countCalls: 0, members: [], membershipCheckFails: false }
 
 function builder(table: string) {
   let counting = false
@@ -64,6 +66,9 @@ function builder(table: string) {
         return Promise.resolve({ data: { id: LEAGUE_ID, name: 'Kontorligaen', slug: 'kontorligaen' }, error: null })
       }
       // league_members: «er du allerede medlem?»
+      if (state.membershipCheckFails) {
+        return Promise.resolve({ data: null, error: { message: 'simulert DB-feil' } })
+      }
       return Promise.resolve({ data: null, error: null })
     },
     then(resolve: (v: unknown) => void) {
@@ -110,6 +115,7 @@ beforeEach(() => {
   state.failCount = null
   state.countCalls = 0
   state.members = []
+  state.membershipCheckFails = false
 })
 
 test('normaltilfellet er uendret: plass i ligaen → 200 og medlemskap opprettet', async () => {
@@ -144,4 +150,16 @@ test('FAIL CLOSED: post-insert-re-sjekken kan ikke telles → raden rulles tilba
 
   assert.equal(res.status, 503)
   assert.equal(state.members.length, 0, 'et ubekreftet medlemskap skal ikke bli stående')
+})
+
+test('FAIL CLOSED: medlemskaps-sjekken kan ikke leses → 503, ingen innmelding', async () => {
+  // Samme klasse som count-sjekkene: «vet ikke» ble til «ikke medlem», og
+  // innmeldingen gikk videre til en INSERT som i beste fall avvises av
+  // unik-indeksen — da med en 500 i stedet for den ærlige 409-en.
+  state.membershipCheckFails = true
+
+  const res = await bliMed()
+
+  assert.equal(res.status, 503)
+  assert.equal(state.members.length, 0)
 })

@@ -314,6 +314,20 @@ test('feilet attempts-oppslag gir 500, ikke en stille inaktiv liga', async () =>
   assert.ok(json.error, 'feilen skal være synlig for klienten')
 })
 
+test('feilet medlemsoppslag gir 500, ikke en liga uten medlemmer', async () => {
+  // Tom liste og feilet spørring så helt like ut for kalleren — og i CSV-
+  // eksporten ble forskjellen bare en fil med overskriftsraden alene.
+  state.tables = baseTables()
+  state.failTable = 'league_members'
+
+  const res = await GET(req('?period=month'), ctx(LEAGUE))
+
+  assert.equal(res.status, 500)
+  const json = await res.json() as { members?: Member[]; error?: string }
+  assert.equal(json.members, undefined)
+  assert.ok(json.error)
+})
+
 test('feilet season_scores-oppslag gir 500, ikke en liga der alle har 0 poeng', async () => {
   // Den farligste av de tre: 0 poeng ser helt normalt ut de første dagene i en
   // ny periode, så en feilet spørring ville blitt trodd.

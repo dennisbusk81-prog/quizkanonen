@@ -57,12 +57,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Sjekk at brukeren ikke allerede er medlem
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: existingErr } = await supabaseAdmin
     .from('league_members')
     .select('user_id')
     .eq('league_id', league.id)
     .eq('user_id', user.id)
     .maybeSingle()
+
+  // Samme klasse som count-sjekkene under: «vet ikke» ble her til «ikke
+  // medlem», og innmeldingen gikk videre til en INSERT som i beste fall
+  // avvises av unik-indeksen — og da med en 500 i stedet for den ærlige 409-en.
+  if (existingErr) {
+    console.error('[leagues/join] kunne ikke sjekke eksisterende medlemskap:', existingErr.message)
+    return NextResponse.json({ error: 'Kunne ikke melde deg inn akkurat nå. Prøv igjen om litt.' }, { status: 503 })
+  }
 
   if (existing) {
     return NextResponse.json({ error: 'Du er allerede medlem av denne ligaen.', slug: league.slug }, { status: 409 })

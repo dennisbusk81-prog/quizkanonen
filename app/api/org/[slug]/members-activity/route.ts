@@ -73,11 +73,19 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
 
   // Hent alle org-medlemmer
-  const { data: orgMembers } = await supabaseAdmin
+  const { data: orgMembers, error: membersErr } = await supabaseAdmin
     .from('organization_members')
     .select('user_id, role, joined_at')
     .eq('organization_id', orgId)
     .order('joined_at', { ascending: true })
+
+  // Uten denne ble en feilet spørring til «bedriften har ingen ansatte» — en
+  // tom liste, eller en CSV med bare overskriftsraden, servert til en
+  // betalende kunde som tar beslutninger på tallene.
+  if (membersErr) {
+    console.error('[members-activity] medlemsoppslag feilet:', membersErr.message)
+    return NextResponse.json({ error: 'Kunne ikke hente aktivitetsdata.' }, { status: 500 })
+  }
 
   if (!orgMembers || orgMembers.length === 0) {
     return format === 'csv'
