@@ -3474,14 +3474,28 @@ export default function QuizPage() {
       {placementDisplay.mode === 'internal-only' && (() => {
         const org = placementDisplay.org
         const grunn = globalExclusionReason(org)
+        // De to grenene skal IKKE se like ut, og det er ikke en inkonsekvens.
+        // 'org-policy' er ren forklaring uten noe å trykke på — den ER unntaket
+        // CLAUDE.md beskriver, og blir stående som metadata. Den andre grenen
+        // inneholder en lenke til profilen, og tekst du skal kunne klikke i
+        // skal ikke være farget som tekst du ikke skal klikke i.
+        const klikkbar = grunn !== 'org-policy'
         return (
-          <p className="qk-rsec" style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
+          <p className="qk-rsec" style={{
+            fontSize: klikkbar ? 14 : 12,
+            color: klikkbar ? '#e8e4dd' : '#918f8a',
+            lineHeight: 1.6, marginBottom: 14, textAlign: 'center',
+          }}>
             {grunn === 'org-policy' ? (
               <>Du konkurrerer internt hos {org.orgName} og vises ikke på den åpne topplisten.</>
             ) : (
               <>
                 Du har valgt å ikke vises på den åpne topplisten — du konkurrerer internt hos {org.orgName}.{' '}
-                <a href="/profil" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Endre i profilen</a>
+                {/* Understrek er PÅKREVD nå: setningen rundt er #e8e4dd, så
+                    lenken kan ikke lenger skille seg ut på farge alene. Uten
+                    den ville brightningen gjort lenken usynlig som lenke —
+                    samme understrek som de tre retry-knappene bruker. */}
+                <a href="/profil" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Endre i profilen</a>
               </>
             )}
           </p>
