@@ -4,6 +4,7 @@ import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
+import { getUserPremium } from '@/lib/premium-check'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -196,6 +197,41 @@ export async function GET(request: NextRequest) {
 
   userId = authResult.data.user?.id ?? null
 
+  // ── Premium-status for KALLEREN — ett delt kall (B-8, 19. august 2026) ──────
+  // Samme delte sjekk som resten av Premium-gatingen (lib/premium-check.ts),
+  // inkludert karensperiodene. Erstatter fire spredte premium_status-lesinger
+  // (last_quiz-, RPC- og JS-fallback-stien) som hverken tok karens med eller
+  // leste `error`: en bruker i karens mistet stille sin egen eksakte
+  // plassering, og de tidlige tom-returene i last_quiz svarte «ikke Premium»
+  // helt uten oppslag. Flagget gjelder KUN kalleren — ingen rad i `entries`
+  // bærer premium — så dette er ett kall per forespørsel, aldri per bruker.
+  //
+  // Startes her og awaites først i settlePremium() når responsen bygges, slik
+  // at rundturen fullfører i skyggen av grenarbeidet i stedet for å legge seg
+  // til sekvensielt. getUserPremium avviser aldri (feil kommer som
+  // { ok: false }), så et uawaitet promise på en tidlig 4xx-retur er ufarlig.
+  const premiumPromise = userId ? getUserPremium(userId) : null
+
+  // «Vet ikke» skal ikke bli til «ikke Premium»: flagget styrer om kalleren
+  // får se sin egen eksakte plassering, så en transient DB-feil ville stille
+  // servert en betalende kunde gratisvisningen — uten noe som skilte det fra
+  // et utløpt abonnement. 503 er forbigående og kan prøves på nytt; en
+  // degradert visning ser ut som en dom. Samme valg som /api/leaderboard/[id];
+  // en utlogget kaller gjør ikke oppslaget og berøres aldri. Kalles før HVER
+  // respons som bærer userIsPremium — også de tidlige tom-returene.
+  async function settlePremium(): Promise<NextResponse | null> {
+    if (!premiumPromise) return null
+    const premium = await premiumPromise
+    if (!premium.ok) {
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 }
+      )
+    }
+    userIsPremium = premium.value
+    return null
+  }
+
   // ── Scope-gate (6. august 2026) ─────────────────────────────────────────────
   // Samme gating som /api/leagues/[id]/leaderboard og /api/org/[slug]/dashboard:
   // org-/liga-topplister er interne rom, men denne ruten serverte de samme
@@ -272,6 +308,8 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     if (!latestQuiz) {
+      const premiumGate = await settlePremium()
+      if (premiumGate) return premiumGate
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
     }
 
@@ -280,6 +318,8 @@ export async function GET(request: NextRequest) {
     const rawAttempts = await getLastQuizAttempts(latestQuiz.id)
 
     if (rawAttempts.length === 0) {
+      const premiumGate = await settlePremium()
+      if (premiumGate) return premiumGate
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
@@ -332,13 +372,12 @@ export async function GET(request: NextRequest) {
     const profileIds = [...profileIdsSet]
 
     const { data: profiles } = profileIds.length > 0
-      ? await supabaseAdmin.from('profiles').select('id, display_name, nickname, premium_status').in('id', profileIds)
+      ? await supabaseAdmin.from('profiles').select('id, display_name, nickname').in('id', profileIds)
       : { data: [] }
 
     const profileMap = new Map<string, { display_name: string | null; nickname: string | null }>()
-    for (const p of (profiles ?? []) as { id: string; display_name: string | null; nickname: string | null; premium_status: boolean | null }[]) {
+    for (const p of (profiles ?? []) as { id: string; display_name: string | null; nickname: string | null }[]) {
       profileMap.set(p.id, p)
-      if (p.id === userId) userIsPremium = p.premium_status === true
     }
 
     const entries = pageSlice.map(a => {
@@ -415,6 +454,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const premiumGate = await settlePremium()
+    if (premiumGate) return premiumGate
+
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
     return NextResponse.json({ entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE })
   }
@@ -448,6 +490,8 @@ export async function GET(request: NextRequest) {
   // hardkodet 0 her ga totalPages = 1 og fjernet dermed hele knapperaden, så
   // brukeren mistet veien tilbake til side 1 og måtte laste siden på nytt.
   async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0, uBlocked = false) {
+    const premiumGate = await settlePremium()
+    if (premiumGate) return premiumGate
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
       const { data: openQuiz } = await supabaseAdmin
@@ -557,7 +601,7 @@ export async function GET(request: NextRequest) {
     const userStatsPromise = userId
       ? Promise.all([
           supabaseAdmin.rpc('season_leaderboard_user_stats', { ...rpcArgs, p_user_id: userId }),
-          supabaseAdmin.from('profiles').select('display_name, nickname, premium_status').eq('id', userId).maybeSingle(),
+          supabaseAdmin.from('profiles').select('display_name, nickname').eq('id', userId).maybeSingle(),
         ])
       : Promise.resolve(null)
 
@@ -575,7 +619,6 @@ export async function GET(request: NextRequest) {
       const [{ data: us }, { data: prof }] = userResult
       const row = (us ?? [])[0] as { points: number; quiz_count: number; rank: number } | undefined
       if (row) { userRank = Number(row.rank); userStats = { points: Number(row.points), quizCount: Number(row.quiz_count) } }
-      userIsPremium   = prof?.premium_status === true
       userDisplayName = prof?.display_name ?? null
       userNickname    = (prof as { nickname?: string | null } | null)?.nickname ?? null
     }
@@ -637,6 +680,9 @@ export async function GET(request: NextRequest) {
       fastestMs: fastest.get(r.user_id) ?? null,
     }))
 
+    const premiumGate = await settlePremium()
+    if (premiumGate) return premiumGate
+
     console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
@@ -693,17 +739,16 @@ export async function GET(request: NextRequest) {
   const nameMap = new Map<string, string | null>()
   const nickMap = new Map<string, string | null>()
   if (allIds.length > 0) {
-    const { data: profs } = await supabaseAdmin.from('profiles').select('id, display_name, nickname, premium_status').in('id', allIds)
-    for (const p of (profs ?? []) as { id: string; display_name: string | null; nickname: string | null; premium_status: boolean | null }[]) {
+    const { data: profs } = await supabaseAdmin.from('profiles').select('id, display_name, nickname').in('id', allIds)
+    for (const p of (profs ?? []) as { id: string; display_name: string | null; nickname: string | null }[]) {
       nameMap.set(p.id, p.display_name)
       nickMap.set(p.id, p.nickname ?? null)
-      if (p.id === userId) userIsPremium = p.premium_status === true
     }
   }
-  // Premium kan også gjelde en bruker uten season_scores ennå
+  // Kallerens navn kan mangle når hen ikke har season_scores ennå
   if (userId && !nameMap.has(userId)) {
-    const { data: prof } = await supabaseAdmin.from('profiles').select('display_name, nickname, premium_status').eq('id', userId).maybeSingle()
-    if (prof) { userIsPremium = prof.premium_status === true; nameMap.set(userId, prof.display_name); nickMap.set(userId, (prof as { nickname?: string | null }).nickname ?? null) }
+    const { data: prof } = await supabaseAdmin.from('profiles').select('display_name, nickname').eq('id', userId).maybeSingle()
+    if (prof) { nameMap.set(userId, prof.display_name); nickMap.set(userId, (prof as { nickname?: string | null }).nickname ?? null) }
   }
 
   // Rangert liste med plassering = indeks+1
@@ -747,6 +792,9 @@ export async function GET(request: NextRequest) {
     topStreak: streak.get(r.userId) ?? 0,
     fastestMs: fastest.get(r.userId) ?? null,
   }))
+
+  const premiumGate = await settlePremium()
+  if (premiumGate) return premiumGate
 
   console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
