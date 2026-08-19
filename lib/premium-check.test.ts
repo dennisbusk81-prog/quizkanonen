@@ -12,6 +12,8 @@
 //   • Fjernes `personalGraceActive` fra OR-et       → personlig-karens-testen
 //     ryker her OG i begge route-testfilene som setter personal_grace_until.
 //   • Ignoreres `error` (gammel isUserPremium-form) → «vet ikke»-testen ryker.
+//   • Byttes OR til en `!==`-kjede (XOR)            → KUN begge-karenser-testen
+//     ryker (9 av 10 grønne) — den er altså eneste forsvar mot den mutasjonen.
 //   • Byttes `> now` til `>= now` fanges ikke — bevisst: et millisekund-eksakt
 //     «akkurat nå» har ingen observerbar konsekvens å asserte på.
 import { test, mock, beforeEach } from 'node:test'
@@ -97,6 +99,19 @@ test('PERSONLIG karens teller som Premium selv når cachen står false', async (
 test('UTLØPT personlig karens gir ikke Premium', async () => {
   state.row = row({ personal_grace_until: FOR_EN_DAG_SIDEN() })
   assert.deepEqual(await getUserPremium(BRUKER), { ok: true, value: false })
+})
+
+// Begge karensene samtidig er nåbart (f.eks. en eldre kunde uten backfillet
+// personal_stripe_subscription_id som fjernes fra en org mens personlig karens
+// løper). Enkelt-karens-testene over feller ikke et OR byttet til XOR
+// (`!==`-kjede) — den mutasjonen gir riktig svar for én aktiv kilde og feil
+// for to. Denne gjør det.
+test('BEGGE karensene aktive samtidig gir Premium — OR, ikke XOR', async () => {
+  state.row = row({
+    org_premium_grace_until: OM_TRE_DAGER(),
+    personal_grace_until: OM_TRE_DAGER(),
+  })
+  assert.deepEqual(await getUserPremium(BRUKER), { ok: true, value: true })
 })
 
 test('betalt Premium med utløpte karenser er fortsatt Premium (OR, ikke AND)', async () => {
