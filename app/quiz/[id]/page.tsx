@@ -3968,7 +3968,7 @@ export default function QuizPage() {
                 se lint-oppryddingen 5. august 2026. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-              Spill mot vennene dine → Opprett en liga
+              Spill mot vennene dine → Opprett en liga (Premium)
             </a>
           </p>
         )}
@@ -4037,7 +4037,7 @@ export default function QuizPage() {
               <p style={{ fontSize: 14, fontWeight: 700, color: '#e8e4dd', marginBottom: 3 }}>
                 Konkurrer mot venner
               </p>
-              <p style={{ fontSize: 12, color: '#e8e4dd' }}>Opprett en privat liga og inviter vennegjengen</p>
+              <p style={{ fontSize: 12, color: '#e8e4dd' }}>Opprett en liga (Premium) og inviter vennegjengen</p>
             </a>
           )}
         </div>

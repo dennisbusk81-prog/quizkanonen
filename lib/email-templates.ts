@@ -118,7 +118,7 @@ export function trialEndingEmail(daysLeft: number): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
                 Spørsmål? Svar på denne e-posten.
               </p>
@@ -219,7 +219,7 @@ export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string): strin
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 — Dennis, Quizkanonen
               </p>
             </td>
@@ -309,7 +309,7 @@ export function welcomeFreeEmail(firstNameRaw: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 — Dennis, Quizkanonen
               </p>
             </td>
@@ -400,7 +400,7 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.<br />
                 Spørsmål? Svar på denne e-posten.
               </p>
@@ -517,7 +517,7 @@ export function orgAccessEndedEmail(orgNameRaw: string, graceUntil?: string | nu
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Sp&oslash;rsm&aring;l om selve avtalen? Ta kontakt med den som administrerer Quizkanonen hos dere.<br />
                 Sp&oslash;rsm&aring;l ellers? Svar p&aring; denne e-posten.
               </p>
@@ -608,7 +608,7 @@ export function orgGraceReminderEmail(orgNameRaw: string, graceUntil: string): s
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Sp&oslash;rsm&aring;l om selve avtalen? Ta kontakt med den som administrerer Quizkanonen hos dere.<br />
                 Sp&oslash;rsm&aring;l ellers? Svar p&aring; denne e-posten.
               </p>
@@ -697,7 +697,7 @@ export function orgGraceReminderAdminEmail(orgNameRaw: string, orgSlug: string, 
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Stemmer ikke dette? Svar p&aring; denne e-posten, s&aring; ser vi p&aring; det.
               </p>
             </td>
@@ -929,7 +929,7 @@ export function orgInviteEmail(senderNameRaw: string, orgNameRaw: string, invite
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi ${senderName} inviterte deg.
               </p>
             </td>
@@ -1035,8 +1035,8 @@ export function paymentFailedEmail(graceUntilIso?: string | null): string {
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1111,8 +1111,8 @@ export function trialEndedNoCardEmail(): string {
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1184,8 +1184,8 @@ export function orgPaymentFailedEmail(orgNameRaw: string, orgSlug: string): stri
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1317,9 +1317,15 @@ export function trialWelcomeEmail(trialEnd?: number | null, trialDays?: number |
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://www.quizkanonen.no/toppliste"
+                    <!-- CTA-en pekte tidligere på /toppliste med teksten «Se
+                         plasseringen din» — men en fersk prøvebruker HAR ingen
+                         plassering ennå, så løftet var usant i nøyaktig det
+                         øyeblikket e-posten leses. Forsiden er alltid sann:
+                         den viser åpen quiz om det er en, ellers nedtellingen
+                         til fredag. -->
+                    <a href="https://www.quizkanonen.no/"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Se plasseringen din &rarr;
+                      Kom i gang &rarr;
                     </a>
                   </td>
                 </tr>
@@ -1417,8 +1423,8 @@ export function foundersWelcomeEmail(trialEnd?: number | null): string {
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1498,8 +1504,8 @@ export function orgPurchaseEmail(orgNameRaw: string, orgSlug: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1599,8 +1605,8 @@ export function orgTrialEmail(orgNameRaw: string, orgSlug: string, trialEndIso: 
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1671,9 +1677,9 @@ export function orgTrialEndingEmail(orgNameRaw: string, orgSlug: string, trialEn
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er administrator for ${orgName} på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1749,8 +1755,8 @@ export function orgCancelledEmail(orgNameRaw: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -1847,7 +1853,7 @@ export function orgTrialEndedEmail(orgNameRaw: string, orgSlug: string): string 
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er administrator for ${orgName} p&aring; Quizkanonen.<br />
                 Sp&oslash;rsm&aring;l? Svar p&aring; denne e-posten.
               </p>
@@ -1944,7 +1950,7 @@ export function orgAccessLockedEmail(orgNameRaw: string, orgSlug: string): strin
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Stemmer ikke dette? Svar p&aring; denne e-posten, s&aring; ser vi p&aring; det.
               </p>
             </td>
@@ -2012,9 +2018,9 @@ export function orgRenewalEmail(orgNameRaw: string, orgSlug: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er administrator for ${orgName} på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -2095,9 +2101,9 @@ export function premiumWelcomeEmail(): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du nettopp aktiverte Premium på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -2179,9 +2185,9 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du har et aktivt Premium-abonnement på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -2257,9 +2263,9 @@ export function premiumCancelledEmail(): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du hadde et Premium-abonnement på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -2340,7 +2346,7 @@ export function reEngagementEmail(firstNameRaw?: string, unsubscribeUrl?: string
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.
               </p>
             </td>
@@ -2465,9 +2471,9 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er administrator for ${orgName} på Quizkanonen.<br />
-                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#9a9590;">support@quizkanonen.no</a>
+                Spørsmål? <a href="mailto:support@quizkanonen.no" style="color:#918f8a;">support@quizkanonen.no</a>
               </p>
             </td>
           </tr>
@@ -2550,7 +2556,7 @@ export function quizReminderEmail(quizId: string, closesAt?: string | null, quiz
           <!-- Footer -->
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du har slått på quiz-påminnelser.<br />
                 Du kan skru det av under
                 <a href="https://www.quizkanonen.no/profil" style="color:#c9a84c;text-decoration:none;">profilen din</a>.
@@ -2684,7 +2690,7 @@ export function duelInviteEmail(challengerNameRaw: string, unsubscribeUrl?: stri
 
           <tr>
             <td align="center" style="padding-top:28px;">
-              <p style="margin:0;font-size:12px;color:#9a9590;line-height:1.7;">
+              <p style="margin:0;font-size:12px;color:#918f8a;line-height:1.7;">
                 Du mottar denne e-posten fordi du er registrert på Quizkanonen.
               </p>
             </td>

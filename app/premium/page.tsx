@@ -24,6 +24,8 @@ const FEATURES = [
   'Full sesong-toppliste — søk og bla gjennom alle spillere',
   'Historikk og statistikk — beste plassering, streak og utvikling over tid',
   'Private ligaer med venner',
+  'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
+  'Svarfordeling — se hvordan alle svarte på hvert spørsmål',
 ]
 
 export default function PremiumPage() {
@@ -300,6 +302,20 @@ export default function PremiumPage() {
             background: '#21242e', border: '1px solid #2a2d38',
             borderRadius: 20, padding: '32px',
           }}>
+
+            {/* Kjernesetningen — rammer inn hva lista under handler om.
+                Bruker sidens eksisterende tittel-typografi (serif), ikke et
+                nytt visuelt system. */}
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: 20,
+              fontWeight: 700,
+              color: '#ffffff',
+              lineHeight: 1.35,
+              margin: '0 0 20px',
+            }}>
+              Premium for deg som vil mer enn bare svare riktig
+            </p>
 
             {/* Feature list */}
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>

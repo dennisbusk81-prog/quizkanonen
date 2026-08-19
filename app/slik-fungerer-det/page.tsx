@@ -186,6 +186,7 @@ export default function SlikFungererDetPage() {
                   'Estimert plassering',
                   'Delta i sesong-topplisten',
                   'Bli med i private ligaer',
+                  'Duell mot en venn — se hvem som slo hvem',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <span style={{ color: '#918f8a', flexShrink: 0, marginTop: 1 }}>✓</span>
@@ -207,7 +208,8 @@ export default function SlikFungererDetPage() {
                   'Full quizhistorikk uke for uke',
                   'Detaljert statistikk og utvikling over tid',
                   'Opprett egne private ligaer',
-                  'Se hvem du slo og hvem som slo deg',
+                  'Se nøyaktig hvilke spørsmål du svarte feil på',
+                  'Svarfordeling — se hvordan alle svarte på hvert spørsmål',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <span style={{ color: '#c9a84c', flexShrink: 0, marginTop: 1 }}>✓</span>

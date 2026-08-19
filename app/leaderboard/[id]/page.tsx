@@ -1474,7 +1474,7 @@ export default function LeaderboardPage() {
           {!authLoading && session && !hasLeagues && !orgSlug && (
             <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>
               Vil du konkurrere mot vennene dine?{' '}
-              <Link href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en privatliga →</Link>
+              <Link href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en liga (Premium) →</Link>
             </p>
           )}
 

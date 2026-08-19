@@ -13,7 +13,7 @@ const items = [
     title: 'Spill mot vennene dine',
     teaser: 'Opprett en liga, inviter venner, se hvem som vinner.',
     content: 'En privat liga lar deg konkurrere mot venner, familie eller kolleger uke etter uke. Del invitasjonslenken, og alle kan bli med. Poengsummene samles over tid, og ligaen viser hvem som leder.',
-    link: { href: '/liga', text: 'Opprett en liga →' },
+    link: { href: '/liga', text: 'Opprett en liga (Premium) →' },
   },
   {
     title: 'Gratis eller Premium?',
