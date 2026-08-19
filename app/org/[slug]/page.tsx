@@ -35,7 +35,7 @@ export default function OrgLeaderboardPage() {
   // Org-data kommer nå fra den delte ProfileProvider-contexten (ett
   // /api/org/my-orgs-kall per sesjon) i stedet for et eget kall her — speiler
   // migreringen gjort i components/OrgCard.tsx (commit df99071).
-  const { myOrgs, myOrgsLoaded, myOrgsError, refreshMyOrgs } = useProfile()
+  const { myOrgs, myOrgsLoaded, myOrgsError, myOrgsRefreshing, refreshMyOrgs } = useProfile()
 
   const [session,   setSession]   = useState<Session | null | undefined>(undefined)
   const [slowLoad, setSlowLoad] = useState(false)
@@ -107,15 +107,23 @@ export default function OrgLeaderboardPage() {
               Vi fikk ikke kontakt akkurat nå. Medlemskapet ditt er uendret.
             </p>
             <div style={{ marginBottom: 20 }}>
+              {/* Fram til 19. august 2026 nullstilte refreshMyOrgs() myOrgsError
+                  med det samme, så denne skjermen ble byttet ut med lasteskjermen
+                  i klikkøyeblikket. Nå står feilskjermen, og knappen bærer selv
+                  at et forsøk pågår — brukeren mister ikke konteksten sin, og
+                  et nytt trykk kan ikke stables oppå det som allerede løper. */}
               <button
                 onClick={() => { void refreshMyOrgs() }}
+                disabled={myOrgsRefreshing}
                 style={{
                   padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
                   border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                  fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                  fontFamily: "'Instrument Sans', sans-serif",
+                  cursor: myOrgsRefreshing ? 'default' : 'pointer',
+                  opacity: myOrgsRefreshing ? 0.6 : 1,
                 }}
               >
-                Prøv igjen
+                {myOrgsRefreshing ? 'Prøver igjen …' : 'Prøv igjen'}
               </button>
             </div>
             <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Forsiden</Link>

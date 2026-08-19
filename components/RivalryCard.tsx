@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Fragment } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { withTimeout } from '@/lib/with-timeout'
 
 type RivalryRow = {
   id: string
@@ -46,6 +47,12 @@ async function fetchRivalriesShared(accessToken: string): Promise<RivalryRow[]> 
   return inFlightRivalries
 }
 
+// Samme sikkerhetsventil og samme tall som SeasonLeaderboard.tsx og
+// /leaderboard/[id]. En finally frigir tilstanden når kallet KASTER, men et
+// getSession() som aldri settles når aldri fram til finally i det hele tatt —
+// det er to ulike hull, og begge lot knappen stå i «Godtar…».
+const SESSION_CHECK_MS = 1500
+
 export default function RivalryCard({ prioritySlot }: Props) {
   const [rivalries, setRivalries] = useState<RivalryRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,9 +62,15 @@ export default function RivalryCard({ prioritySlot }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false)
 
   const load = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setLoading(false); return }
+    // SØSKEN til handleAction under: getSession() lå UTENFOR try-en, og
+    // setLoading(false) sto som siste setning i stedet for i en finally. Kastet
+    // oppslaget, forsvant hele duellkortet uten spor — `if (loading) return null`
+    // lenger nede rendrer ingenting, så det så ut som om brukeren ikke hadde
+    // dueller. Ingen feilmelding, ingen tom tilstand, bare fravær.
     try {
+      const outcome = await withTimeout(supabase.auth.getSession(), { ms: SESSION_CHECK_MS })
+      const session = outcome.ok ? outcome.value.data.session : null
+      if (!session) return
       const rows = await fetchRivalriesShared(session.access_token)
       setRivalries(rows)
       // Mark unseen incoming challenges as seen
@@ -72,8 +85,9 @@ export default function RivalryCard({ prioritySlot }: Props) {
           body: JSON.stringify({ action: 'seen' }),
         }).catch(() => {/* non-critical */})
       }
-    } catch { /* non-critical */ }
-    setLoading(false)
+    } catch { /* non-critical */ } finally {
+      setLoading(false)
+    }
   }, [])
 
   // load() er en asynkron datahenting som starter med setLoading. Den KAN ikke
@@ -86,9 +100,13 @@ export default function RivalryCard({ prioritySlot }: Props) {
   async function handleAction(id: string, action: 'accept' | 'decline' | 'cancel') {
     setActionLoading(id + action)
     setActionError(null)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setActionLoading(null); return }
     try {
+      // getSession() lå tidligere HER, men utenfor try-en — mellom
+      // setActionLoading(…) og den eneste stien som nullstiller den. Kastet
+      // oppslaget, sto knappen i «Godtar…» til siden ble lastet på nytt.
+      const outcome = await withTimeout(supabase.auth.getSession(), { ms: SESSION_CHECK_MS })
+      const session = outcome.ok ? outcome.value.data.session : null
+      if (!session) return
       let res: Response
       if (action === 'cancel') {
         res = await fetch(`/api/rivalries/${id}`, {
@@ -111,23 +129,24 @@ export default function RivalryCard({ prioritySlot }: Props) {
         const msg = json.error ?? 'Noe gikk galt. Prøv igjen.'
         setActionError(msg)
         setTimeout(() => setActionError(null), 3000)
-        setActionLoading(null)
         return
+      }
+      if (action === 'accept') {
+        setJustAcceptedId(id)
+        setRivalries(prev => prev.map(r => r.id === id ? { ...r, status: 'active' as const, isChallenger: true } : r))
+      } else if (action === 'decline') {
+        setRivalries(prev => prev.filter(r => r.id !== id))
+      } else {
+        load()
       }
     } catch {
       setActionError('Noe gikk galt. Prøv igjen.')
       setTimeout(() => setActionError(null), 3000)
+    } finally {
+      // ÉN utgang for knappetilstanden. Tidligere sto setActionLoading(null)
+      // fire steder, og de to tidligste retur-stiene (ingen sesjon, kastet
+      // getSession) traff ingen av dem.
       setActionLoading(null)
-      return
-    }
-    setActionLoading(null)
-    if (action === 'accept') {
-      setJustAcceptedId(id)
-      setRivalries(prev => prev.map(r => r.id === id ? { ...r, status: 'active' as const, isChallenger: true } : r))
-    } else if (action === 'decline') {
-      setRivalries(prev => prev.filter(r => r.id !== id))
-    } else {
-      load()
     }
   }
 

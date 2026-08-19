@@ -51,6 +51,12 @@ interface ProfileContextValue {
   // `myOrgsLoaded` false: et feilsvar er «vet ikke», aldri «ingen medlemskap»
   // (samme invariant som lib/fetch-result.ts).
   myOrgsError: boolean
+  // true mens et refreshMyOrgs()-forsøk er underveis. Skilt fra myOrgsError
+  // fordi de to svarer på ulike spørsmål: «feilet forrige forsøk?» og «pågår
+  // det et nytt akkurat nå?». Fram til 19. august 2026 fantes bare det første,
+  // og retry-knappen nullstilte det i klikkøyeblikket for å simulere det andre
+  // — se lib/retry-affordance.ts.
+  myOrgsRefreshing: boolean
   // true når profildata (premium/orgs) fortsatt hentes.
   loading: boolean
   // true straks innlogget/utlogget-status er avgjort (første auth-event eller
@@ -63,8 +69,9 @@ interface ProfileContextValue {
   // leaderboard fane-fokus) — samme oppførsel som deres tidligere egne kall.
   refreshProfile: () => Promise<void>
   // Nytt forsøk på KUN org-listen — ruten for «Prøv igjen» på /org/[slug] sin
-  // feilskjerm. Nullstiller myOrgsError med det samme, slik at siden faller
-  // tilbake til lasteskjermen mens forsøket pågår.
+  // feilskjerm og for de to inline-lenkene på resultat-/topplisteflatene.
+  // Rører IKKE myOrgsError før svaret er inne; mellomtilstanden bæres av
+  // myOrgsRefreshing.
   refreshMyOrgs: () => Promise<void>
 }
 
@@ -86,6 +93,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
   const [myOrgs, setMyOrgs] = useState<MyOrg[]>([])
   const [myOrgsLoaded, setMyOrgsLoaded] = useState<boolean>(false)
   const [myOrgsError, setMyOrgsError] = useState<boolean>(false)
+  const [myOrgsRefreshing, setMyOrgsRefreshing] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
   const [resolved, setResolved] = useState<boolean>(false)
 
@@ -173,12 +181,22 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
 
   // Nytt forsøk på kun org-listen (retry-knappen på /org/[slug]).
   const refreshMyOrgs = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) return
-    // Tilbake til «vet ikke» mens forsøket pågår — siden viser da lasteskjermen
-    // i stedet for feilskjermen, uten at den trenger egen retry-state.
-    setMyOrgsError(false)
-    applyMyOrgs(await fetchMyOrgs(session.access_token))
+    // myOrgsError står URØRT her. Den nullstilles først av applyMyOrgs, og kun
+    // ved et faktisk OK-svar. Nullstilte vi den her, ville feilteksten og
+    // knappen forsvunnet i klikkøyeblikket på de to flatene som gates på den
+    // — brukeren ser da et avsnitt blinke bort og ingenting skje.
+    setMyOrgsRefreshing(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      // Ingen sesjon: ingenting å hente. Feiltilstanden beholdes bevisst —
+      // vi har ikke fått noe nytt svar, så det gamle står fortsatt.
+      if (!session?.access_token) return
+      applyMyOrgs(await fetchMyOrgs(session.access_token))
+    } finally {
+      // Alltid. Uten dette låser ett kastet getSession() knappen i «Prøver …»
+      // — samme feilform som den vi nettopp fjernet, bare med nytt fortegn.
+      setMyOrgsRefreshing(false)
+    }
   }, [applyMyOrgs, fetchMyOrgs])
 
   // Tvungen fersk premium-sjekk. Speiler nøyaktig de tidligere bevisste
@@ -273,7 +291,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
     <ProfileContext.Provider
       value={{
         userId, displayName, displayNameRaw, isPremium, hasStripeCustomer, premiumSource,
-        myOrgs, myOrgsLoaded, myOrgsError,
+        myOrgs, myOrgsLoaded, myOrgsError, myOrgsRefreshing,
         loading, resolved, refreshProfile, refreshMyOrgs,
       }}
     >

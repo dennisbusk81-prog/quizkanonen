@@ -19,6 +19,7 @@ import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
 import { decidePlacementDisplay, globalExclusionReason, shouldOfferPlacementRetry } from '@/lib/placement-visibility'
+import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
@@ -984,7 +985,7 @@ export default function QuizPage() {
   // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
   const {
     isPremium, refreshProfile, myOrgs, myOrgsLoaded, userId: profileUserId,
-    myOrgsError, refreshMyOrgs,
+    myOrgsError, myOrgsRefreshing, refreshMyOrgs,
   } = useProfile()
   // Hvilken plassering denne spilleren skal se på resultatskjermen — se
   // lib/placement-visibility.ts. 'internal-only' (blokkert org/eget opt-out)
@@ -3495,20 +3496,32 @@ export default function QuizPage() {
           spillerens egen plassering for resten av økta — se
           shouldOfferPlacementRetry i lib/placement-visibility.ts. Dempet og
           uten gull: skjermen har allerede sin ene gule flate. ── */}
-      {shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError }) && (
+      {(() => {
+        // describeRetry gir mellomtilstanden et navn. Uten den forsvant HELE
+        // dette avsnittet i klikkøyeblikket (19. august 2026) — se
+        // lib/retry-affordance.ts.
+        const retry = shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError })
+          ? describeRetry({ failed: myOrgsError, refreshing: myOrgsRefreshing })
+          : 'hidden'
+        if (retry === 'hidden') return null
+        return (
         <p className="qk-rsec" style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
           Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
           <button
             onClick={() => { void refreshMyOrgs() }}
+            disabled={retry === 'pending'}
             style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+              background: 'none', border: 'none', padding: 0,
+              cursor: retry === 'pending' ? 'default' : 'pointer',
+              font: 'inherit', color: '#e8e4dd',
+              textDecoration: retry === 'pending' ? 'none' : 'underline',
             }}
           >
-            Prøv igjen
+            {retry === 'pending' ? 'Prøver igjen …' : 'Prøv igjen'}
           </button>
         </p>
-      )}
+        )
+      })()}
 
       {(() => {
         // Hvem ser hva avgjøres av decideResultPlacementView (ren, testdekket —

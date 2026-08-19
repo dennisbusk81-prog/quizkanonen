@@ -16,7 +16,15 @@ import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
+import { describeRetry } from '@/lib/retry-affordance'
 import type { Session } from '@supabase/supabase-js'
+import { withTimeout } from '@/lib/with-timeout'
+
+// Sikkerhetsventil på getSession() — samme verdi og samme begrunnelse som
+// components/SeasonLeaderboard.tsx: oppslaget leser normalt cookie/localStorage
+// på under 100 ms, så dette er aldri normal last, kun en øvre grense mot at
+// auth-låsen henger. Ikke et nytt tall; bevisst DET tallet.
+const SESSION_CHECK_MS = 1500
 
 const podiumStyles = `
   @keyframes podiumSlideIn {
@@ -149,9 +157,13 @@ export default function LeaderboardPage() {
   // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
   const {
     isPremium, myOrgs, myOrgsLoaded, userId: profileUserId, refreshProfile,
-    myOrgsError, refreshMyOrgs,
+    myOrgsError, myOrgsRefreshing, refreshMyOrgs,
   } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
+  // Org-lenke der sesjonsoppslaget ikke svarte i tide: vi viser den nasjonale
+  // listen i stedet for å bli stående på spinneren, og SIER at det er det som
+  // vises. Se fetchData under.
+  const [orgScopeDegraded, setOrgScopeDegraded] = useState(false)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
@@ -270,15 +282,33 @@ export default function LeaderboardPage() {
         // sendes med auth-token. Org-visning er alltid innlogget (man kommer fra
         // bedriftssiden). Nasjonal modus: uendret, anonymt kall som før.
         let authHeader: Record<string, string> = {}
+        // scopedOrg, ikke orgSlug, styrer HENTINGEN nedenfor. De to skilles ad
+        // fordi org-scopet kan falle bort uten at lenken gjør det.
+        let scopedOrg = orgSlug
         if (orgSlug) {
-          const sess = await getSession()
-          if (!sess?.access_token) {
-            router.push(`/login?next=${encodeURIComponent(`/leaderboard/${quizId}?org=${orgSlug}`)}`)
-            return
+          // Tidsgrense (19. august 2026): dette awaitet lå FØR den eneste
+          // setLoading(false) (finally lenger nede). Et kast var dekket, men et
+          // getSession() som HENGER på auth-låsen settles aldri — og da kjørte
+          // hverken catch eller finally. Siden ble stående og spinne, uten feil,
+          // uten logg, uten vei videre for brukeren utenom omlasting.
+          const outcome = await withTimeout(getSession(), { ms: SESSION_CHECK_MS })
+          if (!outcome.ok) {
+            // Verken heng eller feil er et svar på «er du innlogget?». Å sende
+            // brukeren til /login ville PÅSTÅTT at hen er utlogget — vi vet det
+            // ikke. Vi faller derfor til nasjonal visning, som er tilgjengelig
+            // uten token, og sier i UI-et at kollega-lista mangler.
+            setOrgScopeDegraded(true)
+            scopedOrg = null
+          } else {
+            const sess = outcome.value
+            if (!sess?.access_token) {
+              router.push(`/login?next=${encodeURIComponent(`/leaderboard/${quizId}?org=${orgSlug}`)}`)
+              return
+            }
+            authHeader = { Authorization: `Bearer ${sess.access_token}` }
           }
-          authHeader = { Authorization: `Bearer ${sess.access_token}` }
         }
-        const orgQS = orgSlug ? `&org=${encodeURIComponent(orgSlug)}` : ''
+        const orgQS = scopedOrg ? `&org=${encodeURIComponent(scopedOrg)}` : ''
 
         // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
         // med JS-fallback). Erstatter tidligere nedlasting av opptil 2000 rader.
@@ -320,7 +350,7 @@ export default function LeaderboardPage() {
         // attempts.user_id ikke lenger er lesbar med anon-nøkkelen.
         try {
           const prevRes = await fetch(
-            `/api/leaderboard/${quizId}/prev-rank${orgSlug ? `?org=${encodeURIComponent(orgSlug)}` : ''}`,
+            `/api/leaderboard/${quizId}/prev-rank${scopedOrg ? `?org=${encodeURIComponent(scopedOrg)}` : ''}`,
             { headers: authHeader },
           )
           if (prevRes.ok) {
@@ -348,9 +378,19 @@ export default function LeaderboardPage() {
     } catch {}
   }, [quizId])
 
+  // SØSKEN til tidsgrensen i fetchData (19. august 2026), og verre: her fantes
+  // hverken try, catch eller finally. `authLoading` gater ni render-blokker —
+  // plassering, del-knapp, ligakort, «Prøv igjen»-lenken — så et getSession()
+  // som kastet ELLER hang lot dem alle stå uskrevne for resten av økta. I
+  // motsetning til fetchData rammet dette også nasjonal visning.
   const loadSession = useCallback(async () => {
     setAuthLoading(true)
-    const sess = await getSession()
+    try {
+    const outcome = await withTimeout(getSession(), { ms: SESSION_CHECK_MS })
+    // Ingen svar er «vet ikke», og for denne siden er «vet ikke» det samme som
+    // utlogget: den nasjonale listen vises for alle, og de innlogget-gatede
+    // blokkene uteblir — nøyaktig som for en besøkende uten konto.
+    const sess = outcome.ok ? outcome.value : null
     setSession(sess)
     lastSessionIdentityRef.current = getSessionIdentity(sess)
     if (sess?.user) {
@@ -453,7 +493,12 @@ export default function LeaderboardPage() {
         loadDuelStatus(),
       ])
     }
-    setAuthLoading(false)
+    } finally {
+      // ENESTE sted authLoading slås av. Står i finally nettopp fordi de fire
+      // kallene over kan kaste utenfor sin egen catch (allSettled kaster ikke,
+      // men setState-kallene og getSessionIdentity kan).
+      setAuthLoading(false)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgSlug])
 
@@ -980,9 +1025,27 @@ export default function LeaderboardPage() {
             <p style={s.eyebrow}>{orgContext?.orgName ?? 'Quizkanonen'}</p>
             <h1 style={s.title}>Quiz<em style={s.titleEm}>kanonen</em></h1>
             <p style={s.subtitle}>{quiz.title}</p>
-            {orgSlug && (
+            {orgSlug && !orgScopeDegraded && (
               <p style={{ fontSize: 13, color: '#918f8a', marginTop: 8 }}>
                 Resultater blant kollegene dine
+              </p>
+            )}
+            {/* Org-scopet falt bort fordi sesjonsoppslaget ikke svarte. Linja
+                må si hvilken liste som FAKTISK vises — ellers leser brukeren
+                den nasjonale toppen som kollegenes. */}
+            {orgScopeDegraded && (
+              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 8, lineHeight: 1.6 }}>
+                Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
+                dette er den nasjonale topplisten.{' '}
+                <button
+                  onClick={() => window.location.reload()}
+                  style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+                  }}
+                >
+                  Prøv igjen
+                </button>
               </p>
             )}
             <div style={s.rule} />
@@ -1094,21 +1157,32 @@ export default function LeaderboardPage() {
               Plassert her, rett under hero-kortet, fordi det er der tallet
               skulle stått. Krever hasPlayed: uten et resultat er det ingen
               plassering å savne. ── */}
-          {!authLoading && session && hasPlayed
-            && shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError }) && (
+          {!authLoading && session && hasPlayed && (() => {
+            // Samme mellomtilstand som resultatskjermen i app/quiz/[id] —
+            // begge gates på myOrgsError, og begge forsvant i klikkøyeblikket
+            // fram til 19. august 2026. Se lib/retry-affordance.ts.
+            const retry = shouldOfferPlacementRetry({ mode: placementDisplay.mode, myOrgsError })
+              ? describeRetry({ failed: myOrgsError, refreshing: myOrgsRefreshing })
+              : 'hidden'
+            if (retry === 'hidden') return null
+            return (
             <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', marginBottom: 12, lineHeight: 1.6 }}>
               Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
               <button
                 onClick={() => { void refreshMyOrgs() }}
+                disabled={retry === 'pending'}
                 style={{
-                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                  font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+                  background: 'none', border: 'none', padding: 0,
+                  cursor: retry === 'pending' ? 'default' : 'pointer',
+                  font: 'inherit', color: '#e8e4dd',
+                  textDecoration: retry === 'pending' ? 'none' : 'underline',
                 }}
               >
-                Prøv igjen
+                {retry === 'pending' ? 'Prøver igjen …' : 'Prøv igjen'}
               </button>
             </p>
-          )}
+            )
+          })()}
 
           {/* Del-knapp — innloggede brukere som har spilt */}
           {!authLoading && session && hasPlayed && (() => {
