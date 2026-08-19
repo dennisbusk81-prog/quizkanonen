@@ -1,14 +1,14 @@
 -- ============================================================
 -- organizations — DROP COLUMN admin_can_see_answers
 --
--- ⚠️ STATUS: IKKE KJØRT. Denne linjen er den eneste kilden til om
---    migrasjonen er anvendt. Kjører du den, ERSTATT linjen med
---    «STATUS: KJØRT I PROD <dato>» i samme commit som kjøringen.
+-- ✅ STATUS: KJØRT I PROD 19. august 2026. Bedriftspanelet laster normalt
+--    etter droppet.
 --
---    Bakgrunn for det kravet: 20260728000000_attempt_answers_unique.sql
---    står med «⚠️ KAN IKKE KJØRES ENNÅ (status 25. juli 2026)» og ER
---    likevel anvendt i prod. En statusmerknad frosset til en dato i
---    fortiden er verre enn ingen merknad — den leses som gjeldende.
+--    Merk for framtidige migrasjoner: 20260728000000_attempt_answers_unique.sql
+--    står fortsatt med «⚠️ KAN IKKE KJØRES ENNÅ (status 25. juli 2026)» og ER
+--    likevel anvendt i prod. En statusmerknad frosset til en dato i fortiden
+--    leses som gjeldende — derfor ble denne linjen oppdatert i samme omgang
+--    som kjøringen, ikke «senere».
 --
 -- FORMÅL:
 -- Fjerne en innstilling som aldri ble koblet til noe.
