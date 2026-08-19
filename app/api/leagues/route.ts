@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getUserPremium } from '@/lib/premium-check'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { z } from 'zod'
@@ -100,14 +101,18 @@ export async function POST(request: NextRequest) {
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
   if (authError || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  // Krev Premium
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('premium_status')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.premium_status) {
+  // Krev Premium — samme delte sjekk som resten av gatingen
+  // (lib/premium-check.ts), inkludert karensperiodene. Var tidligere en lokal
+  // `premium_status`-spørring som hverken tok karens med eller leste `error` —
+  // en transient DB-feil ble dermed til 403 for en betalende kunde.
+  const premium = await getUserPremium(user.id)
+  if (!premium.ok) {
+    return NextResponse.json(
+      { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+  if (!premium.value) {
     return NextResponse.json({ error: 'Opprettelse av liga krever Premium.' }, { status: 403 })
   }
 
