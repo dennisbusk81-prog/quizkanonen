@@ -44,6 +44,26 @@ const state: {
   listCalls: number
   /** profiles.personal_grace_until slik den står i «databasen». */
   existingGrace: string | null
+  /**
+   * Lar en maybeSingle()-lesing feile per tabell (19. august 2026). PostgREST
+   * gir da `{ data: null, error }` — og det er nettopp `data: null` som ikke
+   * lar seg skille fra «raden finnes ikke», som er hele feilklassen
+   * assertCriticalRead finnes for.
+   */
+  readError: Record<string, { code: string; message: string } | undefined>
+  /**
+   * Samme, men konsumert ÉN lesing om gangen. Nødvendig fordi to av grenene
+   * slår opp profilen to ganger (primært på kunde-id, sekundært på
+   * abonnements-id): lar man begge feile, fanger fallback-vakten alt, og
+   * vakten på primæroppslaget kan fjernes uten at en eneste test blir rød.
+   *
+   * `'empty'` betyr «spørringen gikk bra, men fant ingen rad» — nødvendig for å
+   * i det hele tatt NÅ fallback-oppslaget, og dermed for å kunne felle vakten
+   * som står på det.
+   */
+  readErrorQueue: Record<string, Array<{ code: string; message: string } | 'empty' | null>>
+  /** organizations.maybeSingle skal gi treff (B2B-scenario) i stedet for null. */
+  orgRow: Record<string, unknown> | null
 } = {
   event: {},
   storedSubId: null,
@@ -54,6 +74,9 @@ const state: {
   recomputed: [],
   listCalls: 0,
   existingGrace: null,
+  readError: {},
+  readErrorQueue: {},
+  orgRow: null,
 }
 
 // ── Stripe-SDK ─────────────────────────────────────────────────────────────
@@ -86,15 +109,29 @@ function builder(table: string) {
     in() { return b },
     limit() { return b },
     insert() { return Promise.resolve({ error: null }) },
-    delete() { return Promise.resolve({ error: null }) },
+    // Returnerer byggeren, ikke et ferdig promise: `releaseIdempotencyStamp`
+    // kaller `.delete().eq(...)`. Så lenge INGEN test nådde catch-grenen var
+    // forskjellen usynlig — det første kastet i ruten avslørte den.
+    delete() { return b },
     update(values: Record<string, unknown>) {
       b._update = values
       if (table === 'profiles') state.profileUpdates.push(values)
       return b
     },
+    // Checkout-grenen bruker upsert, ikke update. Manglet i mocken helt til en
+    // test faktisk kjørte checkout.session.completed.
+    upsert(values: Record<string, unknown>) {
+      if (table === 'profiles') state.profileUpdates.push(values)
+      return b
+    },
     maybeSingle() {
-      // B2C-scenario: ingen org matcher kunden.
-      if (table === 'organizations') return Promise.resolve({ data: null, error: null })
+      const queued = state.readErrorQueue[table]?.shift()
+      if (queued === 'empty') return Promise.resolve({ data: null, error: null })
+      if (queued) return Promise.resolve({ data: null, error: queued })
+      const failure = state.readError[table]
+      if (failure) return Promise.resolve({ data: null, error: failure })
+      // B2C-scenario som standard: ingen org matcher kunden.
+      if (table === 'organizations') return Promise.resolve({ data: state.orgRow, error: null })
       if (table === 'profiles') {
         return Promise.resolve({
           data: { id: PROFILE_ID, personal_stripe_subscription_id: state.storedSubId },
@@ -183,6 +220,9 @@ beforeEach(() => {
   state.recomputed = []
   state.listCalls = 0
   state.existingGrace = null
+  state.readError = {}
+  state.readErrorQueue = {}
+  state.orgRow = null
 })
 
 // ── Karensperiode ved ufrivillig betalingsfeil (17. august 2026) ───────────
@@ -381,4 +421,243 @@ test('satt felt som matcher → ingen unødvendig Stripe-oppslag', async () => {
 
   assert.equal(state.listCalls, 0, 'et satt felt er autoritativt — ingen ekstra API-kall')
   assert.equal(state.sent.length, 1)
+})
+
+// ── assertCriticalRead på de stille oppslagene (19. august 2026) ───────────
+//
+// Feilklassen er ikke «spørringen feilet» — den er at PostgREST svarer
+// `{ data: null, error }`, og at `data: null` er BOKSTAVELIG TALT den samme
+// verdien som «raden finnes ikke». Grenene under leste kun `data`, så en nede
+// database så ut som en kunde vi ikke kjenner: hendelsen ble stemplet som
+// behandlet, Stripe leverte den aldri på nytt, og tilstanden ble stående.
+//
+// Testene feller derfor to ting samtidig — at ruten svarer 500 (stempelet
+// fjernes, Stripe retry-er), OG at ingen sideeffekt rakk å skje først. Bare
+// statuskoden ville bestått selv om e-posten var sendt.
+
+const DB_DOWN = { code: '57P03', message: 'the database system is starting up' }
+
+function refundedEvent() {
+  return {
+    id: `evt_ref_${Math.random()}`,
+    type: 'charge.refunded',
+    data: { object: { id: 'ch_1', customer: CUSTOMER, amount: 4900, amount_refunded: 4900 } },
+  }
+}
+
+function paymentFailedEvent(attemptCount = 1) {
+  return {
+    id: `evt_inv_${Math.random()}`,
+    type: 'invoice.payment_failed',
+    data: {
+      object: {
+        id: 'in_1',
+        customer: CUSTOMER,
+        subscription: SUB_TRIAL,
+        attempt_count: attemptCount,
+      },
+    },
+  }
+}
+
+test('charge.refunded — feilet profiloppslag gir 500, ikke en stille «ukjent kunde»', async () => {
+  state.readError = { profiles: DB_DOWN }
+  state.event = refundedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 500, 'stempelet må fjernes så Stripe kan levere refusjonen på nytt')
+  assert.deepEqual(state.recomputed, [], 'ingen rekalkulering på en profil vi ikke fikk lest')
+  assert.deepEqual(state.profileUpdates, [], 'premium_since skal ikke røres')
+})
+
+test('charge.refunded — lykkes oppslaget, fjernes premium_since som før', async () => {
+  state.event = refundedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 200)
+  assert.ok(
+    state.profileUpdates.some(u => u.premium_since === null),
+    'normalstien skal være uendret — testen over måler en feil, ikke en ny gate',
+  )
+  assert.deepEqual(state.recomputed, [PROFILE_ID])
+})
+
+test('sub.deleted — feilet org-oppslag behandles IKKE som «dette er en privatkunde»', async () => {
+  state.readError = { organizations: DB_DOWN }
+  state.paymentMethods = 1
+  state.event = deletedEvent('cancellation_requested', SUB_TRIAL)
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  // Det farlige var ikke den manglende låsen alene, men at hendelsen falt hele
+  // veien ned i B2C-grenen på en org-kunde.
+  assert.deepEqual(state.profileUpdates, [], 'ingen B2C-rydding på en org vi ikke fikk lest')
+  assert.deepEqual(state.recomputed, [])
+  assert.equal(state.sent.length, 0, 'ingen kanselleringse-post — kastet ligger foran sendingen')
+})
+
+test('invoice.payment_failed — feilet profiloppslag gir 500 FØR e-posten er ute', async () => {
+  state.readError = { profiles: DB_DOWN }
+  state.paymentMethods = 1
+  state.event = paymentFailedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  // Hele poenget med retry-en: uten karensdato ville brukeren fått
+  // «Betalingen feilet» uten den datoen e-posten er bygget for å oppgi.
+  assert.equal(state.sent.length, 0, 'e-posten må ikke rekke ut — ellers dobles den ved retry')
+  assert.deepEqual(state.profileUpdates, [], 'ingen karens stemplet på en profil vi ikke fikk lest')
+})
+
+// ── Primæroppslag vs. fallback: fellene som «begge feiler» ikke fanger ─────
+//
+// Begge grenene under har TO profiloppslag. Lar man begge feile, kaster
+// fallback-vakten uansett, og vakten på primæroppslaget kan slettes uten at
+// noen test blir rød. Disse to testene lar derfor kun det FØRSTE feile.
+
+test('sub.deleted — primæroppslaget feiler mens fallbacken treffer: stale-sub-vakten skal ikke hoppes over', async () => {
+  // Uten vakten på primæroppslaget: `profileByCustomer` blir null, fallbacken
+  // finner profilen likevel — men `isCurrentPersonalSub` står da igjen på sin
+  // default `true`. HELE stale-sub-vakten er dermed forbigått, og en hendelse
+  // for et forbigått abonnement slår av Premium og sender kanselleringse-post
+  // til en bruker hvis gjeldende abonnement er helt friskt.
+  state.readErrorQueue = { profiles: [DB_DOWN] }
+  state.storedSubId = null
+  state.stripeSubs = [{ id: SUB_NEW, status: 'active' }]
+  state.paymentMethods = 1
+  state.event = deletedEvent('cancellation_requested', SUB_TRIAL)
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(state.sent.length, 0, 'ingen «abonnementet er avsluttet» på et levende abonnement')
+  assert.deepEqual(state.recomputed, [], 'Premium skal ikke slås av')
+})
+
+test('invoice.payment_failed — primæroppslaget feiler og fakturaen har ingen sub-id: ingen vei til fallbacken', async () => {
+  // Fallbacken krever en subscription-id fra fakturaen. Mangler den, finnes
+  // ingen andre vei til brukeren: uten vakten blir `profileForFailed` null,
+  // karensen stemples aldri, og e-posten går ut med `graceUntil = null` — uten
+  // den datoen den er skrevet for å oppgi.
+  state.readErrorQueue = { profiles: [DB_DOWN] }
+  state.paymentMethods = 1
+  state.event = {
+    id: `evt_inv_${Math.random()}`,
+    type: 'invoice.payment_failed',
+    data: { object: { id: 'in_2', customer: CUSTOMER, attempt_count: 1 } },
+  }
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(state.sent.length, 0, 'e-post uten karensdato skal ikke rekke ut')
+  assert.deepEqual(state.profileUpdates, [])
+})
+
+test('invoice.payment_succeeded — feilet org-oppslag låser ikke opp org-en, og skal derfor retry-es', async () => {
+  // Dette er veien ut for en org som ble låst på past_due og NÅ BETALER.
+  // Uten vakten klassifiseres bedriften som privatkunde: `subscription_status:
+  // 'active'` skrives aldri (org-en blir stående låst selv om pengene kom inn),
+  // og fakturaadressen får privat-teksten «Abonnementet ditt er fornyet».
+  state.readError = { organizations: DB_DOWN }
+  state.event = {
+    id: `evt_paid_${Math.random()}`,
+    type: 'invoice.payment_succeeded',
+    data: { object: { id: 'in_ok', customer: CUSTOMER, billing_reason: 'subscription_cycle', period_end: 1789000000 } },
+  }
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(state.sent.length, 0, 'ingen B2C-fornyelsesbekreftelse til en bedrift')
+})
+
+test('sub.deleted — fallback-oppslaget feiler: «no profile found» skal ikke dekke over en nede database', async () => {
+  // Primæroppslaget finner ingen rad (profilen mangler stripe_customer_id),
+  // fallbacken feiler. Uten vakten logges «no profile found» — ordrett det
+  // samme som for en kunde vi aldri har sett — og abonnements-id-en blir aldri
+  // nullet, Premium aldri rekalkulert etter kanselleringen.
+  state.readErrorQueue = { profiles: ['empty', DB_DOWN] }
+  state.paymentMethods = 1
+  state.event = deletedEvent('cancellation_requested', SUB_TRIAL)
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.deepEqual(state.profileUpdates, [])
+  assert.deepEqual(state.recomputed, [])
+})
+
+test('invoice.payment_failed — fallback-oppslaget feiler: karensen går tapt i stillhet', async () => {
+  // Fallbacken ble lagt inn 19. august nettopp fordi en profil uten
+  // stripe_customer_id ellers mistet hele karensen ved første avviste trekk.
+  // En stille lesefeil her gjenåpner det hullet.
+  state.readErrorQueue = { profiles: ['empty', DB_DOWN] }
+  state.paymentMethods = 1
+  state.event = paymentFailedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(state.sent.length, 0, 'ingen «Betalingen feilet» uten karensdato')
+  assert.deepEqual(state.profileUpdates, [])
+})
+
+test('checkout — feilet kunde-id-oppslag skal LOGGES, ikke kaste (betalingen er i havn)', async () => {
+  // Det motsatte valget, og med vilje: lesingen mater kun duplikat-kunde-
+  // advarselen. Å gjøre en betalt checkout til en 500 — og dermed til en evig
+  // Stripe-retry — over en diagnostisk logglinje er feil vei å feile. Men helt
+  // stille kan den ikke være: da er «ingen lagret kunde-id» ikke til å skille
+  // fra «oppslaget feilet».
+  const errors: string[] = []
+  const realError = console.error
+  console.error = (...args: unknown[]) => { errors.push(args.map(String).join(' ')) }
+  try {
+    state.readError = { profiles: DB_DOWN }
+    state.event = {
+      id: `evt_co_${Math.random()}`,
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_1',
+          customer: CUSTOMER,
+          subscription: SUB_TRIAL,
+          metadata: { userId: PROFILE_ID },
+        },
+      },
+    }
+
+    const res = await call()
+
+    assert.equal(res.status, 200, 'en betalt checkout skal ikke retry-es over en logglinje')
+    assert.ok(
+      state.profileUpdates.some(u => u.premium_status === true),
+      'Premium skal tildeles som normalt — lesefeilen stopper ingenting',
+    )
+  } finally {
+    console.error = realError
+  }
+
+  assert.ok(
+    errors.some(e => e.includes('kunne ikke lese eksisterende stripe_customer_id')),
+    'feilen må være synlig i loggen — ellers er den ikke til å skille fra «ingen lagret id»',
+  )
+})
+
+test('invoice.payment_failed — org-oppslaget feiler: bedriften får ikke B2C-teksten', async () => {
+  state.readError = { organizations: DB_DOWN }
+  state.paymentMethods = 1
+  state.event = paymentFailedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(
+    state.sent.length, 0,
+    'uten vakten falt en org-kunde til B2C-grenen og fikk «Quizkanonen Premium»-teksten',
+  )
 })

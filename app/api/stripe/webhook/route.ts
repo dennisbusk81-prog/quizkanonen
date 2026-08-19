@@ -233,9 +233,21 @@ function assertCriticalWrite(error: { code?: string; message: string } | null, c
 // Premium på ubestemt tid, uten et eneste spor.
 //
 // Feilretningen er derfor den samme som for en kritisk skriving: kast, slik at
-// catch-en fjerner stempelet og Stripe kan levere hendelsen om igjen. Retry er
-// trygt fordi ALLE tre kallstedene ligger FØR e-postsendingen i sin gren —
-// ingen mottaker rekker å få en dobbel varsling av at vi kaster her.
+// catch-en fjerner stempelet og Stripe kan levere hendelsen om igjen.
+//
+// KONTRAKT (utvidet 19. august 2026, fra 3 til 11 kallsteder): funksjonen skal
+// KUN brukes på lesinger som ligger FØR enhver e-postsending, ethvert
+// Stripe-kall med sideeffekt og enhver ikke-idempotent skriving i sin gren.
+// Det er hele grunnlaget for at retry er trygt — kaster vi etter at en e-post
+// er ute, får mottakeren den på nytt ved neste levering. Rene LESINGER mot
+// Stripe (getLiveSubscriptionIds, customerHasPaymentMethod, getUserEmail,
+// subscriptions.retrieve) er ufarlige å gjenta og teller ikke som sideeffekt.
+//
+// Merk hvorfor de tre oppslagene i `customer.subscription.updated` (org-
+// diskriminatoren og de to profiloppslagene i kanselleringsgrenen) BEVISST
+// står uten: `subscriptionResumedEmail` er fire-and-forget øverst i den grenen,
+// altså foran dem alle. De trenger enten en egen beslutning eller at oppslaget
+// flyttes over resume-blokken.
 //
 // Egen funksjon og ikke assertCriticalWrite: loggmarkøren skal si om det var
 // en lesing eller en skriving som sviktet, og kontrakten over gjelder
@@ -535,11 +547,25 @@ export async function POST(request: NextRequest) {
         : (session.customer as Stripe.Customer | null)?.id ?? null
 
       if (checkoutCustomerId) {
-        const { data: existingProfile } = await supabaseAdmin
+        const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
           .from('profiles')
           .select('stripe_customer_id')
           .eq('id', userId)
           .maybeSingle()
+
+        // Logg-og-fortsett, og BEVISST ikke assertCriticalRead: denne lesingen
+        // mater kun advarselen under. Å gjøre en betalt checkout til en 500 —
+        // og dermed til en evig Stripe-retry — fordi en diagnostisk logglinje
+        // ikke lot seg skrive, er feil vei å feile. Men uten dette kan «ingen
+        // lagret kunde-id» ikke skilles fra «oppslaget feilet», og nettopp
+        // duplikat-kunde-sporet forsvinner stille.
+        if (existingProfileError) {
+          console.error(
+            `[webhook] kunne ikke lese eksisterende stripe_customer_id for userId=${userId} — ` +
+            `en eventuell OVERSKRIVING blir ikke logget. session=${session.id}:`,
+            existingProfileError.code, existingProfileError.message,
+          )
+        }
 
         const storedCustomerId = existingProfile?.stripe_customer_id ?? null
         if (storedCustomerId && storedCustomerId !== checkoutCustomerId) {
@@ -591,11 +617,17 @@ export async function POST(request: NextRequest) {
     if ((invoice as unknown as { billing_reason: string }).billing_reason === 'subscription_cycle') {
       const customerId = invoice.customer as string
 
-      const { data: orgForInvoice } = await supabaseAdmin
+      const { data: orgForInvoice, error: orgForInvoiceError } = await supabaseAdmin
         .from('organizations')
         .select('id, name, slug')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
+      // Diskriminatoren B2B/B2C. Feiler den, klassifiseres en bedrift som
+      // privatkunde: `subscription_status: 'active'` skrives aldri, så en org
+      // som ble låst på past_due og NÅ BETALER forblir låst — og fakturaadressen
+      // får privat-teksten «Abonnementet ditt er fornyet» i stedet for org-ens
+      // egen. Kastet ligger foran begge, så retry sender ingen dobbel e-post.
+      assertCriticalRead(orgForInvoiceError, `invoice-fornyelse org-oppslag customer=${customerId}`)
 
       if (orgForInvoice) {
         // B2B — vellykket fornyelsesbetaling: sikre at org er aktiv (idempotent).
@@ -649,11 +681,15 @@ export async function POST(request: NextRequest) {
     const subscription = event.data.object as Stripe.Subscription
     const customerId = subscription.customer as string
 
-    const { data: org } = await supabaseAdmin
+    const { data: org, error: orgReadError } = await supabaseAdmin
       .from('organizations')
       .select('id, name, slug, stripe_subscription_id, subscription_status')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
+    // Diskriminatoren. En feilet lesing ga `org = null`, som er UMULIG å skille
+    // fra «kunden er ikke en org» — hendelsen falt til B2C-grenen, org-en ble
+    // aldri låst, og medlemmene beholdt Premium på ubestemt tid uten et spor.
+    assertCriticalRead(orgReadError, `sub.deleted org-oppslag customer=${customerId}`)
 
     // FIX 2 — robust mot stale subscription-id. En sen deleted-hendelse for et
     // gammelt, erstattet abonnement (f.eks. etter reaktivering med et nytt) skal
@@ -776,11 +812,16 @@ export async function POST(request: NextRequest) {
       let profileId: string | null = null
       let isCurrentPersonalSub = true
 
-      const { data: profileByCustomer } = await supabaseAdmin
+      const { data: profileByCustomer, error: profileByCustomerError } = await supabaseAdmin
         .from('profiles')
         .select('id, personal_stripe_subscription_id')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
+      // Ikke bare «da prøver vi fallback-oppslaget». Treffer fallbacken, står
+      // `isCurrentPersonalSub` igjen på sin default `true`, og HELE stale-sub-
+      // vakten (FIX 3 + HULL 1) hoppes over — en sen hendelse for et forbigått
+      // abonnement ville da slått av Premium og sendt kanselleringse-post.
+      assertCriticalRead(profileByCustomerError, `sub.deleted B2C profiloppslag customer=${customerId}`)
 
       if (profileByCustomer) {
         profileId = profileByCustomer.id
@@ -802,11 +843,15 @@ export async function POST(request: NextRequest) {
           liveSubIds,
         })
       } else {
-        const { data: profileBySub } = await supabaseAdmin
+        const { data: profileBySub, error: profileBySubError } = await supabaseAdmin
           .from('profiles')
           .select('id')
           .eq('personal_stripe_subscription_id', subscriptionId)
           .maybeSingle()
+        // Siste vei til brukeren. Feiler den, logges «no profile found» — ikke
+        // til å skille fra en kunde vi aldri har sett — og abonnements-id-en
+        // blir aldri nullet, Premium aldri rekalkulert etter kanselleringen.
+        assertCriticalRead(profileBySubError, `sub.deleted B2C profiloppslag sub=${subscriptionId}`)
         if (profileBySub) profileId = profileBySub.id
       }
 
@@ -888,11 +933,16 @@ export async function POST(request: NextRequest) {
     const invoice = event.data.object as Stripe.Invoice
     const customerId = invoice.customer as string
 
-    const { data: orgForFailed } = await supabaseAdmin
+    const { data: orgForFailed, error: orgForFailedError } = await supabaseAdmin
       .from('organizations')
       .select('id, name, slug')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
+    // Diskriminatoren. Feiler den, får bedriftens fakturaadresse B2C-teksten
+    // («Betalingen feilet — Quizkanonen Premium», eller «Prøveperioden din er
+    // over») i stedet for orgPaymentFailedEmail, og ingen org-admin varsles.
+    // Kastet ligger FØR enhver sending, så retry gir ingen dobbel e-post.
+    assertCriticalRead(orgForFailedError, `payment_failed org-oppslag customer=${customerId}`)
 
     if (orgForFailed) {
       // B2B — varsle ALLE org-admins
@@ -914,11 +964,16 @@ export async function POST(request: NextRequest) {
       // B2C — varsle bruker, men KUN hvis de ikke allerede har aktiv Premium via en
       // annen kilde (org-medlemskap). Har brukeren org-Premium, mister de ingenting
       // reelt om det personlige abonnementet feiler, og e-posten er bare forvirrende.
-      const { data: profileByCustomerForFailed } = await supabaseAdmin
+      const { data: profileByCustomerForFailed, error: profileByCustomerForFailedError } = await supabaseAdmin
         .from('profiles')
         .select('id, personal_stripe_subscription_id')
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
+      // Uten profil kalles applyPersonalGrace aldri: karensperioden blir ALDRI
+      // stemplet, og e-posten som skal oppgi en konkret dato sendes med
+      // `graceUntil = null`. Purring nr. 2 har attempt_count > 1 og hopper over
+      // hele blokken, så syklusen får ingen ny sjanse via denne ruten.
+      assertCriticalRead(profileByCustomerForFailedError, `payment_failed profiloppslag customer=${customerId}`)
 
       // subscription-id ligger på ulike felt før/etter dahlia-API-endringen — prøv begge.
       // Utledes FØR e-postbeslutningen fordi stale-sub-sjekken under trenger den.
@@ -940,11 +995,15 @@ export async function POST(request: NextRequest) {
       // dermed hele karensen ved første avviste trekk.
       let profileForFailed = profileByCustomerForFailed
       if (!profileForFailed && subscriptionId) {
-        const { data: profileBySubForFailed } = await supabaseAdmin
+        const { data: profileBySubForFailed, error: profileBySubForFailedError } = await supabaseAdmin
           .from('profiles')
           .select('id, personal_stripe_subscription_id')
           .eq('personal_stripe_subscription_id', subscriptionId)
           .maybeSingle()
+        // Denne fallbacken FINNES fordi karensen ellers går tapt for en profil
+        // uten stripe_customer_id. En stille lesefeil her gjenåpner nøyaktig
+        // det hullet den ble lagt inn for å lukke.
+        assertCriticalRead(profileBySubForFailedError, `payment_failed profiloppslag sub=${subscriptionId}`)
         if (profileBySubForFailed) profileForFailed = profileBySubForFailed
       }
 
@@ -1409,11 +1468,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true })
     }
 
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileReadError } = await supabaseAdmin
       .from('profiles')
       .select('id')
       .eq('stripe_customer_id', customerId)
       .maybeSingle()
+    // Samme klasse som reportMoneyPathFailure dekker to grener over, bare
+    // stillere: pengene er betalt tilbake, og en feilet lesing gjorde at kunden
+    // beholdt Premium — mens loggen sa «no profile found», som er nøyaktig det
+    // en kunde vi aldri har sett også sier. Her er retry gratis: hele
+    // charge.refunded sender ingen e-post, og lesingen er første setning etter
+    // de to tidlige returene.
+    assertCriticalRead(profileReadError, `charge.refunded profiloppslag customer=${customerId}`)
 
     if (profile) {
       // premium_since nullstilles, men selve Premium-flagget rekalkuleres: en
