@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { readAdminBody, readAdminList } from '@/lib/admin-load'
+import { autoDismissMs } from '@/lib/admin-feedback'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
@@ -1285,6 +1286,22 @@ function QuizEditorInner() {
   }, [updateQuizMeta])
 
   // Standalone closes_at update — only patches the closes_at column
+  //
+  // Kvitteringen («Tidsfrist oppdatert») forsvinner av seg selv; FEILEN gjør
+  // det ikke lenger. Tidsfristen styrer når quizen stenger, så en admin som
+  // ikke fikk med seg at lagringen feilet, tror en ny frist er satt. Samme
+  // skille som autoDismissMs (lib/admin-feedback.ts) gjør for showFeedback.
+  const closesAtTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setClosesAtResult = useCallback((next: 'ok' | 'error' | null) => {
+    if (closesAtTimer.current !== null) clearTimeout(closesAtTimer.current)
+    closesAtTimer.current = null
+    setClosesAtStatus(next)
+    const delay = next === null ? null : autoDismissMs(next === 'ok' ? 'success' : 'error')
+    if (delay !== null) {
+      closesAtTimer.current = setTimeout(() => { setClosesAtStatus(null); closesAtTimer.current = null }, delay)
+    }
+  }, [])
+
   const updateClosesAtOnly = useCallback(async () => {
     const qId = quizIdRef.current
     // Samme sentinel-vakt som updateQuizMeta — createQuiz sender closes_at selv.
@@ -1296,18 +1313,11 @@ function QuizEditorInner() {
           closes_at: new Date(closesAtRef.current).toISOString(),
         }),
       })
-      if (!res.ok) {
-        setClosesAtStatus('error')
-        setTimeout(() => setClosesAtStatus(null), 3000)
-        return
-      }
-      setClosesAtStatus('ok')
-      setTimeout(() => setClosesAtStatus(null), 3000)
+      setClosesAtResult(res.ok ? 'ok' : 'error')
     } catch {
-      setClosesAtStatus('error')
-      setTimeout(() => setClosesAtStatus(null), 3000)
+      setClosesAtResult('error')
     }
-  }, [])
+  }, [setClosesAtResult])
 
   // ── Navigation ────────────────────────────────────────────────────────────────
 
@@ -1985,7 +1995,17 @@ function QuizEditorInner() {
                     <p style={{ fontSize: 12, color: '#c9a84c', marginTop: 4, margin: '4px 0 0' }}>Tidsfrist oppdatert</p>
                   )}
                   {closesAtStatus === 'error' && (
-                    <p style={{ fontSize: 12, color: '#e8e4dd', marginTop: 4, margin: '4px 0 0' }}>Noe gikk galt — prøv igjen</p>
+                    <p style={{ fontSize: 12, color: '#f87171', margin: '4px 0 0' }}>
+                      Tidsfristen ble IKKE lagret — prøv igjen
+                      <button
+                        type="button"
+                        aria-label="Lukk feilmelding"
+                        onClick={() => setClosesAtResult(null)}
+                        style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                      >
+                        Lukk
+                      </button>
+                    </p>
                   )}
                 </div>
               </div>

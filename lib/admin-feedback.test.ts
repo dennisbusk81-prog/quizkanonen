@@ -86,3 +86,70 @@ for (const { file, label } of FEEDBACK_PAGES) {
       `${label}: feilmeldingen blir stående uten en «Lukk»-knapp — verre enn før`)
   })
 }
+
+// ── DE TO STATUS-PILLENE (19. august, andre runde) ─────────────────────────
+//
+// Begge var samme klasse som [A-2] i en annen innpakning: en egen state-variabel
+// med sin egen bare setTimeout, uten typeskille.
+//
+// resetError var dessuten IKKE BARE glemt for fort — den ble aldri sett. Ved
+// feil returnerer handleReset uten å lukke modalen, så pilla ble skrevet til
+// sidekroppen BAK modalens `position: fixed; inset: 0; zIndex: 9999`. Admin
+// klikket «Nullstill», ingenting syntes å skje, og de fem sekundene gikk ut
+// mens overlegget dekket meldingen. Derfor krever testen at feilen finnes
+// INNE i modalen, ikke bare at timeren er borte.
+//
+// MUTASJONSBEVIS (kjørt):
+//   • setTimeout(() => setResetError(null), 5000) tilbake  → «ingen timer» ryker
+//   • resetError fjernet fra modal-blokken                 → «vises i modalen» ryker
+//   • closesAt-timeren gjort ubetinget                     → «autoDismissMs» ryker
+//   • Lukk-knappen fjernet på hver av dem                  → «vei ut» ryker
+
+test('resetError: ingen timer nullstiller den lenger', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  // IKKE ^\s*setTimeout: den opprinnelige feilen sto MIDT på linja
+  // (`setResetError(...); setTimeout(...); return`) inne i en if-blokk. Et
+  // linjestart-anker her ville sluppet nettopp den formen gjennom — målt, ikke
+  // antatt: mutasjonen overlevde første versjon av denne testen.
+  // Negativt lookahead holder påstanden unna kommentarlinjer, som er det
+  // ankeret ellers gjorde jobben med.
+  const timers = src.match(/^(?!\s*(\/\/|\*)).*setTimeout\([^\n]*setResetError\(null\)/gm) ?? []
+  assert.deepEqual(timers, [],
+    `en timer skjuler fortsatt reset-feilen: ${timers.map(t => t.trim()).join(' | ')}`)
+})
+
+test('resetError: vises INNE i modalen, ikke bare bak den', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  const modalAt = src.indexOf('{/* Reset-modal */}')
+  assert.notEqual(modalAt, -1, 'fant ikke reset-modalen')
+  const modal = src.slice(modalAt)
+  assert.match(modal, /^\s*\{resetError && \(/m,
+    'modalen viser ikke resetError — feilen havner bak overlegget og blir aldri sett')
+  assert.match(modal, /aria-label="Lukk feilmelding"/,
+    'reset-feilen i modalen har ingen «Lukk»')
+})
+
+test('resetError: sidekopien er gatet på at modalen er LUKKET', () => {
+  // Ellers ville feilen stått to steder samtidig, og den ene usynlig.
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  assert.match(src, /^\s*\{resetError && !resetModal && \(/m,
+    'sidepilla er ikke gatet på !resetModal')
+})
+
+test('closesAtStatus: feilen er ikke lenger på samme timer som kvitteringen', () => {
+  const src = readFileSync('app/admin/quizzes/new/page.tsx', 'utf8')
+  // Her finnes det ÉN lovlig timer: den betingede inne i setClosesAtResult,
+  // som bruker `delay` fra autoDismissMs. Skillet mot den gamle formen er at
+  // den gamle hadde et HARDKODET millisekundtall — 3000, uansett type. Testen
+  // feller derfor kun numeriske literaler.
+  //
+  // Første versjon manglet dette skillet og gjorde baseline rød på den lovlige
+  // timeren. Målt, ikke resonnert fram.
+  const bare = src.match(/setTimeout\([^\n]*setClosesAtStatus\(null\)[^\n]*,\s*\d+\s*\)/g) ?? []
+  assert.deepEqual(bare, [],
+    `tidsfrist-feilen har fortsatt en timer med fast varighet: ${bare.map(t => t.trim()).join(' | ')}`)
+  assert.match(src, /^\s*const delay = next === null \? null : autoDismissMs\(/m,
+    'tidsfrist-statusen spør ikke autoDismissMs om typen')
+  assert.match(src, /aria-label="Lukk feilmelding"/,
+    'tidsfrist-feilen har ingen «Lukk» — den ville blitt stående uten vei ut')
+})

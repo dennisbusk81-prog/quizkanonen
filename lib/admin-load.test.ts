@@ -190,6 +190,51 @@ test('quizzes/new: et feilet spørsmålskall blir ikke til en tom spørsmålslis
     'spørsmålene hentes ikke lenger gjennom readAdminList')
 })
 
+// ── admin/page: et TALL som lyver er verre enn en tom liste ────────────────
+//
+// `if (statsRes.ok)` uten else lot nullobjektet fra useState bli stående, så
+// panelet påsto «0 registrerte spillere / 0 Premium» ved en 403/500 — med 400
+// spillere i basen. Et tall ser målt ut på en måte en tom liste ikke gjør.
+//
+// MUTASJONSBEVIS (kjørt):
+//   • useState<Stats | null>(null) → useState<Stats>({...nuller})  feller null-testen
+//   • `stats ? stats.players : STAT_UNKNOWN` → `stats?.players ?? 0` feller tall-testen
+//   • Promise.allSettled → Promise.all                              feller uavhengighetstesten
+
+test('admin/page: stats starter som null — «ikke lastet», ikke «null spillere»', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  assert.match(src, /^\s*const \[stats, setStats\] = useState<Stats \| null>\(null\)/m,
+    'stats starter på et nullobjekt igjen — da kan en feilet henting ikke skilles fra et målt null')
+  assert.match(src, /^\s*const \[recentQuizzes, setRecentQuizzes\] = useState<QuizRow\[\] \| null>\(null\)/m,
+    'recentQuizzes starter som [] — en feilet henting ser da ut som «ingen quizer»')
+})
+
+test('admin/page: ingen av de fire tallene faller tilbake på 0 i visningen', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  for (const key of ['players', 'active30d', 'quizzes', 'premium']) {
+    assert.match(src, new RegExp(`^\\s*<div className="adm-stat-value">\\{stats \\? stats\\.${key} : STAT_UNKNOWN\\}</div>`, 'm'),
+      `${key}-kortet viser ikke STAT_UNKNOWN når stats mangler — da påstår panelet et tall det ikke har`)
+  }
+  assert.doesNotMatch(src, /^\s*<div className="adm-stat-value">\{stats\?\.[a-zA-Z0-9]+ \?\? 0\}/m,
+    '`?? 0` er tilbake i et stat-kort — det er nøyaktig løgnen fiksen fjernet')
+})
+
+test('admin/page: de to hentingene degraderer UAVHENGIG av hverandre', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  assert.match(src, /^\s*const \[statsR, quizR\] = await Promise\.allSettled\(\[/m,
+    'fetchAll bruker Promise.all igjen — da fjerner en feilet stats-henting også de tre siste quizene')
+})
+
+test('admin/page: feiltilstanden sier at tallet er UKJENT, og har «Prøv igjen»', () => {
+  const src = readFileSync('app/admin/page.tsx', 'utf8')
+  assert.match(src, /^\s*const \[loadError, setLoadError\] = useState\(false\)/m)
+  assert.match(src, /^\s*setLoadError\(!ok\)/m,
+    'loadError settes aldri ut fra om hentingene gikk bra')
+  assert.match(src, /De er ikke null —/,
+    'feilkortet forklarer ikke at tallet er ukjent og ikke null')
+  assert.match(src, /Prøv igjen/, 'ingen vei videre fra feiltilstanden')
+})
+
 test('quizzes/new: en lastefeil kaster deg ikke lenger ut av editoren uten forklaring', () => {
   const src = readFileSync('app/admin/quizzes/new/page.tsx', 'utf8')
   const load = src.slice(src.indexOf('async function loadExistingQuiz'))

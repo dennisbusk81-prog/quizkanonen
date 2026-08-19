@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { autoDismissMs } from '@/lib/admin-feedback'
+import { readAdminBody, readAdminList } from '@/lib/admin-load'
 import Link from 'next/link'
 
 const STYLES = `
@@ -142,6 +143,36 @@ const STYLES = `
   .adm-btn-outline:hover { border-color: rgba(255,255,255,0.2); color: var(--white); }
 
   /* Stats grid */
+  .adm-load-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--card);
+    border: 0.5px solid rgba(248,113,113,0.35);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--body);
+    line-height: 1.5;
+  }
+  .adm-load-retry {
+    background: transparent;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .adm-load-retry:disabled { opacity: 0.6; cursor: not-allowed; }
+
   .adm-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
 
   .adm-stat {
@@ -351,6 +382,15 @@ function nextFridayNoon(): string {
 
 type Stats = { quizzes: number; players: number; active30d: number; premium: number; premiumBySource: Record<string, number> }
 
+/**
+ * Det som står i et talls plass når vi IKKE vet tallet.
+ *
+ * En tankestrek, ikke «0» og ikke «—» skjult bak et lite spinner-ikon: null er
+ * et målt tall og skal aldri kunne bety «hentingen feilet». Se feilkortet over
+ * rutenettet for hvorfor tallet mangler.
+ */
+const STAT_UNKNOWN = '–'
+
 const PREMIUM_SOURCE_LABELS: Record<string, string> = {
   founders: 'Founders',
   org: 'bedrift',
@@ -363,8 +403,15 @@ type ResetModal = null | 'all' | 'test'
 
 export default function AdminHome() {
   const router = useRouter()
-  const [stats, setStats] = useState<Stats>({ quizzes: 0, players: 0, active30d: 0, premium: 0, premiumBySource: {} })
-  const [recentQuizzes, setRecentQuizzes] = useState<QuizRow[]>([])
+  // null = IKKE LASTET, ikke «null spillere». Fram til 19. august sto stats på
+  // et nullobjekt fra første render, og `if (statsRes.ok)` hadde ingen
+  // else-gren — en 403/500/nettverksfeil lot altså nullene bli stående, og
+  // panelet påsto «0 registrerte spillere / 0 Premium» med 400 spillere i
+  // basen. Verre enn en tom liste, fordi et tall ser målt ut.
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [recentQuizzes, setRecentQuizzes] = useState<QuizRow[] | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [nextQuizValue, setNextQuizValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -390,26 +437,59 @@ export default function AdminHome() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // allSettled, ikke all: de to kallene er UAVHENGIGE overflater. Med
+  // Promise.all ville en feilet stats-henting også fjernet de tre siste
+  // quizene, selv om det kallet gikk fint — en feil skal degradere sin egen
+  // rute, ikke naboens.
   async function fetchAll() {
+    const [statsR, quizR] = await Promise.allSettled([
+      adminFetch('/api/admin/stats'),
+      adminFetch('/api/admin/quizzes'),
+    ])
+    let ok = true
+
     try {
-      const [statsRes, quizzesRes] = await Promise.all([
-        adminFetch('/api/admin/stats'),
-        adminFetch('/api/admin/quizzes'),
-      ])
-      if (statsRes.ok) {
-        const data = await statsRes.json()
-        setStats({ quizzes: data.quizzes ?? 0, players: data.players ?? 0, active30d: data.active30d ?? 0, premium: data.premium ?? 0, premiumBySource: data.premiumBySource ?? {} })
+      if (statsR.status !== 'fulfilled') throw statsR.reason
+      const body = await readAdminBody(statsR.value) as Partial<Stats>
+      // Alle fire tallene kreves. `?? 0` ville vært samme feil i det små: et
+      // manglende felt er et uventet svar, ikke et målt null.
+      if (typeof body.quizzes !== 'number' || typeof body.players !== 'number'
+        || typeof body.active30d !== 'number' || typeof body.premium !== 'number') {
+        throw new Error('Uventet svarformat fra serveren')
       }
-      if (quizzesRes.ok) {
-        const all: QuizRow[] = await quizzesRes.json()
-        const sorted = [...all].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-        setRecentQuizzes(sorted.slice(0, 3))
-      }
+      setStats({
+        quizzes: body.quizzes,
+        players: body.players,
+        active30d: body.active30d,
+        premium: body.premium,
+        premiumBySource: body.premiumBySource ?? {},
+      })
     } catch (e) {
-      console.error('fetchAll feilet:', e)
-    } finally {
-      setLoading(false)
+      console.error('stats-hentingen feilet:', e)
+      setStats(null)
+      ok = false
     }
+
+    try {
+      if (quizR.status !== 'fulfilled') throw quizR.reason
+      const all = await readAdminList<QuizRow>(quizR.value, null)
+      const sorted = [...all].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      setRecentQuizzes(sorted.slice(0, 3))
+    } catch (e) {
+      console.error('quiz-hentingen feilet:', e)
+      setRecentQuizzes(null)
+      ok = false
+    }
+
+    setLoadError(!ok)
+    setLoading(false)
+    return ok
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    await fetchAll()
+    setRetrying(false)
   }
 
   async function fetchFounders() {
@@ -500,16 +580,26 @@ export default function AdminHome() {
     setSaving(false)
   }
 
+  // Feilen her ble aldri SETT, ikke bare glemt for fort.
+  //
+  // Ved feil returnerer funksjonen uten å lukke modalen, så det gamle
+  // `setResetError(...)` + 5-sekunderstimer skrev til en pille som ligger i
+  // sidekroppen — BAK modalens `position: fixed; inset: 0; zIndex: 9999`. En
+  // admin som klikket «Nullstill» så altså ingenting skje, og de fem sekundene
+  // gikk ut mens overlegget fortsatt dekket meldingen. Feilen vises nå der
+  // øyet faktisk er (inne i modalen), og blir stående til den erstattes av
+  // neste forsøk eller lukkes for hånd.
   async function handleReset() {
     if (!resetModal || resetInput !== 'NULLSTILL' || resetting) return
     setResetting(true)
+    setResetError(null)
     try {
       const res = await adminFetch('/api/admin/season-scores/reset', {
         method: 'POST',
         body: JSON.stringify({ scope: resetModal }),
       })
-      const data = await res.json()
-      if (!res.ok) { setResetError(data.error ?? 'Noe gikk galt.'); setTimeout(() => setResetError(null), 5000); return }
+      const data = await res.json().catch(() => null)
+      if (!res.ok) { setResetError(data?.error ?? `Serveren svarte ${res.status}.`); return }
       setResetModal(null)
       setResetInput('')
       setResetDone('Sesong nullstilt')
@@ -574,9 +664,21 @@ export default function AdminHome() {
         </div>
 
         {/* Stats */}
+        {loadError && (
+          <div className="adm-load-error">
+            <span>
+              Noen tall kunne ikke hentes, og vises som «{STAT_UNKNOWN}». De er ikke null —
+              vi vet bare ikke hva de er akkurat nå.
+            </span>
+            <button className="adm-load-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        )}
+
         <div className="adm-stats">
           <Link href="/admin/users" className="adm-stat">
-            <div className="adm-stat-value">{stats.players}</div>
+            <div className="adm-stat-value">{stats ? stats.players : STAT_UNKNOWN}</div>
             <div className="adm-stat-label">Registrerte spillere</div>
             <div className="adm-stat-link">Se mer →</div>
           </Link>
@@ -586,12 +688,12 @@ export default function AdminHome() {
               over. Kopi-lim-feil fra nabokortet (Quizer totalt), funnet ved
               full lenke-revisjon 26. juli 2026. */}
           <Link href="/admin/users" className="adm-stat">
-            <div className="adm-stat-value">{stats.active30d}</div>
+            <div className="adm-stat-value">{stats ? stats.active30d : STAT_UNKNOWN}</div>
             <div className="adm-stat-label">Aktive 30 dager</div>
             <div className="adm-stat-link">Se mer →</div>
           </Link>
           <Link href="/admin/quizzes" className="adm-stat">
-            <div className="adm-stat-value">{stats.quizzes}</div>
+            <div className="adm-stat-value">{stats ? stats.quizzes : STAT_UNKNOWN}</div>
             <div className="adm-stat-label">Quizer totalt</div>
             <div className="adm-stat-link">Se mer →</div>
           </Link>
@@ -600,9 +702,9 @@ export default function AdminHome() {
               viser Premium-badge per bruker og et totaltall, og er dermed den
               faktiske "se mer"-destinasjonen for dette tallet. */}
           <Link href="/admin/users" className="adm-stat">
-            <div className="adm-stat-value">{stats.premium}</div>
+            <div className="adm-stat-value">{stats ? stats.premium : STAT_UNKNOWN}</div>
             <div className="adm-stat-label">Premium-brukere</div>
-            {Object.keys(stats.premiumBySource).length > 0 && (
+            {stats && Object.keys(stats.premiumBySource).length > 0 && (
               <div className="adm-stat-breakdown">
                 {Object.entries(stats.premiumBySource)
                   .sort((a, b) => b[1] - a[1])
@@ -649,7 +751,15 @@ export default function AdminHome() {
         </div>
 
         {/* Recent quizzes */}
-        {recentQuizzes.length > 0 && (
+        {recentQuizzes === null && (
+          <div className="adm-section">
+            <p className="adm-section-label">Siste quizer</p>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6 }}>
+              Kunne ikke hentes. Bruk «Prøv igjen» over.
+            </p>
+          </div>
+        )}
+        {recentQuizzes !== null && recentQuizzes.length > 0 && (
           <div className="adm-section">
             <p className="adm-section-label">Siste quizer</p>
             {recentQuizzes.map(quiz => {
@@ -817,9 +927,20 @@ export default function AdminHome() {
                 {resetDone}
               </span>
             )}
-            {resetError && (
-              <span style={{ fontSize: 12, color: '#c94c4c', background: 'rgba(201,76,76,0.08)', padding: '4px 10px', borderRadius: 6 }}>
+            {/* Denne kopien er for tilfellet der modalen er lukket med «Avbryt»
+                mens feilen fortsatt står. Selve feilen vises primært INNE i
+                modalen — se handleReset. */}
+            {resetError && !resetModal && (
+              <span style={{ fontSize: 12, color: '#f87171', background: 'rgba(248,113,113,0.08)', padding: '4px 10px', borderRadius: 6 }}>
                 {resetError}
+                <button
+                  type="button"
+                  aria-label="Lukk feilmelding"
+                  onClick={() => setResetError(null)}
+                  style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  Lukk
+                </button>
               </span>
             )}
           </div>
@@ -850,9 +971,22 @@ export default function AdminHome() {
               style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
               onKeyDown={e => { if (e.key === 'Enter') handleReset() }}
             />
+            {resetError && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 8, padding: '8px 10px', marginBottom: 16, lineHeight: 1.5 }}>
+                <span style={{ flex: 1 }}>{resetError}</span>
+                <button
+                  type="button"
+                  aria-label="Lukk feilmelding"
+                  onClick={() => setResetError(null)}
+                  style={{ background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  Lukk
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
-                onClick={() => { setResetModal(null); setResetInput('') }}
+                onClick={() => { setResetModal(null); setResetInput(''); setResetError(null) }}
                 className="adm-btn-outline"
                 style={{ padding: '8px 16px' }}
               >
