@@ -49,8 +49,12 @@ const s = {
   statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
   statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 },
 
-  btnGold:        { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '11px 24px', borderRadius: 10, textDecoration: 'none' },
-  btnOutlineGold: { display: 'inline-block', background: 'transparent', color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #c9a84c' },
+  // Nøytral (hvit outline), ikke gull: lenka står permanent på siden, mens
+  // «Lagre» blir gull i det navnet endres. Var begge gull, hadde skjermen to
+  // gull-elementer så snart brukeren skrev ett tegn i navnefeltet. Gullet
+  // følger handlingen brukeren er midt i; navigasjon er sekundær — samme
+  // begrunnelse som pwBtn under.
+  btnOutline:     { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #e8e4dd' },
   redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
   redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
   redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
@@ -857,9 +861,9 @@ export default function ProfilPage() {
               ))}
             </div>
             {isPremium ? (
-              <Link href="/historikk" style={s.btnOutlineGold}>Se full historikk →</Link>
+              <Link href="/historikk" style={s.btnOutline}>Se full historikk →</Link>
             ) : (
-              <Link href="/premium" style={s.btnOutlineGold}>Oppgrader til Premium for full historikk →</Link>
+              <Link href="/premium" style={s.btnOutline}>Oppgrader til Premium for full historikk →</Link>
             )}
           </div>
 
