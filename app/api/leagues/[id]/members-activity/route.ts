@@ -91,31 +91,54 @@ export async function GET(request: NextRequest, { params }: Params) {
   const memberIds = leagueMembers.map(m => m.user_id)
 
   // Hent profiler
-  const { data: profiles } = await supabaseAdmin
+  const { data: profiles, error: profilesErr } = await supabaseAdmin
     .from('profiles')
     .select('id, display_name, last_seen_at')
     .in('id', memberIds)
 
+  // Samme vakt som attempts-oppslaget lenger nede, og av samme grunn: et tomt
+  // sett her er ikke «ingen profiler», det er «vi vet ikke» — og lista ville
+  // vist navnløse medlemmer uten et eneste spor.
+  if (profilesErr) {
+    console.error('[league-members-activity] profil-oppslag feilet:', profilesErr.message)
+    return NextResponse.json({ error: 'Kunne ikke hente aktivitetsdata.' }, { status: 500 })
+  }
+
   const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
 
   // Hent ekskluderte brukere
-  const { data: excluded } = await supabaseAdmin
+  const { data: excluded, error: excludedErr } = await supabaseAdmin
     .from('excluded_members')
     .select('user_id')
     .eq('scope_type', 'league')
     .eq('scope_id', leagueId)
 
+  // Feiler denne, blir settet tomt og EKSKLUDERTE MEDLEMMER DUKKER OPP IGJEN i
+  // lista — en utmelding som stille slutter å gjelde er verre enn en feilmelding.
+  if (excludedErr) {
+    console.error('[league-members-activity] excluded_members-oppslag feilet:', excludedErr.message)
+    return NextResponse.json({ error: 'Kunne ikke hente aktivitetsdata.' }, { status: 500 })
+  }
+
   const excludedSet = new Set((excluded ?? []).map(e => e.user_id))
 
   // Hent season_scores for perioden
   const periodStart = getPeriodStart(period)
-  const { data: scores } = await supabaseAdmin
+  const { data: scores, error: scoresErr } = await supabaseAdmin
     .from('season_scores')
     .select('user_id, points, quiz_id')
     .eq('scope_type', 'league')
     .eq('scope_id', leagueId)
     .gte('closes_at', periodStart)
     .in('user_id', memberIds)
+
+  // Den farligste av de tre: et tomt sett gir HELE ligaen 0 poeng, og 0 poeng
+  // ser helt normalt ut de første dagene i en ny periode. Feilen ville altså
+  // vært usynlig nettopp når den er mest sannsynlig å bli trodd.
+  if (scoresErr) {
+    console.error('[league-members-activity] season_scores-oppslag feilet:', scoresErr.message)
+    return NextResponse.json({ error: 'Kunne ikke hente aktivitetsdata.' }, { status: 500 })
+  }
 
   // ── AKTIV-prikken: faktisk deltakelse siste 30 dager ────────────────────────
   // Egen kilde fra poeng-kolonnene over, og med vilje:

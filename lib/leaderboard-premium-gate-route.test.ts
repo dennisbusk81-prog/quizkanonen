@@ -3,7 +3,7 @@
 //
 // INTEGRASJONSTEST av den ekte GET /api/leaderboard/[id]. `mock.module` bytter
 // ut supabase-admin, slik at både ruten, lib/ranking og lib/premium-check
-// kjøres uendret — grace-perioden testes derfor mot den EKTE isUserPremium.
+// kjøres uendret — grace-perioden testes derfor mot den EKTE getUserPremium.
 //
 // SAKEN: eksakt plassering er en Premium-funksjon, men muren lå kun i klienten.
 // Ruten sendte `userRank` (og hele raden med eksakt rank) til enhver innlogget
@@ -12,7 +12,7 @@
 // MUTASJONSBEVIS (alle kjørt):
 //   • Fjernes `userIsPremium`-grenen (alltid eksakt)      → 4 tester ryker.
 //   • Byttes grovmalingen til `mine.rank`                  → 2 tester ryker.
-//   • Byttes isUserPremium tilbake til `premium_status === true` alene
+//   • Byttes getUserPremium tilbake til `premium_status === true` alene
 //     → grace-testen ryker (brukeren i grace mister eksakt plassering).
 //   • Fjernes raden helt for gratis (`userEntry = null`)   → 3 tester ryker
 //     (score/tid/streak/antall spørsmål forsvinner for gratisbrukere).
@@ -116,11 +116,14 @@ const state: {
   quiz: QuizRow | null
   /** true = organisasjons-oppslagene i lib/globally-blocked-set feiler. */
   orgLookupsThrow: boolean
+  /** true = selve premium-oppslaget i lib/premium-check feiler. */
+  premiumLookupFails: boolean
 } = {
   attempts: [],
   profile: { premium_status: false, org_premium_grace_until: null },
   quiz: null,
   orgLookupsThrow: false,
+  premiumLookupFails: false,
 }
 
 /** Et innsendt solo-forsøk. Færre riktige = dårligere plassering. */
@@ -168,6 +171,9 @@ function builder(table: string, orgLookupsThrow: boolean) {
     maybeSingle() {
       if (table === 'quizzes') return Promise.resolve({ data: state.quiz, error: null })
       // Ellers: premium-oppslaget i lib/premium-check.
+      if (state.premiumLookupFails) {
+        return Promise.resolve({ data: null, error: { message: 'simulert DB-feil' } })
+      }
       return Promise.resolve({ data: state.profile, error: null })
     },
     then(resolve: (v: unknown) => void) {
@@ -248,6 +254,38 @@ beforeEach(() => {
   // Standard: en helt vanlig, åpen quiz uten skjult leaderboard.
   state.quiz = quizRow()
   state.orgLookupsThrow = false
+  state.premiumLookupFails = false
+})
+
+// ── «Vet ikke» er ikke «ikke Premium» (19. august 2026) ───────────────────────
+// lib/premium-check leste tidligere aldri `error`. En transient DB-feil ga
+// `data: null`, og `data?.premium_status === true` gjorde det til `false` —
+// altså gratisvisningen, servert til en betalende kunde uten feilmelding,
+// uten logg og uten noe som skilte det fra et utløpt abonnement.
+test('FEILET premium-oppslag gir 503 — ikke en stille nedgradering til gratis', async () => {
+  state.profile = { premium_status: true, org_premium_grace_until: null }
+  state.premiumLookupFails = true
+
+  const request = new Request(`https://quizkanonen.no/api/leaderboard/${QUIZ}?is_team=false&limit=1`, {
+    headers: { authorization: 'Bearer test-token' },
+  })
+  const res = await GET(request as never, { params: Promise.resolve({ id: QUIZ }) })
+
+  assert.equal(res.status, 503, 'et forbigående svar, ikke en dom')
+  const json = await res.json() as { userIsPremium?: boolean; error?: string }
+  assert.equal(json.userIsPremium, undefined, 'ingen påstand om Premium-status skal sendes')
+  assert.ok(json.error, 'feilen skal være synlig for klienten')
+})
+
+test('utlogget kaller berøres IKKE av premium-vakten', async () => {
+  // Gaten står kun for innloggede — en anonym kaller gjør ikke oppslaget i det
+  // hele tatt, og skal derfor få leaderboardet som før selv når profiles svikter.
+  state.premiumLookupFails = true
+
+  const svar = await hent('is_team=false&limit=1', true)
+
+  assert.equal(svar.userIsPremium, false)
+  assert.equal(svar.totalCount, 20, 'listen skal leveres som normalt')
 })
 
 test('PREMIUM: får eksakt plassering — både userRank og rank i raden', async () => {
@@ -485,7 +523,7 @@ test('PREMIUM: ?page=2 virker fortsatt og gir side to (20/side)', async () => {
 })
 
 test('GRACE etter tapt org-Premium gir også bla og søk', async () => {
-  // Binder browse-gaten til den samme isUserPremium som resten av ruten —
+  // Binder browse-gaten til den samme getUserPremium som resten av ruten —
   // en lokal `premium_status === true` ville tatt fra brukeren i grace.
   state.profile = {
     premium_status: false,

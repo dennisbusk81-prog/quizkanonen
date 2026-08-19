@@ -109,7 +109,7 @@ mock.module('@/lib/org-membership', {
 })
 
 mock.module('@/lib/premium-check', {
-  namedExports: { isUserPremium: async () => false },
+  namedExports: { getUserPremium: async () => ({ ok: true as const, value: false }) },
 })
 
 const { GET } = await import('@/app/api/leaderboard/[id]/route')

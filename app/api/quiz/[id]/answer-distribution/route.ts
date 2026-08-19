@@ -5,7 +5,7 @@ import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { getOptionCountsByQuestions } from '@/lib/attempt-answer-stats'
 import { readStoredKey } from '@/lib/answer-key-correction'
 import { selectEasiestAndHardest, type QuestionDifficulty } from '@/lib/question-difficulty'
-import { isUserPremium } from '@/lib/premium-check'
+import { getUserPremium } from '@/lib/premium-check'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -51,7 +51,17 @@ export async function GET(
   const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
   if (authError || !user) return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
 
-  if (!(await isUserPremium(user.id))) {
+  // «Vet ikke» skilles fra «ikke Premium»: en transient DB-feil skal ikke
+  // presentere en betalende kunde for paywallen som om abonnementet var borte.
+  // 503 er et forbigående svar klienten kan prøve på nytt; 403 er en dom.
+  const premium = await getUserPremium(user.id)
+  if (!premium.ok) {
+    return NextResponse.json(
+      { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+  if (!premium.value) {
     return NextResponse.json({ error: 'Krever Premium', code: 'premium_required' }, { status: 403 })
   }
 

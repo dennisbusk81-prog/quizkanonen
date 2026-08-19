@@ -88,6 +88,13 @@ mock.module('stripe', { defaultExport: MockStripe })
  */
 let graceWriteShouldFail = false
 
+/**
+ * Lar én test simulere at MEDLEMSOPPSLAGET feiler (19. august 2026).
+ * Gjelder kun den ufiltrerte spørringen `select('user_id').eq('organization_id',…)`
+ * — ikke getOrgAdminEmails eller varslingen, som begge filtrerer på `role`.
+ */
+let membersReadShouldFail = false
+
 function builder(table: string) {
   // Filtrene registreres PER spørring, ikke globalt — flere ulike
   // organization_members-spørringer kjører i samme hendelse.
@@ -105,7 +112,16 @@ function builder(table: string) {
     in() { return b },
     limit() { return b },
     insert() { return Promise.resolve({ error: null }) },
-    delete() { return Promise.resolve({ error: null }) },
+    // Både `await …delete()` og `await …delete().eq(col, val)` må virke:
+    // releaseIdempotencyStamp bruker den siste formen, og den stien nås først
+    // når noe faktisk kaster (se medlemsoppslag-testene nederst).
+    delete() {
+      const d = {
+        eq: () => Promise.resolve({ error: null }),
+        then: (res: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(res),
+      }
+      return d
+    },
     update(values: Record<string, unknown>) {
       if (table === 'organizations') {
         isGraceUpdate = 'member_grace_until' in values
@@ -131,6 +147,10 @@ function builder(table: string) {
         return resolve({ data: null, error: { code: '42703', message: 'column "member_grace_until" does not exist' } })
       }
       if (table === 'organization_members') {
+        const rollefiltrert = filters['eq:role'] !== undefined || filters['neq:role'] !== undefined
+        if (membersReadShouldFail && !rollefiltrert) {
+          return resolve({ data: null, error: { code: '57014', message: 'simulert lesefeil' } })
+        }
         let rows = state.members
         if (filters['eq:role']) rows = rows.filter(m => m.role === filters['eq:role'])
         if (filters['neq:role']) rows = rows.filter(m => m.role !== filters['neq:role'])
@@ -242,6 +262,7 @@ beforeEach(() => {
   state.listThrows = false
   state.listCalls = 0
   state.trace = []
+  membersReadShouldFail = false
   console.error = (...args: unknown[]) => { state.errors.push(args.map(String).join(' ')) }
 })
 
@@ -654,4 +675,54 @@ test('en feilet grace-skriving stopper hverken låsen eller varslingen', async (
     state.errors.some(e => e.includes('kunne IKKE gi lås-grace')),
     'og feilen skal være synlig i loggen, ikke svelget',
   )
+})
+
+// ── DEL N: medlemsoppslaget må ikke degradere stille (19. august 2026) ─────
+// `const { data: members } = …` leste aldri `error`. Feilet spørringen, ble
+// memberIds tomt, `if (memberIds.length > 0)` hoppet over HELE
+// premium-rekalkuleringen — og hendelsen ble like fullt stemplet i
+// stripe_events, så Stripe leverte den aldri på nytt. Medlemmene beholdt
+// Premium på ubestemt tid etter en kansellering, uten et eneste spor.
+//
+// Riktig feilretning er derfor å kaste: den ytre catch-en fjerner stempelet,
+// ruten svarer 500, og Stripe leverer hendelsen om igjen. Trygt fordi
+// oppslaget ligger FØR all e-postsending i grenen — retry gir ingen
+// dobbeltvarsling.
+
+test('sub.deleted: feilet medlemsoppslag gir 500 → Stripe kan levere på nytt', async () => {
+  state.event = deletedEvent()
+  membersReadShouldFail = true
+
+  const res = await call()
+
+  assert.equal(res.status, 500, 'stille 200 ville låst hendelsen som «behandlet»')
+  assert.ok(
+    state.errors.some(e => e.includes('KRITISK lesefeil')),
+    'lesefeilen skal logges med egen markør'
+  )
+  assert.equal(
+    state.trace.filter(t => t === 'recompute').length, 0,
+    'ingen premium-rekalkulering skjedde — nettopp derfor må hendelsen kunne kjøres om igjen'
+  )
+  assert.equal(state.sent.length, 0, 'ingen e-post rakk å gå ut før kastet — retry gir ingen duplikater')
+})
+
+test('sub.updated → locked: feilet medlemsoppslag gir 500', async () => {
+  state.event = updatedEvent('past_due')
+  membersReadShouldFail = true
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.ok(state.errors.some(e => e.includes('KRITISK lesefeil')))
+  assert.equal(state.sent.length, 0, 'orgAccessLockedEmail sendes først etter oppslaget')
+})
+
+test('normaltilfellet er uendret: uten lesefeil går sub.deleted gjennom som før', async () => {
+  state.event = deletedEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 200)
+  assert.ok(state.trace.includes('recompute'), 'premium skal fortsatt rekalkuleres')
 })

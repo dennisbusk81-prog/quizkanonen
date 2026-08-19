@@ -224,6 +224,29 @@ function assertCriticalWrite(error: { code?: string; message: string } | null, c
   }
 }
 
+// Samme mekanisme, men for en LESING som resten av grenen er avhengig av
+// (19. august 2026). Medlemsoppslagene i denne filen leste tidligere aldri
+// `error`: feilet spørringen, ga PostgREST `data: null`, `?? []` gjorde det
+// til en tom liste, og `if (memberIds.length > 0)` hoppet stille over hele
+// premium-synkroniseringen. Hendelsen ble like fullt stemplet som behandlet,
+// så Stripe leverte den aldri på nytt — medlemmene beholdt (eller mistet)
+// Premium på ubestemt tid, uten et eneste spor.
+//
+// Feilretningen er derfor den samme som for en kritisk skriving: kast, slik at
+// catch-en fjerner stempelet og Stripe kan levere hendelsen om igjen. Retry er
+// trygt fordi ALLE tre kallstedene ligger FØR e-postsendingen i sin gren —
+// ingen mottaker rekker å få en dobbel varsling av at vi kaster her.
+//
+// Egen funksjon og ikke assertCriticalWrite: loggmarkøren skal si om det var
+// en lesing eller en skriving som sviktet, og kontrakten over gjelder
+// eksplisitt kun skrivinger.
+function assertCriticalRead(error: { code?: string; message: string } | null, context: string): void {
+  if (error) {
+    console.error(`[webhook] KRITISK lesefeil — ${context}:`, error.code, error.message)
+    throw new Error(`Kritisk DB-lesing feilet (${context}): ${error.message}`)
+  }
+}
+
 // Fjerner idempotens-stempelet som ble satt før prosessering, slik at hendelsen
 // kan behandles på nytt ved en senere Stripe-retry eller en manuell replay fra
 // dashbordet.
@@ -429,10 +452,11 @@ export async function POST(request: NextRequest) {
       await clearLockGrace(organizationId, 'checkout')
 
       // Activate premium for all current members — single batch update
-      const { data: members } = await supabaseAdmin
+      const { data: members, error: membersReadError } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
         .eq('organization_id', organizationId)
+      assertCriticalRead(membersReadError, `checkout medlemsoppslag org=${organizationId}`)
 
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
@@ -675,10 +699,11 @@ export async function POST(request: NextRequest) {
         graceUntil = await applyLockGrace(org.id, graceDecision, `sub.deleted org=${org.id}`)
       }
 
-      const { data: members } = await supabaseAdmin
+      const { data: members, error: membersReadError } = await supabaseAdmin
         .from('organization_members')
         .select('user_id')
         .eq('organization_id', org.id)
+      assertCriticalRead(membersReadError, `sub.deleted medlemsoppslag org=${org.id}`)
 
       const memberIds = (members ?? []).map(m => m.user_id)
       if (memberIds.length > 0) {
@@ -889,7 +914,7 @@ export async function POST(request: NextRequest) {
       // B2C — varsle bruker, men KUN hvis de ikke allerede har aktiv Premium via en
       // annen kilde (org-medlemskap). Har brukeren org-Premium, mister de ingenting
       // reelt om det personlige abonnementet feiler, og e-posten er bare forvirrende.
-      const { data: profileForFailed } = await supabaseAdmin
+      const { data: profileByCustomerForFailed } = await supabaseAdmin
         .from('profiles')
         .select('id, personal_stripe_subscription_id')
         .eq('stripe_customer_id', customerId)
@@ -902,6 +927,26 @@ export async function POST(request: NextRequest) {
         parent?: { subscription_details?: { subscription?: string | null } | null } | null
       }
       const subscriptionId = inv.subscription ?? inv.parent?.subscription_details?.subscription ?? null
+
+      // ── Fallback på personal_stripe_subscription_id (19. august 2026) ──────
+      // Begge søstergrenene (subscription.deleted og den kanselleringsgrenen i
+      // subscription.updated) slår opp profilen sekundært på abonnements-id-en
+      // når kunde-id-en ikke gir treff. Denne grenen gjorde det ikke, og
+      // konsekvensen var ikke bare en manglende e-post: uten profil ble
+      // applyPersonalGrace aldri kalt, så karensperioden ble ALDRI stemplet —
+      // og e-posten under, som skal oppgi en konkret dato, hadde ingen dato å
+      // oppgi. En profil uten stripe_customer_id (checkout-hendelsen sviktet,
+      // eller kolonnen ble nullet av en tidligere terminal hendelse) mistet
+      // dermed hele karensen ved første avviste trekk.
+      let profileForFailed = profileByCustomerForFailed
+      if (!profileForFailed && subscriptionId) {
+        const { data: profileBySubForFailed } = await supabaseAdmin
+          .from('profiles')
+          .select('id, personal_stripe_subscription_id')
+          .eq('personal_stripe_subscription_id', subscriptionId)
+          .maybeSingle()
+        if (profileBySubForFailed) profileForFailed = profileBySubForFailed
+      }
 
       // ── Stale-sub-vern (samme rotårsak som FIX 3 i subscription.deleted) ────
       // Ruten matchet tidligere KUN på stripe_customer_id. En sen purring på et
@@ -1144,10 +1189,11 @@ export async function POST(request: NextRequest) {
 
       // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
       if (nextStatus === 'active' || nextStatus === 'trialing' || nextStatus === 'locked') {
-        const { data: members } = await supabaseAdmin
+        const { data: members, error: membersReadError } = await supabaseAdmin
           .from('organization_members')
           .select('user_id')
           .eq('organization_id', org.id)
+        assertCriticalRead(membersReadError, `sub.updated ${status} medlemsoppslag org=${org.id}`)
         const memberIds = (members ?? []).map(m => m.user_id)
         if (memberIds.length > 0) {
           if (nextStatus === 'locked') {

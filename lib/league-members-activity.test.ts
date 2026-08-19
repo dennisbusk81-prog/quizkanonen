@@ -22,6 +22,9 @@
 //      → «attempts-spørringen uttrykker begge invariantene» feiler
 //   4. Fjern `if (recentErr) return 500`
 //      → «feilet attempts-oppslag gir 500, ikke en stille inaktiv liga» feiler
+//   4b. Fjern `if (scoresErr) …` / `if (excludedErr) …` / `if (profilesErr) …`
+//      (19. august 2026) → tilhørende «feilet …-oppslag»-test feiler. De tre
+//      oppslagene hadde samme form som attempts-oppslaget, men manglet vakten.
 //   5. La CSV-kolonnen bruke `hasPeriodScore` igjen
 //      → «CSV-kolonnen Aktiv siste 30 dager følger 30-dagersvinduet» feiler
 import { test, mock, beforeEach } from 'node:test'
@@ -309,6 +312,44 @@ test('feilet attempts-oppslag gir 500, ikke en stille inaktiv liga', async () =>
   const json = await res.json() as { members?: Member[]; error?: string }
   assert.equal(json.members, undefined, 'ingen medlemsliste skal returneres ved feil')
   assert.ok(json.error, 'feilen skal være synlig for klienten')
+})
+
+test('feilet season_scores-oppslag gir 500, ikke en liga der alle har 0 poeng', async () => {
+  // Den farligste av de tre: 0 poeng ser helt normalt ut de første dagene i en
+  // ny periode, så en feilet spørring ville blitt trodd.
+  const t = baseTables()
+  t.attempts = [{ user_id: 'a1', is_team: false, submitted_at: daysAgo(2) }]
+  state.tables = t
+  state.failTable = 'season_scores'
+
+  const res = await GET(req('?period=month'), ctx(LEAGUE))
+
+  assert.equal(res.status, 500, 'et feilet poengoppslag skal ikke bli til «alle har 0»')
+  const json = await res.json() as { members?: Member[]; error?: string }
+  assert.equal(json.members, undefined)
+  assert.ok(json.error)
+})
+
+test('feilet excluded_members-oppslag gir 500 — utmeldte skal ikke dukke opp igjen', async () => {
+  const t = baseTables()
+  state.tables = t
+  state.failTable = 'excluded_members'
+
+  const res = await GET(req('?period=month'), ctx(LEAGUE))
+
+  assert.equal(res.status, 500, 'et tomt ekskluderingssett er «vet ikke», ikke «ingen er ekskludert»')
+  assert.equal((await res.json() as { members?: Member[] }).members, undefined)
+})
+
+test('feilet profil-oppslag gir 500, ikke en liste med navnløse medlemmer', async () => {
+  const t = baseTables()
+  state.tables = t
+  state.failTable = 'profiles'
+
+  const res = await GET(req('?period=month'), ctx(LEAGUE))
+
+  assert.equal(res.status, 500)
+  assert.equal((await res.json() as { members?: Member[] }).members, undefined)
 })
 
 // ── CSV ───────────────────────────────────────────────────────────────────────

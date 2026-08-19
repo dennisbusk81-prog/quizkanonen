@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
-import { isUserPremium } from '@/lib/premium-check'
+import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
@@ -209,7 +209,20 @@ export async function GET(
   // Var tidligere en lokal `premium_status`-spørring her, som IKKE tok grace
   // med: en bruker i grace ville dermed mistet sin egen eksakte plassering.
   if (userId) {
-    userIsPremium = await isUserPremium(userId)
+    const premium = await getUserPremium(userId)
+    // «Vet ikke» skal ikke bli til «ikke Premium». Feltet styrer om kalleren får
+    // se sin egen eksakte plassering — nettopp det de betaler for — så en
+    // transient DB-feil ville stille servert en betalende kunde gratisvisningen,
+    // uten noe som skilte det fra et utløpt abonnement. 503 er forbigående og
+    // kan prøves på nytt; en degradert visning ser ut som en dom.
+    // Gaten står kun for innloggede: en utlogget kaller berøres ikke.
+    if (!premium.ok) {
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 }
+      )
+    }
+    userIsPremium = premium.value
   }
 
   // Forsøket til den som spør — grunnlaget for både «har spilt» (skjult
