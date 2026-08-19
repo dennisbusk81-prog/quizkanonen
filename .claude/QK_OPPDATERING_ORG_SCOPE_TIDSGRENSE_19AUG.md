@@ -6,6 +6,9 @@
 
 ## STATUS: BLOKKERT AV DATO, IKKE AV PRIORITET
 
+**Alle tre produktvalgene er avgjort 19. august** (se «AVGJORT» lenger nede).
+Briefen er klar til å plukkes opp og bygges uten flere avklaringsrunder.
+
 **Trigger for å låse opp:** fredagsquizen 21. august 2026 er gjennomført og
 gjort opp (`season_scores` skrevet, jf. `processQuiz()`).
 
@@ -89,25 +92,97 @@ opprydding, og ingen mulighet for at tekst og liste motsier hverandre.
 
 ### Skisse
 
-1. `fetchData` beholder 1500 ms-grensen for å slippe siden fram.
-2. Ved timeout: IKKE gi opp sesjonsoppslaget. La det løpe videre.
-3. Lander sesjonen etterpå med gyldig token OG `orgSlug` er satt: hent
-   `/api/leaderboard/[id]?...&org=` på nytt, `setServedOrgSlug(orgSlug)`.
-4. Teksten følger med automatisk via `decideOrgScopeNotice`.
-5. Lander den aldri (eller uten sesjon): dagens degraderte visning står, som nå.
+1. `fetchData` hever grensen 1500 → **2500 ms** for å slippe siden fram.
+2. Ved timeout: nasjonal henting som i dag, `setServedOrgSlug(null)`.
+   Sesjonsoppslaget forlates — vi trenger det ikke lenger (se AVGJORT punkt 3 under).
+3. Headeren viser degraderingslinja, uendret ordlyd (godkjent 19. august).
+4. NÅR `session` blir gyldig OG `myOrgs` bekrefter medlemskap i `orgSlug`:
+   bytt linja til knappen «Vi fant bedriften din — vis kollegene».
+   Begge betingelsene er allerede tilstand i komponenten.
+5. Klikk → scopet henting → `setServedOrgSlug(orgSlug)` → teksten blir
+   «Resultater blant kollegene dine» av seg selv via `decideOrgScopeNotice`.
+6. Blir betingelsene aldri sanne: dagens degraderte visning står, som nå.
 
-### Åpne spørsmål som må avgjøres FØR bygging
+Merk at steg 5 er den ENESTE stedet lista byttes, og den er utløst av et klikk.
+Ingen liste endrer seg under en bruker som leser.
 
-- **Skal oppgraderingen bytte lista under føttene på en bruker som allerede
-  leser?** En liste som stille bytter fra nasjonal til org etter 3 sekunder kan
-  være mer forvirrende enn den er hjelpsom. Alternativ: la degraderingslinja bli
-  til en handling («Vi fant bedriften din — vis kollegene») i stedet for et
-  automatisk bytte. Dette er et produktvalg, ikke et teknisk.
-- **Øvre grense for hvor lenge vi venter.** Uendelig venting gjeninnfører en
-  variant av den hengende tilstanden, bare uten spinner.
-- **Skal `loadSession` og `ProfileProvider` dele det samme oppgraderte
-  resultatet?** De henger allerede sammen (målt); tre uavhengige
-  gjenopprettinger ville vært tre kilder til samme sannhet.
+### AVGJORT 19. august 2026 — de tre spørsmålene er lukket
+
+#### 1. Handling, ikke automatisk bytte (Dennis)
+
+Degraderingslinja blir en KNAPP: «Vi fant bedriften din — vis kollegene».
+Brukeren klikker selv. Lista skal ikke endre seg under en som allerede leser.
+
+Dette forenkler resten av designet mer enn det ser ut til. Se punkt 3.
+
+#### 2. Ventegrense: 2500 ms (Claude, målt grunnlag)
+
+**Først en rettelse:** 3025 ms fra måleskriptet er IKKE en målt fornyelsestid.
+Det er stub-forsinkelsen jeg selv satte (3000 ms) pluss overhead. Den viste at
+grensen slår inn når fornyelsen er treg — ingenting om hvor treg en ekte
+fornyelse er. Tallet under hviler på en egen måling.
+
+Målt 19. august, Oslo → eu-west-1, kablet forbindelse
+(`scripts/measure-supabase-auth-rtt.mjs`):
+
+| Måling | Verdi |
+|---|---|
+| Token-POST, varm forbindelse | median 140 ms, maks 175 ms |
+| Helsesjekk, varm | median 124 ms (min 77, maks 248) |
+| Kald forbindelse (TLS-håndtrykk) | 413 ms — påslag ≈ 289 ms |
+
+En ekte fornyelse på god linje koster altså **140–430 ms**.
+
+Modellert for dårlig mobil (fornyelse = 1 forespørsel ≈ 3–4 rundturer inkl.
+DNS/TCP/TLS):
+
+| RTT per rundtur | Estimert fornyelse | Mot 1500 ms | Mot 2500 ms |
+|---|---|---|---|
+| 100 ms (4G, greit) | ~400 ms | greit | greit |
+| 400 ms (4G, trengsel) | ~1600 ms | **BRYTER** | greit |
+| 700 ms (3G/kant) | ~2800 ms | bryter | bryter |
+
+**2500 ms** er derfor foreslått: det er 18× målt varm median, det dekker
+«4G under trengsel med kald forbindelse» — den vanligste dårlige tilstanden en
+Elkjøp-ansatt faktisk er i — og det slipper gjennom til knappen først når
+forbindelsen er så dårlig at siden uansett må vises.
+
+**Viktig om hva tallet ER:** 2500 ms er et SPINNER-BUDSJETT, ikke en frist på
+sesjonen. Fornyelsen fortsetter i bakgrunnen etterpå; grensen bestemmer bare
+når siden slutter å holde tilbake.
+
+**Ærlig forbehold:** radene for dårlig mobil er MODELLERT, ikke målt. Jeg har
+kun målt fra én maskin på ett kablet nett. Reell p95 i felt er ukjent, og kan
+kun skaffes ved telemetri eller Dennis' throttlede test. Endres tallet senere,
+kjør `scripts/measure-supabase-auth-rtt.mjs` på nytt først — ikke gjett.
+
+#### 3. Delt gjenoppretting — og det trengs ingen ny mekanisme (Claude, teknisk)
+
+Valget er DELT, ikke separat. Tre grunner, i stigende viktighet:
+
+1. supabase-js serialiserer allerede fornyelsen selv. Målt: tre samtidige
+   `getSession()` gir ETT nettverkskall og returnerer samtidig. Den delte
+   gjenopprettingen finnes altså allerede under oss.
+2. Tre uavhengige gjenopprettinger ville vært tre komponenter som hver
+   konkluderer «sesjonen kom tilbake» om samme faktum — tre kilder til én
+   sannhet, og potensielt tre hentinger.
+3. **Signalet finnes fra før:** når fornyelsen lander fyrer `TOKEN_REFRESHED`
+   via `onAuthStateChange`, som både `ProfileProvider` og
+   `app/leaderboard/[id]/page.tsx` allerede abonnerer på.
+
+Kombinert med punkt 1 betyr det at **det ikke skal bygges noen
+gjenopprettingsmekanisme i det hele tatt.** Knappen trenger ikke at noe
+«oppgraderes» automatisk — den trenger bare å vite når den kan tilbys:
+
+    orgNotice === 'degraded'  OG  session er gyldig  OG  myOrgs bekrefter
+    medlemskap i requestedOrg
+
+Alle tre er allerede tilstand i komponenten. Knappen dukker opp når de blir
+sanne, og klikket kjører den scopede hentingen. Ingen ventende promise å holde
+i live, ingen ny abonnement, ingen ny tilstandsmaskin.
+
+Det forlatte `getSession()`-promiset kan derfor forbli forlatt — verifisert
+tidligere at det ikke lander i noe setState.
 
 ### Ikke i denne saken
 
