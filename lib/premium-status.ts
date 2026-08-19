@@ -35,6 +35,9 @@ export interface PremiumStatusFull {
   // Sammen med hasStripeCustomer skiller den «kortløs trial som løp ut» fra
   // «betalende kunde» — de to skal møte ulik tekst når Premium er av.
   hasUsedTrial: boolean
+  // true = brukeren har lukket founders-farvel-flaten (varig stempel i
+  // profiles.founders_farewell_dismissed_at). Gaten: lib/founders-farewell.ts.
+  foundersFarewellDismissed: boolean
 }
 
 // Henter full premium-status. Returnerer:
@@ -68,6 +71,7 @@ export async function fetchPremiumStatusFull(
             hasStripeCustomer: data.hasStripeCustomer === true,
             premiumSource: typeof data.premiumSource === 'string' ? data.premiumSource : null,
             hasUsedTrial: data.hasUsedTrial === true,
+            foundersFarewellDismissed: data.foundersFarewellDismissed === true,
           }
         }
         // ok, men uventet form → behandle som ukjent og prøv igjen

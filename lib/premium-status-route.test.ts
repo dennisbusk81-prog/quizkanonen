@@ -33,6 +33,7 @@ type ProfileRow = {
   org_premium_grace_until: string | null
   personal_grace_until: string | null
   has_used_trial: boolean
+  founders_farewell_dismissed_at: string | null
 }
 
 const state: {
@@ -48,6 +49,7 @@ function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
     org_premium_grace_until: null,
     personal_grace_until: null,
     has_used_trial: false,
+    founders_farewell_dismissed_at: null,
     ...overrides,
   }
 }
@@ -83,7 +85,13 @@ const { GET } = await import('@/app/api/profile/premium-status/route')
 // Egen IP per forespørsel — se rate-limit-merknaden øverst.
 let ipTeller = 0
 
-type Svar = { isPremium: boolean; premiumSource?: string | null; hasStripeCustomer?: boolean; hasUsedTrial?: boolean }
+type Svar = {
+  isPremium: boolean
+  premiumSource?: string | null
+  hasStripeCustomer?: boolean
+  hasUsedTrial?: boolean
+  foundersFarewellDismissed?: boolean
+}
 
 async function hent(token: string | null = 'gyldig-token'): Promise<{ status: number; body: Svar }> {
   ipTeller++
@@ -128,6 +136,21 @@ test('UTLØPT KORTLØS TRIAL (de 72 eks-founders): hasUsedTrial true passeres gj
   const { body } = await hent()
   assert.equal(body.isPremium, false)
   assert.equal(body.hasStripeCustomer, true)
+  assert.equal(body.hasUsedTrial, true)
+  assert.equal(body.foundersFarewellDismissed, false, 'ulukket flate = false, ikke undefined')
+})
+
+test('FARVEL-FLATEN LUKKET: stempelet passeres gjennom som boolean', async () => {
+  // Signalsettet gaten i lib/founders-farewell.ts leser kommer i SAMME svar —
+  // dette er «vises aldri igjen etter lukking» sett fra leseveien.
+  state.profile = profile({
+    has_used_trial: true,
+    stripe_customer_id: 'cus_founders',
+    founders_farewell_dismissed_at: FOR_EN_DAG_SIDEN(),
+  })
+
+  const { body } = await hent()
+  assert.equal(body.foundersFarewellDismissed, true)
   assert.equal(body.hasUsedTrial, true)
 })
 

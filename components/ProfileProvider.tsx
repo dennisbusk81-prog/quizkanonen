@@ -41,6 +41,11 @@ interface ProfileContextValue {
   // Stripe-kunde som aldri la inn kort. Samme null-safe regel som isPremium:
   // kun et definitivt serversvar endrer verdien.
   hasUsedTrial: boolean
+  // true = founders-farvel-flaten er lukket (varig stempel i profiles).
+  // Konsument: FoundersFarewellBanner via gaten i lib/founders-farewell.ts,
+  // som bevisst leser alle tre signalene (hasUsedTrial/isPremium/denne) fra
+  // SAMME definitive serversvar — se kommentaren der om flash-sikkerhet.
+  foundersFarewellDismissed: boolean
   myOrgs: MyOrg[]
   // true KUN når /api/org/my-orgs faktisk har svart OK, altså når `myOrgs` er
   // et BEKREFTET svar på «hvilke bedrifter er denne brukeren medlem av».
@@ -97,6 +102,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
   const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false)
   const [premiumSource, setPremiumSource] = useState<string | null>(null)
   const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(false)
+  const [foundersFarewellDismissed, setFoundersFarewellDismissed] = useState<boolean>(false)
   const [myOrgs, setMyOrgs] = useState<MyOrg[]>([])
   const [myOrgsLoaded, setMyOrgsLoaded] = useState<boolean>(false)
   const [myOrgsError, setMyOrgsError] = useState<boolean>(false)
@@ -180,6 +186,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         setHasStripeCustomer(premium.hasStripeCustomer)
         setPremiumSource(premium.premiumSource)
         setHasUsedTrial(premium.hasUsedTrial)
+        setFoundersFarewellDismissed(premium.foundersFarewellDismissed)
       }
       applyMyOrgs(orgsResult)
     } finally {
@@ -219,6 +226,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
       setHasStripeCustomer(premium.hasStripeCustomer)
       setPremiumSource(premium.premiumSource)
       setHasUsedTrial(premium.hasUsedTrial)
+      setFoundersFarewellDismissed(premium.foundersFarewellDismissed)
     }
   }, [])
 
@@ -241,6 +249,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         setHasStripeCustomer(false)
         setPremiumSource(null)
         setHasUsedTrial(false)
+        setFoundersFarewellDismissed(false)
         setMyOrgs([])
         // Utlogget er et BEKREFTET svar: ingen bruker, ingen medlemskap.
         // loadAll nullstiller flagget igjen ved neste innlogging, så det kan
@@ -301,6 +310,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
     <ProfileContext.Provider
       value={{
         userId, displayName, displayNameRaw, isPremium, hasStripeCustomer, premiumSource, hasUsedTrial,
+        foundersFarewellDismissed,
         myOrgs, myOrgsLoaded, myOrgsError, myOrgsRefreshing,
         loading, resolved, refreshProfile, refreshMyOrgs,
       }}

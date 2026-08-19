@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   // Hent premium_status med service role — omgår RLS
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until, personal_grace_until, has_used_trial')
+    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until, personal_grace_until, has_used_trial, founders_farewell_dismissed_at')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -66,5 +66,10 @@ export async function GET(req: NextRequest) {
     // som gikk gjennom betalt checkout. Profilsiden bruker dette til å ikke
     // påstå «kortet gikk ikke gjennom» overfor en som aldri la inn kort.
     hasUsedTrial: data?.has_used_trial === true,
+    // Varig «lukket»-stempel for founders-farvel-flaten. Gaten (hvem ser
+    // flaten) bor i lib/founders-farewell.ts og leser dette sammen med
+    // hasUsedTrial + isPremium — alle tre i SAMME definitive svar, så flaten
+    // kan aldri flashe på et halvlastet signalsett.
+    foundersFarewellDismissed: !!data?.founders_farewell_dismissed_at,
   })
 }

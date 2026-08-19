@@ -9,6 +9,7 @@ import RivalryCard from '@/components/RivalryCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import WelcomeBanner from '@/components/WelcomeBanner'
 import GlobalLeagueChoiceBanner from '@/components/GlobalLeagueChoiceBanner'
+import FoundersFarewellBanner from '@/components/FoundersFarewellBanner'
 import AccordionSection from '@/components/AccordionSection'
 import NotifyForm from '@/components/NotifyForm'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
@@ -1636,6 +1637,16 @@ export default async function Home() {
               )}
             </div>
           )}
+
+          {/* Founders-farvel — engangsmelding til tidligere Founders-brukere
+              uten Premium-dekning; gate og «vises kun én gang»-stempel i
+              lib/founders-farewell.ts + founders-farewell-seen-ruta. Står
+              BEVISST rett under quiz-kortet/nedtellingen: quizen er
+              hovedsaken, dette er en beskjed ved siden av — ikke flytt den
+              over quiz-kortet. */}
+          <ErrorBoundary>
+            <FoundersFarewellBanner />
+          </ErrorBoundary>
 
           {/* Se alle quizer */}
           <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
