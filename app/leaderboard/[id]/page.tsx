@@ -1034,7 +1034,7 @@ export default function LeaderboardPage() {
                 må si hvilken liste som FAKTISK vises — ellers leser brukeren
                 den nasjonale toppen som kollegenes. */}
             {orgScopeDegraded && (
-              <p style={{ fontSize: 13, color: '#918f8a', marginTop: 8, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6 }}>
                 Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
                 dette er den nasjonale topplisten.{' '}
                 <button
@@ -1166,7 +1166,7 @@ export default function LeaderboardPage() {
               : 'hidden'
             if (retry === 'hidden') return null
             return (
-            <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', marginBottom: 12, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', marginBottom: 12, lineHeight: 1.6 }}>
               Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
               <button
                 onClick={() => { void refreshMyOrgs() }}

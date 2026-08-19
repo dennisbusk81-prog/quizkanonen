@@ -3504,7 +3504,7 @@ export default function QuizPage() {
           : 'hidden'
         if (retry === 'hidden') return null
         return (
-        <p className="qk-rsec" style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
+        <p className="qk-rsec" style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14, textAlign: 'center' }}>
           Vi fikk ikke hentet plasseringen din akkurat nå.{' '}
           <button
             onClick={() => { void refreshMyOrgs() }}
