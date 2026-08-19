@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   // Hent premium_status med service role — omgår RLS
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until, personal_grace_until')
+    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until, personal_grace_until, has_used_trial')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -62,5 +62,9 @@ export async function GET(req: NextRequest) {
     isPremium: data?.premium_status === true || graceActive || personalGraceActive,
     premiumSource: data?.premium_source ?? null,
     hasStripeCustomer: !!data?.stripe_customer_id,
+    // Skiller en Stripe-kunde opprettet kortløst av founders-activate fra en
+    // som gikk gjennom betalt checkout. Profilsiden bruker dette til å ikke
+    // påstå «kortet gikk ikke gjennom» overfor en som aldri la inn kort.
+    hasUsedTrial: data?.has_used_trial === true,
   })
 }

@@ -137,7 +137,7 @@ export default function ProfilPage() {
   const [nicknameError, setNicknameError] = useState<string | null>(null)
   const [nicknameSuccess, setNicknameSuccess] = useState(false)
   // Premium fra delt context (ingen egne premium-status-fetches lenger).
-  const { isPremium, hasStripeCustomer, myOrgs, refreshProfile } = useProfile()
+  const { isPremium, hasStripeCustomer, hasUsedTrial, myOrgs, refreshProfile } = useProfile()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarColor, setAvatarColor] = useState<string | null>(null)
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
@@ -1230,6 +1230,23 @@ export default function ProfilPage() {
             <div style={{ ...s.card, marginBottom: 10 }}>
               <p style={s.sectionLabel}>Abonnement</p>
               {hasStripeCustomer ? (
+                !isPremium && hasUsedTrial ? (
+                  /* Utløpt gratis prøveperiode UTEN kort (founders-activate
+                     lager Stripe-kunden kortløst, has_used_trial er merket).
+                     Kort-teksten under er usann for denne gruppen — de la
+                     aldri inn kort — og Stripe-portalen er en blindvei uten
+                     abonnement eller betalingshistorikk å vise. Veien videre
+                     er /premium, ikke portalen. */
+                  <div>
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — ikke aktivt</p>
+                    <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>
+                      Prøveperioden din er over. Du er ikke belastet for noe.
+                    </p>
+                    <a href="/premium" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'underline' }}>
+                      Se Premium-funksjoner →
+                    </a>
+                  </div>
+                ) : (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                     <div>
@@ -1266,6 +1283,7 @@ export default function ProfilPage() {
                   </div>
                   {portalError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{portalError}</p>}
                 </>
+                )
               ) : (
                 <div>
                   <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>

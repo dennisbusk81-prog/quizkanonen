@@ -32,6 +32,7 @@ type ProfileRow = {
   stripe_customer_id: string | null
   org_premium_grace_until: string | null
   personal_grace_until: string | null
+  has_used_trial: boolean
 }
 
 const state: {
@@ -46,6 +47,7 @@ function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
     stripe_customer_id: null,
     org_premium_grace_until: null,
     personal_grace_until: null,
+    has_used_trial: false,
     ...overrides,
   }
 }
@@ -81,7 +83,7 @@ const { GET } = await import('@/app/api/profile/premium-status/route')
 // Egen IP per forespørsel — se rate-limit-merknaden øverst.
 let ipTeller = 0
 
-type Svar = { isPremium: boolean; premiumSource?: string | null; hasStripeCustomer?: boolean }
+type Svar = { isPremium: boolean; premiumSource?: string | null; hasStripeCustomer?: boolean; hasUsedTrial?: boolean }
 
 async function hent(token: string | null = 'gyldig-token'): Promise<{ status: number; body: Svar }> {
   ipTeller++
@@ -102,13 +104,31 @@ test('UTEN token: 401', async () => {
   assert.equal(status, 401)
 })
 
-test('GRATIS: isPremium false, og de to sidefeltene er nøytrale', async () => {
+test('GRATIS: isPremium false, og sidefeltene er nøytrale', async () => {
   const { status, body } = await hent()
 
   assert.equal(status, 200)
   assert.equal(body.isPremium, false)
   assert.equal(body.premiumSource, null)
   assert.equal(body.hasStripeCustomer, false)
+  assert.equal(body.hasUsedTrial, false)
+})
+
+test('UTLØPT KORTLØS TRIAL (de 72 eks-founders): hasUsedTrial true passeres gjennom', async () => {
+  // Nøyaktig tilstanden profilsidens abonnement-kort skiller på: Stripe-kunde
+  // finnes (founders-activate opprettet den kortløst), Premium er av, og
+  // has_used_trial er det varige merket. hasUsedTrial=true her er det som lar
+  // klienten si «prøveperioden er over» i stedet for den usanne kort-teksten.
+  state.profile = profile({
+    premium_status: false,
+    stripe_customer_id: 'cus_founders',
+    has_used_trial: true,
+  })
+
+  const { body } = await hent()
+  assert.equal(body.isPremium, false)
+  assert.equal(body.hasStripeCustomer, true)
+  assert.equal(body.hasUsedTrial, true)
 })
 
 test('PREMIUM: isPremium true, sidefeltene passeres gjennom — positiv kontroll', async () => {

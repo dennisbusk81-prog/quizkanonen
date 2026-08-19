@@ -31,6 +31,10 @@ export interface PremiumStatusFull {
   isPremium: boolean
   hasStripeCustomer: boolean
   premiumSource: string | null
+  // true = brukeren har hatt gratis prøveperiode (profiles.has_used_trial).
+  // Sammen med hasStripeCustomer skiller den «kortløs trial som løp ut» fra
+  // «betalende kunde» — de to skal møte ulik tekst når Premium er av.
+  hasUsedTrial: boolean
 }
 
 // Henter full premium-status. Returnerer:
@@ -63,6 +67,7 @@ export async function fetchPremiumStatusFull(
             isPremium: isP,
             hasStripeCustomer: data.hasStripeCustomer === true,
             premiumSource: typeof data.premiumSource === 'string' ? data.premiumSource : null,
+            hasUsedTrial: data.hasUsedTrial === true,
           }
         }
         // ok, men uventet form → behandle som ukjent og prøv igjen

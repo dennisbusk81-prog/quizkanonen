@@ -35,6 +35,12 @@ interface ProfileContextValue {
   isPremium: boolean
   hasStripeCustomer: boolean
   premiumSource: string | null
+  // true = brukeren har hatt gratis prøveperiode (profiles.has_used_trial via
+  // premium-status-ruta). Konsument: profilsidens abonnement-kort, som skal
+  // si «prøveperioden er over» — ikke «kortet gikk ikke gjennom» — til en
+  // Stripe-kunde som aldri la inn kort. Samme null-safe regel som isPremium:
+  // kun et definitivt serversvar endrer verdien.
+  hasUsedTrial: boolean
   myOrgs: MyOrg[]
   // true KUN når /api/org/my-orgs faktisk har svart OK, altså når `myOrgs` er
   // et BEKREFTET svar på «hvilke bedrifter er denne brukeren medlem av».
@@ -90,6 +96,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
   const [isPremium, setIsPremium] = useState<boolean>(false)
   const [hasStripeCustomer, setHasStripeCustomer] = useState<boolean>(false)
   const [premiumSource, setPremiumSource] = useState<string | null>(null)
+  const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(false)
   const [myOrgs, setMyOrgs] = useState<MyOrg[]>([])
   const [myOrgsLoaded, setMyOrgsLoaded] = useState<boolean>(false)
   const [myOrgsError, setMyOrgsError] = useState<boolean>(false)
@@ -172,6 +179,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         setIsPremium(premium.isPremium)
         setHasStripeCustomer(premium.hasStripeCustomer)
         setPremiumSource(premium.premiumSource)
+        setHasUsedTrial(premium.hasUsedTrial)
       }
       applyMyOrgs(orgsResult)
     } finally {
@@ -210,6 +218,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
       setIsPremium(premium.isPremium)
       setHasStripeCustomer(premium.hasStripeCustomer)
       setPremiumSource(premium.premiumSource)
+      setHasUsedTrial(premium.hasUsedTrial)
     }
   }, [])
 
@@ -231,6 +240,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
         setIsPremium(false)
         setHasStripeCustomer(false)
         setPremiumSource(null)
+        setHasUsedTrial(false)
         setMyOrgs([])
         // Utlogget er et BEKREFTET svar: ingen bruker, ingen medlemskap.
         // loadAll nullstiller flagget igjen ved neste innlogging, så det kan
@@ -290,7 +300,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
   return (
     <ProfileContext.Provider
       value={{
-        userId, displayName, displayNameRaw, isPremium, hasStripeCustomer, premiumSource,
+        userId, displayName, displayNameRaw, isPremium, hasStripeCustomer, premiumSource, hasUsedTrial,
         myOrgs, myOrgsLoaded, myOrgsError, myOrgsRefreshing,
         loading, resolved, refreshProfile, refreshMyOrgs,
       }}
