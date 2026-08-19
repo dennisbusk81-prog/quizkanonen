@@ -1,5 +1,6 @@
 ﻿'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { autoDismissMs } from '@/lib/admin-feedback'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -311,9 +312,14 @@ export default function AdminCodes() {
   const router = useRouter()
   const [codes, setCodes] = useState<Code[]>([])
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en bekreftet tom liste — samme
+  // mønster som app/admin/quizzes/page.tsx allerede hadde. Se fetchCodes.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [codeType, setCodeType] = useState<'shared' | 'personal'>('shared')
   const [form, setForm] = useState({ code: '', description: '', duration_days: '60', valid_until_date: defaultValidUntil(), max_uses: '100' })
   // «Permanent Premium» er nå et EKSPLISITT valg, ikke et tomt felt.
@@ -338,9 +344,29 @@ export default function AdminCodes() {
     fetchCodes()
   }, [])
 
+  // Timeren settes KUN for kvitteringer — autoDismissMs gir null for feil, se
+  // lib/admin-feedback.ts. En feil blir stående til den erstattes av neste
+  // melding eller lukkes for hånd.
+  //
+  // feedbackTimer: den forrige timeren ryddes før en ny melding vises. Uten
+  // det kunne en kvittering fra tre sekunder siden rekke å slette en feil som
+  // nettopp kom — timerne var uavhengige og visste ikke om hverandre.
+  // Feil forsvinner ikke av seg selv lenger, så det må finnes en vei ut som
+  // ikke er å laste siden på nytt.
+  function dismissFeedback() {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback(null)
+  }
+
   function showFeedback(type: 'success' | 'error', msg: string) {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
     setFeedback({ type, msg })
-    setTimeout(() => setFeedback(null), 3000)
+    const delay = autoDismissMs(type)
+    if (delay !== null) {
+      feedbackTimer.current = setTimeout(() => { setFeedback(null); feedbackTimer.current = null }, delay)
+    }
   }
 
   async function fetchCodes() {
@@ -348,13 +374,24 @@ export default function AdminCodes() {
       const res = await adminFetch('/api/admin/codes')
       if (!res.ok) throw new Error(`API svarte ${res.status}`)
       const data = await res.json()
+      if (!Array.isArray(data)) throw new Error('Uventet svarformat fra serveren')
       setCodes(data)
+      setLoadError(false)
     } catch (e) {
       console.error('fetchCodes feilet:', e)
+      // loadError, IKKE bare en toast: uten den falt lista tilbake på
+      // "Ingen koder ennå. Lag din første!" — en positiv påstand om at basen
+      // er tom, når alt vi vet er at hentingen feilet.
+      setLoadError(true)
       showFeedback('error', 'Kunne ikke hente koder.')
     } finally {
       setLoading(false)
     }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    try { await fetchCodes() } finally { setRetrying(false) }
   }
 
   async function saveCode() {
@@ -462,6 +499,18 @@ export default function AdminCodes() {
         {feedback && (
           <div className={`ac-feedback ${feedback.type}`}>
             {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+            {feedback.type === 'error' && (
+            <button
+              onClick={dismissFeedback}
+              aria-label="Lukk feilmelding"
+              style={{
+                background: 'none', border: 'none', padding: '0 0 0 10px',
+                cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7,
+              }}
+            >
+              Lukk
+            </button>
+            )}
           </div>
         )}
 
@@ -637,7 +686,26 @@ export default function AdminCodes() {
         )}
 
         <div>
-          {codes.length === 0 ? (
+          {loadError ? (
+            <div className="ac-empty">
+              <p style={{ fontWeight: 600, color: '#e8e4dd', marginBottom: 6 }}>Kunne ikke laste koder</p>
+              <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 14 }}>
+                Kodene ligger trygt i databasen — dette er kun et lasteproblem.
+              </p>
+              <button
+                onClick={retryLoad}
+                disabled={retrying}
+                style={{
+                  background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                  padding: '10px 20px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                  cursor: retrying ? 'not-allowed' : 'pointer', opacity: retrying ? 0.6 : 1,
+                  fontFamily: "'Instrument Sans', sans-serif",
+                }}
+              >
+                {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+              </button>
+            </div>
+          ) : codes.length === 0 ? (
             <div className="ac-empty">
               <p>Ingen koder ennå. Lag din første!</p>
             </div>

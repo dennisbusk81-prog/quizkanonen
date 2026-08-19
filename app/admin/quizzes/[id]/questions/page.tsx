@@ -1,5 +1,6 @@
 ﻿'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { autoDismissMs } from '@/lib/admin-feedback'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -429,12 +430,18 @@ export default function QuizQuestions() {
   // sekunder, kunne presse Supabase sin tilkoblingspool til 504-timeout).
   const [isMoving, setIsMoving] = useState(false)
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en quiz som faktisk ikke har
+  // spørsmål ennå. Uten den viste siden "Ingen spørsmål ennå" med et fullt
+  // spørsmålssett i basen — og tilbød "+ Nytt spørsmål" som eneste utvei.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [showForm, setShowForm] = useState(false)
   // "Bland svaralternativer" er en quiz-innstilling (samme for alle spørsmål).
   // Verdien lagres per rad i questions, men styres her som én felles bryter.
   const [shuffleAll, setShuffleAll] = useState(false)
   const [shuffleSaving, setShuffleSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Rett svar
   const [correctingId, setCorrectingId] = useState<string | null>(null)
@@ -456,21 +463,49 @@ export default function QuizQuestions() {
       const res = await adminFetch(`/api/admin/quizzes/${quizId}/questions`)
       if (!res.ok) throw new Error(`API svarte ${res.status}`)
       const { quiz: quizData, questions: questionData } = await res.json()
+      if (!Array.isArray(questionData)) throw new Error('Uventet svarformat fra serveren')
       setQuiz(quizData)
       setQuestions(questionData)
       // Quiz-nivå-verdien avledes fra spørsmålene (uniform etter bulk-lagring).
       setShuffleAll(questionData?.[0]?.shuffle_options ?? false)
+      setLoadError(false)
     } catch (e) {
       console.error('fetchData feilet:', e)
+      setLoadError(true)
       setFeedback({ type: 'error', msg: 'Kunne ikke laste inn quiz. Sjekk tilkoblingen og prøv igjen.' })
     } finally {
       setLoading(false)
     }
   }
 
+  async function retryLoad() {
+    setRetrying(true)
+    try { await fetchData() } finally { setRetrying(false) }
+  }
+
+  // Timeren settes KUN for kvitteringer — autoDismissMs gir null for feil, se
+  // lib/admin-feedback.ts. En feil blir stående til den erstattes av neste
+  // melding eller lukkes for hånd.
+  //
+  // feedbackTimer: den forrige timeren ryddes før en ny melding vises. Uten
+  // det kunne en kvittering fra tre sekunder siden rekke å slette en feil som
+  // nettopp kom — timerne var uavhengige og visste ikke om hverandre.
+  // Feil forsvinner ikke av seg selv lenger, så det må finnes en vei ut som
+  // ikke er å laste siden på nytt.
+  function dismissFeedback() {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback(null)
+  }
+
   function showFeedback(type: 'success' | 'error', msg: string) {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
     setFeedback({ type, msg })
-    setTimeout(() => setFeedback(null), 3000)
+    const delay = autoDismissMs(type)
+    if (delay !== null) {
+      feedbackTimer.current = setTimeout(() => { setFeedback(null); feedbackTimer.current = null }, delay)
+    }
   }
 
   // Sett "bland svaralternativer" på hele quizen i én operasjon — alle spørsmål
@@ -825,6 +860,18 @@ export default function QuizQuestions() {
         {feedback && (
           <div className={`qq-feedback ${feedback.type}`}>
             {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+            {feedback.type === 'error' && (
+            <button
+              onClick={dismissFeedback}
+              aria-label="Lukk feilmelding"
+              style={{
+                background: 'none', border: 'none', padding: '0 0 0 10px',
+                cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7,
+              }}
+            >
+              Lukk
+            </button>
+            )}
           </div>
         )}
 
@@ -854,7 +901,27 @@ export default function QuizQuestions() {
 
         {showForm && renderForm(newQ, setNewQ, saveQuestion, () => setShowForm(false), 'Nytt spørsmål')}
 
-        {questions.length === 0 && !showForm ? (
+        {loadError && !showForm ? (
+          <div className="qq-empty">
+            <p style={{ fontWeight: 600, color: '#e8e4dd', marginBottom: 6 }}>Kunne ikke laste spørsmålene</p>
+            <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 14 }}>
+              Spørsmålene ligger trygt i databasen — dette er kun et lasteproblem.
+              Ikke legg inn noe på nytt før lista er hentet.
+            </p>
+            <button
+              onClick={retryLoad}
+              disabled={retrying}
+              style={{
+                background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                padding: '10px 20px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                cursor: retrying ? 'not-allowed' : 'pointer', opacity: retrying ? 0.6 : 1,
+                fontFamily: "'Instrument Sans', sans-serif",
+              }}
+            >
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : questions.length === 0 && !showForm ? (
           <div className="qq-empty">
             <p>Ingen spørsmål ennå.</p>
             <button onClick={() => setShowForm(true)} className="qq-btn-add">

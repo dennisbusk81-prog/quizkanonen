@@ -1,5 +1,6 @@
 ﻿'use client'
 import { useEffect, useRef, useState } from 'react'
+import { autoDismissMs } from '@/lib/admin-feedback'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -264,6 +265,7 @@ export default function AdminQuizzes() {
   const [loadError, setLoadError] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [mounted, setMounted] = useState(false)
 
   // Import modal
@@ -382,9 +384,29 @@ export default function AdminQuizzes() {
     loadInitial()
   }, [])
 
+  // Timeren settes KUN for kvitteringer — autoDismissMs gir null for feil, se
+  // lib/admin-feedback.ts. En feil blir stående til den erstattes av neste
+  // melding eller lukkes for hånd.
+  //
+  // feedbackTimer: den forrige timeren ryddes før en ny melding vises. Uten
+  // det kunne en kvittering fra tre sekunder siden rekke å slette en feil som
+  // nettopp kom — timerne var uavhengige og visste ikke om hverandre.
+  // Feil forsvinner ikke av seg selv lenger, så det må finnes en vei ut som
+  // ikke er å laste siden på nytt.
+  function dismissFeedback() {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback(null)
+  }
+
   function showFeedback(type: 'success' | 'error', msg: string) {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
     setFeedback({ type, msg })
-    setTimeout(() => setFeedback(null), 3500)
+    const delay = autoDismissMs(type)
+    if (delay !== null) {
+      feedbackTimer.current = setTimeout(() => { setFeedback(null); feedbackTimer.current = null }, delay)
+    }
   }
 
   // Ett enkelt henteforsøk. Kaster ved feil ELLER uventet (ikke-array) svar, slik
@@ -611,6 +633,18 @@ export default function AdminQuizzes() {
         {feedback && (
           <div className={`aqz-feedback ${feedback.type}`}>
             {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+            {feedback.type === 'error' && (
+            <button
+              onClick={dismissFeedback}
+              aria-label="Lukk feilmelding"
+              style={{
+                background: 'none', border: 'none', padding: '0 0 0 10px',
+                cursor: 'pointer', color: 'inherit', font: 'inherit', opacity: 0.7,
+              }}
+            >
+              Lukk
+            </button>
+            )}
           </div>
         )}
 
