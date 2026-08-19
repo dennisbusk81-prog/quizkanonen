@@ -64,6 +64,13 @@ const state: {
   readErrorQueue: Record<string, Array<{ code: string; message: string } | 'empty' | null>>
   /** organizations.maybeSingle skal gi treff (B2B-scenario) i stedet for null. */
   orgRow: Record<string, unknown> | null
+  /**
+   * Rader en `.update(...).select('id')`-kjede på profiles skal returnere,
+   * konsumert ÉN kjede om gangen (kilde-sync-testene, 19. august 2026).
+   * Active-grenen har to slike kjeder (primær på kunde-id, fallback på
+   * sub-id) — en kø, ikke én verdi, er det som lar testen skille dem.
+   */
+  profileUpdateRowsQueue: Array<Array<{ id: string }>>
 } = {
   event: {},
   storedSubId: null,
@@ -77,6 +84,7 @@ const state: {
   readError: {},
   readErrorQueue: {},
   orgRow: null,
+  profileUpdateRowsQueue: [],
 }
 
 // ── Stripe-SDK ─────────────────────────────────────────────────────────────
@@ -104,7 +112,11 @@ mock.module('stripe', { defaultExport: MockStripe })
 function builder(table: string) {
   const b = {
     _update: null as Record<string, unknown> | null,
-    select() { return b },
+    // Satt når .select() kalles ETTER .update() — altså en skriving som ber om
+    // radene tilbake (active-grenens kilde-sync). Rene lese-kjeder (select før
+    // update) og skrivinger uten select rører ikke radkøen.
+    _wantRows: false,
+    select() { if (b._update) b._wantRows = true; return b },
     eq() { return b },
     in() { return b },
     limit() { return b },
@@ -141,7 +153,12 @@ function builder(table: string) {
       return Promise.resolve({ data: null, error: null })
     },
     // `.update(...).eq(...)` awaites uten terminalmetode.
-    then(resolve: (v: unknown) => void) { return resolve({ data: null, error: null }) },
+    then(resolve: (v: unknown) => void) {
+      const rows = b._wantRows && table === 'profiles'
+        ? state.profileUpdateRowsQueue.shift() ?? null
+        : null
+      return resolve({ data: rows, error: null })
+    },
   }
   return b
 }
@@ -223,6 +240,7 @@ beforeEach(() => {
   state.readError = {}
   state.readErrorQueue = {}
   state.orgRow = null
+  state.profileUpdateRowsQueue = []
 })
 
 // ── Karensperiode ved ufrivillig betalingsfeil (17. august 2026) ───────────
@@ -315,6 +333,54 @@ test('frivillig oppsigelse gir ingen karens — den går rett til kansellering (
 
   assert.equal(graceWrite(), undefined, 'en oppsigelse skal aldri gi karens')
   assert.ok(subIdNulled(), 'og skal fortsatt rydde abonnements-id-en')
+})
+
+// ── Kilde-sync i active/trialing-grenen (19. august 2026) ──────────────────
+//
+// Grenen skrev premium_status men aldri premium_source, så en kortløs
+// Founders-trial som konverterte via Stripe-PORTALEN beholdt 'founders' for
+// alltid (empirisk: invu99, betalende fra 15. august med stale etikett — og
+// org/join kansellerer det private abonnementet kun for source='personal').
+// Fiksen er recomputePremium på de oppdaterte profilene, IKKE en hardkodet
+// 'personal' — en kode-stablet bruker (rad B/D) står fortsatt som 'active' i
+// Stripe, og hardkoding ville overskrevet 'code'.
+//
+// MUTASJONSBEVIS (alle kjørt):
+//   • Fjernes recomputePremium-kallet i active-grenen → begge testene under
+//     ryker (recomputed er tom).
+//   • Ignoreres fallback-radene (coveredIds kun fra primæroppslaget) →
+//     fallback-testen ryker.
+
+test('sub.updated active → premium_source rekalkuleres for den oppdaterte profilen', async () => {
+  state.profileUpdateRowsQueue = [[{ id: PROFILE_ID }]]
+  state.event = updatedEvent('active')
+  await call()
+
+  assert.deepEqual(
+    state.recomputed, [PROFILE_ID],
+    'uten kilde-sync beholder en portal-konvertert trial premium_source=founders for alltid',
+  )
+})
+
+test('kilde-sync bruker FALLBACK-radene når kunde-id-oppslaget ikke traff', async () => {
+  // Primærkjeden (på stripe_customer_id) matcher ingen rad; fallbacken (på
+  // personal_stripe_subscription_id) finner profilen. Kilden skal da synces
+  // for DEN — ikke stille hoppes over fordi primærlisten var tom.
+  state.profileUpdateRowsQueue = [[], [{ id: PROFILE_ID }]]
+  state.event = updatedEvent('trialing')
+  await call()
+
+  assert.deepEqual(state.recomputed, [PROFILE_ID], 'fallback-profilen skal også kilde-synces')
+})
+
+test('kilde-sync: ingen matchende profil → ingen rekalkulering, og hendelsen svarer 200', async () => {
+  state.profileUpdateRowsQueue = [[], []]
+  state.event = updatedEvent('active')
+
+  const res = await call()
+
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.recomputed, [], 'ingen profiler å synce — kallet skal hoppes over, ikke krasje')
 })
 
 // ── Magnus-sekvensen ───────────────────────────────────────────────────────

@@ -1338,12 +1338,16 @@ export async function POST(request: NextRequest) {
           .select('id')
         assertCriticalWrite(b2cActivateError, `sub.updated B2C premium-aktivering customer=${customerId}`)
 
+        let coveredIds = (updatedRows ?? []).map(r => r.id)
+
         // Fallback: profilen mangler stripe_customer_id (f.eks. checkout-event sviktet)
         if (!updatedRows?.length) {
-          const { error: b2cFallbackError } = await supabaseAdmin.from('profiles')
+          const { data: fallbackRows, error: b2cFallbackError } = await supabaseAdmin.from('profiles')
             .update({ premium_status: true, stripe_customer_id: customerId })
             .eq('personal_stripe_subscription_id', subscription.id)
+            .select('id')
           assertCriticalWrite(b2cFallbackError, `sub.updated B2C premium-aktivering (fallback) sub=${subscription.id}`)
+          coveredIds = (fallbackRows ?? []).map(r => r.id)
         }
 
         // Betalingen gikk gjennom — rydd en eventuell karensperiode. Tilgangen
@@ -1357,6 +1361,25 @@ export async function POST(request: NextRequest) {
         await clearPersonalGrace('stripe_customer_id', customerId, `sub.updated ${subscription.status}`)
         if (!updatedRows?.length) {
           await clearPersonalGrace('personal_stripe_subscription_id', subscription.id, `sub.updated ${subscription.status} (fallback)`)
+        }
+
+        // Kilde-sync (19. august 2026). Skrivingene over setter premium_status
+        // men rørte aldri premium_source — så en kortløs Founders-trial som
+        // konverterte via Stripe-PORTALEN (checkout-stien er eneste som skriver
+        // 'personal') beholdt 'founders' for alltid. Empirisk: invu99 betalte
+        // kr 49 fra 15. august med stale etikett, og org-innmelding ville da
+        // IKKE kansellert privat-abonnementet (org/join gater på 'personal').
+        //
+        // recomputePremium, IKKE en hardkodet 'personal': en bruker med
+        // verdikode stablet på betalt abonnement (rad B/D, pause_collection)
+        // står fortsatt som 'active' i Stripe, og en hardkoding ville
+        // overskrevet 'code' og brutt kildehierarkiet i syncPremiumCache.
+        // Fail-safe: Stripe-nede kaster i getStripeCoverage, recomputePremium
+        // fanger og logger — cachen røres ikke, og premium_status=true fra
+        // skrivingen over består. Kjøres ETTER grace-ryddingen, så kilden
+        // utledes av tilstanden slik den faktisk står.
+        if (coveredIds.length > 0) {
+          await recomputePremium(coveredIds, `sub.updated ${subscription.status} kilde-sync`, stripe)
         }
       } else {
         // Canceled: match primært på stripe_customer_id, sekundært på personal_stripe_subscription_id
