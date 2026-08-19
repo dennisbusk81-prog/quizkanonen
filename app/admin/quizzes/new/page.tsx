@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { readAdminBody, readAdminList } from '@/lib/admin-load'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
@@ -802,6 +803,20 @@ function QuizEditorInner() {
   // Loading state — true only when loading an existing quiz
   const [loading, setLoading] = useState(!!editIdFromUrl)
   const [finishError, setFinishError] = useState<string | null>(null)
+  // loadError er samme invariant som på de andre admin-sidene, men editoren har
+  // ingen «Ingen X ennå»-tilstand å legge et feilkort foran — den har noe verre.
+  //
+  // Fram til 19. august gikk en mislykket lasting to veier, begge tause:
+  //  1. `!quizRes.ok` og `catch` gjorde `router.push('/admin/quizzes')`. En
+  //     transient hikke kastet deg ut av editoren uten ett ord om hvorfor.
+  //  2. Verre: `questionsRes.ok ? … : { questions: [] }` gjorde et FEILET
+  //     spørsmålskall om til en tom spørsmålsliste. Lastet quizen, men feilet
+  //     spørsmålene, åpnet editoren med ETT tomt spørsmål og `questionDbIds`
+  //     tomt — på en quiz som har ti. Autolagringen ville da POSTet nye
+  //     spørsmål ved siden av de eksisterende, siden den ikke hadde noen id-er
+  //     å PATCHe. Feilsvaret må derfor stoppe lastingen, ikke bli til tomhet.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   // Quiz header state
   const [title, setTitle]           = useState('')
@@ -923,8 +938,14 @@ function QuizEditorInner() {
       setOpensAt(opens)
       setClosesAt(addHours(opens, 24))
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, editIdFromUrl])
+
+  async function retryEditorLoad() {
+    if (!editIdFromUrl) return
+    setRetrying(true)
+    await loadExistingQuiz(editIdFromUrl)
+    setRetrying(false)
+  }
 
   // Load quiz + questions from DB and populate all state
   async function loadExistingQuiz(id: string) {
@@ -933,13 +954,19 @@ function QuizEditorInner() {
         adminFetch(`/api/admin/quizzes/${id}`),
         adminFetch(`/api/admin/quizzes/${id}/questions`),
       ])
-      if (!quizRes.ok) { router.push('/admin/quizzes'); return }
-
-      const quizBody       = await quizRes.json()
-      const questionsBody  = questionsRes.ok ? await questionsRes.json() : { questions: [] }
-      const quizData       = quizBody.quiz ?? quizBody
-      const qRows          = ((questionsBody.questions ?? []) as DbQuestion[])
+      // Et feilet spørsmålskall er «vet ikke», aldri «quizen har ingen
+      // spørsmål» — se loadError-kommentaren over. readAdminBody kaster på
+      // begge, så ingen av dem kan bli til tomhet.
+      const quizBody = await readAdminBody(quizRes) as { quiz?: Record<string, unknown> } & Record<string, unknown>
+      const qRows = (await readAdminList<DbQuestion>(questionsRes, 'questions'))
         .slice().sort((a, b) => a.order_index - b.order_index)
+      const quizData = (quizBody.quiz ?? quizBody) as Record<string, unknown> as {
+        title?: string
+        opens_at?: string
+        closes_at?: string
+        quiz_type?: string
+        is_test?: boolean
+      }
 
       // Metadata
       const loadedTitle = quizData.title ?? ''
@@ -990,9 +1017,14 @@ function QuizEditorInner() {
 
       // Prevent auto-collapse on first focus (already in edit mode)
       hasCollapsedRef.current = true
+      setLoadError(false)
 
-    } catch {
-      router.push('/admin/quizzes')
+    } catch (e) {
+      // Ikke router.push lenger: en transient hikke skal ikke kaste deg ut av
+      // editoren uten forklaring. Feilskjermen har «Prøv igjen» OG en vei
+      // tilbake til quiz-lista, så begge utfallene er brukerens valg.
+      console.error('loadExistingQuiz feilet:', e)
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -1800,6 +1832,47 @@ function QuizEditorInner() {
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+    </div>
+  )
+
+  // Feilskjermen står FØR editoren, ikke inne i den: en halvlastet quiz skal
+  // ikke kunne tegnes i det hele tatt, for da ville autolagringen kunne fyre på
+  // en tilstand som ikke er quizens.
+  if (loadError) return (
+    <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 440, textAlign: 'center' }}>
+        <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 10 }}>
+          Kunne ikke laste quizen
+        </p>
+        <p style={{ fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
+          Noe gikk galt under henting av quizen eller spørsmålene. Ingenting er
+          endret — quizen ligger trygt i databasen. Editoren åpnes ikke før alt
+          er lastet, så du ikke redigerer en halv quiz.
+        </p>
+        <button
+          onClick={retryEditorLoad}
+          disabled={retrying}
+          style={{
+            background: 'transparent',
+            border: '1px solid #2a2d38',
+            borderRadius: 10,
+            padding: '10px 20px',
+            fontFamily: "'Instrument Sans', sans-serif",
+            fontSize: 13,
+            fontWeight: 500,
+            color: '#e8e4dd',
+            cursor: retrying ? 'not-allowed' : 'pointer',
+            opacity: retrying ? 0.6 : 1,
+          }}
+        >
+          {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+        </button>
+        <div style={{ marginTop: 16 }}>
+          <Link href="/admin/quizzes" style={{ fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, color: '#e8e4dd' }}>
+            ← Alle quizer
+          </Link>
+        </div>
+      </div>
     </div>
   )
 

@@ -202,6 +202,20 @@ const STYLES = `
     color: var(--body);
     line-height: 1.6;
   }
+  .dsh-retry {
+    display: block;
+    margin-top: 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    cursor: pointer;
+  }
+  .dsh-retry:disabled { opacity: 0.6; cursor: not-allowed; }
 
   @media (max-width: 1000px) {
     .dsh-stats { grid-template-columns: repeat(3, 1fr); }
@@ -226,26 +240,37 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
-    ;(async () => {
-      try {
-        const res = await adminFetch('/api/admin/dashboard')
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          setError(body?.error ?? `Serveren svarte ${res.status}`)
-          return
-        }
-        setData(await res.json())
-      } catch {
-        setError('Kunne ikke kontakte serveren.')
-      } finally {
-        setLoading(false)
-      }
-    })()
+    load().finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Siden skilte allerede feil fra tomt — innholdet er gatet bak `data &&`, så
+  // en mislykket henting har aldri kunnet se ut som et dashboard med nuller.
+  // Det som manglet var utveien: eneste vei videre var å laste siden på nytt.
+  async function load() {
+    try {
+      const res = await adminFetch('/api/admin/dashboard')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setError(body?.error ?? `Serveren svarte ${res.status}`)
+        return
+      }
+      setData(await res.json())
+      setError(null)
+    } catch {
+      setError('Kunne ikke kontakte serveren.')
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    await load()
+    setRetrying(false)
+  }
 
   if (loading) return (
     <>
@@ -275,7 +300,14 @@ export default function AdminDashboard() {
 
         <div className="dsh-rule" />
 
-        {error && <div className="dsh-error">Kunne ikke laste dashboardet: {error}</div>}
+        {error && (
+          <div className="dsh-error">
+            Kunne ikke laste dashboardet: {error}
+            <button className="dsh-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        )}
 
         {data && (
           <>

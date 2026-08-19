@@ -1,8 +1,10 @@
 ﻿'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { autoDismissMs } from '@/lib/admin-feedback'
+import { readAdminBody, pickAdminList } from '@/lib/admin-load'
 import { Quiz, Question } from '@/lib/supabase'
 import { readStoredKey } from '@/lib/answer-key-correction'
 import Link from 'next/link'
@@ -426,6 +428,31 @@ const STYLES = `
     margin-bottom: 8px;
   }
   .an-empty-sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .an-retry {
+    margin-top: 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    cursor: pointer;
+  }
+  .an-retry:disabled { opacity: 0.6; cursor: not-allowed; }
+  .an-feedback-dismiss {
+    margin-left: 10px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
 
   .an-loading {
     min-height: 100vh;
@@ -460,11 +487,20 @@ export default function QuizAnalytics() {
   const [orgCount, setOrgCount] = useState(0)
   const [orgBreakdown, setOrgBreakdown] = useState<{ name: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en quiz ingen har spilt ennå —
+  // samme mønster som app/admin/quizzes/page.tsx. Fram til 19. august endte
+  // enhver feil i en `console.error` og ingenting mer, og siden `attempts` da
+  // sto på [], falt skjermen tilbake på «Ingen data ennå — Analytics vises her
+  // når spillere har fullført quizen». Det er en påstand om spillerne, ikke om
+  // kallet, og den var feil hver gang hentingen var årsaken.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [expandedOpts, setExpandedOpts] = useState<Set<string>>(new Set())
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null)
   const [pendingCorrect, setPendingCorrect] = useState<string | null>(null)
   const [savingCorrect, setSavingCorrect] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [shareState, setShareState] = useState<'idle' | 'loading' | 'copied'>('idle')
   const [removeTarget, setRemoveTarget] = useState<{ attemptId: string; name: string } | null>(null)
   const [removing, setRemoving] = useState(false)
@@ -474,22 +510,66 @@ export default function QuizAnalytics() {
     fetchData()
   }, [])
 
+  async function fetchDataOnce() {
+    const res = await adminFetch(`/api/admin/quizzes/${quizId}/analytics`)
+    // Kroppen leses ÉN gang, og alle tre listene må være til stede — mangler
+    // én, er svaret uventet, ikke tomt.
+    const body = await readAdminBody(res)
+    const nextQuestions = pickAdminList<Question>(body, 'questions')
+    const nextAttempts  = pickAdminList<AttemptRow>(body, 'attempts')
+    const nextAnswers   = pickAdminList<AnswerRow>(body, 'answers')
+
+    setQuiz((body as { quiz: Quiz }).quiz)
+    setQuestions(nextQuestions)
+    setAttempts(nextAttempts)
+    setAnswers(nextAnswers)
+    setTopPlayers((body as { topPlayers?: TopPlayer[] }).topPlayers ?? [])
+    setOrgCount((body as { orgCount?: number }).orgCount ?? 0)
+    setOrgBreakdown((body as { orgBreakdown?: { name: string; count: number }[] }).orgBreakdown ?? [])
+  }
+
   async function fetchData() {
     try {
-      const res = await adminFetch(`/api/admin/quizzes/${quizId}/analytics`)
-      if (!res.ok) throw new Error(`API svarte ${res.status}`)
-      const data = await res.json()
-      setQuiz(data.quiz)
-      setQuestions(data.questions)
-      setAttempts(data.attempts)
-      setAnswers(data.answers)
-      setTopPlayers(data.topPlayers ?? [])
-      setOrgCount(data.orgCount ?? 0)
-      setOrgBreakdown(data.orgBreakdown ?? [])
+      await fetchDataOnce()
+      setLoadError(false)
     } catch (e) {
       console.error('fetchData feilet:', e)
+      setLoadError(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    try {
+      await fetchDataOnce()
+      setLoadError(false)
+    } catch (e) {
+      console.error('retryLoad feilet:', e)
+      setLoadError(true)
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  // Timeren settes KUN for kvitteringer — autoDismissMs gir null for feil, se
+  // lib/admin-feedback.ts. Samme mønster som app/admin/codes/page.tsx: forrige
+  // timer ryddes først, så en kvittering fra fem sekunder siden ikke rekker å
+  // slette en feil som nettopp kom.
+  function dismissFeedback() {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback(null)
+  }
+
+  function showFeedback(type: 'success' | 'error', msg: string) {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback({ type, msg })
+    const delay = autoDismissMs(type)
+    if (delay !== null) {
+      feedbackTimer.current = setTimeout(() => { setFeedback(null); feedbackTimer.current = null }, delay)
     }
   }
 
@@ -536,15 +616,15 @@ export default function QuizAnalytics() {
         method: 'PATCH',
         body: JSON.stringify({ correct_answer: newAnswer }),
       })
-      if (!res.ok) setFeedback({ type: 'error', msg: 'Kunne ikke oppdatere riktig svar.' })
+      if (!res.ok) showFeedback('error', 'Kunne ikke oppdatere riktig svar.')
       else {
-        setFeedback({ type: 'success', msg: 'Riktig svar oppdatert og resultater rekalkulert.' })
+        showFeedback('success', 'Riktig svar oppdatert og resultater rekalkulert.')
         setEditingQuestion(null)
         setPendingCorrect(null)
         fetchData()
       }
     } catch {
-      setFeedback({ type: 'error', msg: 'Kunne ikke oppdatere riktig svar.' })
+      showFeedback('error', 'Kunne ikke oppdatere riktig svar.')
     } finally {
       setSavingCorrect(false)
     }
@@ -578,18 +658,17 @@ export default function QuizAnalytics() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setFeedback({ type: 'error', msg: data.error ?? 'Noe gikk galt' })
+        showFeedback('error', data.error ?? 'Noe gikk galt')
       } else {
-        setFeedback({ type: 'success', msg: `${removeTarget.name} er fjernet fra quizen.` })
+        showFeedback('success', `${removeTarget.name} er fjernet fra quizen.`)
         fetchData()
       }
     } catch {
-      setFeedback({ type: 'error', msg: 'Noe gikk galt' })
+      showFeedback('error', 'Noe gikk galt')
     } finally {
       setRemoving(false)
       setRemoveTarget(null)
     }
-    setTimeout(() => setFeedback(null), 5000)
   }
 
   function toggleExpandOpt(key: string) {
@@ -653,10 +732,31 @@ export default function QuizAnalytics() {
         {feedback && (
           <div className={`an-feedback ${feedback.type}`}>
             {feedback.type === 'success' ? '✓ ' : '✕ '}{feedback.msg}
+            {feedback.type === 'error' && (
+              <button
+                type="button"
+                className="an-feedback-dismiss"
+                aria-label="Lukk feilmelding"
+                onClick={dismissFeedback}
+              >
+                Lukk
+              </button>
+            )}
           </div>
         )}
 
-        {totalStarts === 0 ? (
+        {loadError ? (
+          <div className="an-empty">
+            <p className="an-empty-title">Kunne ikke laste analytics</p>
+            <p className="an-empty-sub">
+              Noe gikk galt under henting. Besvarelsene ligger trygt i databasen —
+              dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button className="an-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : totalStarts === 0 ? (
           <div className="an-empty">
             <p className="an-empty-title">Ingen data ennå</p>
             <p className="an-empty-sub">

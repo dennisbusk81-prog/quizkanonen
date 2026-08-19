@@ -1,8 +1,9 @@
 ﻿'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, logoutAdmin, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { autoDismissMs } from '@/lib/admin-feedback'
 import Link from 'next/link'
 
 const STYLES = `
@@ -213,6 +214,18 @@ const STYLES = `
   }
   .adm-nq-feedback--success { color: #4ade80; background: rgba(74,222,128,0.08); }
   .adm-nq-feedback--error { color: #f87171; background: rgba(248,113,113,0.08); }
+  .adm-nq-dismiss {
+    margin-left: 8px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
 
   /* Recent quizzes */
   .adm-section {
@@ -355,6 +368,7 @@ export default function AdminHome() {
   const [nextQuizValue, setNextQuizValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
   const [resetModal, setResetModal] = useState<ResetModal>(null)
@@ -455,6 +469,24 @@ export default function AdminHome() {
     }
   }
 
+  // Timeren settes KUN for kvitteringer — autoDismissMs gir null for feil, se
+  // lib/admin-feedback.ts. Samme mønster som app/admin/codes/page.tsx.
+  function dismissFeedback() {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback(null)
+  }
+
+  function showFeedback(type: 'success' | 'error', msg: string) {
+    if (feedbackTimer.current !== null) clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = null
+    setFeedback({ type, msg })
+    const delay = autoDismissMs(type)
+    if (delay !== null) {
+      feedbackTimer.current = setTimeout(() => { setFeedback(null); feedbackTimer.current = null }, delay)
+    }
+  }
+
   async function saveNextQuiz() {
     if (!nextQuizValue) return
     setSaving(true)
@@ -463,12 +495,9 @@ export default function AdminHome() {
       method: 'PATCH',
       body: JSON.stringify({ nextQuizAt: isoValue }),
     })
-    setFeedback(r.ok
-      ? { type: 'success', msg: 'Lagret!' }
-      : { type: 'error', msg: 'Kunne ikke lagre' }
-    )
+    if (r.ok) showFeedback('success', 'Lagret!')
+    else showFeedback('error', 'Kunne ikke lagre')
     setSaving(false)
-    setTimeout(() => setFeedback(null), 3000)
   }
 
   async function handleReset() {
@@ -598,6 +627,16 @@ export default function AdminHome() {
           {feedback && (
             <span className={`adm-nq-feedback adm-nq-feedback--${feedback.type}`}>
               {feedback.msg}
+              {feedback.type === 'error' && (
+                <button
+                  type="button"
+                  className="adm-nq-dismiss"
+                  aria-label="Lukk feilmelding"
+                  onClick={dismissFeedback}
+                >
+                  Lukk
+                </button>
+              )}
             </span>
           )}
           <button

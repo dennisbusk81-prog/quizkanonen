@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { readAdminList } from '@/lib/admin-load'
 import Link from 'next/link'
 
 const STYLES = `
@@ -128,6 +129,36 @@ const STYLES = `
     text-align: center;
   }
 
+  .ret-error-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 16px;
+    color: var(--white);
+    margin: 0 0 8px;
+    text-align: center;
+  }
+  .ret-error-sub {
+    font-size: 13px;
+    color: var(--hint);
+    margin: 0 0 20px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .ret-retry {
+    display: block;
+    margin: 0 auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    font-family: 'Instrument Sans', sans-serif;
+    cursor: pointer;
+  }
+  .ret-retry:disabled { cursor: not-allowed; opacity: 0.6; }
+  .ret-error-box { padding: 28px 10px; }
+
   .ret-loading {
     min-height: 100vh;
     background: var(--bg);
@@ -156,6 +187,13 @@ export default function AdminRetention() {
   const router = useRouter()
   const [rows, setRows] = useState<RetentionRow[]>([])
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en bekreftet tom liste — samme
+  // mønster som app/admin/quizzes/page.tsx. Fram til 19. august svelget
+  // `if (res.ok)` enhver 403/500/nettverksfeil uten else-gren, og skjermen
+  // påsto så «Ingen fullførte attempts å vise ennå» — en positiv påstand om at
+  // basen er tom, når alt vi vet er at kallet feilet.
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
@@ -163,17 +201,32 @@ export default function AdminRetention() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  async function fetchRetentionOnce(): Promise<RetentionRow[]> {
+    return readAdminList<RetentionRow>(await adminFetch('/api/admin/retention'), 'rows')
+  }
+
   async function fetchRetention() {
     try {
-      const res = await adminFetch('/api/admin/retention')
-      if (res.ok) {
-        const data = await res.json()
-        setRows(data.rows ?? [])
-      }
+      setRows(await fetchRetentionOnce())
+      setLoadError(false)
     } catch (e) {
       console.error('fetchRetention feilet:', e)
+      setLoadError(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    try {
+      setRows(await fetchRetentionOnce())
+      setLoadError(false)
+    } catch (e) {
+      console.error('retryLoad feilet:', e)
+      setLoadError(true)
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -214,7 +267,18 @@ export default function AdminRetention() {
         </p>
 
         <div className="ret-card">
-          {rows.length === 0 ? (
+          {loadError ? (
+            <div className="ret-error-box">
+              <p className="ret-error-title">Kunne ikke laste retention</p>
+              <p className="ret-error-sub">
+                Noe gikk galt under henting av kohortene. Tallene ligger trygt i
+                databasen — dette er kun et lasteproblem. Prøv igjen.
+              </p>
+              <button className="ret-retry" onClick={retryLoad} disabled={retrying}>
+                {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
             <p className="ret-empty">Ingen fullførte attempts å vise ennå.</p>
           ) : (
             <table className="ret-table">

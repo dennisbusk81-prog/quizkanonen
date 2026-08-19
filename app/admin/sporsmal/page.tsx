@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { readAdminList } from '@/lib/admin-load'
 
 type BankQuestion = {
   id: string
@@ -132,6 +133,15 @@ const STYLES = `
   .sb-btn-copy:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .sb-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
+  .sb-error { text-align: center; padding: 60px 20px; }
+  .sb-error-title { font-family: 'Libre Baskerville', serif; font-size: 16px; color: var(--white); margin: 0 0 8px; }
+  .sb-error-sub { font-size: 13px; color: var(--muted); margin: 0 0 20px; line-height: 1.6; }
+  .sb-retry {
+    background: transparent; border: 1px solid var(--border); border-radius: var(--rbtn);
+    padding: 10px 20px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 500;
+    color: var(--body); cursor: pointer;
+  }
+  .sb-retry:disabled { opacity: 0.6; cursor: not-allowed; }
   .sb-count { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 
   .sb-load-more-row { display: flex; justify-content: center; margin-top: 16px; }
@@ -163,6 +173,8 @@ export default function SporsmalPage() {
   const [questions, setQuestions] = useState<BankQuestion[]>([])
   const [quizzes,   setQuizzes]   = useState<QuizOption[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [retrying,  setRetrying]  = useState(false)
   const [search,    setSearch]    = useState('')
   const [sortKey,   setSortKey]   = useState<SortKey>('last_used')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -177,14 +189,49 @@ export default function SporsmalPage() {
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
-    Promise.all([
-      adminFetch('/api/admin/questions').then(r => r.json()),
-      adminFetch('/api/admin/quizzes').then(r => r.json()),
-    ]).then(([qData, quizData]) => {
-      setQuestions(qData.questions ?? [])
-      setQuizzes((Array.isArray(quizData) ? quizData : []).map((q: { id: string; title: string }) => ({ id: q.id, title: q.title })))
-    }).finally(() => setLoading(false))
+    loadAll()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
+
+  // loadError skiller en MISLYKKET henting fra en bekreftet tom bank — samme
+  // mønster som app/admin/quizzes/page.tsx, og samme feil som classics hadde:
+  // Promise.all-en manglet .catch mens .finally slo av loading uansett, så både
+  // en kastet fetch og et feilsvar (`qData.questions ?? []`) endte på «Ingen
+  // spørsmål ennå». Kun quiz-lista tåler å være tom ved feil — den fyller en
+  // nedtrekksmeny, ikke en påstand om innhold.
+  async function fetchQuestionsOnce(): Promise<BankQuestion[]> {
+    return readAdminList<BankQuestion>(await adminFetch('/api/admin/questions'), 'questions')
+  }
+
+  async function loadAll() {
+    try {
+      const [qRows, quizData] = await Promise.all([
+        fetchQuestionsOnce(),
+        adminFetch('/api/admin/quizzes').then(r => r.ok ? r.json() : []).catch(() => []),
+      ])
+      setQuestions(qRows)
+      setQuizzes((Array.isArray(quizData) ? quizData : []).map((q: { id: string; title: string }) => ({ id: q.id, title: q.title })))
+      setLoadError(false)
+    } catch (e) {
+      console.error('loadAll feilet:', e)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    try {
+      setQuestions(await fetchQuestionsOnce())
+      setLoadError(false)
+    } catch (e) {
+      console.error('retryLoad feilet:', e)
+      setLoadError(true)
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const categories = useMemo(
     () => [...new Set(questions.map(q => q.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'nb')),
@@ -319,7 +366,18 @@ export default function SporsmalPage() {
           </p>
         )}
 
-        {filtered.length === 0 ? (
+        {loadError ? (
+          <div className="sb-error">
+            <p className="sb-error-title">Kunne ikke laste spørsmålsbanken</p>
+            <p className="sb-error-sub">
+              Noe gikk galt under henting. Spørsmålene ligger trygt i databasen —
+              dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button className="sb-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="sb-empty">
             {search || classicOnly || categoryFilter ? 'Ingen spørsmål matcher filteret.' : 'Ingen spørsmål ennå.'}
           </div>

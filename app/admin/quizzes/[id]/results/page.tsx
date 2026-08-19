@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { readAdminBody } from '@/lib/admin-load'
 import ResultsTable from '@/components/ResultsTable'
 import Link from 'next/link'
 
@@ -284,6 +285,19 @@ const STYLES = `
     margin-bottom: 8px;
   }
   .res-empty-sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .res-retry {
+    margin-top: 20px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body);
+    cursor: pointer;
+  }
+  .res-retry:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .res-loading {
     min-height: 100vh;
@@ -318,21 +332,43 @@ export default function QuizResults() {
 
   const [data, setData] = useState<ResultsData | null>(null)
   const [loading, setLoading] = useState(true)
+  // loadError skiller en MISLYKKET henting fra en quiz ingen har spilt ennå —
+  // samme mønster som app/admin/quizzes/page.tsx. Fram til 19. august hadde
+  // `if (res.ok) setData(...)` ingen else-gren, så en 403/500/nettverksfeil lot
+  // `data` stå på null og skjermen påsto «Ingen resultater ennå — Resultater
+  // vises her når spillere har fullført quizen». Ikke-tilstanden `null` bar
+  // altså to ULIKE utfall: «ikke lastet» og «ingenting å vise».
+  const [loadError, setLoadError] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); setLoading(false); return }
-    ;(async () => {
-      try {
-        const res = await adminFetch(`/api/admin/quizzes/${quizId}/results`)
-        if (res.ok) setData(await res.json())
-      } catch (e) {
-        console.error('results fetch feilet:', e)
-      } finally {
-        setLoading(false)
-      }
-    })()
+    load().finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizId])
+
+  async function load() {
+    try {
+      const body = await readAdminBody(await adminFetch(`/api/admin/quizzes/${quizId}/results`))
+      // `total` er tallet tom-tilstanden leses av. Mangler det, vet vi ikke om
+      // quizen er tom — da skal feilskjermen vises, ikke «Ingen resultater ennå».
+      if (typeof (body as { total?: unknown })?.total !== 'number') {
+        throw new Error('Uventet svarformat fra serveren')
+      }
+      setData(body as ResultsData)
+      setLoadError(false)
+    } catch (e) {
+      console.error('results fetch feilet:', e)
+      setLoadError(true)
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    await load()
+    setRetrying(false)
+  }
 
   function buildTop10Text(d: ResultsData): string {
     const medals = ['🥇', '🥈', '🥉']
@@ -404,7 +440,18 @@ export default function QuizResults() {
 
         <div className="res-rule" />
 
-        {!data || data.total === 0 ? (
+        {loadError ? (
+          <div className="res-empty">
+            <p className="res-empty-title">Kunne ikke laste resultatene</p>
+            <p className="res-empty-sub">
+              Noe gikk galt under henting. Resultatene ligger trygt i databasen —
+              dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button className="res-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : !data || data.total === 0 ? (
           <div className="res-empty">
             <p className="res-empty-title">Ingen resultater ennå</p>
             <p className="res-empty-sub">

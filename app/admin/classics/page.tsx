@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
+import { readAdminList } from '@/lib/admin-load'
 
 type ClassicQuestion = {
   id: string
@@ -92,6 +93,15 @@ const STYLES = `
   .cl-btn-copy:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .cl-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
+  .cl-error { text-align: center; padding: 60px 20px; }
+  .cl-error-title { font-family: 'Libre Baskerville', serif; font-size: 16px; color: var(--white); margin: 0 0 8px; }
+  .cl-error-sub { font-size: 13px; color: var(--muted); margin: 0 0 20px; line-height: 1.6; }
+  .cl-retry {
+    background: transparent; border: 1px solid var(--border); border-radius: var(--rbtn);
+    padding: 10px 20px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 500;
+    color: var(--body); cursor: pointer;
+  }
+  .cl-retry:disabled { opacity: 0.6; cursor: not-allowed; }
   .cl-count { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 `
 
@@ -100,6 +110,8 @@ export default function ClassicsPage() {
   const [questions, setQuestions] = useState<ClassicQuestion[]>([])
   const [quizzes,   setQuizzes]   = useState<QuizOption[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [retrying,  setRetrying]  = useState(false)
   const [search,    setSearch]    = useState('')
   const [copying,   setCopying]   = useState<string | null>(null)
   const [copyDone,  setCopyDone]  = useState<string | null>(null)
@@ -114,14 +126,52 @@ export default function ClassicsPage() {
 
   useEffect(() => {
     if (!isAdminLoggedIn()) { router.replace(adminLoginPath()); return }
-    Promise.all([
-      adminFetch('/api/admin/classics').then(r => r.json()),
-      adminFetch('/api/admin/quizzes').then(r => r.json()),
-    ]).then(([cData, qData]) => {
-      setQuestions(cData.questions ?? [])
-      setQuizzes((Array.isArray(qData) ? qData : []).map((q: { id: string; title: string }) => ({ id: q.id, title: q.title })))
-    }).finally(() => setLoading(false))
+    loadAll()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
+
+  // loadError skiller en MISLYKKET henting fra en bekreftet tom bank — samme
+  // mønster som app/admin/quizzes/page.tsx.
+  //
+  // Fram til 19. august hadde Promise.all-en INGEN .catch, mens .finally slo av
+  // loading uansett. To utfall gikk derfor samme vei til «Ingen klassikere
+  // ennå»: en kastet fetch (offline, DNS, avbrutt), og et feilsvar der
+  // `r.json()` ga `{ error: … }` og `cData.questions ?? []` gjorde det om til
+  // en tom liste. Kun quiz-lista tåler å være tom ved feil — den fyller en
+  // nedtrekksmeny, ikke en påstand om innhold.
+  async function fetchClassicsOnce(): Promise<ClassicQuestion[]> {
+    return readAdminList<ClassicQuestion>(await adminFetch('/api/admin/classics'), 'questions')
+  }
+
+  async function loadAll() {
+    try {
+      const [cRows, qRes] = await Promise.all([
+        fetchClassicsOnce(),
+        adminFetch('/api/admin/quizzes').then(r => r.ok ? r.json() : []).catch(() => []),
+      ])
+      setQuestions(cRows)
+      setQuizzes((Array.isArray(qRes) ? qRes : []).map((q: { id: string; title: string }) => ({ id: q.id, title: q.title })))
+      setLoadError(false)
+    } catch (e) {
+      console.error('loadAll feilet:', e)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function retryLoad() {
+    setRetrying(true)
+    try {
+      setQuestions(await fetchClassicsOnce())
+      setLoadError(false)
+    } catch (e) {
+      console.error('retryLoad feilet:', e)
+      setLoadError(true)
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const filtered = questions.filter(q => {
     if (!search) return true
@@ -190,7 +240,18 @@ export default function ClassicsPage() {
           <p className="cl-count">{filtered.length} spørsmål{search ? ' funnet' : ''}</p>
         )}
 
-        {filtered.length === 0 ? (
+        {loadError ? (
+          <div className="cl-error">
+            <p className="cl-error-title">Kunne ikke laste klassikerne</p>
+            <p className="cl-error-sub">
+              Noe gikk galt under henting. Spørsmålene ligger trygt i databasen —
+              dette er kun et lasteproblem. Prøv igjen.
+            </p>
+            <button className="cl-retry" onClick={retryLoad} disabled={retrying}>
+              {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="cl-empty">
             {search ? 'Ingen spørsmål matcher søket.' : 'Ingen klassikere ennå. Merk spørsmål som klassikere i quiz-editoren.'}
           </div>
