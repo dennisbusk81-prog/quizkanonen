@@ -23,6 +23,7 @@ import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
+import { nextQuizLabel } from '@/lib/next-quiz-label'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -2605,10 +2606,10 @@ export default function QuizPage() {
 
   // ALLEREDE SPILT
   if (phase === 'already_played') {
-    const nextDate = nextQuizAt ? new Date(nextQuizAt) : null
-    const nextDateStr = nextDate
-      ? nextDate.toLocaleString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-      : null
+    // Samme delte kilde som resultatskjermen lenger nede. Fram til 19. august
+    // 2026 sto det en rå new Date(nextQuizAt) her — uten fremtidsvakt og uten
+    // timeZone — mens resultatskjermen hadde begge deler. Se lib/next-quiz-label.ts.
+    const nextDateStr = nextQuizLabel(nextQuizAt)
     return (
       <><style>{styles}</style>
       <SiteNav />
@@ -2619,19 +2620,17 @@ export default function QuizPage() {
         <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
         <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
         <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz.</p>
-        {nextDateStr && (
-          <div style={{
-            margin:'16px 0 0',
-            padding:'12px 16px',
-            background:'rgba(201,168,76,0.08)',
-            border:'1px solid rgba(201,168,76,0.2)',
-            borderRadius:10,
-            fontSize:13,
-            color:'var(--gold)',
-          }}>
-            Neste quiz: <strong>{nextDateStr}</strong>
-          </div>
-        )}
+        <div style={{
+          margin:'16px 0 0',
+          padding:'12px 16px',
+          background:'rgba(201,168,76,0.08)',
+          border:'1px solid rgba(201,168,76,0.2)',
+          borderRadius:10,
+          fontSize:13,
+          color:'var(--gold)',
+        }}>
+          Neste quiz: <strong>{nextDateStr}</strong>
+        </div>
         {top3.length > 0 && (
           <div style={{ marginTop: 20, textAlign: 'left' }}>
             <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10 }}>
@@ -3890,30 +3889,12 @@ export default function QuizPage() {
           </div>
         )}
 
-        {(() => {
-          let displayStr: string | null = null
-          if (nextQuizAt) {
-            const d = new Date(nextQuizAt)
-            if (d > new Date()) {
-              displayStr = d.toLocaleString('nb-NO', { timeZone: 'Europe/Oslo', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
-            }
-          }
-          if (!displayStr) {
-            const nowOslo = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Oslo' }))
-            const day = nowOslo.getDay()
-            let daysUntil = (5 - day + 7) % 7
-            if (daysUntil === 0 && nowOslo.getHours() >= 12) daysUntil = 7
-            const nextFri = new Date()
-            nextFri.setDate(new Date().getDate() + daysUntil)
-            const dateStr = nextFri.toLocaleDateString('nb-NO', { timeZone: 'Europe/Oslo', day: 'numeric', month: 'long' })
-            displayStr = `fredag ${dateStr} kl. 12:00`
-          }
-          return (
-            <p style={{fontSize:13,color:'#e8e4dd',textAlign:'center'}}>
-              Neste quiz: {displayStr}
-            </p>
-          )
-        })()}
+        {/* Fremtidsvakt, fredags-fallback og tidssone bor i lib/next-quiz-label.ts,
+            delt med allerede-spilt-skjermen over. Sto tidligere inline BEGGE steder,
+            og de to kopiene hadde drevet fra hverandre. */}
+        <p style={{fontSize:13,color:'#e8e4dd',textAlign:'center'}}>
+          Neste quiz: {nextQuizLabel(nextQuizAt)}
+        </p>
 
 
         {isLoggedIn && !isPremium && (
