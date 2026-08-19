@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isPersonalGraceActive } from '@/lib/personal-grace'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, has_used_trial, org_premium_grace_until')
+    .select('premium_status, has_used_trial, org_premium_grace_until, personal_grace_until')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -82,14 +83,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ trialDays, eligible: null })
   }
 
-  // Samme grace-regel som /api/profile/premium-status: en bruker som mistet
-  // org-Premium har fortsatt dekning ut grace-perioden, og skal ikke tilbys en
-  // prøveperiode oppå den.
+  // Samme karens-regel som /api/profile/premium-status og getUserPremium
+  // (lib/premium-check.ts), begge leddene: en bruker som mistet org-Premium
+  // eller står midt i personlig dunning har fortsatt dekning ut karensen, og
+  // skal ikke tilbys en prøveperiode oppå den. Det personlige leddet biter kun
+  // når cachen premium_status står false mens personal_grace_until gjelder
+  // (syncPremiumCache under transient feil) — samme kant som org-leddet verner.
+  const now = new Date()
   const graceActive = !!profile.org_premium_grace_until
-    && new Date(profile.org_premium_grace_until) > new Date()
+    && new Date(profile.org_premium_grace_until) > now
+  const personalGraceActive = isPersonalGraceActive(profile.personal_grace_until, now)
 
   const eligible = isTrialEligible({
-    isPremium: profile.premium_status === true || graceActive,
+    isPremium: profile.premium_status === true || graceActive || personalGraceActive,
     hasUsedTrial: profile.has_used_trial === true,
   })
 

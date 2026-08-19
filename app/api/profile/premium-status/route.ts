@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isPersonalGraceActive } from '@/lib/personal-grace'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   // Hent premium_status med service role — omgår RLS
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until')
+    .select('premium_status, premium_source, stripe_customer_id, org_premium_grace_until, personal_grace_until')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -44,12 +45,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ isPremium: false }, { status: 500 })
   }
 
-  // Grace period: brukere som mistet org-Premium beholder tilgang til grace utløper
+  // Karens teller som dekning — BEGGE variantene, samme to ledd som
+  // getUserPremium (lib/premium-check.ts). Org-leddet: brukere som mistet
+  // org-Premium beholder tilgang til karensen utløper. Det personlige leddet er
+  // i normal drift dødt (cachen premium_status står true under karensen), men
+  // en syncPremiumCache som treffer en transient feil kan skrive false mens
+  // personal_grace_until fortsatt gjelder — og denne ruta mater ProfileProvider,
+  // så et false her nedgraderer hele klient-UI-et for en betalende kunde midt i
+  // dunning-perioden.
+  const now = new Date()
   const graceActive = !!data?.org_premium_grace_until
-    && new Date(data.org_premium_grace_until) > new Date()
+    && new Date(data.org_premium_grace_until) > now
+  const personalGraceActive = isPersonalGraceActive(data?.personal_grace_until, now)
 
   return NextResponse.json({
-    isPremium: data?.premium_status === true || graceActive,
+    isPremium: data?.premium_status === true || graceActive || personalGraceActive,
     premiumSource: data?.premium_source ?? null,
     hasStripeCustomer: !!data?.stripe_customer_id,
   })
