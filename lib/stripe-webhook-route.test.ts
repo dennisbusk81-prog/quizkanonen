@@ -661,3 +661,91 @@ test('invoice.payment_failed — org-oppslaget feiler: bedriften får ikke B2C-t
     'uten vakten falt en org-kunde til B2C-grenen og fikk «Quizkanonen Premium»-teksten',
   )
 })
+
+// ── De tre siste lesevaktene i sub.updated (19. august 2026) ───────────────
+//
+// Org-diskriminatoren er FLYTTET over resume-blokken, så dens kast skjer før
+// fire-and-forget-e-posten er satt i gang. De to profiloppslagene i
+// kanselleringsgrenen står nedstrøms med vakt, samme avveining som de fire
+// assertCriticalWrite i samme gren.
+//
+// MUTASJONSBEVIS (alle kjørt):
+//   • Fjernes vakten på org-diskriminatoren → resume-testen ryker (200 i
+//     stedet for 500, org-kunden behandles som B2C).
+//   • Flyttes oppslaget tilbake UNDER resume-blokken (vakten beholdt) →
+//     resume-testen ryker på e-post-asserten: e-posten rekker ut før kastet,
+//     og dobles dermed ved Stripe-retry.
+//   • Fjernes vakten på primæroppslaget → «primæroppslaget feiler»-testen
+//     ryker (fallbacken finner profilen og kansellerer uten stale-vern).
+//   • Fjernes vakten på fallback-oppslaget → «fallback-oppslaget feiler»-
+//     testen ryker («no profile found» dekker over en nede database, 200).
+
+function resumeEvent() {
+  return {
+    id: `evt_resume_${Math.random()}`,
+    type: 'customer.subscription.updated',
+    data: {
+      object: { id: SUB_TRIAL, customer: CUSTOMER, status: 'active' },
+      previous_attributes: { pause_collection: { behavior: 'void' } },
+    },
+  }
+}
+
+test('sub.updated resume — positiv kontroll: gjenopptatt fakturering gir e-post', async () => {
+  // Uten denne beviser «ingen e-post»-asserten i testen under ingenting —
+  // den kunne bestått fordi resume-stien aldri fyrte i mocken i det hele tatt.
+  state.event = resumeEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 200)
+  assert.ok(
+    state.sent.some(s => s.subject.includes('i gang igjen')),
+    'kunden skal få beskjed når trekket starter igjen',
+  )
+})
+
+test('sub.updated — org-diskriminatoren feiler: kast FØR resume-e-posten er satt i gang', async () => {
+  // To feilklasser i én: uten vakten blir `org` null og en org-kunde behandles
+  // i B2C-grenen mot feil tabeller. Og sto oppslaget fortsatt NEDENFOR
+  // resume-blokken, ville e-posten rukket ut før kastet — og blitt sendt på
+  // nytt ved hver Stripe-retry av den samme lesefeilen.
+  state.readError = { organizations: DB_DOWN }
+  state.event = resumeEvent()
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.equal(state.sent.length, 0, 'e-posten må ikke rekke ut — ellers dobles den ved retry')
+  assert.deepEqual(state.profileUpdates, [], 'ingen B2C-behandling av en kunde vi ikke fikk klassifisert')
+})
+
+test('sub.updated canceled — primæroppslaget feiler mens fallbacken treffer: ingen kansellering uten stale-vern', async () => {
+  // Samme felle som sub.deleted-søsteren: uten vakten blir `profileByCustomer`
+  // null, fallbacken finner profilen på sub-id — men `isCurrentPersonalSub`
+  // står igjen på default true, så hele stale-sub-vurderingen er forbigått og
+  // kanselleringen behandles på et grunnlag som aldri ble lest.
+  state.readErrorQueue = { profiles: [DB_DOWN] }
+  state.event = updatedEvent('canceled')
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.deepEqual(state.profileUpdates, [], 'sub-id-en skal ikke nulles på uleste premisser')
+  assert.deepEqual(state.recomputed, [], 'Premium skal ikke rekalkuleres')
+})
+
+test('sub.updated canceled — fallback-oppslaget feiler: «no profile found» skal ikke dekke over en nede database', async () => {
+  // Primæroppslaget finner ingen rad, fallbacken feiler. Uten vakten logges
+  // «no profile found» — ordrett det samme som for en kunde vi aldri har sett —
+  // og kanselleringen er stille tapt: sub-id-en nulles aldri, Premium
+  // rekalkuleres aldri.
+  state.readErrorQueue = { profiles: ['empty', DB_DOWN] }
+  state.event = updatedEvent('canceled')
+
+  const res = await call()
+
+  assert.equal(res.status, 500)
+  assert.deepEqual(state.profileUpdates, [])
+  assert.deepEqual(state.recomputed, [])
+})

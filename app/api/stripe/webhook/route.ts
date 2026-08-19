@@ -243,11 +243,13 @@ function assertCriticalWrite(error: { code?: string; message: string } | null, c
 // Stripe (getLiveSubscriptionIds, customerHasPaymentMethod, getUserEmail,
 // subscriptions.retrieve) er ufarlige å gjenta og teller ikke som sideeffekt.
 //
-// Merk hvorfor de tre oppslagene i `customer.subscription.updated` (org-
-// diskriminatoren og de to profiloppslagene i kanselleringsgrenen) BEVISST
-// står uten: `subscriptionResumedEmail` er fire-and-forget øverst i den grenen,
-// altså foran dem alle. De trenger enten en egen beslutning eller at oppslaget
-// flyttes over resume-blokken.
+// De tre oppslagene i `customer.subscription.updated` sto en periode BEVISST
+// uten vakt fordi `subscriptionResumedEmail` er fire-and-forget øverst i
+// grenen. Løst 19. august 2026 på to måter: org-diskriminatoren er FLYTTET
+// over resume-blokken, så dens kast skjer før e-posten er satt i gang. De to
+// profiloppslagene i kanselleringsgrenen ligger fortsatt nedstrøms, med samme
+// begrunnelse som de fire assertCriticalWrite i samme gren: et kast tidligere
+// i grenen gjør ikke noe verre — mindre har rukket å skje, ikke mer.
 //
 // Egen funksjon og ikke assertCriticalWrite: loggmarkøren skal si om det var
 // en lesing eller en skriving som sviktet, og kontrakten over gjelder
@@ -1141,6 +1143,18 @@ export async function POST(request: NextRequest) {
     const subscription = event.data.object as Stripe.Subscription
     const customerId = subscription.customer as string
 
+    // Org-diskriminatoren ligger BEVISST FØR resume-blokken (19. august 2026):
+    // lesevakten kaster ved feil, og kastet skal skje før fire-and-forget-
+    // e-posten under er satt i gang — da koster en Stripe-retry ingen dobbel
+    // e-post. Feiler lesingen stille i stedet (`org` null), faller en
+    // org-kunde inn i B2C-grenen og behandles mot feil tabeller.
+    const { data: org, error: orgDiscriminatorError } = await supabaseAdmin
+      .from('organizations')
+      .select('id, name, slug, stripe_subscription_id, subscription_status')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    assertCriticalRead(orgDiscriminatorError, `sub.updated org-oppslag customer=${customerId}`)
+
     // ── Abonnementet har gjenopptatt fakturering etter en kode-pause ──────────
     // Stripe fjerner pause_collection av seg selv ved resumes_at. Vi kjenner
     // igjen nøyaktig det øyeblikket på previous_attributes: pause var satt, nå
@@ -1161,12 +1175,6 @@ export async function POST(request: NextRequest) {
         })
         .catch(err => console.error('[webhook] subscriptionResumedEmail failed:', err))
     }
-
-    const { data: org } = await supabaseAdmin
-      .from('organizations')
-      .select('id, name, slug, stripe_subscription_id, subscription_status')
-      .eq('stripe_customer_id', customerId)
-      .maybeSingle()
 
     // ── Stale-vakt for org-grenen (29. juli 2026) ────────────────────────
     // Speiler isCurrentOrgSub i subscription.deleted, men med et kryssjekk i
@@ -1356,11 +1364,17 @@ export async function POST(request: NextRequest) {
         let profileId: string | null = null
         let isCurrentPersonalSub = true
 
-        const { data: profileByCustomer } = await supabaseAdmin
+        const { data: profileByCustomer, error: profileByCustomerError } = await supabaseAdmin
           .from('profiles')
           .select('id, personal_stripe_subscription_id')
           .eq('stripe_customer_id', customerId)
           .maybeSingle()
+        // En stille feil her (`null`) ville sendt oss videre til sub-fallbacken
+        // og derfra til «no profile found» — kanselleringen/karensen ville aldri
+        // blitt behandlet, uten spor. Vakten står nedstrøms for resume-e-posten,
+        // samme avveining som de fire assertCriticalWrite i samme gren: et kast
+        // tidligere gjør ikke noe verre — mindre har rukket å skje, ikke mer.
+        assertCriticalRead(profileByCustomerError, `sub.updated B2C profiloppslag customer=${customerId}`)
 
         if (profileByCustomer) {
           profileId = profileByCustomer.id
@@ -1377,11 +1391,12 @@ export async function POST(request: NextRequest) {
             liveSubIds,
           })
         } else {
-          const { data: profileBySub } = await supabaseAdmin
+          const { data: profileBySub, error: profileBySubError } = await supabaseAdmin
             .from('profiles')
             .select('id')
             .eq('personal_stripe_subscription_id', subscriptionId)
             .maybeSingle()
+          assertCriticalRead(profileBySubError, `sub.updated B2C profiloppslag sub=${subscriptionId}`)
           if (profileBySub) profileId = profileBySub.id
         }
 
