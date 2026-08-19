@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getUserPremium } from '@/lib/premium-check'
 import { getAttemptDetail } from '@/lib/history'
 import type { AttemptDetail } from '@/lib/history'
 
@@ -59,16 +60,21 @@ export async function GET(
     userId = user.id
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('premium_status')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (profile === null) {
-    return NextResponse.json({ error: 'Profil ikke funnet' }, { status: 404 })
+  // Samme delte Premium-sjekk som resten av gatingen (lib/premium-check.ts),
+  // inkludert karensperiodene. Var tidligere en lokal `premium_status`-spørring
+  // som ikke tok karens med, og der `data: null` — som er BÅDE «raden finnes
+  // ikke» og resultatet av en transient DB-feil — ga 404 «Profil ikke funnet».
+  // Nå: lesefeil → 503 (forbigående, kan prøves på nytt), manglende profilrad
+  // → 403 som enhver annen ikke-Premium (bevisst endring fra 404, godkjent
+  // 19. august 2026 — profil-eksistens er ikke noe denne ruten skal avsløre).
+  const premium = await getUserPremium(userId)
+  if (!premium.ok) {
+    return NextResponse.json(
+      { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
   }
-  if (!profile.premium_status) {
+  if (!premium.value) {
     return NextResponse.json({ error: 'Krever premium' }, { status: 403 })
   }
 
