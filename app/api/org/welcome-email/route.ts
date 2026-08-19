@@ -84,11 +84,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Kunne ikke sende e-post' }, { status: 500 })
   }
 
-  // Merk som sendt
-  await supabaseAdmin
+  // Merk som sendt.
+  //
+  // Bevisst IKKE en 500: e-posten ER sendt på dette tidspunktet, og et feilsvar
+  // ville påstått det motsatte. Feiler stemplingen, sendes velkomsten på nytt
+  // ved neste besøk — irriterende, men ufarlig. Det som IKKE er akseptabelt er
+  // at det skjer uten spor, så feilen logges med søkbar markør.
+  const { error: stampErr } = await supabaseAdmin
     .from('organization_members')
     .update({ welcome_email_sent: true })
     .eq('id', member.id)
+
+  if (stampErr) {
+    console.error(
+      `[welcome-email] STEMPLING FEILET — velkomsten er sendt til ${authUser.email}, ` +
+      `men medlem ${member.id} er ikke merket. E-posten sendes på nytt ved neste besøk:`,
+      stampErr.message
+    )
+  }
 
   return NextResponse.json({ sent: true })
 }

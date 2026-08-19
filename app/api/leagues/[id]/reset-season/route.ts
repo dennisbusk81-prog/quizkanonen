@@ -46,11 +46,22 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
-  // Oppdater også legacy reset_at (all-time-systemet)
-  await supabaseAdmin
+  // Oppdater også legacy reset_at (all-time-systemet).
+  // Feiler denne ETTER at season_scores er slettet, står de to systemene igjen
+  // med hver sin sannhet: månedsfanen viser null, all-time viser gamle tall.
+  // Halvveis nullstilt er verre enn ikke nullstilt, fordi ingenting sier fra.
+  const { error: resetAtErr } = await supabaseAdmin
     .from('leagues')
     .update({ reset_at: new Date().toISOString() })
     .eq('id', id)
+
+  if (resetAtErr) {
+    console.error('[reset-season/league] reset_at-oppdatering feilet', id, resetAtErr.message)
+    return NextResponse.json(
+      { error: 'Sesong-poengene ble slettet, men all-time-listen ble ikke nullstilt. Prøv igjen.' },
+      { status: 500 }
+    )
+  }
 
   // Logg handlingen
   try {

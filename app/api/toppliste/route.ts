@@ -658,7 +658,18 @@ export async function GET(request: NextRequest) {
   if (periodEnd) scoresQuery = scoresQuery.lt('closes_at', periodEnd)
   if (scopeId)   scoresQuery = scoresQuery.eq('scope_id', scopeId)
   else            scoresQuery = scoresQuery.is('scope_id', null)
-  const { data: scores } = await scoresQuery
+  const { data: scores, error: scoresError } = await scoresQuery
+
+  // En fallback skal ikke selv svelge feil. Vi er her fordi RPC-en allerede
+  // sviktet; svikter også dette oppslaget, ville et tomt sett blitt presentert
+  // som en helt vanlig tom toppliste — dobbel feil, null spor.
+  if (scoresError) {
+    console.error('[toppliste] JS-fallback: season_scores-oppslag feilet:', scoresError.message)
+    return NextResponse.json(
+      { error: 'Kunne ikke hente topplisten akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   // Aggregér per bruker
   const agg = new Map<string, { userId: string; points: number; quizCount: number }>()

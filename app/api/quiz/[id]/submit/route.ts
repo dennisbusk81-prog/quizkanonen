@@ -344,11 +344,26 @@ export async function POST(
   // hen ikke kan gjøre noe med.
   if (!updatedRows || updatedRows.length === 0) {
     console.warn('[submit] samtidig innsending — INSERT hoppet over:', { attemptId, quizId })
-    const { data: winner } = await supabaseAdmin
+    const { data: winner, error: winnerErr } = await supabaseAdmin
       .from('attempts')
       .select('correct_answers, total_time_ms, correct_streak')
       .eq('id', attemptId)
       .maybeSingle()
+
+    // 409-en under betyr noe presist: raden fantes IKKE da vi leste den
+    // tilbake, altså noe faktisk galt (se lib/submit-response.ts, som
+    // bevisst IKKE tolker den milde veien). En lesefeil er ikke det —
+    // vinneren har allerede lagret nøyaktig samme score, resultatet ligger
+    // trygt, vi klarte bare ikke å hente det. Uten dette skillet ble en
+    // forbigående DB-feil vist for spilleren som om noe var galt med
+    // resultatet deres. 503 er forbigående og kan prøves på nytt.
+    if (winnerErr) {
+      console.error('[submit] kunne ikke lese tilbake vinnerraden:', { attemptId, quizId, message: winnerErr.message })
+      return NextResponse.json(
+        { error: 'Resultatet er lagret, men vi klarte ikke å hente det fram. Prøv igjen om et øyeblikk.' },
+        { status: 503 }
+      )
+    }
 
     if (!winner) {
       return NextResponse.json({ error: ALREADY_SUBMITTED_ERROR }, { status: 409 })

@@ -118,12 +118,15 @@ const state: {
   orgLookupsThrow: boolean
   /** true = selve premium-oppslaget i lib/premium-check feiler. */
   premiumLookupFails: boolean
+  /** true = kallenavn-oppslaget (profiles .in) feiler. */
+  nicknameLookupFails: boolean
 } = {
   attempts: [],
   profile: { premium_status: false, org_premium_grace_until: null },
   quiz: null,
   orgLookupsThrow: false,
   premiumLookupFails: false,
+  nicknameLookupFails: false,
 }
 
 /** Et innsendt solo-forsøk. Færre riktige = dårligere plassering. */
@@ -189,6 +192,9 @@ function builder(table: string, orgLookupsThrow: boolean) {
         return resolve({ data: [], error: null })
       }
       // profiles → nickname-oppslaget
+      if (state.nicknameLookupFails) {
+        return resolve({ data: null, error: { message: 'simulert DB-feil' } })
+      }
       return resolve({ data: [{ id: ME, nickname: null }], error: null })
     },
   }
@@ -255,6 +261,25 @@ beforeEach(() => {
   state.quiz = quizRow()
   state.orgLookupsThrow = false
   state.premiumLookupFails = false
+  state.nicknameLookupFails = false
+})
+
+// Kallenavn-oppslaget er personvern, ikke pynt: et kallenavn finnes gjerne
+// nettopp fordi spilleren IKKE vil ha det ekte navnet sitt på en offentlig
+// liste. Et tomt kart er «vet ikke», og degraderingen ville publisert de ekte
+// navnene uten at noen la merke til det.
+test('FEILET kallenavn-oppslag gir 503 — ekte navn skal ikke lekke i stedet', async () => {
+  state.nicknameLookupFails = true
+
+  const request = new Request(`https://quizkanonen.no/api/leaderboard/${QUIZ}?is_team=false&limit=1`, {
+    headers: { authorization: 'Bearer test-token' },
+  })
+  const res = await GET(request as never, { params: Promise.resolve({ id: QUIZ }) })
+
+  assert.equal(res.status, 503)
+  const json = await res.json() as { entries?: unknown[]; error?: string }
+  assert.equal(json.entries, undefined, 'ingen liste skal sendes ut uten kallenavnene')
+  assert.ok(json.error)
 })
 
 // ── «Vet ikke» er ikke «ikke Premium» (19. august 2026) ───────────────────────

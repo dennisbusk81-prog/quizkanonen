@@ -59,14 +59,27 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const newStatus = action === 'accept' ? 'active' : 'declined'
 
-  const { error: updateError } = await supabaseAdmin
+  // Statuspredikatet på selve UPDATE-en, ikke bare i lese-sjekken over.
+  // `rivalry.status !== 'pending'` er en les-så-skriv: to samtidige kall (godta
+  // + avslå, eller dobbeltklikk) kan begge lese 'pending' og begge skrive.
+  // Den siste vant stille, og svaret til den første løy om utfallet. Samme
+  // atomiske form som `.is('submitted_at', null)` i quiz/[id]/submit.
+  const { data: patched, error: updateError } = await supabaseAdmin
     .from('rivalries')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('status', 'pending')
+    .select('id')
 
   if (updateError) {
     console.error('[rivalries PATCH] update error:', updateError.message)
     return NextResponse.json({ error: 'Noe gikk galt.' }, { status: 500 })
+  }
+
+  // Null rader oppdatert = en annen forespørsel rakk å endre statusen først.
+  // Samme svar som les-så-skriv-sjekken over ville gitt hvis den hadde rukket det.
+  if (!patched || patched.length === 0) {
+    return NextResponse.json({ error: 'Duellen er ikke lenger ventende' }, { status: 409 })
   }
 
   return NextResponse.json({ success: true, status: newStatus })
@@ -114,14 +127,23 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Du er ikke del av denne duellen' }, { status: 403 })
   }
 
-  const { error: updateError } = await supabaseAdmin
+  // Samme atomiske form som i PATCH: kanselleringen skal kun treffe en duell
+  // som fortsatt ER kansellerbar. Uten predikatet kunne en kansellering overskrive
+  // en 'active'/'declined' som en samtidig PATCH nettopp hadde satt.
+  const { data: cancelled, error: updateError } = await supabaseAdmin
     .from('rivalries')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id)
+    .in('status', ['pending', 'active'])
+    .select('id')
 
   if (updateError) {
     console.error('[rivalries DELETE] update error:', updateError.message)
     return NextResponse.json({ error: 'Noe gikk galt.' }, { status: 500 })
+  }
+
+  if (!cancelled || cancelled.length === 0) {
+    return NextResponse.json({ error: 'Duellen kan ikke kanselleres' }, { status: 409 })
   }
 
   return NextResponse.json({ success: true })

@@ -36,6 +36,7 @@
 //     unik-indeks) i stedet for å avvises.
 import { test, mock, beforeEach, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
 
 process.env.QUIZ_TOKEN_SECRET = 'test-hemmelighet-for-attempt-token'
 
@@ -62,10 +63,16 @@ const state: {
   attemptUpdates: number        // antall UPDATE mot attempts (stemplingen)
   attemptInserts: number        // antall INSERT mot attempts (start-attempt)
   answerInserts: number         // antall INSERT mot attempt_answers
+  /** true = UPDATE ... .is('submitted_at', null) treffer 0 rader (race-grenen). */
+  raceLost: boolean
+  /** Hva gjenlesingen av vinnerraden i race-grenen skal svare. */
+  winnerRead: 'found' | 'missing' | 'error'
+  attemptLookups: number
 } = {
   quizError: null, questionsError: null, questionsRows: [], attemptError: null,
   attemptUserId: null, authFailStatus: null,
   attemptUpdates: 0, attemptInserts: 0, answerInserts: 0,
+  raceLost: false, winnerRead: 'found', attemptLookups: 0,
 }
 
 const fasit = () => [
@@ -109,6 +116,18 @@ function attemptsBuilder() {
     async maybeSingle() {
       if (calls.not || calls.is) return { data: null, error: null }
       if (state.attemptError) return { data: null, error: state.attemptError }
+      state.attemptLookups++
+      // Oppslag 1 = forhåndssjekken øverst i ruten. Oppslag 2 = gjenlesingen av
+      // vinnerraden i race-grenen, som er den eneste av de to som kan svare
+      // «fant ikke» eller feile på en interessant måte.
+      if (state.attemptLookups > 1) {
+        if (state.winnerRead === 'error') return { data: null, error: { message: 'connection reset' } }
+        if (state.winnerRead === 'missing') return { data: null, error: null }
+        return {
+          data: { correct_answers: 1, total_time_ms: 4000, correct_streak: 1 },
+          error: null,
+        }
+      }
       return {
         data: {
           id: ATTEMPT, quiz_id: QUIZ, user_id: state.attemptUserId,
@@ -124,7 +143,8 @@ function attemptsBuilder() {
     then(resolve: (v: unknown) => void) {
       if (calls.update) {
         state.attemptUpdates++
-        return resolve({ data: [{ id: ATTEMPT }], error: null })
+        // Null rader = en samtidig forespørsel rakk å levere først.
+        return resolve({ data: state.raceLost ? [] : [{ id: ATTEMPT }], error: null })
       }
       return resolve({ data: [], error: null })
     },
@@ -241,6 +261,9 @@ beforeEach(() => {
   state.attemptUpdates = 0
   state.attemptInserts = 0
   state.answerInserts = 0
+  state.raceLost = false
+  state.winnerRead = 'found'
+  state.attemptLookups = 0
   sentry.messages = []
   shared.keys = []
 })
@@ -369,3 +392,46 @@ test('start-attempt: ugyldig token gir fortsatt gjeste-behandling (dagens oppfø
 })
 
 after(() => { console.error = ekteConsoleError })
+
+// ── Race-grenen: en LESEFEIL er ikke «raden fantes ikke» (19. august 2026) ──
+// Taper vi kappløpet, leses vinnerraden tilbake og returneres — spilleren skal
+// se resultatet sitt, ikke en feil, for en race hen ikke kan gjøre noe med.
+// Gjenlesingen destrukturerte aldri `error`, så en transient DB-feil ble til
+// `!winner` og dermed 409 med ALREADY_SUBMITTED-teksten. Den 409-en betyr noe
+// presist (se lib/submit-response.ts: raden fantes IKKE, altså noe faktisk
+// galt) og tolkes bevisst IKKE mildt av klienten — så en forbigående lesefeil
+// ble vist som om noe var galt med et resultat som lå trygt lagret.
+
+test('race + LESEFEIL på vinnerraden gir 503, ikke 409 «allerede levert»', async () => {
+  state.raceLost = true
+  state.winnerRead = 'error'
+
+  const res = await send()
+
+  assert.equal(res.status, 503, 'forbigående — klienten kan prøve igjen')
+  const body = await res.json()
+  assert.notEqual(body.error, ALREADY_SUBMITTED_ERROR, 'skal ikke låne den delte kontraktens tekst')
+  assert.equal(state.answerInserts, 0, 'race-grenen skal fortsatt ikke skrive svar-rader')
+})
+
+test('race + raden FANTES IKKE gir fortsatt 409 — den grenen er urørt', async () => {
+  state.raceLost = true
+  state.winnerRead = 'missing'
+
+  const res = await send()
+
+  assert.equal(res.status, 409)
+  assert.equal((await res.json()).error, ALREADY_SUBMITTED_ERROR)
+})
+
+test('race + vellykket gjenlesing gir fortsatt 200 med vinnerens tall', async () => {
+  state.raceLost = true
+  state.winnerRead = 'found'
+
+  const res = await send()
+
+  assert.equal(res.status, 200)
+  const body = await res.json()
+  assert.equal(body.alreadySubmitted, true)
+  assert.equal(body.correctAnswers, 1, 'vinnerens lagrede score, ikke vår egen')
+})

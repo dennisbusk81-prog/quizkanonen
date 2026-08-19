@@ -65,10 +65,20 @@ function toEntry(r: RawRow & { rank: number }, nickname: string | null = null): 
 
 // Henter kallenavn (nickname) for et sett user_id-er via service role (omgår
 // kolonne-grants på profiles som ellers kan blokkere anon-lesing av nickname).
-async function fetchNicknames(entries: LbEntry[]): Promise<void> {
+//
+// Returnerer false ved lesefeil. Kalleren MÅ da avbryte: et tomt kallenavn-kart
+// er ikke «ingen har kallenavn», det er «vi vet ikke» — og forskjellen er
+// personvern. Et kallenavn finnes gjerne nettopp fordi spilleren IKKE vil ha
+// det ekte navnet sitt på en offentlig resultatliste, så en feilet spørring
+// ville stille publisert det navnet i stedet. Ingen ville lagt merke til det.
+async function fetchNicknames(entries: LbEntry[]): Promise<boolean> {
   const ids = [...new Set(entries.map(e => e.userId).filter((id): id is string => !!id))]
-  if (ids.length === 0) return
-  const { data } = await supabaseAdmin.from('profiles').select('id, nickname').in('id', ids)
+  if (ids.length === 0) return true
+  const { data, error } = await supabaseAdmin.from('profiles').select('id, nickname').in('id', ids)
+  if (error) {
+    console.error('[leaderboard] kallenavn-oppslag feilet:', error.message)
+    return false
+  }
   const map = new Map<string, string | null>()
   for (const p of (data ?? []) as { id: string; nickname: string | null }[]) {
     map.set(p.id, p.nickname ?? null)
@@ -76,6 +86,7 @@ async function fetchNicknames(entries: LbEntry[]): Promise<void> {
   for (const e of entries) {
     if (e.userId) e.nickname = map.get(e.userId) ?? null
   }
+  return true
 }
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
@@ -401,7 +412,12 @@ export async function GET(
     ? []
     : filtered.slice(start, start + pageSize).map(r => toEntry(r))
 
-  await fetchNicknames(userEntry ? [...entries, userEntry] : entries)
+  if (!(await fetchNicknames(userEntry ? [...entries, userEntry] : entries))) {
+    return NextResponse.json(
+      { error: 'Kunne ikke hente resultatlisten akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
 
   return NextResponse.json({
     entries, totalCount, userEntry, userRank, guestRank,
