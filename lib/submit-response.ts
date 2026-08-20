@@ -42,6 +42,9 @@ export type SubmitClassification =
   // Forsøket var allerede lagret fra før — vårt eget første kall rakk fram.
   // Bekreftelse på suksess, ikke en feil.
   | { kind: 'already-stored' }
+  // 503 «prøv igjen om et øyeblikk» — transient serverfeil, skal til
+  // timeout-veiens retry-skjerm, ikke feilveien.
+  | { kind: 'retryable' }
   // Alt annet: ekte feil, skal gå feilveien.
   | { kind: 'error' }
 
@@ -58,6 +61,11 @@ export type SubmitResponseFacts = {
 
 export function classifySubmitResponse(facts: SubmitResponseFacts): SubmitClassification {
   if (facts.ok) return { kind: 'scored' }
+
+  // Submit-rutens fem 503-er betyr alle «transient, prøv igjen» — uavhengig av
+  // hasTimedOutOnce, for de gjelder også et første forsøk. Kun 503: 429 er
+  // bevisst fortsatt en feil.
+  if (facts.status === 503) return { kind: 'retryable' }
 
   // Den milde tolkningen gjelder KUN etter en timeout vi selv har sett.
   // På et første, ordinært forsøk betyr «allerede levert» noe helt annet — et

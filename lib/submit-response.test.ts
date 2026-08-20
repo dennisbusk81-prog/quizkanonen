@@ -115,6 +115,26 @@ test('409 med samme tekst er en ekte feil — attempts-raden fantes ikke', () =>
   assert.equal(v.kind, 'error')
 })
 
+test('503 er retryable — uavhengig av om vi har timet ut før', () => {
+  // Submit-rutens fem 503-er er alle «prøv igjen om et øyeblikk». De skal til
+  // timeout-veiens retry-skjerm, ikke feilveien med «vi fikk ikke bekreftet».
+  // MUTASJONSBEVIS: gjeninnføres hasTimedOutOnce-avhengighet for 503 →
+  // false-varianten ryker; fjernes 503-grenen helt → begge ryker.
+  for (const hasTimedOutOnce of [false, true]) {
+    const v = classifySubmitResponse({
+      status: 503, ok: false,
+      errorMessage: 'Kunne ikke hente forsøket. Prøv igjen om et øyeblikk.',
+      hasTimedOutOnce,
+    })
+    assert.equal(v.kind, 'retryable', `503 (timeout=${hasTimedOutOnce}) gikk ikke retry-veien`)
+  }
+})
+
+test('503 er retryable også uten lesbar kropp — statusen alene er nok', () => {
+  const v = classifySubmitResponse({ status: 503, ok: false, errorMessage: null, hasTimedOutOnce: false })
+  assert.equal(v.kind, 'retryable')
+})
+
 test('serverfeil og rate-limit går feilveien uansett flaggets tilstand', () => {
   for (const status of [429, 500, 502]) {
     for (const hasTimedOutOnce of [true, false]) {

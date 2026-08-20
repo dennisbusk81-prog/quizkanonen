@@ -2215,6 +2215,7 @@ export default function QuizPage() {
               hasTimedOutOnce: finishTimedOutOnceRef.current,
             })
             if (verdict.kind === 'error') throw new Error(`submit returnerte ${res.status}`)
+            if (verdict.kind === 'retryable') return { retryable: true as const }
             if (verdict.kind === 'already-stored') return { alreadyStored: true as const }
             return {
               alreadyStored: false as const,
@@ -2235,6 +2236,15 @@ export default function QuizPage() {
             return
           }
           throw new Error('submit feilet')
+        }
+        // 503: transient serverfeil, samme retry-skjerm som timeout. Ref-en er
+        // ikke kosmetikk: vinnerrad-503-en kommer ETTER at resultatet er lagret,
+        // og retryen svarer da 403 «allerede levert» — ref-en er det som får
+        // klassifisereren til å tolke det som bekreftelse, ikke feil.
+        if ('retryable' in submitOutcome.value) {
+          finishTimedOutOnceRef.current = true
+          setFinishTimedOut(true)
+          return
         }
         // «Allerede lagret»: vårt eget første kall rakk fram etter at vi hadde
         // gitt opp å vente. Serveren sender ingen score tilbake i det svaret —
