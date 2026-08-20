@@ -561,18 +561,6 @@ const SHARED_CSS = `
     flex-wrap: wrap;
   }
 
-  /* ── Quote ── */
-  .qk-quote {
-    font-style: italic;
-    font-size: 14px;
-    color: #e8e4dd;
-    text-align: center;
-    max-width: 460px;
-    margin: 0 auto 20px;
-    line-height: 1.7;
-    padding: 0 24px;
-  }
-
   /* ── Facts ── */
   .qk-facts {
     display: flex;
@@ -1074,74 +1062,6 @@ const SHARED_CSS = `
   @media (max-width: 540px) {
     .qkp-shortcuts { grid-template-columns: 1fr 1fr; }
     .qkp-shortcut:last-child { grid-column: 1 / -1; }
-  }
-
-  /* ── How it works steps ── */
-  .qk-steps {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    max-width: 480px;
-    margin: 28px auto 0;
-    position: relative;
-  }
-
-  .qk-steps::before {
-    content: '';
-    position: absolute;
-    top: 18px;
-    left: calc(16.7% + 18px);
-    right: calc(16.7% + 18px);
-    height: 1px;
-    background: var(--border);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .qk-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 0 8px;
-  }
-
-  .qk-step-num {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: rgba(201,168,76,0.1);
-    border: 1px solid rgba(201,168,76,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Libre Baskerville', serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--gold);
-    margin-bottom: 10px;
-    position: relative;
-    z-index: 1;
-    flex-shrink: 0;
-  }
-
-  .qk-step-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--white);
-    margin-bottom: 4px;
-    line-height: 1.3;
-  }
-
-  .qk-step-desc {
-    font-size: 12px;
-    color: #e8e4dd;
-    line-height: 1.5;
-  }
-
-  @media (max-width: 600px) {
-    .qk-steps { grid-template-columns: 1fr; max-width: 240px; }
-    .qk-steps::before { display: none; }
   }
 
   /* ── Interlude teaser ── */
@@ -1892,16 +1812,6 @@ export default async function Home() {
   const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
   const lastQuizTop3 = shared.lastQuizTop3
 
-  // Prøveperiode-tilbudet på den UTLOGGEDE forsiden. `eligible: null` er ikke en
-  // mangel her — det er den riktige verdien: uten sesjon finnes det ingen profil
-  // å lese `has_used_trial` fra, og `decideTrialOffer` viser da tilbudet og lar
-  // founders-activate være gaten (se toppkommentaren i lib/trial-offer.ts).
-  // Dagtallet er samme kilde som den innloggede grenen bruker
-  // (site_settings.founders_new_trial_days, allerede i home-shared-bundelen —
-  // en global verdi, ikke brukerspesifikk, så ingen ekstra oppslag). Mangler
-  // tallet, faller linja tilbake til «★ Premium kr 49/mnd».
-  const anonTrialOffer = decideTrialOffer({ trialDays: shared.trialDays, eligible: null })
-
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -1971,7 +1881,7 @@ export default async function Home() {
               Slik fungerer det →
             </Link>
           </div>
-          {authUnknown ? (
+          {authUnknown && (
             /* Ukjent-linjen står der innloggings- og premium-påstandene ellers
                ville stått. Ordlyd godkjent av Dennis 16. august 2026 — endre
                den ikke uten ny godkjenning. */
@@ -1980,42 +1890,27 @@ export default async function Home() {
                 Vi får ikke kontakt med innloggingen akkurat nå. Er du innlogget, er du det fortsatt — last siden på nytt om litt.
               </span>
             </div>
-          ) : (
-          <div className="qk-hero-status">
-            <span><span style={{ color: '#c9a84c' }}>✓</span> <span style={{ color: '#e8e4dd' }}>Logg inn med Google, e-post eller passord</span></span>
-            <span style={{ color: '#918f8a' }}>·</span>
-            <span><span style={{ color: '#c9a84c' }}>★</span>{' '}
-              {anonTrialOffer.show ? (
-                <Link href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-                  Prøv Premium gratis i {anonTrialOffer.days} dager →
-                </Link>
-              ) : (
-                <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span>
-              )}
-            </span>
-          </div>
           )}
-          <div className="qk-steps">
+        </section>
+
+        {/* ── Slik fungerer det — tre steg, samme kortstil og klasser som
+            «Under quizen» rett under. Står UTENFOR qk-hero med vilje:
+            heroen er text-align: center, kortene skal være venstrestilte. ── */}
+        <div className="qk-interlude">
+          <div className="qk-interlude-cards">
             {([
-              { n: '1', title: 'Spill quizen', desc: 'Hver fredag kl. 12 (norsk tid). Svar raskt — tid teller.' },
-              { n: '2', title: 'Se plasseringen', desc: 'Se score og svartid. Med Premium: nøyaktig plassering og full toppliste.' },
-              { n: '3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatr.' },
-            ] as const).map(({ n, title, desc }) => (
-              <div key={n} className="qk-step">
-                <div className="qk-step-num">{n}</div>
-                <p className="qk-step-title">{title}</p>
-                <p className="qk-step-desc">{desc}</p>
-                {n === '3' && (
-                  <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: 6, lineHeight: 1.5 }}>
-                    Månedslisten starter på nytt hver måned — kvartal, år og all-time fortsetter å bygge seg opp.
-                  </p>
-                )}
+              { label: 'Steg 1', title: 'Spill quizen', desc: 'Hver fredag kl. 12. Svar raskt — tiden teller.' },
+              { label: 'Steg 2', title: 'Se plasseringen', desc: 'Se score og svartid. Med Premium: nøyaktig plassering og full toppliste.' },
+              { label: 'Steg 3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatre. Månedslisten starter på nytt hver måned; kvartal, år og all-time bygger seg opp.' },
+            ] as const).map(({ label, title, desc }) => (
+              <div key={label} className="qk-interlude-card">
+                <p className="qk-preview-card-label">{label}</p>
+                <p className="qk-interlude-card-title">{title}</p>
+                <p className="qk-interlude-card-text">{desc}</p>
               </div>
             ))}
           </div>
-        </section>
-
-        <p className="qk-quote">Her teller det å kunne svaret — ikke bare å klikke først.</p>
+        </div>
 
         {/* ── Interlude teaser ── */}
         <div className="qk-interlude">
