@@ -138,7 +138,6 @@ export default function FoundersFarewellBanner() {
       <ul style={{ margin: '0 0 12px', paddingLeft: 22, color: '#e8e4dd', fontSize: 14, lineHeight: 1.7 }}>
         <li>Se din nøyaktige plassering</li>
         <li>Se dine svar og hvordan de fordelte seg i quizen</li>
-        <li>Utfordre andre spillere til dueller</li>
         <li>Lage private ligaer</li>
         <li>(flere funksjoner kommer etter hvert)</li>
       </ul>
