@@ -1812,6 +1812,16 @@ export default async function Home() {
   const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
   const lastQuizTop3 = shared.lastQuizTop3
 
+  // Prøveperiode-tilbudet på den UTLOGGEDE forsiden. `eligible: null` er ikke en
+  // mangel her — det er den riktige verdien: uten sesjon finnes det ingen profil
+  // å lese `has_used_trial` fra, og `decideTrialOffer` viser da tilbudet og lar
+  // founders-activate være gaten (se toppkommentaren i lib/trial-offer.ts).
+  // Dagtallet er samme kilde som den innloggede grenen bruker
+  // (site_settings.founders_new_trial_days, allerede i home-shared-bundelen —
+  // en global verdi, ikke brukerspesifikk, så ingen ekstra oppslag). Mangler
+  // tallet, faller linja tilbake til «Premium kr 49/mnd».
+  const anonTrialOffer = decideTrialOffer({ trialDays: shared.trialDays, eligible: null })
+
   return (
     <>
       <style>{SHARED_CSS}</style>
@@ -1881,14 +1891,24 @@ export default async function Home() {
               Slik fungerer det →
             </Link>
           </div>
-          {authUnknown && (
-            /* Ukjent-linjen står der innloggings- og premium-påstandene ellers
-               ville stått. Ordlyd godkjent av Dennis 16. august 2026 — endre
-               den ikke uten ny godkjenning. */
+          {authUnknown ? (
+            /* Ukjent-linjen står der premium-påstanden ellers ville stått.
+               Ordlyd godkjent av Dennis 16. august 2026 — endre den ikke
+               uten ny godkjenning. */
             <div className="qk-hero-status">
               <span style={{ color: '#918f8a' }}>
                 Vi får ikke kontakt med innloggingen akkurat nå. Er du innlogget, er du det fortsatt — last siden på nytt om litt.
               </span>
+            </div>
+          ) : (
+            <div className="qk-hero-status">
+              {anonTrialOffer.show ? (
+                <Link href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                  Prøv Premium gratis i {anonTrialOffer.days} dager →
+                </Link>
+              ) : (
+                <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span>
+              )}
             </div>
           )}
         </section>
