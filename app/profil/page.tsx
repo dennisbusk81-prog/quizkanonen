@@ -643,7 +643,14 @@ export default function ProfilPage() {
         setDeleting(false)
         return
       }
-      await supabase.auth.signOut()
+      // `scope: 'local'` — samme begrunnelse som i lib/auth.ts, og trygt
+      // NETTOPP her: vi er forbi `!res.ok`, så `/api/profile/delete` har
+      // bekreftet at `auth.admin.deleteUser` gikk gjennom. Da er auth.users-
+      // raden borte og alle sesjonene kaskadert vekk uansett — det finnes
+      // ingenting igjen for en global utlogging å tilbakekalle. Global ville
+      // her bare vært en ekstra rundtur som GoTrue svarer 401/403/404 på (og
+      // som auth-js svelger). Kallet står igjen for å rydde localStorage.
+      await supabase.auth.signOut({ scope: 'local' })
       router.replace('/')
     } catch {
       setDeleteError('Noe gikk galt. Prøv igjen.')

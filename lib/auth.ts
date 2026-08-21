@@ -33,8 +33,33 @@ export async function signUpWithPassword(email: string, password: string, next?:
   })
 }
 
+// `scope: 'local'` er IKKE en detalj — defaulten i auth-js er `'global'`
+// (GoTrueClient.signOut), som sletter sesjonsRADEN for brukeren på ALLE
+// enheter. Den som logget ut på PC-en, drepte samtidig mobilen sin.
+//
+// Det gir ikke en ren utlogging på mobilen, men en halv-innlogget tilstand:
+// access-tokenet ligger fortsatt i localStorage, det er signert og ikke
+// utløpt, så `getSession()` returnerer det og klienten tror den er innlogget.
+// GoTrue slår derimot opp `session_id`-claimet i `sessions` og svarer
+// `session_not_found` → `AuthSessionMissingError` (status 400). Alle ~69
+// kallstedene som gjør `supabaseAdmin.auth.getUser(token)` avviser da
+// brukeren, mens navnet hennes fortsatt står i menyen (PostgREST verifiserer
+// kun signatur og `exp`, og bryr seg ikke om sesjonsraden).
+//
+// Verst i spillestien: `my-attempt` svarer `200 { played: false }` (replay-
+// sperren er av), `start-attempt` faller til gjeste-behandling og oppretter
+// raden med `user_id: null` — 400 er ikke i `isTransientAuthStatus`, så
+// 503-vakten griper ikke — og `submit` avviser til slutt med 403 «Ingen
+// tilgang til dette forsøket». Spilleren spiller hele quizen og får
+// «Resultatet ble ikke lagret — sjekk internettforbindelsen din» ved
+// målstreken. Ingenting lagres, ingen sesongpoeng, og ingen rute logger det:
+// kun `/api/org/my-orgs` har en `console.error` på auth-grenen.
+//
+// Ingen flate i appen tilbyr «logg ut overalt», så global var aldri et valgt
+// produktkrav — den var bare defaulten. Trenger vi det senere, skal det være
+// en egen, eksplisitt knapp.
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut()
+  await supabase.auth.signOut({ scope: 'local' })
   window.location.href = '/'
 }
 
