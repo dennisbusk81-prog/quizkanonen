@@ -62,7 +62,7 @@ type RankedRow = {
 
 const state: {
   /** null = ingen quiz med attempts finnes (tidlig retur i last_quiz). */
-  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean } | null
+  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean; hide_leaderboard_until_closed?: boolean } | null
   attempts: AttemptRow[]
   profile: { premium_status: boolean; org_premium_grace_until: string | null; personal_grace_until: string | null }
   /** true = selve premium-oppslaget i lib/premium-check feiler. */
@@ -73,6 +73,8 @@ const state: {
   rpcRanked: RankedRow[]
   rpcUserStats: { points: number; quiz_count: number; rank: number }[]
   seasonScores: { user_id: string; points: number; quiz_id: string; closes_at: string; scope_type: string; scope_id: string | null }[]
+  /** true = kalleren er medlem av org-en scope-gaten spør om (S1/S2-org-unntaket). */
+  orgMember: boolean
 } = {
   latestQuiz: null,
   attempts: [],
@@ -83,6 +85,7 @@ const state: {
   rpcRanked: [],
   rpcUserStats: [],
   seasonScores: [],
+  orgMember: false,
 }
 
 function attempt(quizId: string, n: number, correct: number, uid: string): AttemptRow {
@@ -97,6 +100,32 @@ function attempt(quizId: string, n: number, correct: number, uid: string): Attem
     is_team: false,
     quiz_id: quizId,
   }
+}
+
+/**
+ * Fixture for S1/S2/S4-testene: `antall` spillere der ME (hvis med) alltid er
+ * SIST — rank = antall. `skjult` setter hide_leaderboard_until_closed,
+ * `aapen` legger closes_at i framtiden.
+ */
+function nyLastQuizMedFelt(antall: number, opts: { skjult?: boolean; aapen?: boolean; medMeg?: boolean } = {}): string {
+  quizTeller += 1
+  const id = `00000000-0000-4000-8000-${String(quizTeller).padStart(12, '0')}`
+  state.latestQuiz = {
+    id,
+    title: 'Fredagsquiz uke 34',
+    closes_at: opts.aapen ? OM_TRE_DAGER() : FOR_EN_DAG_SIDEN(),
+    season_points_awarded: false,
+    hide_leaderboard_until_closed: opts.skjult === true,
+  }
+  const medMeg = opts.medMeg !== false
+  const andre = medMeg ? antall - 1 : antall
+  state.attempts = []
+  for (let n = 1; n <= andre; n++) {
+    state.attempts.push(attempt(id, n, 15, `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`))
+  }
+  if (medMeg) state.attempts.push(attempt(id, antall, 1, ME))
+  state.profileRows = []
+  return id
 }
 
 /** Unik quiz-id per test — se cache-merknaden i toppkommentaren. */
@@ -167,6 +196,10 @@ function builder(table: string) {
         // Navne-oppslag for kalleren (RPC-stien og fallbackens navne-fallback).
         return Promise.resolve({ data: { display_name: 'Meg Megsen', nickname: null }, error: null })
       }
+      // Scope-gatens medlemskapssjekk (organization_members maybeSingle).
+      if (table === 'organization_members') {
+        return Promise.resolve({ data: state.orgMember ? { user_id: ME } : null, error: null })
+      }
       return Promise.resolve({ data: null, error: null })
     },
     then(resolve: (v: unknown) => void) {
@@ -230,6 +263,8 @@ type Svar = {
   userIsPremium: boolean
   userRank: number | null
   totalCount: number
+  page?: number
+  leaderboardHidden?: boolean
   error?: string
 }
 
@@ -263,6 +298,7 @@ beforeEach(() => {
   state.rpcRanked = []
   state.rpcUserStats = []
   state.seasonScores = []
+  state.orgMember = false
 })
 
 // ── LAST QUIZ-STIEN ──────────────────────────────────────────────────────────
@@ -452,6 +488,200 @@ test('fallback: FEILET premium-oppslag gir 503', async () => {
 
   assert.equal(status, 503)
   assert.equal(body.entries, undefined)
+})
+
+// ── S1/S2/S4 — eksakt rank, bla/søk og skjult-gate (22. august 2026) ─────────
+// Samme klasse hull som /api/leaderboard/[id] lukket 1.–2. august; denne
+// søsterruten sto åpen. S1: eksakt rank kun til premiumView (banding ellers).
+// S2: ?page=/?search= ignoreres for andre. S4: skjult-til-stengt håndheves i
+// last_quiz-grenen, med leaderboard-rutens Premium-har-spilt-unntak.
+
+function settPremium() {
+  state.profile = { premium_status: true, org_premium_grace_until: null, personal_grace_until: null }
+}
+
+test('S1 last_quiz: gratis får BANDET rank — plass 25 blir 21, ikke det eksakte tallet', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { status, body } = await hent('period=last_quiz&scope=global')
+
+  assert.equal(status, 200)
+  assert.equal(body.userIsPremium, false)
+  assert.equal(body.userEntry?.rank, 21, '10-båndets start, samme formel som /api/leaderboard/[id]')
+})
+
+test('S1 last_quiz: Premium beholder eksakt rank', async () => {
+  nyLastQuizMedFelt(25)
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.equal(body.userEntry?.rank, 25)
+})
+
+test('S1 periode/RPC: gratis får bandet userEntry.rank og userRank: null', async () => {
+  state.rpcRanked = [{ user_id: ANNEN, display_name: 'Spiller En', points: 20, quiz_count: 2, rank: 1, total_count: 14 }]
+  state.rpcUserStats = [{ points: 10, quiz_count: 1, rank: 14 }]
+  state.profileRows = [{ id: ANNEN, display_name: 'Spiller En', nickname: null }]
+
+  const { body } = await hent('period=month&scope=global')
+
+  assert.equal(body.userIsPremium, false)
+  assert.equal(body.userEntry?.rank, 11, 'plass 14 grovmales til 11')
+  assert.equal(body.userRank, null, 'det eksakte tallet skal ikke finnes i svaret')
+})
+
+test('S1 periode/RPC: Premium beholder eksakt userRank og rank', async () => {
+  state.rpcRanked = [{ user_id: ANNEN, display_name: 'Spiller En', points: 20, quiz_count: 2, rank: 1, total_count: 14 }]
+  state.rpcUserStats = [{ points: 10, quiz_count: 1, rank: 14 }]
+  state.profileRows = [{ id: ANNEN, display_name: 'Spiller En', nickname: null }]
+  settPremium()
+
+  const { body } = await hent('period=month&scope=global')
+
+  assert.equal(body.userRank, 14)
+  assert.equal(body.userEntry?.rank, 14)
+})
+
+test('S1 fallback: gratis får bandet rank og userRank: null også i JS-fallbacken', async () => {
+  settFallbackScores(true) // ME er rank 2
+
+  const { body } = await hent('period=alltime&scope=global')
+
+  assert.equal(body.userIsPremium, false)
+  assert.equal(body.userEntry?.rank, 1, 'plass 2 grovmales til 1')
+  assert.equal(body.userRank, null)
+})
+
+test('S1 org-scope: gratis MEDLEM beholder eksakt intern rank — org-rommet er unntatt', async () => {
+  // Org-visningen tegner eksakt intern plassering for ALLE medlemmer
+  // (shouldShowPlacementRow/showControls) — banding der ville vist et falskt
+  // tall som om det var ekte. Rommet er medlemskaps-gatet i scope-gaten.
+  state.orgMember = true
+  settRpcListeMedMeg()
+
+  const { status, body } = await hent('period=month&scope=organization&scope_id=44444444-4444-4444-8444-444444444444')
+
+  assert.equal(status, 200)
+  assert.equal(body.userIsPremium, false)
+  assert.equal(body.userRank, 2, 'eksakt — org er unntatt S1')
+  assert.equal(body.userEntry?.rank, 2)
+})
+
+test('S1 cache-paritet: Premium-kall varmer 30s-cachen — påfølgende GRATIS-kall på samme quiz får likevel bandet rank', async () => {
+  // lastQuizAttemptsCache er nøklet på quiz-id alene, uten premium i nøkkelen.
+  // Det er trygt KUN fordi cachen bærer rå attempts-rader og all premium-
+  // forming (banding, skjult-gate, page/search) skjer per forespørsel ETTER
+  // cache-lesingen. Denne testen feller en framtidig flytting av formingen
+  // inn foran cache-skrivingen: da ville gratis-kallet her arvet det eksakte
+  // tallet fra Premium-kallet som varmet cachen.
+  nyLastQuizMedFelt(25)
+  settPremium()
+  const først = await hent('period=last_quiz&scope=global')
+  assert.equal(først.body.userEntry?.rank, 25, 'forutsetning: Premium ser eksakt')
+
+  state.profile = { premium_status: false, org_premium_grace_until: null, personal_grace_until: null }
+  const deretter = await hent('period=last_quiz&scope=global')
+  assert.equal(deretter.body.userIsPremium, false)
+  assert.equal(deretter.body.userEntry?.rank, 21, 'cachen bærer rå rader, ikke et premium-formet svar')
+})
+
+test('S2 last_quiz: ?page=2 ignoreres for gratis — svaret er side 1, som uten parameteren', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { body } = await hent('period=last_quiz&scope=global&page=2')
+
+  assert.equal(body.page, 1)
+  assert.equal(body.entries[0]?.rank, 1)
+  assert.equal(body.entries.length, 10)
+})
+
+test('S2 last_quiz: ?page=2 ignoreres også for ANONYM kaller', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { body } = await hent('period=last_quiz&scope=global&page=2', true)
+
+  assert.equal(body.page, 1)
+  assert.equal(body.entries[0]?.rank, 1)
+})
+
+test('S2 last_quiz: Premium får side 2', async () => {
+  nyLastQuizMedFelt(25)
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global&page=2')
+
+  assert.equal(body.page, 2)
+  assert.equal(body.entries[0]?.rank, 11)
+})
+
+test('S2 last_quiz: ?search= ignoreres for gratis — totalCount forblir ufiltrert', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { body } = await hent('period=last_quiz&scope=global&search=Meg')
+
+  assert.equal(body.totalCount, 25, 'søket skal ikke ha blitt anvendt')
+  assert.equal(body.entries[0]?.rank, 1)
+})
+
+test('S2 last_quiz: søk virker for Premium', async () => {
+  nyLastQuizMedFelt(25)
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global&search=Meg')
+
+  assert.equal(body.totalCount, 1)
+  assert.equal(body.entries[0]?.userId, ME)
+})
+
+test('S4: skjult + åpen quiz → entries tømmes for anonym kaller, flagget settes', async () => {
+  nyLastQuizMedFelt(5, { skjult: true, aapen: true })
+
+  const { status, body } = await hent('period=last_quiz&scope=global', true)
+
+  assert.equal(status, 200)
+  assert.deepEqual(body.entries, [], 'ingen av spillernes rader skal forlate serveren')
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.totalCount, 5, 'totalCount består — samme som leaderboard-ruten')
+})
+
+test('S4: gratis som har spilt → listen fortsatt tømt, egen (bandede) rad består', async () => {
+  nyLastQuizMedFelt(5, { skjult: true, aapen: true })
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.userEntry?.rank, 1, 'egne tall skjules aldri for en selv (plass 5 → bånd 1)')
+})
+
+test('S4: Premium som HAR spilt løfter skjulingen — samme unntak som leaderboard-ruten', async () => {
+  nyLastQuizMedFelt(5, { skjult: true, aapen: true })
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.equal(body.entries.length, 5)
+  assert.equal(body.leaderboardHidden, false)
+})
+
+test('S4: Premium som IKKE har spilt får den ikke løftet', async () => {
+  nyLastQuizMedFelt(5, { skjult: true, aapen: true, medMeg: false })
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+})
+
+test('S4: stengt quiz med flagget → full liste (gaten gjelder kun mens quizen er åpen)', async () => {
+  nyLastQuizMedFelt(5, { skjult: true })
+
+  const { body } = await hent('period=last_quiz&scope=global', true)
+
+  assert.equal(body.entries.length, 5)
+  assert.equal(body.leaderboardHidden, false)
 })
 
 test('fallback: kaller UTEN season_scores får fortsatt riktig premium-status', async () => {

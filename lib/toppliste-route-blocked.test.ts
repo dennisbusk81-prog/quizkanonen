@@ -216,6 +216,10 @@ beforeEach(() => {
 
 test('positiv kontroll: ikke-blokkert kaller får userEntry fra det synlige feltet, flagget er false', async () => {
   state.authUser = { id: 'u-bjorn' }
+  // Premium siden 22. august 2026 (S1): gratis får nå userEntry.rank grovmalt
+  // til 10-båndets start, og «rank 2 vs re-ranket» — det denne testen faktisk
+  // skiller på — er kun observerbart med eksakt rank.
+  state.userProfile = { display_name: 'Bjørn', nickname: null, premium_status: true }
   const res = await call('period=last_quiz&scope=global', 'tok')
   assert.equal(res.status, 200)
   const j = await res.json()
@@ -232,6 +236,10 @@ test('positiv kontroll: ikke-blokkert kaller får userEntry fra det synlige felt
 test('blokkert kaller som leverte: ute av entries, men userEntry (egne tall) + flagg', async () => {
   state.blocked = ['u-bjorn']
   state.authUser = { id: 'u-bjorn' }
+  // Premium av samme grunn som den positive kontrollen over: ranken mot det
+  // UFILTRERTE feltet (2, ikke re-ranket 1) er kun synlig med eksakt rank —
+  // gratis får den grovmalt (S1, 22. august 2026).
+  state.userProfile = { display_name: 'Bjørn', nickname: null, premium_status: true }
   const j = await (await call('period=last_quiz&scope=global', 'tok')).json()
   // Ute av den offentlige listen, gjenværende re-rankes.
   assert.deepEqual(

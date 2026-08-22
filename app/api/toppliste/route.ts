@@ -5,6 +5,7 @@ import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
 import { getUserPremium } from '@/lib/premium-check'
+import { isQuizClosed } from '@/lib/standings-cache'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -132,6 +133,16 @@ async function isUserGloballyBlockedLive(userId: string): Promise<boolean> {
   return ((restricted ?? []) as { id: string }[]).length > 0
 }
 
+// ── Eksakt plassering er Premium — 10-bånd for alle andre (S1, 22. aug 2026) ─
+// Samme RANK_BAND og samme formel som /api/leaderboard/[id] bruker for
+// userEntry: starten av 10-båndet er nøyaktig tallet gratis-visningen selv
+// utleder («mellom plass 11 og 20»), så det eksakte tallet finnes ikke i
+// svaret. Raden beholdes — score/poeng/tid er brukerens egne tall.
+const RANK_BAND = 10
+function bandRank(rank: number): number {
+  return Math.floor((rank - 1) / RANK_BAND) * RANK_BAND + 1
+}
+
 // ── Period helpers ────────────────────────────────────────────────────────────
 
 function getPeriodStart(period: string): string {
@@ -206,31 +217,13 @@ export async function GET(request: NextRequest) {
   // helt uten oppslag. Flagget gjelder KUN kalleren — ingen rad i `entries`
   // bærer premium — så dette er ett kall per forespørsel, aldri per bruker.
   //
-  // Startes her og awaites først i settlePremium() når responsen bygges, slik
-  // at rundturen fullfører i skyggen av grenarbeidet i stedet for å legge seg
-  // til sekvensielt. getUserPremium avviser aldri (feil kommer som
-  // { ok: false }), så et uawaitet promise på en tidlig 4xx-retur er ufarlig.
+  // Startes her og settles rett etter scope-gaten under — FØR grenarbeidet,
+  // ikke ved responsbygging slik det sto fram til 22. august 2026: S1/S2/S4-
+  // gatene trenger svaret før spørringene formes (?page=/?search= går inn i
+  // RPC-kallet, og rank-bandingen/skjult-gaten avgjør hva som bygges).
+  // getUserPremium avviser aldri (feil kommer som { ok: false }), så et
+  // uawaitet promise på en tidlig 4xx-retur fra scope-gaten er ufarlig.
   const premiumPromise = userId ? getUserPremium(userId) : null
-
-  // «Vet ikke» skal ikke bli til «ikke Premium»: flagget styrer om kalleren
-  // får se sin egen eksakte plassering, så en transient DB-feil ville stille
-  // servert en betalende kunde gratisvisningen — uten noe som skilte det fra
-  // et utløpt abonnement. 503 er forbigående og kan prøves på nytt; en
-  // degradert visning ser ut som en dom. Samme valg som /api/leaderboard/[id];
-  // en utlogget kaller gjør ikke oppslaget og berøres aldri. Kalles før HVER
-  // respons som bærer userIsPremium — også de tidlige tom-returene.
-  async function settlePremium(): Promise<NextResponse | null> {
-    if (!premiumPromise) return null
-    const premium = await premiumPromise
-    if (!premium.ok) {
-      return NextResponse.json(
-        { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
-        { status: 503 }
-      )
-    }
-    userIsPremium = premium.value
-    return null
-  }
 
   // ── Scope-gate (6. august 2026) ─────────────────────────────────────────────
   // Samme gating som /api/leagues/[id]/leaderboard og /api/org/[slug]/dashboard:
@@ -266,6 +259,42 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // «Vet ikke» skal ikke bli til «ikke Premium»: flagget styrer om kalleren
+  // får se sin egen eksakte plassering, så en transient DB-feil ville stille
+  // servert en betalende kunde gratisvisningen — uten noe som skilte det fra
+  // et utløpt abonnement. 503 er forbigående og kan prøves på nytt; en
+  // degradert visning ser ut som en dom. Samme valg som /api/leaderboard/[id];
+  // en utlogget kaller gjør ikke oppslaget og berøres aldri.
+  if (premiumPromise) {
+    const premium = await premiumPromise
+    if (!premium.ok) {
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 }
+      )
+    }
+    userIsPremium = premium.value
+  }
+
+  // ── Eksakt plassering og bla/søk er Premium — håndheves server-side ─────────
+  // (S1+S2, 22. august 2026 — samme klasse hull som /api/leaderboard/[id]
+  // lukket 1.–2. august; denne søsterruten sto åpen.) `premiumView` styrer
+  // begge:
+  //   • S1: userEntry.rank grovmales til 10-båndets start (bandRank) og
+  //     `userRank` utelates for andre enn Premium. Klienten har aldri TEGNET
+  //     det eksakte tallet for gratis (SeasonLeaderboard viser paywall-kortet),
+  //     men tallet lå i nettverksfanen — nå finnes det ikke i svaret.
+  //   • S2: ?page=/?search= nulles ut — svaret blir det samme som uten dem,
+  //     ingen ny feilsti (samme form som `isBrowse` i leaderboard-ruten).
+  // Org-scope er BEVISST unntatt begge deler: rommet er medlemskaps-gatet
+  // over, og org-visningen (SeasonLeaderboard sine `showControls` og
+  // `shouldShowPlacementRow`) tilbyr bla/søk og tegner eksakt INTERN
+  // plassering for alle medlemmer — banding der ville vist et falskt tall som
+  // om det var ekte (fargen-kan-ikke-motsi-teksten-klassen). Liga følger
+  // global: klienten viser hverken kontrollene eller eksakt rank der uten
+  // Premium, så gaten endrer ingenting synlig for liga-medlemmer.
+  const premiumView = userIsPremium || scope === 'organization'
+
   const excludedSet = new Set(
     (excludedResult.data ?? []).map((e: { user_id: string }) => e.user_id)
   )
@@ -279,8 +308,10 @@ export async function GET(request: NextRequest) {
   // `isPaginated` betyr fortsatt «brukeren blar/søker», og styrer kun hvor mye
   // ekstraarbeid ruten gjør (badges via enrich(), quiz-tidslinje, oppslag av
   // ventende quiz) — den skal ALDRI påvirke sidestørrelsen igjen.
-  const pageParamRaw  = searchParams.get('page')
-  const searchRaw     = (searchParams.get('search') ?? '').trim()
+  // S2: parameterne leses kun for premiumView — for alle andre er de null/tom,
+  // og hele kjeden under (isPaginated, page, search) faller til standardsvaret.
+  const pageParamRaw  = premiumView ? searchParams.get('page') : null
+  const searchRaw     = premiumView ? (searchParams.get('search') ?? '').trim() : ''
   const isPaginated   = pageParamRaw !== null || searchRaw !== ''
   const page          = Math.max(1, parseInt(pageParamRaw ?? '1', 10) || 1)
   const search        = searchRaw === '' ? null : searchRaw
@@ -300,7 +331,7 @@ export async function GET(request: NextRequest) {
     // hvilken quiz som velges — er uendret.
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
-      .select('id, title, closes_at, season_points_awarded, attempts!inner(id)')
+      .select('id, title, closes_at, season_points_awarded, hide_leaderboard_until_closed, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1, { referencedTable: 'attempts' })
@@ -308,8 +339,6 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     if (!latestQuiz) {
-      const premiumGate = await settlePremium()
-      if (premiumGate) return premiumGate
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
     }
 
@@ -318,8 +347,6 @@ export async function GET(request: NextRequest) {
     const rawAttempts = await getLastQuizAttempts(latestQuiz.id)
 
     if (rawAttempts.length === 0) {
-      const premiumGate = await settlePremium()
-      if (premiumGate) return premiumGate
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: latestQuiz.title })
     }
 
@@ -401,7 +428,8 @@ export async function GET(request: NextRequest) {
       if (userInRanked) {
         const profile = profileMap.get(userId)
         userEntry = {
-          rank: userInRanked.rank,
+          // S1: eksakt rank kun for premiumView — ellers 10-båndets start.
+          rank: premiumView ? userInRanked.rank : bandRank(userInRanked.rank),
           displayName: profile?.display_name ?? userInRanked.player_name,
           nickname: profile?.nickname ?? null,
           avatarUrl: null,
@@ -443,7 +471,10 @@ export async function GET(request: NextRequest) {
         userBlockedFromGlobal = true
         const profile = profileMap.get(userId)
         userEntry = {
-          rank: mine.rank,
+          // S1 gjelder også her: klienten tegner aldri denne ranken (blokkert-
+          // kortet viser tekst, ikke tall), men den skal likevel ikke ligge
+          // eksakt i svaret for ikke-Premium.
+          rank: premiumView ? mine.rank : bandRank(mine.rank),
           displayName: profile?.display_name ?? mine.player_name,
           nickname: profile?.nickname ?? null,
           avatarUrl: null,
@@ -454,11 +485,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const premiumGate = await settlePremium()
-    if (premiumGate) return premiumGate
+    // ── Skjult til stengetid — håndheves server-side (S4, 22. august 2026) ────
+    // Samme regel og samme Premium-unntak som /api/leaderboard/[id] sin
+    // `hiddenUntilClosed`: er stillingen skjult mens quizen er åpen, forlater
+    // ingen av de ANDRE spillernes rader serveren — kun `entries` tømmes.
+    // `userEntry` (egne tall, banded for ikke-Premium) og `totalCount` består,
+    // som i leaderboard-ruten. Unntaket krever Premium OG at kalleren har
+    // levert — `userEntry` dekker også blokkert-fallbacken over, samme rolle
+    // som `mine` har i leaderboard-ruten. «Stengt» avgjøres av den delte
+    // isQuizClosed (lib/standings-cache) — samme signal, ikke et nytt.
+    //
+    // KUN global scope, med vilje: org-/liga-fanene er medlemskaps-gatet
+    // lenger opp og er interne rom som skal fungere som før. At medlemmer der
+    // ser sin interne stilling mens quizen er åpen er dagens oppførsel og
+    // IKKE denne sakens funn (S4 var den ANONYME lesingen av den åpne
+    // stillingen) — se rapporten for hvorfor det står igjen som eget spørsmål.
+    const hiddenUntilClosed = scope === 'global'
+      && latestQuiz.hide_leaderboard_until_closed === true
+      && !isQuizClosed(latestQuiz.closes_at, Date.now())
+      && !(userIsPremium && userEntry !== null)
 
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
-    return NextResponse.json({ entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at, totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE })
+    return NextResponse.json({
+      entries: hiddenUntilClosed ? [] : entries,
+      userEntry, userIsPremium, userBlockedFromGlobal,
+      leaderboardHidden: hiddenUntilClosed,
+      quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at,
+      totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE,
+    })
   }
 
   // ── PERIOD MODE — sesong-poeng fra season_scores ──────────────────────────
@@ -490,8 +544,6 @@ export async function GET(request: NextRequest) {
   // hardkodet 0 her ga totalPages = 1 og fjernet dermed hele knapperaden, så
   // brukeren mistet veien tilbake til side 1 og måtte laste siden på nytt.
   async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0, uBlocked = false) {
-    const premiumGate = await settlePremium()
-    if (premiumGate) return premiumGate
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
       const { data: openQuiz } = await supabaseAdmin
@@ -623,8 +675,13 @@ export async function GET(request: NextRequest) {
       userNickname    = (prof as { nickname?: string | null } | null)?.nickname ?? null
     }
 
+    // S1: eksakt tall kun for premiumView. Raden beholdes (egne poeng/quizer),
+    // ranken grovmales; toppnivå-feltet `userRank` utelates helt — samme
+    // skille som leaderboard-rutens userEntry/userRank. Klienten leser
+    // `userRank` kun bak `showControls` (Premium/org), så null er aldri synlig.
+    const userRankOut = premiumView ? userRank : null
     const userEntry: UserEntryOut | null = (userId && userRank != null && userStats)
-      ? { rank: userRank, displayName: userDisplayName ?? 'Spiller', nickname: userNickname, avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
+      ? { rank: premiumView ? userRank : bandRank(userRank), displayName: userDisplayName ?? 'Spiller', nickname: userNickname, avatarUrl: null, points: userStats.points, quizCount: userStats.quizCount }
       : null
 
     // Blokkert fra den åpne topplisten? Kun global-scope, kun når kalleren
@@ -650,7 +707,7 @@ export async function GET(request: NextRequest) {
         })
         realTotal = Number(((firstPage ?? []) as RankedRow[])[0]?.total_count ?? 0)
       }
-      return emptyResponse(userEntry, userRank, realTotal, userBlockedFromGlobal)
+      return emptyResponse(userEntry, userRankOut, realTotal, userBlockedFromGlobal)
     }
 
     // Runde 5+6 er nå parallellisert inne i enrich()
@@ -680,13 +737,10 @@ export async function GET(request: NextRequest) {
       fastestMs: fastest.get(r.user_id) ?? null,
     }))
 
-    const premiumGate = await settlePremium()
-    if (premiumGate) return premiumGate
-
     console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
       entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
-      totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
+      totalCount, userRank: userRankOut, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
 
@@ -755,8 +809,11 @@ export async function GET(request: NextRequest) {
   const rankedAll = sorted.map((s, i) => ({ ...s, rank: i + 1, displayName: nameMap.get(s.userId) ?? 'Spiller', nickname: nickMap.get(s.userId) ?? null }))
   const userRankIdx = userId ? rankedAll.findIndex(r => r.userId === userId) : -1
   const userRank = userRankIdx >= 0 ? userRankIdx + 1 : null
+  // S1 — samme grovmaling som RPC-stien over; fallbacken skal ikke være den
+  // ene stien der det eksakte tallet fortsatt lekker.
+  const userRankOut = premiumView ? userRank : null
   const userEntry: UserEntryOut | null = userRankIdx >= 0
-    ? { rank: userRank!, displayName: rankedAll[userRankIdx].displayName, nickname: rankedAll[userRankIdx].nickname, avatarUrl: null, points: rankedAll[userRankIdx].points, quizCount: rankedAll[userRankIdx].quizCount }
+    ? { rank: premiumView ? userRank! : bandRank(userRank!), displayName: rankedAll[userRankIdx].displayName, nickname: rankedAll[userRankIdx].nickname, avatarUrl: null, points: rankedAll[userRankIdx].points, quizCount: rankedAll[userRankIdx].quizCount }
     : null
 
   // Samme blokkert-signal som RPC-stien — se kommentaren der.
@@ -772,7 +829,7 @@ export async function GET(request: NextRequest) {
 
   // Her er totaltallet allerede kjent (hele lista ligger i minnet), så det
   // sendes rett videre — ingen ekstra spørring nødvendig som i RPC-stien.
-  if (pageSlice.length === 0) return emptyResponse(userEntry, userRank, totalCount, userBlockedFromGlobal)
+  if (pageSlice.length === 0) return emptyResponse(userEntry, userRankOut, totalCount, userBlockedFromGlobal)
 
   // Tidslinje fra de allerede hentede radene (RPC utilgjengelig i fallback)
   const timelineMap = new Map<string, string>()
@@ -793,12 +850,9 @@ export async function GET(request: NextRequest) {
     fastestMs: fastest.get(r.userId) ?? null,
   }))
 
-  const premiumGate = await settlePremium()
-  if (premiumGate) return premiumGate
-
   console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
     entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
-    totalCount, userRank, page, pageSize: TOPPLISTE_PAGE_SIZE,
+    totalCount, userRank: userRankOut, page, pageSize: TOPPLISTE_PAGE_SIZE,
   })
 }

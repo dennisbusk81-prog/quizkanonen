@@ -91,6 +91,10 @@ type ApiResponse = {
   // raden er «egne tall» fra det ufiltrerte feltet, se /api/toppliste); i
   // periode-fanene betyr det «poengene dine føres ikke her». Kun global-scope.
   userBlockedFromGlobal?: boolean
+  // Siste quiz (S4, 22. august 2026): stillingen er skjult til quizen stenger
+  // — `entries` er da tømt SERVER-side. Premium som har spilt får listen
+  // løftet (samme unntak som /api/leaderboard/[id]) og flagget false.
+  leaderboardHidden?: boolean
   quizTitle?: string | null
   quizClosesAt?: string | null
   activeQuizClosesAt?: string | null
@@ -1072,7 +1076,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <p style={s.quizLabel}>Siste quiz: <em>{data.quizTitle}</em></p>
       )}
 
-      {isLastQuiz && data?.quizClosesAt && new Date(data.quizClosesAt) > new Date() && (
+      {/* «oppdateres fortløpende» må ikke stå over en skjult (tom) stilling —
+          da er setningen usann og tomheten ser ut som en feil. */}
+      {isLastQuiz && data?.quizClosesAt && !data.leaderboardHidden && new Date(data.quizClosesAt) > new Date() && (
         <p style={{ fontSize: 13, color: '#e8e4dd', textAlign: 'center', marginBottom: 16 }}>
           Quizen er åpen — resultater oppdateres fortløpende
         </p>
@@ -1146,6 +1152,21 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       {/* Liste */}
       {!loading && data?.entries.length === 0 ? (
         searching ? null : (() => {
+          // Skjult til stengetid (S4): serveren har tømt entries med vilje.
+          // Uten denne grenen falt visningen til «Ingen avsluttede quizer
+          // ennå» — usant mens en quiz faktisk pågår. Premium som har spilt
+          // når aldri hit (serveren løfter skjulingen og leverer listen).
+          if (isLastQuiz && data?.leaderboardHidden) {
+            return (
+              <div style={s.empty}>
+                <p style={s.emptyTitle}>Stillingen er skjult til quizen stenger</p>
+                <p style={{ ...s.emptySub, marginBottom: 18 }}>
+                  Resultatene publiseres her når quizen stenger.
+                </p>
+                <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
+              </div>
+            )
+          }
           const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
           // Lenken til forsiden er poenget med en tom liste: uten den var
           // «Spill en quiz for å komme på listen!» en oppfordring uten noe å
