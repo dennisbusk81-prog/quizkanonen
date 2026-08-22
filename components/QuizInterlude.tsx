@@ -352,6 +352,17 @@ export default function QuizInterlude({
             }}>
               {low}–{high}
             </p>
+            {/* Ren opplysning, BEVISST uten lenke/knapp/CTA (avgjort 22. august
+                2026): midt i quizen skal ingenting starte en kjøpsflyt eller
+                konkurrere med Neste-knappen. Hint-farge, ikke gull — spennet
+                over er skjermens gull-element. Kun innloggede: en gjest har
+                ingen plassering her uansett (spanRanking hentes ikke for dem),
+                og skal ikke møte premium-omtale før innlogging. */}
+            {isLoggedIn && (
+              <p style={{ fontSize: 12, color: '#918f8a', marginTop: 8 }}>
+                Premium viser eksakt plassering — og hvem som ligger rett over og under deg.
+              </p>
+            )}
           </div>
         )}
 

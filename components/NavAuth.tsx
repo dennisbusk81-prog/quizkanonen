@@ -480,19 +480,35 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Mine ligaer
             </a>
-            {isPremium && (
+            {profileLoaded && (
               // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
               // server-data i stedet for Next sin router-cache. Ikke en forglemmelse
               // — se toppkommentaren og lint-oppryddingen 5. august 2026.
-              // eslint-disable-next-line @next/next/no-html-link-for-pages
+              //
+              // Vises nå også for gratis (22. august 2026) — låst, med /premium
+              // som mål og lås-badge etter forsidens historikk-flis-mønster.
+              // Samme endring som i UserMenu.tsx (andre kopi av samme meny).
+              // profileLoaded-gaten hindrer at en Premium-bruker ser låst
+              // variant i blaffet før profilen har landet.
               <a
-                href="/historikk"
+                href={isPremium ? '/historikk' : '/premium'}
                 onClick={() => setDropdownOpen(false)}
                 style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
                 Quizhistorikk
+                {!isPremium && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 700,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    color: '#c9a84c', background: 'rgba(201,168,76,0.1)',
+                    border: '1px solid rgba(201,168,76,0.2)',
+                    borderRadius: 999, padding: '2px 8px',
+                  }}>
+                    Premium
+                  </span>
+                )}
               </a>
             )}
             {/* Samme utvidelse som i UserMenu.tsx og /profil: inngangen til

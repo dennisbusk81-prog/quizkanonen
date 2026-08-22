@@ -1160,8 +1160,15 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             return (
               <div style={s.empty}>
                 <p style={s.emptyTitle}>Stillingen er skjult til quizen stenger</p>
+                {/* Premium-veien nevnes eksplisitt (22. august 2026): uten den
+                    var dette en gate uten forklaring — kartleggingen fant at
+                    Premium+spilt er eneste vei forbi skjermen, og teksten sa
+                    det ikke. Inline tekstlenke i brødtekstfarge, ikke gull —
+                    kortets ene knapp er outline-en under. */}
                 <p style={{ ...s.emptySub, marginBottom: 18 }}>
-                  Resultatene publiseres her når quizen stenger.
+                  Resultatene publiseres her når quizen stenger.{' '}
+                  <Link href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Premium</Link>
+                  -medlemmer som har spilt ser stillingen underveis.
                 </p>
                 <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
               </div>

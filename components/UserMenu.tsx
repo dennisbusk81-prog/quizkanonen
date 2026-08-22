@@ -290,14 +290,18 @@ export default function UserMenu() {
                 >
                   Sesong-topplisten →
                 </a>
-                {profileLoaded && isPremium && (
+                {profileLoaded && (
                   <>
                     {/* Bevisst hard navigasjon, ikke <Link>: fersk server-data
                         i stedet for Next sin router-cache. Samme mønster som
-                        resten av menyen. */}
-                    {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                        resten av menyen.
+
+                        Vises nå også for gratis (22. august 2026) — låst, med
+                        /premium som mål og lås-badge etter forsidens
+                        historikk-flis-mønster. Fram til nå var lenken usynlig
+                        for gratis, så funksjonen fantes ikke for dem. */}
                     <a
-                      href="/historikk"
+                      href={isPremium ? '/historikk' : '/premium'}
                       onClick={() => setDropdownOpen(false)}
                       style={{
                         display: 'block', width: '100%', textAlign: 'left',
@@ -311,6 +315,17 @@ export default function UserMenu() {
                       onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
                       Quizhistorikk
+                      {!isPremium && (
+                        <span style={{
+                          marginLeft: 8, fontSize: 10, fontWeight: 700,
+                          letterSpacing: '0.1em', textTransform: 'uppercase',
+                          color: '#c9a84c', background: 'rgba(201,168,76,0.1)',
+                          border: '1px solid rgba(201,168,76,0.2)',
+                          borderRadius: 999, padding: '2px 8px',
+                        }}>
+                          Premium
+                        </span>
+                      )}
                     </a>
                   </>
                 )}

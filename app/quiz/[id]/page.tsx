@@ -3890,20 +3890,52 @@ export default function QuizPage() {
           </button>
         )}
 
-        {isPremium && attemptId && (
+        {isLoggedIn && attemptId && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <a href={`/historikk/${attemptId}`} style={{
-              display: 'inline-block',
-              padding: '10px 28px',
-              background: 'transparent',
-              border: '1px solid #2a2d38',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 500,
-              color: '#e8e4dd',
-              textDecoration: 'none',
-              fontFamily: "'Instrument Sans', sans-serif",
-            }}>Se dine svar →</a>
+            {isPremium ? (
+              <a href={`/historikk/${attemptId}`} style={{
+                display: 'inline-block',
+                padding: '10px 28px',
+                background: 'transparent',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 500,
+                color: '#e8e4dd',
+                textDecoration: 'none',
+                fontFamily: "'Instrument Sans', sans-serif",
+              }}>Se dine svar →</a>
+            ) : (
+              // Låst variant (22. august 2026) — samme mønster som forsidens
+              // historikk-flis (qkp-lock-badge i app/page.tsx): teksten består,
+              // pilen byttes med lås-badgen, målet er /premium. Knappen selv er
+              // outline, ikke gull — «Se topplisten» over er skjermens gull.
+              <a href="/premium" style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 28px',
+                background: 'transparent',
+                border: '1px solid #2a2d38',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 500,
+                color: '#e8e4dd',
+                textDecoration: 'none',
+                fontFamily: "'Instrument Sans', sans-serif",
+              }}>
+                Se dine svar
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                  textTransform: 'uppercase', color: '#c9a84c',
+                  background: 'rgba(201,168,76,0.1)',
+                  border: '1px solid rgba(201,168,76,0.2)',
+                  borderRadius: 999, padding: '2px 8px',
+                }}>
+                  {trialOffer?.show ? 'Prøv gratis' : 'Premium'}
+                </span>
+              </a>
+            )}
           </div>
         )}
 
