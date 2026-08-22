@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { liveRateLimitKey, LIVE_RANKING_RATE_LIMIT } from '@/lib/live-rate-limit'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
@@ -29,19 +30,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
   }
 
-  // Nøklet på IP+quiz, ikke bruker — se FALLGRUVE-avsnittet i CLAUDE.md.
-  // Ruten kalles ÉN GANG PER SPØRSMÅL av Premium-spillere, så 30/60s tilsvarer
-  // ca. 6 samtidige Premium-spillere bak samme IP. At det ikke biter i dag
-  // skyldes utelukkende at telleren er in-memory (per instans).
+  // Nøklet på ATTEMPT-TOKEN når det finnes, ellers anon:<ip> — re-nøklingen
+  // FØR delt teller, i rekkefølgen CLAUDE.md sitt FALLGRUVE-avsnitt krever.
+  // Grensen (30/60s, in-memory) er UENDRET i denne commiten — se
+  // lib/live-rate-limit.ts for hele begrunnelsen, inkludert hvorfor
+  // verifiseringen er lokal HMAC og ikke et GoTrue-kall.
   //
   // Loggingen finnes fordi symptomet ellers er HELT stille: et 429 gir
   // `fetchLiveRankingFull` → null i klienten, og mellomskjermen vises uten
   // plassering. Premium-funksjonen forsvinner da uten feilmelding, uten
   // Sentry-hendelse og — fram til nå — uten loggspor.
-  const rlKey = `live-ranking:${ip}:${quizId}`
-  const rl = rateLimit(rlKey, 30, 60_000)
+  const attemptId = searchParams.get('attemptId')
+  const attemptToken = request.headers.get('x-attempt-token')
+  const rlKey = liveRateLimitKey('live-ranking', { ip, quizId, attemptId, token: attemptToken })
+  const rl = rateLimit(rlKey, LIVE_RANKING_RATE_LIMIT.limit, LIVE_RANKING_RATE_LIMIT.windowMs)
   if (!rl.success) {
-    logRateLimitHit(rlKey, { lag: 'lokal', limit: 30, windowMs: 60_000, quizId })
+    logRateLimitHit(rlKey, {
+      lag: 'lokal',
+      limit: LIVE_RANKING_RATE_LIMIT.limit,
+      windowMs: LIVE_RANKING_RATE_LIMIT.windowMs,
+      quizId,
+    })
     return NextResponse.json(
       { error: 'For mange forespørsler — prøv igjen om litt' },
       { status: 429 }

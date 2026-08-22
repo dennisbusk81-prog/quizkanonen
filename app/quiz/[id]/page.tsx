@@ -1496,6 +1496,12 @@ export default function QuizPage() {
   // samme skala som de ferdige forsøkene den rangeres mot (Del 1+2). Under
   // MIN_ANSWERED_FOR_PLACEMENT hopper vi over kallet helt — anslaget ville
   // uansett ikke blitt vist (Del 3), så det er en request spart per spiller.
+  // attemptId + x-attempt-token sendes med på alle tre rangeringskallene, så
+  // serveren kan rate-limite per FORSØK i stedet for per IP (Elkjøp-nettet, se
+  // lib/live-rate-limit.ts). Begge er VALGFRIE hos serveren: en gammel fane
+  // midt i quizen under deploy (eller en tom attemptToken fra start-attempt)
+  // faller til anon:<ip> og spiller videre uten å merke noe — samme
+  // valgfrihets-mønster som answered/total-parameterne.
   const fetchLiveRank = useCallback(async (
     correctSoFar: number,
     timeSoFar: number,
@@ -1505,13 +1511,14 @@ export default function QuizPage() {
     if (answeredSoFar < MIN_ANSWERED_FOR_PLACEMENT) { setLiveRank(null); return }
     try {
       const res = await fetch(
-        `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`
+        `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}${attemptId ? `&attemptId=${attemptId}` : ''}`,
+        attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : undefined
       )
       if (!res.ok) return
       const data: { rank: number } = await res.json()
       setLiveRank(data.rank)
     } catch { /* ikke kritisk */ }
-  }, [quiz, quizId, currentIndex, totalQuestions])
+  }, [quiz, quizId, currentIndex, totalQuestions, attemptId, attemptToken])
 
   const fetchRankingSnapshot = useCallback(async (
     questionIndex: number,
@@ -1522,13 +1529,16 @@ export default function QuizPage() {
   ): Promise<{ rank: number; total: number; low: number; high: number } | null> => {
     try {
       const res = await fetch(
-        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}`,
-        { signal }
+        `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}${attemptId ? `&attemptId=${attemptId}` : ''}`,
+        {
+          signal,
+          ...(attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : {}),
+        }
       )
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
-  }, [quizId, totalQuestions])
+  }, [quizId, totalQuestions, attemptId, attemptToken])
 
   // Del 5: premium-stien. /api/quiz/live-ranking returnerer nå BÅDE low/high og
   // userRank/above/below fra samme snapshot og samme computePlacement, så ett
@@ -1555,11 +1565,15 @@ export default function QuizPage() {
         answered: String(answeredSoFar),
         total: String(totalQuestions),
       })
-      const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`, { signal })
+      if (attemptId) params.set('attemptId', attemptId)
+      const res = await fetch(`/api/quiz/live-ranking?${params.toString()}`, {
+        signal,
+        ...(attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : {}),
+      })
       if (!res.ok) return null
       return await res.json()
     } catch { return null }
-  }, [quizId, totalQuestions])
+  }, [quizId, totalQuestions, attemptId, attemptToken])
 
   const startQuiz = async () => {
     const effectiveName = loggedInDisplayName ?? nameInput.trim()

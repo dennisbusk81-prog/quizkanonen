@@ -638,19 +638,25 @@ polstring — begge rutene krever en OAuth-kode bundet til en PKCE-verifier
 eller et `token_hash` fra Supabase, og uten den er et forsøk verdiløst
 uansett hvor mange ganger det gjentas.
 
-**FALLGRUVE — `/api/quiz/live-ranking` er fortsatt nøklet `<ip>:<quizId>`,
-30 per 60 s, in-memory.** Den kalles ÉN GANG PER SPØRSMÅL av Premium-spillere
-(`goToNext` → `fetchLiveRankingFull`), altså `N-3` ganger per quiz — det
-eneste stedet i spillestien der forbruket skalerer med antall spørsmål. Med
-målt spilletid gir det ~5 kall/min per spiller, så grensen tilsvarer ca. **6
-samtidige Premium-spillere bak samme IP**. At det ikke biter i dag skyldes
-utelukkende at telleren er per instans.
+**Live-rutene er re-nøklet på ATTEMPT-TOKEN (22. august 2026)** —
+`lib/live-rate-limit.ts`. `/api/quiz/live-ranking` var nøklet `<ip>:<quizId>`,
+og en delt teller uten re-nøkling ville gjenskapt F1 på en flate der symptomet
+er STILLE: et 429 gir `fetchLiveRankingFull` → null, og mellomskjermen vises
+uten plassering — ingen feilmelding, ingen Sentry-hendelse. Derfor ble
+re-nøklingen gjort FØR flyttingen: gyldig `x-attempt-token` (lokal
+HMAC-verifisering, INGEN GoTrue-kall — et nettverkskall per spørsmål ville
+spist NEXT_STEP_TIMEOUT_MS på mellomskjermen) →
+`live-ranking:attempt:<attemptId>`, ellers → `live-ranking:anon:<ip>`.
+Identiteten er attempt, ikke bruker, fordi GJESTER også har token — user-id
+ville latt alle gjester bak ett nett dele anon-bøtta. Klienten sender token på
+alle tre rangeringskallene; token-løse kall (gammel fane under deploy) faller
+til anon og spiller videre. Grensen er UENDRET: 30/60 s, in-memory.
 
-Migrerer du den til delt teller uten å nøkle den på bruker først, gjenskaper
-du F1 — denne gangen på en flate der symptomet er STILLE: et 429 gir
-`fetchLiveRankingFull` → null, og mellomskjermen vises uten plassering.
-Premium-funksjonen forsvinner uten feilmelding, uten Sentry-hendelse og uten
-loggspor. Re-nøkle FØR du flytter den, ikke etter.
+Gjenstående, i rekkefølge: steg 3 = grense på `ranking-snapshot` (har INGEN i
+dag — tyngste rute, målt 1 447 kall/21,6 per spiller 21. aug) dimensjonert fra
+de målte tallene (~2 kall/min per Premium på live-ranking, IKKE ~5 som
+tidligere anslått); steg 4 = delt teller. Ny live-flate skal nøkles via
+`liveRateLimitKey`, ikke en ny håndskrevet nøkkel.
 
 **Invariant — teller og TTL settes i SAMME transaksjon:**
 `SET <k> 0 PX <ms> NX` + `INCR <k>` via `/multi-exec`. IKKE `INCR` +
