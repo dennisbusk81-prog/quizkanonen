@@ -603,7 +603,10 @@ Det finnes TRE mekanismer, og de er ikke alternativer til hverandre:
 `stripe/org-checkout`, `stripe/founders-activate`,
 `stripe/org-founders-activate`, `api/auth/bekreft`, `auth/callback`,
 `api/notifications/subscribe`, `org/[slug]/send-reminder`,
-`org/join/[token]`, `quiz/start-attempt`, `quiz/[id]/submit`.
+`org/join/[token]`, `quiz/start-attempt`, `quiz/[id]/submit`,
+`quiz/live-ranking` og `quiz/[id]/ranking-snapshot` (de to siste 22. august,
+ETTER at attempt-token-nøklingen var på plass — delt teller uten re-nøkling
+ville gjenskapt F1 stille, se live-rute-avsnittet under).
 
 **Bevisst IKKE migrert:** flatene med lag 3 (de har allerede en teller som
 overlever), og alle rene lese-ruter — der er grensen kostnadsdemping, og
@@ -650,13 +653,19 @@ spist NEXT_STEP_TIMEOUT_MS på mellomskjermen) →
 Identiteten er attempt, ikke bruker, fordi GJESTER også har token — user-id
 ville latt alle gjester bak ett nett dele anon-bøtta. Klienten sender token på
 alle tre rangeringskallene; token-løse kall (gammel fane under deploy) faller
-til anon og spiller videre. Grensen er UENDRET: 30/60 s, in-memory.
+til anon og spiller videre.
 
-Gjenstående, i rekkefølge: steg 3 = grense på `ranking-snapshot` (har INGEN i
-dag — tyngste rute, målt 1 447 kall/21,6 per spiller 21. aug) dimensjonert fra
-de målte tallene (~2 kall/min per Premium på live-ranking, IKKE ~5 som
-tidligere anslått); steg 4 = delt teller. Ny live-flate skal nøkles via
-`liveRateLimitKey`, ikke en ny håndskrevet nøkkel.
+Alle fire steg er GJENNOMFØRT 22. august 2026: steg 1+2 = re-nøkling
+(8daf475); steg 3 = `ranking-snapshot` fikk sin FØRSTE grense, 60/60 s
+(e0f5d97 — dimensjoneringen står som kommentar over
+`RANKING_SNAPSHOT_RATE_LIMIT`: verste legitime kadens ~40/min, målt toppminutt
+31 for hele feltet, +50 % margin); steg 4 = begge rutene bruker
+`rateLimitShared` (delt teller, fail-open, inert uten KV-env — trygt fordi
+attempt-nøklingen kom FØRST). Grensene er uendret: live-ranking 30/60 s,
+ranking-snapshot 60/60 s. Ny live-flate skal nøkles via `liveRateLimitKey`,
+ikke en ny håndskrevet nøkkel. `standings` er bevisst fortsatt uten grense
+(1,3 kall/spiller, CDN-forsvar); får den en, skal token-sending i klienten
+inn i samme commit.
 
 **Invariant — teller og TTL settes i SAMME transaksjon:**
 `SET <k> 0 PX <ms> NX` + `INCR <k>` via `/multi-exec`. IKKE `INCR` +

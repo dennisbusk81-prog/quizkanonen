@@ -35,9 +35,10 @@ import 'server-only'
 import { verifyAttemptToken } from './attempt-token'
 
 /**
- * Grensen på live-ranking — UENDRET fra før re-nøklingen (30/60s, in-memory).
- * Re-nøklingen endret kun hvem som telles sammen, ikke hvor mye. Delt teller
- * (Upstash) er steg 4.
+ * Grensen på live-ranking — UENDRET fra før re-nøklingen (30/60s).
+ * Re-nøklingen (steg 1+2) endret hvem som telles sammen, delt teller (steg 4)
+ * endret hvor telleren bor — ingen av delene endret hvor mye som slipper
+ * gjennom.
  */
 export const LIVE_RANKING_RATE_LIMIT = { limit: 30, windowMs: 60_000 } as const
 

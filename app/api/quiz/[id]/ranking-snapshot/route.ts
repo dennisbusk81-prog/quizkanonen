@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { liveRateLimitKey, RANKING_SNAPSHOT_RATE_LIMIT } from '@/lib/live-rate-limit'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
@@ -43,6 +43,12 @@ export async function GET(
   // lib/live-rate-limit.ts for dimensjoneringen (60/60s er forankret i
   // målt toppminutt, ikke gjettet).
   //
+  // DELT teller (steg 4, 22. august 2026): rateLimitShared kjører selv
+  // in-memory-laget først og kortslutter på lokalt avslag, faller ÅPENT ved
+  // Upstash-feil (maks 1 s, deretter slipper kallet gjennom) og er inert uten
+  // KV-env. Kostnad ~9 ms median i et 9000 ms-budsjett (NEXT_STEP_TIMEOUT_MS),
+  // og kallet ligger parallelt med den tyngre spørsmålshentingen i klienten.
+  //
   // Loggingen er ikke pynt: klienten svelger 429 uten feilmelding (rank-pillen
   // og mellomskjerm-spennet forsvinner bare), så en for lav grense er usynlig
   // uten TAK TRUFFET-linjen i Vercel-loggen.
@@ -50,10 +56,10 @@ export async function GET(
   const attemptId = searchParams.get('attemptId')
   const attemptToken = request.headers.get('x-attempt-token')
   const rlKey = liveRateLimitKey('ranking-snapshot', { ip, quizId, attemptId, token: attemptToken })
-  const rl = rateLimit(rlKey, RANKING_SNAPSHOT_RATE_LIMIT.limit, RANKING_SNAPSHOT_RATE_LIMIT.windowMs)
+  const rl = await rateLimitShared(rlKey, RANKING_SNAPSHOT_RATE_LIMIT.limit, RANKING_SNAPSHOT_RATE_LIMIT.windowMs)
   if (!rl.success) {
     logRateLimitHit(rlKey, {
-      lag: 'lokal',
+      lag: 'delt',
       limit: RANKING_SNAPSHOT_RATE_LIMIT.limit,
       windowMs: RANKING_SNAPSHOT_RATE_LIMIT.windowMs,
       quizId,

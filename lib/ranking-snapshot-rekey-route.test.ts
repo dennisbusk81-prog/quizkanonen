@@ -3,8 +3,9 @@
 //
 // INTEGRASJONSTEST av grensen på /api/quiz/[id]/ranking-snapshot (steg 3,
 // 22. august 2026) — rutens FØRSTE rate-limit. Nøklet på attempt-token via
-// liveRateLimitKey, ellers anon:<ip>. 60/60s, in-memory — dimensjoneringen
-// står forklart over RANKING_SNAPSHOT_RATE_LIMIT i lib/live-rate-limit.ts.
+// liveRateLimitKey, ellers anon:<ip>. 60/60s, delt teller fra steg 4
+// (rateLimitShared) — dimensjoneringen står forklart over
+// RANKING_SNAPSHOT_RATE_LIMIT i lib/live-rate-limit.ts.
 //
 // MUTASJONSBEVIS
 //   • Fjern rateLimit-blokken fra ruten, og «kall 61 fra samme forsøk blir
@@ -26,19 +27,23 @@ const ATTEMPT_A = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const ATTEMPT_B = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
 // ── Teller-mock: EKTE telling per nøkkel, så en 429 betyr at grensen bet ────
+// Mocket på rate-limit-SHARED etter steg 4 (delt teller): ruten kaller nå
+// rateLimitShared, og nøklene som havner her er nøyaktig de som ville gått
+// til Upstash.
 const counter: { counts: Map<string, number>; keys: string[] } = {
   counts: new Map(),
   keys: [],
 }
 
-mock.module('@/lib/rate-limit', {
+mock.module('@/lib/rate-limit-shared', {
   namedExports: {
-    rateLimit: (key: string, limit: number) => {
+    rateLimitShared: async (key: string, limit: number) => {
       counter.keys.push(key)
       const n = (counter.counts.get(key) ?? 0) + 1
       counter.counts.set(key, n)
       return { success: n <= limit, remaining: Math.max(0, limit - n) }
     },
+    SHARED_RATE_LIMIT_TIMEOUT_MS: 1000,
   },
 })
 

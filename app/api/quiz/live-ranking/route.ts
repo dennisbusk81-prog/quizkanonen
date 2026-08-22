@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { liveRateLimitKey, LIVE_RANKING_RATE_LIMIT } from '@/lib/live-rate-limit'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
@@ -31,10 +31,16 @@ export async function GET(request: NextRequest) {
   }
 
   // Nøklet på ATTEMPT-TOKEN når det finnes, ellers anon:<ip> — re-nøklingen
-  // FØR delt teller, i rekkefølgen CLAUDE.md sitt FALLGRUVE-avsnitt krever.
-  // Grensen (30/60s, in-memory) er UENDRET i denne commiten — se
-  // lib/live-rate-limit.ts for hele begrunnelsen, inkludert hvorfor
-  // verifiseringen er lokal HMAC og ikke et GoTrue-kall.
+  // ble gjort FØR delt teller (8daf475), i rekkefølgen CLAUDE.md krever.
+  // Grensen (30/60s) er UENDRET — se lib/live-rate-limit.ts for hele
+  // begrunnelsen, inkludert hvorfor verifiseringen er lokal HMAC og ikke et
+  // GoTrue-kall.
+  //
+  // DELT teller (steg 4, 22. august 2026): rateLimitShared kjører selv
+  // in-memory-laget først og kortslutter på lokalt avslag, faller ÅPENT ved
+  // Upstash-feil (maks 1 s, deretter slipper kallet gjennom) og er inert uten
+  // KV-env. Kostnad ~9 ms median i et 9000 ms-budsjett (NEXT_STEP_TIMEOUT_MS),
+  // og kallet ligger parallelt med den tyngre spørsmålshentingen i klienten.
   //
   // Loggingen finnes fordi symptomet ellers er HELT stille: et 429 gir
   // `fetchLiveRankingFull` → null i klienten, og mellomskjermen vises uten
@@ -43,10 +49,10 @@ export async function GET(request: NextRequest) {
   const attemptId = searchParams.get('attemptId')
   const attemptToken = request.headers.get('x-attempt-token')
   const rlKey = liveRateLimitKey('live-ranking', { ip, quizId, attemptId, token: attemptToken })
-  const rl = rateLimit(rlKey, LIVE_RANKING_RATE_LIMIT.limit, LIVE_RANKING_RATE_LIMIT.windowMs)
+  const rl = await rateLimitShared(rlKey, LIVE_RANKING_RATE_LIMIT.limit, LIVE_RANKING_RATE_LIMIT.windowMs)
   if (!rl.success) {
     logRateLimitHit(rlKey, {
-      lag: 'lokal',
+      lag: 'delt',
       limit: LIVE_RANKING_RATE_LIMIT.limit,
       windowMs: LIVE_RANKING_RATE_LIMIT.windowMs,
       quizId,
