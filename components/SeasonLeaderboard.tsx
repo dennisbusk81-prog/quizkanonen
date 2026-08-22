@@ -687,6 +687,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
   const showControls  = (isPremium || scope === 'organization') && (totalCount > 10 || browseMode)
   const showJumpToMe  = showControls && userRank != null && !userVisible && !searching
+  // Låst variant for gratis (22. august 2026): kontrollene fantes ikke i det
+  // hele tatt uten Premium — nå vises ÉN rad i søkefeltets posisjon, med
+  // lås-badge og /premium som mål (b2ba244-mønsteret). Speiler
+  // showControls-betingelsene (org-scope har gratis kontroller og skal ikke
+  // ha raden); entries-vakten holder raden borte fra skjult/tom liste (S4) —
+  // en «søk blant alle»-rad over «Stillingen er skjult» ville vært støy.
+  const showLockedControls = !isPremium && scope !== 'organization'
+    && totalCount > 10 && (data?.entries.length ?? 0) > 0
 
   function goToPage(p: number) {
     // Kun synlig når man ikke søker, så søketilstand trenger ikke nullstilles her
@@ -1147,6 +1155,18 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             </p>
           )}
         </div>
+      )}
+
+      {/* Låst variant av søk/paginering for gratis — én diskret rad, ikke
+          tre døde kontroller. Badgen er markeringen; raden er outline i
+          søkefeltets form (sideknappene under rendres aldri for gratis). */}
+      {showLockedControls && (
+        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent' }}>
+          <span>Søk og bla blant alle {totalCount} deltakere</span>
+          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 999, padding: '2px 8px' }}>
+            Premium
+          </span>
+        </Link>
       )}
 
       {/* Liste */}

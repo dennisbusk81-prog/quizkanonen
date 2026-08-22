@@ -158,7 +158,7 @@ export default function LeaderboardPage() {
   // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
   const {
     isPremium, myOrgs, myOrgsLoaded, userId: profileUserId, refreshProfile,
-    myOrgsError, myOrgsRefreshing, refreshMyOrgs,
+    myOrgsError, myOrgsRefreshing, refreshMyOrgs, loading: profileLoading,
   } = useProfile()
   const [authLoading, setAuthLoading] = useState(true)
   // Org-scopet hentingen FAKTISK brukte — ikke «feilet det?», men «hva ligger
@@ -864,6 +864,12 @@ export default function LeaderboardPage() {
   const browseSearching = browseMode && browseSearch.trim() !== ''
   const showBrowseControls = isPremium && activeTab === 'alle' && (roomTotal > 10 || browseMode)
   const showJumpToMeBrowse = showBrowseControls && roomUserRank != null && !userInBrowse && !browseSearching
+  // Låst variant for gratis (22. august 2026): kontrollene fantes ikke i det
+  // hele tatt uten Premium — nå vises ÉN rad i søkefeltets posisjon, med
+  // lås-badge og /premium som mål (b2ba244-mønsteret). Speiler
+  // showBrowseControls-betingelsene; profileLoading-vakten hindrer at raden
+  // blinker for Premium før profilen er lastet.
+  const showLockedBrowseControls = !profileLoading && !isPremium && activeTab === 'alle' && roomTotal > 10
 
   function browsePageWindow(current: number, total: number): (number | 'gap')[] {
     const wanted = [...new Set([1, 2, current - 1, current, current + 1, total - 1, total])]
@@ -887,7 +893,19 @@ export default function LeaderboardPage() {
   }
 
   function renderBrowseControls() {
-    if (!showBrowseControls) return null
+    if (!showBrowseControls) {
+      if (!showLockedBrowseControls) return null
+      // Én diskret rad, ikke tre døde kontroller — badgen er markeringen,
+      // raden selv er outline i søkefeltets form.
+      return (
+        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent' }}>
+          <span>Søk og bla blant alle {roomTotal} spillere</span>
+          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 999, padding: '2px 8px' }}>
+            Premium
+          </span>
+        </Link>
+      )
+    }
     const tc = browseData?.totalCount ?? 0
     return (
       <div style={{ marginBottom: 16 }}>
