@@ -25,7 +25,11 @@ const FEATURES = [
   'Historikk og statistikk — beste plassering, streak og utvikling over tid',
   'Private ligaer med venner',
   'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
-  'Svarfordeling — se hvordan alle svarte på hvert spørsmål',
+  // «hvert spørsmål» var usant: ruten leverer bevisst kun de to letteste + to
+  // vanskeligste (sikkerhetsbeslutning 26. juli — HIGHLIGHT_COUNT i
+  // answer-distribution/route.ts). Samme ordlyd som svarfordeling-seksjonen
+  // på /leaderboard/[id] allerede bruker.
+  'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
 ]
 
 export default function PremiumPage() {

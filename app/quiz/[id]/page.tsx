@@ -3976,7 +3976,11 @@ export default function QuizPage() {
               {[
                 'Nøyaktig plassering i ukens resultater',
                 'Historikk fra alle quizer du har spilt',
-                'Sesongtoppliste — konkurrér over tid',
+                // «Sesongtoppliste — konkurrér over tid» var usant som
+                // Premium-punkt: deltakelse i sesongtopplisten er gratis, og
+                // /slik-fungerer-det sier det selv. Dette er det Premium
+                // faktisk gir der (server-gatet siden 9651416).
+                'Din nøyaktige plass på sesongtopplisten — med søk og bla',
               ].map(txt => (
                 <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />

@@ -1743,7 +1743,9 @@ export default async function Home() {
                   'Historikk og statistikk — beste plassering, streak og utvikling over tid',
                   'Private ligaer med venner',
                   'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
-                  'Svarfordeling — se hvordan alle svarte på hvert spørsmål',
+                  // «hvert spørsmål» var usant — ruten leverer bevisst 2+2
+                  // (sikkerhetsbeslutning 26. juli); ordlyd fra /leaderboard/[id].
+                  'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
                 ] as const).map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 2, flexShrink: 0 }}>

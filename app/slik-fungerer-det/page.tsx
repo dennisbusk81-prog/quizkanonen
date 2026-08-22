@@ -209,7 +209,9 @@ export default function SlikFungererDetPage() {
                   'Detaljert statistikk og utvikling over tid',
                   'Opprett egne private ligaer',
                   'Se nøyaktig hvilke spørsmål du svarte feil på',
-                  'Svarfordeling — se hvordan alle svarte på hvert spørsmål',
+                  // «hvert spørsmål» var usant — ruten leverer bevisst 2+2
+                  // (sikkerhetsbeslutning 26. juli); ordlyd fra /leaderboard/[id].
+                  'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <span style={{ color: '#c9a84c', flexShrink: 0, marginTop: 1 }}>✓</span>
