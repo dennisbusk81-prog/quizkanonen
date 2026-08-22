@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
+import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { liveRateLimitKey, RANKING_SNAPSHOT_RATE_LIMIT } from '@/lib/live-rate-limit'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
 
 type RankResult = { rank: number; total: number; low: number; high: number }
@@ -32,6 +35,34 @@ export async function GET(
   const totalRaw    = parseInt(searchParams.get('total')    ?? '', 10)
   const answered       = Number.isFinite(answeredRaw) ? answeredRaw : null
   const totalQuestions = Number.isFinite(totalRaw)    ? totalRaw    : null
+
+  // Rutens FØRSTE rate-limit (steg 3, 22. august 2026) — den var den mest
+  // kalte av live-rutene (målt 1 447 kall 21. aug) og hadde ingen grense i
+  // det hele tatt. Nøklet på attempt-token, ellers anon:<ip> — token-løse
+  // kall (gammel fane under deploy) og gjester skal begge fungere, se
+  // lib/live-rate-limit.ts for dimensjoneringen (60/60s er forankret i
+  // målt toppminutt, ikke gjettet).
+  //
+  // Loggingen er ikke pynt: klienten svelger 429 uten feilmelding (rank-pillen
+  // og mellomskjerm-spennet forsvinner bare), så en for lav grense er usynlig
+  // uten TAK TRUFFET-linjen i Vercel-loggen.
+  const ip = request.headers.get('x-forwarded-for') ?? 'unknown'
+  const attemptId = searchParams.get('attemptId')
+  const attemptToken = request.headers.get('x-attempt-token')
+  const rlKey = liveRateLimitKey('ranking-snapshot', { ip, quizId, attemptId, token: attemptToken })
+  const rl = rateLimit(rlKey, RANKING_SNAPSHOT_RATE_LIMIT.limit, RANKING_SNAPSHOT_RATE_LIMIT.windowMs)
+  if (!rl.success) {
+    logRateLimitHit(rlKey, {
+      lag: 'lokal',
+      limit: RANKING_SNAPSHOT_RATE_LIMIT.limit,
+      windowMs: RANKING_SNAPSHOT_RATE_LIMIT.windowMs,
+      quizId,
+    })
+    return NextResponse.json(
+      { error: 'For mange forespørsler — prøv igjen om litt' },
+      { status: 429 }
+    )
+  }
 
   try {
     // Delt, kortlevd snapshot (samme som premium live-ranking leser).
