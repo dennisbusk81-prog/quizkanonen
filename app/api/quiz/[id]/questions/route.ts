@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { verifyAttemptToken } from '@/lib/attempt-token'
+import { QUESTIONS_GRACE_MS, QUIZ_CLOSED_ERROR, isWithinGrace, attemptStartedBeforeClose } from '@/lib/late-play-window'
 
 // ── Spørsmål ett om gangen — skjuler fasiten fra klienten ────────────────────
 // Tidligere gjorde klienten select('*') på questions og fikk HELE fasiten i
@@ -108,7 +109,7 @@ export async function GET(
       .maybeSingle(),
     supabaseAdmin
       .from('attempts')
-      .select('id, quiz_id, question_order, submitted_at')
+      .select('id, quiz_id, question_order, submitted_at, completed_at')
       .eq('id', attemptId)
       .maybeSingle(),
   ])
@@ -116,7 +117,7 @@ export async function GET(
   // Raden må finnes, tilhøre denne quizen, og ikke være levert. Siste punkt
   // hindrer at et brukt token gjenbrukes til å hente fasiten i ro og mak etterpå.
   const attemptRow = attemptRes.data as
-    { id: string; quiz_id: string; question_order: unknown; submitted_at: string | null } | null
+    { id: string; quiz_id: string; question_order: unknown; submitted_at: string | null; completed_at: string } | null
   if (!attemptRow || attemptRow.quiz_id !== quizId) {
     return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
   }
@@ -131,8 +132,26 @@ export async function GET(
   const now = Date.now()
   const opensAt = quiz.opens_at ? new Date(quiz.opens_at).getTime() : null
   const closesAt = quiz.closes_at ? new Date(quiz.closes_at).getTime() : null
-  if ((opensAt !== null && now < opensAt) || (closesAt !== null && now > closesAt)) {
-    return NextResponse.json({ error: 'Quizen er ikke åpen' }, { status: 403 })
+  if (opensAt !== null && now < opensAt) {
+    return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
+  }
+  // ── Nådevinduet (B-10, 24. august 2026): «startet du før stengetid, får du
+  // fullføre». Et forsøk startet FØR closes_at får hente gjenstående spørsmål
+  // i inntil QUESTIONS_GRACE_MS etterpå — alle andre avvises som før. Ingen NY
+  // aktør får tilgang: token-gaten over krever et forsøk som allerede fantes,
+  // start-attempt nekter fortsatt nye forsøk etter stengetid, og
+  // submitted_at-sperren over står urørt. Fasit-eksponeringen er dermed den
+  // samme kretsen som kunne hentet det samme kl. 21:59 — vurdert og godkjent
+  // av Dennis 24. august 2026. attempt.completed_at er forsøkets server-
+  // skrevne starttidspunkt (DB-default now(), overskrives aldri).
+  // Submit har et LENGRE vindu (SUBMIT_GRACE_MS) — den som får siste spørsmål
+  // servert her, må rekke å levere det. Se invarianten i lib/late-play-window.ts.
+  if (closesAt !== null && now > closesAt) {
+    const inGrace = isWithinGrace(closesAt, now, QUESTIONS_GRACE_MS)
+      && attemptStartedBeforeClose(attemptRow.completed_at, closesAt)
+    if (!inGrace) {
+      return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
+    }
   }
 
   // Attempt er allerede verifisert i gaten over — den kan brukes direkte som
