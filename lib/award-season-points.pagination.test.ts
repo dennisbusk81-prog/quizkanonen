@@ -284,22 +284,37 @@ test('org med allow_global_league=false blokkerer medlemmene fra global', async 
   )
 })
 
-// ── Merge-upsert (Endring 2, 24. august 2026) ────────────────────────────────
+// ── Skrivemodus styres av quizens alder (Endring 2, 24. august 2026) ────────
+// Merge er det som gjør rekjøringsvinduet mulig; insert-only utenfor vinduet
+// er det som gjør en feilkjøring mot en gammel quiz harmløs. Vakten bor hos
+// SKRIVEREN: utvalgene i cron-rutene er første forsvarslinje, men begge
+// førstegangs-utvalgene er uten tidsgrense, og flagget settes aller sist —
+// en quiz der flagg-skrivingen feiler plukkes opp igjen hvert minutt i uker.
 
-test('upserten er en MERGE — ignoreDuplicates skal ikke gjeninnføres', async () => {
-  // Rekjøringsvinduet i publish-quiz hviler på at en gjenkjøring OPPDATERER
-  // eksisterende rader (en sen innsending flytter andres rank). Med
-  // ignoreDuplicates: true er en gjenkjøring en no-op, og en sen innsender
-  // havner på quiz-topplisten uten sesongpoeng — permanent. Kommer flagget
-  // tilbake, er det denne testen som skal felle det.
+test('fersk quiz (innenfor rekjøringsvinduet): upserten er en MERGE', async () => {
+  // Med ignoreDuplicates ville en rekjøring vært en no-op, og en sen
+  // innsender havnet på quiz-topplisten uten sesongpoeng — permanent.
   reset({ attempts: makeAttempts(10) })
 
-  await processQuiz('quiz-1', CLOSES)
+  await processQuiz('quiz-1', new Date(Date.now() - 3 * 60_000).toISOString())
 
   assert.ok(state.upsertOpts, 'upsert skal kalles med options')
   assert.equal(state.upsertOpts?.onConflict, 'user_id,quiz_id,scope_type,scope_id')
   assert.notEqual(state.upsertOpts?.ignoreDuplicates, true,
-    'ignoreDuplicates gjør rekjøringsvinduet til en no-op — se lib/late-play-window.ts')
+    'merge i vinduet — se lib/late-play-window.ts')
+})
+
+test('quiz stengt for to uker siden: skriveren nekter å overskrive (insert-only)', async () => {
+  // Deploy-feil, manuell trigger eller en bug i et utvalg skal ikke kunne
+  // omskrive historiske plasseringer med dagens medlemskap. Utenfor
+  // rekjøringsvinduet skal upserten være den historiske insert-only-formen —
+  // som før 24. august 2026 — uansett kaller.
+  reset({ attempts: makeAttempts(10) })
+
+  await processQuiz('quiz-1', new Date(Date.now() - 14 * 24 * 60 * 60_000).toISOString())
+
+  assert.equal(state.upsertOpts?.ignoreDuplicates, true,
+    'en gammel quiz skal aldri kunne overskrives av processQuiz')
 })
 
 test('dagens størrelse (75 spillere) gir nøyaktig én attempts-spørring', async () => {

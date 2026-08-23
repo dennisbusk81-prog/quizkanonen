@@ -178,6 +178,18 @@ test('utenfor skannevinduet → ingen rekjøring uansett sen innsending (histori
     'processQuiz mot en gammel quiz omskriver historikk med dagens medlemskap — utvalget er beskyttelsen')
 })
 
+test('quiz stengt for to uker siden røres aldri, uansett sene innsendinger', async () => {
+  // Samme grense som testen over, men med avstanden en faktisk historisk quiz
+  // har — dette er scenarioet «deploy-feil/manuell trigger mot gammel quiz»
+  // på UTVALGS-nivå. Skriveren har i tillegg sitt eget belte
+  // (insert-only utenfor vinduet — se lib/award-season-points.pagination.test.ts).
+  const quiz = settledQuiz(14 * 24 * 60)
+  db.quizzes = [quiz]
+  db.attempts = [lateAttempt(quiz, 2)]
+  await call()
+  assert.deepEqual(processedQuizIds(), [])
+})
+
 test('sen LAG-innsending utløser ikke rekjøring (utenfor sesongpoeng-populasjonen)', async () => {
   const quiz = settledQuiz(3)
   db.quizzes = [quiz]

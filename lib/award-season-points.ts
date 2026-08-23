@@ -8,6 +8,7 @@
 // i august 2026. Tallene over er målt i Vercel-loggen 16. august — sjekk loggen
 // på nytt før du bygger noe som avhenger av dem.
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { RESETTLE_SCAN_MS } from '@/lib/late-play-window'
 import { fetchAllRowsChunked } from '@/lib/paginate'
 import { fetchSettledSeasonAttempts } from '@/lib/season-attempts'
 import {
@@ -27,29 +28,35 @@ type ScoreRow = {
   closes_at: string
 }
 
-// MERGE-upsert (Endring 2, 24. august 2026): en konflikt på nøkkelen
-// OPPDATERER raden i stedet for å hoppe over den. Det er dette som gjør
-// rekjøringsvinduet i publish-quiz mulig — en sen innsending (forsøk startet
-// før closes_at, levert innenfor SUBMIT_GRACE_MS) endrer ranks for spillere
-// som allerede HAR rader, og med det gamle `ignoreDuplicates: true` var en
-// gjenkjøring per definisjon en no-op. Konflikten fyrer også for global-rader
-// med scope_id NULL: unik-indeksen er UNIQUE NULLS NOT DISTINCT
-// (20260419_season_scores.sql).
+// MERGE-upsert (Endring 2, 24. august 2026), men KUN innenfor
+// rekjøringsvinduet: en konflikt på nøkkelen OPPDATERER raden i stedet for å
+// hoppe over den. Det er dette som gjør rekjøringsvinduet i publish-quiz
+// mulig — en sen innsending (forsøk startet før closes_at, levert innenfor
+// SUBMIT_GRACE_MS) endrer ranks for spillere som allerede HAR rader, og med
+// `ignoreDuplicates: true` var en gjenkjøring per definisjon en no-op.
+// Konflikten fyrer også for global-rader med scope_id NULL: unik-indeksen er
+// UNIQUE NULLS NOT DISTINCT (20260419_season_scores.sql).
 //
-// VIKTIG: beskyttelsen mot retroaktiv omskriving av historikk bodde tidligere
-// i skrivemekanismen (ignoreDuplicates). Den bor nå i UTVALGET: rekjøring
-// skjer kun for quizer med closes_at innenfor RESETTLE_SCAN_MS (se
-// publish-quiz-cronen og lib/late-play-window.ts). En processQuiz-kjøring mot
-// en gammel quiz VILLE nå omskrevet historiske plasseringer med dagens
-// medlemskap — ikke kall den utenfor skannevinduet. Fasit-rettinger går
-// fortsatt via resync (lib/season-resync-plan.ts), som rekonstruerer
-// populasjonen fra de lagrede radene.
-async function upsertScores(rows: ScoreRow[]): Promise<void> {
+// VAKTEN BOR HOS SKRIVEREN, ikke bare i utvalget: `overwrite` er false så
+// snart quizen stengte for mer enn RESETTLE_SCAN_MS siden, og da faller
+// upserten tilbake til den historiske insert-only-formen (ignoreDuplicates).
+// Utvalgene er første forsvarslinje (rekjøring velger kun quizer i vinduet),
+// men de to førstegangs-utvalgene (`season_points_awarded=false`) er IKKE
+// tidsavgrenset — og processQuiz setter flagget ALLER SIST. Feiler
+// flagg-skrivingen eller verifiseringen foran den, plukkes quizen opp igjen
+// hvert minutt, i uker, og hver kjøring ville uten dette beltet omskrevet
+// historiske plasseringer med DAGENS medlemskap. En gammel quiz uten rader
+// (aldri oppgjort) skrives fortsatt korrekt: insert-only setter inn alt når
+// ingenting finnes fra før. Fasit-rettinger går fortsatt via resync
+// (lib/season-resync-plan.ts), som rekonstruerer populasjonen fra de lagrede
+// radene.
+async function upsertScores(rows: ScoreRow[], overwrite: boolean): Promise<void> {
   if (rows.length === 0) return
   const { error } = await supabaseAdmin
     .from('season_scores')
     .upsert(rows, {
       onConflict: 'user_id,quiz_id,scope_type,scope_id',
+      ...(overwrite ? {} : { ignoreDuplicates: true }),
     })
   if (error) throw error
 }
@@ -238,7 +245,11 @@ export async function processQuiz(
     // Unik-nøkkelen (user_id, quiz_id, scope_type, scope_id) skiller radene uansett
     // rekkefølge, så én upsert er ekvivalent med de tidligere per-scope-kallene —
     // bare ett round-trip i stedet for 4-9. Identisk poeng/rank per bruker/scope.
-    await upsertScores(allRows)
+    //
+    // Overskriving KUN innenfor rekjøringsvinduet — utenfor er dette insert-only,
+    // uansett hvem som kalte og hvorfor. Se kommentaren på upsertScores.
+    const overwrite = Date.now() - new Date(closesAt).getTime() <= RESETTLE_SCAN_MS
+    await upsertScores(allRows, overwrite)
 
     // Verifiser at rader faktisk finnes i season_scores før flagget settes
     const { count: writtenCount, error: countError } = await supabaseAdmin

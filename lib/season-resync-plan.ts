@@ -13,13 +13,14 @@
 //
 // Man kan IKKE bare kjøre award-season-points sin processQuiz() på nytt:
 //
-//   1. (Endret 24. august 2026:) upserten er nå en MERGE — en gjenkjøring
-//      OVERSKRIVER eksisterende rader. Det gjør punkt 2 under FARLIGERE, ikke
-//      mildere: fram til nå var en feilaktig gjenkjøring en no-op; nå gjør den
-//      faktisk skade. Beskyttelsen bor i UTVALGET — processQuiz kalles kun for
-//      quizer med closes_at innenfor RESETTLE_SCAN_MS (rekjøringsvinduet i
-//      publish-quiz, se lib/late-play-window.ts), der medlemskapsdrift ikke
-//      rekker å oppstå.
+//   1. (Endret 24. august 2026:) upserten er en MERGE innenfor
+//      rekjøringsvinduet (RESETTLE_SCAN_MS etter closes_at) — en gjenkjøring
+//      DER overskriver eksisterende rader, med dagens medlemskap, og det er
+//      trygt fordi drift ikke rekker å oppstå på ti minutter. UTENFOR vinduet
+//      håndhever skriveren selv den historiske insert-only-formen
+//      (ignoreDuplicates) — en processQuiz-kjøring mot en gammel quiz er da
+//      fortsatt en no-op, uansett hvilken kaller eller bug som utløste den.
+//      To lag: utvalgene velger riktig, skriveren nekter å skade uansett.
 //   2. Den utleder populasjonen (hvem som er med i en liga/org,
 //      og hvem som er blokkert fra global) fra medlemskapstabellene slik de ser
 //      ut I DAG. Medlemskap drifter — folk melder seg ut av ligaer og skrur på
