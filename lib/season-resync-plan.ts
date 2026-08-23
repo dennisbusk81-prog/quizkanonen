@@ -13,9 +13,14 @@
 //
 // Man kan IKKE bare kjøre award-season-points sin processQuiz() på nytt:
 //
-//   1. Den bruker `upsert(..., { ignoreDuplicates: true })`, som per definisjon
-//      ALDRI overskriver eksisterende rader. En gjenkjøring ville vært en no-op.
-//   2. Enda viktigere: den utleder populasjonen (hvem som er med i en liga/org,
+//   1. (Endret 24. august 2026:) upserten er nå en MERGE — en gjenkjøring
+//      OVERSKRIVER eksisterende rader. Det gjør punkt 2 under FARLIGERE, ikke
+//      mildere: fram til nå var en feilaktig gjenkjøring en no-op; nå gjør den
+//      faktisk skade. Beskyttelsen bor i UTVALGET — processQuiz kalles kun for
+//      quizer med closes_at innenfor RESETTLE_SCAN_MS (rekjøringsvinduet i
+//      publish-quiz, se lib/late-play-window.ts), der medlemskapsdrift ikke
+//      rekker å oppstå.
+//   2. Den utleder populasjonen (hvem som er med i en liga/org,
 //      og hvem som er blokkert fra global) fra medlemskapstabellene slik de ser
 //      ut I DAG. Medlemskap drifter — folk melder seg ut av ligaer og skrur på
 //      global_league_opt_out. En gjenkjøring ville derfor slettet eller

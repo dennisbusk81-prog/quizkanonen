@@ -62,9 +62,21 @@ mock.module('@/lib/award-season-points', {
 })
 
 function builder(table: string) {
+  // Rekjøringsvinduets vaktspørring (publish-quiz) leser attempts. Testene her
+  // seeder aldri sene innsendinger, så den svarer alltid tomt — rekjøringen er
+  // dekket av lib/publish-quiz-resettle-route.test.ts.
+  if (table === 'attempts') {
+    const a = {
+      select() { return a }, eq() { return a }, gt() { return a }, not() { return a },
+      limit() { return a },
+      maybeSingle() { return Promise.resolve({ data: null, error: null }) },
+    }
+    return a
+  }
   if (table !== 'quizzes') throw new Error(`ukjent tabell i mock: ${table}`)
   const eqs: Record<string, unknown> = {}
   let ltCol: string | null = null, ltVal: string | null = null
+  let gteCol: string | null = null, gteVal: string | null = null
   let limitN: number | null = null
   let orderAsc = true
   let updating = false
@@ -73,6 +85,7 @@ function builder(table: string) {
     let out = db.quizzes.filter(q => {
       for (const [k, v] of Object.entries(eqs)) if ((q as unknown as Record<string, unknown>)[k] !== v) return false
       if (ltCol && ltVal !== null && String((q as unknown as Record<string, unknown>)[ltCol]) >= ltVal) return false
+      if (gteCol && gteVal !== null && String((q as unknown as Record<string, unknown>)[gteCol]) < gteVal) return false
       return true
     })
     out = [...out].sort((a, b) => orderAsc
@@ -87,6 +100,7 @@ function builder(table: string) {
     update() { updating = true; return b },
     eq(col: string, val: unknown) { if (!updating) eqs[col] = val; return b },
     lt(col: string, val: string) { ltCol = col; ltVal = val; return b },
+    gte(col: string, val: string) { gteCol = col; gteVal = val; return b },
     lte() { return b },
     not() { return b },
     or() { return b },

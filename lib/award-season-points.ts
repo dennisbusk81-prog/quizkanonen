@@ -27,13 +27,29 @@ type ScoreRow = {
   closes_at: string
 }
 
+// MERGE-upsert (Endring 2, 24. august 2026): en konflikt på nøkkelen
+// OPPDATERER raden i stedet for å hoppe over den. Det er dette som gjør
+// rekjøringsvinduet i publish-quiz mulig — en sen innsending (forsøk startet
+// før closes_at, levert innenfor SUBMIT_GRACE_MS) endrer ranks for spillere
+// som allerede HAR rader, og med det gamle `ignoreDuplicates: true` var en
+// gjenkjøring per definisjon en no-op. Konflikten fyrer også for global-rader
+// med scope_id NULL: unik-indeksen er UNIQUE NULLS NOT DISTINCT
+// (20260419_season_scores.sql).
+//
+// VIKTIG: beskyttelsen mot retroaktiv omskriving av historikk bodde tidligere
+// i skrivemekanismen (ignoreDuplicates). Den bor nå i UTVALGET: rekjøring
+// skjer kun for quizer med closes_at innenfor RESETTLE_SCAN_MS (se
+// publish-quiz-cronen og lib/late-play-window.ts). En processQuiz-kjøring mot
+// en gammel quiz VILLE nå omskrevet historiske plasseringer med dagens
+// medlemskap — ikke kall den utenfor skannevinduet. Fasit-rettinger går
+// fortsatt via resync (lib/season-resync-plan.ts), som rekonstruerer
+// populasjonen fra de lagrede radene.
 async function upsertScores(rows: ScoreRow[]): Promise<void> {
   if (rows.length === 0) return
   const { error } = await supabaseAdmin
     .from('season_scores')
     .upsert(rows, {
       onConflict: 'user_id,quiz_id,scope_type,scope_id',
-      ignoreDuplicates: true,
     })
   if (error) throw error
 }

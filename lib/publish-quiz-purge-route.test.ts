@@ -44,6 +44,16 @@ const revalidateTagMock = mock.fn()
 type Pred = (r: QuizRow) => boolean
 
 function builder(table: string) {
+  // Rekjøringsvinduets vaktspørring leser attempts; her finnes aldri sene
+  // innsendinger (dekkes av lib/publish-quiz-resettle-route.test.ts).
+  if (table === 'attempts') {
+    const a = {
+      select() { return a }, eq() { return a }, gt() { return a }, not() { return a },
+      limit() { return a },
+      maybeSingle() { return Promise.resolve({ data: null, error: null }) },
+    }
+    return a as never
+  }
   assert.equal(table, 'quizzes')
   const preds: Pred[] = []
   let updatePatch: Partial<QuizRow> | null = null
@@ -73,6 +83,7 @@ function builder(table: string) {
     eq(col: string, v: unknown) { preds.push(r => val(r, col) === v); return b },
     lte(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) <= v); return b },
     lt(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) < v); return b },
+    gte(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) >= v); return b },
     not(col: string, op: string, v: unknown) {
       assert.equal(op, 'is')
       assert.equal(v, null)

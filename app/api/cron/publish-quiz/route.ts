@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { revalidateTag } from 'next/cache'
 import { processQuiz } from '@/lib/award-season-points'
+import { RESETTLE_SCAN_MS } from '@/lib/late-play-window'
 
 export const maxDuration = 60
 
@@ -97,22 +98,81 @@ export async function GET(request: NextRequest) {
 
   if (closedError) {
     console.error('[cron/publish-quiz] closed-quiz lookup error:', closedError.message)
-  } else if (closedQuizzes && closedQuizzes.length > 0) {
-    const snapshot = closedQuizzes as { id: string; title: string; closes_at: string }[]
-    waitUntil(
-      (async () => {
-        for (const quiz of snapshot) {
-          console.log(`[cron/publish-quiz] tildeler sesongpoeng for "${quiz.title}"`)
-          const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
-          if (procError) {
-            console.error(`[cron/publish-quiz] sesongpoeng feilet for "${quiz.title}":`, procError)
-          } else {
-            console.log(`[cron/publish-quiz] sesongpoeng OK for "${quiz.title}" — ${rows} rader`)
-          }
-        }
-      })()
-    )
   }
+  const snapshot = (closedQuizzes ?? []) as { id: string; title: string; closes_at: string }[]
+
+  // Førstegangs-oppgjør og rekjøring i SAMME waitUntil, i den rekkefølgen —
+  // to parallelle blokker kunne latt rekjøringen se et halvt oppgjør.
+  waitUntil(
+    (async () => {
+      for (const quiz of snapshot) {
+        console.log(`[cron/publish-quiz] tildeler sesongpoeng for "${quiz.title}"`)
+        const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
+        if (procError) {
+          console.error(`[cron/publish-quiz] sesongpoeng feilet for "${quiz.title}":`, procError)
+        } else {
+          console.log(`[cron/publish-quiz] sesongpoeng OK for "${quiz.title}" — ${rows} rader`)
+        }
+      }
+
+      // ── Rekjøringsvinduet (Endring 2, 24. august 2026) ────────────────────
+      // Oppgjøret over kjører kl. closes_at som før — men en spiller som var i
+      // gang FØR stengetid kan levere i inntil SUBMIT_GRACE_MS etterpå (B-10).
+      // Uten dette havnet hun på quiz-topplisten (som leser attempts direkte)
+      // uten sesongpoeng, permanent. Her etterjusteres nylig oppgjorte quizer
+      // så lenge en sen innsending faktisk finnes.
+      //
+      // Utvalget ER beskyttelsen mot retroaktiv historieomskriving: processQuiz
+      // regner populasjonen fra DAGENS medlemskapstabeller, og upserten er nå
+      // en merge som faktisk overskriver (se upsertScores i
+      // lib/award-season-points.ts). Innenfor RESETTLE_SCAN_MS rekker
+      // medlemskap ikke å drifte; utenfor vinduet skal processQuiz aldri
+      // kalles mot en oppgjort quiz. Vaktspørringen speiler sesongpoeng-
+      // populasjonen (solo, innlogget — lib/season-attempts.ts): en sen
+      // lag-innsending skal ikke utløse rekjøringer den ikke kan påvirke.
+      // Kjøringen gjentas hvert minutt så lenge vinduet og den sene
+      // innsendingen finnes (maks ~10 kjøringer) — merge gjør det idempotent.
+      const scanStart = new Date(Date.now() - RESETTLE_SCAN_MS).toISOString()
+      const { data: resettleRows, error: resettleError } = await supabaseAdmin
+        .from('quizzes')
+        .select('id, title, closes_at')
+        .lt('closes_at', now)
+        .gte('closes_at', scanStart)
+        .eq('season_points_awarded', true)
+        .eq('is_test', false)
+        .order('closes_at', { ascending: true })
+        .limit(5)
+
+      if (resettleError) {
+        console.error('[cron/publish-quiz] resettle lookup error:', resettleError.message)
+        return
+      }
+      for (const quiz of (resettleRows ?? []) as { id: string; title: string; closes_at: string }[]) {
+        const { data: late, error: lateError } = await supabaseAdmin
+          .from('attempts')
+          .select('id')
+          .eq('quiz_id', quiz.id)
+          .eq('is_team', false)
+          .not('user_id', 'is', null)
+          .gt('submitted_at', quiz.closes_at)
+          .limit(1)
+          .maybeSingle()
+        if (lateError) {
+          console.error(`[cron/publish-quiz] resettle-vakt feilet for "${quiz.title}":`, lateError.message)
+          continue
+        }
+        if (!late) continue
+
+        console.log(`[cron/publish-quiz] rekjører sesongpoeng for "${quiz.title}" (sen innsending funnet)`)
+        const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
+        if (procError) {
+          console.error(`[cron/publish-quiz] rekjøring feilet for "${quiz.title}":`, procError)
+        } else {
+          console.log(`[cron/publish-quiz] rekjøring OK for "${quiz.title}" — ${rows} rader`)
+        }
+      }
+    })()
+  )
 
   return NextResponse.json({ published: count, quizzes: data })
 }

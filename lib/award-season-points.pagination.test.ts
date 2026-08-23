@@ -8,8 +8,9 @@
 //   2. .in()-lister over ~390 id-er avvises (URL-lengde) — målt mot prod
 //
 // Dette er den mest alvorlige avkuttingen i kodebasen: hver tapt rad er en
-// spiller uten sesongpoeng, og upsertScores bruker ignoreDuplicates: true, så
-// en ny kjøring retter det ALDRI opp (se lib/season-resync-plan.ts).
+// spiller uten sesongpoeng, og rekjøring skjer kun i det korte
+// rekjøringsvinduet etter stengetid (lib/late-play-window.ts), så et kutt
+// ville i praksis aldri blitt rettet av en senere kjøring.
 //
 // MUTASJONSBEVIS:
 //   - fjern pagineringen  → 1000 av 2500 rader, første test feiler
@@ -39,6 +40,7 @@ const state: {
   attemptQueries: number
   maxInChunk: number
   upserted: ScoreRow[] | null
+  upsertOpts: { onConflict?: string; ignoreDuplicates?: boolean } | null
 } = {
   attempts: [],
   orgMembers: [],
@@ -48,6 +50,7 @@ const state: {
   attemptQueries: 0,
   maxInChunk: 0,
   upserted: null,
+  upsertOpts: null,
 }
 
 function builder(table: string) {
@@ -69,8 +72,9 @@ function builder(table: string) {
     },
     range(f: number, t: number) { from = f; to = t; return b },
     maybeSingle() { return Promise.resolve({ data: null, error: null }) },
-    upsert(rows: ScoreRow[]) {
+    upsert(rows: ScoreRow[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
       state.upserted = [...(state.upserted ?? []), ...rows]
+      state.upsertOpts = opts ?? null
       return Promise.resolve({ error: null })
     },
     then(res: (v: unknown) => unknown, rej: (e: unknown) => unknown) {
@@ -132,6 +136,7 @@ function reset(overrides: Partial<typeof state> = {}) {
     attemptQueries: 0,
     maxInChunk: 0,
     upserted: null,
+    upsertOpts: null,
   }, overrides)
 }
 
@@ -277,6 +282,24 @@ test('org med allow_global_league=false blokkerer medlemmene fra global', async 
     !new Set(rowsOfScope('global').map(r => r.user_id)).has('u000000'),
     'medlem av lukket org skal ikke ha global rad'
   )
+})
+
+// ── Merge-upsert (Endring 2, 24. august 2026) ────────────────────────────────
+
+test('upserten er en MERGE — ignoreDuplicates skal ikke gjeninnføres', async () => {
+  // Rekjøringsvinduet i publish-quiz hviler på at en gjenkjøring OPPDATERER
+  // eksisterende rader (en sen innsending flytter andres rank). Med
+  // ignoreDuplicates: true er en gjenkjøring en no-op, og en sen innsender
+  // havner på quiz-topplisten uten sesongpoeng — permanent. Kommer flagget
+  // tilbake, er det denne testen som skal felle det.
+  reset({ attempts: makeAttempts(10) })
+
+  await processQuiz('quiz-1', CLOSES)
+
+  assert.ok(state.upsertOpts, 'upsert skal kalles med options')
+  assert.equal(state.upsertOpts?.onConflict, 'user_id,quiz_id,scope_type,scope_id')
+  assert.notEqual(state.upsertOpts?.ignoreDuplicates, true,
+    'ignoreDuplicates gjør rekjøringsvinduet til en no-op — se lib/late-play-window.ts')
 })
 
 test('dagens størrelse (75 spillere) gir nøyaktig én attempts-spørring', async () => {

@@ -26,8 +26,10 @@ import type { SeasonAttempt } from '@/lib/season-points'
 // innlogget spiller som skal ha sesongpoeng. Ved >1000 spillere ville de
 // overskytende ikke bare fått feil poeng — de ville ikke fått NOEN rad i
 // season_scores, og alle andres rank ville blitt regnet mot en delvis
-// populasjon. Og fordi upsertScores bruker ignoreDuplicates: true, ville en
-// ny kjøring ALDRI rettet det opp — tapet er permanent. .order('id') gjør
+// populasjon. Upserten er en merge (24. august 2026), men det redder ingen
+// her: rekjøring skjer kun innenfor RESETTLE_SCAN_MS etter stengetid, og kun
+// når en sen innsending finnes — et kutt her ville derfor i praksis aldri
+// blitt rettet av en senere kjøring. .order('id') gjør
 // sidene deterministiske; rangeringen gjør uansett sin egen totalordning,
 // så resultatet er uavhengig av input-rekkefølgen.
 //
