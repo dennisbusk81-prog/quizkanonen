@@ -1341,10 +1341,29 @@ export default function LeaderboardPage() {
             )
           })()}
 
-          {/* Placement card — kun for ikke-innloggede og kun hvis det finnes resultater */}
+          {/* ── Kort for den som IKKE er autentisert akkurat nå ────────────────
+              HVEM er dette? Ikke en gjestespiller. `qk_result_` skrives
+              UBETINGET i finishQuiz (app/quiz/[id]/page.tsx), også for
+              innloggede, så grenene med `savedResult` treffer en RETUR-SPILLER:
+              noen som spilte innlogget, og som nå mangler sesjon fordi hen
+              logget ut (knappen står på denne siden), fordi sesjonen løp ut,
+              eller fordi getSession() tidsavbrøt på 1500 ms og siden falt til
+              anonym visning.
+
+              Målt 24. august 2026, ikke antatt: prod har 625 forsøk og NULL med
+              user_id = null. Gjeste-veien står teknisk åpen, men ingen har
+              noensinne brukt den. Grenene ble skrevet 2. april og 21. mai 2026,
+              da «ikke innlogget» naturlig ble lest som «gjest» — derav den
+              gamle teksten «logg inn for å spille under ditt eget navn», som ba
+              en retur-spiller gjøre noe hen allerede hadde gjort.
+
+              STENGT QUIZ er derfor en egen gren i alle tre tilfellene: den
+              gamle teksten lovet spilling på en quiz som er over, og
+              «plasseringen din vises når flere har levert» var direkte usant —
+              ingen flere kommer til å levere. ── */}
           {!authLoading && !session && totalCount > 0 && (() => {
-            // Vis kun plasserings-estimat hvis gjesten faktisk har spilt (har et lagret forsøk).
-            // Uten et forsøk er "plass 1 og 9" villedende — vis en nøytral CTA i stedet.
+            // Vis kun plasserings-estimat hvis det finnes et lagret forsøk.
+            // Uten et er "plass 1 og 9" villedende — vis en nøytral CTA i stedet.
             let title: string
             let sub: string
             if (savedResult && totalCount >= 10) {
@@ -1368,13 +1387,26 @@ export default function LeaderboardPage() {
               const rangeX = Math.max(1, tierStart)
               const rangeY = Math.min(totalCount, tierStart + 9)
               title = `Du er et sted mellom plass ${rangeX} og ${rangeY}`
-              sub = 'Logg inn for å spille under ditt eget navn'
+              // «igjen»: hen spilte allerede under sitt eget navn. Og eksakt
+              // plassering er trygt å love her — forsøket ligger på kontoen.
+              sub = isClosed
+                ? 'Logg inn igjen for å se topp 10 og den eksakte plasseringen din.'
+                : 'Logg inn for å spille under ditt eget navn'
             } else if (savedResult) {
-              title = 'Du er blant de første som har spilt denne uken'
-              sub = 'Plasseringen din vises når flere har levert — logg inn for å spille under ditt eget navn.'
+              title = isClosed
+                ? 'For få deltakere til å anslå en plassering'
+                : 'Du er blant de første som har spilt denne uken'
+              sub = isClosed
+                ? 'Logg inn igjen for å se topp 10.'
+                : 'Plasseringen din vises når flere har levert — logg inn for å spille under ditt eget navn.'
             } else {
-              title = 'Logg inn og spill quizen'
-              sub = 'Se hvor du havner i ukens resultater.'
+              // Ingen lagret score: en fremmed uten forsøk. Er quizen stengt,
+              // kan hen ikke spille den — da er topp 10 den ekte gevinsten ved
+              // å logge inn, ikke et løfte om å spille.
+              title = isClosed ? 'Logg inn for å se topp 10' : 'Logg inn og spill quizen'
+              sub = isClosed
+                ? 'Denne quizen er stengt. Neste kommer fredag.'
+                : 'Se hvor du havner i ukens resultater.'
             }
             return (
               <div style={s.card}>
@@ -1438,8 +1470,16 @@ export default function LeaderboardPage() {
                 {showSpan ? (
                   <p style={s.cardTitle}>Du er et sted mellom plass {rangeX} og {rangeY}</p>
                 ) : (
+                  // SØSKEN til det anonyme kortet over: «plasseringen din vises
+                  // når flere har levert» er usant på en STENGT quiz — ingen
+                  // flere kommer til å levere. Ble nåbar her først 23. august
+                  // 2026, da isClosed-gaten ble fjernet fra
+                  // shouldShowFreePlacementCard (P-1 steg 3) slik at spennet
+                  // også står etter stenging. Fanget 24. august.
                   <p style={{ ...s.cardTitle, lineHeight: 1.5 }}>
-                    Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
+                    {isClosed
+                      ? 'For få deltakere til å anslå en plassering.'
+                      : 'Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.'}
                   </p>
                 )}
                 <p style={{ fontSize: 13, color: '#918f8a', marginTop: 4 }}>
@@ -1510,7 +1550,13 @@ export default function LeaderboardPage() {
                   // lande på ens egen rad — «Størst fremgang» ville vært en
                   // superlativ over et felt vi ikke lenger ser. Org-modus har
                   // fortsatt hele kartet, og der er superlativen sann.
-                  { badge: 'pil', label: orgSlug ? 'Størst fremgang' : 'Din fremgang' },
+                  //
+                  // Utelatt helt for utloggede (24. august 2026): prev-rank
+                  // svarer `{}` uten token, så merket KAN ikke tegnes for dem —
+                  // og «Din fremgang» til en som ikke har noen er ren støy.
+                  ...(orgSlug || session
+                    ? [{ badge: 'pil', label: orgSlug ? 'Størst fremgang' : 'Din fremgang' }]
+                    : []),
                   { badge: 'flamme', label: 'Streak 5+' },
                   { badge: 'lyn', label: 'Raskest' },
                   { badge: 'medalje', label: 'Topp 3' },
@@ -1593,11 +1639,15 @@ export default function LeaderboardPage() {
                 )}
               </div>
 
-              {!session ? (
-                <p style={{ fontSize: 13, color: '#918f8a', textAlign: 'center', padding: '16px 0' }}>
-                  <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Logg inn</a> for å se svarfordeling.
-                </p>
-              ) : !isPremium ? (
+              {/* ÉN gren for alle som ikke har tilgang (24. august 2026).
+                  Utloggede fikk tidligere «Logg inn for å se svarfordeling» —
+                  et løfte som ikke holdt: svarfordeling er PREMIUM, så hun
+                  logget inn og møtte en ny vegg. To trinn, to skuffelser.
+                  Nå får utlogget og innlogget-gratis nøyaktig samme, sanne
+                  kort. /premium er verifisert tilgjengelig utlogget (200, full
+                  side) og sier selv «Du må være innlogget for å kjøpe», så
+                  innloggingstrinnet er dekket der det hører hjemme. */}
+              {!session || !isPremium ? (
                 <div style={s.card}>
                   <p style={s.cardTitle}>Se svarfordelingen for ukens letteste og vanskeligste spørsmål</p>
                   <p style={{ fontSize: 13, color: '#918f8a', marginTop: 4 }}>
