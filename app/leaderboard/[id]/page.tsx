@@ -753,7 +753,16 @@ export default function LeaderboardPage() {
   const soloAttempts = rankAttempts(attempts)
   const friendAttempts = rankAttempts(attempts.filter(a => friendNames.has(a.player_name)))
   // Org-modus skjuler de globale/liga-elementene — org-opplevelsen holdes adskilt.
-  const showVennerTab = !orgSlug && !!session && friendAttempts.length > 0
+  // Fanen følger LIGAMEDLEMSKAP, ikke om venner tilfeldigvis er i den hentede
+  // lista: fram til 24. august 2026 krevde den friendAttempts.length > 0, og
+  // siden lista er trappekuttet (topp 10 gratis / topp 50 Premium) forsvant
+  // fanen stille for en ligabruker hvis venner lå utenfor vinduet.
+  const showVennerTab = !orgSlug && !!session && hasLeagues
+  // Lista klienten filtrerer venner ut av er kuttet server-side — når kuttet
+  // faktisk er i effekt, skal venner-fanen SI det i stedet for å late som
+  // utvalget er komplett. soloTotal er eksakt for innloggede (kun gjeste-rank
+  // bandes i API-et), så sammenligningen er presis.
+  const vennerWindowCut = soloTotal > soloAttempts.length
   const totalCount = soloTotal
 
   const currentUserId = session?.user?.id ?? null
@@ -1524,7 +1533,7 @@ export default function LeaderboardPage() {
             <>
               <div style={s.tabRow}>
                 <button
-                  style={activeTab === 'alle' ? s.tabActive : s.tabInactive}
+                  style={activeTab === 'alle' || !showVennerTab ? s.tabActive : s.tabInactive}
                   onClick={() => setActiveTab('alle')}
                 >
                   Alle
@@ -1577,7 +1586,10 @@ export default function LeaderboardPage() {
                 </p>
               )}
 
-              {activeTab === 'alle' && (
+              {/* !showVennerTab-fallbacken: forsvinner fanen mens den står valgt
+                  (utlogging, org-bytte), skal «Alle»-innholdet overta — ellers
+                  ble en faneløs venner-visning stående igjen. */}
+              {(activeTab === 'alle' || !showVennerTab) && (
                 <>
                   {renderBrowseControls()}
                   {browseMode
@@ -1587,10 +1599,28 @@ export default function LeaderboardPage() {
                 </>
               )}
 
-              {activeTab === 'venner' && (
+              {activeTab === 'venner' && showVennerTab && (
                 friendAttempts.length > 0
-                  ? renderSection(friendAttempts, 'Blant venner', visibleVennerCount, () => setVisibleVennerCount(c => c + 10))
-                  : <p style={s.tabEmpty}>Ingen ligavenner har spilt denne quizen ennå</p>
+                  ? (
+                    <>
+                      {vennerWindowCut && (
+                        <p style={{ fontSize: 12, color: '#918f8a', textAlign: 'center', margin: '0 0 14px' }}>
+                          Viser bare ligavenner blant de {soloAttempts.length} øverste på lista.
+                        </p>
+                      )}
+                      {renderSection(friendAttempts, 'Blant venner', visibleVennerCount, () => setVisibleVennerCount(c => c + 10))}
+                    </>
+                  )
+                  : (
+                    <p style={s.tabEmpty}>
+                      {/* Klienten kan ikke skille «ikke spilt» fra «spilt, men utenfor
+                          topp N» når lista er kuttet — påstå det bare når hele lista
+                          faktisk er lastet. */}
+                      {vennerWindowCut
+                        ? `Her vises bare ligavenner blant de ${soloAttempts.length} øverste på lista. Ingen av dine er der ennå.`
+                        : 'Ingen ligavenner har spilt denne quizen ennå.'}
+                    </p>
+                  )
               )}
             </>
           )}
