@@ -46,6 +46,13 @@ type RawRow = {
 const SELECT_COLS =
   'id, user_id, player_name, correct_answers, total_questions, total_time_ms, correct_streak, is_team, team_size, leader_display_name, submitted_at'
 
+// ── Trappen for offentlige lister (P-1, 23. august 2026) ─────────────────────
+// Uinnlogget ser topp 3, gratis (innlogget uten Premium) topp 10, Premium alt.
+// Samme trinn som /api/toppliste og prev-rank — endres ett av tallene, skal
+// alle tre flatene følge med.
+const ANON_TOP = 3
+const FREE_TOP = 10
+
 function toEntry(r: RawRow & { rank: number }, nickname: string | null = null): LbEntry {
   return {
     rank: r.rank,
@@ -339,7 +346,15 @@ export async function GET(
   const isBrowse = browseRequested && userIsPremium && !leaderboardHidden
   const search = isBrowse ? searchRequested : null
   const page = isBrowse ? pageRequested : 1
-  const pageSize = isBrowse ? 20 : classicLimit
+
+  // ── Trappen (P-1) — håndheves server-side, aldri bare i klienten ────────────
+  // ?limit= er ØNSKET, ikke innvilget (samme prinsipp som browse-gaten over):
+  // verdien klemmes mot kallerens trinn, så et anonymt ?limit=200 gir fortsatt
+  // 3 rader. Org-modus (?org=) er et lukket rom — medlemskaps-gatet lenger
+  // oppe — og har ingen trapp; der ser alle medlemmer hele listen. isBrowse
+  // krever allerede Premium og er dermed per definisjon utenfor kuttet.
+  const tierCap = orgSlug || userIsPremium ? null : userId ? FREE_TOP : ANON_TOP
+  const pageSize = isBrowse ? 20 : tierCap === null ? classicLimit : Math.min(classicLimit, tierCap)
 
   // ── Brukerens egen plassering — Premium-gate håndheves server-side ──────────
   // EKSAKT plassering er en Premium-funksjon. Fram til 1. august 2026 lå det
@@ -397,7 +412,12 @@ export async function GET(
       r.correct_answers > guestScore.correct ||
       (r.correct_answers === guestScore.correct && r.total_time_ms < guestScore.timeMs)
     ).length
-    guestRank = better + 1
+    // Trappen (P-1): en gjest får aldri det eksakte tallet — kun 10-båndets
+    // start, samme grovmaling som userEntry for gratis over. Klienten regner
+    // selv spennet («mellom plass X og Y») fra denne verdien, og båndstarten
+    // er nøyaktig det spenn-visningen trenger; fram til 23. august 2026 lå den
+    // eksakte plassen i svaret mens kun klienten bandet den.
+    guestRank = Math.floor(better / RANK_BAND) * RANK_BAND + 1
   }
 
   // Søk + paginering i JS

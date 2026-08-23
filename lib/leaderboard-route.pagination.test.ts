@@ -148,7 +148,10 @@ test('quiz-leaderboardet rangerer HELE feltet — vinneren bak 1000-taket er #1'
     'vinneren ligger på rad 1050 — uten paginering er hen usynlig')
   assert.equal(j.entries[0].rank, 1)
   assert.equal(j.totalCount, 1100, 'kutt ved 1000 ville gitt 1000')
-  assert.equal(j.entries.length, 50, 'klassisk visning: topp `limit`')
+  // Kalleren er anonym → trappen (P-1) klemmer til topp 3. Poenget med testen
+  // er uendret: RANGERINGEN skjer over hele feltet før kuttet, ellers ville
+  // vinneren bak 1000-taket ikke stått som #1 her.
+  assert.equal(j.entries.length, 3, 'anonymt trinn: topp 3')
   assert.ok(state.attemptQueries >= 2,
     `forventet paginering, fikk ${state.attemptQueries} spørring(er)`)
 })

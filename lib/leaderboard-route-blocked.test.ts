@@ -246,12 +246,16 @@ test('blokkert kaller beholder userEntry (egne tall), men står ikke i entries',
 })
 
 // ── prev-rank: samme gate, forrige quiz' id og oppgjørsstatus ────────────────
+// Nasjonalt svarer ruten nå med KUN kallerens egen rad (P-1, 23. august 2026),
+// men rangeringen regnes fortsatt over hele det synlige feltet — derfor er
+// blokkert-gaten fremdeles observerbar: den flytter kallerens EGET tall.
 
-test('prev-rank: blokkert mangler i rank-mappen, gjenværende re-rankes', async () => {
+test('prev-rank: blokkert fjernes før rangeringen — kallerens egen rank re-rankes', async () => {
+  // Bjørn (rank 2) er blokkert. Cato spør om sin egen: 3 → 2, ikke 3.
   state.blocked = ['u-bjorn']
-  const j = await (await callPrev()).json()
-  assert.equal(j.prevRanks['u-anna'], 1)
-  assert.equal(j.prevRanks['u-cato'], 2) // re-ranket fra 3
+  state.authUser = { id: 'u-cato' }
+  const j = await (await callPrev('', 'tok')).json()
+  assert.equal(j.prevRanks['u-cato'], 2, 're-ranket fra 3 fordi Bjørn falt ut')
   assert.ok(!('u-bjorn' in j.prevRanks))
   // Gaten ble spurt for FORRIGE quiz, ikke gjeldende.
   assert.equal(state.blockedCalls.length, 1)
@@ -259,10 +263,73 @@ test('prev-rank: blokkert mangler i rank-mappen, gjenværende re-rankes', async 
   assert.equal(state.blockedCalls[0].awarded, true)
 })
 
-test('prev-rank positiv kontroll: uten blokkerte er alle med', async () => {
+test('prev-rank positiv kontroll: uten blokkerte er kallerens rank mot hele feltet', async () => {
+  state.authUser = { id: 'u-cato' }
+  const j = await (await callPrev('', 'tok')).json()
+  assert.equal(j.prevRanks['u-cato'], 3, 'ingen falt ut → uendret plassering')
+})
+
+// ── P-1 (23. august 2026): nasjonalt forlater KUN kallerens egen rad ─────────
+// Fram til nå leverte ruten HELE forrige quiz' rangering (inntil 500 rader,
+// inkl. gjestenes klarnavn) til hvem som helst — en komplett omgåelse av
+// kuttet i hovedruten. Et trinn-kutt ville gjort lekkasjen mindre; én rad
+// fjerner den.
+//
+// MUTASJONSBEVIS (kjørt 23. august 2026, målt — ikke antatt):
+//   • Bygges kartet fra hele `ranked` også nasjonalt (den gamle løkken)
+//     → 2 tester ryker (egen-rad-testen og blokkert-testen).
+//   • Fjernes den tidlige returen for token-løse kallere → 1 test ryker
+//     (den anonyme: både tomt kart og at ingen databasespørring gjøres).
+//   • Krympes org-grenen til én rad → 1 test ryker.
+
+function femForrigeSpillere() {
+  state.attempts = [
+    row('a-anna', 'u-anna', 'Anna', 12, 60_000),
+    row('a-bjorn', 'u-bjorn', 'Bjørn', 11, 65_000),
+    row('a-cato', 'u-cato', 'Cato', 10, 70_000),
+    row('a-dina', 'u-dina', 'Dina', 9, 75_000),
+    row('a-egon', null, 'Egon Gjest', 8, 80_000),
+  ]
+}
+
+test('P-1 prev-rank: innlogget får KUN sin egen rad — ingen andres rangering', async () => {
+  femForrigeSpillere()
+  state.authUser = { id: 'u-dina' }
+  const j = await (await callPrev('', 'tok')).json()
+  assert.deepEqual(j.prevRanks, { 'u-dina': 4 })
+  assert.equal(Object.keys(j.prevRanks).length, 1, 'nøyaktig én rad, uansett feltstørrelse')
+})
+
+test('P-1 prev-rank: anonym kaller får TOMT kart — og koster ingen databasespørring', async () => {
+  femForrigeSpillere()
   const j = await (await callPrev()).json()
-  assert.deepEqual(
-    ['u-anna', 'u-bjorn', 'u-cato'].map(id => j.prevRanks[id]),
-    [1, 2, 3],
-  )
+  assert.deepEqual(j.prevRanks, {}, 'gjestenavnet «Egon Gjest» skal ikke kunne leses her')
+  // Den tidlige returen er også en ytelsesegenskap: uten den ville hver
+  // utlogget besøkende på en resultatside kostet quiz-, attempts- og
+  // blokkert-oppslagene. At gaten IKKE ble spurt beviser at ingen av dem kjørte.
+  assert.equal(state.blockedCalls.length, 0)
+})
+
+test('P-1 prev-rank: token uten gyldig bruker gir også tomt kart', async () => {
+  femForrigeSpillere()
+  state.authUser = null            // utløpt/ugyldig token
+  const j = await (await callPrev('', 'sopp')).json()
+  assert.deepEqual(j.prevRanks, {})
+})
+
+test('P-1 prev-rank: blokkert kaller får tomt kart (ikke sitt eget offentlige tall)', async () => {
+  // Samme linje som suppressOwnPublicRank på klienten: står du utenfor den
+  // åpne konkurransen, får du ikke et trendmerke utledet av den.
+  femForrigeSpillere()
+  state.blocked = ['u-dina']
+  state.authUser = { id: 'u-dina' }
+  const j = await (await callPrev('', 'tok')).json()
+  assert.deepEqual(j.prevRanks, {})
+})
+
+test('P-1 prev-rank: ORG-modus beholder hele kartet (lukket rom, uendret)', async () => {
+  femForrigeSpillere()
+  state.orgGate = { ok: true, orgId: 'org-1', memberIds: ['u-anna', 'u-bjorn', 'u-cato', 'u-dina'] }
+  const j = await (await callPrev('org=lukket-as', 'tok')).json()
+  assert.equal(Object.keys(j.prevRanks).length, 4, 'alle org-medlemmene — «størst fremgang» er sann der')
 })

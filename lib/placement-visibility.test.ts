@@ -147,7 +147,6 @@ const freeCardBase = {
   authLoading: false,
   hasSession: true,
   isPremium: false,
-  isClosed: false,
   hasPlayed: true,
   totalCount: 12,
   suppressOwnPublicRank: false,
@@ -164,9 +163,14 @@ test('blokkert gratisbruker (suppressOwnPublicRank) får IKKE det offentlige bå
   )
 })
 
-test('kortet er fortsatt skjult for premium, stengt quiz, ikke-spilt og tomt felt', () => {
+// isClosed-gaten er BEVISST fjernet (P-1, 23. august 2026): spennet skal stå
+// også etter at quizen stenger — gratis ser nå kun topp 10 i listen, og
+// /slik-fungerer-det lover «Estimert plassering» uten forbehold om åpen quiz.
+// Signaturen har ikke lenger noe isClosed-felt, så en gjeninnført gate må
+// gjennom denne filen for å få parameteren tilbake.
+
+test('kortet er fortsatt skjult for premium, ikke-spilt og tomt felt', () => {
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, isPremium: true }), false)
-  assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, isClosed: true }), false)
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, hasPlayed: false }), false)
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, totalCount: 0 }), false)
   assert.equal(shouldShowFreePlacementCard({ ...freeCardBase, hasSession: false }), false)

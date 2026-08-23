@@ -9,6 +9,29 @@ import type { Attempt } from '@/lib/supabase'
 // Flyttet server-side fordi klient-lesen trengte attempts.user_id, som nå er
 // fjernet fra anon/authenticated SELECT (kolonne-lås). Returnerer en map
 // (user_id ?? player_name) → rank, som klienten matcher mot dagens leaderboard.
+//
+// ── P-1, 23. august 2026: nasjonal sti svarer med KUN kallerens egen rad ─────
+// Fram til nå leverte ruten HELE forrige quiz' rangering — inntil 500 rader,
+// inkludert gjestenes klarnavn — til hvem som helst, uten innlogging. Det var
+// en komplett omgåelse av ethvert kutt i hovedruten: rekkefølgen kunne leses
+// her i stedet. Et trinn-kutt ville gjort lekkasjen mindre; å svare med én rad
+// fjerner den.
+//
+// Trendmerket trenger ikke alles rangering. Klienten leter etter den største
+// forbedringen i kartet den får, så med kun kallerens egen rad kan merket bare
+// lande på kallerens egen rad. SVARFORMEN er uendret (`prevRanks` som map), så
+// klientkoden er den samme — kartet er bare kortere. Legende-teksten sier
+// «Din fremgang» i nasjonal modus, siden «Størst fremgang» ville vært en
+// superlativ vi ikke lenger kan belegge.
+//
+// UNNTAK — org-modus beholder hele kartet: rommet er medlemskaps-gatet rett
+// under (verifisert medlem, lukket rom), og «org og liga uendret» er et
+// absolutt krav i denne saken. Der betyr merket fortsatt «størst fremgang
+// blant kolleger».
+//
+// Gjester får tomt kart: uten token finnes ingen verifisert identitet å slå
+// opp, og å ta imot et navn fra klienten ville vært nøyaktig den
+// oppslags-lekkasjen vi lukker.
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -28,12 +51,25 @@ export async function GET(
   // organization_members). Uten dette kunne ?org brukes til å enumerere org-
   // medlemskap via rank-mappen uten gyldig medlemskap. Uten param: uendret.
   const orgSlug = new URL(request.url).searchParams.get('org')?.trim() || null
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
   let orgMemberIdSet: Set<string> | null = null
   if (orgSlug) {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
     const gate = await resolveOrgMembership(orgSlug, token)
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
     orgMemberIdSet = new Set(gate.memberIds)
+  }
+
+  // Nasjonal sti: hvem SPØR? Uten en verifisert identitet finnes det ingen
+  // egen rad å svare med, og da er hele oppslaget bortkastet — vi returnerer
+  // før quiz-, attempts- og blokkert-spørringene i det hele tatt kjøres. Det er
+  // ikke bare en gate, det er tre færre databasekall for enhver utlogget
+  // besøkende på en resultatside.
+  let callerId: string | null = null
+  if (!orgSlug) {
+    if (!token) return NextResponse.json({ prevRanks: {} })
+    const { data: authData } = await supabaseAdmin.auth.getUser(token)
+    callerId = authData.user?.id ?? null
+    if (!callerId) return NextResponse.json({ prevRanks: {} })
   }
 
   // Finn gjeldende quiz' closes_at for å lokalisere forrige quiz.
@@ -93,11 +129,26 @@ export async function GET(
     }
   }
 
+  // Rangeringen regnes fortsatt over HELE det synlige feltet — ellers ville
+  // kallerens egen plassering vært mot et vilkårlig utsnitt i stedet for mot
+  // konkurransen. Det er kun hva som forlater serveren som er begrenset.
   const ranked = rankAttempts(visiblePrev)
   const prevRanks: Record<string, number> = {}
-  for (const a of ranked) {
-    const key = a.user_id ?? a.player_name
-    if (!(key in prevRanks)) prevRanks[key] = a.rank
+  if (orgMemberIdSet) {
+    // Org: hele kartet, som før.
+    for (const a of ranked) {
+      const key = a.user_id ?? a.player_name
+      if (!(key in prevRanks)) prevRanks[key] = a.rank
+    }
+  } else if (callerId) {
+    // Nasjonal: én rad — kallerens egen. En BLOKKERT kaller (stengt org / eget
+    // opt-out) er filtrert ut av `visiblePrev` og finnes derfor ikke her, så
+    // svaret blir tomt. Det er riktig og bevisst: klienten holder allerede eget
+    // offentlig tall tilbake for dem (suppressOwnPublicRank), og et trendmerke
+    // utledet av den åpne konkurransen hører ikke hjemme hos noen som står
+    // utenfor den.
+    const mine = ranked.find(a => a.user_id === callerId)
+    if (mine) prevRanks[callerId] = mine.rank
   }
 
   return NextResponse.json({ prevRanks })

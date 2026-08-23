@@ -675,13 +675,113 @@ test('S4: Premium som IKKE har spilt får den ikke løftet', async () => {
   assert.equal(body.leaderboardHidden, true)
 })
 
-test('S4: stengt quiz med flagget → full liste (gaten gjelder kun mens quizen er åpen)', async () => {
+test('S4: stengt quiz med flagget → listen er tilbake (gaten gjelder kun mens quizen er åpen)', async () => {
   nyLastQuizMedFelt(5, { skjult: true })
 
   const { body } = await hent('period=last_quiz&scope=global', true)
 
-  assert.equal(body.entries.length, 5)
+  // 3, ikke 5: kalleren er anonym, og trappen (P-1) kutter uinnloggede til
+  // topp 3 — se egen seksjon nederst. Poenget her er fortsatt at skjulingen
+  // er løftet (entries er ikke tømt).
+  assert.equal(body.entries.length, 3)
   assert.equal(body.leaderboardHidden, false)
+})
+
+// ── TRAPPEN (P-1, 23. august 2026): uinnlogget ser topp 3 ────────────────────
+// Samme trinn som /api/leaderboard/[id]. Kuttet gjelder alle tre kodestiene
+// (last_quiz, RPC, JS-fallback) og kun scope=global — org/liga er
+// medlemskaps-gatet og kan ikke nås anonymt i det hele tatt.
+
+test('TRAPPEN last_quiz: anonym kaller får topp 3, ikke topp 10', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { status, body } = await hent('period=last_quiz&scope=global', true)
+
+  assert.equal(status, 200)
+  assert.equal(body.entries.length, 3)
+  assert.deepEqual(body.entries.map(e => e.rank), [1, 2, 3])
+  assert.equal(body.totalCount, 25, 'totaltallet består')
+})
+
+test('TRAPPEN last_quiz: innlogget gratis beholder topp 10', async () => {
+  nyLastQuizMedFelt(25)
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.equal(body.entries.length, 10)
+})
+
+test('TRAPPEN periode/RPC: anonym kaller får topp 3 av RPC-siden', async () => {
+  state.rpcRanked = Array.from({ length: 5 }, (_, i) => ({
+    user_id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
+    display_name: `Spiller ${i + 1}`, points: 20 - i, quiz_count: 2,
+    rank: i + 1, total_count: 5,
+  }))
+
+  const { body } = await hent('period=month&scope=global', true)
+
+  assert.equal(body.entries.length, 3)
+  assert.deepEqual(body.entries.map(e => e.rank), [1, 2, 3])
+})
+
+test('TRAPPEN fallback: anonym kaller får topp 3 også i JS-fallbacken', async () => {
+  state.rpcRankedFails = true
+  const iGaar = FOR_EN_DAG_SIDEN()
+  state.seasonScores = Array.from({ length: 5 }, (_, i) => ({
+    user_id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
+    points: 20 - i, quiz_id: 'quiz-1', closes_at: iGaar,
+    scope_type: 'global', scope_id: null,
+  }))
+
+  const { body } = await hent('period=alltime&scope=global', true)
+
+  assert.equal(body.entries.length, 3)
+})
+
+test('TRAPPEN A5: historikk-ekspansjonen (period_start/period_end) kuttes også', async () => {
+  // «Tidligere måneder» → klikk på en periode er en EGEN inngang til samme
+  // rute (SeasonLeaderboard sin fetchExpanded), med eksplisitt datointervall
+  // i stedet for en beregnet periode. Den er en ekte rangert liste over hele
+  // feltet, og skal følge samme regel — bekreftet av Dennis 23. august 2026.
+  state.rpcRanked = Array.from({ length: 8 }, (_, i) => ({
+    user_id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
+    display_name: `Spiller ${i + 1}`, points: 30 - i, quiz_count: 4,
+    rank: i + 1, total_count: 8,
+  }))
+
+  const { status, body } = await hent(
+    'period=month&scope=global&period_start=2026-07-01T00:00:00.000Z&period_end=2026-08-01T00:00:00.000Z',
+    true,
+  )
+
+  assert.equal(status, 200)
+  assert.equal(body.entries.length, 3, 'en historisk måned er like offentlig som den inneværende')
+})
+
+test('TRAPPEN A5: innlogget gratis beholder topp 10 i historikk-ekspansjonen', async () => {
+  state.rpcRanked = Array.from({ length: 8 }, (_, i) => ({
+    user_id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
+    display_name: `Spiller ${i + 1}`, points: 30 - i, quiz_count: 4,
+    rank: i + 1, total_count: 8,
+  }))
+
+  const { body } = await hent(
+    'period=month&scope=global&period_start=2026-07-01T00:00:00.000Z&period_end=2026-08-01T00:00:00.000Z',
+  )
+
+  assert.equal(body.entries.length, 8, '8 < 10 → alle med')
+})
+
+test('TRAPPEN org-scope: kuttet treffer ALDRI det interne rommet', async () => {
+  // Org-medlemmer ser hele listen uansett — trappen gjelder kun den åpne
+  // konkurransen. (Anonymt org-kall stopper allerede i scope-gaten med 401.)
+  state.orgMember = true
+  settRpcListeMedMeg()
+
+  const { status, body } = await hent('period=month&scope=organization&scope_id=44444444-4444-4444-8444-444444444444')
+
+  assert.equal(status, 200)
+  assert.equal(body.entries.length, 2, 'alle radene, uendret')
 })
 
 test('fallback: kaller UTEN season_scores får fortsatt riktig premium-status', async () => {

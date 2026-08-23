@@ -244,6 +244,10 @@ export default function LeaderboardPage() {
   // Server-side totaler + brukerens eksakte plassering (også utenfor topp 50)
   const [soloTotal, setSoloTotal] = useState(0)
   const [serverUserSolo, setServerUserSolo] = useState<RankedAttempt | null>(null)
+  // Gjestens server-beregnede plasseringsestimat (10-båndets start, bandet av
+  // serveren). Trappen gjør at en uinnlogget klient kun ser topp 3 — det
+  // lokale «tell bedre rader»-estimatet kan derfor ikke lenger regnes her.
+  const [serverGuestRank, setServerGuestRank] = useState<number | null>(null)
 
   // Premium browse-modus (paginering + søk) for "Alle"/"Lag"
   const [browseMode, setBrowseMode]               = useState(false)
@@ -281,23 +285,45 @@ export default function LeaderboardPage() {
     return () => { cancelled = true }
   }, [orgSlug, placementDisplay.mode, placementDisplay.org?.orgSlug, session?.access_token, quizId])
 
+  // Full nøkkel for siste liste-henting: quiz + org + identiteten kallet
+  // FAKTISK ble gjort med. Effekten under bruker den til å skille «session-
+  // state landet med samme identitet som mount-hentingen alt brukte» (skal
+  // ikke koste et nytt kall) fra en ekte identitetsendring (skal det).
+  const listFetchKeyRef = useRef<string | null>(null)
+  const sessionIdentity = getSessionIdentity(session)
+
   useEffect(() => {
+    // [P-3] PARITET: serveren kutter nå listen per brukertrinn (trappen), så
+    // svaret avhenger av hvem som spør. Når loadSession setter `session` med
+    // SAMME identitet som fetchData selv leste ved mount, er listen allerede
+    // riktig — hopp over. En faktisk endring (innlogging via modalen,
+    // utlogging) må derimot hente listen på nytt, ellers står 3-raders-svaret
+    // igjen hos en som nettopp logget inn.
+    if (listFetchKeyRef.current === `${quizId}|${orgSlug ?? ''}|${sessionIdentity}`) return
     async function fetchData() {
       try {
-        // Org-modus: hoved-lista er medlemskaps-gatet server-side, så den må
-        // sendes med auth-token. Org-visning er alltid innlogget (man kommer fra
-        // bedriftssiden). Nasjonal modus: uendret, anonymt kall som før.
+        // Trappen gjør identiteten til en del av selve liste-svaret: uten
+        // token svarer serveren med gjestetrinnet (3 rader) uansett hvem
+        // klienten mener den er. Kallet sendes derfor ALLTID med token når
+        // det finnes — også i nasjonal modus, som fram til 23. august 2026
+        // gikk anonymt (feilen var maskert fordi gratis så alt uansett).
         let authHeader: Record<string, string> = {}
         // scopedOrg, ikke orgSlug, styrer HENTINGEN nedenfor. De to skilles ad
         // fordi org-scopet kan falle bort uten at lenken gjør det.
         let scopedOrg = orgSlug
+        // Tidsgrense (19. august 2026): dette awaitet lå FØR den eneste
+        // setLoading(false) (finally lenger nede). Et kast var dekket, men et
+        // getSession() som HENGER på auth-låsen settles aldri — og da kjørte
+        // hverken catch eller finally. Siden ble stående og spinne, uten feil,
+        // uten logg, uten vei videre for brukeren utenom omlasting.
+        const outcome = await withTimeout(getSession(), { ms: SESSION_CHECK_MS })
+        // Nøkkelen skrives med identiteten vi FAKTISK brukte. Henger
+        // getSession (utfallet er «vet ikke» → anonymt kall), blir nøkkelen
+        // 'anon' — og når loadSession senere lander med en ekte bruker,
+        // avviker identiteten og listen hentes på nytt med token.
+        listFetchKeyRef.current =
+          `${quizId}|${orgSlug ?? ''}|${getSessionIdentity(outcome.ok ? outcome.value : null)}`
         if (orgSlug) {
-          // Tidsgrense (19. august 2026): dette awaitet lå FØR den eneste
-          // setLoading(false) (finally lenger nede). Et kast var dekket, men et
-          // getSession() som HENGER på auth-låsen settles aldri — og da kjørte
-          // hverken catch eller finally. Siden ble stående og spinne, uten feil,
-          // uten logg, uten vei videre for brukeren utenom omlasting.
-          const outcome = await withTimeout(getSession(), { ms: SESSION_CHECK_MS })
           if (!outcome.ok) {
             // Verken heng eller feil er et svar på «er du innlogget?». Å sende
             // brukeren til /login ville PÅSTÅTT at hen er utlogget — vi vet det
@@ -312,6 +338,8 @@ export default function LeaderboardPage() {
             }
             authHeader = { Authorization: `Bearer ${sess.access_token}` }
           }
+        } else if (outcome.ok && outcome.value?.access_token) {
+          authHeader = { Authorization: `Bearer ${outcome.value.access_token}` }
         }
         // Samme setning som bestemmer URL-en bestemmer hva vi sier om den.
         // Skriver de to hver for seg, kan de drifte fra hverandre — og da lyver
@@ -319,16 +347,35 @@ export default function LeaderboardPage() {
         setServedOrgSlug(scopedOrg)
         const orgQS = scopedOrg ? `&org=${encodeURIComponent(scopedOrg)}` : ''
 
+        // Gjest med lagret resultat: be serveren om det (bandede)
+        // plasseringsestimatet i samme kall. Leses rett fra localStorage i
+        // stedet for savedResult-staten — den settes i en egen effekt og er
+        // ikke garantert å ha landet før dette kallet går.
+        let guestQS = ''
+        if (!authHeader.Authorization) {
+          try {
+            const saved = localStorage.getItem(`qk_result_${quizId}`)
+            if (saved) {
+              const r = JSON.parse(saved) as { correct_answers?: number; total_time_ms?: number }
+              if (typeof r?.correct_answers === 'number' && typeof r?.total_time_ms === 'number') {
+                guestQS = `&my_correct=${r.correct_answers}&my_time=${r.total_time_ms}`
+              }
+            }
+          } catch { /* utilgjengelig localStorage — estimatet utgår */ }
+        }
+
         // Klassisk visning henter topp 50 per rom server-side (rangert via RPC,
-        // med JS-fallback). Erstatter tidligere nedlasting av opptil 2000 rader.
+        // med JS-fallback). Serveren klemmer mot kallerens trinn: 3 for
+        // gjester, 10 for gratis, 50 for Premium/org.
         const [{ data: quizData, error: e1 }, soloRes] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}`, { headers: authHeader }).then(r => r.ok ? r.json() : null),
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}${guestQS}`, { headers: authHeader }).then(r => r.ok ? r.json() : null),
         ])
         if (e1) throw e1
         setQuiz(quizData)
         const soloRows: LbEntry[] = soloRes?.entries ?? []
         setSoloTotal(soloRes?.totalCount ?? soloRows.length)
+        setServerGuestRank(typeof soloRes?.guestRank === 'number' ? soloRes.guestRank : null)
         const attemptsResult: Attempt[] = soloRows.map(e => entryToAttempt(e, quizId))
         setAttempts(attemptsResult)
 
@@ -378,7 +425,7 @@ export default function LeaderboardPage() {
     }
     fetchData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizId, orgSlug])
+  }, [quizId, orgSlug, sessionIdentity])
 
   useEffect(() => {
     try {
@@ -803,7 +850,10 @@ export default function LeaderboardPage() {
     }
   }
 
-  const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void, isPodium = false) => {
+  // sectionTotal: tallet i tellerchippen. Trappen gjør at `ranked` bare er
+  // radene kallerens trinn fikk (3/10/50) — for «Enkeltpersoner» sendes derfor
+  // serverens totalCount inn, så chippen ikke påstår at feltet er 3 stort.
+  const renderSection = (ranked: RankedAttempt[], label: string, visibleCount: number, onShowMore: () => void, isPodium = false, sectionTotal?: number) => {
     if (ranked.length === 0) return null
     const visible = ranked.slice(0, visibleCount)
     const userInSection = currentUserId
@@ -838,7 +888,7 @@ export default function LeaderboardPage() {
         <div style={s.sectionHeader}>
           <span style={s.sectionText}>{label}</span>
           <div style={s.sectionLine} />
-          <span style={s.sectionCount}>{ranked.length}</span>
+          <span style={s.sectionCount}>{sectionTotal ?? ranked.length}</span>
         </div>
         <ResultsTable
           rows={rows}
@@ -1302,13 +1352,18 @@ export default function LeaderboardPage() {
               // 10 deltakere spenner «estimatet» hele feltet («mellom plass 1 og
               // N av N») og leser som en ødelagt funksjon. Nøytral ventetekst i
               // stedet — se kommentaren ved showSpan der.
+              //
+              // Server-beregnet (bandet) estimat foretrekkes: trappen gjør at en
+              // gjest kun ser topp 3, så det lokale «tell bedre rader»-estimatet
+              // under er systematisk for godt for alle utenfor toppen. Det står
+              // igjen kun som siste utvei når liste-kallet feilet.
               const { correct_answers, total_time_ms } = savedResult
               const allRanked = soloAttempts
               const better = allRanked.filter(a =>
                 a.correct_answers > correct_answers ||
                 (a.correct_answers === correct_answers && a.total_time_ms < total_time_ms)
               ).length
-              const est = better + 1
+              const est = serverGuestRank ?? better + 1
               const tierStart = Math.floor((est - 1) / 10) * 10 + 1
               const rangeX = Math.max(1, tierStart)
               const rangeY = Math.min(totalCount, tierStart + 9)
@@ -1342,15 +1397,16 @@ export default function LeaderboardPage() {
             )
           })()}
 
-          {/* Placement card for free logged-in user who has played while quiz is open.
-              Vilkåret (inkl. suppressOwnPublicRank-gaten for blokkerte — dette
-              kortet var den femte og siste egen-plassering-flaten på siden som
-              manglet den) bor i lib/placement-visibility.ts, testdekket. */}
+          {/* Placement card for free logged-in users who have played — åpen ELLER
+              stengt quiz (P-1: spennet er gratis-løftet fra /slik-fungerer-det,
+              og gratis ser nå kun topp 10 i listen). Vilkåret (inkl.
+              suppressOwnPublicRank-gaten for blokkerte — dette kortet var den
+              femte og siste egen-plassering-flaten på siden som manglet den)
+              bor i lib/placement-visibility.ts, testdekket. */}
           {shouldShowFreePlacementCard({
             authLoading,
             hasSession: !!session,
             isPremium,
-            isClosed,
             hasPlayed,
             totalCount,
             suppressOwnPublicRank,
@@ -1449,7 +1505,12 @@ export default function LeaderboardPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 14 }}>
                 {([
                   { badge: 'krone', label: 'Leder' },
-                  { badge: 'pil', label: 'Størst fremgang' },
+                  // P-1 (23. august 2026): nasjonalt leverer prev-rank-ruten nå
+                  // kun kallerens EGEN forrige plassering, så merket kan bare
+                  // lande på ens egen rad — «Størst fremgang» ville vært en
+                  // superlativ over et felt vi ikke lenger ser. Org-modus har
+                  // fortsatt hele kartet, og der er superlativen sann.
+                  { badge: 'pil', label: orgSlug ? 'Størst fremgang' : 'Din fremgang' },
                   { badge: 'flamme', label: 'Streak 5+' },
                   { badge: 'lyn', label: 'Raskest' },
                   { badge: 'medalje', label: 'Topp 3' },
@@ -1475,7 +1536,7 @@ export default function LeaderboardPage() {
                   {renderBrowseControls()}
                   {browseMode
                     ? renderBrowseList()
-                    : renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed)}
+                    : renderSection(soloAttempts, 'Enkeltpersoner', visibleSoloCount, () => setVisibleSoloCount(c => c + 10), isClosed, soloTotal)}
                   {renderBrowsePagination()}
                 </>
               )}

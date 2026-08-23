@@ -143,6 +143,18 @@ function bandRank(rank: number): number {
   return Math.floor((rank - 1) / RANK_BAND) * RANK_BAND + 1
 }
 
+// ── Trappen (P-1, 23. august 2026): uinnlogget ser topp 3 ────────────────────
+// Samme trinn som /api/leaderboard/[id] og prev-rank: uinnlogget topp 3,
+// gratis topp TOPPLISTE_PAGE_SIZE (10, som før — S2 hindrer allerede blaing),
+// Premium alt. Kuttet gjelder kun scope=global — org/liga er medlemskaps-gatet
+// (401 uten token) og når aldri hit anonymt; sjekken på scope er belte og
+// bukser om gaten en dag skulle flyttes. Håndheves her, ikke i klienten:
+// SeasonLeaderboard viste allerede bare det den fikk, men svaret bar 10 rader.
+const ANON_TOP = 3
+function capForAnon<T>(entries: T[], userId: string | null, scope: string): T[] {
+  return userId !== null || scope !== 'global' ? entries : entries.slice(0, ANON_TOP)
+}
+
 // ── Period helpers ────────────────────────────────────────────────────────────
 
 function getPeriodStart(period: string): string {
@@ -507,7 +519,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
     return NextResponse.json({
-      entries: hiddenUntilClosed ? [] : entries,
+      entries: hiddenUntilClosed ? [] : capForAnon(entries, userId, scope),
       userEntry, userIsPremium, userBlockedFromGlobal,
       leaderboardHidden: hiddenUntilClosed,
       quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at,
@@ -739,7 +751,8 @@ export async function GET(request: NextRequest) {
 
     console.log(`[toppliste] ${period}/${scope} rpc ok ${Date.now() - t0}ms`)
     return NextResponse.json({
-      entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
+      entries: capForAnon(entries, userId, scope),
+      userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
       totalCount, userRank: userRankOut, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })
   }
@@ -852,7 +865,8 @@ export async function GET(request: NextRequest) {
 
   console.log(`[toppliste] ${period}/${scope} js-fallback ok ${Date.now() - t0}ms`)
   return NextResponse.json({
-    entries, userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
+    entries: capForAnon(entries, userId, scope),
+    userEntry, userIsPremium, userBlockedFromGlobal, quizTitle: null,
     totalCount, userRank: userRankOut, page, pageSize: TOPPLISTE_PAGE_SIZE,
   })
 }

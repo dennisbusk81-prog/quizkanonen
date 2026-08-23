@@ -428,7 +428,9 @@ test('SKJULT + STENGT quiz: listen er tilbake (skjulingen gjelder kun mens quize
   const svar = await hent('is_team=false&limit=50')
 
   assert.equal(svar.leaderboardHidden, false)
-  assert.equal(svar.entries.length, 20)
+  // 10, ikke 20: kalleren er gratis, og trappen (P-1) klemmer klassisk visning
+  // til topp 10 for gratis — se egen seksjon nederst.
+  assert.equal(svar.entries.length, 10)
 })
 
 test('SKJULT + ÅPEN: Premium som HAR spilt får listen — samme unntak som klienten', async () => {
@@ -477,7 +479,7 @@ test('IKKE skjult + åpen quiz: listen leveres som før (ingen regresjon)', asyn
   const svar = await hent('is_team=false&limit=50')
 
   assert.equal(svar.leaderboardHidden, false)
-  assert.equal(svar.entries.length, 20)
+  assert.equal(svar.entries.length, 10, 'gratis-trinnet i trappen: topp 10')
 })
 
 // ── SAK 2: ?page= og ?search= er Premium ────────────────────────────────────
@@ -489,7 +491,7 @@ test('GRATIS: ?page=2 ignoreres — samme svar som uten parameteren', async () =
   const med = await hent('is_team=false&limit=50&page=2')
 
   assert.equal(med.page, 1, 'siden skal falle tilbake til 1, ikke 2')
-  assert.equal(med.pageSize, 50, 'browse-sidestørrelsen (20) skal ikke slå inn')
+  assert.equal(med.pageSize, 10, 'gratis-trinnet (10), ikke browse-sidestørrelsen (20) eller limit (50)')
   assert.deepEqual(
     med.entries.map(e => e.rank),
     uten.entries.map(e => e.rank),
@@ -509,7 +511,7 @@ test('GRATIS: ?page= gir ikke tilgang til rader utenfor den klassiske grensen', 
 test('GRATIS: ?search= ignoreres — verken rader eller totalCount filtreres', async () => {
   const svar = await hent('is_team=false&limit=50&search=Meg')
 
-  assert.equal(svar.entries.length, 20, 'søket skal ikke isolere en enkelt rad')
+  assert.equal(svar.entries.length, 10, 'søket skal ikke isolere en enkelt rad (gratis-trinnet: 10)')
   assert.equal(svar.totalCount, 20, 'totalCount skal ikke avsløre treffantallet')
 })
 
@@ -688,7 +690,7 @@ test('PÅ + ikke skjult: listen leveres som før (ingen regresjon)', async () =>
 
   assert.equal(svar.leaderboardHidden, false)
   assert.equal(svar.hiddenReason, null)
-  assert.equal(svar.entries.length, 20)
+  assert.equal(svar.entries.length, 10, 'gratis-trinnet i trappen: topp 10')
 })
 
 // ── SAK 4: guestRank var en sidevei rundt skjulingen ────────────────────────
@@ -698,19 +700,23 @@ test('PÅ + ikke skjult: listen leveres som før (ingen regresjon)', async () =>
 // en stilling som ikke skulle ut ennå.
 //
 // Gjest-fixturen: 4 riktige og en svært dårlig tid. 11 spillere har flere
-// riktige, og «Meg Megsen» har like mange men bedre tid → eksakt plass 13.
+// riktige, og «Meg Megsen» har like mange men bedre tid → eksakt plass 13,
+// som trappen (P-1, 23. august 2026) grovmaler til 10-båndets start: 11.
+// Det eksakte tallet finnes ikke lenger i svaret — fram til da bandet kun
+// klienten det.
 
 const GJEST = 'is_team=false&limit=50&my_correct=4&my_time=99999'
 
-test('LEKKASJEBEVIS: samme fixture gir eksakt plass 13 når den er synlig — og null når den er skjult', async () => {
+test('LEKKASJEBEVIS: samme fixture gir bandet plass 11 når den er synlig — og null når den er skjult', async () => {
   // Positiv kontroll FØRST, på nøyaktig samme data og samme spørrestreng.
   // Uten den beviser ikke `null` noe som helst: en tom fixture, en feilstavet
   // parameter eller en NaN ville gitt samme null uten at gaten var involvert.
-  // 13 er tallet en naiv implementasjon (den som sto her fram til 3. august)
-  // returnerte OGSÅ når stillingen var skjult.
+  // 11 (ikke eksakt 13) er også bånd-beviset: en implementasjon som mister
+  // grovmalingen returnerer 13 her og felles av denne asserten.
   const synlig = await hent(GJEST, true)
   assert.equal(synlig.leaderboardHidden, false)
-  assert.equal(synlig.guestRank, 13, 'positiv kontroll: plasseringen ER utledbar av disse radene')
+  assert.equal(synlig.guestRank, 11, 'positiv kontroll: 10-båndets start, aldri eksakt plass')
+  assert.notEqual(synlig.guestRank, 13, 'det eksakte tallet skal ikke finnes i svaret')
 
   state.quiz = quizRow({ hide_leaderboard_until_closed: true })
   const skjult = await hent(GJEST, true)
@@ -761,7 +767,7 @@ test('SKJULT + STENGT: guestRank er tilbake sammen med radene', async () => {
   const svar = await hent(GJEST, true)
 
   assert.equal(svar.leaderboardHidden, false)
-  assert.equal(svar.guestRank, 13)
+  assert.equal(svar.guestRank, 11, 'bandet — trappen gjelder også etter stengetid')
 })
 
 test('guestRank-gaten rører IKKE innloggedes egen plassering', async () => {
@@ -779,8 +785,55 @@ test('guestRank-gaten rører IKKE innloggedes egen plassering', async () => {
   assert.equal(innlogget.userEntry?.correctAnswers, 4)
 })
 
-test('IKKE skjult: guestRank leveres som før (ingen regresjon for uinnloggede)', async () => {
+test('IKKE skjult: guestRank leveres fortsatt (bandet) for uinnloggede', async () => {
   const svar = await hent(GJEST, true)
 
-  assert.equal(svar.guestRank, 13)
+  assert.equal(svar.guestRank, 11)
+})
+
+// ── TRAPPEN (P-1, 23. august 2026) — uinnlogget 3, gratis 10, Premium alt ────
+// ?limit= er ØNSKET, ikke innvilget: verdien klemmes mot kallerens trinn.
+// MUTASJONSBEVIS (kjørt 23. august 2026, målt):
+//   • Fjernes tierCap fra pageSize-valget (alltid classicLimit) → 9 tester
+//     ryker (denne filen + pagination-testens anon-3-assert).
+//   • Byttes trinnet for anonym til FREE_TOP → 3 tester ryker.
+//   • Fjernes grovmalingen av guestRank (better + 1) → 3 tester ryker (11 blir 13).
+
+test('TRAPPEN: uinnlogget får topp 3 — også med ?limit=50', async () => {
+  const svar = await hent('is_team=false&limit=50', true)
+
+  assert.equal(svar.entries.length, 3)
+  assert.deepEqual(svar.entries.map(e => e.rank), [1, 2, 3])
+  assert.equal(svar.totalCount, 20, 'totaltallet består — spennet regnes ut fra det')
+})
+
+test('TRAPPEN: uinnlogget ?limit=200 gir fortsatt bare 3 rader', async () => {
+  const svar = await hent('is_team=false&limit=200', true)
+
+  assert.equal(svar.entries.length, 3, '?limit= skal ikke være en vei rundt trinnet')
+})
+
+test('TRAPPEN: gratis får topp 10 — også med ?limit=200', async () => {
+  const svar = await hent('is_team=false&limit=200')
+
+  assert.equal(svar.userIsPremium, false)
+  assert.equal(svar.entries.length, 10)
+  assert.deepEqual(svar.entries.map(e => e.rank), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+})
+
+test('TRAPPEN: Premium får hele den klassiske visningen (limit opptil 200)', async () => {
+  gjørMegPremium()
+
+  const svar = await hent('is_team=false&limit=200')
+
+  assert.equal(svar.entries.length, 20, 'Premium har ingen trapp')
+})
+
+test('TRAPPEN: et lavere ?limit= enn trinnet respekteres (limit=1-kallene)', async () => {
+  // loadSoloPlacement og «begge tall»-hentingen spør med limit=1 og leser kun
+  // userEntry/totalCount — trinnet skal aldri BLÅSE OPP et lite ønske.
+  const svar = await hent('is_team=false&limit=1')
+
+  assert.equal(svar.entries.length, 1)
+  assert.equal(svar.totalCount, 20)
 })
