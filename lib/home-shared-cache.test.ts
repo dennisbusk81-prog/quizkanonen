@@ -115,7 +115,9 @@ const GLOBALE_FELT = [
 // over. Derfor kan ikke koblingen omgås ved å oppdatere begge to: legger du
 // til et felt, endres halen, og nøkkelen i app/page.tsx må skrives om.
 const FELT_FINGERAVTRYKK = createHash('sha1').update(KEYS.join(',')).digest('hex').slice(0, 8)
-const CACHE_NØKKEL = `home-shared-data-v3-${FELT_FINGERAVTRYKK}`
+// v4 siden 24. august 2026: samme feltsett (halen uendret), men lastQuizTop3
+// ble blokkert-gatet, og lagrede v3-bundler bar det ufiltrerte utvalget.
+const CACHE_NØKKEL = `home-shared-data-v4-${FELT_FINGERAVTRYKK}`
 
 test('bundelen bærer kun de globale feltene — ingen brukerspesifikke', () => {
   assert.ok(KEYS.includes('activeQuiz'), 'plukket feil retur-objekt ut av funksjonen')

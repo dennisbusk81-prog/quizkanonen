@@ -19,6 +19,7 @@ import { headers } from 'next/headers'
 import type { User } from '@supabase/supabase-js'
 import { decideTrialOffer, isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
 import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
+import { getLastQuizTop3, type HomeTop3Row } from '@/lib/home-top3'
 import { getLeagueCardData } from '@/lib/league-card-data'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
@@ -121,7 +122,7 @@ const QUIZ_CARD_COLS =
   'id, title, allow_teams, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)'
 
 type StandingRow = { userId: string; displayName: string; totalPoints: number }
-type Top3Row = { player_name: string; correct_answers: number; total_time_ms: number; nickname: string | null }
+type Top3Row = HomeTop3Row
 type SharedHomeData = {
   activeQuiz: QuizRow | null
   upcomingQuiz: QuizRow | null
@@ -168,7 +169,9 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
       .limit(1),
     supabaseAdmin
       .from('quizzes')
-      .select('id, title, questions(count)')
+      // season_points_awarded styrer hvilken gren blokkert-gaten i
+      // lib/home-top3 leser fra (persistert vedtak vs. live status).
+      .select('id, title, season_points_awarded, questions(count)')
       .eq('is_test', false)
       .lt('closes_at', nowIso)
       .not('closes_at', 'is', null)
@@ -225,7 +228,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   const activeQuiz = ((activeRes.data as QuizRow[] | null) ?? [])[0] ?? null
   const upcomingQuiz = ((upcomingRes.data as QuizRow[] | null) ?? [])[0] ?? null
 
-  const lcq = lastClosedRes.data as { id: string; title: string; questions: { count: number }[] } | null
+  const lcq = lastClosedRes.data as { id: string; title: string; season_points_awarded: boolean | null; questions: { count: number }[] } | null
   const lastClosedQuiz = lcq
     ? { id: lcq.id, title: lcq.title, questionsCount: lcq.questions?.[0]?.count ?? 0 }
     : null
@@ -241,41 +244,19 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 
   const participantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
 
-  // Topp 3 fra siste stengte quiz, med profilnavn/kallenavn der tilgjengelig.
+  // Topp 3 fra siste stengte quiz — blokkert-gatet og rangert i lib/home-top3
+  // (24. august 2026): samme gate og samme rangering som /api/leaderboard/[id],
+  // siden kortet lenker rett dit. Spørringen her var tidligere rå med
+  // .limit(3) og kunne vise en bruker som hadde valgt bort offentlig synlighet.
+  // Samme synlige degradering som månedstopplisten over: feil gir tom liste
+  // (seksjonen skjules) — logget, ikke forkledd som en tom uke.
   let lastQuizTop3: Top3Row[] = []
   if (lastClosedQuiz) {
-    const { data: top3Raw } = await supabaseAdmin
-      .from('attempts')
-      .select('player_name, correct_answers, total_time_ms, user_id')
-      .eq('quiz_id', lastClosedQuiz.id)
-      .eq('is_team', false)
-      .order('correct_answers', { ascending: false })
-      .order('total_time_ms', { ascending: true })
-      .limit(3)
-
-    type RawTop3 = { player_name: string; correct_answers: number; total_time_ms: number; user_id: string | null }
-    const rows = (top3Raw as RawTop3[] | null) ?? []
-    const userIds = rows.map(r => r.user_id).filter(Boolean) as string[]
-    let profileMap = new Map<string, { displayName: string | null; nickname: string | null }>()
-    if (userIds.length > 0) {
-      const { data: profilesRaw } = await supabaseAdmin
-        .from('profiles')
-        .select('id, display_name, nickname')
-        .in('id', userIds)
-      profileMap = new Map(
-        ((profilesRaw ?? []) as { id: string; display_name: string | null; nickname: string | null }[])
-          .map(p => [p.id, { displayName: p.display_name, nickname: p.nickname ?? null }])
-      )
+    try {
+      lastQuizTop3 = await getLastQuizTop3(lastClosedQuiz.id, lcq?.season_points_awarded === true)
+    } catch (err) {
+      console.error('[forside] topp 3 fra siste quiz feilet:', err)
     }
-    lastQuizTop3 = rows.map(r => {
-      const prof = r.user_id ? profileMap.get(r.user_id) : null
-      return {
-        player_name: prof?.displayName ?? r.player_name,
-        correct_answers: r.correct_answers,
-        total_time_ms: r.total_time_ms,
-        nickname: prof?.nickname ?? null,
-      }
-    })
   }
 
   return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, trialDays, monthlyStandings, participantCount, lastQuizTop3 }
@@ -289,13 +270,17 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 // allerede lagrede v2-objekter blitt servert videre uten feltet, og
 // `undefined` leses av decideTrialOffer som «ingen dagangivelse» — CTA-ene
 // ville stått med gammel tekst helt til cachen tilfeldigvis rullet.
+// v3 → v4 (24. august 2026) av motsatt grunn: formen er uendret, men INNHOLDET
+// i lastQuizTop3 er nå blokkert-gatet. Vercels data-cache overlever deploys,
+// så uten bumpen kunne en lagret v3-bundel servert det ufiltrerte utvalget i
+// opptil ett revalidate-vindu etter at gaten var i drift.
 //
 // Halen `897f64cc` er et FINGERAVTRYKK av feltsettet funksjonen returnerer,
 // ikke en tilfeldig streng. lib/home-shared-cache.test.ts regner den ut fra
 // den faktiske returen og krever at nøkkelen her stemmer — endrer du
 // feltsettet, ryker testen med den nye halen i feilmeldingen, og bumpen kan
 // ikke glemmes. Det er den mekaniske versjonen av regelen i kommentaren over.
-const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v3-897f64cc'], { revalidate: 60, tags: ['home-shared-data'] })
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v4-897f64cc'], { revalidate: 60, tags: ['home-shared-data'] })
 
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
