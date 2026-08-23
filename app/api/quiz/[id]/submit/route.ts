@@ -10,6 +10,7 @@ import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
 import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
 import { isTransientAuthStatus } from '@/lib/auth-transient'
+import { SUBMIT_GRACE_MS, SUBMIT_DEADLINE_ERROR, attemptStartedBeforeClose } from '@/lib/late-play-window'
 
 // ── Service-role scoring for ukens quiz ──────────────────────────────────────
 // Klienten sender KUN rå svar (selectedAnswer + timeMs per spørsmål). Serveren
@@ -204,7 +205,7 @@ export async function POST(
 
   // ── 2. Hent quiz + spørsmål (fasit) ─────────────────────────────────────────
   const [quizRes, questionsRes] = await Promise.all([
-    supabaseAdmin.from('quizzes').select('time_limit_seconds').eq('id', quizId).maybeSingle(),
+    supabaseAdmin.from('quizzes').select('time_limit_seconds, closes_at').eq('id', quizId).maybeSingle(),
     supabaseAdmin
       .from('questions')
       .select('id, correct_answer, correct_answers, time_limit_seconds')
@@ -239,6 +240,31 @@ export async function POST(
       })
     } catch { /* varselet skal aldri kunne påvirke responsen */ }
     return NextResponse.json({ error: 'Kunne ikke hente quizdata. Prøv igjen om et øyeblikk.' }, { status: 503 })
+  }
+
+  // ── 2b. Innleveringsfristen (B-10, 24. august 2026) ─────────────────────────
+  // Ruten hadde fram til nå INGEN closes_at-sjekk: den som satt på siste
+  // spørsmål kunne levere timer etter stengetid (attempt-tokenet lever i 6
+  // timer), mens den som trengte ett spørsmål til strandet i questions-rutens
+  // stengesjekk. Nå er begge flater samstemte om ETT vindu (lib/late-play-
+  // window.ts): et forsøk startet FØR closes_at får levere i inntil
+  // SUBMIT_GRACE_MS etterpå — det er dette som gjør «fullfør og lever»-løftet
+  // og klientens delvis-leverings-sikkerhetsnett mulig. Etter fristen, eller
+  // for et forsøk startet etter stengetid (skal ikke kunne finnes — belte og
+  // bukser), avvises innsendingen FØR noen skriving, med en egen tekst som
+  // classifySubmitResponse aldri kan forveksle med «allerede levert».
+  // attempt.completed_at er forsøkets server-skrevne starttidspunkt (se 1b).
+  const closesAtMs = quiz?.closes_at ? new Date(quiz.closes_at).getTime() : null
+  if (closesAtMs !== null) {
+    const deadlinePassed = Date.now() > closesAtMs + SUBMIT_GRACE_MS
+    const startedAfterClose = !attemptStartedBeforeClose(attempt.completed_at, closesAtMs)
+    if (deadlinePassed || startedAfterClose) {
+      console.warn('[submit] avvist på innleveringsfrist:', {
+        attemptId, quizId, deadlinePassed, startedAfterClose,
+        closesAt: quiz?.closes_at, attemptStartedAt: attempt.completed_at,
+      })
+      return NextResponse.json({ error: SUBMIT_DEADLINE_ERROR }, { status: 403 })
+    }
   }
 
   const quizTimeLimit = quiz?.time_limit_seconds ?? 30

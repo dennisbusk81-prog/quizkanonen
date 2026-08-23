@@ -41,6 +41,14 @@ export const RESETTLE_SCAN_MS = 10 * 60_000
 export const QUIZ_CLOSED_ERROR = 'Quizen er ikke åpen'
 
 /**
+ * Submit-portens avvisning etter fristen. En EGEN tekst, ikke QUIZ_CLOSED_ERROR:
+ * classifySubmitResponse (lib/submit-response.ts) skiller submit-403-ene på
+ * meldingstekst, og denne skal klassifiseres som ekte feil — aldri forveksles
+ * med «allerede levert».
+ */
+export const SUBMIT_DEADLINE_ERROR = 'Quizen er stengt og innleveringsfristen er passert'
+
+/**
  * Er `now` innenfor et nådevindu etter stengetid? closesAt === null betyr at
  * quizen aldri stenger — da finnes ikke noe vindu (og ingen sperre å myke opp).
  */
