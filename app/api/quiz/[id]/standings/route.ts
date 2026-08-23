@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot, computePlacement, type SnapshotEntry } from '@/lib/ranking-snapshot'
 import { decideStandingsCache } from '@/lib/standings-cache'
 import { filterSnapshotToPublic } from '@/lib/public-snapshot'
+import { attemptIsPremium, gatePlacement } from '@/lib/live-premium'
 
 // ── Ett felles endepunkt for resultatskjermen ────────────────────────────────
 // Returnerer BÅDE topp-3 OG spillerens egen plassering, utledet fra ÉN felles
@@ -10,9 +11,30 @@ import { filterSnapshotToPublic } from '@/lib/public-snapshot'
 // umulig at "Topp 3 denne uken" og "Din plassering" viser ulike tall samtidig —
 // de kommer fra samme øyeblikksbilde og samme rangeringsfunksjon.
 //
-// Tilgjengelig for alle. Klienten avgjør visning: Premium ser eksakt `rank`,
-// gratis ser et spenn (low/high). `rank` lå allerede i det gamle snapshot-svaret,
-// så dette endrer ikke paywall-eksponeringen.
+// PREMIUM-GATE (P-2, 23. august 2026). Setningen som sto her — «Klienten avgjør
+// visning» — var nøyaktig problemet: serveren sendte `rank` OG `above`/`below`
+// med navn til enhver kaller, og klienten valgte å skjule det. Bekreftet anonymt
+// mot prod 23. august: et curl uten auth ga `rank: 33` pluss navnet på spilleren
+// over og under. Nå formes svaret av gatePlacement (lib/live-premium.ts), og
+// identiteten kommer fra det signerte attempt-tokenet i `x-attempt-token` — ikke
+// fra et auth-oppslag, av samme latensgrunn som live-rutene (se
+// lib/attempt-token.ts).
+//
+// TO TING SOM MÅ HENGE SAMMEN HER, og som ikke gjør det andre steder:
+//
+//   a) `placement` beregnes nå KUN for et personlig kall. Fram til nå ble den
+//      regnet også uten attemptId/correct/time — en plassering for en spiller
+//      med 0 riktige på 0 ms, altså et tall uten mening — og den lå i det DELTE,
+//      CDN-cachede svaret. Ingen klient har noen gang lest den derfra (begge
+//      ikke-personlige kallstedene leser kun `top3`).
+//
+//   b) Og nettopp derfor: cache-headeren varierer ikke med tokenet. Et `public`
+//      svar med premium-innhold ville blitt servert videre av CDN-en til neste
+//      gratis kaller. Det kan ikke skje nå, fordi `public` og `placement` er
+//      gjensidig utelukkende — et personlig kall er alltid `private`
+//      (decideStandingsCache). Ikke gjeninnfør placement på den delte grenen
+//      uten å ta cache-nøkkelen med i vurderingen; det er en lekkasje som
+//      overlever i CDN-en i inntil 120 sekunder etter at koden er rettet.
 //
 // GLOBAL SYNLIGHETS-GATE (5. august 2026): brukere blokkert fra den åpne
 // konkurransen (org med allow_global_league=false, eller eget opt-out —
@@ -30,10 +52,12 @@ import { filterSnapshotToPublic } from '@/lib/public-snapshot'
 // klienten avgjør hva som faktisk vises (internal-only viser internt tall i
 // stedet for dette).
 //
-// Merk: live-flatene under spilling (live-ranking, ranking-snapshot, rival,
-// social-proof) er BEVISST ikke gatet her — de reiser egne designspørsmål og
-// tas separat. Denne ruten er den eneste av de fire som mater et tall brukeren
-// ser ETTER quizen og deler videre.
+// Merk: de fire søsterflatene (live-ranking, ranking-snapshot, rival,
+// social-proof) sto BEVISST ugatet her fram til 23. august 2026 — «de reiser
+// egne designspørsmål og tas separat». Alle fire er nå gatet: social-proof fikk
+// blokkert-gaten 13. august, de tre siste i P-2. Fem flater, én gate hver, samme
+// to helpere (lib/public-snapshot.ts og lib/live-premium.ts). Kommer en sjette
+// til, skal den gå gjennom de samme to.
 //
 // Cache-Control settes av decideStandingsCache (lib/standings-cache.ts) — se den
 // filen for hvorfor en stengt quiz IKKE får `immutable`, og hvorfor revalidateTag
@@ -56,6 +80,7 @@ export async function GET(
 
   const { searchParams } = new URL(request.url)
   const attemptId    = searchParams.get('attemptId')
+  const attemptToken = request.headers.get('x-attempt-token')
   // `question` sendes fortsatt av klienten, men påvirker ikke lenger cache-nøkkelen
   // (snapshoten er uavhengig av spørsmålsindeks — se lib/ranking-snapshot.ts).
   const correct      = parseInt(searchParams.get('correct') ?? '0', 10)
@@ -104,10 +129,12 @@ export async function GET(
   })
 
   // ── Global synlighets-gate — samme delte sett som leaderboard-ruten ────────
-  // Filter + posisjonell re-rank bor i lib/public-snapshot.ts, ikke her: tre
-  // andre flater (social-proof, rival, live-ranking) skal gates senere, og en
-  // håndskrevet kopi per flate er tre sjanser til å avvike. `snapshot` er
-  // fortsatt det UFILTRERTE feltet — se egen plassering nederst.
+  // Filter + posisjonell re-rank bor i lib/public-snapshot.ts, ikke her. Det ble
+  // skrevet fordi tre andre flater (social-proof, rival, live-ranking) skulle
+  // gates senere, og en håndskrevet kopi per flate ville vært tre sjanser til å
+  // avvike. Alle tre er nå på plass og bruker den samme helperen — regningen for
+  // den utflyttingen er betalt. `snapshot` er fortsatt det UFILTRERTE feltet —
+  // se egen plassering nederst.
   //
   // Snapshoten hentes bevisst utenfor helperen (Promise.all over) fordi
   // `season_points_awarded` kommer fra samme quiz-rad som `closes_at`; en
@@ -151,8 +178,19 @@ export async function GET(
   const selfEntry = attemptId ? snapshot.find(e => e.id === attemptId) ?? null : null
   const callerBlocked = !!(selfEntry?.user_id && blocked.has(selfEntry.user_id))
   const placementPool = callerBlocked ? snapshot : publicSnapshot
-  const placement = placementPool.length > 0
+
+  // Punkt (a) i toppkommentaren: ingen plassering på et upersonlig kall. Den
+  // ville uansett vært et tall for en spiller som ikke finnes.
+  const rawPlacement = personalized && placementPool.length > 0
     ? computePlacement(placementPool, { attemptId, correct, time, playerInPool: true })
+    : null
+
+  // Eksakt `rank` og nabonavnene kun til Premium — samme delte formings-
+  // funksjon som ranking-snapshot og live-ranking bruker, slik at de tre ikke
+  // kan gli fra hverandre. `low`/`high`/`total` går som før til alle, og er det
+  // gratis-kortet på resultatskjermen allerede bygger på.
+  const placement = rawPlacement
+    ? gatePlacement(rawPlacement, attemptIsPremium({ quizId, attemptId, token: attemptToken }))
     : null
 
   return NextResponse.json({ top3, placement }, { headers: { 'Cache-Control': cacheControl } })

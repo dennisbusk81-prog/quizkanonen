@@ -117,10 +117,24 @@ test('hvert standings-kall i filen er tidsbegrenset', () => {
 
   // Ingen av dem skal stå uten en AbortSignal. Signal er det observerbare
   // sporet etter at kallet ligger inne i en withTimeout-blokk med abort.
-  const withSignal = (SRC.match(/\/standings[^)]*\{ signal: \w+\.signal \}/g) ?? []).length
-  const withParamsAndSignal = (SRC.match(/\/standings\?\$\{stParams\.toString\(\)\}`, \{ signal: extrasController\.signal \}/g) ?? []).length
-  assert.equal(withSignal + withParamsAndSignal, 3,
-    'ett eller flere standings-kall mangler AbortSignal — da er de heller ikke tidsbegrenset')
+  //
+  // SJEKKEN ER EGENSKAPS-BASERT, IKKE FORM-BASERT (endret 23. august 2026).
+  // Her sto to regexer som matchet den EKSAKTE skrivemåten, inkludert at
+  // options-objektet var en ettlinjes `{ signal: x.signal }`. Da P-2 la til en
+  // `x-attempt-token`-header på finishQuiz-kallet, ble objektet flerlinjet og
+  // testen ble rød — uten at egenskapen den vokter (kallet er tidsbegrenset)
+  // hadde endret seg i det hele tatt. En test som feller formatering i stedet
+  // for oppførsel lærer leseren å overse den.
+  //
+  // Nå: for HVERT standings-kallsted sjekkes det at en AbortSignal står i
+  // vinduet rett etter kallet. Mutasjonen den fortsatt feller er den ekte —
+  // fjern `signal:` fra et av kallene, og testen ryker.
+  const sites = [...SRC.matchAll(/fetch\(`\/api\/quiz\/\$\{quizId\}\/standings/g)]
+  for (const m of sites) {
+    const window = SRC.slice(m.index, m.index + 400)
+    assert.ok(/signal: \w+\.signal/.test(window),
+      `et standings-kall mangler AbortSignal — da er det heller ikke tidsbegrenset:\n${window.slice(0, 200)}`)
+  }
 })
 
 test('already_played-stien når alltid setLoading(false)', () => {

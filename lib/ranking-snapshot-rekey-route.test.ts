@@ -53,7 +53,35 @@ mock.module('@/lib/ranking-snapshot', {
     getOrBuildSnapshot: async () => [
       { id: 'ferdig-1', user_id: null, player_name: 'Ferdig', correct_answers: 5, total_time_ms: 60_000 },
     ],
-    computePlacement: () => ({ rank: 1, total: 2, low: 1, high: 2 }),
+    computePlacement: () => ({ rank: 1, total: 2, low: 1, high: 2, above: null, below: null }),
+  },
+})
+
+// ── Nye avhengigheter etter premium-/blokkert-gaten (P-2, 23. august 2026) ──
+// Ruten slår opp quizzes.season_points_awarded (til blokkert-gaten) og kaller
+// filterSnapshotToPublic. Begge mockes bort her: denne filen beviser
+// RATE-LIMIT-nøklingen, ikke gatene — de har egne testfiler.
+mock.module('@/lib/supabase-admin', {
+  namedExports: {
+    supabaseAdmin: {
+      from: () => {
+        const b = {
+          select() { return b },
+          eq() { return b },
+          async maybeSingle() { return { data: { season_points_awarded: false } } },
+        }
+        return b
+      },
+    },
+  },
+})
+
+mock.module('@/lib/public-snapshot', {
+  namedExports: {
+    // Gjennomslipp: ingen blokkerte i denne filen.
+    filterSnapshotToPublic: async (_quizId: string, snapshot: unknown[]) => ({
+      snapshot, publicSnapshot: snapshot, blocked: new Set(),
+    }),
   },
 })
 
@@ -94,10 +122,17 @@ beforeEach(() => {
 
 // ── Krav 3: token-løse kall MÅ fungere (gammel fane under deploy) ───────────
 
-test('token-løst kall slipper gjennom på anon-nøkkelen', async () => {
+test('token-løst kall slipper gjennom på anon-nøkkelen — med spenn, uten eksakt rank', async () => {
   const res = await call('198.51.100.1')
   assert.equal(res.status, 200, await res.clone().text())
-  assert.equal((await res.json()).rank, 1)
+  const j = await res.json()
+  // Uten token finnes ingen premium-påstand å tro på, så `rank` er gatet bort
+  // (P-2, 23. august 2026). Det er ikke et avslag: spennet kommer som før, og
+  // rank-pillen tegner «#1–2» i stedet for «#1».
+  assert.equal(j.rank, null)
+  assert.equal(j.low, 1)
+  assert.equal(j.high, 2)
+  assert.equal(j.total, 2)
   assert.deepEqual(counter.keys, ['ranking-snapshot:anon:198.51.100.1'])
 })
 

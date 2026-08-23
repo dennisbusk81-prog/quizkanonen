@@ -2,7 +2,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { liveRateLimitKey, LIVE_RANKING_RATE_LIMIT } from '@/lib/live-rate-limit'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot, computePlacement } from '@/lib/ranking-snapshot'
+import { filterSnapshotToPublic } from '@/lib/public-snapshot'
+import { attemptIsPremium, gatePlacement } from '@/lib/live-premium'
+
+// ── To gater, lagt på 23. august 2026 (P-2) ──────────────────────────────────
+//
+// 1. PREMIUM — og her er NAVNENE det viktigste. Ruten sendte `userRank` pluss
+//    `above`/`below` MED NAVN til enhver kaller, uten noen auth-sjekk. Bekreftet
+//    anonymt mot prod 23. august: et rått curl ga `userRank: 16` sammen med to
+//    navngitte spillere. Et tall er en plassering; et navn er en
+//    personopplysning om noen som aldri har bedt om å bli vist til en fremmed.
+//    Alle tre faller nå sammen, i gatePlacement — de kan ikke skilles ad ved en
+//    senere redigering.
+//
+//    `low`/`high` går fortsatt til alle: spennet ER gratisvisningen, og ruten
+//    har levert det siden Del 5 nettopp for at ett kall skal dekke begge
+//    tiere. En ikke-premium kaller får derfor et fullverdig, men grovere svar
+//    — ikke en feil, og ikke en tom respons.
+//
+// 2. BLOKKERT-GATEN, som manglet helt. Snapshoten er UFILTRERT: en spiller som
+//    er holdt utenfor den åpne konkurransen kunne både telles i `totalPlayers`
+//    OG navngis som nabo. Målt mot prod: `total: 68` her mot `65` fra
+//    /standings for samme quiz (2 blokkerte). lib/public-snapshot.ts har stått
+//    og pekt på nettopp denne ruten siden 13. august — social-proof ble gjort,
+//    denne ble ikke.
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -63,33 +88,61 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  // Kravet leses ut av det tokenet rate-limit-nøkkelen allerede verifiserte —
+  // lokal HMAC, ingen rundtur. Se lib/live-premium.ts.
+  const isPremium = attemptIsPremium({ quizId, attemptId, token: attemptToken })
+
+  // Svarformen er den SAMME i alle utganger, også de tomme: klienten skal aldri
+  // måtte gjette om `userRank` mangler fordi den er gatet eller fordi feltet er
+  // tomt. `totalPlayers` beholder sitt eget navn (ikke `total`) — klienten leser
+  // det, og en omdøping her ville vært en stille brekkasje.
+  const empty = (premium: boolean) => {
+    const g = gatePlacement({ rank: 1, total: 0, low: 1, high: 1, above: null, below: null }, premium)
+    return NextResponse.json({
+      totalPlayers: g.total, userRank: g.rank, low: g.low, high: g.high, above: g.above, below: g.below,
+    })
+  }
+
   // Sak 1B — les den SAMME kortlevde snapshoten som ikke-premium-spennet, slik
   // at premium-eksakt og ikke-premium-spenn er internt konsistente per definisjon
   // (samme ferdig-pool, samme rang-definisjon, gjester inkludert).
+  //
+  // Quiz-raden hentes PARALLELT — `season_points_awarded` trengs kun av
+  // blokkert-gaten og skal ikke koste en seriell rundtur på mellomskjermens
+  // latensbudsjett. Samme grep som /standings og ranking-snapshot.
   let snapshot
+  let seasonPointsAwarded = false
   try {
-    snapshot = await getOrBuildSnapshot(quizId)
+    const [snap, quizRes] = await Promise.all([
+      getOrBuildSnapshot(quizId),
+      supabaseAdmin.from('quizzes').select('season_points_awarded').eq('id', quizId).maybeSingle(),
+    ])
+    snapshot = snap
+    seasonPointsAwarded = quizRes.data?.season_points_awarded === true
   } catch (err) {
     console.error('[live-ranking] snapshot feilet:', err)
-    return NextResponse.json({ totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null })
+    return empty(isPremium)
   }
 
-  if (snapshot.length === 0) {
-    return NextResponse.json(
-      { totalPlayers: 0, userRank: 1, low: 1, high: 1, above: null, below: null }
-    )
-  }
+  if (snapshot.length === 0) return empty(isPremium)
+
+  // Blokkert-gaten — samme delte helper som /standings, social-proof og
+  // ranking-snapshot. Fail-stengt: klarer gaten ikke avgjøre hvem som er
+  // blokkert, står bare gjestene igjen, og feltet blir tomt i inntil ett kall.
+  const { publicSnapshot } = await filterSnapshotToPublic(quizId, snapshot, seasonPointsAwarded)
+  if (publicSnapshot.length === 0) return empty(isPremium)
 
   // playerInPool: false — under spill er den nåværende spilleren beviselig IKKE i
   // den ferdige poolen (uferdig forsøk), så total = ferdige + 1. Del A garanterer
   // dermed rang <= total («20 av 20», aldri «20 av 19»).
-  const { rank, total, low, high, above, below } = computePlacement(snapshot, {
+  const placement = computePlacement(publicSnapshot, {
     correct: currentCorrect,
     time: isNaN(currentTime) ? 0 : currentTime,
     playerInPool: false,
     answered,
     totalQuestions,
   })
+  const { rank, total, low, high, above, below } = gatePlacement(placement, isPremium)
 
   // low/high er additivt (Del 5): computePlacement beregnet dem allerede, ruten
   // kastet dem bare. Med dem i responsen dekker ETT kall både premium-blokken i

@@ -92,3 +92,48 @@ test('total=0 er hidden (defensivt — leaderboard-fallbacken bygger fra to felt
     'hidden',
   )
 })
+
+// ── PARITET MED SERVERENS GATE (P-2, 23. august 2026) ───────────────────────
+// `isPremium` her er KLIENTENS mening (ProfileProvider). Serverens mening bæres
+// av attempt-tokenet, som utstedes ved quiz-START. Kjøper noen Premium midt i
+// en quiz, er de to uenige til neste sidelast — og da kommer `placement.rank`
+// som null selv om klienten mener den er Premium.
+//
+// MUTASJONSBEVIS: fjern `&& input.placement.rank !== null` fra
+// decideResultPlacementView, og testen under ryker. I produksjon ville
+// premium-kortet da rendret «. plass» — tallet borte, punktumet igjen.
+
+test('premium-klient uten eksakt rank fra serveren faller til gratis-kortet', () => {
+  const v = decideResultPlacementView({
+    mode: 'public',
+    isPremium: true,
+    placement: { rank: null, total: 65 },
+  })
+  assert.equal(v, 'free', 'dataen vinner over antakelsen — gratis-kortet er komplett uten rank')
+})
+
+test('positiv kontroll: samme kaller MED rank får premium-kortet', () => {
+  assert.equal(
+    decideResultPlacementView({ mode: 'public', isPremium: true, placement: { rank: 33, total: 65 } }),
+    'premium-exact',
+  )
+})
+
+test('gratis-klient med rank null er uendret gratis — ingen ny gren', () => {
+  assert.equal(
+    decideResultPlacementView({ mode: 'public', isPremium: false, placement: { rank: null, total: 65 } }),
+    'free',
+  )
+})
+
+test('alene i feltet: premium-first krever fortsatt en eksakt rank', () => {
+  assert.equal(
+    decideResultPlacementView({ mode: 'public', isPremium: true, placement: { rank: 1, total: 1 } }),
+    'premium-first',
+  )
+  // Uten tallet er «du er først ute» en påstand vi ikke har dekning for.
+  assert.equal(
+    decideResultPlacementView({ mode: 'public', isPremium: true, placement: { rank: null, total: 1 } }),
+    'free',
+  )
+})

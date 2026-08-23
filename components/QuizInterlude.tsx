@@ -54,7 +54,6 @@ interface QuizInterludeProps {
   high: number | null
   rival: RivalData | null
   rankingSnapshot?: RankingSnapshot
-  isPremium?: boolean
   // Kun innloggede får plassering i det hele tatt. Gjester skal derfor heller
   // ikke se venteteksten under terskelen — for dem kommer det aldri et tall.
   isLoggedIn?: boolean
@@ -114,7 +113,6 @@ export default function QuizInterlude({
   high,
   rival,
   rankingSnapshot,
-  isPremium,
   isLoggedIn,
   liveRanking,
   onNext,
@@ -337,8 +335,16 @@ export default function QuizInterlude({
           </div>
         )}
 
-        {/* Live ranking — gratis ser estimert spenn, Premium ser eksakt plassering */}
-        {placementReady && !isPremium && low !== null && high !== null && (
+        {/* Live ranking — gratis ser estimert spenn, Premium ser eksakt plassering.
+            VILKÅRET ER `!liveRanking`, IKKE `!isPremium` (P-2, 23. august 2026).
+            Serveren gater nå eksakt plassering på det signerte attempt-tokenet, og
+            klientens egen isPremium kan avvike fra den (kjøp midt i quiz: tokenet
+            er utstedt ved start). Med `!isPremium` ville den spilleren fått
+            HVERKEN eksakt blokk (serveren sendte ingen) ELLER spenn (klienten
+            trodde den var Premium) — en tom mellomskjerm. Vilkåret spør derfor
+            hva vi FIKK, ikke hva vi trodde: kom det ingen eksakt rangering,
+            vises spennet. De to blokkene utelukker fortsatt hverandre. */}
+        {placementReady && !liveRanking && low !== null && high !== null && (
           <div className="qk-il-block" style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
@@ -366,8 +372,11 @@ export default function QuizInterlude({
           </div>
         )}
 
-        {/* Premium: eksakt plassering som hovedelement, mini-leaderboard som støtte */}
-        {placementReady && isPremium && liveRanking && liveRanking.totalPlayers >= 2 && (
+        {/* Premium: eksakt plassering som hovedelement, mini-leaderboard som støtte.
+            `liveRanking` settes kun av page.tsx når serveren faktisk sendte et
+            eksakt tall (userRank !== null), så den er selv premium-beviset —
+            `isPremium` er derfor tatt ut av vilkåret. Se blokken over. */}
+        {placementReady && liveRanking && liveRanking.totalPlayers >= 2 && (
           <div className="qk-il-block" style={{ marginBottom: 18 }}>
             <p style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',

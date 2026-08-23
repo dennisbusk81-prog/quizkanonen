@@ -24,6 +24,9 @@ import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import type { SnapshotEntry } from './ranking-snapshot'
 
+// Må settes FØR attempt-token brukes: signingKey() leser env ved hvert kall.
+process.env.QUIZ_TOKEN_SECRET = 'test-hemmelighet-for-attempt-token'
+
 function entry(id: string, userId: string | null, name: string, rank: number, correct: number, timeMs: number): SnapshotEntry {
   return {
     id, user_id: userId, player_name: name, rank,
@@ -96,9 +99,30 @@ mock.module('@/lib/globally-blocked-set', {
 })
 
 const { GET } = await import('@/app/api/quiz/[id]/standings/route')
+const { createAttemptToken } = await import('@/lib/attempt-token')
 
-function call(query = '') {
-  const request = new Request(`https://quizkanonen.no/api/quiz/q-1/standings${query ? `?${query}` : ''}`)
+// ── Hvorfor kallene nå bærer et PREMIUM-token (P-2, 23. august 2026) ─────────
+// `placement.rank` er observatøren nesten alle testene under bruker for å bevise
+// at blokkert-gaten re-rankes riktig. Etter premium-gaten sender ruten det
+// eksakte tallet KUN til en kaller med et signert premium-krav, så uten token
+// ville hver eneste assert lest `null` — og filen ville bevist premium-gaten i
+// stedet for den blokkert-gaten den er skrevet for.
+//
+// Tokenet er ekte (lib/attempt-token er ikke mocket her), signert over samme
+// (attemptId, quizId) som forespørselen gjelder. Dermed dekker filen samtidig
+// at de to gatene KOMPONERER: en premium-kaller får eksakt rank, men den
+// ranken er fortsatt regnet mot det FILTRERTE feltet. En egen test nederst
+// dekker samme kall uten token.
+function call(query = '', opts: { attemptId?: string; premium?: boolean } = {}) {
+  const { attemptId, premium = true } = opts
+  // attemptId hentes ut av query-strengen når den ikke er oppgitt eksplisitt,
+  // så tokenet alltid gjelder NØYAKTIG det forsøket kallet spør om.
+  const id = attemptId ?? new URLSearchParams(query).get('attemptId')
+  const token = id ? createAttemptToken(id, 'q-1', { premium }) : null
+  const request = new Request(
+    `https://quizkanonen.no/api/quiz/q-1/standings${query ? `?${query}` : ''}`,
+    token ? { headers: { 'x-attempt-token': token } } : undefined,
+  )
   return GET(request as never, { params: Promise.resolve({ id: 'q-1' }) })
 }
 
@@ -173,4 +197,50 @@ test('gjest står i top3 selv når blokkert-settet er ikke-tomt', async () => {
   )
   assert.equal(j.placement.rank, 1)
   assert.equal(j.placement.total, 2)
+})
+
+// ── PREMIUM-GATEN (P-2, 23. august 2026) ────────────────────────────────────
+// Testene over kjører alle MED premium-token, slik at blokkert-gaten kan
+// observeres gjennom `rank`. Disse to dekker gaten selv.
+//
+// MUTASJONSBEVIS
+//   • Fjern gatePlacement-kallet i ruten (send rawPlacement rått), og
+//     «uten premium-token …» ryker: rank og nabonavn dukker opp igjen.
+//   • Gjeninnfør placement på det upersonlige kallet, og «upersonlig kall …»
+//     ryker — det er den CDN-cachede grenen, se punkt (b) i rutens
+//     toppkommentar.
+
+test('uten premium-token: spenn og total, men ingen eksakt rank og ingen nabonavn', async () => {
+  const j = await (await call('attemptId=a-bjorn&correct=11&time=65000', { premium: false })).json()
+  assert.equal(j.placement.rank, null, 'eksakt plassering skal ikke forlate serveren')
+  assert.equal(j.placement.above, null, 'nabonavn er en personopplysning, ikke et tall')
+  assert.equal(j.placement.below, null)
+  // ...men gratisvisningen er komplett: spennet og feltstørrelsen kommer som før.
+  assert.equal(j.placement.total, 4)
+  assert.equal(typeof j.placement.low, 'number')
+  assert.equal(typeof j.placement.high, 'number')
+  // Topp-3 er IKKE premium-gatet — den har alltid vært offentlig.
+  assert.deepEqual(
+    j.top3.map((e: { player_name: string }) => e.player_name),
+    ['Anna', 'Bjørn', 'Cato'],
+  )
+})
+
+test('helt anonymt kall (ingen token i det hele tatt) får heller ingen eksakt rank', async () => {
+  const j = await (await call('attemptId=a-bjorn&correct=11&time=65000', { attemptId: undefined, premium: false })).json()
+  assert.equal(j.placement.rank, null)
+  assert.equal(j.placement.above, null)
+  assert.equal(j.placement.below, null)
+})
+
+test('upersonlig kall får INGEN placement — den grenen er CDN-cachet', async () => {
+  // Uten attemptId/correct/time er svaret delt (public, s-maxage). En placement
+  // der ville vært et tall for en spiller med 0 riktige på 0 ms — og den ville
+  // ligget i CDN-en. Se punkt (a) og (b) i rutens toppkommentar.
+  const res = await call()
+  const j = await res.json()
+  assert.equal(j.placement, null)
+  assert.match(res.headers.get('cache-control') ?? '', /^public,/)
+  // Topp-3 leveres som før — det er det eneste klienten leser fra denne grenen.
+  assert.equal(j.top3.length, 3)
 })

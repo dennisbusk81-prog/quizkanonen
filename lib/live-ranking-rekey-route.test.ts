@@ -57,6 +57,34 @@ mock.module('@/lib/ranking-snapshot', {
   },
 })
 
+// ── Nye avhengigheter etter premium-/blokkert-gaten (P-2, 23. august 2026) ──
+// Ruten slår opp quizzes.season_points_awarded (til blokkert-gaten) og kaller
+// filterSnapshotToPublic. Begge mockes bort her: denne filen beviser
+// RATE-LIMIT-nøklingen, ikke gatene — de har egne testfiler.
+mock.module('@/lib/supabase-admin', {
+  namedExports: {
+    supabaseAdmin: {
+      from: () => {
+        const b = {
+          select() { return b },
+          eq() { return b },
+          async maybeSingle() { return { data: { season_points_awarded: false } } },
+        }
+        return b
+      },
+    },
+  },
+})
+
+mock.module('@/lib/public-snapshot', {
+  namedExports: {
+    // Gjennomslipp: ingen blokkerte i denne filen.
+    filterSnapshotToPublic: async (_quizId: string, snapshot: unknown[]) => ({
+      snapshot, publicSnapshot: snapshot, blocked: new Set(),
+    }),
+  },
+})
+
 const { GET } = await import('@/app/api/quiz/live-ranking/route')
 const { createAttemptToken } = await import('@/lib/attempt-token')
 const { LIVE_RANKING_RATE_LIMIT } = await import('@/lib/live-rate-limit')
@@ -91,10 +119,19 @@ beforeEach(() => {
 
 // ── Krav 2: token-løse kall MÅ fungere (gammel fane under deploy) ───────────
 
-test('token-løst kall faller til anon-nøkkelen og slipper gjennom', async () => {
+test('token-løst kall faller til anon-nøkkelen og slipper gjennom — med spenn, uten eksakt rank', async () => {
   const res = await call('198.51.100.1')
   assert.equal(res.status, 200, await res.clone().text())
-  assert.equal((await res.json()).userRank, 1)
+  const j = await res.json()
+  // Uten token finnes ingen premium-påstand å tro på: eksakt plassering OG
+  // nabonavnene er gatet bort (P-2, 23. august 2026). Spennet består, så
+  // mellomskjermen har fortsatt noe å vise.
+  assert.equal(j.userRank, null)
+  assert.equal(j.above, null)
+  assert.equal(j.below, null)
+  assert.equal(j.low, 1)
+  assert.equal(j.high, 2)
+  assert.equal(j.totalPlayers, 2)
   assert.deepEqual(counter.keys, ['live-ranking:anon:198.51.100.1'])
 })
 

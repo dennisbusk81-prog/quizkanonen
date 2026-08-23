@@ -4,6 +4,41 @@ import { isPersonalGraceActive } from '@/lib/personal-grace'
 import type { Loaded } from '@/lib/fetch-result'
 
 /**
+ * Rad-formen `getUserPremium` leser. Trukket ut som egen type fordi
+ * start-attempt henter NØYAKTIG disse kolonnene i profil-spørringen den
+ * uansett gjør (suspensjonssperren), og skal kunne avgjøre premium uten en
+ * ekstra rundtur.
+ */
+export type PremiumProfileRow = {
+  premium_status: boolean | null
+  org_premium_grace_until: string | null
+  personal_grace_until: string | null
+}
+
+/** Kolonnene over som select-streng — så de to kallstedene ikke kan gli fra hverandre. */
+export const PREMIUM_PROFILE_COLUMNS = 'premium_status, org_premium_grace_until, personal_grace_until'
+
+/**
+ * Selve avgjørelsen, ren og uten I/O.
+ *
+ * Skilt ut 23. august 2026 (P-2). `start-attempt` må avgjøre premium for å
+ * kunne signere det inn i attempt-tokenet (se lib/attempt-token.ts), og henter
+ * allerede profilraden for suspensjonssperren. Uten denne funksjonen ville den
+ * ruten fått sin egen kopi av grace-reglene — nøyaktig den «fjerde,
+ * lett-avvikende kopien» toppkommentaren under ble skrevet for å hindre.
+ *
+ * MERK: `null` betyr «fant ingen rad» → ikke premium. «Klarte ikke lese» er en
+ * ANNEN tilstand, og den eies av kalleren (Loaded<boolean> under). En lesefeil
+ * skal aldri passere gjennom denne funksjonen forkledd som et svar.
+ */
+export function decidePremiumFromProfile(row: PremiumProfileRow | null, now: Date): boolean {
+  const orgGraceActive = !!row?.org_premium_grace_until
+    && new Date(row.org_premium_grace_until) > now
+  const personalGraceActive = isPersonalGraceActive(row?.personal_grace_until, now)
+  return row?.premium_status === true || orgGraceActive || personalGraceActive
+}
+
+/**
  * Er brukeren Premium akkurat nå — inkludert grace-perioden etter tapt
  * org-Premium. Samme spørring og samme grace-beregning som
  * app/api/profile/premium-status/route.ts, som hittil har vært den eneste
@@ -37,19 +72,14 @@ import type { Loaded } from '@/lib/fetch-result'
 export async function getUserPremium(userId: string): Promise<Loaded<boolean>> {
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('premium_status, org_premium_grace_until, personal_grace_until')
+    .select(PREMIUM_PROFILE_COLUMNS)
     .eq('id', userId)
-    .maybeSingle()
+    .maybeSingle<PremiumProfileRow>()
 
   if (error) {
     console.error(`[premium-check] kunne ikke lese premium-status for ${userId}:`, error.message)
     return { ok: false }
   }
 
-  const now = new Date()
-  const orgGraceActive = !!data?.org_premium_grace_until
-    && new Date(data.org_premium_grace_until) > now
-  const personalGraceActive = isPersonalGraceActive(data?.personal_grace_until, now)
-
-  return { ok: true, value: data?.premium_status === true || orgGraceActive || personalGraceActive }
+  return { ok: true, value: decidePremiumFromProfile(data, new Date()) }
 }

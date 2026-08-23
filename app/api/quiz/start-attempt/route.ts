@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
+import { decidePremiumFromProfile, PREMIUM_PROFILE_COLUMNS, type PremiumProfileRow } from '@/lib/premium-check'
 import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
@@ -139,15 +140,34 @@ export async function POST(request: NextRequest) {
   // ── Suspensjonssperre ─────────────────────────────────────────────────────────
   // Tidligere håndhevet av RLS INSERT-policyen. service_role omgår RLS, så vi må
   // sjekke eksplisitt her etter at INSERT er låst til service_role.
+  // Premium leses i SAMME spørring (P-2, 23. august 2026) — ikke i en ny.
+  // Attempt-tokenet bærer premium som et signert krav, slik at live-rutene kan
+  // gate eksakt plassering uten et auth-oppslag per kall (se
+  // lib/attempt-token.ts for regnestykket: ~43 sparte rundturer per spiller per
+  // quiz). Kolonnene kommer fra PREMIUM_PROFILE_COLUMNS, og avgjørelsen fra
+  // decidePremiumFromProfile — samme grace-regler som getUserPremium, ikke en
+  // ny kopi.
+  let callerIsPremium = false
   if (userId) {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('suspended_until')
+      .select(`suspended_until, ${PREMIUM_PROFILE_COLUMNS}`)
       .eq('id', userId)
-      .maybeSingle()
+      .maybeSingle<{ suspended_until: string | null } & PremiumProfileRow>()
     if (profile?.suspended_until && new Date(profile.suspended_until) > new Date()) {
       return NextResponse.json({ error: 'Kontoen er suspendert', suspended: true }, { status: 403 })
     }
+    // «Vet ikke» blir her til «ikke premium» — et BEVISST valg, ikke en
+    // forglemmelse, og det eneste stedet i kodebasen der den retningen er
+    // riktig. Alternativet er å nekte quiz-start på en lesefeil, og det ville
+    // gjort en visningsdetalj til en sperre foran hele produktet. Prisen er at
+    // en Premium-spiller ser spennet i stedet for eksakt plass i den ene
+    // quizen — de spiller videre, og en sidelast henter nytt token. Logges
+    // fordi et stille tap av en betalt funksjon ellers ikke etterlater spor.
+    if (profileError) {
+      console.error('[start-attempt] kunne ikke lese premium for token-kravet:', profileError.message)
+    }
+    callerIsPremium = decidePremiumFromProfile(profile ?? null, new Date())
   }
 
   // ── Quizen må finnes og være åpen ─────────────────────────────────────────────
@@ -202,7 +222,7 @@ export async function POST(request: NextRequest) {
       // veien, og uten token kommer klienten ikke videre til questions/submit.
       return NextResponse.json({
         attemptId: unfinished.id,
-        attemptToken: createAttemptToken(unfinished.id, quizId),
+        attemptToken: createAttemptToken(unfinished.id, quizId, { premium: callerIsPremium }),
         reused: true,
       })
     }
@@ -255,7 +275,7 @@ export async function POST(request: NextRequest) {
       if (race) {
         return NextResponse.json({
           attemptId: race.id,
-          attemptToken: createAttemptToken(race.id, quizId),
+          attemptToken: createAttemptToken(race.id, quizId, { premium: callerIsPremium }),
           reused: true,
         })
       }
@@ -266,6 +286,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     attemptId: inserted.id,
-    attemptToken: createAttemptToken(inserted.id, quizId),
+    attemptToken: createAttemptToken(inserted.id, quizId, { premium: callerIsPremium }),
   })
 }

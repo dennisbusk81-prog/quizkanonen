@@ -944,10 +944,18 @@ export default function QuizPage() {
   const [needsLogin, setNeedsLogin] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [, setAgeConfirmed] = useState(false)
-  const [liveRank, setLiveRank] = useState<number | null>(null)
+  // Rank-pillen ved siden av poengsummen. Bærer BÅDE det eksakte tallet og
+  // spennet, fordi serveren nå avgjør hvilket av dem kalleren får (P-2,
+  // 23. august 2026): `exact` er null for alle som ikke er Premium, og pillen
+  // viser da «#31–35» i stedet for «#33». Fram til nå leste pillen `rank` rått
+  // og hadde ingen premium-sjekk i det hele tatt — 46 av 67 spillere
+  // 21. august så et eksakt tall de ikke hadde betalt for.
+  const [liveRank, setLiveRank] = useState<{ exact: number | null; low: number; high: number } | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
-  const [estimatedPlacement, setEstimatedPlacement] = useState<{ rank: number; low: number; high: number; total: number } | null>(null)
+  // `rank` er nullbar: /standings sender eksakt plassering kun til Premium
+  // (P-2). decideResultPlacementView faller til gratis-kortet når den mangler.
+  const [estimatedPlacement, setEstimatedPlacement] = useState<{ rank: number | null; low: number; high: number; total: number } | null>(null)
   // Intern plassering (org-rommet) fra /api/leaderboard/[id]?org= — hentes i en
   // egen effekt når resultatskjermen vises og spilleren er org-medlem (se
   // lib/placement-visibility.ts for hvem som ser hva). exactRank er null for
@@ -1530,8 +1538,11 @@ export default function QuizPage() {
         attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : undefined
       )
       if (!res.ok) return
-      const data: { rank: number } = await res.json()
-      setLiveRank(data.rank)
+      const data: { rank: number | null; low: number; high: number } = await res.json()
+      // Tegner det vi FIKK, ikke det vi trodde vi ville få — samme
+      // paritetsregel som decideResultPlacementView. Klientens egen isPremium
+      // konsulteres bevisst ikke her: da kan de to ikke bli uenige.
+      setLiveRank({ exact: data.rank ?? null, low: data.low, high: data.high })
     } catch { /* ikke kritisk */ }
   }, [quiz, quizId, currentIndex, totalQuestions, attemptId, attemptToken])
 
@@ -1541,7 +1552,7 @@ export default function QuizPage() {
     timeSoFar: number,
     answeredSoFar: number,
     signal?: AbortSignal
-  ): Promise<{ rank: number; total: number; low: number; high: number } | null> => {
+  ): Promise<{ rank: number | null; total: number; low: number; high: number } | null> => {
     try {
       const res = await fetch(
         `/api/quiz/${quizId}/ranking-snapshot?question=${questionIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}${attemptId ? `&attemptId=${attemptId}` : ''}`,
@@ -1566,7 +1577,8 @@ export default function QuizPage() {
     signal?: AbortSignal
   ): Promise<{
     totalPlayers: number
-    userRank: number
+    // null når serveren ikke ga eksakt plassering (ikke-Premium kaller).
+    userRank: number | null
     low: number
     high: number
     above: { name: string; correct: number } | null
@@ -2121,7 +2133,12 @@ export default function QuizPage() {
         low = premiumRanking.low
         high = premiumRanking.high
       }
-      setInterLiveRanking(premiumRanking
+      // `userRank !== null` er paritetsvakten: serveren kan ha gatet svaret selv
+      // om klienten tror den er Premium (kjøp midt i quiz — tokenet er utstedt
+      // ved start). Da settes ingen eksakt-blokk, og mellomskjermen faller til
+      // spennet, som allerede er satt fra low/high over. Uten vakten ville
+      // QuizInterlude rendret «. plass» uten tall.
+      setInterLiveRanking(premiumRanking && premiumRanking.userRank !== null
         ? {
             totalPlayers: premiumRanking.totalPlayers,
             userRank: premiumRanking.userRank,
@@ -2345,11 +2362,18 @@ export default function QuizPage() {
               time: String(finalTimeMs),
             })
             if (attemptId) stParams.set('attemptId', attemptId)
-            const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`, { signal: extrasController.signal })
+            // x-attempt-token er det som gjør kallet PERSONLIG i serverens
+            // øyne: uten det får svaret ingen eksakt plassering, kun spennet
+            // (P-2). Samme token submit-kallet under bruker — ingen ny
+            // mekanisme, og ingen ekstra auth-rundtur.
+            const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`, {
+              signal: extrasController.signal,
+              ...(attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : {}),
+            })
             if (stRes.ok) {
               const st: {
                 top3?: typeof top3
-                placement?: { rank: number; total: number; low: number; high: number } | null
+                placement?: { rank: number | null; total: number; low: number; high: number } | null
               } = await stRes.json()
               if (Array.isArray(st.top3)) setTop3(st.top3)
               // Ingen total-terskel her: hva som skal VISES (også for en spiller
@@ -3115,7 +3139,6 @@ export default function QuizPage() {
             high={interHigh}
             rival={rivalData}
             rankingSnapshot={rankingSnapshot ?? undefined}
-            isPremium={isPremium}
             isLoggedIn={isLoggedIn}
             liveRanking={interLiveRanking ?? undefined}
             onNext={handleInterludeNext}
@@ -3174,7 +3197,11 @@ export default function QuizPage() {
               \u00abmanglende symmetri\u00bb \u2014 og ikke bytt den mot haken: \u2713 foran null
               antyder noe oppn\u00e5dd som ikke er det. */}
           <span ref={scoreBadgeRef} className="qk-score-pill">{correctSoFar > 0 ? '\u2713 ' : ''}{correctSoFar} {pluralNo(correctSoFar, 'riktig', 'riktige')}</span>
-          {quiz.show_live_placement && liveRank && <span className="qk-rank-pill">#{liveRank}</span>}
+          {quiz.show_live_placement && liveRank && (
+            <span className="qk-rank-pill">
+              {liveRank.exact !== null ? `#${liveRank.exact}` : `#${liveRank.low}–${liveRank.high}`}
+            </span>
+          )}
         </div>
 
         {/* Scenen er topp-justert uten fast høyde. Fram til 3. aug 2026 sto her
@@ -3357,10 +3384,16 @@ export default function QuizPage() {
   // Samme gate som visPlassering i delingskortet: blokkerte (internal-only)
   // og uavklarte (unknown) deler uten plasseringspåstand — den nøytrale
   // «Jeg spilte…»-varianten finnes allerede som fallback.
+  // `rank !== null` er ikke bare TypeScript-blidgjøring: uten eksakt
+  // plassering fra serveren finnes det ikke noe tall å regne en prosent av, og
+  // spennets `low` skal IKKE brukes som erstatning (se kommentaren over — det
+  // var nettopp den feilen som ble ryddet 2. august). Ingen påstand er riktig
+  // her; den nøytrale delingsteksten finnes allerede som fallback.
   const deltProsent = isPremium
     && placementDisplay.mode !== 'internal-only'
     && placementDisplay.mode !== 'unknown'
     && estimatedPlacement
+    && estimatedPlacement.rank !== null
     ? placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
     : null
 
@@ -3669,7 +3702,14 @@ export default function QuizPage() {
           // så vinneren av en tospillerquiz fikk «bedre enn 50 %».
           // Vakten mot sisteplass og «alene i quizen» ligger i lib-et, ikke her
           // — se placementPercentLine().
-          const prosentLinje = placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
+          // `rank` er non-null her fordi placementView kun blir 'premium-*'
+          // når den er det (decideResultPlacementView) — men vi leser den ikke
+          // ubetinget likevel: én guard på stedet er billigere enn en antakelse
+          // om en beslutning tatt 60 linjer unna.
+          const exactRank = estimatedPlacement.rank
+          const prosentLinje = exactRank !== null
+            ? placementPercentLine(exactRank, estimatedPlacement.total)
+            : null
           return (
             <div className="qk-rsec" style={{
               background: '#1e1a0e',
@@ -3683,7 +3723,7 @@ export default function QuizPage() {
                 Din plassering
               </div>
               <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
-                {estimatedPlacement.rank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
+                {exactRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
               {placementView === 'premium-first' ? (
                 // Alene i feltet: «av 1 deltakere» er hult. Konteksten er sann
