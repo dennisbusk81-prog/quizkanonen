@@ -29,7 +29,7 @@ type AttemptRow = {
 }
 
 const state: {
-  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean } | null
+  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean; show_leaderboard: boolean } | null
   attempts: AttemptRow[]
   attemptQueries: number
   dbDown: boolean
@@ -140,6 +140,9 @@ beforeEach(() => {
   state.latestQuiz = {
     id: `q-${quizSeq}`, title: 'Fredagsquiz 14.08.2026',
     closes_at: '2026-08-14T20:00:00Z', season_points_awarded: true,
+    // Speiler DB-defaulten — uten feltet regner ruten (fail-safe, med vilje)
+    // resultatene som permanent av og tømmer entries.
+    show_leaderboard: true,
   }
   // 1100 distinkte innloggede spillere. Vinneren (13 riktige, alle andre har
   // 10) ligger på rad 1050 — bak 1000-taket.

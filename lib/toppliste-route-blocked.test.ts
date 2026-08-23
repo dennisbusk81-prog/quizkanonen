@@ -39,7 +39,7 @@ function att(id: string, userId: string, name: string, correct: number, timeMs: 
 }
 
 const state: {
-  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean } | null
+  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean; show_leaderboard: boolean } | null
   attempts: AttemptRow[]
   blocked: string[]
   authUser: { id: string } | null
@@ -190,6 +190,9 @@ beforeEach(() => {
   state.latestQuiz = {
     id: `q-${quizSeq}`, title: 'Fredagsquiz 31.07.2026',
     closes_at: '2026-07-31T20:00:00Z', season_points_awarded: true,
+    // Speiler DB-defaulten — uten feltet regner ruten (fail-safe, med vilje)
+    // resultatene som permanent av og tømmer entries.
+    show_leaderboard: true,
   }
   state.attempts = [
     att('a-anna', 'u-anna', 'Anna', 12, 60_000),

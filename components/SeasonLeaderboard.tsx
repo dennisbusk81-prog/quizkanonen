@@ -96,6 +96,11 @@ type ApiResponse = {
   // — `entries` er da tømt SERVER-side. Premium som har spilt får listen
   // løftet (samme unntak som /api/leaderboard/[id]) og flagget false.
   leaderboardHidden?: boolean
+  // Årsaken bak flagget (23. august 2026): 'until_closed' løftes ved stenging
+  // og har en Premium-vei; 'disabled' (show_leaderboard=false) er permanent og
+  // unntaksfri. Tekstene under må skille dem — å love publisering eller en
+  // Premium-vei for en 'disabled'-quiz ville vært usant.
+  hiddenReason?: 'disabled' | 'until_closed' | null
   quizTitle?: string | null
   quizClosesAt?: string | null
   activeQuizClosesAt?: string | null
@@ -1186,6 +1191,20 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           // ennå» — usant mens en quiz faktisk pågår. Premium som har spilt
           // når aldri hit (serveren løfter skjulingen og leverer listen).
           if (isLastQuiz && data?.leaderboardHidden) {
+            // Permanent av (show_leaderboard=false): ingen publiseringsdato og
+            // ingen Premium-vei å nevne — samme skjerm som /leaderboard/[id]
+            // viser for innstillingen, ikke stengetid-teksten under.
+            if (data.hiddenReason === 'disabled') {
+              return (
+                <div style={s.empty}>
+                  <p style={s.emptyTitle}>Resultatene er ikke aktivert for denne quizen</p>
+                  <p style={{ ...s.emptySub, marginBottom: 18 }}>
+                    Denne quizen har ingen offentlig resultatliste. Sesong-topplistene finner du i fanene over.
+                  </p>
+                  <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
+                </div>
+              )
+            }
             return (
               <div style={s.empty}>
                 <p style={s.emptyTitle}>Stillingen er skjult til quizen stenger</p>

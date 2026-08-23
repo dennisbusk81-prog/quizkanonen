@@ -353,7 +353,7 @@ export async function GET(request: NextRequest) {
     // hvilken quiz som velges — er uendret.
     const { data: latestQuiz } = await supabaseAdmin
       .from('quizzes')
-      .select('id, title, closes_at, season_points_awarded, hide_leaderboard_until_closed, attempts!inner(id)')
+      .select('id, title, closes_at, season_points_awarded, hide_leaderboard_until_closed, show_leaderboard, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1, { referencedTable: 'attempts' })
@@ -527,11 +527,38 @@ export async function GET(request: NextRequest) {
       && !isQuizClosed(latestQuiz.closes_at, Date.now())
       && !(userIsPremium && userEntry !== null)
 
+    // ── Resultater permanent av — håndheves server-side (23. august 2026) ─────
+    // `show_leaderboard = false` er den ANDRE skjul-årsaken fra
+    // /api/leaderboard/[id], og den siste som manglet her: «Ukens resultater»
+    // er skrudd AV for quizen, PERMANENT og uten unntak — ingen tidsgrense,
+    // ingen Premium-vei (unntaket over hører kun til
+    // hide_leaderboard_until_closed). Samme tolkning som leaderboard-ruten
+    // helt ned på uttrykksnivå (`!show_leaderboard`): mangler feltet, regnes
+    // stillingen som holdt tilbake — en blipp skal ikke kunne åpne en skjult
+    // liste.
+    //
+    // ALLE scopes, i motsetning til gaten over: /api/leaderboard/[id] tømmer
+    // entries for denne innstillingen også i org-modus (`leaderboardDisabled`
+    // er ubetinget der), så et lukket rom som fikk radene her ville hatt samme
+    // innstilling håndhevet på én flate og ikke den andre — nøyaktig
+    // inkonsistensen denne gaten fjerner. Bekreftet av Dennis 23. august 2026.
+    // `userEntry` og `totalCount` består som før: egne tall skjules aldri for
+    // en selv, og egen plassering er gated på `show_live_placement`, et EGET
+    // felt.
+    const leaderboardDisabled = !latestQuiz.show_leaderboard
+    const leaderboardHidden = leaderboardDisabled || hiddenUntilClosed
+    // Årsaken skilles fra flagget — samme felt som leaderboard-ruten: de to
+    // tilstandene er ulike løfter («kommer når quizen stenger» har en
+    // Premium-vei, «ikke aktivert» har ingen), og klienten må kunne velge
+    // riktig tekst uten et ekstra oppslag.
+    const hiddenReason: 'disabled' | 'until_closed' | null =
+      leaderboardDisabled ? 'disabled' : hiddenUntilClosed ? 'until_closed' : null
+
     console.log(`[toppliste] ${period}/${scope} last_quiz ok ${Date.now() - t0}ms`)
     return NextResponse.json({
-      entries: hiddenUntilClosed ? [] : capForAnon(entries, userId, scope),
+      entries: leaderboardHidden ? [] : capForAnon(entries, userId, scope),
       userEntry, userIsPremium, userBlockedFromGlobal,
-      leaderboardHidden: hiddenUntilClosed,
+      leaderboardHidden, hiddenReason,
       quizTitle: latestQuiz.title, quizClosesAt: latestQuiz.closes_at,
       totalCount, page, pageSize: TOPPLISTE_PAGE_SIZE,
     })

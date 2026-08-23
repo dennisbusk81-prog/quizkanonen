@@ -62,7 +62,7 @@ type RankedRow = {
 
 const state: {
   /** null = ingen quiz med attempts finnes (tidlig retur i last_quiz). */
-  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean; hide_leaderboard_until_closed?: boolean } | null
+  latestQuiz: { id: string; title: string; closes_at: string; season_points_awarded: boolean; hide_leaderboard_until_closed?: boolean; show_leaderboard?: boolean } | null
   attempts: AttemptRow[]
   profile: { premium_status: boolean; org_premium_grace_until: string | null; personal_grace_until: string | null }
   /** true = selve premium-oppslaget i lib/premium-check feiler. */
@@ -75,6 +75,8 @@ const state: {
   seasonScores: { user_id: string; points: number; quiz_id: string; closes_at: string; scope_type: string; scope_id: string | null }[]
   /** true = kalleren er medlem av org-en scope-gaten spør om (S1/S2-org-unntaket). */
   orgMember: boolean
+  /** Medlemslisten getMemberSet leser i last_quiz (org-scope-filteret). */
+  orgMembers: string[]
 } = {
   latestQuiz: null,
   attempts: [],
@@ -86,6 +88,7 @@ const state: {
   rpcUserStats: [],
   seasonScores: [],
   orgMember: false,
+  orgMembers: [],
 }
 
 function attempt(quizId: string, n: number, correct: number, uid: string): AttemptRow {
@@ -105,9 +108,10 @@ function attempt(quizId: string, n: number, correct: number, uid: string): Attem
 /**
  * Fixture for S1/S2/S4-testene: `antall` spillere der ME (hvis med) alltid er
  * SIST — rank = antall. `skjult` setter hide_leaderboard_until_closed,
- * `aapen` legger closes_at i framtiden.
+ * `aapen` legger closes_at i framtiden, `resultaterAv` setter
+ * show_leaderboard=false (permanent av — DB-defaulten er true).
  */
-function nyLastQuizMedFelt(antall: number, opts: { skjult?: boolean; aapen?: boolean; medMeg?: boolean } = {}): string {
+function nyLastQuizMedFelt(antall: number, opts: { skjult?: boolean; aapen?: boolean; medMeg?: boolean; resultaterAv?: boolean } = {}): string {
   quizTeller += 1
   const id = `00000000-0000-4000-8000-${String(quizTeller).padStart(12, '0')}`
   state.latestQuiz = {
@@ -116,6 +120,7 @@ function nyLastQuizMedFelt(antall: number, opts: { skjult?: boolean; aapen?: boo
     closes_at: opts.aapen ? OM_TRE_DAGER() : FOR_EN_DAG_SIDEN(),
     season_points_awarded: false,
     hide_leaderboard_until_closed: opts.skjult === true,
+    show_leaderboard: opts.resultaterAv !== true,
   }
   const medMeg = opts.medMeg !== false
   const andre = medMeg ? antall - 1 : antall
@@ -133,7 +138,7 @@ let quizTeller = 0
 function nyLastQuiz(seasonPointsAwarded = false): string {
   quizTeller += 1
   const id = `00000000-0000-4000-8000-${String(quizTeller).padStart(12, '0')}`
-  state.latestQuiz = { id, title: 'Fredagsquiz uke 34', closes_at: FOR_EN_DAG_SIDEN(), season_points_awarded: seasonPointsAwarded }
+  state.latestQuiz = { id, title: 'Fredagsquiz uke 34', closes_at: FOR_EN_DAG_SIDEN(), season_points_awarded: seasonPointsAwarded, show_leaderboard: true }
   state.attempts = [attempt(id, 1, 15, ANNEN), attempt(id, 2, 12, ME)]
   state.profileRows = [
     { id: ANNEN, display_name: 'Spiller En', nickname: null },
@@ -224,8 +229,17 @@ function builder(table: string) {
         // JS-fallbackens hovedoppslag.
         return resolve({ data: applyFilters(state.seasonScores as unknown as Record<string, unknown>[]), error: null })
       }
-      // organizations / organization_members / league_members → ingen
-      // restriksjoner, ingen medlemskap (riktig grunntilstand for global scope).
+      if (table === 'organization_members') {
+        // getMemberSet sin medlemsliste (select('user_id')) — brukes av
+        // last_quiz i org-scope. Sveipet i isUserGloballyBlockedLive
+        // (global_league_opt_out-kolonnene) skal fortsatt svare tomt.
+        if (selectCols === 'user_id') {
+          return resolve({ data: state.orgMembers.map(id => ({ user_id: id })), error: null })
+        }
+        return resolve({ data: [], error: null })
+      }
+      // organizations / league_members → ingen restriksjoner, ingen
+      // medlemskap (riktig grunntilstand for global scope).
       return resolve({ data: [], error: null })
     },
   }
@@ -265,6 +279,7 @@ type Svar = {
   totalCount: number
   page?: number
   leaderboardHidden?: boolean
+  hiddenReason?: 'disabled' | 'until_closed' | null
   error?: string
 }
 
@@ -299,6 +314,7 @@ beforeEach(() => {
   state.rpcUserStats = []
   state.seasonScores = []
   state.orgMember = false
+  state.orgMembers = []
 })
 
 // ── LAST QUIZ-STIEN ──────────────────────────────────────────────────────────
@@ -642,6 +658,7 @@ test('S4: skjult + åpen quiz → entries tømmes for anonym kaller, flagget set
   assert.equal(status, 200)
   assert.deepEqual(body.entries, [], 'ingen av spillernes rader skal forlate serveren')
   assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'until_closed', 'årsaken skal skille stengetid fra permanent av')
   assert.equal(body.totalCount, 5, 'totalCount består — samme som leaderboard-ruten')
 })
 
@@ -685,6 +702,101 @@ test('S4: stengt quiz med flagget → listen er tilbake (gaten gjelder kun mens 
   // er løftet (entries er ikke tømt).
   assert.equal(body.entries.length, 3)
   assert.equal(body.leaderboardHidden, false)
+  assert.equal(body.hiddenReason, null)
+})
+
+// ── show_leaderboard=false — resultater permanent AV (23. august 2026) ───────
+// Den andre skjul-årsaken fra /api/leaderboard/[id], og den siste som manglet
+// i last_quiz-grenen. I motsetning til S4-gaten over er den PERMANENT (gjelder
+// også stengt quiz), UNNTAKSFRI (ingen Premium-har-spilt-vei) og gjelder ALLE
+// scopes (leaderboard-ruten tømmer entries også i org-modus for denne
+// innstillingen). Egne tall består: userEntry og totalCount som før.
+
+test('DISABLED: anonym kaller får tømte entries, flagg og årsak', async () => {
+  nyLastQuizMedFelt(5, { resultaterAv: true })
+
+  const { status, body } = await hent('period=last_quiz&scope=global', true)
+
+  assert.equal(status, 200)
+  assert.deepEqual(body.entries, [], 'ingen av spillernes rader skal forlate serveren')
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'disabled', 'klienten må kunne velge riktig tekst — ingen Premium-vei å love')
+  assert.equal(body.totalCount, 5)
+})
+
+test('DISABLED: innlogget gratis som har spilt — listen tømt, egen rad består (bandet)', async () => {
+  nyLastQuizMedFelt(25, { resultaterAv: true })
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'disabled')
+  assert.equal(body.userEntry?.rank, 21, 'egne tall består, fortsatt bandet for gratis (plass 25 → 21)')
+})
+
+test('DISABLED: Premium som HAR spilt løfter den IKKE — unntaket hører kun til stengetid-gaten', async () => {
+  // Mutasjonsbeviset mot å gjenbruke S4-uttrykket: legges Premium-unntaket
+  // inn i disabled-gaten, ryker denne.
+  nyLastQuizMedFelt(5, { resultaterAv: true, aapen: true })
+  settPremium()
+
+  const { body } = await hent('period=last_quiz&scope=global')
+
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'disabled')
+  assert.equal(body.userEntry?.rank, 5, 'egne tall skjules aldri for en selv — eksakt for Premium')
+})
+
+test('DISABLED: gjelder også STENGT quiz — permanent, ikke tidsbegrenset', async () => {
+  // Kontrasten til «S4: stengt quiz med flagget → listen er tilbake» over:
+  // stenging løfter stengetid-gaten, men aldri denne.
+  nyLastQuizMedFelt(5, { resultaterAv: true })
+
+  const { body } = await hent('period=last_quiz&scope=global', true)
+
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'disabled')
+})
+
+test('DISABLED org-scope: det lukkede rommet er IKKE unntatt — samme innstilling, samme svar som /api/leaderboard/[id]', async () => {
+  // Feller en mutasjon som scoper gaten med `scope === 'global' &&` (formen
+  // S4-gaten har). Liga deler nøyaktig samme uttrykk uten scope-ledd.
+  const ORG = '44444444-4444-4444-8444-444444444444'
+  state.orgMember = true
+
+  // Positiv kontroll FØRST: uten resultaterAv leverer org-fanen listen. Uten
+  // denne er testen vakuøs — en tom medlemsliste ville også gitt tomme entries.
+  nyLastQuizMedFelt(5, { aapen: true })
+  state.orgMembers = state.attempts.map(a => a.user_id)
+  const kontroll = await hent(`period=last_quiz&scope=organization&scope_id=${ORG}`)
+  assert.equal(kontroll.body.entries.length, 5, 'forutsetning: medlemmene ser listen når resultatene er på')
+
+  nyLastQuizMedFelt(5, { resultaterAv: true, aapen: true })
+  state.orgMembers = state.attempts.map(a => a.user_id)
+  const { status, body } = await hent(`period=last_quiz&scope=organization&scope_id=${ORG}`)
+
+  assert.equal(status, 200)
+  assert.deepEqual(body.entries, [])
+  assert.equal(body.leaderboardHidden, true)
+  assert.equal(body.hiddenReason, 'disabled')
+})
+
+test('DISABLED cache-paritet: kall med resultater PÅ varmer 30s-cachen — quiz med samme rå rader og resultater AV lekker likevel ikke', async () => {
+  // Samme bevis som S1-cache-testen: lastQuizAttemptsCache bærer rå attempts
+  // per quiz-id, og gaten regnes per forespørsel ETTER cache-lesingen. To kall
+  // mot SAMME quiz-id der innstillingen endres mellom dem er den strengeste
+  // varianten — flyttes gaten inn foran cache-skrivingen, arver kall to listen.
+  const id = nyLastQuizMedFelt(5, { aapen: true })
+  const først = await hent('period=last_quiz&scope=global')
+  assert.equal(først.body.entries.length, 5, 'forutsetning: listen leveres og cachen er varm')
+
+  state.latestQuiz = { ...state.latestQuiz!, id, show_leaderboard: false }
+  const deretter = await hent('period=last_quiz&scope=global')
+  assert.deepEqual(deretter.body.entries, [], 'cachen bærer rå rader — aldri et ferdig formet svar')
+  assert.equal(deretter.body.hiddenReason, 'disabled')
 })
 
 // ── TRAPPEN (P-1, 23. august 2026): uinnlogget ser topp 3 ────────────────────
