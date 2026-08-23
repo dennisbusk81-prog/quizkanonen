@@ -24,6 +24,7 @@ import { decidePlacementDisplay, globalExclusionReason, shouldOfferPlacementRetr
 import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
+import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { nextQuizLabel } from '@/lib/next-quiz-label'
 
@@ -953,6 +954,10 @@ export default function QuizPage() {
   // 21. august så et eksakt tall de ikke hadde betalt for.
   const [liveRank, setLiveRank] = useState<{ exact: number | null; low: number; high: number } | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
+  // B-10: satt når stengetiden avbrøt spillingen og svarene hun rakk ble
+  // levert som de er. Styrer kun notisen på resultatskjermen — leveransen
+  // selv går gjennom den ordinære finishQuiz-stien.
+  const [closedEarlyDelivery, setClosedEarlyDelivery] = useState(false)
   const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
   // `rank` er nullbar: /standings sender eksakt plassering kun til Premium
   // (P-2). decideResultPlacementView faller til gratis-kortet når den mangler.
@@ -1290,8 +1295,15 @@ export default function QuizPage() {
   // stabil, per-attempt randomisert rekkefølge.
   // Tokenet tas som argument (ikke fra state) fordi startQuiz kaller denne i
   // samme tick som tokenet mottas — state er ikke oppdatert ennå der.
+  //
+  // Returnerer `{ closed: true }` når serveren svarer 403 «Quizen er ikke åpen»
+  // — dvs. nådevinduet er brukt opp (B-10). Det er et UTFALL, ikke en feil:
+  // kallerne skal levere det spilleren har (goToNext) i stedet for å tilby en
+  // «Prøv igjen» som aldri kan lykkes. Sammenligningen mot QUIZ_CLOSED_ERROR
+  // er en delt kontrakt med questions-ruten (lib/late-play-window.ts) — samme
+  // mønster som ALREADY_SUBMITTED_ERROR.
   const fetchQuestionAt = useCallback(
-    async (index: number, aId: string | null, token: string | null, signal?: AbortSignal): Promise<{ question: Question; total: number }> => {
+    async (index: number, aId: string | null, token: string | null, signal?: AbortSignal): Promise<{ question: Question; total: number } | { closed: true }> => {
       const sp = new URLSearchParams({ index: String(index) })
       if (aId) sp.set('attemptId', aId)
       const res = await fetch(`/api/quiz/${quizId}/questions?${sp.toString()}`, {
@@ -1319,6 +1331,10 @@ export default function QuizPage() {
               extra: { quizId, attemptId: aId, index, serverError: errBody?.error ?? null },
             })
           } catch { /* målingen skal aldri kunne påvirke spillflyten */ }
+          // Meldingsteksten over beholdes uendret for kontinuitet i Sentry-
+          // tellingen (samme sak siden a8b7adc) — men siden nådevinduet kom,
+          // strander spilleren ikke lenger: utfallet under leverer det hun har.
+          if (errBody?.error === QUIZ_CLOSED_ERROR) return { closed: true }
         }
         throw new Error(`questions ${res.status}`)
       }
@@ -1754,10 +1770,12 @@ export default function QuizPage() {
                 fetchQuestionAt(i, started.attemptId, started.attemptToken, questionController.signal),
               ),
             )
-            const loaded = results.map(r => r.question)
-            return { loadedQuestions: loaded, total: results[0]?.total ?? loaded.length }
+            if (results.some(r => 'closed' in r)) return { closed: true as const }
+            const loaded = (results as { question: Question; total: number }[]).map(r => r.question)
+            return { loadedQuestions: loaded, total: results[0] && 'total' in results[0] ? results[0].total : loaded.length }
           }
           const r0 = await fetchQuestionAt(0, started.attemptId, started.attemptToken, questionController.signal)
+          if ('closed' in r0) return { closed: true as const }
           return { loadedQuestions: [r0.question], total: r0.total }
         })(),
         { ms: START_TIMEOUT_MS, onTimeout: () => questionController.abort() },
@@ -1770,6 +1788,15 @@ export default function QuizPage() {
         setStartError(questionsOutcome.timedOut
           ? 'Det tok for lang tid å laste spørsmålene. Sjekk internettforbindelsen og prøv igjen.'
           : 'Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
+        return
+      }
+      // Stengetid i glipen mellom start-attempt og spørsmålshentingen (B-10).
+      // I praksis kun mulig helt inntil en vindusgrense — start-attempt slapp
+      // oss gjennom for et øyeblikk siden. Ærlig stopp i stedet for en evig
+      // «prøv igjen»; reload-gjenopptakelse i vinduet håndteres i egen commit.
+      if ('closed' in questionsOutcome.value) {
+        setPlayerInfo({ name: '', ageConfirmed: false })
+        setStartError('Quizen er stengt.')
         return
       }
       const { loadedQuestions, total } = questionsOutcome.value
@@ -2140,7 +2167,24 @@ export default function QuizPage() {
       setIsAdvancing(false)
       return
     }
-    if (questionOutcome?.ok) {
+    // ── Stengetid midt i spillingen (B-10, 24. august 2026) ──────────────────
+    // Serveren sa «Quizen er ikke åpen»: nådevinduet for spørsmål er brukt opp.
+    // Fram til nå endte spilleren her i en evig «Prøv igjen»-løkke — banneren
+    // lovet «Fremgangen din er trygg» mens de svarene hun hadde gitt aldri kom
+    // fram. Nå leveres de som de er: submit teller aldri svar mot antall
+    // spørsmål, og submit-vinduet er LENGRE enn spørsmålsvinduet nettopp så
+    // denne leveringen rekker fram (invarianten i lib/late-play-window.ts).
+    // KUN her, ikke i den generelle feilgrenen over: en transient nettverksfeil
+    // skal fortsatt gi retry, aldri en for tidlig innlevering.
+    if (questionOutcome?.ok && 'closed' in questionOutcome.value) {
+      setClosedEarlyDelivery(true)
+      setNextLoadFailed(null)
+      await finishQuiz()
+      advancingRef.current = false
+      setIsAdvancing(false)
+      return
+    }
+    if (questionOutcome?.ok && !('closed' in questionOutcome.value)) {
       const loaded = questionOutcome.value
       setQuestions(prev => {
         const copy = [...prev]
@@ -2456,7 +2500,7 @@ export default function QuizPage() {
       // faktisk vet, nemlig at vi ikke fikk bekreftelse.
       setFinishSaveError(
         isLate
-          ? 'Quizen stengte mens du spilte — svaret ditt ble ikke lagret. Sesong-poeng gjelder ikke for sente innleveringer.'
+          ? 'Quizen stengte mens du spilte, og innleveringsfristen er passert — svaret ble dessverre ikke lagret.'
           : finishTimedOutOnceRef.current
             ? 'Vi fikk ikke bekreftet om resultatet ble lagret. Sjekk topplisten om litt.'
             : 'Resultatet ble ikke lagret — sjekk internettforbindelsen din'
@@ -3435,6 +3479,15 @@ export default function QuizPage() {
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
       <p className="qk-rsec" style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
+
+      {/* B-10: hun ble avbrutt av stengetid og hoppet rett hit fra midt i
+          quizen — uten denne linja ser resultatskjermen ut som en feil.
+          Samme infoboks-stil som stengetid-notisen på startskjermen. */}
+      {closedEarlyDelivery && (
+        <div className="qk-rsec" style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+          Quizen stengte før du rakk alle spørsmålene. Svarene du rakk å gi er levert og teller.
+        </div>
+      )}
 
       {/* Riktige svar — stor hero-visning */}
       <div style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:12,padding:'16px 12px 12px',textAlign:'center',marginBottom:8}}>

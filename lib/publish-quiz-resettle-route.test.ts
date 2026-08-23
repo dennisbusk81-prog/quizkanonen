@@ -41,7 +41,7 @@ const db: { quizzes: QuizRow[]; attempts: AttemptRow[] } = { quizzes: [], attemp
 
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString()
 
-const processQuizMock = mock.fn(async () => ({ rows: 1, error: null }))
+const processQuizMock = mock.fn(async (_quizId: string, _closesAt: string) => ({ rows: 1, error: null }))
 
 // waitUntil-promisene samles slik at testene kan vente dem ferdig — i prod
 // kjører de etter at responsen er sendt.
