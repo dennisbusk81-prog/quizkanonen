@@ -24,10 +24,17 @@ import { attemptIsPremium, gatePlacement } from '@/lib/live-premium'
 //
 // 2. BLOKKERT-GATEN, som manglet helt. Snapshoten er UFILTRERT: en spiller som
 //    er holdt utenfor den åpne konkurransen kunne både telles i `totalPlayers`
-//    OG navngis som nabo. Målt mot prod: `total: 68` her mot `65` fra
-//    /standings for samme quiz (2 blokkerte). lib/public-snapshot.ts har stått
-//    og pekt på nettopp denne ruten siden 13. august — social-proof ble gjort,
-//    denne ble ikke.
+//    OG navngis som nabo.
+//
+//    MÅLT MOT PROD, 21. august-quizen: `totalPlayers` var 68 før gaten og er
+//    66 etter. Differansen er 2 — de blokkerte. Begge tallene er «pool + 1»:
+//    kalleren har ikke levert ennå (playerInPool: false) og telles derfor med
+//    i sitt eget «av N». Poolen selv gikk fra 67 leverte til 65 synlige.
+//    /standings sier 65 om samme quiz uten at det er et avvik — den kjører
+//    playerInPool: true, siden spilleren der allerede er i feltet.
+//
+//    lib/public-snapshot.ts har stått og pekt på nettopp denne ruten siden
+//    13. august — social-proof ble gjort, denne ble ikke.
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin

@@ -6,11 +6,17 @@
 //
 // HVORFOR DENNE FILEN FINNES — den ble skrevet ETTER en mutasjonsrunde:
 // byttes `computePlacement(publicSnapshot, …)` tilbake til `snapshot`, var
-// ingen test rød. Ruten hadde ingen blokkert-gate i det hele tatt fram til nå,
-// og avviket var MÅLT mot prod 23. august 2026: denne ruten svarte
-// `total: 68` for 21. august-quizen mens /standings svarte `65` om samme felt
-// (67 leverte forsøk, 65 globale season_scores-rader → 2 blokkerte som ble
-// talt med). To flater, samme quiz, to ulike tall om hvor mange som deltok.
+// ingen test rød. Ruten hadde ingen blokkert-gate i det hele tatt fram til nå.
+//
+// MÅLT MOT PROD (21. august-quizen, anonyme kall før og etter deploy):
+// `total` herfra var 68 og er nå 66. Poolen gikk fra 67 leverte forsøk til 65
+// synlige — differansen på 2 er de blokkerte, som denne filen vokter. +1-en i
+// begge tallene er KALLEREN selv: under spilling har hen ikke levert, så
+// computePlacement kalles med playerInPool: false og legger spilleren til i
+// sitt eget «av N». Testene under regner derfor 4 ferdige + 1 = 5.
+//
+// (Sammenlign ikke 66 med /standings sine 65 og tro at gaten bommer med én:
+// den ruten kjører playerInPool: true, fordi spilleren der ER i feltet.)
 //
 // ranking-snapshot- og public-snapshot-modulene er EKTE her (kun supabase-admin
 // under dem er mocket, med en fersk cache-rad): re-ranken og computePlacement

@@ -25,10 +25,23 @@ import { attemptIsPremium, gatePlacement, type GatedPlacement } from '@/lib/live
 //
 // 2. BLOKKERT-GATEN, som manglet helt. Snapshoten er UFILTRERT, så brukere som
 //    er holdt utenfor den åpne konkurransen (org med allow_global_league=false,
-//    eller eget opt-out) ble talt med i `total`. Målt mot prod: denne ruten sa
-//    `total: 68` for 21. august-quizen mens /standings sa `65` om samme felt —
-//    67 leverte forsøk, 65 globale season_scores-rader, altså 2 blokkerte som
-//    ble talt. Samme delte helper som /standings og social-proof brukes nå.
+//    eller eget opt-out) ble talt med i `total`.
+//
+//    MÅLT MOT PROD, 21. august-quizen — og les regnestykket nøye, for de tre
+//    tallene har hver sin betydning:
+//      • 67 = leverte solo-forsøk, altså den ferdige poolen.
+//      • 65 = globale season_scores-rader, altså de SYNLIGE. Differansen på 2
+//        er de blokkerte.
+//      • `total` herfra var 68 FØR gaten og er 66 ETTER. Begge er «pool + 1»:
+//        under spilling har kalleren ikke levert ennå (playerInPool: false),
+//        så de legges til for at «du er nr. 16 av 66» skal telle deg selv.
+//
+//    Gaten flyttet altså tallet med nøyaktig 2 — de blokkerte — ikke med 3.
+//    +1-en er kalleren og skal bli stående. At /standings sier 65 om samme
+//    quiz er ikke et avvik: den ruten kjører playerInPool: true, fordi
+//    spilleren der ER i feltet (resultatskjermen, etter innsending).
+//
+//    Samme delte helper som /standings og social-proof brukes nå.
 //
 //    Filteret er fail-STENGT (se lib/public-snapshot.ts): klarer gaten ikke
 //    avgjøre hvem som er blokkert, blokkeres alle. Her betyr det et lite eller
