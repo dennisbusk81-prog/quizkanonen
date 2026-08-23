@@ -13,6 +13,7 @@ import { computeDuelAffordance } from '@/lib/duel-affordance'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
+import { isClosedRoom } from '@/lib/leaderboard-scope'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
 import { withTimeout } from '@/lib/with-timeout'
@@ -684,16 +685,18 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const totalPages    = Math.max(1, Math.ceil(totalCount / effectivePageSize))
   const userVisible   = !!(currentUserId && data?.entries.some(e => e.userId === currentUserId))
   const searching     = browseMode && search.trim() !== ''
-  // Kontrollene vises kun for Premium i periode-modus når listen er lengre enn topp-10
-  const showControls  = (isPremium || scope === 'organization') && (totalCount > 10 || browseMode)
+  // Kontrollene vises for Premium — og for medlemmer av et LUKKET ROM (liga
+  // eller org, se lib/leaderboard-scope.ts) — når listen er lengre enn topp-10.
+  const showControls  = (isPremium || isClosedRoom(scope)) && (totalCount > 10 || browseMode)
   const showJumpToMe  = showControls && userRank != null && !userVisible && !searching
   // Låst variant for gratis (22. august 2026): kontrollene fantes ikke i det
   // hele tatt uten Premium — nå vises ÉN rad i søkefeltets posisjon, med
   // lås-badge og /premium som mål (b2ba244-mønsteret). Speiler
-  // showControls-betingelsene (org-scope har gratis kontroller og skal ikke
-  // ha raden); entries-vakten holder raden borte fra skjult/tom liste (S4) —
-  // en «søk blant alle»-rad over «Stillingen er skjult» ville vært støy.
-  const showLockedControls = !isPremium && scope !== 'organization'
+  // showControls-betingelsene: et lukket rom (liga eller org) har gratis
+  // kontroller og skal derfor ikke ha låseraden. entries-vakten holder raden
+  // borte fra skjult/tom liste (S4) — en «søk blant alle»-rad over «Stillingen
+  // er skjult» ville vært støy.
+  const showLockedControls = !isPremium && !isClosedRoom(scope)
     && totalCount > 10 && (data?.entries.length ?? 0) > 0
 
   function goToPage(p: number) {
@@ -878,7 +881,13 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     if (ue && ue.rank <= 10) return null
 
     if (ue && ue.rank > 10) {
-      if (!data.userIsPremium && scope !== 'organization') {
+      // Paywall-kortet gjelder KUN den åpne konkurransen. I et lukket rom
+      // (liga eller org — lib/leaderboard-scope.ts) er medlemskapet allerede
+      // verifisert og alle andres eksakte plassering står i listen rett over;
+      // å be nettopp dette medlemmet betale for sin egen var selvmotsigende.
+      // Sto som `scope !== 'organization'` fram til 23. august 2026, så liga
+      // fikk kortet.
+      if (!data.userIsPremium && !isClosedRoom(scope)) {
         return (
           <>
             <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>

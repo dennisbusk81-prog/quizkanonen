@@ -4,6 +4,8 @@
  * testbar uten React.
  */
 
+import { isClosedRoom } from './leaderboard-scope'
+
 export function formatQuizCount(quizCount: number): string {
   return `${quizCount} ${quizCount === 1 ? 'quiz' : 'quizer'}`
 }
@@ -47,7 +49,12 @@ export function shouldShowPlacementRow(state: PlacementRowState): boolean {
   if (state.userVisible) return false
   if (state.userEntryRank == null) return false
   if (state.userEntryRank <= 10) return false
-  return state.isPremium || state.scope === 'organization'
+  // Lukket rom (liga ELLER org) — se lib/leaderboard-scope.ts. Sto som
+  // `scope === 'organization'` fram til 23. august 2026, slik at et gratis
+  // ligamedlem utenfor topp 10 mistet plasseringsraden og i stedet fikk
+  // paywall-kortet i renderUserSection — inne i et rom der alle andres
+  // eksakte plassering allerede var synlig.
+  return state.isPremium || isClosedRoom(state.scope)
 }
 
 export type PlacementRowSource = {

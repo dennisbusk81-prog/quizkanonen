@@ -6,6 +6,7 @@ import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
 import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
+import { isClosedRoom } from '@/lib/leaderboard-scope'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -298,14 +299,23 @@ export async function GET(request: NextRequest) {
   //     men tallet lå i nettverksfanen — nå finnes det ikke i svaret.
   //   • S2: ?page=/?search= nulles ut — svaret blir det samme som uten dem,
   //     ingen ny feilsti (samme form som `isBrowse` i leaderboard-ruten).
-  // Org-scope er BEVISST unntatt begge deler: rommet er medlemskaps-gatet
-  // over, og org-visningen (SeasonLeaderboard sine `showControls` og
-  // `shouldShowPlacementRow`) tilbyr bla/søk og tegner eksakt INTERN
-  // plassering for alle medlemmer — banding der ville vist et falskt tall som
-  // om det var ekte (fargen-kan-ikke-motsi-teksten-klassen). Liga følger
-  // global: klienten viser hverken kontrollene eller eksakt rank der uten
-  // Premium, så gaten endrer ingenting synlig for liga-medlemmer.
-  const premiumView = userIsPremium || scope === 'organization'
+  //
+  // LUKKEDE ROM er unntatt begge deler — se lib/leaderboard-scope.ts. Rommet
+  // er medlemskaps-gatet over, og visningen (SeasonLeaderboard sine
+  // `showControls` og `shouldShowPlacementRow`) tilbyr bla/søk og tegner
+  // eksakt INTERN plassering for alle medlemmer; banding der ville vist et
+  // falskt tall som om det var ekte (fargen-kan-ikke-motsi-teksten-klassen).
+  //
+  // Her sto det fram til 23. august 2026 `scope === 'organization'` alene, med
+  // en kommentar som påsto at «liga følger global: klienten viser hverken
+  // kontrollene eller eksakt rank der uten Premium, så gaten endrer ingenting
+  // synlig for liga-medlemmer». Den påstanden ble MÅLT og var feil: et gratis
+  // ligamedlem utenfor topp 10 fikk paywall-kortet «Med Premium ser du din
+  // nøyaktige plassering» i stedet for plasseringsraden, inne i et lukket rom
+  // der alle andres eksakte plassering sto rett over. I tillegg bar ett og
+  // samme svar to sannheter: `entries` inneholdt kallerens egen rad med eksakt
+  // rank mens `userEntry.rank` var grovmalt (plass 3 → 1).
+  const premiumView = userIsPremium || isClosedRoom(scope)
 
   const excludedSet = new Set(
     (excludedResult.data ?? []).map((e: { user_id: string }) => e.user_id)

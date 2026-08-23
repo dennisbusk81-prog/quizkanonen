@@ -57,13 +57,17 @@ test('nøyaktig rank 11 (rett utenfor topp 10) → vis rad', () => {
   assert.equal(shouldShowPlacementRow(baseState({ userEntryRank: 11 })), true)
 })
 
-test('ikke Premium, ikke org-scope → ingen rad (samme gate som Oppgrader-CTA-en)', () => {
+test('ikke Premium i den ÅPNE konkurransen → ingen rad (samme gate som Oppgrader-CTA-en)', () => {
   assert.equal(shouldShowPlacementRow(baseState({ isPremium: false, scope: 'global' })), false)
-  assert.equal(shouldShowPlacementRow(baseState({ isPremium: false, scope: 'league' })), false)
 })
 
-test('org-scope teller som "premium nok" selv uten personlig Premium-abonnement', () => {
+// Fram til 23. august 2026 sto liga her sammen med global, med `false` som
+// forventning — testen pinnet altså selve feilen. Et lukket rom er
+// medlemskaps-gatet og viser alle andres eksakte plassering i listen; å nekte
+// medlemmet sin egen var selvmotsigende. Se lib/leaderboard-scope.ts.
+test('LUKKET ROM teller som «premium nok» uten personlig abonnement — liga OG org', () => {
   assert.equal(shouldShowPlacementRow(baseState({ isPremium: false, scope: 'organization' })), true)
+  assert.equal(shouldShowPlacementRow(baseState({ isPremium: false, scope: 'league' })), true)
 })
 
 // MUTASJONSBEVIS (funn 3, 5. august 2026): fjernes userBlockedFromGlobal-
