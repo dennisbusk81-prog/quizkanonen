@@ -1,5 +1,5 @@
 ﻿'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
@@ -36,6 +36,7 @@ type FinishQuizOverride = {
 }
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { nextQuizLabel, formatQuizDate } from '@/lib/next-quiz-label'
+import { decideQuizAvailability, lateSubmitDeadline } from '@/lib/quiz-availability'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -1364,16 +1365,37 @@ export default function QuizPage() {
     [quizId],
   )
 
+  // ── Quizens tilstand — ÉN utregning, to flater ────────────────────────────
+  // Innloggingspanelet (uinnlogget) og startskjermen (innlogget) branchet
+  // tidligere hver for seg — og startskjermen branchet ikke i det hele tatt:
+  // «Start quiz» sto der på en quiz start-attempt ville svart 403 på. Regelen
+  // bor nå i lib/quiz-availability og speiler åpen-sjekken i ruten.
+  //
+  // `resumeData` er nøkkelen til at gjenbruk-stien (cc9b14a) overlever: en
+  // spiller som ble avbrutt av stengetid skal se «Fortsett quiz» så lenge
+  // submit-fristen løper, ikke en stengt-skjerm.
+  //
+  // Klokka leses ved reevaluering, ikke løpende — samme oppførsel som
+  // org-frist-bannerne lenger nede. Krysser closes_at mens skjermen står åpen,
+  // avvises trykket av serveren med sin egen ærlige tekst (startError).
+  const quizAvailability = useMemo(
+    () => decideQuizAvailability(quiz, new Date(), { hasResumableProgress: !!resumeData }),
+    [quiz, resumeData],
+  )
+
   // Stengt-grenen i innloggingspanelet viser «Neste quiz åpner …» — samme
   // kilde og samme fremtidsvakt som resultat-/allerede-spilt-skjermene
   // (lib/next-quiz-label). site_settings er anon-lesbar (verifisert mot prod
   // 24. august 2026); feiler kallet, står fredags-fallbacken i nextQuizLabel
   // uansett — en foreldet eller manglende verdi kan aldri love en passert dato.
+  // Gjelder BEGGE stengt-grenene: panelet (uinnlogget) og startskjermen
+  // (innlogget, 24. august 2026) — samme setning, samme kilde.
+  const showsNextQuizDate = needsLogin || (phase === 'register' && quizAvailability === 'closed')
   useEffect(() => {
-    if (!needsLogin) return
+    if (!showsNextQuizDate) return
     supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
       .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
-  }, [needsLogin])
+  }, [showsNextQuizDate])
 
   useEffect(() => {
     if (phase !== 'finished' && phase !== 'already_played') return
@@ -2827,9 +2849,12 @@ export default function QuizPage() {
     // aldri blinker spill-løftet. En SKJULT quiz (anon ser ikke raden — quiz
     // forblir null) beholder bevisst den generiske teksten: panelet skal ikke
     // bekrefte hvilke quiz-id-er som finnes.
-    const now = new Date()
-    const notYetOpen = !!(quiz?.opens_at && new Date(quiz.opens_at) > now)
-    const isClosed = !notYetOpen && !!(quiz?.closes_at && new Date(quiz.closes_at) < now)
+    // Utregningen lå tidligere inline her. Den er flyttet til
+    // lib/quiz-availability (24. august 2026) fordi startskjermen trengte
+    // NØYAKTIG samme regel — en andre kopi ville vært den samme drivingen som
+    // next-quiz-label ble skilt ut for å hindre.
+    const notYetOpen = quizAvailability === 'not-open-yet'
+    const isClosed = quizAvailability === 'closed'
     return (
     <><style>{styles}</style>
     <SiteNav />
@@ -3012,6 +3037,72 @@ export default function QuizPage() {
     )
   }
 
+  // ── STENGT / IKKE ÅPNET (innlogget spiller) ─────────────────────────────────
+  // Startskjermen viste «Start quiz» uansett quizens tilstand, og trykket ga
+  // 403 fra start-attempt. Samme feilklasse som 66007ee (leaderboard-kortet) og
+  // 700347d (innloggingspanelet) — dette er det tredje og siste stedet.
+  //
+  // HELE skjermen erstattes, ikke bare knappen: resten av registrerings-
+  // skjermen er påstander om en PÅGÅENDE quiz («N spiller denne uken»,
+  // «Quizen stenger kl. 22:00», «Utfordre en venn», «flest riktige vinner»).
+  // Skjuler vi kun knappen, blir de stående og lyver videre.
+  //
+  // Grenen kan IKKE ramme allerede-spilt-skjermen: den returnerer lenger oppe,
+  // på `phase === 'already_played'`. Og den kan ikke ramme gjenbruk-stien
+  // (cc9b14a): `quizAvailability` er 'open' så lenge det finnes lagret
+  // fremdrift og submit-fristen løper — se lib/quiz-availability.
+  //
+  // Tonen skiller seg fra panelets: hun ER innlogget, så ingen oppfordring om
+  // å logge inn.
+  if (phase === 'register' && quizAvailability !== 'open') {
+    const isClosed = quizAvailability === 'closed'
+    return (
+      <><style>{styles}</style>
+      <SiteNav />
+      <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
+        <span className="qk-result-icon">
+          {isClosed ? (
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          ) : (
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          )}
+        </span>
+        <p className="qk-eyebrow" style={{textAlign:'center'}}>{isClosed ? 'Avsluttet' : 'Åpner snart'}</p>
+        <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>{quiz.title}</h1>
+        <p className="qk-sub" style={{textAlign:'center'}}>
+          {isClosed ? (
+            // nextQuizLabel: den annonserte datoen kun hvis den ligger i
+            // framtiden, ellers førstkommende fredag. En foreldet
+            // site_settings.next_quiz_at kan derfor aldri love en passert dato
+            // her — fremtidsvakten grep i verifiseringen av 700347d.
+            <>Denne quizen er avsluttet og kan ikke lenger spilles. Neste quiz åpner{' '}
+            <strong style={{color:'#e8e4dd'}}>{nextQuizLabel(nextQuizAt)}</strong>.</>
+          ) : (
+            // Eksakt åpningsdato fra quizens egen rad — ikke fra site_settings.
+            <>Denne quizen åpner{' '}
+            <strong style={{color:'#e8e4dd'}}>{formatQuizDate(new Date(quiz.opens_at))}</strong>.
+            {' '}Kom tilbake da — poengene dine teller i sesongen.</>
+          )}
+        </p>
+        <div className="qk-divider"/>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {/* Resultatene er den ekte handlingen på en stengt quiz — og eneste
+              gull-element på skjermen. Samme show_leaderboard-gate som
+              allerede-spilt-skjermen: er listen skjult, finnes ingen lenke å
+              tilby, og skjermen står med kun ghost-utgangen. */}
+          {isClosed && quiz.show_leaderboard && (
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se resultatene</a>
+          )}
+          {/* Bevisst hard navigasjon, ikke <Link> — samme begrunnelse som de
+              øvrige utgangene på denne siden: full sidelast gir fersk
+              server-data og rydder quiz-tilstanden i klienten. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
+        </div>
+      </div></div></div></>
+    )
+  }
+
   // REGISTRERING
   if (phase === 'register') return (
     <><style>{styles}</style>
@@ -3108,6 +3199,28 @@ export default function QuizPage() {
         // Ingen org-spesifikk frist — vis quizens ordinære (offentlige) stengetid,
         // som tidligere ikke ble kommunisert noe sted på start-skjermen.
         if (quiz?.closes_at) {
+          // GJENBRUK-VINDUET (24. august 2026): står vi her etter closes_at, er
+          // det fordi `quizAvailability` sa 'open' — altså lagret fremdrift
+          // innenfor submit-fristen (cc9b14a). Alle andre er sendt til
+          // stengt-skjermen over. Presens-teksten «Quizen stenger kl. 22:00» var
+          // da feil tid og feil tall: fristen hun har igjen er submit-fristen,
+          // ikke stengetiden som allerede er passert.
+          // `resumeData` MÅ stå i betingelsen, ikke bare stengetiden. Setningen
+          // under påstår «du var i gang» — er den utledet av klokka alene, kan
+          // den bli usann: quizAvailability er memoisert på [quiz, resumeData],
+          // så en side som ble lastet FØR closes_at og rendres på nytt etterpå
+          // har fortsatt 'open' i memoen, mens en fersk `new Date()` her sier
+          // stengt. Da ville en spiller uten påbegynt quiz fått en frist hun
+          // ikke har. Målt i nettleseren 24. august 2026 — de to klokkene sto
+          // faktisk fra hverandre under verifiseringen.
+          const lateDeadline = resumeData && new Date(quiz.closes_at) < now ? lateSubmitDeadline(quiz.closes_at) : null
+          if (lateDeadline) {
+            return (
+              <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
+                Quizen er stengt — men du var i gang. Lever innen kl. {osloTime(lateDeadline.toISOString())} (norsk tid), så teller resultatet.
+              </div>
+            )
+          }
           const t = osloTime(quiz.closes_at)
           return (
             <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.18)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center' }}>
