@@ -18,6 +18,8 @@ import { unstable_cache } from 'next/cache'
 import { headers } from 'next/headers'
 import type { User } from '@supabase/supabase-js'
 import { decideTrialOffer, isTrialEligible, parseTrialDays } from '@/lib/trial-offer'
+import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
+import { getLeagueCardData } from '@/lib/league-card-data'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
 // kanselleres 14.–15. august. Seksjonen under (qk-founders) inviterte aktivt
@@ -146,7 +148,6 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
-  type RawSeasonRow = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
   const [activeRes, upcomingRes, lastClosedRes, nextSettingRes, foundersRes, seasonRes, trialDaysRes] = await Promise.all([
     supabaseAdmin
@@ -202,13 +203,18 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
         return null
       }
     })(),
-    supabaseAdmin
-      .from('season_scores')
-      .select('user_id, points, profiles(display_name)')
-      .eq('scope_type', 'global')
-      .is('scope_id', null)
-      .gte('closes_at', monthStart)
-      .lt('closes_at', monthEnd),
+    // Paginert via lib/monthly-standings (23. august 2026) — spørringen var rå
+    // og ville kuttet stille ved 1000 rader (juli målte 279; veksten er reell).
+    // Samme synlige degradering som før ved feil: tom liste (seksjonen skjules)
+    // — men nå logget, ikke forkledd som en tom måned.
+    (async () => {
+      try {
+        return await getMonthlyGlobalStandings(monthStart, monthEnd)
+      } catch (err) {
+        console.error('[forside] månedstoppliste feilet:', err)
+        return [] as StandingRow[]
+      }
+    })(),
     supabaseAdmin
       .from('site_settings')
       .select('value')
@@ -230,17 +236,8 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   // (positivt heltall) — ellers kunne forsiden lovet en lengde ruten avviser.
   const trialDays = parseTrialDays((trialDaysRes.data as { value: string } | null)?.value)
 
-  // Aggreger månedlig global toppliste (offentlig). Behold rader med tomt/null
-  // navn som '—' slik at innlogget rang er identisk med tidligere; anon-visning
-  // filtrerer '—' bort før topp 3.
-  const byUser = new Map<string, StandingRow>()
-  for (const row of (seasonRes.data as RawSeasonRow[] | null) ?? []) {
-    const name = row.profiles?.display_name ?? '—'
-    const existing = byUser.get(row.user_id)
-    if (existing) existing.totalPoints += row.points
-    else byUser.set(row.user_id, { userId: row.user_id, displayName: name, totalPoints: row.points })
-  }
-  const monthlyStandings = [...byUser.values()].sort((a, b) => b.totalPoints - a.totalPoints)
+  // Aggregeringen (per bruker, '—' for tomt navn) ligger i lib/monthly-standings.
+  const monthlyStandings: StandingRow[] = seasonRes
 
   const participantCount = activeQuiz ? await countParticipants(activeQuiz.id) : 0
 
@@ -1223,7 +1220,6 @@ export default async function Home() {
   // ══════════════════════════════════════════════════════════
   if (user) {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
-    type LeagueScoreRow  = { user_id: string; points: number; profiles: { display_name: string | null } | null }
 
     // Delt, ikke-personalisert data (quiz-kort, månedlig global toppliste,
     // deltakerantall, siste quiz) hentes fra den cachede bundelen — identisk for
@@ -1330,96 +1326,17 @@ export default async function Home() {
       .map(r => r.leagues)
       .filter((l): l is { id: string; name: string } => l !== null)
 
-    type AttemptFallback = { user_id: string; correct_answers: number; total_time_ms: number }
-
+    // Spørringene ligger i lib/league-card-data (paginert + chunket, 23. august
+    // 2026). Fanges per kort: én ligas lesefeil skal koste DET kortet (tomt,
+    // som før — men logget), ikke hele forsiden.
     const leagueDataArr: LeagueCardData[] = await Promise.all(
       allLeagues.map(async (league) => {
-        // Sesongpoeng for denne ligaen denne måneden
-        const { data: leagueScores } = await supabaseAdmin
-          .from('season_scores')
-          .select('user_id, points, profiles(display_name)')
-          .eq('scope_type', 'league')
-          .eq('scope_id', league.id)
-          .gte('closes_at', monthStart)
-          .lt('closes_at', monthEnd)
-
-        const lByUser = new Map<string, { displayName: string; points: number }>()
-        for (const row of (leagueScores as LeagueScoreRow[] | null) ?? []) {
-          const name = row.profiles?.display_name
-          if (!name) continue
-          const existing = lByUser.get(row.user_id)
-          if (existing) existing.points += row.points
-          else lByUser.set(row.user_id, { displayName: name, points: row.points })
+        try {
+          return await getLeagueCardData(league, quiz?.id ?? null, monthStart, monthEnd)
+        } catch (err) {
+          console.error(`[forside] liga-kort feilet league=${league.id}:`, err)
+          return { id: league.id, name: league.name, top3: [], fromFallback: false }
         }
-
-        if (lByUser.size > 0) {
-          const top3 = Array.from(lByUser.values())
-            .sort((a, b) => b.points - a.points)
-            .slice(0, 3)
-            .map(e => ({ displayName: e.displayName, value: e.points }))
-          return { id: league.id, name: league.name, top3, fromFallback: false }
-        }
-
-        // Fallback: quizen er åpen — les direkte fra attempts
-        if (quiz?.id) {
-          const { data: memberRows } = await supabaseAdmin
-            .from('league_members')
-            .select('user_id')
-            .eq('league_id', league.id)
-
-          const memberIds = ((memberRows ?? []) as { user_id: string }[]).map(m => m.user_id)
-
-          if (memberIds.length > 0) {
-            const { data: attemptRows } = await supabaseAdmin
-              .from('attempts')
-              .select('user_id, correct_answers, total_time_ms')
-              .eq('quiz_id', quiz.id)
-              .in('user_id', memberIds)
-              .eq('is_team', false)
-              .not('user_id', 'is', null)
-
-            const bestByUser = new Map<string, AttemptFallback>()
-            for (const a of (attemptRows ?? []) as AttemptFallback[]) {
-              const existing = bestByUser.get(a.user_id)
-              if (
-                !existing ||
-                a.correct_answers > existing.correct_answers ||
-                (a.correct_answers === existing.correct_answers && a.total_time_ms < existing.total_time_ms)
-              ) {
-                bestByUser.set(a.user_id, a)
-              }
-            }
-
-            if (bestByUser.size > 0) {
-              const sortedFallback = [...bestByUser.values()]
-                .sort((a, b) =>
-                  b.correct_answers !== a.correct_answers
-                    ? b.correct_answers - a.correct_answers
-                    : a.total_time_ms - b.total_time_ms
-                )
-                .slice(0, 3)
-
-              const topIds = sortedFallback.map(a => a.user_id)
-              const { data: profileRows } = await supabaseAdmin
-                .from('profiles')
-                .select('id, display_name')
-                .in('id', topIds)
-
-              const profileMap = new Map(
-                ((profileRows ?? []) as { id: string; display_name: string | null }[])
-                  .map(p => [p.id, p.display_name])
-              )
-
-              const top3 = sortedFallback.map(a => ({
-                displayName: profileMap.get(a.user_id) ?? 'Spiller',
-                value: a.correct_answers,
-              }))
-              return { id: league.id, name: league.name, top3, fromFallback: true }
-            }
-          }
-        }
-
-        return { id: league.id, name: league.name, top3: [], fromFallback: false }
       })
     )
 

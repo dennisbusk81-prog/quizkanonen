@@ -11,6 +11,7 @@ import { syncPremiumCache, getPersonalGrace } from '@/lib/premium-state-io'
 import { decidePersonalGrace, PERSONAL_DUNNING_STATUSES } from '@/lib/personal-grace'
 import { planFromPriceId } from '@/lib/org-plan-prices'
 import { reportMoneyPathFailure } from '@/lib/money-path-alert'
+import { fetchAllRows } from '@/lib/paginate'
 import {
   LIVE_SUBSCRIPTION_STATUSES,
   isStaleSubscriptionEvent,
@@ -261,6 +262,55 @@ function assertCriticalRead(error: { code?: string; message: string } | null, co
   }
 }
 
+// Alle medlems-id-ene for en org — PAGINERT (23. august 2026). PostgREST
+// kutter stille ved 1000 rader, og assertCriticalRead kan ikke se et kutt som
+// ikke gir error: over 1000 medlemmer ville bare de første fått premium synket,
+// uten et eneste spor. Feilretningen er uendret fra de rå lesingene dette
+// erstatter: kast (via assertCriticalRead, samme loggmarkør) → catch fjerner
+// idempotens-stempelet → Stripe leverer hendelsen på nytt.
+async function readAllMemberIds(organizationId: string, context: string): Promise<string[]> {
+  try {
+    const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
+      supabaseAdmin
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', organizationId)
+        .order('user_id', { ascending: true })
+        .range(from, to)
+    )
+    return rows.map(r => r.user_id)
+  } catch (err) {
+    assertCriticalRead({ message: err instanceof Error ? err.message : String(err) }, context)
+    throw err // nås aldri — assertCriticalRead kaster alltid; kun for kontrollflyten
+  }
+}
+
+// `.in('id', …)` legger id-ene i URL-en, som brekker rundt ~390 UUID-er (målt
+// 26. juli, se lib/paginate.ts). Uchunket ville en org over taket fått 400 →
+// assertCriticalWrite kaster → Stripe retryer for alltid mot samme vegg:
+// bedriften har betalt, ingen ansatte får Premium. Chunk 200 = samme margin
+// som lesehelperen.
+//
+// Fail-fast ved første feilede chunk, og delvis skriving er TRYGG her:
+// verdiene er absolutte (premium PÅ — aldri inkrementer, aldri AV; nedgradering
+// går via recomputePremium per medlem), så en halvskrevet batch er et skritt
+// mot måltilstanden, ikke en skade. Kastet frigir stempelet, Stripe leverer
+// hendelsen på nytt, og alle chunkene skrives da om igjen idempotent. Begge
+// kallstedene ligger FØR e-postsendingen i sin gren, så en retry dobler ingen
+// e-post.
+const PROFILE_UPDATE_CHUNK = 200
+
+async function activateMemberPremiumChunked(memberIds: string[], context: string): Promise<void> {
+  const chunkCount = Math.ceil(memberIds.length / PROFILE_UPDATE_CHUNK)
+  for (let i = 0; i < memberIds.length; i += PROFILE_UPDATE_CHUNK) {
+    const chunk = memberIds.slice(i, i + PROFILE_UPDATE_CHUNK)
+    const { error } = await supabaseAdmin.from('profiles')
+      .update({ premium_status: true, premium_source: 'org' })
+      .in('id', chunk)
+    assertCriticalWrite(error, `${context} (chunk ${i / PROFILE_UPDATE_CHUNK + 1}/${chunkCount})`)
+  }
+}
+
 // Fjerner idempotens-stempelet som ble satt før prosessering, slik at hendelsen
 // kan behandles på nytt ved en senere Stripe-retry eller en manuell replay fra
 // dashbordet.
@@ -465,20 +515,10 @@ export async function POST(request: NextRequest) {
       // ikke fra denne grenen hva statusen var før.
       await clearLockGrace(organizationId, 'checkout')
 
-      // Activate premium for all current members — single batch update
-      const { data: members, error: membersReadError } = await supabaseAdmin
-        .from('organization_members')
-        .select('user_id')
-        .eq('organization_id', organizationId)
-      assertCriticalRead(membersReadError, `checkout medlemsoppslag org=${organizationId}`)
-
-      const memberIds = (members ?? []).map(m => m.user_id)
+      // Activate premium for all current members — paginert lesing + chunket skriving
+      const memberIds = await readAllMemberIds(organizationId, `checkout medlemsoppslag org=${organizationId}`)
       if (memberIds.length > 0) {
-        const { error: memberUpdateError } = await supabaseAdmin.from('profiles').update({
-          premium_status: true,
-          premium_source: 'org',
-        }).in('id', memberIds)
-        assertCriticalWrite(memberUpdateError, `checkout medlems-premium org=${organizationId}`)
+        await activateMemberPremiumChunked(memberIds, `checkout medlems-premium org=${organizationId}`)
       }
 
       // Send kjøpsbekreftelse til org-admin — awaites så funksjonen ikke fryses
@@ -737,13 +777,7 @@ export async function POST(request: NextRequest) {
         graceUntil = await applyLockGrace(org.id, graceDecision, `sub.deleted org=${org.id}`)
       }
 
-      const { data: members, error: membersReadError } = await supabaseAdmin
-        .from('organization_members')
-        .select('user_id')
-        .eq('organization_id', org.id)
-      assertCriticalRead(membersReadError, `sub.deleted medlemsoppslag org=${org.id}`)
-
-      const memberIds = (members ?? []).map(m => m.user_id)
+      const memberIds = await readAllMemberIds(org.id, `sub.deleted medlemsoppslag org=${org.id}`)
       if (memberIds.length > 0) {
         // Rekalkuler i stedet for å slå av blindt: et medlem kan ha egen
         // verdikode eller eget abonnement som fortsatt dekker dem — og etter
@@ -1256,12 +1290,7 @@ export async function POST(request: NextRequest) {
 
       // Synk premium for alle medlemmer ved overgang til aktiv eller låst tilstand.
       if (nextStatus === 'active' || nextStatus === 'trialing' || nextStatus === 'locked') {
-        const { data: members, error: membersReadError } = await supabaseAdmin
-          .from('organization_members')
-          .select('user_id')
-          .eq('organization_id', org.id)
-        assertCriticalRead(membersReadError, `sub.updated ${status} medlemsoppslag org=${org.id}`)
-        const memberIds = (members ?? []).map(m => m.user_id)
+        const memberIds = await readAllMemberIds(org.id, `sub.updated ${status} medlemsoppslag org=${org.id}`)
         if (memberIds.length > 0) {
           if (nextStatus === 'locked') {
             // `org.subscription_status` er snapshotet fra SELECT-en over, altså
@@ -1295,10 +1324,7 @@ export async function POST(request: NextRequest) {
               await notifyMembersOfOrgLock(org.id, org.name, `sub.updated ${status}`, graceUntil)
             }
           } else {
-            const { error: memberActivateErr } = await supabaseAdmin.from('profiles')
-              .update({ premium_status: true, premium_source: 'org' })
-              .in('id', memberIds)
-            assertCriticalWrite(memberActivateErr, `sub.updated medlems-premium-aktivering org=${org.id}`)
+            await activateMemberPremiumChunked(memberIds, `sub.updated medlems-premium-aktivering org=${org.id}`)
           }
         }
       }

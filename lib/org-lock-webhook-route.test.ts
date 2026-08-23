@@ -111,6 +111,11 @@ function builder(table: string) {
     neq(col: string, val: unknown) { filters[`neq:${col}`] = val; return b },
     in() { return b },
     limit() { return b },
+    // Medlemsoppslaget går via fetchAllRows (paginert 23. august 2026) og
+    // kjeder .order().range(). Radsettet her er alltid < 1000, så første
+    // vindu rommer alt og no-ops er dekkende.
+    order() { return b },
+    range() { return b },
     insert() { return Promise.resolve({ error: null }) },
     // Både `await …delete()` og `await …delete().eq(col, val)` må virke:
     // releaseIdempotencyStamp bruker den siste formen, og den stien nås først
