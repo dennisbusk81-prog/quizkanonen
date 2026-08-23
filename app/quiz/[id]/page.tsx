@@ -35,7 +35,7 @@ type FinishQuizOverride = {
   totalQuestions: number
 }
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
-import { nextQuizLabel } from '@/lib/next-quiz-label'
+import { nextQuizLabel, formatQuizDate } from '@/lib/next-quiz-label'
 
 // Øvre grense for nettverkskallene mellom to spørsmål (goToNext). Uten en
 // grense hang mellomskjermen for alltid hvis ett av kallene stoppet opp på
@@ -953,6 +953,11 @@ export default function QuizPage() {
   // sesjons-sjekken (og av 401 fra start-attempt) — `loading` dekker
   // «ikke avgjort ennå», så panelet kan aldri blinke forbi før svaret er inne.
   const [needsLogin, setNeedsLogin] = useState(false)
+  // Er quiz-oppslaget i fetchData avgjort (uansett utfall)? Innloggingspanelet
+  // brancher på quizens tilstand (stengt / ikke åpnet), og skal ikke vise
+  // spill-løftet i de ~200 ms før raden er inne — men heller aldri BLOKKERE
+  // panelet på et hengende oppslag (Facebook-nettleseren er verste flate).
+  const [quizFetchDone, setQuizFetchDone] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [, setAgeConfirmed] = useState(false)
   // Rank-pillen ved siden av poengsummen. Bærer BÅDE det eksakte tallet og
@@ -1242,6 +1247,9 @@ export default function QuizPage() {
 
       const { data: quizData, error: quizError } = await supabaseData.from('quizzes').select('*').eq('id', quizId).single()
       if (quizError) console.error('Quiz fetch feilet:', quizError)
+      // Avgjort — også ved feil/skjult quiz (quizData null). Innloggings-
+      // panelet venter på dette flagget før det velger tekstgren.
+      setQuizFetchDone(true)
       // Innloggede: kun bruker-ID (verifisert token) avgjør om quizen er spilt.
       // played_log (enhetsbasert) sjekkes IKKE for innloggede — den er enhet-agnostisk
       // og vil feilaktig blokkere en annen konto som deler samme nettleser.
@@ -1355,6 +1363,17 @@ export default function QuizPage() {
     },
     [quizId],
   )
+
+  // Stengt-grenen i innloggingspanelet viser «Neste quiz åpner …» — samme
+  // kilde og samme fremtidsvakt som resultat-/allerede-spilt-skjermene
+  // (lib/next-quiz-label). site_settings er anon-lesbar (verifisert mot prod
+  // 24. august 2026); feiler kallet, står fredags-fallbacken i nextQuizLabel
+  // uansett — en foreldet eller manglende verdi kan aldri love en passert dato.
+  useEffect(() => {
+    if (!needsLogin) return
+    supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+      .then(({ data: setting }) => { if (setting?.value) setNextQuizAt(setting.value) })
+  }, [needsLogin])
 
   useEffect(() => {
     if (phase !== 'finished' && phase !== 'already_played') return
@@ -2799,28 +2818,65 @@ export default function QuizPage() {
   // du står på topplisten, poengene teller i sesongen. Nøyaktig plassering er
   // Premium og nevnes derfor ikke her; se `66007ee` (leaderboard-tekstene som
   // lovet en utlogget besøkende ting han ikke ville fått).
-  if (needsLogin) return (
+  if (needsLogin) {
+    // Stengt-/ikke-åpnet-grener (24. august 2026): panelet lovet «Logg inn for
+    // å spille» uansett quizens tilstand — samme feilklasse som 66007ee på
+    // /leaderboard/[id], et løfte som ikke gjelder når quizen er over. Grenene
+    // trenger quiz-raden (anon-lesbar for aktive quizer); før oppslaget er
+    // avgjort (quizFetchDone) vises ingen undersetning, så en stengt quiz
+    // aldri blinker spill-løftet. En SKJULT quiz (anon ser ikke raden — quiz
+    // forblir null) beholder bevisst den generiske teksten: panelet skal ikke
+    // bekrefte hvilke quiz-id-er som finnes.
+    const now = new Date()
+    const notYetOpen = !!(quiz?.opens_at && new Date(quiz.opens_at) > now)
+    const isClosed = !notYetOpen && !!(quiz?.closes_at && new Date(quiz.closes_at) < now)
+    return (
     <><style>{styles}</style>
     <SiteNav />
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel">
       <p className="qk-eyebrow">Quizkanonen</p>
       <h1 className="qk-heading">{quiz?.title ?? 'Ukens quiz'}</h1>
-      <p className="qk-sub">
-        Logg inn for å spille. Da lagres resultatet ditt, du kommer på topplisten,
-        og poengene teller i sesongen.
-      </p>
+      {quizFetchDone && (
+        <p className="qk-sub">
+          {isClosed ? (
+            // nextQuizLabel: annonsert dato hvis den ligger i framtiden,
+            // ellers førstkommende fredag — en foreldet next_quiz_at kan
+            // aldri gi en passert dato her.
+            <>Denne quizen er avsluttet og kan ikke lenger spilles. Neste quiz
+            åpner {nextQuizLabel(nextQuizAt)} — logg inn nå, så er du klar når
+            den åpner, og poengene dine teller i sesongen.</>
+          ) : notYetOpen ? (
+            <>Denne quizen har ikke åpnet ennå — den åpner{' '}
+            {formatQuizDate(new Date(quiz!.opens_at))}. Logg inn nå, så er du
+            klar når den åpner, og poengene dine teller i sesongen.</>
+          ) : (
+            <>Logg inn for å spille. Da lagres resultatet ditt, du kommer på
+            topplisten, og poengene teller i sesongen.</>
+          )}
+        </p>
+      )}
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
         <button
           onClick={() => setAuthModalOpen(true)}
           className="qk-btn-primary"
           style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}
         >
-          Logg inn for å spille
+          {isClosed || notYetOpen ? 'Logg inn' : 'Logg inn for å spille'}
         </button>
       </div>
       <p className="qk-hint" style={{ textAlign: 'center', marginTop: 14 }}>
         Har du ikke konto? Du kan opprette en i samme vindu.
       </p>
+      {isClosed && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
+          {/* Resultatene finnes allerede (topp 3 vises også uinnlogget) —
+              lenken er ikke en primærhandling og følger lenkeregelen
+              (#e8e4dd, aldri gull ved siden av gull-knappen). */}
+          <a href={`/leaderboard/${quizId}`} style={{ color: '#e8e4dd', fontSize: 13, textDecoration: 'none' }}>
+            Se resultatene fra quizen →
+          </a>
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
         {/* Bevisst hard navigasjon, ikke <Link>: samme begrunnelse som de
             øvrige utgangene på denne siden — full sidelast gir fersk
@@ -2829,18 +2885,28 @@ export default function QuizPage() {
         <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
       </div>
     </div></div></div>
-    {/* `next` peker tilbake hit. Passordinnlogging går via AuthModal sin
-        onSuccess → window.location.assign(next); Google-runden går via
-        /auth/callback?next=… . Begge lander på RIKTIG quiz, ikke på forsiden.
-        InAppBrowserWarning ligger inne i AuthForm — ikke dupliser den her. */}
+    {/* `next` peker tilbake hit — bortsett fra på en STENGT quiz, der
+        innloggingen lander på resultatlisten: quiz-siden ville vist en
+        startskjerm der Start-knappen svarer 403 «Quizen er stengt», og
+        panelet lover nettopp resultatene. Passordinnlogging går via AuthModal
+        sin onSuccess → window.location.assign(next); Google-runden går via
+        /auth/callback?next=… . InAppBrowserWarning ligger inne i AuthForm —
+        ikke dupliser den her. */}
     <AuthModal
       open={authModalOpen}
       onClose={() => setAuthModalOpen(false)}
-      next={`/quiz/${quizId}`}
-      description="Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen."
+      next={isClosed ? `/leaderboard/${quizId}` : `/quiz/${quizId}`}
+      description={
+        isClosed
+          ? 'Logg inn, så er du klar når neste quiz åpner. Resultatene lagres på deg, og poengene teller i sesongen.'
+          : notYetOpen
+            ? 'Logg inn, så er du klar når quizen åpner. Resultatene lagres på deg, og poengene teller i sesongen.'
+            : 'Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen.'
+      }
     />
     </>
-  )
+    )
+  }
 
   if (!quiz) return (
     <><style>{styles}</style>
