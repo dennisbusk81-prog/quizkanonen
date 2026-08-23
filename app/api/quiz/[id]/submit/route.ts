@@ -150,8 +150,23 @@ export async function POST(
     if (!tokenUserId || attempt.user_id !== tokenUserId) {
       return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
     }
-  } else if (attempt.user_id !== null) {
-    // Ingen token, men raden tilhører en innlogget bruker → avvis.
+  } else {
+    // Ingen token → avvis, uansett hvem raden tilhører.
+    //
+    // Fram til 24. august 2026 sto det `else if (attempt.user_id !== null)`
+    // her: en TOKENLØS innsending slapp gjennom dersom raden var en gjeste-rad
+    // (`user_id` NULL). Gjeste-veien er nå stengt i start-attempt, så ingen ny
+    // slik rad kan oppstå, og null fantes fra før (625 forsøk i prod, 0 med
+    // `user_id` NULL, målt 24. august 2026).
+    //
+    // Grenen er altså uoppnåelig — men en uoppnåelig gren som SLIPPER GJENNOM
+    // er en dør uten rom bak, ikke et lukket hull. Hadde den blitt stående,
+    // ville rapporten «gjeste-veien er stengt» vært sann om start-attempt og
+    // usann om målstreken. Se ARBEIDSREGEL i CLAUDE.md: en feil har søsken.
+    //
+    // Merk at dette IKKE endrer oppførsel for noen ekte spiller: en innlogget
+    // rad uten token traff allerede 403 på linjen over, og en rad med token
+    // går gjennom eierskapssjekken i if-grenen.
     return NextResponse.json({ error: 'Mangler autentisering' }, { status: 403 })
   }
 

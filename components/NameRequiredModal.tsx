@@ -58,6 +58,14 @@ export default function NameRequiredModal() {
         setSaving(false)
         return
       }
+      // Si fra til resten av appen. Uten dette lukket modalen seg bare, og
+      // enhver side som allerede hadde lest (eller ikke funnet) navnet sto
+      // igjen med sin gamle verdi. Konkret blindvei: quiz-siden hadde
+      // `loggedInDisplayName === null`, og «Start quiz» ble værende disabled
+      // rett etter at brukeren hadde fylt inn navnet sitt. Samme hendelse som
+      // AuthListener sender når den setter Google-navnet automatisk — /profil
+      // og app/quiz/[id] lytter på den.
+      window.dispatchEvent(new CustomEvent('qk:profile-updated', { detail: { display_name: trimmed } }))
       setOpen(false)
     } catch {
       setError('Noe gikk galt. Prøv igjen.')

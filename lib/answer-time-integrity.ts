@@ -33,10 +33,13 @@
 // Gulvet under er derfor ABSOLUTT (per spørsmål), helt uavhengig av forløpt
 // tid — en pause, en gjenopptakelse etter nettbrudd eller en "Prøv igjen"
 // endrer aldri den rapporterte summen, og kan derfor aldri utløse det.
-// I tillegg: for GJESTER oppretter start-attempt en NY attempt-rad ved
-// gjenopptakelse, så `elapsedMs` kan dekke bare slutten av quizen mens
-// svarene dekker hele. `sum_over_elapsed` er derfor KUN logging og må aldri
-// promoteres til straff.
+// Historisk fantes en ANDRE kilde til samme skjevhet: for gjester opprettet
+// start-attempt en NY attempt-rad ved gjenopptakelse, så `elapsedMs` kunne
+// dekke bare slutten av quizen mens svarene dekket hele. Gjeste-veien er
+// stengt (24. august 2026), så den kilden er borte — men konklusjonen står
+// uendret, og det er verdt å merke seg HVORFOR: pausen mellom spørsmålene
+// over holder alene. `sum_over_elapsed` er KUN logging og må aldri promoteres
+// til straff.
 
 /** Gulv per besvart spørsmål. Under dette har ingen rukket å lese noe. */
 export const MIN_ANSWER_MS = 400

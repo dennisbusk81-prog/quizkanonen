@@ -112,14 +112,14 @@ test('for standardgrensen (15 s) er tidsgrense-taket uten virkning', () => {
   assert.ok(LIMIT * FLOOR_LIMIT_RATIO >= FLOOR_AVG_MS)
 })
 
-// ── (b) Gjest som gjenopptar rammes ikke ────────────────────────────────────
+// ── (b) Kort elapsedMs mot ekte tider rammes ikke ───────────────────────────
 
-test('gjenopptatt gjest: ekte tider + kort elapsedMs gir verken substitusjon eller endret total', () => {
-  // start-attempt oppretter en NY attempt-rad for gjester ved gjenopptakelse,
-  // så elapsedMs dekker bare slutten av quizen mens svarene dekker hele. En
-  // spiller som gjenopptok på siste spørsmål kan ha 60 s rapportert og 10 s
-  // forløpt. Substitusjonen skal utløses av lav RAPPORTERT sum alene — aldri
-  // av forholdet mellom sum og elapsed.
+test('kort elapsedMs mot ekte tider gir verken substitusjon eller endret total', () => {
+  // Tilfellet het «gjenopptatt gjest» til 24. august 2026, da gjeste-veien ble
+  // stengt. Navnet var uansett for smalt: en spiller som tar pause på
+  // mellomskjermen produserer nøyaktig samme forhold, og det er DEN
+  // begrunnelsen som består. Substitusjonen skal utløses av lav RAPPORTERT sum
+  // alene — aldri av forholdet mellom sum og elapsed.
   const r = applyAnswerTimeIntegrity(reported(15, 4_000), 10_000)
   assert.equal(r.substituted, false)
   assert.equal(r.totalMs, 15 * 4_000) // totalen står urørt

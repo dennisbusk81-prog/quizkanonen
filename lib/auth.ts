@@ -47,13 +47,19 @@ export async function signUpWithPassword(email: string, password: string, next?:
 // kun signatur og `exp`, og bryr seg ikke om sesjonsraden).
 //
 // Verst i spillestien: `my-attempt` svarer `200 { played: false }` (replay-
-// sperren er av), `start-attempt` faller til gjeste-behandling og oppretter
-// raden med `user_id: null` — 400 er ikke i `isTransientAuthStatus`, så
-// 503-vakten griper ikke — og `submit` avviser til slutt med 403 «Ingen
-// tilgang til dette forsøket». Spilleren spiller hele quizen og får
-// «Resultatet ble ikke lagret — sjekk internettforbindelsen din» ved
-// målstreken. Ingenting lagres, ingen sesongpoeng, og ingen rute logger det:
-// kun `/api/org/my-orgs` har en `console.error` på auth-grenen.
+// sperren er av). Fram til 24. august 2026 fortsatte det slik: `start-attempt`
+// falt til gjeste-behandling og opprettet raden med `user_id: null` — 400 er
+// ikke i `isTransientAuthStatus`, så 503-vakten griper ikke — og `submit`
+// avviste til slutt med 403. Spilleren spilte hele quizen og fikk «Resultatet
+// ble ikke lagret» ved MÅLSTREKEN. Ingenting lagret, ingen sesongpoeng.
+//
+// Den halvdelen er lukket: `start-attempt` krever nå en gyldig bruker og
+// svarer `401 { needsLogin: true }`, og quiz-siden åpner innloggingspanelet
+// på det svaret. Feilen kommer altså FØR første spørsmål, med en vei tilbake
+// inn, i stedet for etter siste. Selve halv-innloggede tilstanden består —
+// `my-attempt` (og de øvrige ~69 kallstedene) svarer fortsatt som om alt er
+// i orden, og ingen rute logger den: kun `/api/org/my-orgs` har en
+// `console.error` på auth-grenen.
 //
 // Ingen flate i appen tilbyr «logg ut overalt», så global var aldri et valgt
 // produktkrav — den var bare defaulten. Trenger vi det senere, skal det være

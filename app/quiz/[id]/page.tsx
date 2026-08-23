@@ -15,6 +15,7 @@ import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
+import AuthModal from '@/components/AuthModal'
 import { withTimeout, withTimeoutOrNull } from '@/lib/with-timeout'
 import { classifySubmitResponse } from '@/lib/submit-response'
 import { placementPercentLine } from '@/lib/placement-percent'
@@ -175,32 +176,11 @@ const styles = `
 
   .qk-divider { height: 1px; background: var(--border); margin: 24px 0; }
 
-  .qk-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .qk-input {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--rbtn);
-    padding: 13px 16px;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px;
-    color: var(--white);
-    outline: none;
-    transition: border-color 0.15s;
-    margin-bottom: 20px;
-  }
-
-  .qk-input::placeholder { color: var(--muted); }
-  .qk-input:focus { border-color: rgba(201,168,76,0.5); }
+  /* .qk-label og .qk-input er fjernet 24. august 2026. Eneste bruker var
+     navnefeltet på registreringsskjermen, som forsvant sammen med
+     gjeste-veien. Denne siden har ingen andre skjemafelt — kommer det et,
+     skal det hente stil fra det delte skjemaet (components/AuthForm.tsx),
+     ikke fra en gjenoppstått lokal kopi. */
 
   .qk-toggle-row {
     display: flex;
@@ -956,7 +936,13 @@ export default function QuizPage() {
   // start-attempt på nytt (reused-stien) og får et ferskt token derfra.
   const [attemptToken, setAttemptToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [nameInput, setNameInput] = useState('')
+  // Uinnlogget besøkende. Fram til 24. august 2026 sto det en hard redirect til
+  // /login her i stedet; se sesjons-effekten under for hvorfor den ble byttet
+  // mot et panel med innlogging PÅ SIDEN. Starter false og settes kun av
+  // sesjons-sjekken (og av 401 fra start-attempt) — `loading` dekker
+  // «ikke avgjort ennå», så panelet kan aldri blinke forbi før svaret er inne.
+  const [needsLogin, setNeedsLogin] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [, setAgeConfirmed] = useState(false)
   const [liveRank, setLiveRank] = useState<number | null>(null)
   const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
@@ -1108,7 +1094,21 @@ export default function QuizPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
-        window.location.href = `/login?next=/quiz/${quizId}`
+        // Fram til 24. august 2026 sto det en hard redirect hit:
+        //   window.location.href = `/login?next=/quiz/${quizId}`
+        // Den fungerte, men kastet besøkeren ut av quizen for å hente ham
+        // tilbake etterpå. Publikum kommer fra en Facebook-gruppe, og i
+        // Facebooks innebygde nettleser er et sidebytte det dyreste vi kan
+        // be om: Google-OAuth er blokkert der (se InAppBrowserWarning), så
+        // brukeren må uansett gjennom passord eller magic link, og hvert hopp
+        // er en ny sjanse til å falle ut.
+        //
+        // Nå blir vi stående: panelet under viser quizens tittel og et
+        // innloggingsvindu (AuthModal → AuthForm, samme skjema som /login og
+        // toppnavigasjonen). `next` peker tilbake hit, så både Google-runden
+        // via /auth/callback og passordinnlogging lander på riktig quiz.
+        setNeedsLogin(true)
+        setLoading(false)
         return
       }
       setIsLoggedIn(true)
@@ -1124,7 +1124,9 @@ export default function QuizPage() {
         return
       }
       const name = prof?.display_name ?? session.user.email?.split('@')[0] ?? ''
-      if (name) { setNameInput(name); setLoggedInDisplayName(name) }
+      // Kun ÉN mottaker igjen: `nameInput` (fritekstfeltet) er fjernet sammen
+      // med gjeste-veien 24. august 2026.
+      if (name) setLoggedInDisplayName(name)
       // Premium-VISNING styres av delt context (ProfileProvider), som selv
       // hydrerer fra sessionStorage og bekrefter mot serveren.
       //
@@ -1151,6 +1153,20 @@ export default function QuizPage() {
       } catch { /* org-tider er valgfrie */ }
     })
   }, [quizId])
+
+  // NameRequiredModal (root layout) kan sette visningsnavnet MENS denne siden
+  // står åpen. Uten denne lytteren ble `loggedInDisplayName` stående null her,
+  // og «Start quiz» forble disabled rett etter at brukeren hadde fylt inn
+  // navnet sitt. Blindveien oppsto i det øyeblikket navnefeltet på denne siden
+  // ble fjernet (24. august 2026) — før det kunne brukeren skrive seg forbi.
+  useEffect(() => {
+    const onProfileUpdated = (e: Event) => {
+      const name = (e as CustomEvent<{ display_name?: string }>).detail?.display_name
+      if (name) setLoggedInDisplayName(name)
+    }
+    window.addEventListener('qk:profile-updated', onProfileUpdated)
+    return () => window.removeEventListener('qk:profile-updated', onProfileUpdated)
+  }, [])
 
   // Intern plassering for org-medlemmer — hentes når resultatskjermen vises.
   // Egen effekt (ikke i finishQuiz) med vilje: myOrgs lastes asynkront, og
@@ -1202,7 +1218,14 @@ export default function QuizPage() {
       // Innloggede: kun bruker-ID (verifisert token) avgjør om quizen er spilt.
       // played_log (enhetsbasert) sjekkes IKKE for innloggede — den er enhet-agnostisk
       // og vil feilaktig blokkere en annen konto som deler samme nettleser.
-      // Gjester: kun played_log (enhet-ID), siden det ikke finnes noen user_id.
+      //
+      // Uinnloggede: ingen sjekk i det hele tatt (endret 24. august 2026). Her
+      // lå en enhetsbasert oppslag mot played_log, arvet fra den gang gjester
+      // kunne spille. Etter at gjeste-veien er stengt, kan en uinnlogget
+      // besøkende ikke starte noe uansett — han skal se innloggingspanelet,
+      // ikke «du har allerede spilt» fordi en ANNEN person spilte på samme
+      // enhet. Skrivingen til played_log i submit er urørt (den brukes av
+      // admin sin quiz-reset); det er kun LESINGEN som er meningsløs her.
       const { data: { session: currentSession } } = await supabase.auth.getSession()
       let alreadyPlayed = false
       if (currentSession?.access_token) {
@@ -1216,14 +1239,6 @@ export default function QuizPage() {
             alreadyPlayed = j.played === true
           }
         } catch { /* nettverksfeil — la brukeren forsøke å spille */ }
-      } else {
-        // Gjest → enhet-basert sjekk via played_log
-        const deviceId = getDeviceId()
-        const { data: played, error: playedError } = await supabaseData
-          .from('played_log').select('id')
-          .eq('quiz_id', quizId).eq('identifier', deviceId).maybeSingle()
-        if (playedError) console.error('played_log fetch feilet:', playedError)
-        alreadyPlayed = !!played
       }
 
       if (alreadyPlayed) {
@@ -1576,7 +1591,10 @@ export default function QuizPage() {
   }, [quizId, totalQuestions, attemptId, attemptToken])
 
   const startQuiz = async () => {
-    const effectiveName = loggedInDisplayName ?? nameInput.trim()
+    // Navnet kommer utelukkende fra profilen (24. august 2026). Fritekstfeltet
+    // som tidligere fylte dette for uinnloggede er fjernet sammen med
+    // gjeste-veien; er navnet ikke lastet ennå, er knappen disabled.
+    const effectiveName = loggedInDisplayName ?? ''
     if (!effectiveName) return
 
     // Re-entry-guard: ignorer dobbelttrykk (og Enter-auto-repeat) mens oppstarten
@@ -1627,6 +1645,16 @@ export default function QuizPage() {
             const err = await res.json().catch(() => ({}))
             // Suspendert konto — vis suspensjons-skjermen istedenfor generisk feil.
             if (res.status === 403 && err.suspended) return { kind: 'suspended' as const }
+            // 401 = serveren fant ingen gyldig sesjon. Den vanligste veien hit
+            // er IKKE en angriper, men en fane som har stått åpen til
+            // refresh-tokenet ga opp — eller en sesjon som er død på serveren
+            // mens klienten fortsatt tror den er innlogget (`getSession()`
+            // leverer et signert, ikke-utløpt token GoTrue ikke kjenner igjen;
+            // se lib/auth.ts). Før 24. august 2026 fikk den spilleren en
+            // gjeste-rad ved start og 403 ved MÅLSTREKEN — hele quizen spilt,
+            // ingenting lagret. Nå stanser vi ham før første spørsmål og gir
+            // ham veien tilbake inn.
+            if (res.status === 401) return { kind: 'needs-login' as const }
             return { kind: 'rejected' as const, message: (err.error as string | undefined) ?? 'Noe gikk galt. Prøv å laste siden på nytt.' }
           }
           const { attemptId: newAttemptId, attemptToken: newAttemptToken } = await res.json()
@@ -1657,6 +1685,12 @@ export default function QuizPage() {
       const started = startOutcome.value
       if (started.kind === 'suspended') {
         setIsSuspended(true)
+        return
+      }
+      if (started.kind === 'needs-login') {
+        setPlayerInfo({ name: '', ageConfirmed: false })
+        setNeedsLogin(true)
+        setAuthModalOpen(true)
         return
       }
       if (started.kind === 'rejected') {
@@ -2613,6 +2647,60 @@ export default function QuizPage() {
     </div></div></div></>
   )
 
+  // INNLOGGING KREVES — panelet som erstattet redirecten til /login
+  //
+  // Står BEVISST foran `!quiz`: en uinnlogget besøkende skal møte «logg inn»,
+  // ikke «fant ikke quizen», også når anon-lesingen ikke ser quiz-raden (en
+  // skjult quiz har `is_active = false` og er usynlig for anon-nøkkelen).
+  // Bonus: vi bekrefter ikke for en uinnlogget hvilke quiz-id-er som finnes.
+  //
+  // Teksten lover kun det som holder for en GRATIS konto — resultatet lagres,
+  // du står på topplisten, poengene teller i sesongen. Nøyaktig plassering er
+  // Premium og nevnes derfor ikke her; se `66007ee` (leaderboard-tekstene som
+  // lovet en utlogget besøkende ting han ikke ville fått).
+  if (needsLogin) return (
+    <><style>{styles}</style>
+    <SiteNav />
+    <div className="qk-shell"><div className="qk-box"><div className="qk-panel">
+      <p className="qk-eyebrow">Quizkanonen</p>
+      <h1 className="qk-heading">{quiz?.title ?? 'Ukens quiz'}</h1>
+      <p className="qk-sub">
+        Logg inn for å spille. Da lagres resultatet ditt, du kommer på topplisten,
+        og poengene teller i sesongen.
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+        <button
+          onClick={() => setAuthModalOpen(true)}
+          className="qk-btn-primary"
+          style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}
+        >
+          Logg inn for å spille
+        </button>
+      </div>
+      <p className="qk-hint" style={{ textAlign: 'center', marginTop: 14 }}>
+        Har du ikke konto? Du kan opprette en i samme vindu.
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 18 }}>
+        {/* Bevisst hard navigasjon, ikke <Link>: samme begrunnelse som de
+            øvrige utgangene på denne siden — full sidelast gir fersk
+            server-data i stedet for Next sin router-cache. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a href="/" className="qk-btn-ghost">← Tilbake til forsiden</a>
+      </div>
+    </div></div></div>
+    {/* `next` peker tilbake hit. Passordinnlogging går via AuthModal sin
+        onSuccess → window.location.assign(next); Google-runden går via
+        /auth/callback?next=… . Begge lander på RIKTIG quiz, ikke på forsiden.
+        InAppBrowserWarning ligger inne i AuthForm — ikke dupliser den her. */}
+    <AuthModal
+      open={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      next={`/quiz/${quizId}`}
+      description="Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen."
+    />
+    </>
+  )
+
   if (!quiz) return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
@@ -2728,29 +2816,16 @@ export default function QuizPage() {
       {quiz.category && (
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#918f8a', marginBottom: 16 }}>{quiz.category}</p>
       )}
+      {/* Navne-FELTET er fjernet (24. august 2026). Det var siste rest av
+          gjeste-veien: en uinnlogget kunne skrive hva som helst her, og
+          start-attempt opprettet en rad med `user_id: null`. Den som er kommet
+          hit er per definisjon innlogget (se needsLogin-panelet lenger oppe),
+          så navnet skal komme fra profilen — ikke fra fritekst.
+          Mangler navnet likevel, er NameRequiredModal (root layout) allerede
+          oppe og spør; lytteren på `qk:profile-updated` over fanger svaret. */}
       {loggedInDisplayName
         ? <p className="qk-sub">Spiller som <strong style={{ color: '#e8e4dd' }}>{loggedInDisplayName}</strong>. Lykke til!</p>
-        : <>
-            <label className="qk-label">Navn</label>
-            <input
-              type="text"
-              value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
-              placeholder="Skriv inn navnet ditt..."
-              className="qk-input"
-              maxLength={30}
-              onKeyDown={e => {
-                // e.repeat: tastaturets auto-repeat sender én keydown i slengen
-                // så lenge Enter holdes nede. startingRef fanger dem uansett,
-                // men vi slipper å kalle startQuiz i det hele tatt.
-                if (e.key === 'Enter' && !e.repeat && !isStarting) startQuiz()
-              }}
-              autoFocus
-            />
-            <p style={{ fontSize: 13, color: '#e8e4dd', marginTop: -12, marginBottom: 20 }}>
-              Bruk ditt ekte navn — det er det som gjør det morsomt å vinne.
-            </p>
-          </>
+        : <p className="qk-sub">Henter profilnavnet ditt …</p>
       }
 
       {resumeData && (
@@ -2839,7 +2914,7 @@ export default function QuizPage() {
         {(() => {
           const now = new Date()
           const blocked = (orgQuizOpensAt && new Date(orgQuizOpensAt) > now)
-          const baseDisabled = !loggedInDisplayName && !nameInput.trim()
+          const baseDisabled = !loggedInDisplayName
           return (
             <button onClick={startQuiz} disabled={!!blocked || baseDisabled || isStarting} className="qk-btn-primary"
               style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23' }}>

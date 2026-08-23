@@ -1,15 +1,33 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-function detectInApp(): { inApp: boolean; isAndroid: boolean } {
+// Målet for «Åpne i Chrome» er SIDEN BRUKEREN STÅR PÅ, ikke /login.
+//
+// Fram til 24. august 2026 var intent-lenken hardkodet til
+// `quizkanonen.no/login`. Så lenge advarselen bare ble vist på /login var det
+// riktig; i det øyeblikket quiz-siden fikk sitt eget innloggingspanel (samme
+// dato) ble den feil på den flaten som betyr mest: en besøkende fra
+// Facebook-gruppa som står på /quiz/<id>, trykker «Åpne i Chrome» og havner på
+// innloggingssiden — uten quizen, og uten `?next=` til å finne tilbake.
+// Publikum kommer fra Facebook, så dette er hovedveien inn, ikke en utkant.
+//
+// Vi bygger derfor målet av gjeldende host + path + query. På /login er
+// resultatet uendret i praksis (`/login?next=…` tas med, som er en
+// forbedring); på quiz-siden peker den på quizen.
+function currentTarget(): string {
+  const { host, pathname, search } = window.location
+  return `${host}${pathname}${search}`
+}
+
+function detectInApp(): { inApp: boolean; isAndroid: boolean; target: string } {
   const ua = navigator.userAgent
   const inApp = /FBAN|FBAV|Instagram|Snapchat|LinkedInApp/i.test(ua)
   const isAndroid = /Android/i.test(ua)
-  return { inApp, isAndroid }
+  return { inApp, isAndroid, target: currentTarget() }
 }
 
 export default function InAppBrowserWarning() {
-  const [state, setState] = useState<{ inApp: boolean; isAndroid: boolean } | null>(null)
+  const [state, setState] = useState<{ inApp: boolean; isAndroid: boolean; target: string } | null>(null)
   // detectInApp leser navigator.userAgent, som ikke finnes under SSR.
   // Deteksjonen må skje etter montering; en useState-initializer ville krasjet
   // på serveren.
@@ -45,7 +63,7 @@ export default function InAppBrowserWarning() {
       </p>
       {state.isAndroid ? (
         <a
-          href="intent://quizkanonen.no/login#Intent;scheme=https;package=com.android.chrome;end"
+          href={`intent://${state.target}#Intent;scheme=https;package=com.android.chrome;end`}
           style={{
             display: 'inline-block',
             marginTop: 12,

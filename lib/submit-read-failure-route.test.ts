@@ -70,7 +70,13 @@ const state: {
   attemptLookups: number
 } = {
   quizError: null, questionsError: null, questionsRows: [], attemptError: null,
-  attemptUserId: null, authFailStatus: null,
+  // Standardtilstanden er en INNLOGGET spiller som leverer sitt eget forsøk
+  // (endret 24. august 2026). Fram til da sto den på `null` — altså en
+  // gjeste-rad levert uten Authorization-header — og dermed testet hele denne
+  // filen sine hovedstier gjennom en kodesti som ikke fantes i prod
+  // (625 forsøk, 0 med user_id NULL). Da submit-rutens gjeste-gren ble lukket,
+  // falt ni tester på én gang, og det var stillaset som falt, ikke ruten.
+  attemptUserId: 'user-anna', authFailStatus: null,
   attemptUpdates: 0, attemptInserts: 0, answerInserts: 0,
   raceLost: false, winnerRead: 'found', attemptLookups: 0,
 }
@@ -220,7 +226,9 @@ function send(opts?: { token?: string; answers?: unknown[] }) {
         'content-type': 'application/json',
         'x-forwarded-for': nyIp(),
         'x-attempt-token': createAttemptToken(ATTEMPT, QUIZ) ?? '',
-        ...(opts?.token ? { authorization: `Bearer ${opts.token}` } : {}),
+        // Standard er Annas token — hun eier `state.attemptUserId`. Kall som
+        // vil teste noe annet sender `{ token: 'ugyldig' }` eksplisitt.
+        authorization: `Bearer ${opts?.token ?? 'anna'}`,
       },
       body: JSON.stringify({
         attemptId: ATTEMPT,
@@ -256,7 +264,7 @@ beforeEach(() => {
   state.questionsError = null
   state.questionsRows = fasit()
   state.attemptError = null
-  state.attemptUserId = null
+  state.attemptUserId = 'user-anna'
   state.authFailStatus = null
   state.attemptUpdates = 0
   state.attemptInserts = 0
@@ -384,11 +392,46 @@ test('start-attempt: transient GoTrue-feil gir 503 — forsøket opprettes IKKE 
   assert.equal(sentry.messages[0]?.message, 'start-attempt: auth-oppslag feilet transient — avvist med 503')
 })
 
-test('start-attempt: ugyldig token gir fortsatt gjeste-behandling (dagens oppførsel)', async () => {
+test('start-attempt: ugyldig token avvises med 401 — ingen gjeste-rad (24. august 2026)', async () => {
+  // Her sto tidligere det motsatte kravet: «ugyldig token gir fortsatt
+  // gjeste-behandling (dagens oppførsel)». Det var en ærlig beskrivelse av en
+  // åpen dør, ikke et ønske. Skillet mot testen rett over består: en TRANSIENT
+  // GoTrue-feil er fortsatt 503 («prøv igjen»), et UGYLDIG token er 401
+  // («logg inn»). De to skal aldri kollapse til samme svar — 401 på en
+  // transient feil ville logget ut en spiller fordi Supabase hikstet.
   const res = await start({ token: 'ugyldig' })
-  assert.equal(res.status, 200, await res.clone().text())
-  assert.equal(state.attemptInserts, 1, 'gjeste-forsøk opprettes som før')
-  assert.match(shared.keys[0] ?? '', /^start-attempt:anon:/)
+  assert.equal(res.status, 401, await res.clone().text())
+  assert.equal(state.attemptInserts, 0, 'ingen rad med user_id NULL skal kunne oppstå')
+  assert.deepEqual(shared.keys, [], 'vakten står foran lag 2 — ingen Upstash-rundtur')
+  assert.equal(sentry.messages.length, 0, 'et ugyldig token er ikke en systemfeil')
+})
+
+test('submit: en TOKENLØS innsending avvises, også mot en rad uten eier', async () => {
+  // Søskenet til vakten i start-attempt. Fram til 24. august 2026 sto det
+  // `else if (attempt.user_id !== null)` i submit: en tokenløs innsending
+  // slapp gjennom mot en gjeste-rad. Grenen er uoppnåelig i prod (0 slike
+  // rader), men en uoppnåelig gren som SLIPPER GJENNOM er en dør uten rom bak
+  // — ikke et lukket hull. Testen setter derfor eieren til null EKSPLISITT for
+  // å nå grenen i det hele tatt.
+  state.attemptUserId = null
+  const res = await submit(
+    new Request(`https://quizkanonen.no/api/quiz/${QUIZ}/submit`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': nyIp(),
+        'x-attempt-token': createAttemptToken(ATTEMPT, QUIZ) ?? '',
+      },
+      body: JSON.stringify({
+        attemptId: ATTEMPT,
+        answers: [{ questionId: Q1, selectedAnswer: 'A', timeMs: 5000 }],
+      }),
+    }) as never,
+    { params: Promise.resolve({ id: QUIZ }) } as never,
+  )
+  assert.equal(res.status, 403, await res.clone().text())
+  assert.equal(state.attemptUpdates, 0, 'ingenting skal stemples uten autentisering')
+  assert.equal(state.answerInserts, 0)
 })
 
 after(() => { console.error = ekteConsoleError })

@@ -61,7 +61,45 @@ export async function POST(request: NextRequest) {
     userId = authData.user?.id ?? null
   }
 
-  // ── Lag 2: den ekte grensen — per BRUKER når vi har en, ellers per IP ───────
+  // ── Innlogging er PÅKREVD (24. august 2026) ─────────────────────────────────
+  // Beslutningen om at man kun skal kunne spille innlogget er gammel; klienten
+  // har hard-redirectet uinnloggede til /login siden `bced92d` (16. mai 2026).
+  // Serveren gjorde det aldri — token var valgfritt, og et kall uten (eller med
+  // et UGYLDIG) token opprettet en rad med `user_id: null`. Målt mot prod
+  // 24. august 2026: 625 forsøk, 0 med `user_id` NULL. Veien har aldri vært
+  // brukt av en ekte spiller, men den sto åpen for et script.
+  //
+  // Hvorfor den måtte lukkes: en gjeste-rad står utenfor BÅDE replay-sperren
+  // (som slår opp på `user_id`) og unik-indeksen `attempts_user_quiz_unique`.
+  // De to vernene som gjelder alle andre spillere, gjaldt ikke den ene raden
+  // ingen eier.
+  //
+  // Vakten står FØR lag 2 med vilje: en forespørsel vi alltid avviser skal ikke
+  // koste en Upstash-rundtur. Lag 1 (in-memory, 120/min per IP) står allerede
+  // foran og demper en flom; selve avvisningen gjør null DB-arbeid.
+  // Plasseringen har også en produkt-side: en spiller hvis sesjon nettopp døde
+  // får et ærlig 401 («logg inn») i stedet for å bli dyttet ned i anon-bøtta og
+  // møte 429 sammen med 28 kolleger bak samme kontor-IP.
+  //
+  // 401 + `needsLogin` er en DELT KONTRAKT med klienten: `startQuiz` i
+  // app/quiz/[id]/page.tsx åpner innloggingspanelet på 401 i stedet for å vise
+  // en generisk feiltekst. Endres statuskoden her, må kallstedet følge etter.
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'Du må være innlogget for å spille.', needsLogin: true },
+      { status: 401 },
+    )
+  }
+
+  // ── Lag 2: den ekte grensen — per BRUKER ────────────────────────────────────
+  // `userId` er garantert non-null her (vakten over). Anon-grenen i
+  // `playRateLimitKey` er derfor uoppnåelig FOR DENNE RUTEN — den lever videre
+  // for `submit`, som fortsatt rate-limiter før eierskapssjekken.
+  //
+  // MERK: `if (userId)`-blokkene lenger nede (suspensjonssperre, replay-sperre,
+  // gjenbruk av uferdig forsøk) er nå alltid sanne. De er BEVISST latt stå
+  // urørt: å reindentere ~40 linjer i spillestien ville skjult reelle endringer
+  // i diff-gjennomgangen. De er vestigiale, ikke betingede.
   const rlKey = playRateLimitKey('start-attempt', userId, ip)
   if (!(await rateLimitShared(rlKey, PLAY_RATE_LIMIT.limit, PLAY_RATE_LIMIT.windowMs)).success) {
     logRateLimitHit(rlKey, { lag: 'delt', ...PLAY_RATE_LIMIT, innlogget: userId !== null })

@@ -59,7 +59,10 @@ mock.module('@/lib/rate-limit-shared', {
 // ── Supabase-mock ───────────────────────────────────────────────────────────
 // Bruker-id-en utledes av tokenet, slik at hver «kollega» kan ha sitt eget.
 // Tokenet 'ugyldig' gir null bruker — samme som et utløpt/forfalsket token.
-const state: { attemptUserId: string | null } = { attemptUserId: null }
+// `attemptInserts` teller INSERT mot attempts. Statuskoden alene beviser ikke
+// at gjeste-veien er stengt — det er fraværet av RADEN som er kravet.
+const state: { attemptUserId: string | null; attemptInserts: number } =
+  { attemptUserId: null, attemptInserts: 0 }
 
 function attemptsBuilder() {
   const calls = { not: false, is: false, insert: false, update: false }
@@ -70,7 +73,7 @@ function attemptsBuilder() {
     is() { calls.is = true; return b },
     order() { return b },
     limit() { return b },
-    insert() { calls.insert = true; return b },
+    insert() { calls.insert = true; state.attemptInserts++; return b },
     update() { calls.update = true; return b },
     async maybeSingle() {
       // start-attempt: replay-sjekk (.not) og gjenopptak-sjekk (.is) → ingen rad.
@@ -191,6 +194,7 @@ beforeEach(() => {
   shared.counts.clear()
   shared.keys = []
   state.attemptUserId = null
+  state.attemptInserts = 0
 })
 
 // ── Positiv kontroll: rutene virker i det hele tatt i denne riggen ──────────
@@ -263,23 +267,47 @@ test('en stoppet bruker stopper IKKE naboen på samme nett', async () => {
   assert.equal(nabo.status, 200, 'Bjørn skal være upåvirket av at Anna er bremset')
 })
 
-// ── Anon-flaten: uendret, og bevisst strengere ──────────────────────────────
+// ── Anon-flaten: STENGT 24. august 2026 ─────────────────────────────────────
+//
+// Her sto tidligere to tester som slo fast at anonyme kall til start-attempt
+// gikk gjennom (200) og delte en IP-bøtte. Gjeste-veien er nå stengt, og
+// vakten står FØR lag 2 — så påstanden er ikke bare «annen statuskode», den
+// er en annen form: kallet når aldri den delte telleren.
 
-test('to anonyme bak samme IP DELER kvote — den flaten er fortsatt IP-begrenset', async () => {
-  // Uten user_id finnes ingen unik indeks som begrenser radopprettelse, så
-  // dette er nettopp flaten grensen må gjøre jobben på.
-  const IP = '198.51.100.50'
-  for (let i = 0; i < PLAY_RATE_LIMIT.limit; i++) {
-    assert.equal((await start(IP, null)).status, 200)
-  }
-  assert.equal((await start(IP, null)).status, 429)
-  assert.ok(shared.keys.every(k => k === `start-attempt:anon:${IP}`))
+test('en uinnlogget kaller avvises med 401 — og oppretter ingen attempt-rad', async () => {
+  // Selve bestillingen. En gjeste-rad (user_id NULL) står utenfor BÅDE
+  // replay-sperren og unik-indeksen, altså de to vernene som gjelder alle
+  // andre. Statuskoden alene beviser ingenting; det er FRAVÆRET av raden som
+  // er kravet, derfor asserter vi på sideeffekten.
+  const res = await start('198.51.100.50', null)
+  assert.equal(res.status, 401, await res.clone().text())
+  const body = await res.json()
+  assert.equal(body.needsLogin, true, 'klienten skiller 401 fra andre feil på dette feltet')
+  assert.equal(state.attemptInserts, 0, 'ingen rad skal opprettes for en uinnlogget')
 })
 
-test('et UGYLDIG token havner i anon-bøtta, ikke i en egen bruker-bøtte', async () => {
-  // Ellers kunne en angriper rotert påståtte bruker-id-er for uendelig kvote.
-  await start('198.51.100.51', 'ugyldig')
-  assert.deepEqual(shared.keys, ['start-attempt:anon:198.51.100.51'])
+test('en uinnlogget spiser IKKE av den delte kvoten til de innloggede', async () => {
+  // Vakten står foran lag 2 med vilje. To grunner, begge reelle:
+  // pengene (en forespørsel vi alltid avviser skal ikke koste en
+  // Upstash-rundtur) og rettferdigheten — anon-bøtta er nøklet på IP, og
+  // 29 Elkjøp-kolleger deler én. Sto vakten BAK telleren, kunne uinnlogget
+  // støy låst ute et helt kontor. Lag 1 (in-memory, 120/min per IP) demper
+  // flommen i stedet.
+  const IP = '198.51.100.55'
+  for (let i = 0; i < PLAY_RATE_LIMIT.limit + 1; i++) {
+    assert.equal((await start(IP, null)).status, 401)
+  }
+  assert.deepEqual(shared.keys, [], 'anonyme kall skal aldri nå den delte telleren')
+})
+
+test('et UGYLDIG token avvises som uinnlogget — ingen bruker-bøtte, ingen anon-bøtte', async () => {
+  // Poenget som består: en angriper skal ikke kunne rotere PÅSTÅTTE bruker-id-er
+  // for uendelig kvote. Svaret var tidligere «ugyldig token havner i anon-bøtta»;
+  // nå er det sterkere — kallet slipper aldri forbi innloggingsvakten.
+  const res = await start('198.51.100.51', 'ugyldig')
+  assert.equal(res.status, 401)
+  assert.deepEqual(shared.keys, [])
+  assert.equal(state.attemptInserts, 0)
 })
 
 // ── Lag 1: burst-bremsen foran token-oppslaget ──────────────────────────────
