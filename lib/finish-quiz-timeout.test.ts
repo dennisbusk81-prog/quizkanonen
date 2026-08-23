@@ -58,7 +58,11 @@ function functionBody(source: string, decl: string): string {
   throw new Error(`fant ikke slutten på «${decl}»`)
 }
 
-const finishQuizBody = functionBody(SRC, 'const finishQuiz = async () => {')
+// Signaturen fikk en valgfri override-parameter 24. august 2026 (B-10
+// reload-leveringen). Typen MÅ forbli et navngitt alias — et inline typeobjekt
+// ville gjort at klammetellingen i functionBody klipper ut typen i stedet for
+// funksjonskroppen, og alle assertene under ville målt feil tekst.
+const finishQuizBody = functionBody(SRC, 'const finishQuiz = async (override?: FinishQuizOverride) => {')
 
 test('grensen ved målstreken er 9 sekunder, som i goToNext', () => {
   const m = SRC.match(/const FINISH_TIMEOUT_MS = (\d+)/)

@@ -8,6 +8,7 @@ import { decidePremiumFromProfile, PREMIUM_PROFILE_COLUMNS, type PremiumProfileR
 import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { SUBMIT_GRACE_MS, QUIZ_CLOSED_ERROR, isWithinGrace, attemptStartedBeforeClose } from '@/lib/late-play-window'
 
 // ── Service-role attempt-opprettelse ─────────────────────────────────────────
 // Erstatter den gamle klient-INSERT-en i app/quiz/[id]/page.tsx (startQuiz).
@@ -184,8 +185,19 @@ export async function POST(request: NextRequest) {
   const now = Date.now()
   const opensAt = quiz.opens_at ? new Date(quiz.opens_at).getTime() : null
   const closesAt = quiz.closes_at ? new Date(quiz.closes_at).getTime() : null
-  if ((opensAt !== null && now < opensAt) || (closesAt !== null && now > closesAt)) {
-    return NextResponse.json({ error: 'Quizen er ikke åpen' }, { status: 403 })
+  // Etter stengetid finnes ÉN lovlig vei videre: GJENBRUK av et uferdig forsøk
+  // startet før closes_at, innenfor SUBMIT_GRACE_MS (reload-stien i B-10 — en
+  // spiller som mistet siden 21:59 skal kunne gjenoppta/levere 22:01). Vinduet
+  // er submit-fristen, ikke spørsmålsfristen: i sonen mellom de to skal hun
+  // få token til å LEVERE det localStorage har, selv om ingen nye spørsmål
+  // serveres. Nye forsøk etter stengetid opprettes aldri — se vakten etter
+  // gjenbruks-oppslaget.
+  const afterClose = closesAt !== null && now > closesAt
+  if (
+    (opensAt !== null && now < opensAt) ||
+    (afterClose && !isWithinGrace(closesAt, now, SUBMIT_GRACE_MS))
+  ) {
+    return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
   }
 
   // ── Replay-sperre for innloggede ──────────────────────────────────────────────
@@ -210,14 +222,19 @@ export async function POST(request: NextRequest) {
     // trygg selv om historiske duplikater finnes.
     const { data: unfinished } = await supabaseAdmin
       .from('attempts')
-      .select('id')
+      .select('id, completed_at')
       .eq('quiz_id', quizId)
       .eq('user_id', userId)
       .is('submitted_at', null)
       .order('completed_at', { ascending: true, nullsFirst: false })
       .limit(1)
       .maybeSingle()
-    if (unfinished) {
+    // Etter stengetid gjenbrukes KUN forsøk startet før closes_at —
+    // completed_at er radens server-skrevne starttidspunkt (DB-default now()).
+    if (
+      unfinished &&
+      (!afterClose || (closesAt !== null && attemptStartedBeforeClose(unfinished.completed_at, closesAt)))
+    ) {
       // Tokenet MÅ følge med også her — gjenopptakelse etter reload går denne
       // veien, og uten token kommer klienten ikke videre til questions/submit.
       return NextResponse.json({
@@ -226,6 +243,15 @@ export async function POST(request: NextRequest) {
         reused: true,
       })
     }
+  }
+
+  // ── Etter stengetid opprettes ALDRI nye forsøk ──────────────────────────────
+  // Vinduet over slapp oss hit kun for å finne noe å gjenbruke. Fantes det
+  // ikke (eller startet det etter stengetid), er svaret det samme som før
+  // B-10: quizen er stengt. Uten denne vakten ville reload-stien åpnet en
+  // helt ny spillevei etter closes_at.
+  if (afterClose) {
+    return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
   }
 
   // ── Antall spørsmål (settes ved opprettelse, brukes i resultatvisning) ─────────

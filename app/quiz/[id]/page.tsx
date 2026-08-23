@@ -25,6 +25,15 @@ import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
+
+// Se kommentaren på finishQuiz for hvorfor denne finnes og hvorfor den er et
+// navngitt alias i stedet for et inline typeobjekt.
+type FinishQuizOverride = {
+  attemptId: string
+  attemptToken: string | null
+  answers: AnswerRecord[]
+  totalQuestions: number
+}
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { nextQuizLabel } from '@/lib/next-quiz-label'
 
@@ -953,7 +962,11 @@ export default function QuizPage() {
   // og hadde ingen premium-sjekk i det hele tatt — 46 av 67 spillere
   // 21. august så et eksakt tall de ikke hadde betalt for.
   const [liveRank, setLiveRank] = useState<{ exact: number | null; low: number; high: number } | null>(null)
-  const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number } | null>(null)
+  // `total` (antall spørsmål i quizen) kom inn i payloaden 24. august 2026 for
+  // reload-leveringen etter stengetid — eldre lagrede fremdrifter mangler den,
+  // derfor valgfri. Ikke gjør den påkrevd uten å bumpe nøkkelen (se lærdommen
+  // om at bufrede payloads overlever skjemaendringer).
+  const [resumeData, setResumeData] = useState<{ index: number; answers: AnswerRecord[]; totalTime: number; total?: number } | null>(null)
   // B-10: satt når stengetiden avbrøt spillingen og svarene hun rakk ble
   // levert som de er. Styrer kun notisen på resultatskjermen — leveransen
   // selv går gjennom den ordinære finishQuiz-stien.
@@ -1479,8 +1492,11 @@ export default function QuizPage() {
 
   useEffect(() => { phaseRef.current = phase }, [phase])
 
-  const saveProgress = useCallback((index: number, currentAnswers: AnswerRecord[], time: number) => {
-    localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({ index, answers: currentAnswers, totalTime: time }))
+  // `total` tas som parameter, ikke fra state: deps er [quizId], og en lesing
+  // av totalQuestions her ville vært en ekte stale closure (callbacken lages
+  // før quizen er startet). Kallstedene har fersk verdi.
+  const saveProgress = useCallback((index: number, currentAnswers: AnswerRecord[], time: number, total: number) => {
+    localStorage.setItem(`qk_progress_${quizId}`, JSON.stringify({ index, answers: currentAnswers, totalTime: time, total }))
   }, [quizId])
 
   const handleTimeout = useCallback(() => {
@@ -1497,9 +1513,9 @@ export default function QuizPage() {
       answers,
     })
     setAnswers(newAnswers); setTotalTimeMs(newTimeMs)
-    setAnswered(true); saveProgress(currentIndex, newAnswers, newTimeMs)
+    setAnswered(true); saveProgress(currentIndex, newAnswers, newTimeMs, totalQuestions)
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(200)
-  }, [questions, currentIndex, getTimeLimit, answers, saveProgress])
+  }, [questions, currentIndex, getTimeLimit, answers, saveProgress, totalQuestions])
 
   // ── Hvorfor handleTimeout leses via ref, ikke via deps (5. august 2026) ──────
   // Timer-effekten under kaller handleTimeout, men har den bevisst IKKE i sin
@@ -1790,11 +1806,32 @@ export default function QuizPage() {
           : 'Kunne ikke laste spørsmålene. Prøv å laste siden på nytt.')
         return
       }
-      // Stengetid i glipen mellom start-attempt og spørsmålshentingen (B-10).
-      // I praksis kun mulig helt inntil en vindusgrense — start-attempt slapp
-      // oss gjennom for et øyeblikk siden. Ærlig stopp i stedet for en evig
-      // «prøv igjen»; reload-gjenopptakelse i vinduet håndteres i egen commit.
+      // ── Stengt for spørsmål, åpent for levering (B-10 reload-stien) ─────────
+      // start-attempt slapp oss gjennom (gjenbruk innenfor SUBMIT_GRACE_MS),
+      // men questions sier stengt: vi står i sonen mellom spørsmålsfristen og
+      // innleveringsfristen — eller helt inntil en vindusgrense. Har hun en
+      // lagret fremdrift, leveres den NÅ, med attemptId/token rett fra
+      // start-attempt-svaret (state fra denne renderen er fortsatt tom — se
+      // override-kommentaren på finishQuiz). Uten fremdrift finnes ingenting
+      // å levere: ærlig stopp i stedet for en evig «prøv igjen».
       if ('closed' in questionsOutcome.value) {
+        if (resumeData && resumeData.answers.length > 0 && started.attemptId) {
+          setClosedEarlyDelivery(true)
+          setAnswers(resumeData.answers)
+          setTotalTimeMs(resumeData.totalTime)
+          // Eldre lagrede fremdrifter (før 24. august 2026) mangler `total` —
+          // da er antall besvarte det ærligste tallet vi har.
+          const total = resumeData.total ?? resumeData.answers.length
+          setTotalQuestions(total)
+          setCurrentIndex(resumeData.index)
+          await finishQuiz({
+            attemptId: started.attemptId,
+            attemptToken: started.attemptToken,
+            answers: resumeData.answers,
+            totalQuestions: total,
+          })
+          return
+        }
         setPlayerInfo({ name: '', ageConfirmed: false })
         setStartError('Quizen er stengt.')
         return
@@ -1891,7 +1928,7 @@ export default function QuizPage() {
     const newTime = newAnswers.reduce((sum, a) => sum + a.timeMs, 0)
     setAnswers(newAnswers); setTotalTimeMs(newTime)
     setSelectedAnswer(answer); setAnswered(true)
-    saveProgress(currentIndex, newAnswers, newTime)
+    saveProgress(currentIndex, newAnswers, newTime, totalQuestions)
     if (quiz?.show_live_placement) {
       await fetchLiveRank(newAnswers.filter(a => a.isCorrect).length, newTime, newAnswers.length)
     }
@@ -2289,19 +2326,31 @@ export default function QuizPage() {
     // advarsel i spillestien.
   }, [pendingNextIndex, questions, getTimeLimit, displayOrderFor, attemptId])
 
-  const finishQuiz = async () => {
+  // `override` finnes for ETT kallsted: reload-leveringen i startQuiz (B-10).
+  // Der er attemptId/token/answers nettopp mottatt eller lest fra localStorage
+  // i SAMME tick — state er satt, men denne closuren er fra renderen FØR, så
+  // en lesing av state her ville levert et tomt svarsett mot et null-attempt.
+  // Alle andre kallere (goToNext, retryFinishQuiz) kaller uten argument og får
+  // nøyaktig gammel oppførsel. Typen er et navngitt alias (ikke inline) fordi
+  // lib/finish-quiz-timeout.test.ts klipper ut funksjonskroppen ved å telle
+  // klammer fra deklarasjonslinjen — et inline typeobjekt ville gitt den feil
+  // kropp.
+  const finishQuiz = async (override?: FinishQuizOverride) => {
+    const effAttemptId = override?.attemptId ?? attemptId
+    const effAttemptToken = override?.attemptToken ?? attemptToken
+    const effTotalQuestions = override?.totalQuestions ?? totalQuestions
     const deviceId = getDeviceId()
     // Siste sikkerhetsnett: dedupliser på questionId rett før bruk, selv om
     // withAnswer over allerede skal ha forhindret duplikater i selve
     // answers-state. Se dedupeAnswers.
-    const finalAnswers = dedupeAnswers(answers)
+    const finalAnswers = dedupeAnswers(override?.answers ?? answers)
     // Klient-beregning brukes kun som fallback hvis submit-ruten ikke svarer.
     // Server-ruten er fasit: den slår opp riktige svar og beregner score selv.
     let correct = finalAnswers.filter(a => a.isCorrect).length
     let finalTimeMs = finalAnswers.reduce((sum, a) => sum + a.timeMs, 0)
     setFinishTimedOut(false)
     try {
-      if (attemptId) {
+      if (effAttemptId) {
         // ── Øvre tidsgrense på innsendingen (5. august 2026) ──────────────────
         // getSession, selve POST-en og json-parsingen ligger inne i SAMME
         // withTimeout: alle tre er await-punkter uten egen grense, og et hvilket
@@ -2320,10 +2369,10 @@ export default function QuizPage() {
               headers: {
                 'Content-Type': 'application/json',
                 ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-                ...(attemptToken ? { 'x-attempt-token': attemptToken } : {}),
+                ...(effAttemptToken ? { 'x-attempt-token': effAttemptToken } : {}),
               },
               body: JSON.stringify({
-                attemptId,
+                attemptId: effAttemptId,
                 deviceId,
                 answers: finalAnswers.map(ans => ({
                   questionId: ans.questionId,
@@ -2363,7 +2412,7 @@ export default function QuizPage() {
           // en timeout vet vi ingenting. Timeout får derfor sin egen skjerm med
           // valg, ikke feilmeldingen som påstår at ingenting ble lagret.
           if (submitOutcome.timedOut) {
-            console.warn(`[quiz] submit svarte ikke innen ${FINISH_TIMEOUT_MS} ms`, { quizId, attemptId })
+            console.warn(`[quiz] submit svarte ikke innen ${FINISH_TIMEOUT_MS} ms`, { quizId, attemptId: effAttemptId })
             finishTimedOutOnceRef.current = true
             setFinishTimedOut(true)
             return
@@ -2394,7 +2443,7 @@ export default function QuizPage() {
           setServerScore(result)
           setTotalTimeMs(finalTimeMs)
         } else {
-          console.warn('[quiz] submit svarte «allerede levert» etter timeout — forsøket ligger lagret', { quizId, attemptId })
+          console.warn('[quiz] submit svarte «allerede levert» etter timeout — forsøket ligger lagret', { quizId, attemptId: effAttemptId })
           setTotalTimeMs(finalTimeMs)
         }
       }
@@ -2425,18 +2474,18 @@ export default function QuizPage() {
           let placementSet = false
           try {
             const stParams = new URLSearchParams({
-              question: String(totalQuestions - 1),
+              question: String(effTotalQuestions - 1),
               correct: String(correct),
               time: String(finalTimeMs),
             })
-            if (attemptId) stParams.set('attemptId', attemptId)
+            if (effAttemptId) stParams.set('attemptId', effAttemptId)
             // x-attempt-token er det som gjør kallet PERSONLIG i serverens
             // øyne: uten det får svaret ingen eksakt plassering, kun spennet
             // (P-2). Samme token submit-kallet under bruker — ingen ny
             // mekanisme, og ingen ekstra auth-rundtur.
             const stRes = await fetch(`/api/quiz/${quizId}/standings?${stParams.toString()}`, {
               signal: extrasController.signal,
-              ...(attemptToken ? { headers: { 'x-attempt-token': attemptToken } } : {}),
+              ...(effAttemptToken ? { headers: { 'x-attempt-token': effAttemptToken } } : {}),
             })
             if (stRes.ok) {
               const st: {
