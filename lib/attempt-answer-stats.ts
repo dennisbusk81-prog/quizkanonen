@@ -1,6 +1,6 @@
 import 'server-only'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAllRows } from '@/lib/paginate'
+import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 
 // ── Aggregert svarstatistikk for attempt_answers ────────────────────────────
 // attempt_answers kan lett passere PostgREST sin stille 1000-rads-grense for
@@ -35,13 +35,24 @@ export async function getQuestionStatsByAttempts(
 
   console.warn('[attempt-answer-stats] RPC attempt_answer_stats_by_attempts utilgjengelig, bruker paginert JS-fallback:', error.message)
 
-  const rows = await fetchAllRows<{ question_id: string; is_correct: boolean }>((from, to) =>
-    supabaseAdmin
-      .from('attempt_answers')
-      .select('question_id, is_correct')
-      .in('attempt_id', attemptIds)
-      .order('id', { ascending: true })
-      .range(from, to)
+  // CHUNKET, ikke bare paginert: attemptIds er ett element per forsøk, og hele
+  // listen legges i URL-ens query-streng. Over ~390 id-er svarer PostgREST «Bad
+  // Request» (målt 26. juli, se lib/paginate.ts), fetchAllRows kaster, og
+  // fallbacken velter i stedet for å svare. Fire av de fem kallerne kan passere
+  // 390 på en stor quiz — admin/results, quiz-results-text, org quiz-insights og
+  // forsidens «Ukens fakta». RPC-stien over er upåvirket: p_attempt_ids går i
+  // POST-body, ikke i URL-en. Radtaket på 1000 gjelder fortsatt INNAD i hver
+  // bit; helperen dekker begge takene, og .order('id') er påkrevd fordi .range()
+  // uten sortering taper rader (målt 18. august: 35 av 1035).
+  const rows = await fetchAllRowsChunked<{ question_id: string; is_correct: boolean }>(
+    attemptIds,
+    (chunk, from, to) =>
+      supabaseAdmin
+        .from('attempt_answers')
+        .select('question_id, is_correct')
+        .in('attempt_id', chunk)
+        .order('id', { ascending: true })
+        .range(from, to)
   )
   for (const a of rows) {
     const s = stats.get(a.question_id) ?? { total: 0, correct: 0 }

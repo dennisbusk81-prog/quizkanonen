@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAllRows } from '@/lib/paginate'
+import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import { runBatchWithRetry } from '@/lib/batch-write'
 import { resyncSeasonScoresForQuiz } from '@/lib/resync-season-scores'
 import {
@@ -153,15 +153,30 @@ export async function POST(request: NextRequest) {
       .range(from, to)
   )
 
-  // Alle svarrader for de berørte forsøkene, hentet i ÉN paginert spørring i
-  // stedet for én COUNT-spørring per forsøk (den gamle løsningen gjorde N kall).
-  const allRows = await fetchAllRows<{ attempt_id: string; question_id: string; is_correct: boolean }>((from, to) =>
-    supabaseAdmin
-      .from('attempt_answers')
-      .select('attempt_id, question_id, is_correct')
-      .in('attempt_id', attemptIds)
-      .order('id', { ascending: true })
-      .range(from, to)
+  // Alle svarrader for de berørte forsøkene, i stedet for én COUNT-spørring per
+  // forsøk (den gamle løsningen gjorde N kall).
+  //
+  // CHUNKET, ikke bare paginert: attemptIds har ett element per deltaker som
+  // svarte på spørsmålet, og HELE listen legges i URL-ens query-streng. Over
+  // ~390 id-er svarer PostgREST «Bad Request» (målt 26. juli, se lib/paginate.ts),
+  // og fetchAllRows kaster da — midt i en flerstegsoperasjon som allerede har
+  // skrevet ny fasit og ny is_correct, men ennå ikke har oppdatert totalene i
+  // attempts eller kjørt resyncSeasonScoresForQuiz. Svarradene ville sagt én
+  // ting og spillernes poeng og sesongpoeng noe annet, og en ny kjøring ville
+  // truffet nøyaktig samme vegg — altså ikke reparerbar ved å prøve igjen.
+  // Facebook-gruppa quizen henvender seg til har 400 medlemmer, så dette er
+  // innenfor rekkevidde. Radtaket på 1000 gjelder fortsatt INNAD i hver bit;
+  // helperen dekker begge takene, og .order('id') er påkrevd fordi .range()
+  // uten sortering taper rader (målt 18. august: 35 av 1035).
+  const allRows = await fetchAllRowsChunked<{ attempt_id: string; question_id: string; is_correct: boolean }>(
+    attemptIds,
+    (chunk, from, to) =>
+      supabaseAdmin
+        .from('attempt_answers')
+        .select('attempt_id, question_id, is_correct')
+        .in('attempt_id', chunk)
+        .order('id', { ascending: true })
+        .range(from, to)
   )
   // Nye totaler per forsøk. Tellingen og streak-beregningen ligger i
   // lib/answer-key-correction.ts (ren funksjon, dekket av tester) — se
