@@ -1,5 +1,6 @@
 ﻿'use client'
 import { useEffect, useState, useCallback, useRef } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
@@ -1297,7 +1298,30 @@ export default function QuizPage() {
         headers: token ? { 'x-attempt-token': token } : {},
         signal,
       })
-      if (!res.ok) throw new Error(`questions ${res.status}`)
+      if (!res.ok) {
+        // MÅLING for B-10 (stengetid midt i spilling): en 403 herfra er i praksis
+        // alltid en spiller som ble avbrutt av closes_at — goToNext ber om neste
+        // spørsmål og serveren svarer «Quizen er ikke åpen». (startQuiz-kallene
+        // kommer rett etter en vellykket start-attempt, som gjør samme åpen-sjekk
+        // først, så de kan i praksis ikke treffe 403 her.) Statusen overlever ikke
+        // withTimeout-innpakningen hos kallerne — {ok:false} bærer ingen feil — så
+        // målingen MÅ skje her, før throw. Fast meldingstekst så Sentry teller
+        // forekomster på ÉN sak; server-teksten i extra skiller «ikke åpen» fra
+        // token-/innsendings-403. Fanges aldri opp av spilleren: UI-flyten
+        // («Prøv igjen»-banneret) er uendret, jf. regelen om at sjeldne tekniske
+        // tilstander varsler Dennis, ikke spilleren.
+        if (res.status === 403) {
+          const errBody = await res.json().catch(() => null) as { error?: string } | null
+          try {
+            Sentry.captureMessage('quiz: spørsmålshenting avvist med 403 — spiller trolig strandet ved stengetid', {
+              level: 'warning',
+              tags: { area: 'quiz-play' },
+              extra: { quizId, attemptId: aId, index, serverError: errBody?.error ?? null },
+            })
+          } catch { /* målingen skal aldri kunne påvirke spillflyten */ }
+        }
+        throw new Error(`questions ${res.status}`)
+      }
       return res.json()
     },
     [quizId],
