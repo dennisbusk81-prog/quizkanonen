@@ -115,8 +115,13 @@ try {
   // ── BEVIS 3 (før 2, mens vi har >1 spørsmål): question_played ─────────────
   console.log('\nBEVIS 3 — spørsmål med besvarelse kan ikke slettes:')
   const spiltId = byIndex.get(3) // «Spørsmål tre», nå på order_index 2
+  // Samme kolonnesett som start-attempt-rutens insert (total_questions m.fl.
+  // er NOT NULL). Aldri submitted — forsøket eksisterer kun som bærer for
+  // svarraden under.
   const { data: attempt, error: attErr } = await sb.from('attempts').insert({
     quiz_id: quizId, player_name: '[TEST] verify-delete-renumber',
+    is_team: false, team_size: 1, total_questions: 3,
+    correct_answers: 0, total_time_ms: 0, user_id: null, submitted_at: null,
   }).select('id').single()
   if (attErr) fail(`kunne ikke opprette forsøk: ${attErr.message}`)
   const { error: aaErr } = await sb.from('attempt_answers').insert({
