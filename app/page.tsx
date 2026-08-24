@@ -21,6 +21,7 @@ import { decideTrialOffer, isTrialEligible, parseTrialDays } from '@/lib/trial-o
 import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
 import { getLastQuizTop3, type HomeTop3Row } from '@/lib/home-top3'
 import { getLeagueCardData } from '@/lib/league-card-data'
+import { assertHomeQuery, logHomeQuery } from '@/lib/home-query-guard'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
 // kanselleres 14.–15. august. Seksjonen under (qk-founders) inviterte aktivt
@@ -86,8 +87,14 @@ function truncateName(name: string, max = 20): string {
 
 // Antall deltakere — samme tellelogikk som /toppliste (api/toppliste, last_quiz-modus):
 // distinkte innloggede spillere (is_team=false, user_id ikke null), minus ekskluderte.
+//
+// KOSMETISK, men med en felle: linja skjules når tallet er 0, så et feilet
+// attempts-oppslag degraderer ærlig av seg selv. Det gjør IKKE
+// excluded_members-oppslaget — feiler det blir settet tomt og antallet for
+// HØYT, uten et eneste tegn på at noe gikk galt. Begge feilene fører derfor
+// til 0 (linja forsvinner), aldri til et tall vi ikke kan stå for.
 async function countParticipants(quizId: string): Promise<number> {
-  const [{ data: attemptRows }, { data: excludedRows }] = await Promise.all([
+  const [attemptsRes, excludedRes] = await Promise.all([
     supabaseAdmin
       .from('attempts')
       .select('user_id')
@@ -100,9 +107,12 @@ async function countParticipants(quizId: string): Promise<number> {
       .eq('scope_type', 'global')
       .is('scope_id', null),
   ])
-  const excludedSet = new Set(((excludedRows ?? []) as { user_id: string }[]).map(e => e.user_id))
+  if (logHomeQuery('deltakerantall (attempts)', attemptsRes.error)) return 0
+  if (logHomeQuery('deltakerantall (excluded_members)', excludedRes.error)) return 0
+
+  const excludedSet = new Set(((excludedRes.data ?? []) as { user_id: string }[]).map(e => e.user_id))
   const players = new Set<string>()
-  for (const r of (attemptRows ?? []) as { user_id: string }[]) {
+  for (const r of (attemptsRes.data ?? []) as { user_id: string }[]) {
     if (!excludedSet.has(r.user_id)) players.add(r.user_id)
   }
   return players.size
@@ -127,7 +137,10 @@ type SharedHomeData = {
   activeQuiz: QuizRow | null
   upcomingQuiz: QuizRow | null
   lastClosedQuiz: { id: string; title: string; questionsCount: number } | null
-  nextQuizAt: string | null
+  // `nextQuizAt` (site_settings.next_quiz_at) lå her fram til 24. august 2026.
+  // Feltet ble satt, cachet og fingeravtrykket — og lest av NULL konsumenter på
+  // forsiden. Oppslaget er fjernet med det: én spørring mindre per cache-miss.
+  // app/quiz/[id] har sitt eget oppslag mot samme nøkkel og er uberørt.
   founders: { remaining: number; max: number } | null
   // Lengden på den gratis prøveperioden (site_settings.founders_new_trial_days).
   // null = ikke satt/ugyldig → Premium-CTA-ene under viser sin vanlige tekst
@@ -150,7 +163,10 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
 
-  const [activeRes, upcomingRes, lastClosedRes, nextSettingRes, foundersRes, seasonRes, trialDaysRes] = await Promise.all([
+  // Alle spørringene går fortsatt PARALLELT — error-lesingen skjer etterpå, på
+  // resultatene. Forsidens P95 er 11,37 s (Sentry, ekte brukere); vaktene her
+  // koster ingen ekstra rundtur.
+  const [activeRes, upcomingRes, lastClosedRes, foundersRes, seasonRes, trialDaysRes] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select(QUIZ_CARD_COLS)
@@ -178,28 +194,27 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
       .order('closes_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabaseAdmin
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'next_quiz_at')
-      .maybeSingle(),
     (async () => {
       try {
-        const { data: settingsRows } = await supabaseAdmin
+        const { data: settingsRows, error: settingsError } = await supabaseAdmin
           .from('site_settings')
           .select('key, value')
           .in('key', ['founders_max_slots'])
+        if (logHomeQuery('founders-plasser (site_settings)', settingsError)) return null
         const rows = (settingsRows ?? []) as { key: string; value: string }[]
         // Uten et innstilt tak i site_settings har vi ingen plassramme å vise —
         // returner null i stedet for et oppdiktet tall (plasslinjen skjules da).
         const rawMax = rows.find(r => r.key === 'founders_max_slots')?.value
         const maxSlots = rawMax != null ? parseInt(rawMax) : NaN
         if (!Number.isFinite(maxSlots)) return null
-        const { count } = await supabaseAdmin
+        const { count, error: countError } = await supabaseAdmin
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .in('premium_source', ['founders', 'code'])
           .eq('premium_status', true)
+        // Uten denne vakten ble `used` 0 ved lesefeil, og linja påsto «250 av
+        // 250 plasser igjen» — et oppdiktet tall, ikke en manglende seksjon.
+        if (logHomeQuery('founders-plasser (profiles)', countError)) return null
         const used = count ?? 0
         return { remaining: Math.max(0, maxSlots - used), max: maxSlots }
       } catch {
@@ -225,18 +240,39 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
       .maybeSingle(),
   ])
 
+  // ── KRITISK: disse to bestemmer om forsiden i det hele tatt sier at det
+  // finnes en quiz ──────────────────────────────────────────────────────────
+  // Uten vaktene ble en lesefeil til `data: null`, `?? []` gjorde den til en
+  // tom liste, og forsiden skrev «Ingen quiz planlagt akkurat nå» mens quizen
+  // var åpen — cachet i 60 sekunder, til alle. Kastet er det som gjør den
+  // setningen umulig: kalleren viser en ærlig feiltilstand i stedet, og
+  // unstable_cache får ingenting å lagre.
+  //
+  // Feiler #1 alene er det ikke bedre: da faller kortet ned på «Kommende quiz»
+  // — også en usann påstand når quizen er åpen NÅ. Begge må kaste.
+  assertHomeQuery('aktiv quiz', activeRes.error)
+  assertHomeQuery('kommende quiz', upcomingRes.error)
+
   const activeQuiz = ((activeRes.data as QuizRow[] | null) ?? [])[0] ?? null
   const upcomingQuiz = ((upcomingRes.data as QuizRow[] | null) ?? [])[0] ?? null
 
-  const lcq = lastClosedRes.data as { id: string; title: string; season_points_awarded: boolean | null; questions: { count: number }[] } | null
+  // ── KOSMETISK: seksjonen forsvinner, ingen påstand blir usann ────────────
+  // Uten siste stengte quiz mister vi «Se topplisten»-knappen og «Forrige uke
+  // — hvem vant?». Kjedelig, men ærlig. Ikke verdt å felle forsiden for.
+  logHomeQuery('siste stengte quiz', lastClosedRes.error)
+  const lcq = lastClosedRes.error
+    ? null
+    : lastClosedRes.data as { id: string; title: string; season_points_awarded: boolean | null; questions: { count: number }[] } | null
   const lastClosedQuiz = lcq
     ? { id: lcq.id, title: lcq.title, questionsCount: lcq.questions?.[0]?.count ?? 0 }
     : null
 
-  const nextQuizAt = (nextSettingRes.data as { value: string } | null)?.value ?? null
   const founders = foundersRes
   // Samme parsing som /api/premium/trial-offer og founders-activate krever
   // (positivt heltall) — ellers kunne forsiden lovet en lengde ruten avviser.
+  // KOSMETISK: uten dagtall faller CTA-ene til «Premium kr 49/mnd», som er
+  // sant uansett. parseTrialDays(undefined) gir null av seg selv.
+  logHomeQuery('prøveperiode-lengde', trialDaysRes.error)
   const trialDays = parseTrialDays((trialDaysRes.data as { value: string } | null)?.value)
 
   // Aggregeringen (per bruker, '—' for tomt navn) ligger i lib/monthly-standings.
@@ -259,7 +295,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
     }
   }
 
-  return { activeQuiz, upcomingQuiz, lastClosedQuiz, nextQuizAt, founders, trialDays, monthlyStandings, participantCount, lastQuizTop3 }
+  return { activeQuiz, upcomingQuiz, lastClosedQuiz, founders, trialDays, monthlyStandings, participantCount, lastQuizTop3 }
 }
 
 // tags gjør cachen eksplisitt invaliderbar via revalidateTag (kalt fra
@@ -280,7 +316,18 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 // den faktiske returen og krever at nøkkelen her stemmer — endrer du
 // feltsettet, ryker testen med den nye halen i feilmeldingen, og bumpen kan
 // ikke glemmes. Det er den mekaniske versjonen av regelen i kommentaren over.
-const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v4-897f64cc'], { revalidate: 60, tags: ['home-shared-data'] })
+//
+// v4 → v5 (24. august 2026, F-7). To grunner, og begge krever bumpen:
+//   1. Feltsettet krympet — `nextQuizAt` er fjernet (null konsumenter), så
+//      halen er 897f64cc → 3893f837.
+//   2. Viktigere: en LAGRET v4-bundel kan være regnet ut MENS en spørring
+//      feilet, altså en nullbundel som påsto «ingen quiz». Vercels data-cache
+//      overlever deploys, og purgen fra cron/publish-quiz griper kun når en
+//      quiz er live — uten bumpen kunne nettopp den 60-sekunders-låsen fiksen
+//      fjerner blitt båret over deployen. Fra og med v5 KAN en slik bundel
+//      ikke finnes: computeSharedHomeData kaster i stedet, og et kast når
+//      aldri cacheNewResult().
+const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v5-3893f837'], { revalidate: 60, tags: ['home-shared-data'] })
 
 async function computePageInsights(): Promise<PageInsights | null> {
   const now = new Date()
@@ -1161,6 +1208,32 @@ const SHARED_CSS = `
   }
 `
 
+// Feiltilstanden som står DER quiz-kortet ellers står, i begge grenene
+// (innlogget og gjest) — én komponent, ikke to JSX-kopier.
+//
+// Den finnes fordi alternativet var verre: fram til 24. august 2026 degraderte
+// en lesefeil til «Ingen quiz planlagt akkurat nå», altså en usann påstand
+// presentert som et faktum. Bedre en ærlig feilmelding enn en usann påstand —
+// og «ikke hos deg» står der fordi den vanligste reaksjonen ellers er å tro at
+// man selv har gjort noe galt. Klassene er alle i SHARED_CSS, som begge
+// grenene laster.
+function QuizStatusUnavailableCard() {
+  return (
+    <div className="qk-card">
+      <p className="qk-card-eyebrow">Midlertidig feil</p>
+      <h2 className="qk-title">Vi får ikke tak i quiz-statusen akkurat nå</h2>
+      <p className="qk-empty-sub" style={{ marginTop: 10 }}>
+        Det er en midlertidig feil hos oss — ikke hos deg. Last siden på nytt om et øyeblikk.
+      </p>
+      <div className="qk-card-actions" style={{ marginTop: 16 }}>
+        <Link href="/quizer" className="qk-btn-outline-dark">
+          Se alle quizer →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default async function Home() {
   const now = new Date()
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
@@ -1171,7 +1244,25 @@ export default async function Home() {
   // Grunnleggerhistorie-tall — delt, ikke-personalisert, brukes i begge
   // grenene under (innlogget/gjest). Cachet (1t), så ett kall her koster
   // ingenting ekstra selv om det havner over begge return-stiene.
-  const founderStats = await getFounderStoryStats()
+  //
+  // Den delte forside-bundelen hentes i SAMME Promise.all (24. august 2026).
+  // To grunner: begge grenene trenger den, så feilhåndteringen skal finnes ett
+  // sted og ikke to; og den lå tidligere som en egen `await` ETTER
+  // sesjonslesingen i hver gren — nå er det ett ledd mindre i serie på en side
+  // med P95 11,37 s.
+  //
+  // `shared` er null KUN når en KRITISK spørring feilet (computeSharedHomeData
+  // kaster da — se lib/home-query-guard). Kosmetiske feil er allerede
+  // degradert inne i bundelen. Null betyr derfor «vi vet ikke om det finnes en
+  // quiz», og det er en tredje tilstand — ikke «det finnes ingen».
+  const [founderStats, shared] = await Promise.all([
+    getFounderStoryStats(),
+    getSharedHomeData().catch((err): null => {
+      console.error('[forside] delt bundel utilgjengelig — viser ærlig feiltilstand:', err)
+      return null
+    }),
+  ])
+  const sharedUnavailable = shared === null
 
   // ── Session check via cookie-based Supabase SSR client ──
   // Middleware (middleware.ts) already called getUser() on this same request,
@@ -1207,9 +1298,9 @@ export default async function Home() {
     type LeagueMemberRow = { league_id: string; leagues: { id: string; name: string } | null }
 
     // Delt, ikke-personalisert data (quiz-kort, månedlig global toppliste,
-    // deltakerantall, siste quiz) hentes fra den cachede bundelen — identisk for
-    // alle og trygt å dele. Personaliserte spørringer kjøres per-request under.
-    const shared = await getSharedHomeData()
+    // deltakerantall, siste quiz) kommer fra den cachede bundelen som ble hentet
+    // over — identisk for alle og trygt å dele. Personaliserte spørringer kjøres
+    // per-request under.
 
     const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, orgMembershipResult] = await Promise.all([
       supabaseAdmin
@@ -1255,7 +1346,7 @@ export default async function Home() {
     // på samme rad — avviser om den må. Klientsjekken er visning, ruten er
     // gaten.
     const trialOffer = decideTrialOffer({
-      trialDays: shared.trialDays,
+      trialDays: shared?.trialDays ?? null,
       eligible: profile
         ? isTrialEligible({ isPremium, hasUsedTrial: profile.has_used_trial === true })
         : null,
@@ -1263,11 +1354,13 @@ export default async function Home() {
     const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
     const firstName = displayName.split(' ')[0]
 
-    // Quiz — aktiv (fra delt cache)
-    const quiz = shared.activeQuiz
+    // Quiz — aktiv (fra delt cache). null når bundelen er utilgjengelig, men
+    // da rendres QuizStatusUnavailableCard i stedet for kortet under, så
+    // «ingen quiz»-grenen er ikke nåbar.
+    const quiz = shared?.activeQuiz ?? null
 
     // Siste stengte quiz — "Se topplisten"-mål når ingen aktiv quiz finnes
-    const lastClosedQuizId = shared.lastClosedQuiz?.id ?? null
+    const lastClosedQuizId = shared?.lastClosedQuiz?.id ?? null
 
     // Org-medlemskap — er brukeren med i nøyaktig én org, lenker "Se topplisten"
     // (når quizen er stengt) til bedriftens side i stedet for quiz-topplisten.
@@ -1279,9 +1372,9 @@ export default async function Home() {
     const singleOrgToplistHref = orgSlugs.length === 1 ? `/org/${orgSlugs[0]}` : null
 
     // Kommende quiz (fra delt cache) — vises kun når ingen aktiv finnes
-    const upcomingQuiz: QuizRow | null = quiz ? null : shared.upcomingQuiz
+    const upcomingQuiz: QuizRow | null = quiz ? null : (shared?.upcomingQuiz ?? null)
 
-    const participantCount = shared.participantCount
+    const participantCount = shared?.participantCount ?? 0
 
     // Has the user already played the active quiz?
     type PlayedRow = { quiz_id: string; submitted_at: string | null }
@@ -1293,7 +1386,7 @@ export default async function Home() {
     // Season — fra delt cache (offentlig månedlig global toppliste). Brukerens
     // egen rang utledes lokalt fra den delte lista (userId er offentlig toppliste-
     // info — ingen privat data i cachen).
-    const standings = shared.monthlyStandings
+    const standings = shared?.monthlyStandings ?? []
     const userRankIdx  = standings.findIndex(s => s.userId === user.id)
     const userRank     = userRankIdx === -1 ? 0 : userRankIdx + 1
     const userPoints   = standings.find(s => s.userId === user.id)?.totalPoints ?? 0
@@ -1382,7 +1475,12 @@ export default async function Home() {
           </ErrorBoundary>
 
           {/* Quiz card */}
-          {quiz ? (
+          {/* sharedUnavailable FØRST i kjeden: uten den ville en lesefeil falt
+              helt ned i «Ingen quiz planlagt akkurat nå» — den ene setningen
+              som ikke får være usann. Se lib/home-query-guard. */}
+          {sharedUnavailable ? (
+            <QuizStatusUnavailableCard />
+          ) : quiz ? (
             <div className="qk-card">
               <p className="qk-card-eyebrow">Denne uken</p>
               <h2 className="qk-title">{quiz.title}</h2>
@@ -1693,28 +1791,28 @@ export default async function Home() {
   // DEFAULT VIEW — not logged in (original homepage, unchanged)
   // ══════════════════════════════════════════════════════════
 
-  const shared = await getSharedHomeData()
-
   // Ukens fakta — samme delte unstable_cache-bundel som den innloggede grenen
   // (60 s), så dette er en cache-lesing, ikke en ny spørring.
   const pageInsights = await getPageInsights()
 
-  const activeQuiz   = shared.activeQuiz
-  const upcomingQuiz = shared.upcomingQuiz
-  const activeParticipantCount = shared.participantCount
-  const foundersSettingsResult = shared.founders
+  // `shared` er hentet øverst i Home(), felles for begge grenene. Null =
+  // kritisk lesefeil ⇒ QuizStatusUnavailableCard, ikke «ingen quiz».
+  const activeQuiz   = shared?.activeQuiz ?? null
+  const upcomingQuiz = shared?.upcomingQuiz ?? null
+  const activeParticipantCount = shared?.participantCount ?? 0
+  const foundersSettingsResult = shared?.founders ?? null
 
   // Månedlig global topp 3 (anon) — filtrer bort tomme/manglende navn (som før),
   // deretter slice topp 3.
-  const anonMonthlyTop3: MonthEntry[] = shared.monthlyStandings
+  const anonMonthlyTop3: MonthEntry[] = (shared?.monthlyStandings ?? [])
     .filter(s => s.displayName && s.displayName !== '—')
     .slice(0, 3)
     .map(s => ({ displayName: s.displayName, totalPoints: s.totalPoints }))
 
   // Siste stengte quiz + topp 3 (fra delt cache)
-  const lastQuiz = shared.lastClosedQuiz
-  const lastQuizQuestionCount = shared.lastClosedQuiz?.questionsCount ?? 0
-  const lastQuizTop3 = shared.lastQuizTop3
+  const lastQuiz = shared?.lastClosedQuiz ?? null
+  const lastQuizQuestionCount = shared?.lastClosedQuiz?.questionsCount ?? 0
+  const lastQuizTop3 = shared?.lastQuizTop3 ?? []
 
   // Prøveperiode-tilbudet på den UTLOGGEDE forsiden. `eligible: null` er ikke en
   // mangel her — det er den riktige verdien: uten sesjon finnes det ingen profil
@@ -1724,7 +1822,7 @@ export default async function Home() {
   // (site_settings.founders_new_trial_days, allerede i home-shared-bundelen —
   // en global verdi, ikke brukerspesifikk, så ingen ekstra oppslag). Mangler
   // tallet, faller linja tilbake til «Premium kr 49/mnd».
-  const anonTrialOffer = decideTrialOffer({ trialDays: shared.trialDays, eligible: null })
+  const anonTrialOffer = decideTrialOffer({ trialDays: shared?.trialDays ?? null, eligible: null })
 
   return (
     <>
@@ -1747,7 +1845,13 @@ export default async function Home() {
             Svar på 15 spørsmål, se hvor du ligger og klatre på topplisten gjennom sesongen.
           </p>
           <div className="qk-hero-actions">
-            {activeQuiz ? (
+            {/* Ved kritisk lesefeil skjules hele quiz-avhengige knappeparet.
+                «Varsle meg» (anker til påmeldingsskjemaet) og «Bli med» er
+                begge stille påstander om at det ikke er noe å spille NÅ — og
+                det vet vi ikke. Samme prinsipp som authUnknown-grenene rett
+                under: vi viser ikke en påstand vi ikke kan stå for. Kortet
+                lenger nede bærer handlingen i den tilstanden. */}
+            {!sharedUnavailable && (activeQuiz ? (
               // Fredag (åpen quiz): spilling er primærhandlingen, ikke
               // registrering — og lenken går allerede via /login for
               // utloggede, så «å bli med» skjer på veien inn i quizen.
@@ -1790,7 +1894,7 @@ export default async function Home() {
                   </a>
                 )}
               </>
-            )}
+            ))}
             <Link href="/slik-fungerer-det" className="qk-btn-outline-dark">
               Slik fungerer det →
             </Link>
@@ -1904,7 +2008,11 @@ export default async function Home() {
 
         {/* ── Quiz-kort ── */}
         <div className="qk-narrow-wrap">
-        {activeQuiz ? (
+        {/* Samme rekkefølge som i den innloggede grenen: feiltilstanden FØRST,
+            ellers ender en lesefeil i «Ingen quiz planlagt». */}
+        {sharedUnavailable ? (
+          <QuizStatusUnavailableCard />
+        ) : activeQuiz ? (
           <div className="qk-card">
             <p className="qk-card-eyebrow">Denne uken</p>
             <h2 className="qk-title">{activeQuiz.title}</h2>

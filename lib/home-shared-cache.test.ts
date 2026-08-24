@@ -106,7 +106,8 @@ const GLOBALE_FELT = [
   'lastClosedQuiz',
   'lastQuizTop3',
   'monthlyStandings',
-  'nextQuizAt',
+  // 'nextQuizAt' er FJERNET 24. august 2026: site_settings-oppslaget ble
+  // cachet og fingeravtrykket, men lest av null konsumenter på forsiden.
   'participantCount',
   'trialDays',
   'upcomingQuiz',
@@ -117,7 +118,12 @@ const GLOBALE_FELT = [
 const FELT_FINGERAVTRYKK = createHash('sha1').update(KEYS.join(',')).digest('hex').slice(0, 8)
 // v4 siden 24. august 2026: samme feltsett (halen uendret), men lastQuizTop3
 // ble blokkert-gatet, og lagrede v3-bundler bar det ufiltrerte utvalget.
-const CACHE_NØKKEL = `home-shared-data-v4-${FELT_FINGERAVTRYKK}`
+// v5 samme dag ([F-7]): feltsettet krympet (nextQuizAt fjernet), OG en lagret
+// v4-bundel kunne være regnet ut mens en spørring feilet — altså en nullbundel
+// som påsto «ingen quiz». Fra og med v5 kan en slik bundel ikke oppstå:
+// computeSharedHomeData kaster, og et kast når aldri cacheNewResult()
+// (bevist mot den ekte unstable_cache i lib/home-cache-poisoning.test.ts).
+const CACHE_NØKKEL = `home-shared-data-v5-${FELT_FINGERAVTRYKK}`
 
 test('bundelen bærer kun de globale feltene — ingen brukerspesifikke', () => {
   assert.ok(KEYS.includes('activeQuiz'), 'plukket feil retur-objekt ut av funksjonen')
