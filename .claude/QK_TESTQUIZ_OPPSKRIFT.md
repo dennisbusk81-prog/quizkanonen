@@ -1,6 +1,8 @@
 # QK — Testquiz-oppskrift (opprett og rydd)
 
-Opprettet 5. august 2026.
+Opprettet 5. august 2026. Kjørt og verifisert på nytt 24. august 2026 (hele
+runden: opprettelse, forhåndstelling, sletting, kontrolltelling — alle tall
+matchet). Seksjon 3 og 5 ble rettet samme dag; se de to merkelappene der.
 
 Gjenbrukbar SQL for å opprette en testquiz i databasen, spille den gjennom i
 nettleseren (browser-verifisering), og rydde den bort igjen etterpå uten å
@@ -130,6 +132,13 @@ cross join (values
 where z.title = '[TEST] Browserverifisering' and z.is_test = true;
 ```
 
+**Tidsgrensen kan settes opp når testen krever manuelle steg underveis.**
+`time_limit_seconds` over (15 s, både på quizen og per spørsmål) er kalibrert
+for en vanlig gjennomspilling. Skal du rekke å åpne DevTools, lime inn en
+snutt eller endre noe i basen mens et spørsmål står på skjermen, er 15 sekunder
+for kort — sett 120 i begge feltene i stedet. Det påvirker ingenting annet:
+`applyAnswerTimeIntegrity` bruker grensen kun som TAK per svar.
+
 Hent id-en til bruk i URL-en (`/quiz/<id>`):
 
 ```sql
@@ -167,9 +176,42 @@ kodesti som ellers ville behandlet den som en ekte fredagsquiz.
 
 ### `is_test = true` — holder varslings-cronene unna
 
-`app/api/cron/send-reminders/route.ts` (linje 104–105 og 229–230) og
-`app/api/cron/send-push/route.ts` (linje 64–65) filtrerer begge eksplisitt på
-`.eq('is_test', false)` og `.eq('is_active', true)`.
+**Rettet 24. august 2026.** Her sto det tidligere at `send-reminders` og
+`send-push` filtrerer «hver for seg» på oppgitte linjenumre, og
+`notify-subscribers` var ikke nevnt i det hele tatt — nettopp ruten som
+5. august sendte «Ukens quiz er klar — [TEST – ikke ekte] …» til
+påmeldingslisten. Begge deler er nå feil beskrivelse av koden.
+
+Filteret ligger ikke lenger inline i noen av rutene. Det bor i ÉN delt helper,
+`findOpenedQuizToNotify` i `lib/opened-quiz-lookup.ts` (linje 187–196), som har
+begge vaktene:
+
+```
+.eq('is_test', false)
+.eq('is_active', true)
+```
+
+**Alle tre varslingsrutene kaller den**, og gjør ingen egen quiz-spørring for
+åpningsvarselet:
+
+| Rute | Kallsted |
+|---|---|
+| `notify-subscribers` | route.ts:57 |
+| `send-push` | route.ts:54 |
+| `send-reminders` | route.ts:88 |
+
+Vakten er plassert i helperen med vilje, ikke hos kallerne — kommentaren der
+sier det rett ut: et nytt kallsted skal ikke kunne glemme den. Samme
+sink-prinsipp som escapingen i `lib/email-templates.ts`.
+
+**`send-reminders` har et ANDRE quiz-oppslag** (route.ts:213–222), til
+org-stengepåminnelsen. Det er en helt egen spørring — aktiv nå, sortert
+`closes_at` stigende — med sitt eget `.eq('is_test', false)` og
+`.eq('is_active', true)`. Den er den skarpeste kanten i hele oppsettet: en
+testquiz opprettet etter oppskriften er åpen i sju dager, altså nøyaktig en rad
+den spørringen plukker, og en testquiz som stenger FØR den ekte quizen ville
+vunnet sorteringen. Filteret står der, men et framtidig oppslag med samme form
+må huske det.
 
 Uten dette flagget ville en testquiz utløst **ekte e-post og push til ekte
 abonnenter**. Dette er det ene feltet der en glipp er synlig for kunder.
@@ -197,13 +239,21 @@ quizer slik:
 .from('quizzes').select(...).lt('closes_at', now).eq('season_points_awarded', false)
 ```
 
-Ingen `is_test`-filter her heller. Cronen kjører hvert 5. minutt, så i det
-øyeblikk testquizens `closes_at` passerer, ville den blitt gjort opp og skrevet
-**ekte sesongpoeng inn i `season_scores`** for alle som spilte den — inkludert
-den globale topplista.
+**Rettet 24. august 2026:** her sto «Ingen `is_test`-filter her heller». Det er
+ikke lenger sant — ruten har nå `.eq('is_test', false)`
+(`app/api/cron/award-season-points/route.ts:43`), med en kommentar som viser
+tilbake til varslingsrutene. Se «Hull 2» i seksjon 5.
 
-Å sette flagget til `true` ved opprettelse er «allerede gjort opp»-tilstanden,
-og cronen hopper over den for alltid.
+Flagget beholdes likevel, av to grunner. Det er billig, og det gjør quizen
+merket som «allerede gjort opp» uansett hvilken kodesti som en dag måtte se på
+den. Historikken det beskyttet mot: uten `is_test`-filteret ville cronen i det
+øyeblikk testquizens `closes_at` passerte skrevet **ekte sesongpoeng inn i
+`season_scores`** — inkludert global scope, altså den offentlige
+månedstopplista.
+
+Merk at `publish-quiz`-cronen gjør opp i praksis før `award-season-points`
+rekker det (den kjører hvert minutt og gjør opp i `waitUntil` rett etter
+stenging). Den har `is_test=false` tre steder.
 
 ### `is_active = true` — NØDVENDIG, ikke valgfritt
 
@@ -354,11 +404,13 @@ tidligere ad hoc-rydding.
 
 ---
 
-## 5. Backlog — to manglende `is_test`-filtre
+## 5. Backlog — ETT gjenstående manglende `is_test`-filter (av opprinnelig to)
 
-Funnet under denne kartleggingen. **Ikke rettet 5. august 2026** — dokumentert
-her slik at oppskriftens `quiz_type='test'` og `season_points_awarded=true`
-ikke fremstår som vilkårlige.
+Funnet under kartleggingen 5. august 2026. **Hull 2 er siden LUKKET; Hull 1
+står fortsatt åpent** (status verifisert i koden 24. august 2026).
+
+Dokumentert her slik at oppskriftens `quiz_type='test'` og
+`season_points_awarded=true` ikke fremstår som vilkårlige.
 
 Begge er samme feilklasse: en kodesti som skal behandle «ekte fredagsquizer»
 avgrenser på noe *annet* enn `is_test`, og fungerer i dag bare fordi
@@ -374,25 +426,30 @@ alle besøkende.
 Merk at DEFAULT-verdien gjør dette til standardoppførselen: glemmer man å sette
 `quiz_type` i det hele tatt, blir quizen `'weekly'`.
 
-### Hull 2 — `/api/cron/award-season-points`
+### ~~Hull 2 — `/api/cron/award-season-points`~~ LUKKET
 
-`app/api/cron/award-season-points/route.ts:18–21` avgrenser på
-`season_points_awarded = false` og `closes_at < now()`, ikke på `is_test`.
-Enhver stengt testquiz som ikke er forhåndsmerket som gjort opp får ekte
-sesongpoeng skrevet til `season_scores` — inkludert global scope, altså den
-offentlige månedstopplista.
+Ruten avgrenset opprinnelig kun på `season_points_awarded = false` og
+`closes_at < now()`. **Filteret finnes nå**
+(`app/api/cron/award-season-points/route.ts:43`, `.eq('is_test', false)`),
+med en kommentar som viser tilbake til varslingsrutene. Verifisert i koden
+24. august 2026.
 
-Cronen kjører hvert 5. minutt, så vinduet mellom «testquizen stengte» og
-«poengene er skrevet» er maks fem minutter.
+Merk det bevisste asymmetriske valget der: `is_active` filtreres med vilje
+IKKE, fordi en spilt quiz som skjules i admin etter stenging fortsatt skal
+gjøres opp — ellers mister spillerne poengene sine. `is_test` og `is_active`
+er altså ikke et par som alltid følges ad; her er bare den ene riktig.
 
-### Vurdering
+### Vurdering (oppdatert 24. august 2026)
 
-Foreslått fiks er å legge `.eq('is_test', false)` på begge spørringene, slik
-`send-reminders` og `send-push` allerede gjør. Det ville gjort `is_test` til
-den ene, ensartede markøren for «ikke en ekte quiz», og gjort både
-`quiz_type='test'` og `season_points_awarded=true` i oppskriften over
-overflødige som beskyttelse (de kan da beholdes som ren merking).
+Den opprinnelige anbefalingen var å legge `.eq('is_test', false)` på begge
+spørringene. Det er nå gjort på den ene (Hull 2). Gjenstår Hull 1 i
+`/api/toppliste`, som fortsatt avgrenser på `quiz_type = 'weekly'`.
 
-Ikke gjort nå fordi det er en endring i produksjonskodestier — inkludert
-sesongpoeng-oppgjøret, som skriver til `season_scores` — og hører hjemme i en
-egen økt med egen verifisering. Oppskriften over er trygg uten den.
+**Konsekvens for oppskriften:** `quiz_type = 'test'` er fortsatt NØDVENDIG —
+det er det eneste som holder en testquiz ute av «Siste quiz» på topplista.
+`season_points_awarded = true` er nå strengt tatt overflødig som beskyttelse,
+men beholdes: det koster ingenting, og det merker quizen som gjort opp uansett
+hvilken kodesti som en dag måtte se på den.
+
+Hull 1 er ikke rettet fordi det er en endring i en produksjonskodesti og hører
+hjemme i en egen økt med egen verifisering. Oppskriften over er trygg uten den.
