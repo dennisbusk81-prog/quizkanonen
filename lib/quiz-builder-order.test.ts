@@ -177,8 +177,12 @@ test('flytting går via /reorder, ikke absolutte order_index-PATCHer', () => {
 
 test('feilet bytte oppdages og rulles tilbake: nøyaktig tre swapLocal-kall', () => {
   const lines = activeLines(BYGGER)
+  // Anker på throw-linjen, ikke på if-formen: 409-håndteringen (quiz_played)
+  // gjorde sjekken om til en blokk. Det er throw-en som sender kontrollen til
+  // catch og dermed utløser tilbakerullingen — fjernes den, består det lokale
+  // byttet uten dekning i DB (A16-1 trinn 1).
   assert.ok(
-    lines.some(l => l.includes('if (!res.ok) throw new Error(`reorder HTTP')),
+    lines.some(l => l.includes('throw new Error(`reorder HTTP ${res.status}`)')),
     'moveQuestion må behandle et ikke-ok reorder-svar som feil — ellers består det lokale byttet uten dekning i DB (A16-1 trinn 1)',
   )
   const swapCalls = lines.filter(l => l.includes('swapLocal(i, target)')).length

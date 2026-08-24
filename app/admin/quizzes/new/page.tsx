@@ -876,6 +876,11 @@ function QuizEditorInner() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteError, setDeleteError]         = useState<string | null>(null)
 
+  // Flytting avvist med forklaring (409 quiz_played fra /reorder). Uten denne
+  // så et sperret bytte ut som en teknisk feil: spørsmålet spratt tilbake og
+  // statusen sa «Feil» — uansett hvor mange ganger admin prøvde.
+  const [moveError, setMoveError]             = useState<string | null>(null)
+
   // Spørsmålsbank-modal ("Hent fra spørsmålsbank")
   const [bankOpen, setBankOpen]         = useState(false)
   const [bankLoaded, setBankLoaded]     = useState(false)
@@ -1433,12 +1438,20 @@ function QuizEditorInner() {
     activeIdxRef.current = target
 
     setSaveStatus('saving')
+    setMoveError(null)
     try {
       const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/reorder`, {
         method: 'POST',
         body: JSON.stringify({ questionA: idA, questionB: idB }),
       })
-      if (!res.ok) throw new Error(`reorder HTTP ${res.status}`)
+      if (!res.ok) {
+        // 409 quiz_played bærer forklaringen: rekkefølgen på en spilt quiz er
+        // låst (resultater er urørlige). Vis den ved pilene — tilbakerullingen
+        // under skjer uansett.
+        const d = await res.json().catch(() => null) as { error?: string } | null
+        if (res.status === 409 && d?.error) setMoveError(d.error)
+        throw new Error(`reorder HTTP ${res.status}`)
+      }
       showSaved()
     } catch {
       // Byttet skjedde ikke i databasen → rull det lokale byttet tilbake.
@@ -2216,6 +2229,7 @@ function QuizEditorInner() {
             </svg>
           </button>
         </div>
+        {moveError && <p className="nq-delete-error" style={{ margin: '6px 0 0', textAlign: 'center' }}>{moveError}</p>}
 
         {/* ── Question card ── */}
         <div className="nq-card">

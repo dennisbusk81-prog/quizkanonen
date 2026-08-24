@@ -45,6 +45,17 @@ export async function POST(
   })
 
   if (error) {
+    // quiz_played (RPC-vakt fra 20260824000001): rekkefølgen på en spilt quiz
+    // er låst — correct_streak rekonstrueres fra order_index ved fasitretting,
+    // så et bytte i etterkant kunne endret poeng og plasseringer. Samme regel
+    // som question_played i DELETE-ruten: resultater er urørlige.
+    if (error.message.includes('quiz_played')) {
+      return NextResponse.json({
+        error: 'Quizen har registrerte besvarelser, og rekkefølgen er derfor låst — ' +
+          'flytting i etterkant kunne endret streak og plasseringer ved en senere fasitretting.',
+        code: 'quiz_played',
+      }, { status: 409 })
+    }
     console.error('[questions/reorder] swap_question_order feilet:', {
       quizId, questionA, questionB, code: error.code, message: error.message,
     })
