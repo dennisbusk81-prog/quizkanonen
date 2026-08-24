@@ -29,11 +29,33 @@ test('assertHomeQuery kaster ved feil, med spørringens navn i beskjeden', () =>
 })
 
 test('assertHomeQuery kaster også når feilobjektet mangler message', () => {
-  // PostgREST-feil har alltid message, men en avbrutt fetch trenger ikke ha
-  // det. En feil uten tekst er fortsatt en feil — den må ikke gli gjennom som
-  // «ingen feil» og bli til «ingen quiz».
+  // En avbrutt fetch trenger ikke ha message. En feil uten tekst er fortsatt en
+  // feil — den må ikke gli gjennom som «ingen feil» og bli til «ingen quiz».
   assert.throws(() => assertHomeQuery('kommende quiz', {}), HomeDataUnavailableError)
   assert.throws(() => assertHomeQuery('kommende quiz', { message: null }), HomeDataUnavailableError)
+})
+
+test('en TOM message faller tilbake på «ukjent lesefeil»', () => {
+  // Ikke hypotetisk: en feil fra en `head: true`-telling har message: '' —
+  // det finnes ingen body å hente teksten fra. Målt 24. august 2026 ved å
+  // peke quiz-tellingen i computeFounderStoryStats mot en kolonne som ikke
+  // finnes: loggen sa «forsidens delte bundel: «quizer gjennomført» feilet — »
+  // og stoppet der. `??` slipper den tomme strengen gjennom; `||` gjør ikke.
+  assert.throws(
+    () => assertHomeQuery('quizer gjennomført', { message: '' }),
+    (err: unknown) => err instanceof HomeDataUnavailableError && err.message.includes('ukjent lesefeil'),
+  )
+
+  const original = console.error
+  const linjer: unknown[][] = []
+  console.error = (...args: unknown[]) => { linjer.push(args) }
+  try {
+    assert.equal(logHomeQuery('siste stengte quiz', { message: '' }), true)
+  } finally {
+    console.error = original
+  }
+  assert.equal(linjer.length, 1, 'logHomeQuery logget ikke')
+  assert.notEqual(linjer[0][1], '', 'den tomme meldingen ble logget som tom — grunnen mangler i loggen')
 })
 
 test('logHomeQuery returnerer false og logger ingenting uten feil', () => {

@@ -22,6 +22,7 @@ import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
 import { getLastQuizTop3, type HomeTop3Row } from '@/lib/home-top3'
 import { getLeagueCardData } from '@/lib/league-card-data'
 import { assertHomeQuery, logHomeQuery } from '@/lib/home-query-guard'
+import * as Sentry from '@sentry/nextjs'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
 // kanselleres 14.–15. august. Seksjonen under (qk-founders) inviterte aktivt
@@ -342,7 +343,7 @@ async function computePageInsights(): Promise<PageInsights | null> {
     // 5cbf976 lente seg på): en skjult quiz skal fortsatt gjøres OPP, men
     // ikke stilles UT — «Skjul» i admin skal fjerne spørsmålene fra forsiden.
     // Besluttet av Dennis 17. august 2026, gjelder både innlogget og utlogget.
-    const { data: closedQuizRow } = await supabaseAdmin
+    const { data: closedQuizRow, error: closedQuizError } = await supabaseAdmin
       .from('quizzes')
       .select('id, attempts!inner(id, attempt_answers!inner(id))')
       .eq('is_test', false)
@@ -355,9 +356,16 @@ async function computePageInsights(): Promise<PageInsights | null> {
       .limit(1)
       .maybeSingle()
 
+    // KOSMETISK ×3 herfra og ned: hver av de tre feilene ender i den SAMME
+    // ærlige degraderingen som et tomt resultat gir — «Ukens fakta»
+    // forsvinner, ingen påstand blir usann. Det som manglet var altså ikke
+    // degraderingen, men SPORET: fram til 24. august 2026 nådde en feil her
+    // verken loggen eller Sentry, og seksjonen kunne stått død i ukevis uten
+    // at noen så det.
+    if (logHomeQuery('ukens fakta (siste stengte quiz)', closedQuizError)) return null
     if (!closedQuizRow) return null
     const cqId = (closedQuizRow as { id: string }).id
-    const { data: attemptRows } = await supabaseAdmin
+    const { data: attemptRows, error: attemptRowsError } = await supabaseAdmin
       .from('attempts')
       .select('id')
       .eq('quiz_id', cqId)
@@ -365,6 +373,7 @@ async function computePageInsights(): Promise<PageInsights | null> {
       .not('user_id', 'is', null)
       .limit(500)
 
+    if (logHomeQuery('ukens fakta (forsøk)', attemptRowsError)) return null
     const attemptIds = ((attemptRows ?? []) as { id: string }[]).map(a => a.id)
     if (attemptIds.length < 3) return null
 
@@ -376,11 +385,12 @@ async function computePageInsights(): Promise<PageInsights | null> {
       .sort((a, b) => b.correctPct - a.correctPct)
 
     if (qualified.length < 2) return null
-    const { data: questionRows } = await supabaseAdmin
+    const { data: questionRows, error: questionRowsError } = await supabaseAdmin
       .from('questions')
       .select('id, question_text')
       .in('id', qualified.map(q => q.questionId))
 
+    if (logHomeQuery('ukens fakta (spørsmålstekster)', questionRowsError)) return null
     const textMap = new Map(
       ((questionRows ?? []) as { id: string; question_text: string }[]).map(q => [q.id, q.question_text])
     )
@@ -390,7 +400,21 @@ async function computePageInsights(): Promise<PageInsights | null> {
 
     if (withText.length < 2) return null
     return { easiest: withText[0], hardest: withText[withText.length - 1] }
-  } catch {
+  } catch (err) {
+    // Den ytre grenen fanger noe ANNET enn de tre lesingene over: uventede
+    // kast — RPC-fallbackene i lib/attempt-answer-stats som velter,
+    // fetchAllRows, en formfeil. Altså ekte bugs, og de hører i Sentry.
+    //
+    // Volumet er trygt fordi `null` CACHES: computePageInsights ligger i
+    // unstable_cache med revalidate 60, så en vedvarende feil koster høyst én
+    // hendelse i minuttet per region — ikke én per forsidelast.
+    console.error('[forside] ukens fakta feilet uventet — seksjonen skjules:', err)
+    try {
+      Sentry.captureException(err, { tags: { area: 'home-page-insights' } })
+    } catch {
+      // Rapporteringen kan ikke rapportere sin egen svikt. Samme mønster som
+      // lib/opened-quiz-lookup: forsiden skal ikke falle fordi Sentry er nede.
+    }
     return null
   }
 }
@@ -419,7 +443,7 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
   const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = new Date().toISOString()
 
-  const [{ count: quizzesCompleted }, activePlayers] = await Promise.all([
+  const [quizzesRes, activePlayers] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
       .select('id', { count: 'exact', head: true })
@@ -429,13 +453,34 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
     countActivePlayersSince(twelveWeeksAgo),
   ])
 
+  // KRITISK, av nøyaktig samme grunn som founders-plassene i den delte
+  // bundelen: uten vakten ble `count` null ved lesefeil, `?? 0` gjorde den til
+  // 0, og grunnleggerseksjonen påsto «0+ Quizer gjennomført» — et oppdiktet
+  // tall, ikke en manglende seksjon. Verre her enn de fleste steder: med
+  // revalidate 3600 ville løgnen stått i en TIME.
+  //
+  // Et kast er riktig verktøy HER (i motsetning til i den personaliserte
+  // grenen i Home()): kallstedet fanger det og skjuler stat-raden, og et kast
+  // når aldri cacheNewResult() — se lib/home-query-guard.
+  //
+  // De to tallene feilet tidligere på hver sin ytterlighet: dette diktet opp
+  // en 0, mens countActivePlayersSince KASTER ved total feil og — ufanget på
+  // kallstedet — felte hele forsiden. Nå ender begge samme sted.
+  assertHomeQuery('quizer gjennomført', quizzesRes.error)
+
   return {
-    quizzesCompleted: quizzesCompleted ?? 0,
+    quizzesCompleted: quizzesRes.count ?? 0,
     activePlayers,
   }
 }
 
-const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v1'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
+// v1 → v2 (24. august 2026): returformen er uendret, men en LAGRET v1-verdi
+// kan være regnet ut mens quiz-tellingen feilet, altså inneholde det
+// oppdiktede `quizzesCompleted: 0`. Vercels data-cache overlever deploys, og
+// med revalidate 3600 ville nettopp den timeslange løgnen fiksen fjerner
+// blitt båret over deployen. Fra og med v2 KAN en slik verdi ikke finnes:
+// computeFounderStoryStats kaster i stedet, og et kast når aldri cachen.
+const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v2'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
 
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -1256,7 +1301,17 @@ export default async function Home() {
   // degradert inne i bundelen. Null betyr derfor «vi vet ikke om det finnes en
   // quiz», og det er en tredje tilstand — ikke «det finnes ingen».
   const [founderStats, shared] = await Promise.all([
-    getFounderStoryStats(),
+    // Fanges her av samme grunn som den delte bundelen rett under: begge
+    // feilveiene i computeFounderStoryStats (kastet fra quiz-tellingen, og et
+    // kast fra countActivePlayersSince når både RPC-en og den paginerte
+    // fallbacken svikter) ville ellers falt helt til app/global-error.tsx —
+    // det finnes ingen app/error.tsx — og byttet ut HELE forsiden med «Noe
+    // gikk galt». To tillitstall er ikke verdt en forside. null ⇒ stat-raden
+    // skjules, resten av grunnleggerseksjonen står.
+    getFounderStoryStats().catch((err): null => {
+      console.error('[forside] grunnleggertall utilgjengelig — stat-raden skjules:', err)
+      return null
+    }),
     getSharedHomeData().catch((err): null => {
       console.error('[forside] delt bundel utilgjengelig — viser ærlig feiltilstand:', err)
       return null
@@ -1334,9 +1389,47 @@ export default async function Home() {
         .eq('user_id', user.id),
     ])
 
+    // ── Lesevakter for de fem personaliserte spørringene ────────────────
+    //
+    // Her KASTER vi ikke, i motsetning til den delte bundelen. Forskjellen er
+    // ikke smak: disse fem ligger rått i Home(), utenfor både unstable_cache
+    // og et .catch, og det finnes ingen app/error.tsx. Et kast herfra faller
+    // helt til app/global-error.tsx og bytter ut HELE siden med «Noe gikk
+    // galt» — nav, hero, Ukens fakta, grunnleggerseksjon, alt. Der
+    // computeSharedHomeData mister ETT kort, mister vi hele forsiden.
+    //
+    // Vakten gjør derfor den enkelte PÅSTANDEN umulig i stedet, som en tredje
+    // tilstand i JSX-en under. Regelen fra lib/home-query-guard er den samme;
+    // det er degraderingen som må passe kallstedet.
+    const premiumUnknown = logHomeQuery('profil (innlogget)', profileResult.error)
+    // KOSMETISK: liga-kortet rendres bak en length > 0-vakt, så en lesefeil
+    // skjuler seksjonen av seg selv. Ingen «du har ingen ligaer»-tekst finnes.
+    logHomeQuery('mine ligaer (league_members)', leagueResult.error)
+    const playedStatusUnknown = logHomeQuery('spilt-status (attempts)', playedLogResult.error)
+    const playedThisMonthUnknown = logHomeQuery('spilt denne måneden (attempts)', monthlyAttemptsResult.error)
+    // KOSMETISK: uten org-medlemskapet peker «Se topplisten» til
+    // quiz-topplista i stedet for bedriftssiden. Lenken er gyldig, bare
+    // mindre kontekstuell — ingen påstand blir usann.
+    logHomeQuery('org-medlemskap (organization_members)', orgMembershipResult.error)
+
     // Profile
     const profile = profileResult.data
     const isPremium = profile?.premium_status === true
+    // «Nedgraderer aldri på transient feil» — regelen ProfileProvider har
+    // fulgt hele tiden, nå håndhevet på forsiden også. Landet ikke
+    // profiloppslaget, er Premium UKJENT, ikke «gratis»: en betalende kunde
+    // skal aldri se «Oppgrader til Premium», et lås-merke på Historikk eller
+    // fordels-seksjonen som forteller henne hva hun går glipp av.
+    //
+    // Merk asymmetrien — den er med vilje. INNHOLDET forblir fail-closed:
+    // ukjent gir fortsatt gratis-visningen («blant de N beste», ikke nøyaktig
+    // plassering), for en lesefeil skal ikke åpne en Premium-flate. Det er
+    // kun PÅSTANDEN OM KONTOEN som skjules. Samme skille som ellers: klienten
+    // er visning, ruten er porten.
+    //
+    // Et manglende profilrad-treff (error null, data null) er IKKE ukjent —
+    // da finnes det ingen konto å nedgradere, og oppsalget er sant.
+    const premiumLocked = !isPremium && !premiumUnknown
     // Prøveperiode-tilbudet for DENNE brukeren. Avgjort server-side her — vi
     // har allerede profilraden, så CTA-ene under trenger verken en
     // klient-komponent eller et ekstra kall.
@@ -1377,6 +1470,13 @@ export default async function Home() {
     const participantCount = shared?.participantCount ?? 0
 
     // Has the user already played the active quiz?
+    //
+    // playedStatusUnknown står FØRST i CTA-kjeden i JSX-en under, og må bli
+    // stående der. Fram til 24. august 2026 falt en lesefeil her helt ned i
+    // «Spill ukens quiz» — vi lokket en som ALLEREDE hadde spilt inn i
+    // allerede-spilt-skjermen eller en 403. Begge flaggene under er `false`
+    // ved feil (data er null), og det er nettopp derfor de ikke kan brukes
+    // til å skille «har ikke spilt» fra «vi vet ikke».
     type PlayedRow = { quiz_id: string; submitted_at: string | null }
     const attemptRows = (playedLogResult.data as PlayedRow[] | null) ?? []
     const myActiveAttempt = quiz ? attemptRows.find(r => r.quiz_id === quiz.id) : null
@@ -1506,7 +1606,22 @@ export default async function Home() {
                 </div>
               )}
               <div className="qk-card-actions">
-                {alreadyPlayed ? (
+                {/* playedStatusUnknown FØRST i kjeden, av samme grunn som
+                    sharedUnavailable står først rundt hele kortet: uten den
+                    faller en lesefeil ned i «Spill ukens quiz», og en som har
+                    spilt lokkes inn i en vegg. Kortet ellers er delt data og
+                    fortsatt gyldig, så vi beholder det — det er bare
+                    handlingen som ikke kan påstå noe. */}
+                {playedStatusUnknown ? (
+                  <>
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>
+                      Vi fikk ikke sjekket om du har spilt denne uken.
+                    </p>
+                    <Link href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold">
+                      Åpne ukens quiz →
+                    </Link>
+                  </>
+                ) : alreadyPlayed ? (
                   <>
                     <p style={{ fontSize: 14, color: '#e8e4dd' }}>Du har allerede spilt denne uken</p>
                     <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-outline-gold">
@@ -1615,7 +1730,14 @@ export default async function Home() {
                 <span style={{ color: '#e8e4dd' }}> · {userPoints} poeng</span>
               </p>
             )}
-            {isPremium && userPoints === 0 && (
+            {/* !playedThisMonthUnknown på begge de to setningene under: de er
+                de eneste stedene playedThisMonth havner på skjermen, og ved
+                lesefeil ble count null ⇒ false ⇒ «Du er ikke i gang denne
+                måneden ennå» til en som spilte i går. Samme klasse som «250
+                av 250 plasser igjen»: en påstand, ikke en manglende seksjon.
+                Uten svaret sier vi ingenting — etiketten og «Se nøyaktig
+                plassering →» står igjen. */}
+            {isPremium && userPoints === 0 && !playedThisMonthUnknown && (
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
                   ? 'Du har spilt denne måneden — resultatet blir endelig når quizen stenger'
@@ -1629,7 +1751,7 @@ export default async function Home() {
                 {' '}beste denne måneden
               </p>
             )}
-            {!isPremium && userPoints === 0 && (
+            {!isPremium && userPoints === 0 && !playedThisMonthUnknown && (
               <p style={{ fontSize: 15, color: '#e8e4dd' }}>
                 {playedThisMonth
                   ? 'Du har spilt denne måneden — resultatet blir endelig når quizen stenger'
@@ -1648,7 +1770,7 @@ export default async function Home() {
               <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
                 Se nøyaktig plassering →
               </Link>
-              {!isPremium && (
+              {premiumLocked && (
                 <Link href="/premium" className="qk-btn-outline-gold" style={{ fontSize: 13, padding: '7px 18px' }}>
                   {trialOffer.show ? `Prøv Premium gratis i ${trialOffer.days} dager` : 'Oppgrader til Premium'}
                 </Link>
@@ -1683,19 +1805,22 @@ export default async function Home() {
               <span className="qkp-shortcut-arrow">→</span>
             </Link>
 
+            {/* premiumLocked, ikke !isPremium: ved ukjent profil peker flisa
+                til /historikk, som gater ærlig server-side og sier fra selv.
+                Et lås-merke ville derimot påstått noe vi ikke vet. */}
             <Link
-              href={isPremium ? '/historikk' : '/premium'}
+              href={premiumLocked ? '/premium' : '/historikk'}
               className="qkp-shortcut"
-              style={{ opacity: isPremium ? 1 : 0.7 }}
+              style={{ opacity: premiumLocked ? 0.7 : 1 }}
             >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={isPremium ? '#c9a84c' : '#918f8a'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke={premiumLocked ? '#918f8a' : '#c9a84c'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/>
                 <path d="M11 7v4l3 2"/>
               </svg>
               <span className="qkp-shortcut-label" style={{ color: '#e8e4dd' }}>
                 Historikk
               </span>
-              {isPremium
+              {!premiumLocked
                 ? <span className="qkp-shortcut-arrow">→</span>
                 // Lås-merket, ikke en CTA — derfor den korte varianten. En full
                 // «Prøv Premium gratis i N dager» ville brukket over flere
@@ -1706,7 +1831,7 @@ export default async function Home() {
           </div>
 
           {/* Premium-fordeler — kun for ikke-Premium-brukere */}
-          {!isPremium && (
+          {premiumLocked && (
             <div style={{
               background: '#21242e',
               border: '1px solid #2a2d38',
@@ -2213,16 +2338,18 @@ export default async function Home() {
             <p className="qk-founder-story-body">
               Quizkanonen er laget av en quizmaster med over 20 års erfaring — digitalt og live, i Norge og Spania. Bygget slik vedkommende selv ville ønsket det.
             </p>
-            <div className="qk-founder-story-stats">
-              <div>
-                <div className="qk-founder-stat-num">{founderStats.quizzesCompleted}+</div>
-                <div className="qk-founder-stat-label">Quizer gjennomført</div>
+            {founderStats && (
+              <div className="qk-founder-story-stats">
+                <div>
+                  <div className="qk-founder-stat-num">{founderStats.quizzesCompleted}+</div>
+                  <div className="qk-founder-stat-label">Quizer gjennomført</div>
+                </div>
+                <div>
+                  <div className="qk-founder-stat-num">{founderStats.activePlayers}+</div>
+                  <div className="qk-founder-stat-label">Aktive spillere</div>
+                </div>
               </div>
-              <div>
-                <div className="qk-founder-stat-num">{founderStats.activePlayers}+</div>
-                <div className="qk-founder-stat-label">Aktive spillere</div>
-              </div>
-            </div>
+            )}
             <Link href="/om" className="qk-founder-story-link">Les historien →</Link>
           </div>
         </div>

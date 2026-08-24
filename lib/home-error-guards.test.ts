@@ -30,6 +30,30 @@
 //   • Fjern `sharedUnavailable ?`-grenen foran quiz-kortet i én av grenene →
 //     «feiltilstanden står FØR ingen-quiz-grenen» ryker for den grenen.
 //   • Fjern `.catch(` rundt getSharedHomeData() → «kalleren fanger» ryker.
+//
+// SØSKNENE (24. august 2026): tre andre steder i samme fil hadde samme
+// feilklasse — den personaliserte Promise.all-en i Home(), computePageInsights
+// og computeFounderStoryStats. De nye testene under er mutasjonsbevist samme
+// dag, alle ti mutasjonene ble røde:
+//   • Fjern lesevakten på `playedLogResult` → «hver rå spørring i den
+//     PERSONALISERTE grenen» ryker.
+//   • Bytt `logHomeQuery` mot `assertHomeQuery` på playedLogResult → «de
+//     PERSONALISERTE vaktene LOGGER» ryker. Motsatt krav av det kritiske
+//     kravet over, og grunnen er kallstedet: den personaliserte grenen ligger
+//     utenfor både cache og `.catch`, og repoet har ingen app/error.tsx — et
+//     kast der bytter ut HELE siden, ikke ett kort.
+//   • Fjern `{playedStatusUnknown ? …}` fra CTA-kjeden (den eksakte
+//     pre-fiks-koden) → «kan ikke gi «Spill ukens quiz»» ryker.
+//   • Gate oppsalget på `!isPremium` igjen → «premium nedgraderes ikke» ryker.
+//   • Fjern `!playedThisMonthUnknown` fra én av de to setningene → «kan ikke
+//     påstå «du er ikke i gang denne måneden»» ryker.
+//   • Slutt å lese `error` på insights-forsøkene → «computePageInsights leser
+//     error» ryker.
+//   • Gjør den ytre catch-en stum (`} catch {  return null`) → «ytre catch er
+//     ikke stum» ryker.
+//   • Gjeninnfør `?? 0` på quizzesCompleted, fjern `.catch(` på kallstedet,
+//     eller behold cache-nøkkel v1 → «grunnleggertallene» ryker på hver av de
+//     tre.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -94,10 +118,20 @@ function splitTopLevel(list: string): string[] {
  * parer hvert destrukturerte navn med sin slot. Returnerer kun de slotene som
  * er RÅ supabaseAdmin-spørringer — IIFE-slotene returnerer ferdige verdier og
  * har ingen `.error` å lese.
+ *
+ * `anker` velger HVILKEN destrukturering når kroppen har flere. Home() har to:
+ * først `[founderStats, shared]` (ingen rå spørringer), så den personaliserte
+ * `[profileResult, …]`. Uten ankeret målte helperen alltid den første, og den
+ * personaliserte grenen — der [F-7]-søsknene bor — ville sett dekket ut mens
+ * ingen test rørte den.
  */
-function rawQuerySlots(body: string): { name: string; slot: string }[] {
-  const m = /const\s*\[([^\]]+)\]\s*=\s*await\s+Promise\.all\(\[/.exec(body)
-  assert.ok(m, 'fant ingen «const [...] = await Promise.all([» i funksjonskroppen')
+function rawQuerySlots(body: string, anker?: string): { name: string; slot: string }[] {
+  const alle = [...body.matchAll(/const\s*\[([^\]]+)\]\s*=\s*await\s+Promise\.all\(\[/g)]
+  assert.ok(alle.length > 0, 'fant ingen «const [...] = await Promise.all([» i funksjonskroppen')
+  const m = anker
+    ? alle.find(x => x[1].split(',').map(s => s.trim()).includes(anker))
+    : alle[0]
+  assert.ok(m, `fant ingen Promise.all-destrukturering som inneholder «${anker}»`)
   const names = m[1].split(',').map(s => s.trim()).filter(Boolean)
 
   const arrayStart = m.index + m[0].length
@@ -132,6 +166,14 @@ const SRC = stripComments(PAGE)
 const SHARED = functionBody(SRC, 'async function computeSharedHomeData')
 const PARTICIPANTS = functionBody(SRC, 'async function countParticipants')
 const HOME = functionBody(SRC, 'export default async function Home')
+const INSIGHTS = functionBody(SRC, 'async function computePageInsights')
+const FOUNDER = functionBody(SRC, 'async function computeFounderStoryStats')
+
+/** Linjene i en kropp som nevner `needle` — brukt der labels inneholder
+ *  parenteser og et `[^)]*`-regex derfor ville stoppet for tidlig. */
+function linjerMed(body: string, needle: string): string[] {
+  return body.split('\n').filter(l => l.includes(needle))
+}
 
 // Kritiske lesinger: de som bestemmer om forsiden i det hele tatt sier at det
 // finnes en quiz. Feiler én av dem, er BÅDE «Ingen quiz planlagt» og
@@ -237,6 +279,179 @@ test('feiltilstanden står FØR «ingen quiz»-grenen i BEGGE grenene', () => {
       'da nås den aldri, og setningen kan fortsatt bli usann',
     )
   }
+})
+
+// ══════════════════════════════════════════════════════════════════════════
+// SØSKNENE (24. august 2026) — samme feilklasse, tre andre steder i fila
+// ══════════════════════════════════════════════════════════════════════════
+
+const PERSONALISERTE = [
+  'profileResult',
+  'leagueResult',
+  'playedLogResult',
+  'monthlyAttemptsResult',
+  'orgMembershipResult',
+]
+
+test('hver rå spørring i den PERSONALISERTE grenen leser sin error', () => {
+  const slots = rawQuerySlots(HOME, 'playedLogResult')
+  assert.equal(
+    slots.length, PERSONALISERTE.length,
+    `fant ${slots.length} rå spørringer i den personaliserte Promise.all-en, forventet ${PERSONALISERTE.length}`,
+  )
+  for (const { name } of slots) {
+    assert.ok(
+      HOME.includes(`${name}.error`),
+      `${name}.error leses aldri. En feilet spørring gir data: null, og null er ` +
+      'ikke det samme som «tomt» — det er «vi vet ikke».',
+    )
+  }
+})
+
+test('de PERSONALISERTE vaktene LOGGER — de kaster ikke', () => {
+  // Speilbildet av «de KRITISKE lesingene kaster». Her er kravet det motsatte,
+  // og grunnen er kallstedet: disse fem ligger rått i Home(), utenfor både
+  // unstable_cache og et .catch, og repoet har ingen app/error.tsx. Et kast
+  // herfra faller til app/global-error.tsx og bytter ut HELE forsiden — der
+  // den delte bundelen bare mister ett kort.
+  for (const navn of PERSONALISERTE) {
+    const linjer = linjerMed(HOME, `${navn}.error`)
+    assert.ok(linjer.length > 0, `${navn}.error leses ikke i det hele tatt`)
+    assert.ok(
+      linjer.some(l => l.includes('logHomeQuery(')),
+      `${navn}.error leses, men ikke med logHomeQuery`,
+    )
+    assert.ok(
+      !linjer.some(l => l.includes('assertHomeQuery(')),
+      `${navn} er vaktet med assertHomeQuery. Et kast her feller HELE forsiden ` +
+      '(ingen app/error.tsx finnes) — bruk logHomeQuery og en tredje tilstand i JSX-en.',
+    )
+  }
+})
+
+test('en lesefeil på spilt-status kan ikke gi «Spill ukens quiz»', () => {
+  // Kravet fra bestillingen: en innlogget som HAR spilt skal aldri se
+  // «Spill ukens quiz». Uten den tredje tilstanden ga en lesefeil tomme
+  // attempt-rader ⇒ alreadyPlayed=false ⇒ nettopp den knappen, og hun ble
+  // lokket inn i allerede-spilt-skjermen eller en 403.
+  const iUkjent = HOME.indexOf('playedStatusUnknown ?')
+  const iSpilt = HOME.indexOf('alreadyPlayed ?')
+  const spillKnapper = [...HOME.matchAll(/Spill ukens quiz/g)].map(m => m.index as number)
+
+  assert.notEqual(
+    iUkjent, -1,
+    'playedStatusUnknown-grenen finnes ikke i CTA-kjeden — en lesefeil faller da ' +
+    'rett ned i «Spill ukens quiz»',
+  )
+  assert.notEqual(iSpilt, -1, 'alreadyPlayed-grenen finnes ikke lenger')
+  assert.ok(
+    iUkjent < iSpilt,
+    'playedStatusUnknown står ETTER alreadyPlayed i ternær-kjeden — da nås den ' +
+    'aldri, siden alreadyPlayed er false ved nettopp den feilen',
+  )
+  assert.equal(spillKnapper.length, 2, 'forventet to «Spill ukens quiz» (innlogget + gjest)')
+  assert.ok(
+    iUkjent < spillKnapper[0],
+    'den innloggede «Spill ukens quiz» står FØR ukjent-grenen',
+  )
+})
+
+test('en lesefeil kan ikke påstå «du er ikke i gang denne måneden»', () => {
+  // playedThisMonth havner på skjermen nøyaktig to steder (Premium og ikke),
+  // og count ble null ⇒ false ⇒ «Du er ikke i gang denne måneden ennå» til en
+  // som spilte i går. Samme klasse som «250 av 250 plasser igjen».
+  const gatet = [...HOME.matchAll(/userPoints === 0 && !playedThisMonthUnknown/g)]
+  assert.equal(
+    gatet.length, 2,
+    `${gatet.length} av 2 playedThisMonth-setninger er gatet på !playedThisMonthUnknown`,
+  )
+  assert.ok(
+    HOME.includes('playedThisMonthUnknown = logHomeQuery('),
+    'playedThisMonthUnknown utledes ikke fra en lesevakt',
+  )
+})
+
+test('premium nedgraderes ikke på en transient lesefeil', () => {
+  // Regelen fra ProfileProvider, håndhevet på forsiden: en betalende kunde
+  // skal aldri se «Oppgrader til Premium» fordi ett profiloppslag ikke landet.
+  assert.ok(
+    HOME.includes('premiumUnknown = logHomeQuery('),
+    'premiumUnknown utledes ikke fra profileResult.error',
+  )
+  assert.ok(
+    HOME.includes('const premiumLocked = !isPremium && !premiumUnknown'),
+    'premiumLocked er ikke lenger «ikke Premium OG vi vet det»',
+  )
+  assert.ok(
+    !HOME.includes('{!isPremium && ('),
+    'en oppsalgs-blokk gates fortsatt på !isPremium alene. Ved ukjent profil ' +
+    'påstår den da overfor en betalende kunde at hun ikke har betalt — bruk premiumLocked.',
+  )
+  // Låsen på Historikk-flisa er den samme påstanden i miniatyr.
+  assert.ok(
+    !/\{isPremium\s*\n\s*\? <span className="qkp-shortcut-arrow">/.test(HOME),
+    'Historikk-flisas lås-merke henger fortsatt på isPremium alene',
+  )
+  const bruk = [...HOME.matchAll(/premiumLocked/g)].length
+  assert.ok(bruk >= 6, `premiumLocked brukes bare ${bruk} steder — forventet minst 6`)
+})
+
+test('computePageInsights leser error på alle tre oppslagene', () => {
+  const inline = [...INSIGHTS.matchAll(/const\s*\{([^}]*)\}\s*=\s*await\s+supabaseAdmin/g)]
+  assert.equal(inline.length, 3, `fant ${inline.length} supabaseAdmin-oppslag, forventet 3`)
+  for (const m of inline) {
+    assert.ok(
+      /\berror\b/.test(m[1]),
+      `et oppslag i computePageInsights destrukturerer ikke error: { ${m[1].trim()} }`,
+    )
+  }
+  const vakter = [...INSIGHTS.matchAll(/if \(logHomeQuery\(/g)].length
+  assert.equal(vakter, 3, `${vakter} av 3 oppslag er faktisk vaktet med logHomeQuery`)
+})
+
+test('computePageInsights sin ytre catch er ikke stum', () => {
+  // Degraderingen var ærlig hele tiden (seksjonen skjules) — det var SPORET
+  // som manglet. Den ytre grenen fanger uventede kast (RPC-fallbackene i
+  // lib/attempt-answer-stats, fetchAllRows), altså ekte bugs.
+  assert.ok(
+    !/\}\s*catch\s*\{\s*return null/.test(INSIGHTS),
+    'den ytre catch-en svelger fortsatt alt uten et spor',
+  )
+  assert.ok(INSIGHTS.includes('console.error('), 'catch-en logger ikke')
+  assert.ok(
+    INSIGHTS.includes('Sentry.captureException('),
+    'catch-en rapporterer ikke til Sentry. Volumet er trygt: null caches i 60 s, ' +
+    'så en vedvarende feil koster høyst én hendelse i minuttet per region.',
+  )
+})
+
+test('grunnleggertallene: ingen oppdiktet 0, og ingen felt forside', () => {
+  // To feilveier som endte på hver sin ytterlighet: quiz-tellingen diktet opp
+  // «0+ Quizer gjennomført» (cachet i en TIME), mens countActivePlayersSince
+  // kaster ved total feil og — ufanget — felte hele forsiden.
+  assert.ok(
+    /assertHomeQuery\([^)]*quizzesRes\.error\)/.test(FOUNDER),
+    'quiz-tellingen leses ikke med assertHomeQuery — «0+ Quizer gjennomført» ' +
+    'kan da stå som et faktum i en time',
+  )
+  assert.ok(
+    !FOUNDER.includes('quizzesCompleted ?? 0'),
+    'det gamle `?? 0`-fallbacket står igjen og gjør vakten virkningsløs',
+  )
+  assert.ok(
+    /getFounderStoryStats\(\)\s*\.catch\(/.test(HOME),
+    'getFounderStoryStats() fanges ikke i Home() — et kast bytter da ut HELE ' +
+    'forsiden med global-error.tsx for to tillitstall',
+  )
+  assert.ok(
+    HOME.includes('{founderStats && ('),
+    'stat-raden gates ikke på founderStats — null ville rendret «undefined+»',
+  )
+  assert.ok(
+    SRC.includes("'home-founder-story-stats-v2'"),
+    'cache-nøkkelen er ikke bumpet. En lagret v1-verdi kan inneholde det ' +
+    'oppdiktede 0-tallet, og Vercels data-cache overlever deploys.',
+  )
 })
 
 test('SELVTEST: kommentarstrippen fjerner utkommentert kode, men ikke aktiv', () => {

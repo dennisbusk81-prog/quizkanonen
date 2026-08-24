@@ -45,10 +45,15 @@ export class HomeDataUnavailableError extends Error {
 /**
  * KRITISK lesing: kaster ved feil, så et tomt resultat aldri kan bli til en
  * usann påstand på forsiden — og så `unstable_cache` ikke får noe å lagre.
+ *
+ * `||` og ikke `??` på meldingen: en feil fra en `head: true`-telling har
+ * `message: ''` — det finnes ingen body å hente teksten fra. `??` slipper den
+ * tomme strengen gjennom, og loggen ender på «… feilet — » uten grunn. Målt
+ * lokalt mot prod 24. august 2026 på quiz-tellingen i computeFounderStoryStats.
  */
 export function assertHomeQuery(query: string, error: QueryErrorLike): void {
   if (!error) return
-  throw new HomeDataUnavailableError(query, error.message ?? 'ukjent lesefeil')
+  throw new HomeDataUnavailableError(query, error.message || 'ukjent lesefeil')
 }
 
 /**
@@ -58,6 +63,6 @@ export function assertHomeQuery(query: string, error: QueryErrorLike): void {
  */
 export function logHomeQuery(query: string, error: QueryErrorLike): boolean {
   if (!error) return false
-  console.error(`[forside] ${query} feilet — degraderer synlig:`, error.message ?? error)
+  console.error(`[forside] ${query} feilet — degraderer synlig:`, error.message || error)
   return true
 }
