@@ -192,21 +192,26 @@ export async function PATCH(
   return NextResponse.json({ ok: true, updated: Object.keys(update), ignored })
 }
 
-// ── Sletting: en quiz må beholde minst ett spørsmål ─────────────────────────
+// ── Sletting: alt i ÉN transaksjon (delete_question_and_renumber) ───────────
 //
-// Sperren fantes tidligere KUN i klienten, og kun i den ene av de to editorene
-// (app/admin/quizzes/new/page.tsx: «Kan ikke slette det eneste spørsmålet»).
-// Spørsmålsoversikten (app/admin/quizzes/[id]/questions/page.tsx) sletter uten
-// noen slik sjekk, så det var fullt mulig å tømme en quiz helt. Resultatet ble
-// liggende med `is_active = true`, og de tre varslingsrutene ville annonsert
-// den som en hvilken som helst annen quiz. Det er den ene realistiske veien til
-// en quiz med NULL spørsmålsrader — placeholder-radene fra importruten gjør at
-// alle andre veier ender med tomme rader, ikke ingen.
+// Fram til 24. august 2026 var dette to kall (tell, så slett) med et
+// dokumentert ÆRLIG HULL: to samtidige slettinger på en quiz med to spørsmål
+// kunne begge se count=2 og tømme den. Renummereringen av gjenværende rader
+// lå dessuten hos KLIENTENE — byggeren gjorde N kall, spørsmålsoversikten
+// ingen (hull som [1..14,16] på Fredagsquiz 07.08.2026 er sporet dit).
+// RPC-en gjør minst-ett-spørsmål-sperren, slettingen og renummereringen til
+// 1..N i samme transaksjon — se
+// supabase/migrations/20260824000000_delete_question_and_renumber.sql.
 //
-// FEILRETNING: fail-CLOSED. Får vi ikke telt, sletter vi ikke. Motsatt av
+// FEILRETNING er fortsatt fail-CLOSED, nå med transaksjonsgaranti: feiler
+// noe som helst, er ingenting slettet og ingenting renummerert. Motsatt av
 // innholdsvakten i lib/opened-quiz-lookup.ts, og med vilje: her er den dyre
-// utgangen en tømt quiz, der er den en uteblitt varsling. En admin som får 500
-// kan prøve igjen; en tømt quiz oppdages først når noen spiller den.
+// utgangen en tømt quiz, der er den en uteblitt varsling.
+//
+// question_played (nytt): et spørsmål med registrerte besvarelser kan ikke
+// slettes — resultater er urørlige (regel fra Dennis 24. august 2026), og en
+// senere fasitretting ville ellers rekalkulert poeng fra et amputert radsett.
+// Feil fasit på en spilt quiz rettes med /api/admin/correct-answer.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; qid: string }> }
@@ -214,41 +219,40 @@ export async function DELETE(
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id: quizId, qid } = await params
 
-  const { count, error: countError } = await supabaseAdmin
-    .from('questions')
-    .select('id', { count: 'exact', head: true })
-    .eq('quiz_id', quizId)
+  const { data, error } = await supabaseAdmin.rpc('delete_question_and_renumber', {
+    p_quiz_id: quizId,
+    p_question_id: qid,
+  })
 
-  if (countError) {
-    console.error('[questions DELETE] kunne ikke telle spørsmål:', { quizId, message: countError.message })
+  if (error) {
+    // RPC-en signaliserer forretningsutfallene med et fast prefiks i
+    // meldingen (P0001 har ingen egen feltkanal gjennom PostgREST).
+    if (error.message.includes('last_question')) {
+      return NextResponse.json({
+        error: 'Kan ikke slette det eneste spørsmålet. En quiz må ha minst ett spørsmål — ' +
+          'ellers blir den publisert og varslet om uten innhold.',
+        code: 'last_question',
+      }, { status: 409 })
+    }
+    if (error.message.includes('question_played')) {
+      return NextResponse.json({
+        error: 'Spørsmålet har registrerte besvarelser og kan ikke slettes — resultatene på en ' +
+          'spilt quiz er urørlige. Er fasiten feil, bruk «Rett svar»; da oppdateres poeng, ' +
+          'streak og sesongpoeng samtidig.',
+        code: 'question_played',
+      }, { status: 409 })
+    }
+    if (error.message.includes('question_not_found')) {
+      return NextResponse.json({ error: 'Spørsmål ikke funnet' }, { status: 404 })
+    }
+    console.error('[questions DELETE] delete_question_and_renumber feilet:', {
+      quizId, qid, code: error.code, message: error.message,
+    })
     return NextResponse.json(
-      { error: 'Kunne ikke sjekke hvor mange spørsmål quizen har. Ingenting er slettet — prøv igjen.' },
+      { error: 'Kunne ikke slette spørsmålet. Ingenting er slettet — prøv igjen.' },
       { status: 500 },
     )
   }
 
-  if ((count ?? 0) <= 1) {
-    return NextResponse.json({
-      error: 'Kan ikke slette det eneste spørsmålet. En quiz må ha minst ett spørsmål — ' +
-        'ellers blir den publisert og varslet om uten innhold.',
-      code: 'last_question',
-    }, { status: 409 })
-  }
-
-  // `.eq('quiz_id', quizId)` er nytt: uten den kunne tellingen gjelde én quiz og
-  // slettingen en annen, og da hadde vakten over ikke betydd noe.
-  //
-  // ÆRLIG HULL: tellingen og slettingen er to kall, så to samtidige slettinger
-  // på en quiz med nøyaktig to spørsmål kan begge se `count = 2` og tømme den.
-  // Å lukke det krever en RPC eller en constraint i databasen. Flaten er
-  // admin-only med én operatør i dag, og risikoen står bevisst åpen — men den
-  // er ikke oversett.
-  const { error } = await supabaseAdmin
-    .from('questions')
-    .delete()
-    .eq('id', qid)
-    .eq('quiz_id', quizId)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, questions: data ?? [] })
 }

@@ -1466,12 +1466,23 @@ function QuizEditorInner() {
     const qId = quizIdRef.current
     const dbId = questionDbIdsRef.current[i]
 
-    // Slett fra DB hvis spørsmålet er lagret
+    // Slett fra DB hvis spørsmålet er lagret. Ruten kjører
+    // delete_question_and_renumber: minst-ett-spørsmål-sperren, slettingen og
+    // renummereringen av resten til 1..N skjer i SAMME transaksjon — feiler
+    // noe, er ingenting endret.
     if (qId && qId !== 'creating' && dbId) {
       setSaveStatus('saving')
       try {
         const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, { method: 'DELETE' })
-        if (!res.ok) { setSaveStatus('error'); setDeleteModalOpen(false); return }
+        if (!res.ok) {
+          // 409 bærer en presis forklaring (last_question / question_played —
+          // sistnevnte: besvarte spørsmål kan ikke slettes, resultater er
+          // urørlige). Vis den der slettingen ble bedt om, ikke bare en naken
+          // feilstatus.
+          const d = await res.json().catch(() => null) as { error?: string } | null
+          if (res.status === 409 && d?.error) setDeleteError(d.error)
+          setSaveStatus('error'); setDeleteModalOpen(false); return
+        }
       } catch {
         setSaveStatus('error'); setDeleteModalOpen(false); return
       }
@@ -1493,37 +1504,13 @@ function QuizEditorInner() {
     setDeleteModalOpen(false)
     setDeleteError(null)
 
-    // Renormaliser order_index for gjenværende lagrede rader — SEKVENSIELT,
-    // i stigende posisjonsrekkefølge. Forgjengeren sendte alle PATCH-ene
-    // parallelt, og under UNIQUE (quiz_id, order_index) kolliderte de
-    // innbyrdes: «rad med orden 3 → 2» treffer 23505 hvis «rad med orden
-    // 2 → 1» ikke har rukket å committe. Stigende rekkefølge kolliderer
-    // aldri: radene har unike, stigende verdier (verdi på posisjon j er
-    // ≥ j+1), så målverdien j+1 er enten radens egen eller ledig —
-    // posisjonene før er alt flyttet til ≤ j, og radene etter holder ≥ j+2.
-    // Det gjelder også fra en tilstand med hull, som dermed heles.
-    //
-    // Kvitteringen UTLEDES av svarene: forgjengeren kastet responsene, og
-    // siden adminFetch aldri kaster på HTTP-feil, endte tolv 500-er som
-    // «Lagret!».
-    if (qId && qId !== 'creating') {
-      try {
-        for (let p = 0; p < newIds.length; p++) {
-          const id = newIds[p]
-          if (!id) continue
-          const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ order_index: p + 1 }),
-          })
-          if (!res.ok) { setSaveStatus('error'); return }
-        }
-        showSaved()
-      } catch {
-        setSaveStatus('error')
-      }
-    } else {
-      showSaved()
-    }
+    // INGEN klient-renummerering: serveren renummererte gjenværende rader til
+    // 1..N i samme transaksjon som slettingen (delete_question_and_renumber).
+    // Kompakteringen bevarer relativ rekkefølge, så de lokale arrayene matcher
+    // databasen etter splice-en over — uten ett eneste ekstra kall. (Slettes et
+    // ulagret spørsmål, finnes det ingen DB-rad, og det er heller ingenting å
+    // renummerere for de lagrede: deres posisjoner foran hullet er urørt.)
+    showSaved()
   }, [])
 
   // ── Spørsmålsbank ────────────────────────────────────────────────────────────

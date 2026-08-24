@@ -19,9 +19,12 @@
 // strippet), jf. «strukturtester trenger linje-anker».
 //
 // MUTASJONSBEVIS — hver test peker på en konkret feilendring den fanger:
-//   • Sekvensiell renummerering byttes tilbake til Promise.all → «renummerering
-//    etter sletting er sekvensiell» ryker (for-anker borte, Promise.all(reqs)
-//    tilbake) — og modelltesten viser HVORFOR parallell aldri var trygt.
+//   • Klient-renummerering etter sletting gjeninnføres (løkke eller
+//     Promise.all med order_index-PATCHer) → «klienten renummererer ikke selv
+//     etter sletting» ryker. Serveren gjør det i samme transaksjon som
+//     slettingen (delete_question_and_renumber) — se
+//     lib/delete-question-renumber.test.ts for planen og
+//     lib/last-question-guard-route.test.ts for ruten.
 //   • Tilbakerullingen i moveQuestion fjernes → «nøyaktig tre swapLocal-kall»
 //     ryker (2 ≠ 3).
 //   • ok-sjekken i moveQuestion fjernes (byttet «lykkes» alltid) → «feilet
@@ -41,95 +44,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-// ── Modell: UNIQUE (quiz_id, order_index) som vanlig, ikke-deferrable indeks ─
-// Samme modell som lib/question-order-swap.test.ts: hver enkelt skriving
-// avvises umiddelbart hvis en annen levende rad har verdien.
-
-type Row = { id: string; orderIndex: number }
-
-class UniqueIndexedTable {
-  rows: Row[]
-
-  constructor(rows: Row[]) {
-    this.rows = rows
-  }
-
-  update(id: string, orderIndex: number): void {
-    const row = this.rows.find(r => r.id === id)
-    if (!row) throw new Error(`ukjent rad ${id}`)
-    const clash = this.rows.find(r => r.id !== id && r.orderIndex === orderIndex)
-    if (clash) {
-      throw new Error('duplicate key value violates unique constraint "questions_quiz_order_index_unique"')
-    }
-    row.orderIndex = orderIndex
-  }
-
-  indexes(): number[] {
-    return this.rows.map(r => r.orderIndex).sort((a, b) => a - b)
-  }
-}
-
-/** Radene som gjenstår etter at posisjon `deleted` er slettet fra 1..n. */
-function afterDelete(n: number, deleted: number): Row[] {
-  const rows: Row[] = []
-  for (let v = 1; v <= n; v++) {
-    if (v !== deleted) rows.push({ id: `rad-${v}`, orderIndex: v })
-  }
-  return rows
-}
-
-test('MUTASJONSBEVIS: parallell renummerering etter sletting kan kollidere med seg selv', () => {
-  // Slett spørsmål 1 i en 13-spørsmåls quiz: 12 gjenværende rader (orden
-  // 2..13) skal bli 1..12. Parallelle kall har ingen garantert rekkefølge —
-  // her en fullt lovlig ankomstrekkefølge (synkende) der nesten hver
-  // skriving treffer en verdi som fortsatt er opptatt.
-  const t = new UniqueIndexedTable(afterDelete(13, 1))
-  const plan = t.rows
-    .slice()
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map((r, p) => ({ id: r.id, to: p + 1 }))
-
-  assert.throws(() => {
-    for (const step of plan.slice().reverse()) t.update(step.id, step.to)
-  }, /questions_quiz_order_index_unique/)
-})
-
-test('sekvensiell renummerering i stigende rekkefølge kolliderer aldri', () => {
-  // Egenskapen koden lener seg på: har radene unike, stigende verdier, er
-  // verdien på posisjon j alltid ≥ j+1. Da er målverdien j+1 enten radens
-  // egen eller ledig — posisjonene før er alt flyttet til ≤ j, og radene
-  // etter holder ≥ j+2. Prøv alle slettinger i en 13-spørsmåls quiz.
-  for (let deleted = 1; deleted <= 13; deleted++) {
-    const t = new UniqueIndexedTable(afterDelete(13, deleted))
-    const plan = t.rows
-      .slice()
-      .sort((a, b) => a.orderIndex - b.orderIndex)
-      .map((r, p) => ({ id: r.id, to: p + 1 }))
-
-    assert.doesNotThrow(() => {
-      for (const step of plan) t.update(step.id, step.to)
-    }, `sletting av posisjon ${deleted} skulle renummerere uten kollisjon`)
-    assert.deepEqual(t.indexes(), plan.map((_, p) => p + 1))
-  }
-})
-
-test('sekvensiell renummerering heler også en tilstand med hull', () => {
-  // Nøyaktig formen prod-anomalien på Fredagsquiz 07.08.2026 har: [1..14,16].
-  const rows: Row[] = []
-  for (let v = 1; v <= 14; v++) rows.push({ id: `rad-${v}`, orderIndex: v })
-  rows.push({ id: 'rad-16', orderIndex: 16 })
-  const t = new UniqueIndexedTable(rows)
-
-  const plan = t.rows
-    .slice()
-    .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map((r, p) => ({ id: r.id, to: p + 1 }))
-
-  assert.doesNotThrow(() => {
-    for (const step of plan) t.update(step.id, step.to)
-  })
-  assert.deepEqual(t.indexes(), plan.map((_, p) => p + 1))
-})
+// ── Modell: A16-1-koblingen ─────────────────────────────────────────────────
+// Renummererings-planene (hvorfor parallelle/direkte skrivinger kolliderer
+// under UNIQUE-indeksen, og hvorfor RPC-ens to-fase aldri gjør det) er
+// modellert i lib/delete-question-renumber.test.ts og
+// lib/question-order-swap.test.ts — her ligger kun selve id↔innhold-kjeden.
 
 test('A16-1-kjeden: id-resync alene peker innhold på feil rad — tilbakerulling gjør ikke', () => {
   // DB har rad X (orden 1) og rad Y (orden 2). Admin flytter lokalt, byttet
@@ -290,15 +209,30 @@ test('ny rads id kommer fra POST-svaret, med full relast som eneste fallback', (
   )
 })
 
-test('renummerering etter sletting er sekvensiell og utleder kvitteringen', () => {
+test('klienten renummererer ikke selv etter sletting', () => {
+  // Serveren renummererer i SAMME transaksjon som slettingen
+  // (delete_question_and_renumber). En klient-løkke oppå ville vært N
+  // overflødige kall — og den parallelle varianten kolliderte med seg selv
+  // under UNIQUE-indeksen (se lib/delete-question-renumber.test.ts).
   const lines = activeLines(BYGGER)
   assert.ok(
-    lines.some(l => l.includes('for (let p = 0; p < newIds.length; p++)')),
-    'renummereringen må gå sekvensielt i stigende rekkefølge — parallelle kall kolliderer innbyrdes (se modelltesten øverst)',
+    !lines.some(l => l.includes('for (let p = 0; p < newIds.length; p++)')),
+    'klient-renummereringen etter sletting er gjeninnført — serveren gjør dette i delete_question_and_renumber',
   )
   assert.ok(
     !lines.some(l => l.includes('Promise.all(reqs)')),
     'parallell utsending av order_index-PATCHer er tilbake i byggeren',
+  )
+})
+
+test('slette-avslag med forklaring vises der slettingen ble bedt om', () => {
+  // 409 fra ruten bærer last_question/question_played-tekstene — blant annet
+  // vakten for regelen «resultater på en spilt quiz er urørlige». En naken
+  // feilstatus hadde latt admin prøve igjen i blinde.
+  const lines = activeLines(BYGGER)
+  assert.ok(
+    lines.some(l => l.includes('if (res.status === 409 && d?.error) setDeleteError(d.error)')),
+    'deleteQuestion må vise rutens 409-forklaring via setDeleteError',
   )
 })
 
