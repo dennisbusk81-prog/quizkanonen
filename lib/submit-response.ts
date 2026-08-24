@@ -36,6 +36,20 @@
 // lib/submit-response.test.ts feller en slik ordrett kopi.
 export const ALREADY_SUBMITTED_ERROR = 'Forsøket er allerede levert'
 
+// ⚠ DELT KONTRAKT — svaret submit gir når TOKENET ER SENDT, men GoTrue ikke
+// kjenner igjen sesjonen (`session_not_found` → status 400 fra `getUser`).
+//
+// Bakgrunn (24. august 2026, [AU-2]): dette tilfellet lå fram til nå i SAMME
+// 403 som «du eier ikke dette forsøket». De to er ikke i slekt: den ene er
+// «logg inn på nytt», den andre er en ekte tilgangsfeil. Sammenslåingen kostet
+// en spiller hele quizen — hun spilte ferdig (questions krever bevisst ikke
+// Authorization, kun attempt-token), fikk 403 ved MÅLSTREKEN, og teksten
+// «Resultatet ble ikke lagret — sjekk internettforbindelsen din» pekte på
+// nettverket mens problemet var sesjonen. `80dbab4` lukket samme klasse ved
+// STARTSTREKEN med `401 { needsLogin: true }` fra start-attempt; dette er
+// målstrek-halvdelen av den fiksen, med samme form på svaret.
+export const SESSION_EXPIRED_ERROR = 'Du må logge inn på nytt for å lagre resultatet.'
+
 export type SubmitClassification =
   // Serveren scoret forsøket nå og sendte tallene tilbake.
   | { kind: 'scored' }
@@ -45,6 +59,10 @@ export type SubmitClassification =
   // 503 «prøv igjen om et øyeblikk» — transient serverfeil, skal til
   // timeout-veiens retry-skjerm, ikke feilveien.
   | { kind: 'retryable' }
+  // Sesjonen er borte server-side. Svarene ligger fortsatt i minnet og i
+  // localStorage — spilleren skal få logge inn og levere, ikke en feiltekst
+  // om internettforbindelsen.
+  | { kind: 'needs-login' }
   // Alt annet: ekte feil, skal gå feilveien.
   | { kind: 'error' }
 
@@ -57,6 +75,9 @@ export type SubmitResponseFacts = {
   // gjør «allerede levert» til en forventet bekreftelse i stedet for et
   // mistenkelig svar.
   hasTimedOutOnce: boolean
+  // `needsLogin`-flagget fra JSON-kroppen. Se 401-grenen under for hvorfor det
+  // kreves i tillegg til statuskoden.
+  needsLogin?: boolean
 }
 
 export function classifySubmitResponse(facts: SubmitResponseFacts): SubmitClassification {
@@ -66,6 +87,20 @@ export function classifySubmitResponse(facts: SubmitResponseFacts): SubmitClassi
   // hasTimedOutOnce, for de gjelder også et første forsøk. Kun 503: 429 er
   // bevisst fortsatt en feil.
   if (facts.status === 503) return { kind: 'retryable' }
+
+  // ── Sesjonen er borte: logg inn og lever ────────────────────────────────────
+  // Står FØR hasTimedOutOnce-porten med vilje: en død sesjon rammer det FØRSTE
+  // forsøket, ikke bare en retry. Lå den etter, ville spilleren fått den
+  // generiske feilteksten på nøyaktig den veien fiksen finnes for.
+  //
+  // BEGGE betingelsene kreves — status 401 OG `needsLogin` fra kroppen — og
+  // det er ikke belte-og-bukser. Utfallet her åpner et innloggingsvindu, så en
+  // framtidig 401 i ruten som betyr noe HELT annet ville bedt spilleren logge
+  // inn på et problem innlogging ikke løser. Det er den samme sammenslåingen
+  // 401/403-skillet i ruten ble innført for å fjerne, bare speilvendt.
+  // Prisen er tydelig og trygg: uten lesbar kropp faller vi til 'error' og
+  // viser en ærlig feiltekst — aldri et falskt løfte om at innlogging hjelper.
+  if (facts.status === 401 && facts.needsLogin === true) return { kind: 'needs-login' }
 
   // Den milde tolkningen gjelder KUN etter en timeout vi selv har sett.
   // På et første, ordinært forsøk betyr «allerede levert» noe helt annet — et

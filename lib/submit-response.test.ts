@@ -24,10 +24,25 @@
 //   • Utvides matchingen til å gjelde 409 også → «409 med samme tekst er en ekte
 //     feil» ryker.
 //   • Snus ok-sjekken → «et 200-svar er alltid scoret» ryker.
+//
+// ── 401 «sesjonen er borte» (lagt til 24. august 2026, [AU-2]) ────────────────
+// Andre halvdel av samme klasse: submit svarte 403 «Ingen tilgang til dette
+// forsøket» BÅDE når spilleren ikke eide forsøket OG når sesjonen hennes var
+// død server-side. De to krever motsatt handling — «logg inn igjen» mot «dette
+// er ikke ditt» — og sammenslåingen kostet en spiller hele quizen.
+//
+// MUTASJONSBEVIS for skillet:
+//   • Slås 401 og 403 sammen igjen (matching på status alene, eller på
+//     `needsLogin` alene) → «eierskaps-403 er aldri en innloggingsoppfordring»
+//     og «needsLogin på en 403 endrer ingenting» ryker.
+//   • Flyttes 401-grenen ned UNDER hasTimedOutOnce-porten → «gjelder også det
+//     FØRSTE forsøket» ryker (og det er nettopp den vanlige veien: en død
+//     sesjon rammer første innsending, ikke en retry).
+//   • Droppes kravet om `needsLogin`-flagget → «401 uten flagg er en feil» ryker.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { classifySubmitResponse, ALREADY_SUBMITTED_ERROR } from './submit-response'
+import { classifySubmitResponse, ALREADY_SUBMITTED_ERROR, SESSION_EXPIRED_ERROR } from './submit-response'
 
 // Testene bruker KONSTANTEN, ikke en ordrett kopi av teksten. Det er poenget
 // med å dele den: endres ordlyden ett sted, følger server, klient og tester
@@ -144,6 +159,93 @@ test('serverfeil og rate-limit går feilveien uansett flaggets tilstand', () => 
   }
 })
 
+// ── Sesjonen er borte: 401 ≠ 403 ─────────────────────────────────────────────
+
+test('401 med needsLogin er «logg inn», ikke en feil — og gjelder også det FØRSTE forsøket', () => {
+  // hasTimedOutOnce=false er HOVEDVEIEN her: sesjonen dør mens hun spiller, og
+  // den aller første innsendingen avvises. Lå grenen under hasTimedOutOnce-
+  // porten, ville nettopp dette tilfellet fått den generiske feilteksten.
+  for (const hasTimedOutOnce of [false, true]) {
+    const v = classifySubmitResponse({
+      status: 401, ok: false, errorMessage: SESSION_EXPIRED_ERROR,
+      needsLogin: true, hasTimedOutOnce,
+    })
+    assert.equal(v.kind, 'needs-login', `401 (timeout=${hasTimedOutOnce}) gikk ikke innloggingsveien`)
+  }
+})
+
+test('eierskaps-403 er ALDRI en innloggingsoppfordring — skillet holder begge veier', () => {
+  // Kjernen i fiksen. En gyldig, innlogget bruker som leverer et forsøk hun
+  // ikke eier, skal møte en tilgangsfeil. Ber vi henne logge inn, sender vi
+  // henne gjennom en runde som umulig kan hjelpe — og skjuler den ekte grunnen.
+  //
+  // MUTASJON: bytt 401-grenen til `if (facts.status === 401 || facts.needsLogin)`
+  // eller la eierskaps-403 svare 401 i ruten, og denne ryker.
+  const v = classifySubmitResponse({
+    status: 403, ok: false, errorMessage: 'Ingen tilgang til dette forsøket',
+    hasTimedOutOnce: false,
+  })
+  assert.equal(v.kind, 'error')
+  assert.notEqual(v.kind, 'needs-login',
+    'eierskapsfeil ble tolket som utløpt sesjon — spilleren sendes til innlogging som ikke løser noe')
+})
+
+test('needsLogin-flagget på en 403 endrer ingenting — begge betingelsene kreves', () => {
+  // Flagget alene er ikke nok. Ellers ville et framtidig svar som tilfeldigvis
+  // bar flagget kunne kapre feilveien.
+  for (const msg of OTHER_403S) {
+    const v = classifySubmitResponse({
+      status: 403, ok: false, errorMessage: msg, needsLogin: true, hasTimedOutOnce: true,
+    })
+    assert.equal(v.kind, 'error', `403 «${msg}» med needsLogin ble ikke behandlet som feil`)
+  }
+})
+
+test('401 uten flagg (eller uten lesbar kropp) er en feil — vi lover ikke at innlogging hjelper', () => {
+  // Utfallet åpner et innloggingsvindu. Er vi ikke sikre på at det er DET som
+  // mangler, skal spilleren få en ærlig feiltekst i stedet for et falskt løfte.
+  for (const needsLogin of [undefined, false]) {
+    const v = classifySubmitResponse({
+      status: 401, ok: false, errorMessage: null, needsLogin, hasTimedOutOnce: true,
+    })
+    assert.equal(v.kind, 'error', `401 med needsLogin=${String(needsLogin)} ble godtatt som innloggingssak`)
+  }
+})
+
+test('503 vinner fortsatt over alt — en transient feil skal aldri logge noen ut', () => {
+  // Rekkefølgen i klassifisereren: 503 sjekkes FØR 401. Skulle en framtidig
+  // 503-respons bære needsLogin, er den fortsatt «prøv igjen om et øyeblikk».
+  const v = classifySubmitResponse({
+    status: 503, ok: false, errorMessage: null, needsLogin: true, hasTimedOutOnce: false,
+  })
+  assert.equal(v.kind, 'retryable')
+})
+
+test('submit-ruten har NØYAKTIG ett 401, og det bærer needsLogin + konstanten', () => {
+  // Klienten krever begge deler (status + flagg) for å åpne innloggingsvinduet.
+  // Legges det inn en ny 401 i ruten som betyr noe annet, må dette skillet
+  // gjøres om — testen er varselet.
+  const route = readFileSync('app/api/quiz/[id]/submit/route.ts', 'utf8')
+
+  const count401 = (route.match(/status:\s*401/g) ?? []).length
+  assert.equal(count401, 1,
+    `submit-ruten har ${count401} 401-svar, forventet 1. Klienten tolker ETHVERT 401 med needsLogin som «logg inn».`)
+
+  assert.ok(/import \{[^}]*\bSESSION_EXPIRED_ERROR\b[^}]*\} from '@\/lib\/submit-response'/.test(route),
+    'ruten importerer ikke SESSION_EXPIRED_ERROR — da er koblingen til klienten kun en tilfeldig lik streng')
+  const literalInResponse = new RegExp(`error:\\s*['"\`]${SESSION_EXPIRED_ERROR}['"\`]`)
+  assert.ok(!literalInResponse.test(route),
+    'ruten har en ordrett kopi av sesjons-teksten — bruk SESSION_EXPIRED_ERROR')
+  assert.ok(/error: SESSION_EXPIRED_ERROR, needsLogin: true/.test(route),
+    '401-svaret bærer ikke needsLogin: true — klienten vil da klassifisere det som en vanlig feil')
+
+  // Eierskapsfeilen skal fortsatt finnes, og fortsatt som 403.
+  const ownership = route.indexOf("error: 'Ingen tilgang til dette forsøket'")
+  assert.notEqual(ownership, -1, 'eierskapsfeilen er borte fra ruten')
+  assert.ok(/error: 'Ingen tilgang til dette forsøket' \}, \{ status: 403 \}/.test(route),
+    'eierskapsfeilen svarer ikke lenger 403 — da er 401/403-skillet slått sammen igjen')
+})
+
 // ── Én kilde til sannhet: ruten må BRUKE konstanten, ikke kopiere teksten ─────
 // Dette er hele grunnen til at konstanten finnes. Skriver noen teksten ordrett
 // i ruten igjen — eller endrer den der uten å vite at klienten leser den —
@@ -154,7 +256,12 @@ test('serverfeil og rate-limit går feilveien uansett flaggets tilstand', () => 
 test('submit-ruten bruker konstanten og har ingen ordrett kopi av teksten', () => {
   const route = readFileSync('app/api/quiz/[id]/submit/route.ts', 'utf8')
 
-  assert.ok(/import \{ ALREADY_SUBMITTED_ERROR \} from '@\/lib\/submit-response'/.test(route),
+  // EGENSKAPS-BASERT, IKKE FORM-BASERT (justert 24. august 2026). Her sto en
+  // regex mot den EKSAKTE importlinjen med ett symbol. Da ruten fikk sitt andre
+  // delte symbol (SESSION_EXPIRED_ERROR), ble testen rød uten at egenskapen den
+  // vokter — at teksten kommer fra den delte konstanten — hadde endret seg.
+  // Samme lærdom som standings-kallene i lib/finish-quiz-timeout.test.ts.
+  assert.ok(/import \{[^}]*\bALREADY_SUBMITTED_ERROR\b[^}]*\} from '@\/lib\/submit-response'/.test(route),
     'submit-ruten importerer ikke ALREADY_SUBMITTED_ERROR — da er koblingen til klienten kun en tilfeldig lik streng')
 
   // Teksten skal kun forekomme som konstant-referanse, aldri som strengliteral

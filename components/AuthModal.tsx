@@ -13,11 +13,22 @@ type Props = {
   onClose: () => void
   next?: string
   description?: string
+  /**
+   * Overstyrer navigasjonen etter vellykket innlogging. Finnes for ÉTT
+   * kallsted: quiz-sidens målstrek, der siden holder ferdigspilte svar i minnet
+   * som ikke har rukket å bli lagret ennå (se [AU-2] i app/quiz/[id]/page.tsx).
+   * En reload der ville kastet dem — og recoveryen som finnes via localStorage
+   * krever at spilleren spiller siste spørsmål om igjen.
+   *
+   * Gjelder KUN passordinnlogging: Google og magic link forlater siden uansett,
+   * og lander på `next`. Kallstedet må derfor tåle begge veier.
+   */
+  onSuccess?: () => void
 }
 
 const DEFAULT_DESCRIPTION = 'Logg inn for å se din plassering og følge utviklingen din over tid.'
 
-export default function AuthModal({ open, onClose, next, description }: Props) {
+export default function AuthModal({ open, onClose, next, description, onSuccess }: Props) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   // Close on Escape
@@ -39,7 +50,11 @@ export default function AuthModal({ open, onClose, next, description }: Props) {
   // Etter innlogging: gå til next hvis kallstedet ba om et bestemt mål (founders,
   // liga-invitasjon), ellers bli værende og laste siden på nytt — modalen åpnes
   // som regel midt i noe brukeren holder på med.
+  //
+  // `onSuccess` overstyrer begge: et kallsted som holder ulagret tilstand kan da
+  // fortsette der brukeren var, i stedet for å miste den i en navigasjon.
   const handleSuccess = () => {
+    if (onSuccess) { onSuccess(); return }
     if (next) window.location.assign(next)
     else window.location.reload()
   }

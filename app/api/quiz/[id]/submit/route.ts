@@ -8,7 +8,7 @@ import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/pl
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { verifyAttemptToken } from '@/lib/attempt-token'
 import { applyAnswerTimeIntegrity } from '@/lib/answer-time-integrity'
-import { ALREADY_SUBMITTED_ERROR } from '@/lib/submit-response'
+import { ALREADY_SUBMITTED_ERROR, SESSION_EXPIRED_ERROR } from '@/lib/submit-response'
 import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { SUBMIT_GRACE_MS, SUBMIT_DEADLINE_ERROR, attemptStartedBeforeClose } from '@/lib/late-play-window'
 
@@ -143,15 +143,10 @@ export async function POST(
     return NextResponse.json({ error: 'Forsøk hører ikke til denne quizen' }, { status: 403 })
   }
 
-  // Eierskap: innlogget → token-bruker må eie raden; gjest → raden må være gjest
+  // ── Tre utfall, ikke to ─────────────────────────────────────────────────────
   // `tokenUserId` er slått opp øverst (for rate-limit-nøkkelen) og gjenbrukes
-  // her — nøyaktig samme semantikk som før: token til stede men ugyldig gir
-  // `null` og dermed 403, ikke gjeste-behandling.
-  if (token) {
-    if (!tokenUserId || attempt.user_id !== tokenUserId) {
-      return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
-    }
-  } else {
+  // her — ingen ny rundtur.
+  if (!token) {
     // Ingen token → avvis, uansett hvem raden tilhører.
     //
     // Fram til 24. august 2026 sto det `else if (attempt.user_id !== null)`
@@ -165,10 +160,45 @@ export async function POST(
     // ville rapporten «gjeste-veien er stengt» vært sann om start-attempt og
     // usann om målstreken. Se ARBEIDSREGEL i CLAUDE.md: en feil har søsken.
     //
-    // Merk at dette IKKE endrer oppførsel for noen ekte spiller: en innlogget
-    // rad uten token traff allerede 403 på linjen over, og en rad med token
-    // går gjennom eierskapssjekken i if-grenen.
+    // 403 og ikke 401: klienten sender ALLTID token når den har en sesjon, så
+    // et tokenløst kall er ikke en spiller hvis sesjon døde — det er et kall
+    // utenfor appen. Å gi det innloggings-svaret ville gjort «logg inn igjen»
+    // til standardsvaret på enhver misformet forespørsel.
     return NextResponse.json({ error: 'Mangler autentisering' }, { status: 403 })
+  }
+
+  // Token sendt, men GoTrue kjente det ikke igjen. Den vanligste veien hit er
+  // IKKE en angriper: et signert, ikke-utløpt access-token hvis `session_id`
+  // ikke lenger har en rad i `sessions` (`session_not_found` →
+  // `AuthSessionMissingError`, status 400 — bevisst utenfor
+  // `isTransientAuthStatus`, så 503-vakten over slipper den forbi hit).
+  //
+  // Fram til nå falt dette sammen med eierskaps-403-en under, og det var
+  // FEILKLASSIFISERING med en pris: spilleren hadde nettopp spilt hele quizen
+  // (questions gater kun på attempt-token), og fikk «Resultatet ble ikke
+  // lagret — sjekk internettforbindelsen din». Svarene lå i minnet hennes hele
+  // tiden; det eneste hun manglet var en gyldig sesjon.
+  //
+  // 401 + `needsLogin` er en DELT KONTRAKT med klienten, samme form som
+  // start-attempt fikk i `80dbab4`: `finishQuiz` i app/quiz/[id]/page.tsx
+  // klassifiserer svaret via `classifySubmitResponse` og åpner
+  // innloggingsvinduet i stedet for feilveien. Endres statuskoden eller
+  // flagget her, må lib/submit-response.ts følge etter — den krever BEGGE.
+  //
+  // Ingenting er skrevet på dette tidspunktet: attempt-raden står ustemplet,
+  // og en ny innsending etter innlogging går gjennom som et førstegangskall.
+  if (!tokenUserId) {
+    return NextResponse.json(
+      { error: SESSION_EXPIRED_ERROR, needsLogin: true },
+      { status: 401 },
+    )
+  }
+
+  // Gyldig bruker, men ikke hennes forsøk. Dette er den ekte tilgangsfeilen, og
+  // den skal BLI stående som 403: innlogging løser den ikke, og å tilby
+  // innlogging her ville vært et falskt løfte.
+  if (attempt.user_id !== tokenUserId) {
+    return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
   }
 
   // Dobbel-scoring-vern: allerede scoret?

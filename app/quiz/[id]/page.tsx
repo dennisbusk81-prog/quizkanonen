@@ -1084,6 +1084,22 @@ export default function QuizPage() {
   // første faktisk landet svarer 403 «Forsøket er allerede levert» — så
   // «Resultatet ble ikke lagret» ville da vært en direkte usann påstand.
   const finishTimedOutOnceRef = useRef(false)
+  // Submit svarte 401: sesjonen er borte server-side ([AU-2], 24. august 2026).
+  // Egen tilstand, ikke finishSaveError, av samme grunn som finishTimedOut er
+  // det — teksten der påstår noe om nettverket, og her VET vi hva som er galt.
+  // Svarene ligger trygt i `answers` og i localStorage; det eneste som mangler
+  // er en gyldig sesjon. Bruker BEVISST ikke `needsLogin` (som bytter ut hele
+  // siden med startskjermens innloggingspanel og ville skjult resultatet hun
+  // nettopp spilte fram) — dette er et overlegg over spilleskjermen, som
+  // finishTimedOut.
+  const [finishNeedsLogin, setFinishNeedsLogin] = useState(false)
+  // Samme utfall som ref, for det ENE kallstedet som ikke kan se overlegget:
+  // B-10-reload-leveringen i startQuiz kjører mens fasen fortsatt er 'register',
+  // og overlegget bor i spilleskjermen. Uten dette ville den stien blitt et
+  // stille blindspor — før denne endringen fikk den i det minste en feiltekst.
+  // Stien krever at start-attempt nettopp har godtatt sesjonen, så en 401
+  // sekundet etter er nesten utenkelig; «nesten» er grunn nok til å svare.
+  const finishNeedsLoginRef = useRef(false)
   const [nextLoadFailed, setNextLoadFailed] = useState<NextLoadFailure>(null)
   const [isAdvancing, setIsAdvancing] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -1382,6 +1398,23 @@ export default function QuizPage() {
     () => decideQuizAvailability(quiz, new Date(), { hasResumableProgress: !!resumeData }),
     [quiz, resumeData],
   )
+
+  // ── Kan et ferdigspilt, ulagret forsøk fortsatt leveres? ([AU-2]) ────────────
+  // Brukes KUN av målstrek-overlegget når submit svarte 401 «sesjonen er borte».
+  // Uten dette ville overlegget tilbudt «Logg inn og lagre» også etter at
+  // submit-fristen var passert — hun logger inn, og får avvisningen likevel.
+  // Samme feilklasse som `66007ee`/`700347d`/`634cf2f`: et løfte flaten ikke
+  // kan innfri.
+  //
+  // RETNINGEN PÅ USIKKERHETEN ER VALGT, ikke tilfeldig: fristen speiles fra
+  // SAMME kilde som porten (lateSubmitDeadline → SUBMIT_GRACE_MS), og ved tvil
+  // — ingen closes_at, ugyldig dato — sier vi at levering er mulig. Er vi da
+  // for milde, koster det henne én innlogging og serverens ærlige tekst; ble vi
+  // for strenge, ville vi tatt fra henne et forsøk serveren ville tatt imot.
+  // Ikke memoisert: klokka må leses på nytt hver render, ellers kan et
+  // overlegg som står åpen over fristen fortsette å love levering.
+  const lateDeliveryDeadline = lateSubmitDeadline(quiz?.closes_at)
+  const canStillDeliverLate = lateDeliveryDeadline === null || Date.now() <= lateDeliveryDeadline.getTime()
 
   // Stengt-grenen i innloggingspanelet viser «Neste quiz åpner …» — samme
   // kilde og samme fremtidsvakt som resultat-/allerede-spilt-skjermene
@@ -1871,6 +1904,14 @@ export default function QuizPage() {
             answers: resumeData.answers,
             totalQuestions: total,
           })
+          // Overlegget som normalt fanger 401 bor i SPILLESKJERMEN, og her står
+          // vi fortsatt i 'register'. Uten denne linjen ville en død sesjon på
+          // akkurat denne stien gitt spilleren ingenting i det hele tatt.
+          // Fremdriften ryddes ikke (finishQuiz gjør det kun etter bekreftet
+          // lagring), så svarene ligger fortsatt klare til et nytt forsøk.
+          if (finishNeedsLoginRef.current) {
+            setStartError('Du ble logget ut. Logg inn på nytt, så kan du levere svarene dine.')
+          }
           return
         }
         setPlayerInfo({ name: '', ageConfirmed: false })
@@ -2385,6 +2426,9 @@ export default function QuizPage() {
     // withAnswer over allerede skal ha forhindret duplikater i selve
     // answers-state. Se dedupeAnswers.
     const finalAnswers = dedupeAnswers(override?.answers ?? answers)
+    // Nullstilles ved hvert forsøk: et gammelt «ja» fra en tidligere runde skal
+    // ikke kunne farge utfallet av denne.
+    finishNeedsLoginRef.current = false
     // Klient-beregning brukes kun som fallback hvis submit-ruten ikke svarer.
     // Server-ruten er fasit: den slår opp riktige svar og beregner score selv.
     let correct = finalAnswers.filter(a => a.isCorrect).length
@@ -2436,9 +2480,11 @@ export default function QuizPage() {
               ok: res.ok,
               errorMessage: body?.error ?? null,
               hasTimedOutOnce: finishTimedOutOnceRef.current,
+              needsLogin: (body as { needsLogin?: boolean } | null)?.needsLogin,
             })
             if (verdict.kind === 'error') throw new Error(`submit returnerte ${res.status}`)
             if (verdict.kind === 'retryable') return { retryable: true as const }
+            if (verdict.kind === 'needs-login') return { needsLogin: true as const }
             if (verdict.kind === 'already-stored') return { alreadyStored: true as const }
             return {
               alreadyStored: false as const,
@@ -2467,6 +2513,23 @@ export default function QuizPage() {
         if ('retryable' in submitOutcome.value) {
           finishTimedOutOnceRef.current = true
           setFinishTimedOut(true)
+          return
+        }
+        // ── Sesjonen er borte ([AU-2], 24. august 2026) ───────────────────────
+        // Ingen feiltekst, ingen setPhase('finished'): vi blir stående i
+        // 'playing' med svarene i minnet, akkurat som timeout-grenen over, og
+        // lar overlegget tilby innlogging. localStorage røres IKKE her —
+        // `qk_progress_` ryddes først etter en BEKREFTET lagring lenger nede,
+        // og det er nettopp den fremdriften reload-veien (Google/magic link)
+        // trenger for å kunne levere.
+        //
+        // finishTimedOutOnceRef settes bevisst IKKE: vi har fått et klart svar
+        // fra serveren om at INGENTING ble lagret, så en senere «allerede
+        // levert» skal fortsatt leses som den ekte feilen den da ville vært.
+        if ('needsLogin' in submitOutcome.value) {
+          console.warn('[quiz] submit svarte 401 — sesjonen er borte, svarene ligger fortsatt i minnet', { quizId, attemptId: effAttemptId })
+          finishNeedsLoginRef.current = true
+          setFinishNeedsLogin(true)
           return
         }
         // «Allerede lagret»: vårt eget første kall rakk fram etter at vi hadde
@@ -2610,6 +2673,25 @@ export default function QuizPage() {
   const retryFinishQuiz = async () => {
     if (advancingRef.current) return
     setFinishTimedOut(false)
+    advancingRef.current = true
+    setIsAdvancing(true)
+    await finishQuiz()
+    advancingRef.current = false
+    setIsAdvancing(false)
+  }
+
+  // Innlogget på nytt fra målstrek-overlegget ([AU-2]). Speiler retryFinishQuiz:
+  // svarene, attemptId og attempt-tokenet ligger uendret i state, og finishQuiz
+  // henter en FERSK sesjon selv (supabase.auth.getSession() inne i submit-
+  // blokken), så det eneste som trengs er å kalle den på nytt.
+  //
+  // Kalles KUN fra AuthModal sin onSuccess, altså etter passordinnlogging.
+  // Google og magic link forlater siden og kommer tilbake via `next` — den
+  // veien går gjennom reload + lagret fremdrift i localStorage i stedet.
+  const finishAfterLogin = async () => {
+    if (advancingRef.current) return
+    setAuthModalOpen(false)
+    setFinishNeedsLogin(false)
     advancingRef.current = true
     setIsAdvancing(true)
     await finishQuiz()
@@ -3389,6 +3471,55 @@ export default function QuizPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Sesjonen er borte server-side ([AU-2], 24. august 2026). Fram til nå
+          havnet dette i den generiske feilgrenen, og spilleren fikk «sjekk
+          internettforbindelsen din» om et problem som ikke hadde noe med
+          nettverket å gjøre — submit SVARTE, og svaret var presist.
+          Svarene ligger i `answers` og i localStorage; teksten sier derfor at
+          de er trygge, og overlegget gir veien tilbake inn. */}
+      {finishNeedsLogin && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '16px 20px', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: 'calc(100% - 32px)' }}>
+          <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+            {canStillDeliverLate
+              ? 'Du ble logget ut mens du spilte. Svarene dine er trygge — logg inn, så lagrer vi dem.'
+              : 'Du ble logget ut mens du spilte, og innleveringsfristen er nå passert. Svarene rakk dessverre ikke å bli lagret.'}
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {canStillDeliverLate && (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                disabled={isAdvancing}
+                style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
+              >
+                {isAdvancing ? 'Lagrer…' : 'Logg inn og lagre'}
+              </button>
+            )}
+            <button
+              onClick={() => { setFinishNeedsLogin(false); setPhase('finished') }}
+              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+            >
+              Vis resultatet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Innloggingsvinduet for målstreken. `onSuccess` er det som skiller det
+          fra alle andre AuthModal-kallsteder i appen: en reload her ville kastet
+          de ferdigspilte svarene ut av minnet. Passordinnlogging fortsetter
+          derfor i `finishAfterLogin` uten navigasjon; Google og magic link
+          forlater siden uansett og lander på `next` — der tar den lagrede
+          fremdriften i localStorage over (den ryddes aldri på denne veien). */}
+      {finishNeedsLogin && (
+        <AuthModal
+          open={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          next={`/quiz/${quizId}`}
+          onSuccess={finishAfterLogin}
+          description="Logg inn for å lagre resultatet ditt. Svarene dine ligger klare — de teller på topplisten og i sesongen."
+        />
       )}
 
       {/* Kunne ikke laste neste spørsmål — tilby retry uten å miste fremgang */}

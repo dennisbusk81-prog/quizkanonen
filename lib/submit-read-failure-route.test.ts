@@ -373,9 +373,23 @@ test('transient GoTrue-feil (0/429/5xx) gir 503 FØR anon-bøtta — ikke 403', 
   }
 })
 
-test('et faktisk UGYLDIG token (403 fra GoTrue) behandles som i dag: anon-bøtte og 403', async () => {
+test('submit: et token GoTrue ikke godtar gir 401 «logg inn», ikke 403 (24. august 2026)', async () => {
+  // Her sto tidligere «behandles som i dag: anon-bøtte og 403» — en ærlig
+  // beskrivelse av en sammenslåing, ikke et ønske. 403-en dekket TO helt ulike
+  // ting: «vi vet ikke hvem du er» og «vi vet hvem du er, og dette er ikke
+  // ditt». Den første rammet spillere med død sesjon ved MÅLSTREKEN, etter en
+  // hel spilt quiz ([AU-2]) — questions gater kun på attempt-token, så
+  // ingenting stoppet dem underveis.
+  //
+  // Speiler start-attempt-testen rett over: TRANSIENT GoTrue-feil → 503 («prøv
+  // igjen»), token GoTrue ikke godtar → 401 («logg inn»). Eierskapsfeilen er
+  // fortsatt 403 og har sin egen dekning i lib/submit-dead-session-route.test.ts.
   const res = await send({ token: 'ugyldig' })
-  assert.equal(res.status, 403, 'etablert oppførsel: token til stede men ugyldig → 403, ikke gjeste-behandling')
+  assert.equal(res.status, 401, await res.clone().text())
+  assert.equal((await res.json()).needsLogin, true,
+    'klienten åpner innloggingsvinduet kun når flagget er satt')
+  // Rate-limit-oppførselen er UENDRET: gaten står fortsatt etter lag 2, og en
+  // kaller uten verifisert identitet havner fortsatt i anon-bøtta.
   assert.equal(shared.keys.length, 1)
   assert.match(shared.keys[0], /^submit:anon:/, 'ugyldig token skal fortsatt i anon-bøtta')
   assert.equal(sentry.messages.length, 0, 'ugyldig token er ikke en systemfeil')
