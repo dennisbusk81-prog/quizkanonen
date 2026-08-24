@@ -1073,7 +1073,14 @@ function QuizEditorInner() {
       setQuizId(data.quizId)
       quizIdRef.current = data.quizId
 
-      // Fetch question IDs for subsequent individual patches
+      // Fetch question IDs for subsequent individual patches.
+      //
+      // Dette er det ENE stedet en posisjonell id-henting er trygg, og det
+      // eneste unntaket fra «resynk aldri id-listen alene» (se kommentaren
+      // der refreshQuestionIds sto): radene ble nettopp opprettet som TOMME
+      // placeholders med order_index 1..N i lokal rekkefølge, ingen av dem
+      // har innhold ennå, og ingen flytting kan ha skjedd. Koblingen
+      // etableres her — den kan ikke divergere fra noe som ikke finnes.
       const qRes = await adminFetch(`/api/admin/quizzes/${data.quizId}/questions`)
       if (qRes.ok) {
         const qData = await qRes.json()
@@ -1090,20 +1097,33 @@ function QuizEditorInner() {
     }
   }, [])
 
-  // Refresh question IDs from DB
-  const refreshQuestionIds = useCallback(async (qId: string) => {
-    const qRes = await adminFetch(`/api/admin/quizzes/${qId}/questions`)
-    if (qRes.ok) {
-      const qData = await qRes.json()
-      const ids: string[] = (qData.questions ?? []).map((q: { id: string }) => q.id)
-      setQuestionDbIds(ids)
-      questionDbIdsRef.current = ids
-    }
+  // refreshQuestionIds er FJERNET med vilje — ikke gjeninnfør den. Den
+  // resynket id-arrayen ALENE mot DB-rekkefølgen (sortert på order_index)
+  // mens innholdsarrayen sto igjen i lokal rekkefølge. Hadde de to divergert
+  // (f.eks. et lokalt bytte som aldri nådde databasen), pekte hvert innhold
+  // nå på feil rad — og neste lagring overskrev en annen rads innhold med
+  // 200 OK og «Lagret!» (A16-1). De to arrayene skal aldri kunne resynkes
+  // hver for seg: relast går via refreshQuestionsFull (begge samlet), og en
+  // ny rads id kommer fra POST-svaret (kan ikke divergere — den ER raden).
+
+  // Bytter plass på to posisjoner i BEGGE de parallelle arrayene, alltid
+  // sammen. Eneste lovlige måte å stokke om lokalt på — et bytte i bare den
+  // ene arrayen er per definisjon en A16-1-divergens.
+  const swapLocal = useCallback((i: number, j: number) => {
+    const qs = questionsRef.current.slice()
+    ;[qs[i], qs[j]] = [qs[j], qs[i]]
+    questionsRef.current = qs
+    setQuestions(qs)
+    const ids = questionDbIdsRef.current.slice()
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    questionDbIdsRef.current = ids
+    setQuestionDbIds(ids)
   }, [])
 
-  // Full reload av spørsmålslisten fra DB — brukes etter at et spørsmål er
-  // hentet inn fra spørsmålsbanken (serveren har allerede lagret raden, så
-  // lokal state må hentes på nytt for å vise faktisk innhold, ikke bare id-en).
+  // Full reload av spørsmålslisten fra DB. Dette er den ENESTE lovlige måten
+  // å resynke mot databasen på: innhold og id-er settes fra samme respons, i
+  // samme rekkefølge, så de kan ikke divergere. Brukt etter kopiering fra
+  // spørsmålsbanken, rundt AI-generer-alle, og som fallback i saveQuestion.
   const refreshQuestionsFull = useCallback(async (qId: string) => {
     const qRes = await adminFetch(`/api/admin/quizzes/${qId}/questions`)
     if (!qRes.ok) return
@@ -1181,8 +1201,9 @@ function QuizEditorInner() {
           const currentKey: string[] = conflict?.currentAnswers ?? []
           const attempted = questionsRef.current[idx]?.correctAnswers ?? currentKey
 
+          let textRescued = true
           if (currentKey.length > 0) {
-            await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+            const retry = await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
               method: 'PATCH',
               body: JSON.stringify({
                 ...body,
@@ -1190,6 +1211,11 @@ function QuizEditorInner() {
                 correct_answers: currentKey.length > 1 ? currentKey : null,
               }),
             })
+            // Re-PATCHen ER redningen av admins tekstendringer — feiler den,
+            // er ingenting lagret, og «Lagret!» ville påstått det motsatte.
+            // Den lokale fasiten settes uansett: currentKey er det som
+            // faktisk står i databasen, uavhengig av om teksten kom inn.
+            textRescued = retry.ok
             setQuestions(qs => {
               const upd = qs.map((item, i) => i === idx ? { ...item, correctAnswers: currentKey } : item)
               questionsRef.current = upd
@@ -1199,19 +1225,33 @@ function QuizEditorInner() {
 
           setAnsweredCounts(prev => ({ ...prev, [dbId]: conflict?.answeredCount ?? 1 }))
           setKeyPanel({ idx, pending: attempted })
-          showSaved()
+          if (textRescued) showSaved()
+          else setSaveStatus('error')
           return
         }
 
         if (!res.ok) { setSaveStatus('error'); return }
       } else {
-        // New question — POST, then refresh IDs
+        // Nytt spørsmål — POST. Radens id kommer i svaret og skrives inn på
+        // SAMME indeks som innholdet den tilhører. Ingen resync av id-listen
+        // mot DB-rekkefølgen — se kommentaren der refreshQuestionIds sto.
         const res = await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
           method: 'POST',
           body: JSON.stringify({ ...body, order_index: idx + 1 }),
         })
         if (!res.ok) { setSaveStatus('error'); return }
-        await refreshQuestionIds(qId)
+        const created = await res.json().catch(() => null) as { id?: unknown } | null
+        if (typeof created?.id === 'string') {
+          const upd = questionDbIdsRef.current.slice()
+          upd[idx] = created.id
+          questionDbIdsRef.current = upd
+          setQuestionDbIds(upd)
+        } else {
+          // Skal ikke skje — ruten returnerer alltid id. Uten id ville NESTE
+          // lagring av samme indeks POSTet en duplikatrad, så fall tilbake på
+          // full relast, som kobler innhold og id-er til DB samlet.
+          await refreshQuestionsFull(qId)
+        }
       }
       showSaved()
     } catch {
@@ -1220,7 +1260,7 @@ function QuizEditorInner() {
       savingIndexRef.current.delete(idx)
       setSavingIdx(curr => (curr === idx ? null : curr))
     }
-  }, [refreshQuestionIds])
+  }, [refreshQuestionsFull])
 
   // Toggle "bland svaralternativer" på quiz-nivå. Selv om verdien lagres per rad
   // i questions, skal den oppføre seg som én quiz-innstilling — så vi skriver
@@ -1346,46 +1386,70 @@ function QuizEditorInner() {
   }, [saveQuestion])
 
   // Flytt aktivt spørsmål én plass frem (dir=-1, mot starten) eller bakover
-  // (dir=1). Bytter posisjon lokalt og lagrer ny order_index for de to radene.
+  // (dir=1). Byttet i databasen går via /reorder (swap_question_order-RPC) —
+  // samme rute som spørsmålsoversikten har brukt siden 31. juli. De to
+  // PATCH-kallene med absolutte order_index-verdier som lå her kunne ALDRI
+  // lykkes under UNIQUE (quiz_id, order_index): hver satte én rad til den
+  // andres nåværende verdi, så den første skrivingen traff alltid en opptatt
+  // verdi (23505, dokumentert 12 ganger i prod 20. august 2026).
+  //
+  // Rekkefølgen er bevisst: DB-radene sikres FØRST, så det lokale byttet, og
+  // feiler /reorder rulles det lokale byttet TILBAKE. Den gamle koden lot
+  // arrayene stå byttet etter en feil — det var trinn 1 i A16-1-kjeden.
   const moveQuestion = useCallback(async (dir: -1 | 1) => {
     const i = activeIdxRef.current
     if (savingIndexRef.current.has(i)) return
     const target = i + dir
-    const list = questionsRef.current
-    if (target < 0 || target >= list.length) return
+    if (target < 0 || target >= questionsRef.current.length) return
 
-    // Lagre eventuelle ulagrede endringer på nåværende spørsmål først
-    saveQuestion(i)
+    const qId = quizIdRef.current
 
-    // Bytt posisjon i de lokale parallelle arrayene
-    const newQuestions = list.slice()
-    ;[newQuestions[i], newQuestions[target]] = [newQuestions[target], newQuestions[i]]
-    questionsRef.current = newQuestions
-    setQuestions(newQuestions)
+    if (!qId || qId === 'creating') {
+      // Quizen finnes ikke i DB ennå: rent lokalt bytte. order_index settes
+      // først når radene opprettes (posisjonelt), så det finnes ingenting å
+      // bytte server-side, og ingenting som kan divergere.
+      swapLocal(i, target)
+      setActiveIdx(target)
+      activeIdxRef.current = target
+      return
+    }
 
-    const newIds = questionDbIdsRef.current.slice()
-    ;[newIds[i], newIds[target]] = [newIds[target], newIds[i]]
-    questionDbIdsRef.current = newIds
-    setQuestionDbIds(newIds)
+    // Begge radene må finnes i DB før et atomisk bytte. En posisjon uten dbId
+    // er ikke POSTet ennå — saveQuestion oppretter raden og skriver id-en inn
+    // i questionDbIdsRef. Finnes raden alt, lagres innholdet fire-and-forget:
+    // en innholds-PATCH rører ikke order_index og kan gå parallelt med byttet.
+    if (questionDbIdsRef.current[i]) saveQuestion(i)
+    else await saveQuestion(i)
+    if (!questionDbIdsRef.current[target]) await saveQuestion(target)
 
+    const idA = questionDbIdsRef.current[i]
+    const idB = questionDbIdsRef.current[target]
+    // Opprettelsen feilet (eller en lagring pågår alt for raden): INGEN lokal
+    // flytting — arrayene skal aldri vise en rekkefølge databasen ikke har.
+    if (!idA || !idB) { setSaveStatus('error'); return }
+
+    swapLocal(i, target)
     setActiveIdx(target)
     activeIdxRef.current = target
 
-    // Lagre ny rekkefølge i DB (kun for rader som allerede finnes)
-    const qId = quizIdRef.current
-    if (!qId || qId === 'creating') return
     setSaveStatus('saving')
     try {
-      const reqs: Promise<Response>[] = []
-      if (newIds[i])      reqs.push(adminFetch(`/api/admin/quizzes/${qId}/questions/${newIds[i]}`,      { method: 'PATCH', body: JSON.stringify({ order_index: i + 1 }) }))
-      if (newIds[target]) reqs.push(adminFetch(`/api/admin/quizzes/${qId}/questions/${newIds[target]}`, { method: 'PATCH', body: JSON.stringify({ order_index: target + 1 }) }))
-      const results = await Promise.all(reqs)
-      if (results.some(r => !r.ok)) { setSaveStatus('error'); return }
+      const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/reorder`, {
+        method: 'POST',
+        body: JSON.stringify({ questionA: idA, questionB: idB }),
+      })
+      if (!res.ok) throw new Error(`reorder HTTP ${res.status}`)
       showSaved()
     } catch {
+      // Byttet skjedde ikke i databasen → rull det lokale byttet tilbake.
+      // Et nytt bytte, ikke et snapshot: tastetrykk gjort mens kallet var
+      // underveis overlever.
+      swapLocal(i, target)
+      setActiveIdx(i)
+      activeIdxRef.current = i
       setSaveStatus('error')
     }
-  }, [saveQuestion])
+  }, [saveQuestion, swapLocal])
 
   // Slett aktivt spørsmål (etter bekreftelse). Nekter når det er det eneste.
   // Sletter fra DB + lokal state, renormaliserer order_index, og navigerer
@@ -1429,15 +1493,30 @@ function QuizEditorInner() {
     setDeleteModalOpen(false)
     setDeleteError(null)
 
-    // Renormaliser order_index for gjenværende lagrede rader (parallelt)
+    // Renormaliser order_index for gjenværende lagrede rader — SEKVENSIELT,
+    // i stigende posisjonsrekkefølge. Forgjengeren sendte alle PATCH-ene
+    // parallelt, og under UNIQUE (quiz_id, order_index) kolliderte de
+    // innbyrdes: «rad med orden 3 → 2» treffer 23505 hvis «rad med orden
+    // 2 → 1» ikke har rukket å committe. Stigende rekkefølge kolliderer
+    // aldri: radene har unike, stigende verdier (verdi på posisjon j er
+    // ≥ j+1), så målverdien j+1 er enten radens egen eller ledig —
+    // posisjonene før er alt flyttet til ≤ j, og radene etter holder ≥ j+2.
+    // Det gjelder også fra en tilstand med hull, som dermed heles.
+    //
+    // Kvitteringen UTLEDES av svarene: forgjengeren kastet responsene, og
+    // siden adminFetch aldri kaster på HTTP-feil, endte tolv 500-er som
+    // «Lagret!».
     if (qId && qId !== 'creating') {
       try {
-        const reqs = newIds
-          .map((id, p) => id
-            ? adminFetch(`/api/admin/quizzes/${qId}/questions/${id}`, { method: 'PATCH', body: JSON.stringify({ order_index: p + 1 }) })
-            : null)
-          .filter((r): r is Promise<Response> => r !== null)
-        await Promise.all(reqs)
+        for (let p = 0; p < newIds.length; p++) {
+          const id = newIds[p]
+          if (!id) continue
+          const res = await adminFetch(`/api/admin/quizzes/${qId}/questions/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ order_index: p + 1 }),
+          })
+          if (!res.ok) { setSaveStatus('error'); return }
+        }
         showSaved()
       } catch {
         setSaveStatus('error')
@@ -1652,14 +1731,20 @@ function QuizEditorInner() {
         setAiGenAllError('AI returnerte ingen spørsmål — prøv igjen')
         return
       }
-      // Persist all generated questions to DB immediately if quiz already exists.
-      // Refresh IDs first so we can PATCH any existing rows (e.g. the single
-      // orphan placeholder created when the title was entered), then POST the
-      // rest. This avoids duplicate rows and index misalignment.
+      // Persist all generated questions to DB immediately if quiz already
+      // exists: PATCH existing rows (e.g. the single orphan placeholder
+      // created when the title was entered), then POST the rest.
       const qId = quizIdRef.current
       if (qId && qId !== 'creating') {
         setSaveStatus('saving')
-        await refreshQuestionIds(qId)
+        // Full relast FØR skrivingen — id-er og innhold kobles til DB samlet,
+        // aldri id-listen alene (det var A16-1-inngangen refreshQuestionIds
+        // utgjorde). Innholdet overskrives uansett av generated under.
+        if (await refreshQuestionsFull(qId) === undefined) {
+          setSaveStatus('error')
+          setAiGenAllError('Kunne ikke lese quizen før lagring — prøv igjen')
+          return
+        }
         for (let i = 0; i < generated.length; i++) {
           const q = generated[i]
           const body = {
@@ -1676,32 +1761,45 @@ function QuizEditorInner() {
             explanation:        q.explanation.trim() || null,
           }
           const dbId = questionDbIdsRef.current[i]
-          if (dbId) {
-            await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
-              method: 'PATCH',
-              body: JSON.stringify(body),
-            })
-          } else {
-            await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
-              method: 'POST',
-              body: JSON.stringify({ ...body, order_index: i + 1 }),
-            })
+          const res = dbId
+            ? await adminFetch(`/api/admin/quizzes/${qId}/questions/${dbId}`, {
+                method: 'PATCH',
+                body: JSON.stringify(body),
+              })
+            : await adminFetch(`/api/admin/quizzes/${qId}/questions`, {
+                method: 'POST',
+                body: JSON.stringify({ ...body, order_index: i + 1 }),
+              })
+          // Ingen av kallene i denne løkken ble sjekket før: en serie 500-er
+          // endte som «Lagret!» og en quiz admin trodde var full, var tom.
+          if (!res.ok) {
+            await refreshQuestionsFull(qId) // vis det som FAKTISK ligger i DB
+            setSaveStatus('error')
+            setAiGenAllError(`Lagringen stoppet på spørsmål ${i + 1} — editoren viser det som faktisk ble lagret`)
+            return
           }
         }
-        await refreshQuestionIds(qId)  // sync IDs after all saves
+        // Relast fra DB i stedet for å PÅSTÅ at lokal state matcher — samme
+        // grep kobler POST-radenes id-er og innhold i én operasjon.
+        if (await refreshQuestionsFull(qId) === undefined) {
+          setSaveStatus('error')
+          setAiGenAllError('Spørsmålene er lagret, men editoren fikk ikke lest dem tilbake — last siden på nytt')
+          return
+        }
         showSaved()
+        setActiveIdx(0)
+        activeIdxRef.current = 0
+        setMetaOpen(false)
+        return
       }
 
+      // Ny quiz uten DB-rader ennå: rent lokalt — radene opprettes ved lagring.
       questionsRef.current = generated
       setQuestions(generated)
       setActiveIdx(0)
       activeIdxRef.current = 0
-      // Clear IDs only when no quiz exists yet; when quiz exists the IDs were
-      // just correctly synced by the save loop above.
-      if (!qId || qId === 'creating') {
-        setQuestionDbIds([])
-        questionDbIdsRef.current = []
-      }
+      setQuestionDbIds([])
+      questionDbIdsRef.current = []
       setMetaOpen(false)
     } catch {
       setAiGenAllError('Kunne ikke generere quiz — prøv igjen')

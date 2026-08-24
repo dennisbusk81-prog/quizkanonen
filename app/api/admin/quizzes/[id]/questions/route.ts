@@ -42,14 +42,19 @@ export async function POST(
   // Ny rad = ny bruk av spørsmålet. usage_count/last_used_at settes alltid
   // server-side her (aldri klientstyrt) — PATCH (vanlig autolagring) rører
   // dem aldri, kun denne INSERT-veien.
-  const { error } = await supabaseAdmin.from('questions').insert({
+  //
+  // Id-en returneres i svaret slik at editoren kan koble raden til riktig
+  // lokal indeks DIREKTE. Forgjengeren tvang klienten til å hente hele
+  // id-listen på nytt, posisjonelt sortert på order_index — den resyncen var
+  // inngangen til at innhold kunne PATCHes til feil rad (A16-1).
+  const { data, error } = await supabaseAdmin.from('questions').insert({
     ...body,
     quiz_id: id,
     usage_count: 1,
     last_used_at: new Date().toISOString(),
-  })
+  }).select('id').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, id: data.id })
 }
 
 // Bulk-oppdatering på quiz-nivå. "Bland svaralternativer" er en quiz-innstilling,
