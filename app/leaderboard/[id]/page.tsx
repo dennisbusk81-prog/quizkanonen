@@ -734,11 +734,21 @@ export default function LeaderboardPage() {
     </div>
   )
 
+  // Tilbake-lenka er ikke pynt: dette er ENDESTASJONEN for en quiz som er
+  // skjult i admin (is_active = false). RLS-policyen quizzes_select_active gir
+  // klienten null rader, .single() feiler med PGRST116, og siden landet her
+  // uten noen vei videre fram til 24. august 2026. Samme utvei som
+  // show_leaderboard-grenen rett under allerede hadde.
+  //
+  // MERK, ikke rørt i denne runden: teksten skiller ikke «quizen er skjult»
+  // (PGRST116, ingen rader) fra en ekte nettverksfeil, og kaller derfor det
+  // første «Noe gikk galt». Feilkoden ligger på e1 og kunne skilt dem — egen sak.
   if (!quiz) return (
-    <div style={s.centered}>
+    <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
       <p style={s.centeredText}>
         {fetchError ? 'Noe gikk galt. Prøv å laste siden på nytt.' : 'Fant ikke quizen.'}
       </p>
+      <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
     </div>
   )
 

@@ -434,7 +434,7 @@ export default function HistorikkPage() {
     const CACHE_TTL = 10 * 60 * 1000
     const toPreload = history.slice(0, 3).filter((attempt) => {
       try {
-        const raw = sessionStorage.getItem(`qk_attempt_v2_${attempt.id}`)
+        const raw = sessionStorage.getItem(`qk_attempt_v3_${attempt.id}`)
         if (!raw) return true
         const cached = JSON.parse(raw) as { fetchedAt: number }
         return Date.now() - cached.fetchedAt >= CACHE_TTL
@@ -460,7 +460,7 @@ export default function HistorikkPage() {
               if (cancelled) return
               try {
                 sessionStorage.setItem(
-                  `qk_attempt_v2_${attempt.id}`,
+                  `qk_attempt_v3_${attempt.id}`,
                   JSON.stringify({ fetchedAt: Date.now(), data })
                 )
               } catch { /* ignore */ }

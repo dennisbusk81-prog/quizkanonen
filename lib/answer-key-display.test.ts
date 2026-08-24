@@ -98,7 +98,12 @@ function builder(table: string) {
         // To ulike spørringer mot samme tabell: forsøksraden (.single()) og
         // fetchFieldStats, som teller deltakere per quiz (nevneren i
         // «#12 av 63»).
-        return select.includes('quizzes(title)')
+        // Diskriminatoren er 'quizzes(title' UTEN sluttparentes: embeden bærer
+        // nå også is_active/show_leaderboard (lenkegatingen på
+        // /historikk/[attemptId]), og en eksakt 'quizzes(title)' ville stille
+        // falt til feil gren og gitt tilbake deltakertellingen i stedet for
+        // forsøksraden.
+        return select.includes('quizzes(title')
           ? {
               id: 'a-1',
               quiz_id: 'z-1',
@@ -106,7 +111,7 @@ function builder(table: string) {
               total_questions: 2,
               total_time_ms: 8000,
               completed_at: '2026-08-01T18:00:00.000Z',
-              quizzes: { title: 'Testquiz' },
+              quizzes: { title: 'Testquiz', is_active: true, show_leaderboard: true },
             }
           : [{ quiz_id: 'z-1', correct_answers: 1 }]
       case 'season_scores':

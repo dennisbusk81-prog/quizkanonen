@@ -121,6 +121,19 @@ export type AttemptDetail = {
   rank: number | null
   total_players: number | null
   answers: AttemptAnswerDetail[]
+  // To RÅ fakta om quizen, ikke ett utledet «kan du klikke videre?». Begge
+  // avgjør om /leaderboard/[id] viser noe i det hele tatt, men de gjør det på
+  // hver sin måte, og detaljsiden må kunne skille dem hvis teksten senere skal
+  // bli mer presis enn «lenken vises ikke».
+  //
+  //   quiz_is_active = false        → RLS-policyen quizzes_select_active gir
+  //                                   null rader til klienten, og
+  //                                   /leaderboard/[id] havner i sin
+  //                                   fetchError-gren.
+  //   quiz_show_leaderboard = false → siden svarer «Ukens resultater er ikke
+  //                                   aktivert for denne quizen».
+  quiz_is_active: boolean
+  quiz_show_leaderboard: boolean
 }
 
 export type PlayerHistoryResult = {
@@ -243,6 +256,22 @@ function resolveTitle(raw: unknown): string {
 // eller som array avhengig av relasjonens form, og å anta feil form gir null
 // uten feilmelding. Målt mot prod 2. august 2026 er denne et objekt — men
 // antakelsen står ikke alene her.
+// Samme form-forsvar som resolveTitle/resolveCategory, for de booleanske
+// quiz-flaggene. Standardverdien ved ulesbar embed er `true`, altså «vis
+// lenken» — bevisst motsatt av fail-safen i /api/leaderboard/[id], og av en
+// grunn: der holdes ANDRE spilleres rader tilbake, og en blipp skal ikke kunne
+// åpne en skjult stilling. Her er utfallet en navigasjonslenke uten
+// sikkerhetsdimensjon, og flaggene leses i SAMME .single() som selve forsøket
+// — er de ulesbare, lastet ikke forsøket heller. «Ulesbar» betyr derfor en
+// form-overraskelse, ikke en forbigående feil, og å falle lukket ville stille
+// fjernet en lenke som virker.
+function resolveQuizFlag(raw: unknown, key: 'is_active' | 'show_leaderboard'): boolean {
+  const v = raw as Record<string, unknown> | Record<string, unknown>[] | null
+  const row = Array.isArray(v) ? v[0] : v
+  const flag = row?.[key]
+  return typeof flag === 'boolean' ? flag : true
+}
+
 function resolveCategory(raw: unknown): string | null {
   const v = raw as { category: string | null } | { category: string | null }[] | null
   if (Array.isArray(v)) return v[0]?.category ?? null
@@ -585,7 +614,7 @@ export async function getAttemptDetail(
   const { data: attempt, error: attemptError } = await supabaseAdmin
     .from('attempts')
     .select(
-      'id, quiz_id, correct_answers, total_questions, total_time_ms, completed_at, quizzes(title)'
+      'id, quiz_id, correct_answers, total_questions, total_time_ms, completed_at, quizzes(title, is_active, show_leaderboard)'
     )
     .eq('id', attemptId)
     .eq('user_id', userId)
@@ -651,5 +680,7 @@ export async function getAttemptDetail(
     rank: rank?.rank ?? null,
     total_players: rank?.total_players ?? null,
     answers: mappedAnswers,
+    quiz_is_active: resolveQuizFlag(attempt.quizzes, 'is_active'),
+    quiz_show_leaderboard: resolveQuizFlag(attempt.quizzes, 'show_leaderboard'),
   }
 }

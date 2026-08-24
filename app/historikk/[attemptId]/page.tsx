@@ -52,6 +52,13 @@ const s = {
   statLbl:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a' },
   heroSub:    { fontSize: 12, color: '#918f8a', textAlign: 'center' as const, marginTop: 10 },
 
+  // Veier videre — SAMME form som lenkeraden i «Din siste quiz»-kortet på
+  // /historikk (s.sisteLenker/s.sisteLenke). Bevisst ikke et nytt uttrykk:
+  // det er de samme to reisene fra det samme resultatet, og fram til nå
+  // hadde bare det nyeste forsøket dem.
+  lenker:     { display: 'flex', gap: 16, flexWrap: 'wrap' as const, marginTop: 14, paddingTop: 12, borderTop: '1px solid #2a2d38' },
+  lenke:      { fontSize: 12, color: '#e8e4dd', textDecoration: 'none', letterSpacing: '0.02em' },
+
   // Section
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
@@ -147,7 +154,7 @@ export default function AttemptDetailPage() {
   useLayoutEffect(() => {
     const CACHE_TTL = 10 * 60 * 1000
     try {
-      const raw = sessionStorage.getItem(`qk_attempt_v2_${attemptId}`)
+      const raw = sessionStorage.getItem(`qk_attempt_v3_${attemptId}`)
       if (!raw) return
       const cached = JSON.parse(raw) as { fetchedAt: number; data: AttemptDetail }
       if (Date.now() - cached.fetchedAt < CACHE_TTL) {
@@ -169,7 +176,7 @@ export default function AttemptDetailPage() {
 
   useEffect(() => {
     let cancelled = false
-    const CACHE_KEY = `qk_attempt_v2_${attemptId}`
+    const CACHE_KEY = `qk_attempt_v3_${attemptId}`
     const CACHE_TTL = 10 * 60 * 1000 // 10 min — attempt data is immutable
     const controller = new AbortController()
     const fetchTimeout = setTimeout(() => controller.abort(), 12000)
@@ -378,6 +385,43 @@ export default function AttemptDetailPage() {
               {detail.rank != null && detail.total_players != null && (
                 <> · av {detail.total_players} deltakere</>
               )}
+            </div>
+
+            {/* Leaderboard-lenken vises kun når den faktisk fører et sted.
+                To quiz-tilstander gjør målsiden til en blindvei, og de er
+                ULIKE blindveier:
+
+                  • is_active = false («Skjul» i admin) — RLS-policyen
+                    quizzes_select_active gir klienten null rader,
+                    .single() feiler, og /leaderboard/[id] tegner
+                    «Noe gikk galt. Prøv å laste siden på nytt.» Altså en
+                    feilmelding for noe som ikke er en feil.
+                  • show_leaderboard = false — siden sier ærlig at
+                    resultatene ikke er aktivert, men det er fortsatt en
+                    reise som ender i ingenting.
+
+                Ingen forklaring erstatter lenken: at resultatlista ikke
+                finnes for en gammel quiz er ikke noe spilleren kan gjøre
+                noe med, og fraværet er signalet.
+
+                «Se hele quizen →» fra siste-quiz-kortet hører IKKE hjemme
+                her — den peker på /historikk/[attemptId], altså denne
+                siden selv. Og /quiz/[id] er ikke et alternativ: en
+                innlogget bruker på en stengt quiz møter startskjermen der
+                Start svarer 403.
+
+                «Til historikken →» er en ekte Link, i motsetning til
+                ← Tilbake øverst (router.back()), som ikke fører noe sted
+                når siden åpnes direkte fra en delt lenke eller ny fane. */}
+            <div style={s.lenker}>
+              {detail.quiz_is_active && detail.quiz_show_leaderboard && (
+                <Link href={`/leaderboard/${detail.quiz_id}`} style={s.lenke}>
+                  Se leaderboard →
+                </Link>
+              )}
+              <Link href="/historikk" style={s.lenke}>
+                Til historikken →
+              </Link>
             </div>
           </div>
 
