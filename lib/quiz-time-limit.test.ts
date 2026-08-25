@@ -19,7 +19,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { describeQuestionTimeLimit, DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from './quiz-time-limit.ts'
+import { describeQuestionTimeLimit, DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from './quiz-time-limit'
 
 test('alle spørsmål like — viser det ene tallet', () => {
   assert.equal(describeQuestionTimeLimit([15, 15, 15], 15), '15s')

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getOrBuildSnapshot } from '@/lib/ranking-snapshot'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 import { selectEasiestAndHardest } from '@/lib/question-difficulty'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 
 // ── Admin resultatoversikt ────────────────────────────────────────────────────
 // Samler alt Dennis trenger etter en fredagsquiz på ÉN plass: full rangert liste,
@@ -79,15 +80,37 @@ export async function GET(
 
   // Slå opp ferske display_name + nickname for de innloggede spillerne, slik at
   // admin ser hvem som er hvem (snapshoten bærer player_name fra spilletidspunktet).
+  // CHUNKET, ikke fordi grensen er nær, men fordi bruddet er STILLE.
+  // Hele id-lista havner i URL-ens query-streng, og den målte grensen ligger
+  // rundt 390 id-er (se lib/paginate.ts). Høyeste målte deltakertall på én quiz
+  // er 67, så det er lang vei dit — men feiler oppslaget, faller HVER spiller
+  // tilbake på player_name fra spilletidspunktet, og det er en verdi som ser
+  // helt riktig ut. Admin ville ikke kunne skille et brudd fra normal drift.
+  //
+  // Derfor LOGGES feilen nå, i stedet for å bli forkastet med en forkastet destrukturering.
+  // Den skal derimot ikke bli en 500: resultatlista er hele poenget med sida,
+  // og gamle navn er uendelig mye bedre enn ingen liste. Samme avveining som i
+  // /api/admin/questions — degrader visningen, men etterlat et spor.
   const userIds = [...new Set(snapshot.map(e => e.user_id).filter((u): u is string => !!u))]
   const nameByUser = new Map<string, string>()
   const nickByUser = new Map<string, string | null>()
   if (userIds.length > 0) {
-    const { data: profiles } = await supabaseAdmin
-      .from('profiles')
-      .select('id, display_name, nickname')
-      .in('id', userIds)
-    for (const p of (profiles ?? []) as { id: string; display_name: string | null; nickname: string | null }[]) {
+    let profiles: { id: string; display_name: string | null; nickname: string | null }[] = []
+    try {
+      profiles = await fetchAllRowsChunked<{ id: string; display_name: string | null; nickname: string | null }>(
+        userIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('profiles')
+            .select('id, display_name, nickname')
+            .in('id', chunk)
+            .order('id', { ascending: true })
+            .range(from, to)
+      )
+    } catch (e) {
+      console.error('[admin/results] profil-oppslag feilet — viser navn fra spilletidspunktet:', e instanceof Error ? e.message : e)
+    }
+    for (const p of profiles) {
       if (p.display_name) nameByUser.set(p.id, p.display_name)
       nickByUser.set(p.id, p.nickname ?? null)
     }
