@@ -5,6 +5,7 @@ import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { rankAttempts } from '@/lib/ranking'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 import { fetchAllRowsChunked } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -101,13 +102,31 @@ export async function GET(
   let attempts: unknown[] = []
 
   if (playedQuizIds.length > 0) {
-    const { data: latest } = await supabaseAdmin
+    // onlyRealQuizzes — samme klasse som «Deltakere siste quiz» i
+    // admin/dashboard (f4d4a07). Uten det overtar en testquiz kortet så snart
+    // ETT medlem har spilt den: en testquiz er fersk, så den vinner
+    // `order('created_at', desc)`, og bedriftens «Siste quiz» viser da
+    // testtittelen med de to–tre radene testkjøringen la igjen.
+    //
+    // Framtids-avgrensningen fra my-placement er BEVISST IKKE med her.
+    // `playedQuizIds` kommer fra medlemmenes `attempts`, og et forsøk finnes
+    // bare på en quiz som har åpnet (start-attempt svarer 403 før opens_at).
+    // En planlagt quiz kan altså ikke nå denne `.in()`-listen i det hele tatt
+    // — `.lte('opens_at', now)` ville vært et filter uten noe å filtrere.
+    //
+    // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+    // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+    // excessively deep». Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+    const latestQuizQuery = supabaseAdmin
       .from('quizzes')
       .select('id, title, is_active, created_at')
       .in('id', playedQuizIds)
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle()
+
+    // Helperen MÅ stå før `.maybeSingle()` — den returnerer en
+    // PostgrestBuilder som ikke lenger har `.not()`/`.in()`.
+    const { data: latest } = await onlyRealQuizzes(latestQuizQuery).maybeSingle()
 
     if (latest) {
       quiz = { id: latest.id, title: latest.title, is_active: latest.is_active }

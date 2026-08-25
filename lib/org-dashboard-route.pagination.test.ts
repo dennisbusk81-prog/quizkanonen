@@ -89,7 +89,15 @@ function quizzesBuilder() {
   let inList: string[] = []
   const b = {
     select() { return b },
-    in(_col: string, ids: string[]) { inList = ids; return b },
+    // Populasjonsfilteret (onlyRealQuizzes, 25. august 2026) legger .not() og
+    // en ANDRE .in() på samme spørring. Denne faken modellerer radtaket i
+    // steg 1, ikke hvilke quizer som er ekte — den ser derfor bort fra begge,
+    // men MÅ skille dem fra id-lista: uten kolonnesjekken under ville
+    // .in('quiz_type', ['weekly','bonus']) overskrevet `inList` med to
+    // strenger, og «nyeste quiz» blitt valgt fra feil sett.
+    // Populasjonen er dekket av lib/org-real-quiz-population.test.ts.
+    not() { return b },
+    in(col: string, ids: string[]) { if (col === 'id') inList = ids; return b },
     order() { return b },
     limit() { return b },
     async maybeSingle() {

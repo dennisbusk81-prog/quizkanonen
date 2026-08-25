@@ -47,6 +47,14 @@ function builder(table: string) {
     select() { return b },
     eq(col: string, val: unknown) { preds.push(r => r[col] === val); return b },
     in(col: string, vals: unknown[]) {
+      // Embeddede kolonner (`quizzes.quiz_type`) kommer fra populasjonsfilteret
+      // onlyRealQuizAttempts (25. august 2026). Faken har ingen relasjoner og
+      // ville lest `r['quizzes.quiz_type']` som undefined — altså kastet ALLE
+      // rader. Denne testen handler om «aktiv»-definisjonene, ikke om hvilke
+      // quizer som er ekte; populasjonen felles av
+      // lib/org-real-quiz-population.test.ts, som har en fake med ekte
+      // relasjonsoppslag.
+      if (col.includes('.')) return b
       const s = new Set(vals)
       preds.push(r => s.has(r[col]))
       return b
@@ -54,7 +62,9 @@ function builder(table: string) {
     gte(col: string, val: string) { preds.push(r => r[col] != null && String(r[col]) >= val); return b },
     lt(col: string, val: string) { preds.push(r => r[col] != null && String(r[col]) < val); return b },
     // Kun formen rutene bruker: .not(col, 'is', null) = "kolonnen er satt".
+    // Embeddede kolonner ignoreres av samme grunn som i .in() over.
     not(col: string, op: string, val: unknown) {
+      if (col.includes('.')) return b
       if (op === 'is' && val === null) preds.push(r => r[col] != null && r[col] !== undefined)
       return b
     },

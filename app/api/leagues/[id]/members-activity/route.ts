@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -163,14 +164,28 @@ export async function GET(request: NextRequest, { params }: Params) {
   // forsøk skal ikke telle som spilt. Samme filter som `lib/weekly-report.ts`.
   // is_team = false speiler award-season-points — et lagforsøk gir heller ikke
   // sesongpoeng, så prikken ville ellers vært uenig med lista under.
+  //
+  // onlyRealQuizAttempts: merket sa «har spilt», men målte «har levert et
+  // forsøk» — på hvilken som helst quiz-rad. En testkjøring holdt derfor
+  // AKTIV-prikken i live i 30 dager etter at all ekte deltakelse hadde
+  // stanset, og gjorde det på den ene flaten som finnes nettopp for å SE hvem
+  // som har falt av. Se lib/real-quiz-population.ts. Embeden MÅ stå i
+  // `.select()` — uten den svarer PostgREST 400 PGRST108, altså høylytt og
+  // ikke stille.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument ga `next build`
+  // TS2589 «Type instantiation is excessively deep» andre steder i denne
+  // saken. Ikke inline den tilbake.
   const activeSince = new Date(Date.now() - ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentAttempts, error: recentErr } = await supabaseAdmin
+  const recentQuery = supabaseAdmin
     .from('attempts')
-    .select('user_id')
+    .select(`user_id, ${REAL_QUIZ_ATTEMPT_EMBED}`)
     .in('user_id', memberIds)
     .eq('is_team', false)
     .not('submitted_at', 'is', null)
     .gte('submitted_at', activeSince)
+
+  const { data: recentAttempts, error: recentErr } = await onlyRealQuizAttempts(recentQuery)
 
   // Ingen stille degradering: uten dette ville en feilet spørring gitt et tomt
   // sett, og HELE medlemslisten ville vist seg som inaktiv uten et eneste spor.

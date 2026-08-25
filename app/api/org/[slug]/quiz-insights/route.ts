@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type Params = { params: Promise<{ slug: string }> }
@@ -52,21 +53,33 @@ export async function GET(request: NextRequest, { params }: Params) {
   // Embedden er kun et eksistensfilter — limit(1) på begge nivåene gjør den
   // til et rent EXISTS-oppslag i stedet for en json_agg over hele undertreet
   // (samme mønster som toppliste-ruten og quiz-scores i samme mappe).
-  // is_test=false: uten det kunne en stengt testquiz blitt valgt og vist
-  // testdata i bedriftspanelet. is_active filtreres BEVISST IKKE — «Skjul» i
-  // admin skal ikke fjerne resultater folk allerede har spilt (samme
-  // presedens som award-season-points).
-  const { data: closedQuiz } = await supabaseAdmin
+  // is_active filtreres BEVISST IKKE — «Skjul» i admin skal ikke fjerne
+  // resultater folk allerede har spilt (samme presedens som
+  // award-season-points).
+  //
+  // `.eq('is_test', false)` er ERSTATTET av onlyRealQuizzes, ikke supplert. Det
+  // gamle filteret dekket halve gulvet og hadde to hull: det matcher ikke
+  // `is_test IS NULL` (kolonnen er nullable), og det sier ingenting om
+  // `quiz_type`. Et arkivforsøk (`quiz_type='archive'`, `is_test=false`) ville
+  // altså stengt ferskest, vunnet `order('closes_at', desc)` og fylt
+  // bedriftspanelets innsikt med arkivdata — stille, siden svaret ser helt
+  // normalt ut. Se lib/real-quiz-population.ts.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+  // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+  // excessively deep». Ikke inline den tilbake.
+  const closedQuizQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, attempts!inner(id, attempt_answers!inner(id))')
-    .eq('is_test', false)
     .lt('closes_at', new Date().toISOString())
     .not('closes_at', 'is', null)
     .order('closes_at', { ascending: false })
     .limit(1, { referencedTable: 'attempts' })
     .limit(1, { referencedTable: 'attempts.attempt_answers' })
     .limit(1)
-    .maybeSingle()
+
+  // Helperen MÅ stå før `.maybeSingle()`.
+  const { data: closedQuiz } = await onlyRealQuizzes(closedQuizQuery).maybeSingle()
 
   if (!closedQuiz) {
     return NextResponse.json({ error: 'Ingen stengt quiz' }, { status: 404 })

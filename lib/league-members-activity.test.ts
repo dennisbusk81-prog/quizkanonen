@@ -69,6 +69,14 @@ function builder(table: string) {
     eq(col: string, val: unknown) { ops.push(`eq:${col}:${String(val)}`); preds.push(r => r[col] === val); return b },
     in(col: string, vals: unknown[]) {
       ops.push(`in:${col}`)
+      // Embeddede kolonner (`quizzes.quiz_type`) kommer fra populasjonsfilteret
+      // onlyRealQuizAttempts (25. august 2026). Faken har ingen relasjoner og
+      // ville lest `r['quizzes.quiz_type']` som undefined — altså kastet ALLE
+      // rader. Denne testen handler om AKTIV-prikkens tidsvindu, ikke om hvilke
+      // quizer som er ekte; populasjonen felles av
+      // lib/org-real-quiz-population.test.ts, som har en fake med ekte
+      // relasjonsoppslag.
+      if (col.includes('.')) return b
       const s = new Set(vals)
       preds.push(r => s.has(r[col]))
       return b
@@ -77,7 +85,9 @@ function builder(table: string) {
     gte(col: string, val: string) { ops.push(`gte:${col}`); preds.push(r => r[col] != null && String(r[col]) >= val); return b },
     lt(col: string, val: string) { ops.push(`lt:${col}`); preds.push(r => r[col] != null && String(r[col]) < val); return b },
     // Kun formen ruten bruker: .not(col, 'is', null) = "kolonnen er satt".
+    // Embeddede kolonner ignoreres av samme grunn som i .in() over.
     not(col: string, op: string, val: unknown) {
+      if (col.includes('.')) return b
       if (op === 'is' && val === null) {
         ops.push(`not-null:${col}`)
         preds.push(r => r[col] != null && r[col] !== undefined)

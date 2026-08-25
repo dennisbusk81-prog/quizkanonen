@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankAttempts } from '@/lib/ranking'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -50,11 +51,44 @@ export async function GET(
   const memberUserIds = (members ?? []).map(m => m.user_id).filter(Boolean)
   if (memberUserIds.length === 0) return NextResponse.json({ placement: null })
 
-  const { data: quizzes } = await supabaseAdmin
+  // ── Vinduet «de siste quizene» — TO avgrensninger, av to ulike grunner ─────
+  //
+  // 1. onlyRealQuizzes — GULVET. Uten det kan en testquiz et medlem har spilt
+  //    vinne løkken, og en Elkjøp-ansatt får «Din plassering på [TEST – ikke
+  //    ekte] …» med et deltakertall hentet fra testkjøringen. Se
+  //    lib/real-quiz-population.ts.
+  //
+  // 2. `.lte('opens_at', now)` — DET GULVET IKKE DEKKER. En planlagt quiz er en
+  //    helt ordinær `weekly`-rad og passerer hvitelisten uten videre. Den kan
+  //    riktignok ikke ha forsøk (start-attempt svarer 403 før opens_at), men
+  //    det er nettopp derfor den er skadelig HER: løkken hopper over den med
+  //    `continue`, mens raden allerede har spist en av de ti plassene. Antallet
+  //    planlagte quizer i prod er ikke målt i denne runden — lib/history.ts:346
+  //    noterte 6 stykker per 2. august 2026, og med et slikt tall pluss en
+  //    testquiz er 7 av 10 plasser døde. Da faller en ekte plassering lenger
+  //    tilbake ut av vinduet, og utfallet er `placement: null`: flaten viser
+  //    ingenting, som om medlemmet aldri hadde spilt. Stille, ikke en feilmelding.
+  //
+  // Formen er hentet, ikke oppfunnet: `.not('opens_at','is',null)` +
+  // `.lte('opens_at', nowIso)` er samme par som lib/history.ts:384-385,
+  // app/api/quiz/active/route.ts:19 og cron/publish-quiz:70 bruker for «har
+  // åpnet». `.not(… is null)` er strengt tatt overflødig — en NULL kan ikke
+  // tilfredsstille `lte` — men står eksplisitt fordi det å holde utkast uten
+  // åpningstid ute er en beslutning, ikke en bieffekt av trevalgt logikk.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+  // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+  // excessively deep». Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+  const nowIso = new Date().toISOString()
+  const quizWindowQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, created_at')
+    .not('opens_at', 'is', null)
+    .lte('opens_at', nowIso)
     .order('created_at', { ascending: false })
     .limit(10)
+
+  const { data: quizzes } = await onlyRealQuizzes(quizWindowQuery)
 
   for (const q of (quizzes ?? [])) {
     const { data: qAttempts } = await supabaseAdmin

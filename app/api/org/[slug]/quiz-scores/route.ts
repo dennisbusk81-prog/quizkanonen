@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
+import {
+  onlyRealQuizzes,
+  onlyRealQuizAttempts,
+  REAL_QUIZ_ATTEMPT_EMBED,
+} from '@/lib/real-quiz-population'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -45,6 +50,27 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const { slug: orgId } = await params
 
+  // `.eq('quiz_type','weekly')` avgrenser STRENGERE enn gulvet i
+  // onlyRealQuizzes, og skal bli stående — «ukens quiz» er en
+  // produktdefinisjon her. Men strengere på ÉN akse er ikke det samme som
+  // dekket: hvitelisten var på plass, is_test-vakten var det ikke, og
+  // admin-editorens testbryter (app/admin/quizzes/new/page.tsx:1061) setter
+  // nettopp `is_test = true` mens nedtrekket blir stående på 'weekly'. En slik
+  // quiz stenger ferskest og vinner `order('closes_at', desc)`, så bedriftens
+  // «Siste quiz»-tabell ville vist testresultater. Helperen legger på begge
+  // halvdelene av gulvet; `.eq` over vinner fortsatt på quiz_type-aksen.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+  // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+  // excessively deep». Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+  const sisteQuizQuery = supabaseAdmin
+    .from('quizzes')
+    .select('id, title, attempts!inner(id)')
+    .eq('quiz_type', 'weekly')
+    .order('closes_at', { ascending: false })
+    .limit(1, { referencedTable: 'attempts' })
+    .limit(1)
+
   // ── Bølge 1: rolle-sjekk, org-medlemmer og siste quiz — innbyrdes uavhengige ─
   const [membershipRes, orgMembersRes, latestQuizRes] = await Promise.all([
     supabaseAdmin
@@ -63,14 +89,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     // som pekte på neste ukes ferdig-opprettede quiz med 0 forsøk og ga
     // "Ingen har spilt ennå" selv når resultater fantes på topplisten.
     // attempts!inner + limit(1, referencedTable) gjør joinen til et rent EXISTS.
-    supabaseAdmin
-      .from('quizzes')
-      .select('id, title, attempts!inner(id)')
-      .eq('quiz_type', 'weekly')
-      .order('closes_at', { ascending: false })
-      .limit(1, { referencedTable: 'attempts' })
-      .limit(1)
-      .maybeSingle(),
+    onlyRealQuizzes(sisteQuizQuery).maybeSingle(),
   ])
 
   // 403-gate: MÅ sjekkes og returneres FØR bølge 2 kjøres eller data lekkes.
@@ -96,6 +115,31 @@ export async function GET(request: NextRequest, { params }: Params) {
   const oneYearAgo = new Date()
   oneYearAgo.setUTCFullYear(oneYearAgo.getUTCFullYear() - 1)
 
+  // onlyRealQuizAttempts: streaken teller uker med minst ett levert forsøk over
+  // et helt år, og gjorde det over ALLE quizer. En testkjøring i en uke uten
+  // fredagsquiz-deltakelse fylte dermed hullet og skjøtet to rekker sammen —
+  // org-admin så en ubrutt rekke der den ekte var brutt. (Hvor ofte det har
+  // slått ut i prod er IKKE målt; feilformen er felt av test, ikke av telling.)
+  //
+  // GULVET, ikke `quiz_type='weekly'` som «Siste quiz» over: en bonusquiz er en
+  // ekte quiz medlemmet faktisk spilte, og hvilke ekte quizer som skal holde en
+  // UKESrekke i live er et produktvalg. Denne endringen er en
+  // integritetsretting og skal ikke smugle inn det valget.
+  //
+  // Embeden MÅ stå i `.select()` — uten den svarer PostgREST 400 PGRST108.
+  // Spørringen står i en LOKAL VARIABEL av samme grunn som over (TS2589).
+  const streakQuery = supabaseAdmin
+    .from('attempts')
+    .select(`user_id, completed_at, ${REAL_QUIZ_ATTEMPT_EMBED}`)
+    .in('user_id', memberIds)
+    .gte('completed_at', oneYearAgo.toISOString())
+    .eq('is_team', false)
+    .not('user_id', 'is', null)
+    // Samme grunn som i leaderboard-spørringen under: uten dette holdt en uke
+    // der medlemmet bare ÅPNET quizen streaken i live i medlemslisten
+    // («streak: N uker»), som om hen hadde spilt.
+    .not('submitted_at', 'is', null)
+
   const [profilesRes, leaderboardRes, streaksRes] = await Promise.all([
     supabaseAdmin
       .from('profiles')
@@ -117,17 +161,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           // Samme filter som lib/weekly-report.ts og percentile-ruten (859e529).
           .not('submitted_at', 'is', null)
       : Promise.resolve({ data: [] as LeaderRow[] }),
-    supabaseAdmin
-      .from('attempts')
-      .select('user_id, completed_at')
-      .in('user_id', memberIds)
-      .gte('completed_at', oneYearAgo.toISOString())
-      .eq('is_team', false)
-      .not('user_id', 'is', null)
-      // Samme grunn som i leaderboard-spørringen over: uten dette holdt en uke
-      // der medlemmet bare ÅPNET quizen streaken i live i medlemslisten
-      // («streak: N uker»), som om hen hadde spilt.
-      .not('submitted_at', 'is', null),
+    onlyRealQuizAttempts(streakQuery),
   ])
 
   const nameMap = new Map((profilesRes.data ?? []).map(p => [p.id, p.display_name as string | null]))
