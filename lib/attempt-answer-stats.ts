@@ -1,6 +1,7 @@
 import 'server-only'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
+import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 // ── Aggregert svarstatistikk for attempt_answers ────────────────────────────
 // attempt_answers kan lett passere PostgREST sin stille 1000-rads-grense for
@@ -104,7 +105,11 @@ export async function getOptionCountsByQuestions(
 }
 
 // Antall distinkte spillere (user_id) med minst ett individuelt, innlogget
-// forsøk siden et gitt tidspunkt.
+// forsøk PÅ EN EKTE QUIZ siden et gitt tidspunkt. Populasjonsgulvet
+// (lib/real-quiz-population.ts) håndheves i BEGGE stier: RPC-en fikk joinen
+// mot quizzes i migrasjon 20260825000000, og fallbacken under speiler den —
+// ellers ville de to stiene telt ulike populasjoner og et RPC-bortfall
+// endret forsidetallet stille.
 export async function countActivePlayersSince(sinceIso: string): Promise<number> {
   const { data, error } = await supabaseAdmin.rpc('count_active_players_since', {
     p_since: sinceIso,
@@ -114,15 +119,19 @@ export async function countActivePlayersSince(sinceIso: string): Promise<number>
 
   console.warn('[attempt-answer-stats] RPC count_active_players_since utilgjengelig, bruker paginert JS-fallback:', error.message)
 
-  const rows = await fetchAllRows<{ user_id: string }>((from, to) =>
-    supabaseAdmin
+  const rows = await fetchAllRows<{ user_id: string }>((from, to) => {
+    // Lokal variabel, ikke inline: den lengste byggerkjeden ga TS2589 under
+    // `next build` da helperen ble kjedet direkte (se real-quiz-population.ts,
+    // «TO MEKANISKE KRAV»).
+    const base = supabaseAdmin
       .from('attempts')
-      .select('user_id')
+      .select(`user_id, ${REAL_QUIZ_ATTEMPT_EMBED}`)
       .eq('is_team', false)
       .not('user_id', 'is', null)
       .gte('completed_at', sinceIso)
+    return onlyRealQuizAttempts(base)
       .order('id', { ascending: true })
       .range(from, to)
-  )
+  })
   return new Set(rows.map(r => r.user_id)).size
 }

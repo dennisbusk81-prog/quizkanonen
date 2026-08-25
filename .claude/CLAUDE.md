@@ -290,6 +290,16 @@ oppdater hvitelisten i samme runde.** Formen er bevisst valgt slik at
 `quiz_type='archive'` faller ut uten endring — det er hensikten, ikke en
 bieffekt.
 
+**Hvitelisten finnes også i SQL, og den følger IKKE TS-konstanten (25. august
+2026):** migrasjon `20260825000000_rpc_real_quiz_population.sql` hardkoder
+`quiz_type IN ('weekly', 'bonus')` i `weekly_active_players` og
+`count_active_players_since`. Utvides `REAL_QUIZ_TYPES` i TS, må en NY
+migrasjon oppdatere begge IN-listene i samme runde — ellers drifter
+forsidens/dashbordets spillertall stille fra resten av leserne. Og husk ved
+enhver replace av disse funksjonene: `SET search_path = ''` må stå INLINE
+(CREATE OR REPLACE nullstiller attributter), og REVOKE må navngi
+`authenticated` eksplisitt.
+
 ### ARBEIDSREGEL — en feil har som regel søsken (5. august 2026)
 **Når du finner en feil, spør ALLTID hvilke andre steder som har samme form,
 FØR du melder den fiksa. Fiks alle, eller si eksplisitt hvilke du lot stå og

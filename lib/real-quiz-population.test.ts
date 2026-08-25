@@ -7,6 +7,9 @@
 //   2. /api/toppliste/history           — de 21 nyeste stengte
 //   3. /api/leaderboard/[id]/prev-rank  — «forrige quiz» for trendmerket
 //   4. /api/admin/dashboard             — «Deltakere siste quiz»
+//   5. countActivePlayersSince (lib/attempt-answer-stats.ts) — JS-fallbacken
+//      bak forsidens «X aktive spillere siste 12 uker»; RPC-søsteren fikk
+//      samme filter i migrasjon 20260825000000 (SQL, kan ikke testes herfra)
 //
 // ── HVORFOR EN FAKE SOM FAKTISK FILTRERER ──────────────────────────────────
 // Testene her er BEHAVIORAL, ikke strukturelle: de sjekker ikke at et kall til
@@ -32,6 +35,13 @@
 //     «helper: is_test = NULL regnes som ekte quiz»
 //   • fjern `.in('quiz_type', ...)` fra onlyRealQuizzes               → feiler
 //     «helper: arkiv- og testtyper faller ut av hvitelisten»
+//   • fjern `onlyRealQuizAttempts(base)` i countActivePlayersSince
+//     sin fallback (kjørt 25. august 2026)                            → feiler
+//     «countActivePlayersSince-fallback: teller kun spillere på ekte quizer»
+//     MERK: å fjerne KUN embeden fra selectet fanges ikke av faken (den slår
+//     opp relasjonen uansett) — men i prod svarer PostgREST da 400 PGRST108,
+//     fetchAllRows kaster, og forsidevakten skjuler stat-raden. Høylytt, ikke
+//     stille — den greie retningen å ta feil i.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -51,6 +61,10 @@ const rpcSvar: Record<string, unknown> = {
   weekly_active_players: [],
   count_active_leagues: 0,
 }
+
+// RPC-er som skal FEILE i en gitt test — slik at JS-fallbacken deres faktisk
+// kjøres. Tom mellom tester (beforeEach).
+const rpcFeil: Record<string, { message: string }> = {}
 
 // ── Fake-spørringsbygger med ekte filterevaluering ──────────────────────────
 //
@@ -157,7 +171,12 @@ mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
       from: (t: string) => builder(t),
-      rpc: (navn: string) => Promise.resolve({ data: rpcSvar[navn] ?? null, error: null }),
+      rpc: (navn: string) =>
+        Promise.resolve(
+          rpcFeil[navn]
+            ? { data: null, error: rpcFeil[navn] }
+            : { data: rpcSvar[navn] ?? null, error: null }
+        ),
       auth: {
         getUser: (token?: string) =>
           Promise.resolve(
@@ -203,6 +222,7 @@ const ARKIV      = { quiz_type: 'archive', is_test: false }
 
 beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = []
+  for (const k of Object.keys(rpcFeil)) delete rpcFeil[k]
   løpenr = 0
 })
 
@@ -389,4 +409,46 @@ test('admin/dashboard: siste quiz er siste EKTE quiz', async () => {
     '[A-7]: kortet skal vise siste ekte quiz — ellers er «Deltakere siste quiz» radene fra en testkjøring')
   assert.equal(body.lastQuiz?.participants, 3,
     'deltakertallet skal følge den ekte quizen (3), ikke testquizens ene rad')
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Funn 5 — countActivePlayersSince sin JS-fallback (forsidens «X aktive
+// spillere siste 12 uker»). RPC-stien fikk populasjonsgulvet i migrasjon
+// 20260825000000 og kan ikke testes herfra (den er SQL); fallbacken MÅ speile
+// den, ellers teller de to stiene ulike populasjoner og et RPC-bortfall
+// endrer forsidetallet stille.
+// ════════════════════════════════════════════════════════════════════════════
+
+test('countActivePlayersSince-fallback: teller kun spillere på ekte quizer', async () => {
+  const { countActivePlayersSince } = await import('@/lib/attempt-answer-stats')
+
+  // Tving fallbacken: RPC-en later som den ikke finnes (samme situasjon som
+  // «deployet før migrasjonen er kjørt» — mønsteret koden eksplisitt lover).
+  rpcFeil.count_active_players_since = { message: 'function does not exist (simulert)' }
+
+  db.quizzes = [
+    quiz('ekte',  dagerSiden(2)),
+    quiz('test',  dagerSiden(1), TEST_TYPE),
+    quiz('flagg', dagerSiden(1), TEST_FLAGG),
+    quiz('arkiv', dagerSiden(1), ARKIV),
+  ]
+  db.attempts = [
+    forsøk('ekte',  KALLER,   8, 50_000),
+    // KALLER har OGSÅ et testforsøk — skal hverken telle dobbelt eller felle
+    // KALLER ut av tellingen.
+    forsøk('test',  KALLER,  10,  1_000),
+    // MEDSPILL og TREDJE finnes KUN på kunstige quizer. Uten filteret ville
+    // de blåst tallet fra 1 til 3 — nøyaktig det arkivspill vil gjøre.
+    forsøk('flagg', MEDSPILL, 10, 1_000),
+    forsøk('arkiv', TREDJE,  10,  1_000),
+    // Eksisterende avgrensninger skal bestå: gjest og lag teller fortsatt ikke.
+    forsøk('ekte',  KALLER,   5, 10_000, { user_id: null }),
+    forsøk('ekte',  MEDSPILL, 5, 10_000, { is_team: true, team_size: 3 }),
+  ]
+
+  const n = await countActivePlayersSince(dagerSiden(30))
+
+  assert.equal(n, 1,
+    'fallbacken skal telle 1 aktiv spiller (KALLER på den ekte quizen) — ikke 3: ' +
+    'spillere som kun finnes på test-/flagg-/arkivquizer er ikke ukentlig deltakelse')
 })
