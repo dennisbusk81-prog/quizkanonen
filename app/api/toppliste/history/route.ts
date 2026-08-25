@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 type ProfileRow = { id: string; display_name: string | null; nickname: string | null }
 
@@ -86,12 +87,23 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString()
 
     // Hent alle stengte quizer, skip den nyeste (vises i hovedfanen)
-    const { data: allClosed } = await supabaseAdmin
+    //
+    // onlyRealQuizzes: en testquiz er stengt og fersk, og vinner derfor både
+    // `order('closes_at', desc)` OG en plass i `limit(21)` — den ville altså
+    // både blitt kastet av `.slice(1)` som «nyeste» og skjøvet den eldste ekte
+    // quizen ut av listen. Se lib/real-quiz-population.ts.
+    //
+    // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+    // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+    // excessively deep». Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+    const closedQuery = supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at')
       .lt('closes_at', now)
       .order('closes_at', { ascending: false })
       .limit(21)
+
+    const { data: allClosed } = await onlyRealQuizzes(closedQuery)
 
     if (!allClosed || allClosed.length <= 1) {
       return respond({ entries: [] })

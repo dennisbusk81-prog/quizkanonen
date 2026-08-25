@@ -68,6 +68,12 @@ function quizzesBuilder() {
     select(cols: string) { selectCols = cols; return b },
     eq() { return b },
     lt() { hasLt = true; return b },
+    // prev-quiz-oppslaget bærer nå populasjonsfilteret (onlyRealQuizzes,
+    // 25. august 2026). Denne testen handler om synlighets-gaten, ikke om
+    // hvilke quizer som er ekte, så filtrene er kjede-tolerante her —
+    // populasjonen er dekket av lib/real-quiz-population.test.ts.
+    not() { return b },
+    in() { return b },
     order() { return b },
     limit() { return b },
     async maybeSingle() {

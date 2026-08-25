@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import type { Attempt } from '@/lib/supabase'
 
 // ── Forrige quiz' rangering for «pil opp»-trendmerket ────────────────────────
@@ -81,13 +82,26 @@ export async function GET(
 
   if (!current?.closes_at) return NextResponse.json({ prevRanks: {} })
 
-  const { data: prevQuiz } = await supabaseAdmin
+  // onlyRealQuizzes: «forrige quiz» er sammenligningsgrunnlaget for HELE
+  // trendmerket. En testquiz stenger typisk kort tid før den ekte og vinner da
+  // `order('closes_at', desc)` — da måles alles fremgang mot en quiz nesten
+  // ingen spilte. Merk at det er FORRIGE quiz som gates her, ikke den man ser
+  // på: står man på en testquiz' leaderboard, skal forrige EKTE quiz fortsatt
+  // være grunnlaget. Se lib/real-quiz-population.ts.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+  // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+  // excessively deep». Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+  const prevQuizQuery = supabaseAdmin
     .from('quizzes')
     .select('id, season_points_awarded')
     .lt('closes_at', current.closes_at)
     .order('closes_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+
+  // .maybeSingle() MÅ komme ETTER helperen: den returnerer en PostgrestBuilder
+  // uten .not()/.in(), så filteret kan ikke legges på i etterkant.
+  const { data: prevQuiz } = await onlyRealQuizzes(prevQuizQuery).maybeSingle()
 
   if (!prevQuiz) return NextResponse.json({ prevRanks: {} })
 

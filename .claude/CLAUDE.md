@@ -281,6 +281,15 @@ anon-lesingen i spillsiden skal se quizen i det hele tatt). Skriv den ikke på
 nytt ad hoc — sju barnetabeller henger på `quizzes.id`, og `played_log`
 cascader ikke.
 
+### FALLGRUVE — hvitelisten i lib/real-quiz-population.ts (25. august 2026)
+Filteret slipper kun gjennom `quiz_type` i `['weekly', 'bonus']`. En ny
+LEGITIM type (f.eks. `'christmas'`, `'newyear'`) faller da STILLE ut av
+liga-leaderboardet, toppliste-historikken, prev-rank og admin-dashboardet —
+ingen feilmelding, quizen bare finnes ikke. **Legger du til en ny `quiz_type`:
+oppdater hvitelisten i samme runde.** Formen er bevisst valgt slik at
+`quiz_type='archive'` faller ut uten endring — det er hensikten, ikke en
+bieffekt.
+
 ### ARBEIDSREGEL — en feil har som regel søsken (5. august 2026)
 **Når du finner en feil, spør ALLTID hvilke andre steder som har samme form,
 FØR du melder den fiksa. Fiks alle, eller si eksplisitt hvilke du lot stå og

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchRetentionRows, latestClosedRetention } from '@/lib/retention'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 // Datagrunnlaget for /admin/dashboard. Ett kall — siden skal vise ett bilde av
 // tilstanden, ikke seks kort som lander til ulik tid.
@@ -46,13 +47,24 @@ export async function GET(request: NextRequest) {
     const nowIso = new Date().toISOString()
 
     // Nyeste STENGTE quiz — grunnlaget for «Deltakere siste quiz».
-    const { data: lastQuizRows, error: lastQuizErr } = await supabaseAdmin
+    //
+    // onlyRealQuizzes lukker [A-7]: uten den overtar en testquiz kortet, og
+    // deltakertallet blir de 2–3 radene testkjøringen la igjen. Filteret gjør
+    // dessuten kortet ENIG med retention-kortet rett ved siden av, som allerede
+    // avgrenser på is_test (lib/retention.ts:107). Se lib/real-quiz-population.ts.
+    //
+    // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+    // onlyRealQuizzes() ga TS2589 «Type instantiation is excessively deep».
+    // Se lib/real-quiz-population.ts. Ikke inline den tilbake.
+    const lastQuizQuery = supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at')
       .not('closes_at', 'is', null)
       .lt('closes_at', nowIso)
       .order('closes_at', { ascending: false })
       .limit(1)
+
+    const { data: lastQuizRows, error: lastQuizErr } = await onlyRealQuizzes(lastQuizQuery)
 
     if (lastQuizErr) throw new Error(lastQuizErr.message)
     const lastQuiz = lastQuizRows?.[0] ?? null

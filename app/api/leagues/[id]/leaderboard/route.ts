@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { fetchAllRowsChunked } from '@/lib/paginate'
+import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -98,11 +99,16 @@ export async function GET(request: NextRequest, { params }: Params) {
   let allAttempts: MemberAttempt[]
   try {
     allAttempts = await fetchAllRowsChunked<MemberAttempt>(memberIds, (chunk, from, to) => {
+      // Populasjonen: kun forsøk på EKTE quizer. Uten dette blir en testquiz
+      // «siste quiz» i ligaen — den er stengt og fersk, og vinner dermed maks
+      // completed_at i løkken under — den teller i all-time-snittet, og den blir
+      // en egen quiz-id i beste_plassering-løkken. Se lib/real-quiz-population.ts.
       let q = supabaseAdmin
         .from('attempts')
-        .select('id, quiz_id, user_id, correct_answers, total_questions, total_time_ms, completed_at')
+        .select(`id, quiz_id, user_id, correct_answers, total_questions, total_time_ms, completed_at, ${REAL_QUIZ_ATTEMPT_EMBED}`)
         .in('user_id', chunk)
         .eq('is_team', false)
+      q = onlyRealQuizAttempts(q)
       if (league.reset_at) {
         q = q.gte('completed_at', league.reset_at)
       }

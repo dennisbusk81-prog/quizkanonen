@@ -93,7 +93,16 @@ function attemptsBuilder() {
     eq() { return b },
     gte() { return b },
     order() { return b },
-    in(_col: string, keys: string[]) { chunk = keys; return b },
+    // Populasjonsfilteret (onlyRealQuizAttempts, 25. august 2026) legger til
+    // .not('quizzes.is_test', …) og .in('quizzes.quiz_type', …) på SAMME
+    // spørring. Denne faken modellerer URL-taket og radtaket, ikke hvilke
+    // quizer som er ekte — den ser derfor bort fra begge, men MÅ skille dem
+    // fra medlems-chunken: uten kolonnesjekken under ville
+    // .in('quizzes.quiz_type', ['weekly','bonus']) overskrevet `chunk` med to
+    // strenger, og hele oppslaget blitt tomt.
+    // Populasjonen er dekket av lib/real-quiz-population.test.ts.
+    not() { return b },
+    in(col: string, keys: string[]) { if (col === 'user_id') chunk = keys; return b },
     range(f: number, t: number) { from = f; to = t; return b },
     then(res: (v: unknown) => unknown, rej: (e: unknown) => unknown) {
       state.attemptChunkSizes.push(chunk.length)
