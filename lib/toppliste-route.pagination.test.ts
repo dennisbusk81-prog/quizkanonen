@@ -42,6 +42,13 @@ function quizzesBuilder() {
     select(cols: string) { selectCols = cols; return b },
     eq() { return b },
     gt() { hasGt = true; return b },
+    // Begge quiz-oppslagene i ruten bærer nå populasjonsfilteret
+    // (onlyRealQuizzes, 25. august 2026). Denne faken handler om 1000-radstaket i attempts-lesingen, ikke om
+    // hvilke quizer som er ekte — den er derfor kjede-tolerant her.
+    // Populasjonen felles av lib/toppliste-real-quiz-population.test.ts, som
+    // har en fake med ekte filterevaluering.
+    not() { return b },
+    in() { return b },
     order() { return b },
     limit() { return b },
     async maybeSingle() {

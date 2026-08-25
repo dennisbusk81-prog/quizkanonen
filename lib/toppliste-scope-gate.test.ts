@@ -61,6 +61,13 @@ function quizzesBuilder() {
     eq() { return b },
     gt() { return b },
     lt() { return b },
+    // Begge quiz-oppslagene i ruten bærer nå populasjonsfilteret
+    // (onlyRealQuizzes, 25. august 2026). Denne faken handler om scope-gaten, ikke om
+    // hvilke quizer som er ekte — den er derfor kjede-tolerant her.
+    // Populasjonen felles av lib/toppliste-real-quiz-population.test.ts, som
+    // har en fake med ekte filterevaluering.
+    not() { return b },
+    in() { return b },
     order() { return b },
     limit() { return b },
     async maybeSingle() { return { data: null } },

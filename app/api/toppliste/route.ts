@@ -4,6 +4,7 @@ import { rankQuizAttempts, type RankableAttempt } from '@/lib/ranking'
 import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { isClosedRoom } from '@/lib/leaderboard-scope'
@@ -345,20 +346,41 @@ export async function GET(request: NextRequest) {
     // Uten dette vil testquizer med closes_at i fremtiden og 0 attempts
     // skygge for quizer der folk faktisk har spilt.
     //
+    // MEN attempts!inner er kun et halvt forsvar mot testquizer, og det var
+    // ikke tydelig før nå: den stopper en testquiz med NULL forsøk, altså en
+    // som aldri ble spilt. Oppskriften i .claude/QK_TESTQUIZ_OPPSKRIFT.md
+    // finnes nettopp for at testquizer SKAL spilles, og en spilt testquiz
+    // passerer joinen. `.eq('quiz_type','weekly')` fanger oppskriftens quiz
+    // (quiz_type='test'), men IKKE admin-editorens testbryter
+    // (app/admin/quizzes/new/page.tsx:1061), som setter `is_test = true` mens
+    // nedtrekket blir stående på 'weekly'. Den quizen stenger ferskest, vinner
+    // `order('closes_at', desc)` — og dette er den OFFENTLIGE topplisten.
+    //
+    // onlyRealQuizzes legger på begge halvdelene av gulvet.
+    // `.eq('quiz_type','weekly')` blir stående: den avgrenser strengere, og
+    // «ukens quiz» er en produktdefinisjon her. Se lib/real-quiz-population.ts.
+    //
+    // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+    // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+    // excessively deep». Ikke inline den tilbake.
+    //
     // Del 4 (Disk IO): joinen brukes KUN som eksistensfilter, men hentet
     // tidligere ut hele attempts-arrayet for quizen — ucachet, på hver eneste
     // last_quiz-forespørsel, altså nøyaktig lesingen getLastQuizAttempts-cachen
     // skulle fjerne. limit(1) på den refererte tabellen gjør den til et rent
     // EXISTS-oppslag (én rad via idx_attempts_quiz_id). Filteret — og dermed
     // hvilken quiz som velges — er uendret.
-    const { data: latestQuiz } = await supabaseAdmin
+    const latestQuizQuery = supabaseAdmin
       .from('quizzes')
       .select('id, title, closes_at, season_points_awarded, hide_leaderboard_until_closed, show_leaderboard, attempts!inner(id)')
       .eq('quiz_type', 'weekly')
       .order('closes_at', { ascending: false })
       .limit(1, { referencedTable: 'attempts' })
       .limit(1)
-      .maybeSingle()
+
+    // Helperen MÅ stå før `.maybeSingle()` — den returnerer en
+    // PostgrestBuilder som ikke lenger har `.not()`/`.in()`.
+    const { data: latestQuiz } = await onlyRealQuizzes(latestQuizQuery).maybeSingle()
 
     if (!latestQuiz) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
@@ -595,14 +617,25 @@ export async function GET(request: NextRequest) {
   async function emptyResponse(uEntry: UserEntryOut | null, uRank: number | null, total = 0, uBlocked = false) {
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
-      const { data: openQuiz } = await supabaseAdmin
+      // Denne henter bare ÉN kolonne, men verdien er ikke intern: klienten
+      // utleder `quizStillOpen` av den (components/SeasonLeaderboard.tsx:914
+      // og :1225) og bytter mellom «Poeng beregnes etter quizen» og «Spill en
+      // quiz for å komme på listen». En testquiz med `is_test = true` og
+      // `quiz_type = 'weekly'` som stenger FØR den ekte vinner
+      // `order('closes_at', asc)`, og topplisten lover da en quiz som ikke
+      // finnes — eller feil stengetid for den som gjør det.
+      //
+      // Spørringen står i en LOKAL VARIABEL, og helperen FØR `.maybeSingle()`
+      // — se latest_quiz-oppslaget over.
+      const openQuizQuery = supabaseAdmin
         .from('quizzes')
         .select('closes_at')
         .eq('quiz_type', 'weekly')
         .gt('closes_at', new Date().toISOString())
         .order('closes_at', { ascending: true })
         .limit(1)
-        .maybeSingle()
+
+      const { data: openQuiz } = await onlyRealQuizzes(openQuizQuery).maybeSingle()
       activeQuizClosesAt = openQuiz?.closes_at ?? null
     }
     console.log(`[toppliste] ${period}/${scope} empty ${Date.now() - t0}ms`)
