@@ -958,8 +958,8 @@ export default function AdminHome() {
             </p>
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               {resetModal === 'all'
-                ? 'Dette sletter ALLE season_scores og resetter alle quizer. Handlingen kan ikke angres.'
-                : 'Dette sletter season_scores for quizer med "test" i tittelen.'}
+                ? 'Dette sletter ALLE season_scores. Ekte quizer gjøres opp på nytt automatisk av poeng-cronen — med dagens liga- og org-medlemskap.'
+                : 'Dette sletter season_scores for testquizer og andre kunstige quizer (testflagg, test- eller arkivtype).'}
             </p>
             <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 8 }}>Skriv <strong style={{ color: '#e8e4dd' }}>NULLSTILL</strong> for å bekrefte:</p>
             <input

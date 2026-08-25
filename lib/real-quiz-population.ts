@@ -120,6 +120,15 @@ interface Filterkjede {
 }
 
 /**
+ * Minimums-formen `onlyArtificialQuizzes` krever. Samme bivariante
+ * metode-syntaks og samme `unknown`-retur som `FiltrerbarSpørring`, av samme
+ * TS2589-grunn.
+ */
+interface OrSpørring {
+  or(filters: string): unknown
+}
+
+/**
  * Avgrenser en spørring MOT `quizzes` til ekte quizer.
  *
  * Bruk der `.from('quizzes')` er tabellen.
@@ -128,6 +137,30 @@ export function onlyRealQuizzes<T extends FiltrerbarSpørring>(query: T): T {
   return (query as unknown as Filterkjede)
     .not('is_test', 'is', true)
     .in('quiz_type', REAL_QUIZ_TYPES) as unknown as T
+}
+
+/**
+ * Avgrenser en spørring MOT `quizzes` til KUNSTIGE quizer — det eksakte
+ * komplementet av `onlyRealQuizzes`. Enhver quiz-rad matcher nøyaktig én av de
+ * to, uansett verdiene av `is_test` (true/false/NULL) og `quiz_type` (åpent
+ * verdirom):
+ *
+ *   onlyRealQuizzes:       NOT (is_test IS TRUE)  AND  quiz_type IN ekte
+ *   onlyArtificialQuizzes:     (is_test IS TRUE)  OR   quiz_type NOT IN ekte
+ *
+ * `quiz_type` er NOT NULL, så `not.in` er totalt; `is.true` og
+ * `not.is.true` deler true | false/NULL mellom seg. Komplement-egenskapen er
+ * testdekket med full sannhetstabell i lib/season-reset-route.test.ts.
+ *
+ * Brukes der noe skal RYDDES eller unntas for alt som ikke er ekte konkurranse
+ * (f.eks. admin-ruten som sletter test-poengrader). Definisjonen bor her —
+ * utvides `REAL_QUIZ_TYPES`, følger komplementet med automatisk. Ikke skriv
+ * et eget «testquiz-filter» (og aldri et tittelsøk) hos en kaller.
+ */
+export function onlyArtificialQuizzes<T extends OrSpørring>(query: T): T {
+  return query.or(
+    `is_test.is.true,quiz_type.not.in.(${REAL_QUIZ_TYPES.join(',')})`
+  ) as T
 }
 
 /**
