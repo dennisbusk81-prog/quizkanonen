@@ -22,6 +22,7 @@ import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
 import { getLastQuizTop3, type HomeTop3Row } from '@/lib/home-top3'
 import { getLeagueCardData } from '@/lib/league-card-data'
 import { assertHomeQuery, logHomeQuery } from '@/lib/home-query-guard'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import * as Sentry from '@sentry/nextjs'
 
 // Av siden 12. august 2026: Founders-programmet avvikles og trialene
@@ -164,6 +165,31 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
 
 
+  // «Siste stengte quiz» velges av `order('closes_at', desc)` og er derfor
+  // nøyaktig den feilklassen 30ec248 lukket fire andre steder: en testquiz
+  // etter QK_TESTQUIZ_OPPSKRIFT er stengt og fersk, og VINNER den sorteringen.
+  // Populasjonen kommer nå fra den DELTE definisjonen — `.eq('is_test', false)`
+  // matchet dessuten ikke `is_test IS NULL`, og det fantes ingen quiz_type-vakt
+  // i det hele tatt.
+  //
+  // SPØRRINGEN står i en lokal variabel og helperen påføres den — ikke motsatt.
+  // Inlinet som ARGUMENT til onlyRealQuizzes() ga TS2589 «Type instantiation is
+  // excessively deep» (målt her 25. august 2026, og `npx tsc --noEmit` fanget
+  // det). Samme form som de ti andre kallstedene. Ikke inline den tilbake.
+  // Helperen må dessuten stå FØR `.maybeSingle()`, som ikke lenger har
+  // `.not()`/`.in()` — se lib/real-quiz-population.
+  const lastClosedBase = supabaseAdmin
+    .from('quizzes')
+    // season_points_awarded styrer hvilken gren blokkert-gaten i
+    // lib/home-top3 leser fra (persistert vedtak vs. live status).
+    .select('id, title, season_points_awarded, questions(count)')
+    .lt('closes_at', nowIso)
+    .not('closes_at', 'is', null)
+    .order('closes_at', { ascending: false })
+    .limit(1)
+
+  const lastClosedQuery = onlyRealQuizzes(lastClosedBase).maybeSingle()
+
   // Alle spørringene går fortsatt PARALLELT — error-lesingen skjer etterpå, på
   // resultatene. Forsidens P95 er 11,37 s (Sentry, ekte brukere); vaktene her
   // koster ingen ekstra rundtur.
@@ -184,17 +210,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
       .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
       .order('opens_at', { ascending: true })
       .limit(1),
-    supabaseAdmin
-      .from('quizzes')
-      // season_points_awarded styrer hvilken gren blokkert-gaten i
-      // lib/home-top3 leser fra (persistert vedtak vs. live status).
-      .select('id, title, season_points_awarded, questions(count)')
-      .eq('is_test', false)
-      .lt('closes_at', nowIso)
-      .not('closes_at', 'is', null)
-      .order('closes_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    lastClosedQuery,
     (async () => {
       try {
         const { data: settingsRows, error: settingsError } = await supabaseAdmin
@@ -343,10 +359,14 @@ async function computePageInsights(): Promise<PageInsights | null> {
     // 5cbf976 lente seg på): en skjult quiz skal fortsatt gjøres OPP, men
     // ikke stilles UT — «Skjul» i admin skal fjerne spørsmålene fra forsiden.
     // Besluttet av Dennis 17. august 2026, gjelder både innlogget og utlogget.
-    const { data: closedQuizRow, error: closedQuizError } = await supabaseAdmin
+    // Samme sortering, samme feilklasse som «siste stengte quiz» over:
+    // `attempts!inner` stopper kun en testquiz som ALDRI ble spilt, og
+    // oppskriften finnes nettopp for at testquizer SKAL spilles. Populasjonen
+    // kommer derfor fra den delte definisjonen. `is_active` er en egen,
+    // bevisst avgrensning (se over) og beholdes ved siden av den.
+    const closedQuizBase = supabaseAdmin
       .from('quizzes')
       .select('id, attempts!inner(id, attempt_answers!inner(id))')
-      .eq('is_test', false)
       .eq('is_active', true)
       .lt('closes_at', now.toISOString())
       .not('closes_at', 'is', null)
@@ -354,7 +374,9 @@ async function computePageInsights(): Promise<PageInsights | null> {
       .limit(1, { referencedTable: 'attempts' })
       .limit(1, { referencedTable: 'attempts.attempt_answers' })
       .limit(1)
-      .maybeSingle()
+
+    const closedQuizQuery = onlyRealQuizzes(closedQuizBase)
+    const { data: closedQuizRow, error: closedQuizError } = await closedQuizQuery.maybeSingle()
 
     // KOSMETISK ×3 herfra og ned: hver av de tre feilene ender i den SAMME
     // ærlige degraderingen som et tomt resultat gir — «Ukens fakta»
@@ -427,7 +449,8 @@ const getPageInsights = unstable_cache(computePageInsights, ['home-page-insights
 // ingen grunn til å belaste DB som quiz-dataene.
 //
 // Definisjoner:
-// - quizzesCompleted: COUNT quizzes med is_test=false og closes_at i fortiden
+// - quizzesCompleted: COUNT quizzes i den ekte-quiz-populasjonen
+//   (onlyRealQuizzes, lib/real-quiz-population) med closes_at i fortiden
 // - activePlayers: DISTINCT user_id med minst ett individuelt forsøk
 //   (is_team=false, user_id ikke null) siste 12 uker (ett kvartal — matcher
 //   Kvartal-periodiseringen i sesong-topplisten, samme spiller-definisjon som
@@ -443,13 +466,24 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
   const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = new Date().toISOString()
 
+  // Populasjonen er den DELTE definisjonen, ikke et eget filter. To hull i det
+  // gamle `.eq('is_test', false)`: den matchet ikke `is_test IS NULL` (kolonnen
+  // er nullable), og det fantes ingen quiz_type-vakt — en arkivquiz med
+  // closes_at i fortiden ville blåst opp nettopp det tallet forsiden PÅSTÅR
+  // («N+ Quizer gjennomført»).
+  //
+  // SPØRRINGEN i lokal variabel, helperen påføres den — se TS2589-notatet i
+  // lib/real-quiz-population og de ti andre kallstedene. Ikke inline tilbake.
+  const quizzesBase = supabaseAdmin
+    .from('quizzes')
+    .select('id', { count: 'exact', head: true })
+    .not('closes_at', 'is', null)
+    .lt('closes_at', nowIso)
+
+  const quizzesQuery = onlyRealQuizzes(quizzesBase)
+
   const [quizzesRes, activePlayers] = await Promise.all([
-    supabaseAdmin
-      .from('quizzes')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_test', false)
-      .not('closes_at', 'is', null)
-      .lt('closes_at', nowIso),
+    quizzesQuery,
     countActivePlayersSince(twelveWeeksAgo),
   ])
 
@@ -474,13 +508,19 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
   }
 }
 
+// v2 → v3 (25. august 2026): populasjonen er strammet til onlyRealQuizzes.
+// Bumpen gjelder KUN denne cachen, og grunnen er TTL-en: en lagret v2-verdi kan
+// være talt opp med det gamle, utette filteret, og med revalidate 3600 ville et
+// oppblåst tall stått i en TIME etter deployen. De to andre cachene på forsiden
+// (60 s) leger seg selv innen minuttet og er derfor bevisst IKKE bumpet.
+//
 // v1 → v2 (24. august 2026): returformen er uendret, men en LAGRET v1-verdi
 // kan være regnet ut mens quiz-tellingen feilet, altså inneholde det
 // oppdiktede `quizzesCompleted: 0`. Vercels data-cache overlever deploys, og
 // med revalidate 3600 ville nettopp den timeslange løgnen fiksen fjerner
 // blitt båret over deployen. Fra og med v2 KAN en slik verdi ikke finnes:
 // computeFounderStoryStats kaster i stedet, og et kast når aldri cachen.
-const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v2'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
+const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v3'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
 
 const SHARED_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');

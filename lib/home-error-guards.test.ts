@@ -159,7 +159,43 @@ function rawQuerySlots(body: string, anker?: string): { name: string; slot: stri
   )
   return names
     .map((name, i) => ({ name, slot: slots[i] }))
-    .filter(pair => pair.slot.startsWith('supabaseAdmin'))
+    .filter(pair => erSupabaseUttrykk(body, pair.slot))
+}
+
+/**
+ * Er dette uttrykket en RÅ supabaseAdmin-spørring — direkte, eller via en
+ * lokal variabel som er bundet til en?
+ *
+ * Variant-leddet kom til 25. august 2026. Fram til da het kravet
+ * `slot.startsWith('supabaseAdmin')`, altså at spørringen sto INLINE i
+ * Promise.all-arrayet. Da «siste stengte quiz» ble løftet ut til
+ * `const lastClosedQuery = onlyRealQuizzes(supabaseAdmin…)` — nødvendig fordi
+ * helperen MÅ stå før `.maybeSingle()`, og fordi inline som argument ga TS2589
+ * — forsvant sloten stille ut av tellingen. Testen ville da ikke lenger krevd
+ * `lastClosedRes.error`, uten at én linje i den var endret: dekning tapt uten
+ * at noe ble rødt.
+ *
+ * Det er formen som endret seg, ikke egenskapen. Oppslaget følger derfor
+ * variabelen ett hopp, i stedet for å kreve en bestemt skrivemåte.
+ */
+function erSupabaseUttrykk(body: string, uttrykk: string, dybde = 3): boolean {
+  const u = uttrykk.trim()
+  if (u.startsWith('supabaseAdmin')) return true
+  // Bare et enkelt identifikator-navn kan følges — alt annet (IIFE-er,
+  // funksjonskall) returnerer ferdige verdier og har ingen `.error` å lese.
+  if (dybde <= 0 || !/^[A-Za-z_$][\w$]*$/.test(u)) return false
+  const decl = new RegExp(`const\\s+${u}\\s*=\\s*([\\s\\S]{0,200})`).exec(body)
+  if (!decl) return false
+  if (decl[1].includes('supabaseAdmin')) return true
+  // FLERE HOPP, ikke bare ett: spørringen går nå gjennom helperen
+  // (`const xQuery = onlyRealQuizzes(xBase)`), så navnet peker på et navn som
+  // peker på spørringen. Med bare ett hopp ville kjeden brutt her, sloten falt
+  // ut av tellingen, og kravet om `.error` forsvunnet stille — nøyaktig det
+  // dekningstapet kommentaren over beskriver, bare ett ledd lenger ut.
+  return [...decl[1].matchAll(/[A-Za-z_$][\w$]*/g)]
+    .map(m => m[0])
+    .filter(n => n !== u)
+    .some(n => erSupabaseUttrykk(body, n, dybde - 1))
 }
 
 const SRC = stripComments(PAGE)
@@ -184,12 +220,32 @@ test('hver rå supabaseAdmin-spørring i den delte bundelen leser sin error', ()
   const slots = rawQuerySlots(SHARED)
   assert.ok(slots.length >= 4, `fant bare ${slots.length} rå spørringer — parsingen har mistet noe`)
   for (const { name } of slots) {
+    // KRAVET ER «SENDT TIL EN VAKT», IKKE «NEVNT» (strammet 25. august 2026).
+    //
+    // Assertionen var `SHARED.includes(`${name}.error`)`, altså et rent
+    // substring-søk. `lastClosedRes.error` står imidlertid TO steder: i vakten,
+    // og i ternæren `const lcq = lastClosedRes.error ? … : …` som velger
+    // datagren. Å slette selve vakten holdt derfor testen grønn — den andre
+    // forekomsten oppfylte søket alene. Målt: mutasjonen «bytt
+    // `logHomeQuery('siste stengte quiz', lastClosedRes.error)` mot `…, null)`»
+    // ga 0 røde tester, både på HEAD og etter hoistingen. Svakheten er altså
+    // eldre enn hoistingen, ikke innført av den — men den ble funnet her, og
+    // «en mekanisme som er til stede er ikke det samme som en mekanisme som
+    // griper».
+    //
+    // Linjebasert og ikke `[^)]*`: etikettene kan selv inneholde parenteser
+    // (f.eks. 'founders-plasser (site_settings)'), og et parentes-negert regex
+    // ville stoppet for tidlig — samme grunn som linjerMed finnes.
+    const vaktet = SHARED.split('\n').some(
+      l => /\b(assertHomeQuery|logHomeQuery)\(/.test(l) && l.includes(`${name}.error`),
+    )
     assert.ok(
-      SHARED.includes(`${name}.error`),
-      `${name}.error leses aldri i computeSharedHomeData. En feilet spørring blir da ` +
-      '«ingen data» — og siden bundelen caches i 60 s, blir den løgnen servert til alle ' +
-      'som lander på forsiden det minuttet. Bruk assertHomeQuery (kritisk) eller ' +
-      'logHomeQuery (kosmetisk) fra lib/home-query-guard.',
+      vaktet,
+      `${name}.error sendes aldri til assertHomeQuery/logHomeQuery i ` +
+      'computeSharedHomeData. En feilet spørring blir da «ingen data» — og siden ' +
+      'bundelen caches i 60 s, blir den løgnen servert til alle som lander på ' +
+      'forsiden det minuttet. Bruk assertHomeQuery (kritisk) eller logHomeQuery ' +
+      '(kosmetisk) fra lib/home-query-guard.',
     )
   }
 })
@@ -397,7 +453,15 @@ test('premium nedgraderes ikke på en transient lesefeil', () => {
 })
 
 test('computePageInsights leser error på alle tre oppslagene', () => {
-  const inline = [...INSIGHTS.matchAll(/const\s*\{([^}]*)\}\s*=\s*await\s+supabaseAdmin/g)]
+  // Mønsteret krevde tidligere `= await supabaseAdmin`, altså at spørringen
+  // sto INLINE i await-uttrykket. «Ukens fakta» er nå løftet ut til
+  // `const closedQuizQuery = onlyRealQuizzes(supabaseAdmin…)` (helperen MÅ stå
+  // før `.maybeSingle()`), og det oppslaget forsvant da stille ut av
+  // tellingen — samme dekningstap som i rawQuerySlots, og av samme grunn.
+  // erSupabaseUttrykk følger variabelen ett hopp, så det er EGENSKAPEN som
+  // måles og ikke skrivemåten.
+  const inline = [...INSIGHTS.matchAll(/const\s*\{([^}]*)\}\s*=\s*await\s+([\w$]+)/g)]
+    .filter(m => erSupabaseUttrykk(INSIGHTS, m[2]))
   assert.equal(inline.length, 3, `fant ${inline.length} supabaseAdmin-oppslag, forventet 3`)
   for (const m of inline) {
     assert.ok(
@@ -447,8 +511,17 @@ test('grunnleggertallene: ingen oppdiktet 0, og ingen felt forside', () => {
     HOME.includes('{founderStats && ('),
     'stat-raden gates ikke på founderStats — null ville rendret «undefined+»',
   )
+  // KRAVET ER «MINST v2», IKKE «AKKURAT v2» (justert 25. august 2026).
+  // Testen pinnet tidligere den eksakte strengen, og ble da rød av en SENERE,
+  // legitim bump (v2 → v3 da populasjonen ble strammet til onlyRealQuizzes) —
+  // altså rød av feil grunn. Det denne testen eier er at nøkkelen har passert
+  // v1: en lagret v1-verdi kan inneholde det oppdiktede 0-tallet, og Vercels
+  // data-cache overlever deploys. At den er minst v3 eies av
+  // lib/home-real-quiz-population.test.ts, som har sin egen begrunnelse.
+  const founderKey = /'home-founder-story-stats-v(\d+)'/.exec(SRC)
+  assert.ok(founderKey, 'fant ikke cache-nøkkelen for grunnleggertallene')
   assert.ok(
-    SRC.includes("'home-founder-story-stats-v2'"),
+    Number(founderKey[1]) >= 2,
     'cache-nøkkelen er ikke bumpet. En lagret v1-verdi kan inneholde det ' +
     'oppdiktede 0-tallet, og Vercels data-cache overlever deploys.',
   )
