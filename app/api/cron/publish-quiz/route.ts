@@ -4,6 +4,7 @@ import { waitUntil } from '@vercel/functions'
 import { revalidateTag } from 'next/cache'
 import { processQuiz } from '@/lib/award-season-points'
 import { RESETTLE_SCAN_MS } from '@/lib/late-play-window'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 export const maxDuration = 60
 
@@ -84,17 +85,24 @@ export async function GET(request: NextRequest) {
   // for å vente opptil 5 minutter på neste award-season-points-kjøring.
   // award-season-points-cronen er idempotent (season_points_awarded-flagget), så
   // dobbel kjøring er ufarlig.
-  // Samme is_test-guard som i award-season-points-cronen — denne ruten kjører
-  // hvert minutt og ville ellers gjort opp en testquiz FØR 5-minutters-cronen
-  // i det hele tatt så den. is_active bevisst ikke filtrert, samme begrunnelse.
-  const { data: closedQuizzes, error: closedError } = await supabaseAdmin
+  // Samme populasjonsgulv som i award-season-points-cronen, og av samme grunn:
+  // denne ruten kjører hvert minutt og ville ellers gjort opp en kunstig quiz
+  // FØR 30-minutters-cronen i det hele tatt så den. Gulvet er nå den DELTE
+  // definisjonen (lib/real-quiz-population.ts) i stedet for `.eq('is_test',
+  // false)`, som hverken matchet `is_test IS NULL` eller sa noe om
+  // `quiz_type` — se den fyldige begrunnelsen i award-season-points-ruten.
+  // is_active bevisst ikke filtrert, samme begrunnelse som der.
+  //
+  // Spørringen står i en LOKAL VARIABEL (TS2589 ved inlining).
+  const closedQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, closes_at')
     .lt('closes_at', now)
     .eq('season_points_awarded', false)
-    .eq('is_test', false)
     .order('closes_at', { ascending: true })
     .limit(5)
+
+  const { data: closedQuizzes, error: closedError } = await onlyRealQuizzes(closedQuery)
 
   if (closedError) {
     console.error('[cron/publish-quiz] closed-quiz lookup error:', closedError.message)
@@ -132,16 +140,24 @@ export async function GET(request: NextRequest) {
       // lag-innsending skal ikke utløse rekjøringer den ikke kan påvirke.
       // Kjøringen gjentas hvert minutt så lenge vinduet og den sene
       // innsendingen finnes (maks ~10 kjøringer) — merge gjør det idempotent.
+      //
+      // Populasjonsgulvet MÅ stå her også, ikke bare i førstegangs-utvalget
+      // over: dette utvalget spør på `season_points_awarded = true`, altså på
+      // rader det andre utvalget aldri ser igjen. Uten gulvet begge steder
+      // ville en kunstig quiz som allerede HAR fått poeng (f.eks. skrevet før
+      // denne fiksen, eller av en manuell kjøring) blitt rekjørt hvert minutt
+      // i hele skannevinduet. Samme delte definisjon, samme grunn.
       const scanStart = new Date(Date.now() - RESETTLE_SCAN_MS).toISOString()
-      const { data: resettleRows, error: resettleError } = await supabaseAdmin
+      const resettleQuery = supabaseAdmin
         .from('quizzes')
         .select('id, title, closes_at')
         .lt('closes_at', now)
         .gte('closes_at', scanStart)
         .eq('season_points_awarded', true)
-        .eq('is_test', false)
         .order('closes_at', { ascending: true })
         .limit(5)
+
+      const { data: resettleRows, error: resettleError } = await onlyRealQuizzes(resettleQuery)
 
       if (resettleError) {
         console.error('[cron/publish-quiz] resettle lookup error:', resettleError.message)

@@ -13,6 +13,10 @@
 //     nå som upserten er en merge).
 //   - fjernes vaktspørringen → «ingen sen innsending»-testen feiler.
 //   - fjernes is_team-/user_id-filtrene i vakten → lag-/gjestetestene feiler.
+//   - fjernes onlyRealQuizzes() fra REKJØRINGS-utvalget → «arkivquiz rekjøres
+//     aldri» feiler. Merk at gulvet i førstegangs-utvalget IKKE dekker dette:
+//     de to utvalgene spør på hver sin verdi av season_points_awarded, så en
+//     kunstig quiz som allerede HAR rader ses kun av rekjøringen.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { RESETTLE_SCAN_MS } from './late-play-window'
@@ -23,7 +27,8 @@ type QuizRow = {
   id: string
   title: string
   is_active: boolean
-  is_test: boolean
+  is_test: boolean | null
+  quiz_type: string
   scheduled_at: string | null
   opens_at: string | null
   closes_at: string | null
@@ -74,10 +79,19 @@ function builder(table: string) {
     lt(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) < v); return b },
     gt(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) > v); return b },
     gte(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) >= v); return b },
+    // PostgREST: raden slipper gjennom når NOT (col IS value). Godtar nå både
+    // `is null` (scheduled_at/user_id) og `is true` (populasjonsgulvets
+    // is_test-vakt) — sistnevnte slipper BÅDE false og NULL.
     not(col: string, op: string, v: unknown) {
-      assert.equal(op, 'is')
-      assert.equal(v, null)
-      preds.push(r => val(r, col) !== null)
+      assert.equal(op, 'is', 'mocken kjenner kun .not(col, "is", verdi)')
+      preds.push(r => val(r, col) !== v)
+      return b
+    },
+    // Kolonne-bevisst med vilje: en in() som ignorerer kolonnenavnet ville
+    // blitt overskrevet av `.in('quiz_type', …)` og gjort testene grønne av
+    // feil grunn.
+    in(col: string, values: readonly unknown[]) {
+      preds.push(r => values.includes(val(r, col)))
       return b
     },
     or(expr: string) {
@@ -134,7 +148,7 @@ const processedQuizIds = () => processQuizMock.mock.calls.map(c => c.arguments[0
 
 // En oppgjort fredagsquiz som stengte for `min` minutter siden.
 const settledQuiz = (min: number): QuizRow => ({
-  id: 'q1', title: 'Fredagsquiz', is_active: true, is_test: false,
+  id: 'q1', title: 'Fredagsquiz', is_active: true, is_test: false, quiz_type: 'weekly',
   scheduled_at: null, opens_at: minutesAgo(min + 240), closes_at: minutesAgo(min),
   season_points_awarded: true,
 })
@@ -212,6 +226,35 @@ test('testquiz rekjøres aldri', async () => {
   db.attempts = [lateAttempt(quiz, 2)]
   await call()
   assert.deepEqual(processedQuizIds(), [])
+})
+
+test('arkivquiz rekjøres aldri, selv med sen innsending i vinduet', async () => {
+  // Rekjørings-utvalget spør på season_points_awarded = TRUE. Gulvet i
+  // førstegangs-utvalget kan derfor ikke redde dette: en `quiz_type='archive'`
+  // som allerede har rader (skrevet før denne fiksen, eller av en manuell
+  // kjøring) ville blitt rekjørt hvert minutt i hele skannevinduet og skrevet
+  // radene på nytt — merge-upserten OVERSKRIVER innenfor vinduet.
+  const quiz = { ...settledQuiz(3), quiz_type: 'archive' }
+  db.quizzes = [quiz]
+  db.attempts = [lateAttempt(quiz, 2)]
+  await call()
+  assert.deepEqual(processedQuizIds(), [])
+})
+
+test('bonusquiz rekjøres FORTSATT — hvitelisten stopper ikke en legitim type', async () => {
+  const quiz = { ...settledQuiz(3), quiz_type: 'bonus' }
+  db.quizzes = [quiz]
+  db.attempts = [lateAttempt(quiz, 2)]
+  await call()
+  assert.deepEqual(processedQuizIds(), ['q1'])
+})
+
+test('quiz med is_test = NULL rekjøres (NULL er ikke en testquiz)', async () => {
+  const quiz = { ...settledQuiz(3), is_test: null }
+  db.quizzes = [quiz]
+  db.attempts = [lateAttempt(quiz, 2)]
+  await call()
+  assert.deepEqual(processedQuizIds(), ['q1'])
 })
 
 test('førstegangs-oppgjør av uoppgjort quiz kjører fortsatt — nøyaktig én gang', async () => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { processQuiz } from '@/lib/award-season-points'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 const BATCH_SIZE = 10
 
@@ -29,20 +30,46 @@ export async function GET(request: NextRequest) {
 
   const now = new Date().toISOString()
 
-  // Finn ubehandlede quizer som har stengt. is_test-guarden speiler
-  // varslingsrutene (notify-subscribers/send-reminders/send-push): uten den
-  // får en testquiz som stenges season_scores-rader i global scope, og
-  // fixture-brukere havner på forsidens topp 3. is_active filtreres BEVISST
-  // ikke — en spilt quiz som skjules i admin etter stenging skal fortsatt
-  // gjøres opp, ellers mister spillerne poengene sine.
-  const { data: quizzes, error: quizError } = await supabaseAdmin
+  // Finn ubehandlede quizer som har stengt.
+  //
+  // POPULASJONEN ER DELT (lib/real-quiz-population.ts) — ikke et inline-filter.
+  // Her sto tidligere `.eq('is_test', false)` alene, med nøyaktig de to hullene
+  // helperen lukker: `.eq` matcher IKKE `is_test IS NULL` (kolonnen er
+  // nullable), og det fantes ingen `quiz_type`-vakt i det hele tatt. En
+  // arkivquiz (`quiz_type='archive'`, `is_test=false`) ville altså fått
+  // sesongpoeng.
+  //
+  // HVORFOR HVITELISTEN ER RIKTIG GULV AKKURAT HER — dette er en SKRIVESTI.
+  // En leser som tar feil skjuler noe, og retter seg selv i det koden rettes.
+  // En skriver som tar feil legger rader i `season_scores` som må ryddes
+  // MANUELT, og de radene renner videre inn i hver eneste leser (toppliste,
+  // forsidens topp 3, org- og ligatopplister) — alle sammen trygge i dag KUN
+  // fordi denne spørringen holder kunstige quizer ute.
+  //
+  // Hviteliste er derfor riktig retning å ta feil i: en ukjent `quiz_type` får
+  // ingen poeng, men `season_points_awarded` forblir false, så quizen gjøres
+  // opp korrekt og AUTOMATISK ved neste kjøring straks typen legges til i
+  // REAL_QUIZ_TYPES (upserten er insert-only utenfor rekjøringsvinduet og
+  // finner da ingen rader å kollidere med). Motsatt vei finnes ingen
+  // automatisk rydding. Se FALLGRUVE-avsnittet i .claude/CLAUDE.md: legger du
+  // til en ny quiz_type, må hvitelisten oppdateres i SAMME runde — ellers er
+  // symptomet stille (quizen forsvinner bare ut av utvalget, ingen feilmelding).
+  //
+  // is_active filtreres BEVISST ikke — en spilt quiz som skjules i admin etter
+  // stenging skal fortsatt gjøres opp, ellers mister spillerne poengene sine.
+  //
+  // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
+  // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
+  // excessively deep».
+  const settleQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, closes_at')
     .lt('closes_at', now)
     .eq('season_points_awarded', false)
-    .eq('is_test', false)
     .order('closes_at', { ascending: true })
     .limit(BATCH_SIZE)
+
+  const { data: quizzes, error: quizError } = await onlyRealQuizzes(settleQuery)
 
   if (quizError) {
     // 503, ikke 500: den dominerende årsaken er at Supabase ikke svarer (14.

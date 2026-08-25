@@ -24,7 +24,8 @@ type QuizRow = {
   id: string
   title: string
   is_active: boolean
-  is_test: boolean
+  is_test: boolean | null
+  quiz_type: string
   scheduled_at: string | null
   opens_at: string | null
   closes_at: string | null
@@ -84,10 +85,17 @@ function builder(table: string) {
     lte(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) <= v); return b },
     lt(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) < v); return b },
     gte(col: string, v: string) { preds.push(r => val(r, col) !== null && String(val(r, col)) >= v); return b },
+    // Godtar både `is null` (scheduled_at) og `is true` (populasjonsgulvet i
+    // oppgjørs-/rekjørings-utvalgene nedstrøms). Purge-gaten selv bruker ingen
+    // av dem — byggeren må bare kunne svare på spørringene waitUntil-blokka
+    // bygger, ellers blir det en ubehandlet avvisning.
     not(col: string, op: string, v: unknown) {
-      assert.equal(op, 'is')
-      assert.equal(v, null)
-      preds.push(r => val(r, col) !== null)
+      assert.equal(op, 'is', 'mocken kjenner kun .not(col, "is", verdi)')
+      preds.push(r => val(r, col) !== v)
+      return b
+    },
+    in(col: string, values: readonly unknown[]) {
+      preds.push(r => values.includes(val(r, col)))
       return b
     },
     or(expr: string) {
@@ -155,7 +163,7 @@ beforeEach(() => {
 
 test('feil hemmelighet gir 401 og purger ingenting', async () => {
   db.quizzes = [{
-    id: 'q1', title: 'Åpen quiz', is_active: true, is_test: false,
+    id: 'q1', title: 'Åpen quiz', is_active: true, is_test: false, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(30), closes_at: minutesFromNow(30),
     season_points_awarded: true,
   }]
@@ -167,12 +175,12 @@ test('feil hemmelighet gir 401 og purger ingenting', async () => {
 test('i ro: ingen quiz i nærheten → ingen purge', async () => {
   db.quizzes = [
     { // stengte for lengst, poeng gjort opp
-      id: 'gammel', title: 'Forrige fredag', is_active: true, is_test: false,
+      id: 'gammel', title: 'Forrige fredag', is_active: true, is_test: false, quiz_type: 'weekly',
       scheduled_at: null, opens_at: minutesAgo(3 * 24 * 60), closes_at: minutesAgo(3 * 24 * 60 - 120),
       season_points_awarded: true,
     },
     { // neste ukes quiz, åpner om 2 dager
-      id: 'neste', title: 'Neste fredag', is_active: true, is_test: false,
+      id: 'neste', title: 'Neste fredag', is_active: true, is_test: false, quiz_type: 'weekly',
       scheduled_at: null, opens_at: minutesFromNow(2 * 24 * 60), closes_at: minutesFromNow(2 * 24 * 60 + 120),
       season_points_awarded: false,
     },
@@ -188,7 +196,7 @@ test('publisering trigger purge selv uten åpen quiz', async () => {
   db.quizzes = [{
     // scheduled_at passert (UPDATE treffer), men opens_at fortsatt i fremtiden
     // — beviser at count>0-grenen alene utløser purgen.
-    id: 'planlagt', title: 'Planlagt quiz', is_active: false, is_test: false,
+    id: 'planlagt', title: 'Planlagt quiz', is_active: false, is_test: false, quiz_type: 'weekly',
     scheduled_at: minutesAgo(1), opens_at: minutesFromNow(60), closes_at: minutesFromNow(180),
     season_points_awarded: false,
   }]
@@ -203,7 +211,7 @@ test('åpen quiz trigger purge uten at noen rad skrives', async () => {
   // Regresjonen a32dff9 rettet: quizen blir synlig/teller deltakere ved at
   // opens_at passerer — INGEN UPDATE skjer. Purgen må komme likevel.
   db.quizzes = [{
-    id: 'aapen', title: 'Fredagsquiz', is_active: true, is_test: false,
+    id: 'aapen', title: 'Fredagsquiz', is_active: true, is_test: false, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(30), closes_at: minutesFromNow(60),
     season_points_awarded: false,
   }]
@@ -215,7 +223,7 @@ test('åpen quiz trigger purge uten at noen rad skrives', async () => {
 
 test('åpen quiz uten stengetid (closes_at null) trigger også purge', async () => {
   db.quizzes = [{
-    id: 'endeloes', title: 'Åpen uten slutt', is_active: true, is_test: false,
+    id: 'endeloes', title: 'Åpen uten slutt', is_active: true, is_test: false, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(30), closes_at: null,
     season_points_awarded: false,
   }]
@@ -225,7 +233,7 @@ test('åpen quiz uten stengetid (closes_at null) trigger også purge', async () 
 
 test('quiz stengt for 5 min siden trigger purge (topp 3 / poeng / innsikt endres etter stengetid)', async () => {
   db.quizzes = [{
-    id: 'nettopp', title: 'Nettopp stengt', is_active: true, is_test: false,
+    id: 'nettopp', title: 'Nettopp stengt', is_active: true, is_test: false, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(120), closes_at: minutesAgo(5),
     season_points_awarded: true,
   }]
@@ -235,7 +243,7 @@ test('quiz stengt for 5 min siden trigger purge (topp 3 / poeng / innsikt endres
 
 test('quiz stengt for 3 dager siden trigger IKKE purge', async () => {
   db.quizzes = [{
-    id: 'gammel', title: 'Gammel', is_active: true, is_test: false,
+    id: 'gammel', title: 'Gammel', is_active: true, is_test: false, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(3 * 24 * 60), closes_at: minutesAgo(3 * 24 * 60 - 120),
     season_points_awarded: true,
   }]
@@ -245,7 +253,7 @@ test('quiz stengt for 3 dager siden trigger IKKE purge', async () => {
 
 test('åpen TESTquiz trigger ikke purge (forsiden filtrerer is_test bort)', async () => {
   db.quizzes = [{
-    id: 'test', title: '[TEST – ikke ekte]', is_active: true, is_test: true,
+    id: 'test', title: '[TEST – ikke ekte]', is_active: true, is_test: true, quiz_type: 'weekly',
     scheduled_at: null, opens_at: minutesAgo(30), closes_at: minutesFromNow(60),
     season_points_awarded: true,
   }]
