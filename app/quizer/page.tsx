@@ -3,6 +3,7 @@ import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { fetchParticipantCounts } from '@/lib/quiz-participant-counts'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 
 export const dynamic = 'force-dynamic'
 
@@ -240,14 +241,33 @@ export default async function QuizerPage() {
   const timeLimitLabels = new Map<string, string | null>()
   if (quizIds.length > 0) {
     // quizIds er lista over aktive quizer (13 i dag) — godt under .in()-taket
-    // på ~390 id-er, og samme liste som deltakertellingen over allerede bruker.
-    const { data: questionRows, error: questionError } = await supabaseAdmin
-      .from('questions')
-      .select('quiz_id, time_limit_seconds')
-      .in('quiz_id', quizIds)
-    if (questionError) console.error('[quizer] questions time limit query error:', questionError)
+    // på ~390 id-er. Men RADENE er det bindende taket her, ikke id-lista: dette
+    // henter alle spørsmål på tvers av alle aktive quizer, altså ~20 rader per
+    // quiz. Rundt 50 aktive quizer passeres 1000-radstaket, og PostgREST kutter
+    // stille — kortene lenger nede i lista ville da fått tidsgrense-etiketten
+    // regnet ut fra et TOMT spørsmålssett og falt tilbake på quiz-nivået, som er
+    // nettopp tallet fiksen 7. august fantes for å slutte å vise.
+    //
+    // fetchAllRowsChunked dekker begge takene i samme kall. Feiler den, beholdes
+    // fallbacken under: hvert kort faller tilbake på quiz-nivået i stedet for at
+    // hele sida ryker.
+    let questionRows: { quiz_id: string; time_limit_seconds: number | null }[] = []
+    try {
+      questionRows = await fetchAllRowsChunked<{ quiz_id: string; time_limit_seconds: number | null }>(
+        quizIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('questions')
+            .select('quiz_id, time_limit_seconds')
+            .in('quiz_id', chunk)
+            .order('id', { ascending: true })
+            .range(from, to)
+      )
+    } catch (questionError) {
+      console.error('[quizer] questions time limit query error:', questionError)
+    }
     const perQuizLimits = new Map<string, (number | null)[]>()
-    for (const r of (questionRows ?? []) as { quiz_id: string; time_limit_seconds: number | null }[]) {
+    for (const r of questionRows) {
       if (!perQuizLimits.has(r.quiz_id)) perQuizLimits.set(r.quiz_id, [])
       perQuizLimits.get(r.quiz_id)!.push(r.time_limit_seconds)
     }

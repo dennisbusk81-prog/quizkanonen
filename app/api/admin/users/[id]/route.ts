@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
+import { fetchAllRowsChunked } from '@/lib/paginate'
 import Stripe from 'stripe'
 
 type QuizRow = { id: string; title: string; opens_at: string | null }
@@ -69,11 +70,26 @@ export async function GET(
 
   if (attemptsErr) return NextResponse.json({ error: attemptsErr.message }, { status: 500 })
 
-  const quizIds = [...new Set((attempts ?? []).map(a => a.quiz_id))]
-  const { data: quizRows } = quizIds.length > 0
-    ? await supabaseAdmin.from('quizzes').select('id, title, opens_at').in('id', quizIds)
-    : { data: [] as QuizRow[] }
-  const quizMap = new Map((quizRows ?? []).map(q => [q.id, q]))
+  // Kommentaren over gjelder RADTAKET og stemmer fortsatt: én profil har få
+  // forsøk. .in()-taket er en annen grense — hele id-lista havner i URL-en, og
+  // den brekker rundt 390 id-er. Én quiz i uka betyr at en trofast spiller
+  // passerer det etter ~7,5 år, og feilen er stille her: `data` blir undefined,
+  // og HVER quiz-tittel i brukerens historikk faller til null uten spor.
+  const quizIds = [...new Set((attempts ?? []).map(a => a.quiz_id))].filter(Boolean)
+  let quizRows: QuizRow[] = []
+  try {
+    quizRows = await fetchAllRowsChunked<QuizRow>(quizIds, (chunk, from, to) =>
+      supabaseAdmin
+        .from('quizzes')
+        .select('id, title, opens_at')
+        .in('id', chunk)
+        .order('id', { ascending: true })
+        .range(from, to)
+    )
+  } catch (e) {
+    console.error('[users/[id]] quiz-oppslag feilet:', e instanceof Error ? e.message : e)
+  }
+  const quizMap = new Map(quizRows.map(q => [q.id, q]))
 
   // Rangering per (quiz, rom) — gjenbruker RPC-en /leaderboard/[id] allerede
   // bruker. Ett kall per DISTINKT (quiz_id, is_team)-par brukeren har spilt i,
