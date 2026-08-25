@@ -58,19 +58,36 @@ export async function GET(request: NextRequest) {
   // attempt_answers over inntil 500 forsøk) rekomputeres ikke for hvert
   // bot-/menneskebesøk. Sakte-bevegelige admin-endringer (f.eks. redigert
   // "neste quiz"-tekst) propagerer da via det ordinære 60s-vinduet i stedet.
-  // Oppslaget speiler forsidens activeQuiz-filter (is_test=false, opens_at
+  // Oppslaget speiler forsidens activeQuiz-filter (samme populasjon, opens_at
   // passert, closes_at null eller ikke passert) med stengegrensen skjøvet 10
   // minutter bakover. Ved oppslagsfeil purger vi (fail-open = dagens atferd).
   // { expire: 0 } = purg umiddelbart (denne Next.js-versjonen krever en
   // cache-life-profil som andre argument til revalidateTag).
+  //
+  // POPULASJONEN er den DELTE definisjonen (lib/real-quiz-population), ikke
+  // `.eq('is_test', false)`. Speilingen er hele poenget: gaten og forsidens
+  // activeQuiz må svare på NØYAKTIG samme spørsmål — «finnes det en ekte quiz
+  // forsiden kan vise akkurat nå?». Det gamle filteret svarte feil i begge
+  // retninger samtidig: det matchet ikke `is_test IS NULL` (en slik quiz sto på
+  // forsiden uten at cachen ble frisknet — deltakertallet stod stille), og det
+  // hadde ingen quiz_type-vakt (en arkivquiz purget begge forside-cachene hvert
+  // minutt den var «live»). Kortet og denne gaten skal derfor alltid endres i
+  // samme runde; lib/home-real-quiz-population.test.ts feller det hvis ikke.
+  //
+  // `count > 0`-grenen under er BEVISST ikke populasjonsgatet: publiseres en
+  // testquiz, purger vi én gang for mye. Retningen er valgt med vilje — å purge
+  // for ofte koster en rekompute, å purge for sjelden viser en løgn.
+  //
+  // Spørringen står i en LOKAL VARIABEL (TS2589 ved inlining), som nedenfor.
   const purgeWindowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-  const { data: liveQuizzes, error: liveError } = await supabaseAdmin
+  const liveBase = supabaseAdmin
     .from('quizzes')
     .select('id')
-    .eq('is_test', false)
     .lte('opens_at', now)
     .or(`closes_at.is.null,closes_at.gte.${purgeWindowStart}`)
     .limit(1)
+
+  const { data: liveQuizzes, error: liveError } = await onlyRealQuizzes(liveBase)
 
   if (liveError) {
     console.error('[cron/publish-quiz] live-quiz lookup error (purger likevel):', liveError.message)

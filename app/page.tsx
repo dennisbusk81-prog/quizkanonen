@@ -190,26 +190,65 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 
   const lastClosedQuery = onlyRealQuizzes(lastClosedBase).maybeSingle()
 
+  // ── Quiz-KORTET: aktiv og kommende quiz ──────────────────────────────────
+  // De to siste `.eq('is_test', false)`-restene på forsiden, med nøyaktig de to
+  // hullene fra 52f36bc: formen matcher ikke `is_test IS NULL`, og det fantes
+  // ingen quiz_type-vakt i det hele tatt.
+  //
+  // De ble BEVISST latt stå der, fordi purge-gaten i
+  // app/api/cron/publish-quiz/route.ts speiler nettopp activeQuiz-filteret. Å
+  // rette den ene alene gjør det VERRE, og i begge retninger:
+  //   • retter du kortet alene, slutter forsiden å vise en kunstig quiz, mens
+  //     cronen fortsatt purger begge forside-cachene hvert minutt den er live —
+  //     rekompute av forsidens tyngste spørringer uten at noe kan ha endret seg.
+  //   • retter du gaten alene, slutter cronen å friskne cachen for en quiz med
+  //     `is_test IS NULL` som kortet fortsatt viser — altså quizen stående på
+  //     forsiden med et deltakertall som ikke tikker.
+  // Paret endres derfor i SAMME commit, og lib/home-real-quiz-population.test.ts
+  // feller det hvis noen senere bryter det opp.
+  //
+  // ── upcomingQuiz SÆRSKILT ────────────────────────────────────────────────
+  // `.gt('opens_at', …)` slipper ingen rad med `opens_at IS NULL` gjennom (NULL
+  // er ikke > noe), så antakelsen «arkivquizer får verken opens_at eller
+  // closes_at» ville isolert sett holdt dem ute også uten hviteliste.
+  //
+  // Antakelsen er IKKE innfribar i koden i dag — og den peker motsatt vei.
+  // Begge opprettelsesveiene mot `quizzes` stempler tid uavhengig av
+  // `quiz_type`: /api/admin/quizzes/import DEFAULTER til `opens_at = nå +
+  // 1 time` og `closes_at = nå + 7 dager` når body-en utelater dem
+  // (import/route.ts:37-39), og /api/admin/quizzes gjør `insert(body)` rått
+  // uten å røre feltene. En arkivquiz importert uten datoer lander altså midt i
+  // kommende-vinduet og ville stått som «Kommende quiz — åpner om en time».
+  // Hvitelisten holder den ute uansett hva som stemples; det er den, og ikke
+  // fraværet av tidsstempler, som er forsvaret her.
+  //
+  // Spørringene står i LOKALE VARIABLER og helperen påføres dem — ikke inlinet
+  // som argument (TS2589, målt på nabospørringen over).
+  const activeBase = supabaseAdmin
+    .from('quizzes')
+    .select(QUIZ_CARD_COLS)
+    .lte('opens_at', nowIso)
+    .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
+    .order('opens_at', { ascending: false })
+    .limit(1)
+
+  const upcomingBase = supabaseAdmin
+    .from('quizzes')
+    .select(QUIZ_CARD_COLS)
+    .gt('opens_at', nowIso)
+    .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
+    .order('opens_at', { ascending: true })
+    .limit(1)
+
+  const activeQuery = onlyRealQuizzes(activeBase)
+  const upcomingQuery = onlyRealQuizzes(upcomingBase)
+
   // Alle spørringene går fortsatt PARALLELT — error-lesingen skjer etterpå, på
   // resultatene. Forsidens P95 er 11,37 s (Sentry, ekte brukere); vaktene her
   // koster ingen ekstra rundtur.
   const [activeRes, upcomingRes, lastClosedRes, foundersRes, seasonRes, trialDaysRes] = await Promise.all([
-    supabaseAdmin
-      .from('quizzes')
-      .select(QUIZ_CARD_COLS)
-      .eq('is_test', false)
-      .lte('opens_at', nowIso)
-      .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
-      .order('opens_at', { ascending: false })
-      .limit(1),
-    supabaseAdmin
-      .from('quizzes')
-      .select(QUIZ_CARD_COLS)
-      .eq('is_test', false)
-      .gt('opens_at', nowIso)
-      .or(`closes_at.is.null,closes_at.gte.${nowIso}`)
-      .order('opens_at', { ascending: true })
-      .limit(1),
+    activeQuery,
+    upcomingQuery,
     lastClosedQuery,
     (async () => {
       try {
@@ -344,6 +383,22 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
 //      fjerner blitt båret over deployen. Fra og med v5 KAN en slik bundel
 //      ikke finnes: computeSharedHomeData kaster i stedet, og et kast når
 //      aldri cacheNewResult().
+//
+// IKKE bumpet 25. august 2026 da quiz-KORTET ble avgrenset (activeQuiz +
+// upcomingQuiz), og det er en beslutning, ikke en forglemmelse. Vurderingen er
+// den samme som for v2 → v3 på grunnleggertallene, men svarer motsatt fordi de
+// to variablene peker hver sin vei:
+//   • FELTSETTET er uendret — halen 3893f837 står, og lib/home-shared-cache
+//     .test.ts ville ryket med en ny hale om det ikke stemte.
+//   • INNHOLDET kan i prinsippet endre seg, men bare for quizer med
+//     `is_test = false/NULL` OG en kunstig `quiz_type`. Den populasjonen er
+//     MÅLT tom i prod 25. august 2026 (13 quizer, alle 'weekly', 0 med
+//     `is_test IS NULL` — motprøvene i lib/real-quiz-population.ts). En lagret
+//     v5-bundel kan altså ikke skille seg fra det v6 ville regnet ut.
+//   • VINDUET er 60 s, ikke 3600 som på grunnleggertallene. Det var nettopp
+//     lengden som avgjorde bumpen der.
+// Blir målingen usann — dukker det opp en quiz med kunstig `quiz_type` og
+// `is_test` false/NULL — er svaret å bumpe til v6 i den runden.
 const getSharedHomeData = unstable_cache(computeSharedHomeData, ['home-shared-data-v5-3893f837'], { revalidate: 60, tags: ['home-shared-data'] })
 
 async function computePageInsights(): Promise<PageInsights | null> {
