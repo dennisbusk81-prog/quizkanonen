@@ -22,6 +22,15 @@ import { decideSessionCheck } from '@/lib/session-check'
 // Sikkerhetsventil mot auth-lås-konflikt i getSession() — samme verdi og samme
 // begrunnelse som AuthListener.tsx: oppslaget leser normalt cookie/localStorage
 // på under 100 ms, så dette er aldri normal last, kun en øvre grense.
+//
+// MERK (26. august 2026, notert under org-scope-runden — EGEN SAK, ikke fikset
+// der): denne grensen styrer VISNING, ikke scope-beslutning, og er derfor
+// bevisst IKKE hevet til 2500 ms slik app/leaderboard/[id]/page.tsx ble. Men
+// konsekvensen ved en treg-men-vellykket fornyelse er reell: timeout setter
+// `sessionChecked` uten sesjon, de scopede hentingene fyrer da uten token, og
+// en innlogget PREMIUM-bruker står uten egen rad/plassering — betaleren ser
+// mindre enn en gratis innlogget gjør i samme øyeblikk — inntil
+// onAuthStateChange eventuelt lander sesjonen.
 const SESSION_CHECK_MS = 1500
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`

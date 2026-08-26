@@ -18,14 +18,26 @@ import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import { describeRetry } from '@/lib/retry-affordance'
 import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
+import { decideFetchScope } from '@/lib/org-scope-fetch'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
 
-// Sikkerhetsventil på getSession() — samme verdi og samme begrunnelse som
-// components/SeasonLeaderboard.tsx: oppslaget leser normalt cookie/localStorage
-// på under 100 ms, så dette er aldri normal last, kun en øvre grense mot at
-// auth-låsen henger. Ikke et nytt tall; bevisst DET tallet.
-const SESSION_CHECK_MS = 1500
+// SPINNER-BUDSJETT på getSession() — hvor lenge siden holdes tilbake, IKKE en
+// frist på sesjonen: fornyelsen fortsetter i bakgrunnen etter tidsavbruddet,
+// og når den lander tilbys org-visningen som knapp (se decideFetchScope).
+//
+// Tallgrunnlag (scripts/measure-supabase-auth-rtt.mjs, 19. august 2026,
+// Oslo → eu-west-1, kablet): token-POST median 140 ms varm, maks 175 ms;
+// kald forbindelse 413 ms (TLS-påslag ≈ 289 ms). Modellert dårlig mobil
+// (fornyelse ≈ 3–4 rundturer inkl. DNS/TCP/TLS): 400 ms RTT («4G under
+// trengsel») ≈ 1600 ms — over den gamle grensen på 1500 ms, innenfor 2500 ms.
+// 2500 ms er ~18× målt varm median og slipper først gjennom når forbindelsen
+// er så dårlig at siden uansett må vises. NB: 3025 ms i eldre notater var
+// stub-forsinkelsen i verifiseringsskriptet, ikke en målt fornyelsestid —
+// ikke bruk det tallet. Endres verdien: kjør måleskriptet på nytt først.
+// (SeasonLeaderboard.tsx har fortsatt 1500 — der styrer grensen kun egen-rad/
+// premium-visning, ikke en scope-beslutning, og er ikke hevet i denne runden.)
+const SESSION_CHECK_MS = 2500
 
 const podiumStyles = `
   @keyframes podiumSlideIn {
@@ -170,6 +182,18 @@ export default function LeaderboardPage() {
   // dine» er gatet på det samme flagget, så uten en ny henting hadde vi lovet
   // kolleger over den nasjonale lista. Se lib/org-scope-notice.ts.
   const [servedOrgSlug, setServedOrgSlug] = useState<string | null>(null)
+  // Klikket på «Vi fant bedriften din — vis kollegene». Byttet til org-lista
+  // er en HANDLING (avgjort 19. august 2026): lander sesjonen etter at siden
+  // er tegnet, tilbys byttet — lista bytter aldri populasjon under lesing.
+  // Flagget nullstilles av fetchData når hentingen det utløste er avgjort.
+  const [orgScopeUpgradeRequested, setOrgScopeUpgradeRequested] = useState(false)
+  // HENDELSE, ikke UI-tilstand: har denne sidelastingen allerede vist leseren
+  // en nasjonal liste for en ?org=-lenke? Mater decideFetchScope, slik at den
+  // automatiske paritetsrefetchen (identitetsskifte når fornyelsen lander)
+  // beholder nasjonal visning i stedet for å bytte under leseren. UI-teksten
+  // utledes fortsatt KUN av servedOrgSlug — dette er fetch-policy, ikke det
+  // gamle orgScopeDegraded-flagget i ny drakt (se lib/org-scope-fetch.ts).
+  const nationalServedForOrgRef = useRef(false)
   const [visibleSoloCount, setVisibleSoloCount] = useState(10)
   const [scrollPending, setScrollPending] = useState(false)
   const [savedResult, setSavedResult] = useState<{ correct_answers: number; total_time_ms: number } | null>(null)
@@ -299,7 +323,10 @@ export default function LeaderboardPage() {
     // riktig — hopp over. En faktisk endring (innlogging via modalen,
     // utlogging) må derimot hente listen på nytt, ellers står 3-raders-svaret
     // igjen hos en som nettopp logget inn.
-    if (listFetchKeyRef.current === `${quizId}|${orgSlug ?? ''}|${sessionIdentity}`) return
+    // Klikket på «vis kollegene» endrer ingen av nøkkel-komponentene (samme
+    // quiz, samme org, samme identitet) — det må derfor forbi vakten selv.
+    if (!orgScopeUpgradeRequested
+      && listFetchKeyRef.current === `${quizId}|${orgSlug ?? ''}|${sessionIdentity}`) return
     async function fetchData() {
       try {
         // Trappen gjør identiteten til en del av selve liste-svaret: uten
@@ -308,9 +335,6 @@ export default function LeaderboardPage() {
         // det finnes — også i nasjonal modus, som fram til 23. august 2026
         // gikk anonymt (feilen var maskert fordi gratis så alt uansett).
         let authHeader: Record<string, string> = {}
-        // scopedOrg, ikke orgSlug, styrer HENTINGEN nedenfor. De to skilles ad
-        // fordi org-scopet kan falle bort uten at lenken gjør det.
-        let scopedOrg = orgSlug
         // Tidsgrense (19. august 2026): dette awaitet lå FØR den eneste
         // setLoading(false) (finally lenger nede). Et kast var dekket, men et
         // getSession() som HENGER på auth-låsen settles aldri — og da kjørte
@@ -323,28 +347,40 @@ export default function LeaderboardPage() {
         // avviker identiteten og listen hentes på nytt med token.
         listFetchKeyRef.current =
           `${quizId}|${orgSlug ?? ''}|${getSessionIdentity(outcome.ok ? outcome.value : null)}`
-        if (orgSlug) {
-          if (!outcome.ok) {
-            // Verken heng eller feil er et svar på «er du innlogget?». Å sende
-            // brukeren til /login ville PÅSTÅTT at hen er utlogget — vi vet det
-            // ikke. Vi faller derfor til nasjonal visning, som er tilgjengelig
-            // uten token, og sier i UI-et at kollega-lista mangler.
-            scopedOrg = null
-          } else {
-            const sess = outcome.value
-            if (!sess?.access_token) {
-              router.push(`/login?next=${encodeURIComponent(`/leaderboard/${quizId}?org=${orgSlug}`)}`)
-              return
-            }
-            authHeader = { Authorization: `Bearer ${sess.access_token}` }
-          }
-        } else if (outcome.ok && outcome.value?.access_token) {
+        if (outcome.ok && outcome.value?.access_token) {
           authHeader = { Authorization: `Bearer ${outcome.value.access_token}` }
         }
+        // scopedOrg, ikke orgSlug, styrer HENTINGEN nedenfor: org-scopet kan
+        // falle bort uten at lenken gjør det (spinner-budsjettet brukt opp —
+        // verken heng eller feil er et svar på «er du innlogget?», så vi
+        // faller til nasjonal visning i stedet for å påstå utlogget med en
+        // /login-redirect). Et bortfalt scope kommer bare tilbake via knappen
+        // «vis kollegene» — aldri ved at den automatiske paritetsrefetchen
+        // (identitetsskifte når fornyelsen lander) bytter lista under leseren.
+        // Hele beslutningen bor i lib/org-scope-fetch.ts (testdekket).
+        const scopeDecision = decideFetchScope({
+          requestedOrg: orgSlug,
+          sessionKnown: outcome.ok,
+          nationalAlreadyServed: nationalServedForOrgRef.current,
+          upgradeRequested: orgScopeUpgradeRequested,
+        })
+        const scopedOrg = scopeDecision.scope
+        if (scopedOrg && !authHeader.Authorization) {
+          // Sesjonen SVARTE (ellers hadde beslutningen falt til nasjonal), og
+          // svaret var «ingen»: en utlogget besøkende på en org-lenke.
+          router.push(`/login?next=${encodeURIComponent(`/leaderboard/${quizId}?org=${orgSlug}`)}`)
+          return
+        }
+        nationalServedForOrgRef.current = scopeDecision.nationalServedForOrg
         // Samme setning som bestemmer URL-en bestemmer hva vi sier om den.
         // Skriver de to hver for seg, kan de drifte fra hverandre — og da lyver
         // enten teksten eller lista.
         setServedOrgSlug(scopedOrg)
+        // Klikk-flagget har gjort jobben sin uansett utfall: ble scopet
+        // servert, forsvinner knappen (notice blir 'colleagues'); falt vi til
+        // nasjonal igjen (nytt tidsavbrudd), skal knappen kunne klikkes på
+        // nytt. Samme verdi → React bailer ut, så no-op i normalflyten.
+        setOrgScopeUpgradeRequested(false)
         const orgQS = scopedOrg ? `&org=${encodeURIComponent(scopedOrg)}` : ''
 
         // Gjest med lagret resultat: be serveren om det (bandede)
@@ -425,7 +461,7 @@ export default function LeaderboardPage() {
     }
     fetchData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizId, orgSlug, sessionIdentity])
+  }, [quizId, orgSlug, sessionIdentity, orgScopeUpgradeRequested])
 
   useEffect(() => {
     try {
@@ -1129,23 +1165,52 @@ export default function LeaderboardPage() {
                 Resultater blant kollegene dine
               </p>
             )}
-            {/* Org-scopet falt bort fordi sesjonsoppslaget ikke svarte. Linja
-                må si hvilken liste som FAKTISK vises — ellers leser brukeren
-                den nasjonale toppen som kollegenes. */}
+            {/* Org-scopet falt bort fordi sesjonsoppslaget ikke svarte innen
+                spinner-budsjettet. To tilfeller, avgjort 19. august 2026:
+
+                1. Sesjonen har LANDET i etterkant (fornyelsen lyktes, bare
+                   sent) og myOrgs bekrefter medlemskapet i orgSlug: byttet
+                   TILBYS som knapp. Lista bytter aldri populasjon under en
+                   som leser — klikket i knappen er det eneste som utløser
+                   den scopede hentingen (via decideFetchScope).
+                2. Ellers: linja må si hvilken liste som FAKTISK vises —
+                   ellers leser brukeren den nasjonale toppen som kollegenes.
+                   Blir betingelsene aldri sanne, står denne som i dag. */}
             {orgNotice === 'degraded' && (
-              <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6 }}>
-                Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
-                dette er den nasjonale topplisten.{' '}
-                <button
-                  onClick={() => window.location.reload()}
-                  style={{
-                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                    font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
-                  }}
-                >
-                  Prøv igjen
-                </button>
-              </p>
+              session?.access_token && orgContext ? (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    onClick={() => setOrgScopeUpgradeRequested(true)}
+                    disabled={orgScopeUpgradeRequested}
+                    style={{
+                      background: 'transparent', color: '#e8e4dd',
+                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontSize: 13, fontWeight: 600, padding: '10px 28px',
+                      border: '1px solid #2a2d38', borderRadius: 10,
+                      cursor: orgScopeUpgradeRequested ? 'default' : 'pointer',
+                      opacity: orgScopeUpgradeRequested ? 0.6 : 1,
+                    }}
+                  >
+                    {orgScopeUpgradeRequested
+                      ? 'Henter kollegene dine …'
+                      : 'Vi fant bedriften din — vis kollegene'}
+                  </button>
+                </div>
+              ) : (
+                <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6 }}>
+                  Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
+                  dette er den nasjonale topplisten.{' '}
+                  <button
+                    onClick={() => window.location.reload()}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+                    }}
+                  >
+                    Prøv igjen
+                  </button>
+                </p>
+              )
             )}
             <div style={s.rule} />
           </header>
@@ -1366,7 +1431,7 @@ export default function LeaderboardPage() {
               innloggede, så grenene med `savedResult` treffer en RETUR-SPILLER:
               noen som spilte innlogget, og som nå mangler sesjon fordi hen
               logget ut (knappen står på denne siden), fordi sesjonen løp ut,
-              eller fordi getSession() tidsavbrøt på 1500 ms og siden falt til
+              eller fordi getSession() brukte opp spinner-budsjettet (SESSION_CHECK_MS) og siden falt til
               anonym visning.
 
               Målt 24. august 2026, ikke antatt: prod har 625 forsøk og NULL med

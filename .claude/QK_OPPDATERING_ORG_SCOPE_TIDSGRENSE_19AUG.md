@@ -203,3 +203,13 @@ Elkjøp-medlem.
 
 Mekanismen er allerede målt. Det som gjenstår er hvor ofte fornyelsen faktisk
 overstiger 1,5 s i felt — altså hvor mye saken haster, ikke om den er ekte.
+
+**Tillegg 26. august 2026 (fiksen bygget):** to punkter til i sjekklista:
+
+- Knappen: throttle til degradert visning, la fornyelsen lande → knappen
+  «Vi fant bedriften din — vis kollegene» skal dukke opp; lista skal IKKE
+  bytte av seg selv; klikk skal gi kollegevisningen.
+- Utloggings-hjørnetilfellet (atferdsendring, GODKJENT som forbedring
+  26. august): logg ut via knappen på en allerede DEGRADERT ?org=-side →
+  skal gi nasjonal anon-visning, IKKE redirect til /login. Ikke verifisert
+  i nettleser ennå — kun i logikk-test.
