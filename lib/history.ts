@@ -1,6 +1,7 @@
 // Server-only — never import this in 'use client' components.
 import { supabaseAdmin } from './supabase-admin'
 import { readStoredKey } from './answer-key-correction'
+import { onlyRealQuizAttempts, onlyArchiveQuizAttempts } from './real-quiz-population'
 import { fetchAllRows, fetchAllRowsChunked } from './paginate'
 import {
   averageCorrectByQuiz,
@@ -32,6 +33,11 @@ export type HistoryAttempt = {
   id: string
   quiz_id: string
   quiz_title: string
+  // Åpent verdirom ('weekly', 'bonus', 'archive', …) — quiz_type er NOT NULL
+  // DEFAULT 'weekly' uten CHECK i basen. Feltet er med for at en rad skal
+  // kunne bære «Trening»-markøren når den står løsrevet fra seksjonen sin
+  // (besluttet 26. august 2026); klienten viser markøren på 'archive'.
+  quiz_type: string
   correct_answers: number
   total_questions: number
   total_time_ms: number
@@ -40,6 +46,21 @@ export type HistoryAttempt = {
   rank: number | null
   total_players: number | null
 }
+
+/**
+ * Hvilken quiz-populasjon getPlayerHistory skal lese.
+ *
+ *   'real'    = ekte konkurranse (gulvet i lib/real-quiz-population.ts) —
+ *               fredagshistorikken og ALT av statistikk.
+ *   'archive' = kun arkivquizer (`quiz_type='archive'`, ikke testflagget) —
+ *               egen «Arkiv»-seksjon på /historikk. Arkivforsøk teller ALDRI
+ *               i snitt, rekorder, kategoristyrke eller grafen; getPlayerStats
+ *               har derfor ingen scope-parameter og er alltid real-only.
+ *
+ * Merk at et TESTFLAGGET arkivforsøk faller utenfor begge — se
+ * onlyArchiveQuizAttempts.
+ */
+export type HistoryScope = 'real' | 'archive'
 
 export type PlayerStats = {
   total_attempts: number
@@ -143,6 +164,20 @@ export type PlayerHistoryResult = {
   total?: number
   page?: number
   pageSize?: number
+}
+
+/**
+ * Svaret fra GET /api/historikk?scope=archive — UTEN stats, med vilje:
+ * statistikken er real-only uansett, og å regne den på nytt for
+ * arkiv-hentingen ville doblet den tyngste delen av lasten (kategoristyrken
+ * paginerer over hele attempt_answers-historikken) uten at klienten kan
+ * bruke svaret til noe.
+ */
+export type ArchiveHistoryResult = {
+  history: HistoryAttempt[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -252,6 +287,15 @@ function resolveTitle(raw: unknown): string {
   return v?.title ?? 'Ukjent quiz'
 }
 
+// Samme form-forsvar som resolveTitle. Fallbacken er tom streng, ikke
+// 'weekly': en ulesbar embed skal gi «ingen markør», aldri en påstand om at
+// forsøket var en fredagsquiz.
+function resolveQuizType(raw: unknown): string {
+  const v = raw as { quiz_type?: unknown } | { quiz_type?: unknown }[] | null
+  const row = Array.isArray(v) ? v[0] : v
+  return typeof row?.quiz_type === 'string' ? row.quiz_type : ''
+}
+
 // Samme forsvar som resolveTitle: PostgREST returnerer en embed som objekt
 // eller som array avhengig av relasjonens form, og å anta feil form gir null
 // uten feilmelding. Målt mot prod 2. august 2026 er denne et objekt — men
@@ -305,15 +349,22 @@ type CategoryAnswerRow = {
  * sin — uten at noe så galt ut. Se category-strength.pagination.test.ts.
  */
 async function fetchCategoryStrength(userId: string): Promise<CategoryStrength> {
-  const rows = await fetchAllRows<CategoryAnswerRow>((from, to) =>
-    supabaseAdmin
+  // Populasjonen skal være arkiv-fri som resten av getPlayerStats, men denne
+  // spørringen går IKKE via quizIds — den leser attempt_answers direkte, og
+  // trenger derfor sitt eget filter. Stien er nestet: `attempts.quizzes.…`,
+  // ikke `quizzes.…`, derav path-argumentet, og quiz-embeden må ligge INNE i
+  // attempts-embeden. Den nestede filterformen ble målt mot prod 25. august
+  // 2026 og binder.
+  const rows = await fetchAllRows<CategoryAnswerRow>((from, to) => {
+    const base = supabaseAdmin
       .from('attempt_answers')
-      .select('question_id, is_correct, attempts!inner(user_id, correct_streak), questions(category)')
+      .select('question_id, is_correct, attempts!inner(user_id, correct_streak, quizzes!inner(id)), questions(category)')
       .eq('attempts.user_id', userId)
       .not('attempts.correct_streak', 'is', null)
+    return onlyRealQuizAttempts(base, 'attempts.quizzes')
       .order('id', { ascending: true })
       .range(from, to)
-  )
+  })
 
   const answers = rows.map((r) => ({ questionId: r.question_id, isCorrect: r.is_correct }))
 
@@ -429,28 +480,46 @@ function getOptionText(q: QuestionRow, letter: string | null): string | null {
 
 export async function getPlayerHistory(
   userId: string,
-  opts: { page?: number; pageSize?: number } = {}
+  opts: { page?: number; pageSize?: number; scope?: HistoryScope } = {}
 ): Promise<{ items: HistoryAttempt[]; total: number }> {
   const pageSize = opts.pageSize ?? 50
   const page     = opts.page     ?? 0
+  const scope    = opts.scope    ?? 'real'
   const from     = page * pageSize
   const to       = from + pageSize - 1
 
+  // Populasjonsfilteret må på BEGGE spørringene — data OG count. Count-en
+  // brukte tidligere `select('*')`; embeden MÅ stå i select-listen for at
+  // quizzes-filteret skal virke der også, ellers teller totalen forsøk lista
+  // aldri viser og total/hasMore-regnestykket i klienten brekker. `!inner`
+  // gjør joinen til et filter; uten embed svarer PostgREST 400 PGRST108
+  // (høylytt, som er riktig retning å feile i).
+  //
+  // Lokale variabler før helper-kallet, ikke inlinet — TS2589-regelen fra
+  // lib/real-quiz-population.ts.
+  const dataBase = supabaseAdmin
+    .from('attempts')
+    .select(
+      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes!inner(title, quiz_type)'
+    )
+    .eq('user_id', userId)
+    .not('correct_streak', 'is', null)
+  const countBase = supabaseAdmin
+    .from('attempts')
+    .select('quizzes!inner(id)', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .not('correct_streak', 'is', null)
+
+  const dataQuery = scope === 'archive'
+    ? onlyArchiveQuizAttempts(dataBase)
+    : onlyRealQuizAttempts(dataBase)
+  const countQuery = scope === 'archive'
+    ? onlyArchiveQuizAttempts(countBase)
+    : onlyRealQuizAttempts(countBase)
+
   const [{ data, error }, { count }] = await Promise.all([
-    supabaseAdmin
-      .from('attempts')
-      .select(
-        'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes(title)'
-      )
-      .eq('user_id', userId)
-      .not('correct_streak', 'is', null)
-      .order('completed_at', { ascending: false })
-      .range(from, to),
-    supabaseAdmin
-      .from('attempts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .not('correct_streak', 'is', null),
+    dataQuery.order('completed_at', { ascending: false }).range(from, to),
+    countQuery,
   ])
 
   if (error || !data) return { items: [], total: 0 }
@@ -468,6 +537,7 @@ export async function getPlayerHistory(
       id: row.id,
       quiz_id: row.quiz_id,
       quiz_title: resolveTitle(row.quizzes),
+      quiz_type: resolveQuizType(row.quizzes),
       correct_answers: row.correct_answers,
       total_questions: row.total_questions,
       total_time_ms: row.total_time_ms,
@@ -508,13 +578,23 @@ export async function getPlayerStats(userId: string): Promise<PlayerStats> {
   // fra siden (se app/historikk/page.tsx), og spørringen med dem: den var
   // upaginert og kuttet stille ved 1000 rader, altså allerede feil, og den
   // leste hele tabellen for å svare på noe siden ikke lenger spør om.
-  const { data: userAttempts } = await supabaseAdmin
+  // Statistikken er ALLTID real-only (besluttet 25.–26. august 2026):
+  // arkivforsøk skal ikke telle i snitt, rekorder, kategoristyrke,
+  // feltsnittgrafen eller «Din siste quiz». Filteret ligger på DENNE ene
+  // spørringen fordi `quizIds` under er inngangen til alt nedstrøms —
+  // feltsnitt, frosne plasseringer, beste plassering og progresjon blir
+  // arkiv-frie transitivt. De to unntakene som IKKE går via quizIds:
+  // kategoristyrken har sitt eget nestede filter (se fetchCategoryStrength),
+  // og deltakelsesrekken var allerede gatet på `quiz_type='weekly'`.
+  const statsBase = supabaseAdmin
     .from('attempts')
     .select(
-      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes(title)'
+      'id, quiz_id, correct_answers, total_questions, total_time_ms, correct_streak, completed_at, quizzes!inner(title)'
     )
     .eq('user_id', userId)
     .not('correct_streak', 'is', null)
+  const statsQuery = onlyRealQuizAttempts(statsBase)
+  const { data: userAttempts } = await statsQuery
 
   if (!userAttempts || userAttempts.length === 0) return EMPTY
 

@@ -45,7 +45,10 @@ const state: {
   /** null = ingen profilrad (maybeSingle gir data: null uten feil). */
   profile: ProfileRow | null
   premiumLookupFails: boolean
-} = { profile: null, premiumLookupFails: false }
+  /** opts fra siste getPlayerHistory-kall — for scope-gjennomføringen. */
+  historyOpts: { scope?: string } | undefined
+  statsKall: number
+} = { profile: null, premiumLookupFails: false, historyOpts: undefined, statsKall: 0 }
 
 function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
   return {
@@ -78,8 +81,11 @@ mock.module('@/lib/supabase-admin', {
 
 mock.module('@/lib/history', {
   namedExports: {
-    getPlayerHistory: async () => ({ items: [{ id: ATTEMPT }], total: 1 }),
-    getPlayerStats: async () => ({ quizCount: 1 }),
+    getPlayerHistory: async (_userId: string, opts?: { scope?: string }) => {
+      state.historyOpts = opts
+      return { items: [{ id: ATTEMPT }], total: 1 }
+    },
+    getPlayerStats: async () => { state.statsKall++; return { quizCount: 1 } },
     // Kjent forsøk gir en detalj, ukjent gir null — slik den ekte gjør når
     // forsøket ikke finnes eller tilhører noen andre.
     getAttemptDetail: async (attemptId: string) =>
@@ -90,8 +96,8 @@ mock.module('@/lib/history', {
 const { GET: hentListe } = await import('@/app/api/historikk/route')
 const { GET: hentDetalj } = await import('@/app/api/historikk/[attemptId]/route')
 
-async function liste(medToken = true): Promise<Response> {
-  const request = new Request('https://quizkanonen.no/api/historikk?page=0', {
+async function liste(medToken = true, query = 'page=0'): Promise<Response> {
+  const request = new Request(`https://quizkanonen.no/api/historikk?${query}`, {
     headers: medToken ? { authorization: 'Bearer test-token' } : {},
   })
   return hentListe(request as never)
@@ -107,6 +113,8 @@ async function detalj(attemptId = ATTEMPT, medToken = true): Promise<Response> {
 beforeEach(() => {
   state.profile = profile()
   state.premiumLookupFails = false
+  state.historyOpts = undefined
+  state.statsKall = 0
 })
 
 // ── Positive kontroller: gaten finnes, og Premium slipper gjennom ───────────
@@ -141,6 +149,38 @@ test('DETALJ: Premium får 200 med detaljen', async () => {
 
   assert.equal(res.status, 200)
   assert.deepEqual(await res.json(), { id: ATTEMPT })
+})
+
+// ── scope-parameteren (arkivseksjonen, 26. august 2026) ─────────────────────
+
+test('LISTE: scope=archive sendes videre, og svaret er UTEN stats', async () => {
+  state.profile = profile({ premium_status: true })
+
+  const res = await liste(true, 'scope=archive&page=0')
+
+  assert.equal(res.status, 200)
+  assert.equal(state.historyOpts?.scope, 'archive', 'scope skal nå getPlayerHistory')
+  const json = await res.json() as { history: unknown[]; stats?: unknown; total: number }
+  assert.equal(json.history.length, 1)
+  assert.equal(json.stats, undefined, 'arkiv-svaret skal ikke bære stats')
+  assert.equal(state.statsKall, 0,
+    'getPlayerStats skal ikke regnes for arkiv-hentingen — den er alltid real-only og dyr')
+})
+
+test('LISTE: ukjent scope faller til real — aldri en tredje populasjon', async () => {
+  state.profile = profile({ premium_status: true })
+
+  const res = await liste(true, 'scope=whatever&page=0')
+
+  assert.equal(res.status, 200)
+  assert.equal(state.historyOpts?.scope, 'real')
+  const json = await res.json() as { stats?: unknown }
+  assert.ok(json.stats, 'real-svaret bærer stats som før')
+  assert.equal(state.statsKall, 1)
+})
+
+test('LISTE: scope=archive er fortsatt bak premium-gaten', async () => {
+  assert.equal((await liste(true, 'scope=archive&page=0')).status, 403)
 })
 
 // ── Karens teller som Premium (feilklasse 1) ─────────────────────────────────

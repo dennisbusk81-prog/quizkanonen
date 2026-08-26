@@ -113,10 +113,21 @@ interface FiltrerbarSpørring {
   in(column: string, values: readonly unknown[]): unknown
 }
 
-/** Intern kjedeform. Den ekte byggeren returnerer `this` fra begge metodene. */
+/**
+ * Som `FiltrerbarSpørring`, men for arkiv-filteret, som trenger `.eq()` i
+ * stedet for `.in()` (én verdi, ikke en liste). Samme bivariante metode-syntaks
+ * og samme `unknown`-retur, av samme TS2589-grunn.
+ */
+interface EqFiltrerbarSpørring {
+  not(column: string, operator: string, value: unknown): unknown
+  eq(column: string, value: unknown): unknown
+}
+
+/** Intern kjedeform. Den ekte byggeren returnerer `this` fra alle metodene. */
 interface Filterkjede {
   not(column: string, operator: string, value: unknown): Filterkjede
   in(column: string, values: readonly unknown[]): Filterkjede
+  eq(column: string, value: unknown): Filterkjede
 }
 
 /**
@@ -221,9 +232,45 @@ export const REAL_QUIZ_ATTEMPT_EMBED = 'quizzes!inner(id)'
  * Avgrenser en spørring MOT `attempts` til forsøk på ekte quizer.
  *
  * Krever at `REAL_QUIZ_ATTEMPT_EMBED` står i `.select()`.
+ *
+ * `path` er stien fram til quiz-embeden, og finnes fordi filteret ikke alltid
+ * legges på en attempts-spørring: `fetchCategoryStrength` i lib/history.ts
+ * leser `attempt_answers`, og der heter stien `attempts.quizzes` — mens den
+ * hardkodede `quizzes` ville truffet en embed som ikke finnes i den
+ * spørringen. Den nestede formen ble målt mot prod 25. august 2026 og BINDER.
+ * Embeden må da også være nestet: `attempts!inner(…, quizzes!inner(id))`.
  */
-export function onlyRealQuizAttempts<T extends FiltrerbarSpørring>(query: T): T {
+export function onlyRealQuizAttempts<T extends FiltrerbarSpørring>(
+  query: T,
+  path: string = 'quizzes'
+): T {
   return (query as unknown as Filterkjede)
-    .not('quizzes.is_test', 'is', true)
-    .in('quizzes.quiz_type', REAL_QUIZ_TYPES) as unknown as T
+    .not(`${path}.is_test`, 'is', true)
+    .in(`${path}.quiz_type`, REAL_QUIZ_TYPES) as unknown as T
+}
+
+/**
+ * Avgrenser en spørring MOT `attempts` til forsøk på ARKIVQUIZER:
+ * `quiz_type = 'archive' AND is_test IS NOT TRUE`.
+ *
+ * Dette er MED VILJE SMALERE enn komplementet av `onlyRealQuizAttempts`
+ * (= `onlyArtificialQuizzes`-definisjonen): komplementet fanger også
+ * testquizer og enhver framtidig ukjent `quiz_type`, og en «Arkiv»-seksjon
+ * som viser Dennis' testforsøk under den overskriften er feil. En rad kan
+ * altså falle utenfor BEGGE uttrykkene — et testflagget arkivforsøk
+ * (`quiz_type='archive'`, `is_test=true`) vises ingen steder, og det er
+ * riktig.
+ *
+ * `is_test`-leddet bruker samme `not … is true`-form som gulvet, av samme
+ * NULL-grunn: `.eq('is_test', false)` matcher ikke NULL-rader.
+ *
+ * Samme `path`-argument som `onlyRealQuizAttempts`, samme grunn.
+ */
+export function onlyArchiveQuizAttempts<T extends EqFiltrerbarSpørring>(
+  query: T,
+  path: string = 'quizzes'
+): T {
+  return (query as unknown as Filterkjede)
+    .eq(`${path}.quiz_type`, 'archive')
+    .not(`${path}.is_test`, 'is', true) as unknown as T
 }

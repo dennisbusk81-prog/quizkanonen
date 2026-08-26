@@ -126,6 +126,12 @@ const s = {
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
   sectionLine:   { flex: 1, height: 1, background: '#2a2d38' },
   sectionCount:  { fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20 },
+  // «Trening»-markøren på arkivradene — samme stil som sectionCount-pillen
+  // (besluttet 26. august 2026), pluss flex-vern så den ikke klemmes av
+  // tittel-ellipsen. Ikke en ny komponent; stilobjektet er allerede kopiert
+  // i fire filer, og den oppryddingen er en egen sak.
+  treningPill:   { fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20, flexShrink: 0, whiteSpace: 'nowrap' as const },
+  arkivFeil:     { fontSize: 12, color: '#918f8a', lineHeight: 1.6, margin: '10px 0 0' },
 
   // Quiz rows
   rowBase:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, textDecoration: 'none', cursor: 'pointer' as const },
@@ -173,7 +179,11 @@ const API_PAGE_SIZE = 50
 //        historikkradene kommer nå fra season_scores i stedet for en
 //        live-beregning. Et v3-blob ville gitt «#[object Object]» i
 //        Rekorder-kortet og de gamle fabrikkerte plasseringene i lista.
-const CACHE_VERSION = 'v4'
+//   v5 = 26. august 2026. Radene fikk `quiz_type`, blobben fikk `arkiv`
+//        (arkivforsøkene, egen seksjon), og hovedlista er nå filtrert til
+//        ekte quizer på serveren. Et v4-blob ville manglet arkivseksjonen og
+//        kunne vist arkiv-/testforsøk i fredagshistorikken.
+const CACHE_VERSION = 'v5'
 
 // SVG graph dimensions
 const GW = 600
@@ -381,6 +391,17 @@ export default function HistorikkPage() {
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [historyLocked, setHistoryLocked] = useState(false)
 
+  // Arkivseksjonen — egen liste med egen paginering, hentet med
+  // ?scope=archive. `arkivFeilet` finnes fordi feil ikke er tomt
+  // (lib/fetch-result.ts): en mislykket arkiv-henting skal si «vet ikke»,
+  // ikke stille skjule en seksjon brukeren har data i.
+  const [arkiv, setArkiv] = useState<HistoryAttempt[]>([])
+  const [arkivTotal, setArkivTotal] = useState(0)
+  const [arkivPage, setArkivPage] = useState(0)
+  const [arkivHasMore, setArkivHasMore] = useState(false)
+  const [arkivLoadingMore, setArkivLoadingMore] = useState(false)
+  const [arkivFeilet, setArkivFeilet] = useState(false)
+
   // Cachen leses KUN i fetch-effekten under, på nøkkelen
   // `qk_historikk_${CACHE_VERSION}_${bruker-id}`.
   //
@@ -502,8 +523,12 @@ export default function HistorikkPage() {
           const cached = JSON.parse(raw) as {
             fetchedAt: number
             data: { history: HistoryAttempt[]; stats: PlayerStats; total?: number; pageSize?: number }
+            arkiv?: { history: HistoryAttempt[]; total: number; pageSize: number } | null
           }
-          if (Date.now() - cached.fetchedAt < CACHE_TTL) {
+          // `== null` og ikke en truthy-sjekk: et blob uten arkiv-felt er et
+          // cache-miss, aldri «tomt arkiv» (skrives kun når BEGGE hentingene
+          // lyktes, så feltet skal alltid finnes i et v5-blob).
+          if (Date.now() - cached.fetchedAt < CACHE_TTL && cached.arkiv != null) {
             if (!cancelled) {
               const t  = cached.data.total    ?? cached.data.history.length
               const ps = cached.data.pageSize ?? API_PAGE_SIZE
@@ -511,6 +536,12 @@ export default function HistorikkPage() {
               setStats(cached.data.stats)
               setTotal(t)
               setHasMore(cached.data.history.length >= ps && t > cached.data.history.length)
+              setArkiv(cached.arkiv.history)
+              setArkivTotal(cached.arkiv.total)
+              setArkivHasMore(
+                cached.arkiv.history.length >= cached.arkiv.pageSize &&
+                cached.arkiv.total > cached.arkiv.history.length
+              )
               setLoadState('ready')
             }
             return
@@ -520,9 +551,16 @@ export default function HistorikkPage() {
         // sessionStorage unavailable — continue to fetch
       }
 
-      const res = await fetch('/api/historikk?page=0', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
+      // Arkivet hentes i samme slengen — egen scope-spørring, samme rute.
+      // Fyres parallelt så seksjonen ikke koster en seriell rundtur.
+      const [res, arkivRes] = await Promise.all([
+        fetch('/api/historikk?page=0', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+        fetch('/api/historikk?scope=archive&page=0', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+      ])
 
       if (cancelled) return
 
@@ -550,15 +588,41 @@ export default function HistorikkPage() {
 
       const json = await res.json() as { history: HistoryAttempt[]; stats: PlayerStats; total: number; pageSize: number }
 
+      // Arkivsvaret leses ETTER at hovedsvaret er godkjent: hoved-403/feil
+      // eier hele sidens tilstand. Et feilet arkivsvar degraderer kun
+      // seksjonen — til «vet ikke», aldri til «tomt».
+      let arkivJson: { history: HistoryAttempt[]; total: number; pageSize: number } | null = null
+      if (arkivRes.ok) {
+        try {
+          arkivJson = await arkivRes.json() as { history: HistoryAttempt[]; total: number; pageSize: number }
+        } catch { /* ugyldig JSON = «vet ikke» */ }
+      }
+      if (cancelled) return
+
       try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), data: json }))
+        // Caches kun når BEGGE hentingene lyktes — et blob med hoveddata og
+        // manglende arkiv ville ellers blitt lest som «tomt arkiv» i 5 min.
+        if (arkivJson) {
+          sessionStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify({ fetchedAt: Date.now(), data: json, arkiv: arkivJson })
+          )
+        }
       } catch { /* ignore */ }
 
-      if (cancelled) return
       setHistory(json.history)
       setStats(json.stats)
       setTotal(json.total)
       setHasMore(json.history.length >= json.pageSize && json.total > json.history.length)
+      if (arkivJson) {
+        setArkiv(arkivJson.history)
+        setArkivTotal(arkivJson.total)
+        setArkivHasMore(
+          arkivJson.history.length >= arkivJson.pageSize && arkivJson.total > arkivJson.history.length
+        )
+      } else {
+        setArkivFeilet(true)
+      }
       setLoadState('ready')
     }
 
@@ -588,6 +652,28 @@ export default function HistorikkPage() {
       setHasMore(json.total > history.length + json.history.length)
     } catch { /* ignore */ } finally {
       setLoadingMore(false)
+    }
+  }
+
+  // Speiler loadMore, men for arkivseksjonen. Berører aldri stats/grafen.
+  const loadMoreArkiv = async () => {
+    if (arkivLoadingMore || !arkivHasMore) return
+    setArkivLoadingMore(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const nextPage = arkivPage + 1
+      const res = await fetch(`/api/historikk?scope=archive&page=${nextPage}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) return
+      const json = await res.json() as { history: HistoryAttempt[]; total: number; pageSize: number }
+      setArkiv(prev => [...prev, ...json.history])
+      setArkivPage(nextPage)
+      setArkivTotal(json.total)
+      setArkivHasMore(json.total > arkiv.length + json.history.length)
+    } catch { /* ignore */ } finally {
+      setArkivLoadingMore(false)
     }
   }
 
@@ -884,8 +970,12 @@ export default function HistorikkPage() {
             </div>
           )}
 
-          {/* Quiz list */}
-          {history.length === 0 ? (
+          {/* Quiz list.
+
+              Tom-kortet vises ikke når arkivseksjonen har rader: «Ingen
+              historikk ennå» over en liste med spilte arkivquizer ville vært
+              usant — brukeren HAR spilt innlogget, bare ikke i konkurransen. */}
+          {history.length === 0 ? (arkiv.length > 0 ? null : (
             <div style={s.empty}>
               <div style={s.emptyIcon}>
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#918f8a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
@@ -894,7 +984,7 @@ export default function HistorikkPage() {
               <p style={s.emptySub}>Spill en quiz mens du er innlogget, så dukker den opp her.</p>
               <Link href="/" style={s.btnGold}>Finn en quiz</Link>
             </div>
-          ) : listeRader.length === 0 ? null : (
+          )) : listeRader.length === 0 ? null : (
             <>
               {/* «TIDLIGERE quizer», ikke «Siste quizer»: det aller siste
                   forsøket står i kortet øverst, og lista begynner på det nest
@@ -963,6 +1053,76 @@ export default function HistorikkPage() {
                 </button>
               )}
             </>
+          )}
+
+          {/* Arkiv — egen seksjon, ikke merkede rader i fredagshistorikken
+              (besluttet 25.–26. august 2026). Seksjonen gjør lista lesbar;
+              «Trening»-markøren gjør raden selvforklarende når den står
+              løsrevet. Radene teller aldri i statistikken over — stats er
+              real-only på serveren. Plassering finnes ikke for arkivforsøk
+              (season_scores-skriveren er gatet), så rank-linja uteblir av
+              seg selv. */}
+          {arkiv.length > 0 && (
+            <>
+              <div style={{ ...s.sectionHeader, marginTop: 24 }}>
+                <span style={s.sectionText}>Arkiv</span>
+                <div style={s.sectionLine} />
+                <span style={s.sectionCount}>{arkivTotal}</span>
+              </div>
+
+              {arkiv.map((attempt) => {
+                const pct = scorePct(attempt.correct_answers, attempt.total_questions)
+                const isHovered = hoveredRowId === attempt.id
+                return (
+                  <Link
+                    key={attempt.id}
+                    href={`/historikk/${attempt.id}`}
+                    style={isHovered ? s.rowHover : s.rowBase}
+                    onMouseEnter={() => setHoveredRowId(attempt.id)}
+                    onMouseLeave={() => setHoveredRowId(null)}
+                  >
+                    <div style={s.rowLeft}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginBottom: 2 }}>
+                        <div style={{ ...s.rowTitle, marginBottom: 0, minWidth: 0 }}>{attempt.quiz_title}</div>
+                        {/* Markøren bæres av quiz_type på raden, ikke av
+                            seksjonen — det er feltet som gjør raden
+                            selvforklarende også utenfor denne lista. */}
+                        {attempt.quiz_type === 'archive' && (
+                          <span style={s.treningPill}>Trening</span>
+                        )}
+                      </div>
+                      <div style={s.rowMeta}>{formatDate(attempt.completed_at)}</div>
+                    </div>
+                    <div style={s.rowRight}>
+                      <div style={s.rowScore}>
+                        {attempt.correct_answers} av {attempt.total_questions} riktige
+                      </div>
+                      <div style={s.rowSub}>{pct}% · {formatTime(attempt.total_time_ms)}</div>
+                    </div>
+                  </Link>
+                )
+              })}
+
+              {arkivHasMore && (
+                <button
+                  style={{ ...s.btnMore, opacity: arkivLoadingMore ? 0.6 : 1 }}
+                  onClick={loadMoreArkiv}
+                  disabled={arkivLoadingMore}
+                >
+                  {arkivLoadingMore ? 'Laster...' : 'Last inn flere'}
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Feil er ikke tomt: en mislykket arkiv-henting sier «vet ikke»
+              i stedet for å skjule seksjonen stille. */}
+          {arkivFeilet && (
+            <p style={s.arkivFeil}>
+              Vi fikk ikke hentet arkivforsøkene dine akkurat nå.{' '}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a href="/historikk" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Prøv igjen</a>
+            </p>
           )}
 
         </div>

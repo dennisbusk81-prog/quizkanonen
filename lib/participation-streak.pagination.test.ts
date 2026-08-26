@@ -52,7 +52,11 @@ function builder(table: string) {
     is() { return b },
     lte(col: string) { filters.push(`lte:${col}`); return b },
     gte(col: string) { filters.push(`gte:${col}`); return b },
-    in() { filters.push('in'); return b },
+    // Kolonnen MÅ med i nøkkelen: en fake som lagrer bare 'in' ruter på at et
+    // filter FINNES, ikke hva det filtrerer på — og brakk (med vilje, høylytt)
+    // da primærspørringen fikk sitt `.in('quizzes.quiz_type', …)`-ledd
+    // 26. august 2026.
+    in(col: string) { filters.push(`in:${col}`); return b },
     order() { return b },
     limit() { return b },
     range(f: number, t: number) { from = f; to = t; return b },
@@ -76,8 +80,11 @@ function builder(table: string) {
           state.playedFilters = filters
           return done(page(state.played.map(q => ({ quiz_id: q })), from, to))
         }
-        // computeRanks (.in) og 90-dagers-spørringen (.gte) er uinteressante her.
-        if (filters.includes('in') || filters.some(f => f.startsWith('gte:'))) return done([])
+        // fetchFieldStats (.in på quiz_id) er uinteressant her. Primærens
+        // `.in('quizzes.quiz_type', …)` (populasjonsfilteret, 26. august 2026)
+        // skal derimot IKKE rute hit — derfor ruter vi på kolonne, ikke på at
+        // et in-filter finnes.
+        if (filters.includes('in:quiz_id') || filters.some(f => f.startsWith('gte:'))) return done([])
         // Primærspørringen: ett fullført forsøk holder — uten den returnerer
         // getPlayerStats EMPTY og testen måler ingenting.
         return done([{

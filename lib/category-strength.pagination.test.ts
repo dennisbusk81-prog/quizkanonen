@@ -18,10 +18,12 @@ import assert from 'node:assert/strict'
 
 const PG_ROW_CAP = 1000
 
+type QuizMarkers = { quiz_type: string; is_test: boolean | null }
+
 type AnswerRow = {
   question_id: string
   is_correct: boolean
-  attempts: { user_id: string; correct_streak: number }
+  attempts: { user_id: string; correct_streak: number; quizzes: QuizMarkers }
   questions: { category: string | null }
 }
 
@@ -35,22 +37,37 @@ const state: {
 function builder(table: string) {
   let from: number | null = null
   let to: number | null = null
+  let selected = ''
+  // Populasjonsfilteret (26. august 2026) må ANVENDES, ikke bare noteres: en
+  // fake som returnerer alle rader uansett filter forblir grønn selv om
+  // filteret aldri legges på i produksjonskoden — et bevis som ikke beviser.
+  let excludeTestFlagged = false
+  let quizTypeAllowList: readonly unknown[] | null = null
 
   const b = {
-    select() { return b },
+    select(sel?: string) { selected = sel ?? ''; return b },
     eq(col: string, val: unknown) {
       if (table === 'attempt_answers') state.filters.push(`eq:${col}=${String(val)}`)
       return b
     },
-    not(col: string, op: string) {
-      if (table === 'attempt_answers') state.filters.push(`not:${col}.${op}`)
+    not(col: string, op: string, val?: unknown) {
+      if (table === 'attempt_answers') {
+        state.filters.push(`not:${col}.${op}`)
+        if (col === 'attempts.quizzes.is_test' && op === 'is' && val === true) excludeTestFlagged = true
+      }
       return b
     },
     order() { return b },
     limit() { return b },
     gte() { return b },
     lte() { return b },
-    in() { return b },
+    in(col: string, vals: readonly unknown[]) {
+      if (table === 'attempt_answers') {
+        state.filters.push(`in:${col}=${vals.join('|')}`)
+        if (col === 'attempts.quizzes.quiz_type') quizTypeAllowList = vals
+      }
+      return b
+    },
     // `.is('scope_id', null)` — fetchFrozenRanks avgrenser season_scores til
     // global scope. Uinteressant for kategoristyrken denne filen tester, men
     // spørringen kjøres i samme getPlayerStats-kall.
@@ -73,12 +90,27 @@ function builder(table: string) {
       if (table !== 'attempt_answers') {
         return Promise.resolve({ data: [], error: null }).then(res, rej)
       }
+      // PostgREST-paritet: et filter på en embed som ikke står i select-listen
+      // gir 400 PGRST108 — høylytt, ikke stille. Fanger mutanten «filter lagt
+      // på, nestet embed glemt».
+      if ((excludeTestFlagged || quizTypeAllowList) && !selected.includes('quizzes')) {
+        return Promise.resolve({
+          data: null,
+          error: { message: "PGRST108: 'quizzes' is not an embedded resource in this request" },
+        }).then(res, rej)
+      }
       state.answerQueries++
       const f = from ?? 0
       const t = to ?? PG_ROW_CAP - 1
       state.ranges.push({ from: f, to: t })
+      let rows = state.answers
+      if (excludeTestFlagged) rows = rows.filter(r => r.attempts.quizzes.is_test !== true)
+      if (quizTypeAllowList) {
+        const allow = quizTypeAllowList
+        rows = rows.filter(r => allow.includes(r.attempts.quizzes.quiz_type))
+      }
       // PostgREST-taket: aldri mer enn 1000 rader i ett svar.
-      const window = state.answers.slice(f, t + 1).slice(0, PG_ROW_CAP)
+      const window = rows.slice(f, t + 1).slice(0, PG_ROW_CAP)
       return Promise.resolve({ data: window, error: null }).then(res, rej)
     },
   }
@@ -91,11 +123,16 @@ mock.module('@/lib/supabase-admin', {
 
 const { getPlayerStats } = await import('@/lib/history')
 
-function answer(i: number, category: string | null, isCorrect: boolean): AnswerRow {
+function answer(
+  i: number,
+  category: string | null,
+  isCorrect: boolean,
+  quiz: QuizMarkers = { quiz_type: 'weekly', is_test: false }
+): AnswerRow {
   return {
     question_id: 'q' + String(i).padStart(6, '0'),
     is_correct: isCorrect,
-    attempts: { user_id: 'user-1', correct_streak: 2 },
+    attempts: { user_id: 'user-1', correct_streak: 2, quizzes: quiz },
     questions: { category },
   }
 }
@@ -178,6 +215,43 @@ test('svarene hentes for riktig bruker og kun fra fullførte forsøk', async () 
     state.filters.includes('not:attempts.correct_streak.is'),
     `manglet «fullført forsøk»-filter, fikk: ${JSON.stringify(state.filters)}`,
   )
+  // Populasjonsfilteret (26. august 2026): stien er NESTET
+  // (attempts.quizzes.…) fordi spørringen leser attempt_answers, ikke
+  // attempts. Begge leddene må stå — se den behavioural testen under for
+  // beviset på at de også VIRKER.
+  assert.ok(
+    state.filters.some(f => f.startsWith('in:attempts.quizzes.quiz_type=')),
+    `manglet quiz_type-hviteliste på nestet sti, fikk: ${JSON.stringify(state.filters)}`,
+  )
+  assert.ok(
+    state.filters.includes('not:attempts.quizzes.is_test.is'),
+    `manglet is_test-ledd på nestet sti, fikk: ${JSON.stringify(state.filters)}`,
+  )
+})
+
+test('arkiv- og testquiz-svar teller ikke i kategoristyrken, ende til ende', async () => {
+  // FELLEN (har bitt tre ganger 26. august 2026): quiz_type og is_test må
+  // skille seg UAVHENGIG av hverandre i fixturene — én kategori per ledd, med
+  // ulike verdier. Hadde arkivraden også vært is_test=true, ville et filter
+  // som kun leser is_test sett riktig ut.
+  reset([
+    ...Array.from({ length: 10 }, (_, i) => answer(i, 'Sport', i < 7)),        // 70 %
+    ...Array.from({ length: 10 }, (_, i) => answer(100 + i, 'Musikk', i < 3)), // 30 %
+    // Fanges KUN av quiz_type-hvitelisten (is_test er false):
+    ...Array.from({ length: 10 }, (_, i) =>
+      answer(200 + i, 'Historie', false, { quiz_type: 'archive', is_test: false })),
+    // Fanges KUN av is_test-leddet (quiz_type er weekly):
+    ...Array.from({ length: 10 }, (_, i) =>
+      answer(300 + i, 'Film', false, { quiz_type: 'weekly', is_test: true })),
+  ])
+
+  const stats = await getPlayerStats('user-1')
+
+  // Begge 0 %-kategoriene ligger under Musikks 30 % — slipper én av dem
+  // gjennom, er svakeste ikke lenger Musikk, uansett tie-break.
+  assert.equal(stats.svakeste_kategori, 'Musikk',
+    'et arkiv- eller testquiz-svar på 0 % ble svakeste kategori')
+  assert.equal(stats.sterkeste_kategori, 'Sport')
 })
 
 // ── Terskel og eksklusjon gjennom HELE kjeden, ikke bare i ren logikk ───────
