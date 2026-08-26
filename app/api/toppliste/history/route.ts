@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { fetchLastQuiz } from '@/lib/last-quiz'
 
 type ProfileRow = { id: string; display_name: string | null; nickname: string | null }
 
@@ -86,12 +87,12 @@ export async function GET(request: NextRequest) {
   if (period === 'last_quiz') {
     const now = new Date().toISOString()
 
-    // Hent alle stengte quizer, skip den nyeste (vises i hovedfanen)
+    // Hent alle stengte quizer, og hopp over den ene hovedfanen viser.
     //
     // onlyRealQuizzes: en testquiz er stengt og fersk, og vinner derfor både
     // `order('closes_at', desc)` OG en plass i `limit(21)` — den ville altså
-    // både blitt kastet av `.slice(1)` som «nyeste» og skjøvet den eldste ekte
-    // quizen ut av listen. Se lib/real-quiz-population.ts.
+    // både skjøvet den eldste ekte quizen ut av listen og lagt seg der fanens
+    // quiz skal utelates. Se lib/real-quiz-population.ts.
     //
     // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
     // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
@@ -103,14 +104,39 @@ export async function GET(request: NextRequest) {
       .order('closes_at', { ascending: false })
       .limit(21)
 
-    const { data: allClosed } = await onlyRealQuizzes(closedQuery)
+    // ── Hvilken quiz hovedfanen viser: SPØR, ikke gjett (26. august 2026) ────
+    // Sto her som `.slice(1)` — «kast rad 0, den vises i hovedfanen». Det var
+    // en ANTAKELSE om at denne spørringen og /api/toppliste sin last_quiz-gren
+    // pekte på samme quiz, og de gjorde det ikke: de var uenige på tre punkter
+    // (stengt/åpen, weekly/bonus, forsøkskrav). Utslaget gikk begge veier —
+    // forrige ukes quiz forsvant helt hver fredag mens quizen var åpen, og en
+    // bonusquiz eller en weekly uten forsøk ga i stedet DOBBELTVISNING.
+    //
+    // `fetchLastQuiz` er nå den ENE som avgjør det, og den får SAMME `now`
+    // som listespørringen over — en quiz skal ikke kunne rekke å stenge mellom
+    // de to oppslagene og dermed havne i begge eller i ingen.
+    //
+    // Feiler oppslaget er `lastQuiz` null, og da utelates ingenting: en rad
+    // for mye er en synlig dublett, en rad for lite er en quiz som er borte
+    // uten spor. Se lib/last-quiz.ts.
+    const [{ data: allClosed }, lastQuiz] = await Promise.all([
+      onlyRealQuizzes(closedQuery),
+      fetchLastQuiz(now),
+    ])
 
-    if (!allClosed || allClosed.length <= 1) {
+    if (!allClosed) {
       return respond({ entries: [] })
     }
 
-    const quizzes = (allClosed as { id: string; title: string; closes_at: string }[]).slice(1)
+    // `.slice(0, 20)` beholder taket `.slice(1)` ga: 21 hentet, maks 20 vist.
+    const quizzes = (allClosed as { id: string; title: string; closes_at: string }[])
+      .filter(q => q.id !== lastQuiz?.id)
+      .slice(0, 20)
     const quizIds = quizzes.map(q => q.id)
+
+    if (quizIds.length === 0) {
+      return respond({ entries: [] })
+    }
 
     // Finn rank=1 fra season_scores for disse quizene
     let winnersQuery = supabaseAdmin

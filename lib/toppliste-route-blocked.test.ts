@@ -72,6 +72,10 @@ function quizzesBuilder() {
     select(cols: string) { selectCols = cols; return b },
     eq() { return b },
     gt() { hasGt = true; return b },
+    // `.lt('closes_at', now)` kom inn 26. august 2026: fanens quiz må være
+    // STENGT (lib/last-quiz.ts). `hasGt` skiller fortsatt de to oppslagene —
+    // emptyResponse bruker `.gt`, fanen `.lt` — så den skal ikke settes her.
+    lt() { return b },
     // Begge quiz-oppslagene i ruten bærer nå populasjonsfilteret
     // (onlyRealQuizzes, 25. august 2026). Denne faken handler om blokkert-flagget og userEntry, ikke om
     // hvilke quizer som er ekte — den er derfor kjede-tolerant her.

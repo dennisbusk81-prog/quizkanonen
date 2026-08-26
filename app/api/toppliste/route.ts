@@ -5,6 +5,7 @@ import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { fetchLastQuiz } from '@/lib/last-quiz'
 import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { isClosedRoom } from '@/lib/leaderboard-scope'
@@ -342,45 +343,19 @@ export async function GET(request: NextRequest) {
 
   // ── LAST QUIZ MODE ──────────────────────────────────────────────────────────
   if (period === 'last_quiz') {
-    // Hent nyeste quiz som faktisk har minst én attempt (INNER JOIN).
-    // Uten dette vil testquizer med closes_at i fremtiden og 0 attempts
-    // skygge for quizer der folk faktisk har spilt.
+    // Hvilken quiz fanen viser avgjøres av lib/last-quiz.ts, og IKKE av en
+    // spørring her. Den sto tidligere skrevet ut på stedet, mens
+    // /api/toppliste/history hadde sin egen — de to var uenige på TRE punkter
+    // samtidig, og historikkens `.slice(1)` antok at de var enige. Se
+    // lib/last-quiz.ts for hele feilbildet, og for hvorfor de tre kravene
+    // (stengt + weekly + minst ett forsøk) hører hjemme ett sted.
     //
-    // MEN attempts!inner er kun et halvt forsvar mot testquizer, og det var
-    // ikke tydelig før nå: den stopper en testquiz med NULL forsøk, altså en
-    // som aldri ble spilt. Oppskriften i .claude/QK_TESTQUIZ_OPPSKRIFT.md
-    // finnes nettopp for at testquizer SKAL spilles, og en spilt testquiz
-    // passerer joinen. `.eq('quiz_type','weekly')` fanger oppskriftens quiz
-    // (quiz_type='test'), men IKKE admin-editorens testbryter
-    // (app/admin/quizzes/new/page.tsx:1061), som setter `is_test = true` mens
-    // nedtrekket blir stående på 'weekly'. Den quizen stenger ferskest, vinner
-    // `order('closes_at', desc)` — og dette er den OFFENTLIGE topplisten.
-    //
-    // onlyRealQuizzes legger på begge halvdelene av gulvet.
-    // `.eq('quiz_type','weekly')` blir stående: den avgrenser strengere, og
-    // «ukens quiz» er en produktdefinisjon her. Se lib/real-quiz-population.ts.
-    //
-    // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
-    // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
-    // excessively deep». Ikke inline den tilbake.
-    //
-    // Del 4 (Disk IO): joinen brukes KUN som eksistensfilter, men hentet
-    // tidligere ut hele attempts-arrayet for quizen — ucachet, på hver eneste
-    // last_quiz-forespørsel, altså nøyaktig lesingen getLastQuizAttempts-cachen
-    // skulle fjerne. limit(1) på den refererte tabellen gjør den til et rent
-    // EXISTS-oppslag (én rad via idx_attempts_quiz_id). Filteret — og dermed
-    // hvilken quiz som velges — er uendret.
-    const latestQuizQuery = supabaseAdmin
-      .from('quizzes')
-      .select('id, title, closes_at, season_points_awarded, hide_leaderboard_until_closed, show_leaderboard, attempts!inner(id)')
-      .eq('quiz_type', 'weekly')
-      .order('closes_at', { ascending: false })
-      .limit(1, { referencedTable: 'attempts' })
-      .limit(1)
-
-    // Helperen MÅ stå før `.maybeSingle()` — den returnerer en
-    // PostgrestBuilder som ikke lenger har `.not()`/`.in()`.
-    const { data: latestQuiz } = await onlyRealQuizzes(latestQuizQuery).maybeSingle()
+    // Endringen for denne flaten er `closes_at < now`: en ÅPEN quiz kan ikke
+    // lenger være «Siste quiz». Klientens tomme tilstand for last_quiz sier
+    // allerede nøyaktig dette («Ingen avsluttede quizer ennå — kom tilbake
+    // etter at ukens quiz er stengt», components/SeasonLeaderboard.tsx:332),
+    // og var usann helt til nå.
+    const latestQuiz = await fetchLastQuiz(new Date().toISOString())
 
     if (!latestQuiz) {
       return NextResponse.json({ entries: [], userEntry: null, userIsPremium, quizTitle: null })
@@ -544,6 +519,15 @@ export async function GET(request: NextRequest) {
     // ser sin interne stilling mens quizen er åpen er dagens oppførsel og
     // IKKE denne sakens funn (S4 var den ANONYME lesingen av den åpne
     // stillingen) — se rapporten for hvorfor det står igjen som eget spørsmål.
+    //
+    // MERK (26. august 2026): fra og med at fetchLastQuiz krever
+    // `closes_at < now` er `isQuizClosed(latestQuiz.closes_at)` alltid sann
+    // her, og denne gaten kan i praksis ikke slå til. Den blir stående som
+    // BACKSTOP, ikke som død kode: de to tolker feltet identisk i dag
+    // (`now > closes_at`, NULL = ikke stengt), og skiller de seg igjen — en
+    // ny kaller, et endret oppslag — er det denne linjen som hindrer at en
+    // skjult stilling lekker. Å slette den fordi en annen linje for tiden gjør
+    // den unødvendig er nettopp mønsteret som gjorde `.slice(1)` til en feil.
     const hiddenUntilClosed = scope === 'global'
       && latestQuiz.hide_leaderboard_until_closed === true
       && !isQuizClosed(latestQuiz.closes_at, Date.now())

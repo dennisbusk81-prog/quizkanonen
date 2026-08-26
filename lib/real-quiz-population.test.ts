@@ -75,6 +75,15 @@ function slåOppRelasjon(tabell: string, rad: Rad, relasjon: string): Rad | unde
   if (tabell === 'attempts' && relasjon === 'quizzes') {
     return db.quizzes.find(q => q.id === rad.quiz_id)
   }
+  // quizzes→attempts (fra 26. august 2026): fanens oppslag i lib/last-quiz.ts
+  // bruker `attempts!inner(id)` som et rent EXISTS-filter. Retningen er
+  // one-to-many i prod, altså en LISTE — men verdien leses aldri av noen
+  // kaller, kun eksistensen, og `limit(1, { referencedTable: 'attempts' })`
+  // gjør oppslaget til nettopp ett treff. Første match er derfor riktig
+  // modell her.
+  if (tabell === 'quizzes' && relasjon === 'attempts') {
+    return db.attempts.find(a => a.quiz_id === rad.id)
+  }
   throw new Error(`faken kjenner ikke relasjonen ${tabell}→${relasjon}`)
 }
 
@@ -328,16 +337,26 @@ test('liga: testquiz blir ikke siste quiz og teller ikke i all-time', async () =
 test('toppliste/history: kunstige quizer spiser ikke plasser i limit(21)', async () => {
   const { GET } = await import('@/app/api/toppliste/history/route')
 
-  // 21 ekte quizer: R01 (eldst) … R21 (nyest). Ruten henter 21 og kaster den
-  // nyeste (den vises i hovedfanen), så fasiten er R01..R20.
+  // 21 ekte quizer: R01 (eldst) … R21 (nyest). Ruten henter 21 og utelater den
+  // hovedfanen viser, så fasiten er R01..R20.
+  //
+  // Hver quiz får ETT forsøk (26. august 2026): hvilken quiz hovedfanen viser
+  // avgjøres nå av lib/last-quiz.ts, som krever minst ett forsøk
+  // (`attempts!inner`). Uten forsøk ville fanen vært tom, ingenting blitt
+  // utelatt, og listen forskjøvet til R21..R02 — altså ville denne testen
+  // felt en helt annen ting enn populasjonsfilteret den handler om.
   db.quizzes = []
+  db.attempts = []
   for (let i = 1; i <= 21; i++) {
-    db.quizzes.push(quiz(`R${String(i).padStart(2, '0')}`, dagerSiden(100 - i)))
+    const id = `R${String(i).padStart(2, '0')}`
+    db.quizzes.push(quiz(id, dagerSiden(100 - i)))
+    db.attempts.push(forsøk(id, KALLER, 8, 60_000))
   }
-  // Én kunstig quiz som stengte aller sist. Uten filteret blir DEN den «nyeste»
-  // som kastes av .slice(1) — og da glir R21 inn i listen samtidig som R01
-  // presses ut av limit(21). Listen forskyves altså i BEGGE ender.
+  // Én kunstig quiz som stengte aller sist. Uten filteret spiser DEN en plass i
+  // limit(21) og presser R01 ut av listen, samtidig som den legger seg der
+  // fanens quiz skal utelates. Listen forskyves altså i BEGGE ender.
   db.quizzes.push(quiz('KUNSTIG', dagerSiden(78), TEST_TYPE))
+  db.attempts.push(forsøk('KUNSTIG', KALLER, 10, 1_000))
 
   const res = await GET(new Request('http://x/api/toppliste/history?period=last_quiz&scope=global') as never)
   const body = await res.json() as { entries: { key: string }[] }
