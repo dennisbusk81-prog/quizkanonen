@@ -25,6 +25,11 @@ import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
+// Traktmåling. `spor` er den eneste inngangen til track(); den kan ikke kaste,
+// returnerer void (så den kan ikke await-es foran noe spilleren venter på), og
+// sender ingenting for testquizer. Se lib/analytics.ts.
+import { spor } from '@/lib/analytics'
+import { utledTilgang } from '@/lib/analytics-event'
 
 // Se kommentaren på finishQuiz for hvorfor denne finnes og hvorfor den er et
 // navngitt alias i stedet for et inline typeobjekt.
@@ -1005,8 +1010,15 @@ export default function QuizPage() {
   // 'unknown' derfor aldri retter seg selv — se shouldOfferPlacementRetry.
   const {
     isPremium, refreshProfile, myOrgs, myOrgsLoaded, userId: profileUserId,
-    myOrgsError, myOrgsRefreshing, refreshMyOrgs,
+    myOrgsError, myOrgsRefreshing, refreshMyOrgs, premiumSource,
   } = useProfile()
+  // Tilgangsbøtta for traktmålingen — den ENESTE dimensjonen hendelsene brytes
+  // ned på. Ingen identitet, ingen org-navn. Se forbeholdet om at
+  // `premiumSource` er et cache-felt i lib/analytics-event.ts.
+  const tilgang = useMemo(
+    () => utledTilgang({ isLoggedIn, isPremium, premiumSource }),
+    [isLoggedIn, isPremium, premiumSource],
+  )
   // Hvilken plassering denne spilleren skal se på resultatskjermen — se
   // lib/placement-visibility.ts. 'internal-only' (blokkert org/eget opt-out)
   // undertrykker det offentlige tallet i BÅDE plasseringskortet og begge
@@ -1483,6 +1495,24 @@ export default function QuizPage() {
     return () => { cancelled = true }
   }, [phase, isLoggedIn, isPremium])
 
+  // ── Traktmåling: premium_cta_vist ────────────────────────────────────────
+  // Betingelsen er ORDRETT den samme som panelet rendres på
+  // (`isLoggedIn && !isPremium`), pluss `phase === 'finished'` — som er
+  // implisitt for panelet, siden det ligger i resultatskjermens JSX. Endres
+  // panelets gate, må denne følge etter, ellers måler vi en visning som ikke
+  // skjedde. Samme kobling som effekten rett over har til trial-tilbudet.
+  //
+  // Ref-en gjør hendelsen én per resultatskjerm: `refreshProfile()` kalles rett
+  // etter innsending, og hadde `isPremium` flippet ville effekten kjørt på nytt.
+  // «Vist» skal telle spillere, ikke rendringer.
+  const ctaVistRef = useRef(false)
+  useEffect(() => {
+    if (phase !== 'finished' || !isLoggedIn || isPremium) return
+    if (ctaVistRef.current) return
+    ctaVistRef.current = true
+    spor({ hendelse: 'premium_cta_vist', quiz, tilgang })
+  }, [phase, isLoggedIn, isPremium, quiz, tilgang])
+
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -1939,6 +1969,27 @@ export default function QuizPage() {
         setQuestionStartTime(Date.now())
         phaseRef.current = 'playing'
         setPhase('playing')
+
+        // ── Traktmåling: quiz_startet ──────────────────────────────────────
+        // HER, og ikke ved en av start-attempt sine tre suksess-utganger. To
+        // av de tre er GJENBRUK (uferdig forsøk ved reload, og race mot
+        // unik-indeksen), så en spiller som laster siden på nytt ville telt
+        // som en ny start. Dette punktet nås én gang per faktisk spilløkt —
+        // `phaseRef.current !== 'playing'`-vakten rundt blokken er den samme
+        // idempotensen som allerede beskytter fremdriften mot dobbel
+        // nullstilling, så målingen arver den gratis.
+        //
+        // `spor()` kan ikke kaste og returnerer void — se lib/analytics.ts.
+        // Den står etter setPhase, ikke foran: ingenting spilleren venter på
+        // ligger bak dette kallet.
+        spor({
+          hendelse: 'quiz_startet',
+          quiz,
+          tilgang,
+          // Eneste stedet bredden leses. Bøttlegges i lib/analytics-event.ts —
+          // råtallet forlater aldri klienten.
+          vindusbredde: typeof window !== 'undefined' ? window.innerWidth : null,
+        })
       }
 
       // Parallel: fetch rival data (non-blocking)
@@ -2546,6 +2597,26 @@ export default function QuizPage() {
           finalTimeMs = result.totalTimeMs
           setServerScore(result)
           setTotalTimeMs(finalTimeMs)
+
+          // ── Traktmåling: quiz_fullfort ───────────────────────────────────
+          // INVARIANTEN. Dette er det eneste stedet i klienten som beviser at
+          // serveren faktisk lagret: vi er inne i `!alreadyStored`, altså etter
+          // at `classifySubmitResponse` ga `kind: 'scored'` — et ekte 200 der
+          // attempts-UPDATE-en traff raden (submit/route.ts:516).
+          //
+          // Alle de andre plasseringene ville løyet, hver på sin måte:
+          //   • setPhase('finished') nås OGSÅ på 'already-stored'-stien, og
+          //     på 503-/timeout-veiene der ingenting er bekreftet lagret.
+          //   • Resultatskjermens rendering nås selv når serveren feilet.
+          //   • `alreadyStored`-grenen under er race-taperen: resultatet ER
+          //     lagret, men av en ANNEN forespørsel som allerede har talt.
+          //     Å måle der ville dobbelttelt nøyaktig de innsendingene som
+          //     gikk gjennom to ganger.
+          //
+          // Måler vi på rendering, får vi en trakt som lyver akkurat i den
+          // situasjonen vi mest trenger å oppdage: at folk ser en
+          // resultatskjerm for et resultat som ikke ble lagret.
+          spor({ hendelse: 'quiz_fullfort', quiz, tilgang })
         } else {
           console.warn('[quiz] submit svarte «allerede levert» etter timeout — forsøket ligger lagret', { quizId, attemptId: effAttemptId })
           setTotalTimeMs(finalTimeMs)
@@ -4553,7 +4624,31 @@ export default function QuizPage() {
                 </li>
               ))}
             </ul>
-            <a href="/premium" style={{
+            {/* ── Traktmåling: premium_cta_klikk ──────────────────────────────
+                Paret til `premium_cta_vist`-effekten lenger oppe: samme flate,
+                samme gate, så vist/klikk kan divideres på hverandre.
+
+                ⚠ RESULTATSKJERMEN HAR FIRE PREMIUM-CTA-ER. De tre andre måles
+                BEVISST IKKE:
+                  • «Oppgrader … for å se nøyaktig plassering →» i det
+                    org-interne plasseringskortet
+                  • samme lenke i det globale estimat-kortet
+                  • «Se dine svar» med lås-badge
+                De tre utelukker ikke hverandre og heller ikke dette panelet —
+                en gratis innlogget spiller ser typisk tre av dem samtidig. Måler
+                vi visning på alle, fyrer `premium_cta_vist` flere ganger per
+                resultatskjerm, og tallet slutter å bety «antall spillere som så
+                et CTA». Måler vi klikk på alle, men visning kun her, er trakten
+                usammenlignbar med seg selv.
+                Panelet er valgt fordi det er den ENESTE av de fire med én ren
+                gate (`isLoggedIn && !isPremium`), og fordi det er flaten som
+                bærer trial-tilbudet — altså den faktiske konverteringsflaten.
+                De tre andre er tekstlenker ved siden av innhold.
+                Skal de med senere, krever det en `plassering`-property for å
+                skille dem, og da er hendelsen på Pro-taket på 2 properties
+                (`tilgang` + `plassering`). Det er en bevisst avgrensning,
+                ikke en glemt halvdel. */}
+            <a href="/premium" onClick={() => spor({ hendelse: 'premium_cta_klikk', quiz, tilgang })} style={{
               display: 'inline-block',
               padding: '10px 28px',
               background: 'transparent',

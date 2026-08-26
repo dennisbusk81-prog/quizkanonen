@@ -51,6 +51,16 @@ export type Quiz = {
   is_active: boolean
   scheduled_at: string | null
   category: string | null
+  // Begge feltene har ligget på quizzes-raden hele tiden og kommer med i
+  // `select('*')` — de manglet bare i denne typen, så TypeScript trodde ikke de
+  // fantes. Lagt til 26. august 2026 da traktmålingen trengte dem for å avgjøre
+  // om en quiz er ekte (se lib/real-quiz-population.ts sin `erEkteQuiz`).
+  // `is_test` er NULLABLE med DEFAULT false — derfor `| null`, og derfor er
+  // `.not(is_test, is, true)`/`!== true` den riktige formen, ikke `=== false`.
+  // `quiz_type` er NOT NULL DEFAULT 'weekly', men har INGEN CHECK-constraint:
+  // verdirommet er åpent, og typen er derfor `string` og ikke en union.
+  is_test: boolean | null
+  quiz_type: string
 }
 
 export type Question = {

@@ -10,6 +10,12 @@ import BackNav from "@/components/BackNav";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ProfileProvider from "@/components/ProfileProvider";
 import Link from "next/link";
+// Importstien Vercels egen Next.js-onboarding oppgir — `/next`, ikke `/react`.
+// Pakken eksporterer begge; `/next` er den som er bygget for App Router.
+// `track()` (lib/analytics.ts) kommer derimot fra pakkeroten, som er der den
+// eksporteres fra — verifisert mot dist/next/index.d.ts og dist/index.d.ts i
+// v2.0.1: `/next` eksporterer KUN `Analytics`.
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,6 +63,20 @@ export default function RootLayout({
         <AuthListener />
         <NameRequiredModal />
         <ServiceWorkerRegistration />
+        {/* Vercel Web Analytics. Sidevisninger måles automatisk herfra; de fire
+            egendefinerte hendelsene går gjennom lib/analytics.ts.
+            Ingen ny databehandler: Vercel står allerede i personvernerklæringen
+            som hosting-leverandør.
+            Ligger bevisst UTENFOR ConsentBanner. Grunnlaget er Vercels egen
+            dokumentasjon (vercel.com/docs/analytics/privacy-policy, lest
+            26. august 2026): ingen tredjeparts-cookies — besøkende
+            identifiseres av «a hash created from the incoming request» som
+            forkastes etter 24 timer — og datapunktene er «not being tied to or
+            associated with any individual, customer, or IP address».
+            ⚠ Dette er en PERSONVERNPÅSTAND, ikke en teknisk detalj: endrer
+            Vercel innsamlingen, eller legges det til en property som kan
+            identifisere noen, må plasseringen her vurderes på nytt. */}
+        <Analytics />
         <ConsentBanner />
         <footer className="border-t border-gray-800 py-6 mt-8">
           <div className="max-w-5xl mx-auto px-4 flex flex-wrap gap-4 justify-center text-xs" style={{ color: '#918f8a' }}>

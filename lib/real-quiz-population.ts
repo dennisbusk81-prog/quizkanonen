@@ -140,6 +140,44 @@ export function onlyRealQuizzes<T extends FiltrerbarSpørring>(query: T): T {
 }
 
 /**
+ * Samme definisjon som `onlyRealQuizzes`, men som PREDIKAT på en quiz-rad man
+ * allerede HAR — ikke som filter på en spørring man er i ferd med å sende.
+ *
+ * Lagt til 26. august 2026 for traktmålingen (lib/analytics-event.ts): klienten
+ * har quizen i minnet fra `select('*')` og skal avgjøre om en hendelse i det
+ * hele tatt skal sendes. Den kunne ikke bruke filter-påførerne over — de
+ * opererer på Supabase-byggere — og alternativet var å skrive `is_test`/
+ * `quiz_type`-sjekken på nytt hos kalleren. Det er nøyaktig den fjerde kopien
+ * denne filen finnes for å hindre. Predikatet bygger derfor på SAMME
+ * `REAL_QUIZ_TYPES`, og følger automatisk med når hvitelisten utvides.
+ *
+ * ── PARITET MED SPØRRINGSFORMEN, NED PÅ SEMANTIKKNIVÅ ──────────────────────
+ * De to må være enige, ikke bare «begge riktige» — samme krav som CLAUDE.md
+ * stiller til `readTokenExpiry` mot `verifyAdminToken`. Derfor speiles begge
+ * ledd eksakt:
+ *
+ *   `.not('is_test', 'is', true)`  →  `quiz.is_test !== true`
+ *        Dekker false OG NULL/undefined, akkurat som PostgREST-formen.
+ *        `=== false` ville vært STRENGERE enn spørringen, og en quiz-rad med
+ *        `is_test` NULL ville stille sluttet å telle i trakten mens den
+ *        fortsatt teller på leaderboardet.
+ *
+ *   `.in('quiz_type', REAL_QUIZ_TYPES)`  →  `REAL_QUIZ_TYPES.includes(...)`
+ *        `quiz_type` er NOT NULL i basen, men er valgfri i klient-typen; en
+ *        manglende verdi matcher ingen `IN`-liste og gir false her også.
+ *
+ * En rad som passerer dette predikatet er altså den samme raden som ville
+ * overlevd filteret, uansett kombinasjon av true/false/NULL.
+ */
+export function erEkteQuiz(
+  quiz: { is_test?: boolean | null; quiz_type?: string | null } | null | undefined,
+): boolean {
+  if (!quiz) return false
+  if (quiz.is_test === true) return false
+  return (REAL_QUIZ_TYPES as readonly string[]).includes(quiz.quiz_type ?? '')
+}
+
+/**
  * Avgrenser en spørring MOT `quizzes` til KUNSTIGE quizer — det eksakte
  * komplementet av `onlyRealQuizzes`. Enhver quiz-rad matcher nøyaktig én av de
  * to, uansett verdiene av `is_test` (true/false/NULL) og `quiz_type` (åpent
