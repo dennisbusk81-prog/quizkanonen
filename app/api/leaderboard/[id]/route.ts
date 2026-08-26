@@ -3,7 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rankQuizAttempts } from '@/lib/ranking'
 import { resolveOrgMembership } from '@/lib/org-membership'
 import { getUserPremium } from '@/lib/premium-check'
-import { isQuizClosed } from '@/lib/standings-cache'
+// decideHiddenUntilClosed bygger på isQuizClosed (lib/standings-cache) — den
+// kanoniske «stengt»-lesningen brukes altså fortsatt, bare bak den delte
+// beslutningen i stedet for inline her.
+import { decideHiddenUntilClosed } from '@/lib/leaderboard-visibility'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
 
@@ -311,16 +314,21 @@ export async function GET(
     hide_leaderboard_until_closed: boolean
     show_leaderboard: boolean
   } | null
-  const quizIsClosed = quizRow ? isQuizClosed(quizRow.closes_at, Date.now()) : false
-
   // Permanent av — inkluderer fail-safe-stien (uten quiz-rad kan vi ikke
   // bekrefte at stillingen er slått PÅ, og da leverer vi den ikke).
   const leaderboardDisabled = !quizRow || !quizRow.show_leaderboard
-  // Midlertidig skjult mens quizen er åpen.
+  // Midlertidig skjult mens quizen er åpen. DELT beslutning med klientsiden
+  // (app/leaderboard/[id]/page.tsx sin isHidden) — én funksjon, samme felt,
+  // så de to kan ikke tolke closes_at ulikt (B1/B5, NONNULL-sveipet 26. august
+  // 2026). NULL i closes_at = stenger aldri → skjules IKKE for alltid;
+  // arkivkopier skal uansett ikke arve flagget (håndheves i kopieringsruten).
   const hiddenUntilClosed = !!quizRow
-    && quizRow.hide_leaderboard_until_closed
-    && !quizIsClosed
-    && !(userIsPremium && !!mine)
+    && decideHiddenUntilClosed({
+      hideUntilClosed: quizRow.hide_leaderboard_until_closed,
+      closesAt: quizRow.closes_at,
+      premiumViewerHasOwnRow: userIsPremium && !!mine,
+      now: Date.now(),
+    })
 
   // Ett felt for invarianten «ble radene holdt tilbake?» — det er dette som
   // faktisk styrer `entries`, og et svar der `leaderboardHidden` er false mens

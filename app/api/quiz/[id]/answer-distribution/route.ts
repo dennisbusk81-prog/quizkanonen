@@ -6,6 +6,7 @@ import { getOptionCountsByQuestions } from '@/lib/attempt-answer-stats'
 import { readStoredKey } from '@/lib/answer-key-correction'
 import { selectEasiestAndHardest, type QuestionDifficulty } from '@/lib/question-difficulty'
 import { getUserPremium } from '@/lib/premium-check'
+import { isQuizClosed } from '@/lib/standings-cache'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -75,7 +76,16 @@ export async function GET(
     .maybeSingle()
 
   if (!quiz) return NextResponse.json({ error: 'Ikke funnet' }, { status: 404 })
-  if (new Date(quiz.closes_at) > new Date()) {
+  // EKSPLISITT NULL-standpunkt (B2, NONNULL-sveipet 26. august 2026): closes_at
+  // NULL betyr «stenger aldri», og en quiz som aldri stenger er aldri stengt —
+  // fordelingen (som bærer fasit per spørsmål) serveres da IKKE. Den gamle
+  // formen `new Date(quiz.closes_at) > new Date()` koerserte NULL til epoch
+  // 1970 og var det ENESTE stedet i repoet der den fella pekte i
+  // eksponerings-retning: hele fasiten ville blitt servert fra første sekund.
+  // Samme kanoniske lesning som resten av kodebasen (isQuizClosed: NULL = åpen).
+  // Skal en framtidig arkivflate vise fordeling for NULL-quizer, må det være
+  // et vedtak med egen gate — ikke en bieffekt av epoch-koersjon.
+  if (!isQuizClosed(quiz.closes_at, Date.now())) {
     return NextResponse.json({ error: 'Quiz er ikke stengt ennå' }, { status: 403 })
   }
 

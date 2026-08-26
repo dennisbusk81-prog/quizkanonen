@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { fetchParticipantCounts } from '@/lib/quiz-participant-counts'
 import { fetchAllRowsChunked } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { getQuizStatus } from '@/lib/quiz-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,20 +208,25 @@ function formatNorDate(iso: string): string {
   return `${days[oslo.getDay()]} ${oslo.getDate()}. ${months[oslo.getMonth()]} kl. ${hh}.${mm} (norsk tid)`
 }
 
-type QuizStatus = 'åpen' | 'kommende' | 'stengt'
-
-function getQuizStatus(opensAt: string | null, closesAt: string | null, now: Date): QuizStatus {
-  if (opensAt && new Date(opensAt) > now) return 'kommende'
-  if (closesAt && new Date(closesAt) < now) return 'stengt'
-  return 'åpen'
-}
+// getQuizStatus bodde her fram til 26. august 2026 — flyttet til
+// lib/quiz-status.ts (NULL-bevisst, delt med /admin/quizzes) i NONNULL-sveipet.
 
 export default async function QuizerPage() {
-  const { data: quizzes } = await supabaseAdmin
+  // quiz_type-hviteliste (B4, NONNULL-sveipet 26. august 2026): samme
+  // populasjonsvern som forsiden — en arkivquiz (quiz_type='archive') skal
+  // ikke listes her som «åpen quiz uten datolinje», uansett hvilke datoer den
+  // har. `.eq('is_test', false)` beholdes uendret ved siden av (den hører til
+  // den bevisst urørte .eq-oppryddingen, se lib/real-quiz-population.ts).
+  // Målt read-only mot prod 26. august 2026: 13 anon-synlige quizer, alle
+  // quiz_type='weekly' — hvitelisten endrer ingenting for dagens data.
+  // Lokal variabel, ikke inline som argument — TS2589-kravet i
+  // lib/real-quiz-population.ts.
+  const quizQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, requires_access_code, time_limit_seconds, opens_at, closes_at, questions(count), attempts(count)')
     .eq('is_active', true)
     .eq('is_test', false)
+  const { data: quizzes } = await onlyRealQuizzes(quizQuery)
     .order('opens_at', { ascending: false, nullsFirst: false })
 
   const quizList = (quizzes as QuizRow[] | null) ?? []

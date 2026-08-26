@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation'
 import { isAdminLoggedIn, adminLoginPath } from '@/lib/admin-session'
 import { adminFetch } from '@/lib/admin-fetch'
 import { Quiz } from '@/lib/supabase'
+// Datolesing på quiz-rader: via de NULL-bevisste hjelperne, aldri rå
+// `new Date(quiz.opens_at/closes_at)` — NULL er «ingen tidsgrense», ikke epoch
+// 1970 (B3, NONNULL-sveipet 26. august 2026).
+import { getQuizStatus, formatQuizDateOrDash } from '@/lib/quiz-status'
+import { isQuizClosed } from '@/lib/standings-cache'
 import Link from 'next/link'
 
 const VALID_CATEGORIES = [
@@ -506,17 +511,18 @@ export default function AdminQuizzes() {
     }
   }
 
+  // NULL-semantikk fra den delte hjelperen: en quiz uten datoer er ÅPEN
+  // (opens_at NULL = har åpnet, closes_at NULL = stenger aldri). Det betyr
+  // også at inline-stengetid-editoren under vises for en NULL-quiz — admin
+  // KAN sette en stengetid på en arkivquiz herfra, et bevisst valg.
   const isOpen = (quiz: Quiz) => {
     if (!mounted) return false
-    const now = new Date()
-    return new Date(quiz.opens_at) <= now && new Date(quiz.closes_at) >= now
+    return getQuizStatus(quiz.opens_at, quiz.closes_at, new Date()) === 'åpen'
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleString('nb-NO', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  })
+  const formatDate = formatQuizDateOrDash
 
-  function toDatetimeParts(iso: string): [string, string] {
+  function toDatetimeParts(iso: string | null): [string, string] {
     if (!iso) return ['', '']
     const d = new Date(iso)
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -774,7 +780,7 @@ export default function AdminQuizzes() {
                   <button onClick={() => deleteQuiz(quiz.id, quiz.title)} className="aqz-action red">
                     Slett
                   </button>
-                  {mounted && quiz.closes_at && new Date(quiz.closes_at) < new Date() && (
+                  {mounted && isQuizClosed(quiz.closes_at, Date.now()) && (
                     <button
                       onClick={() => shareQuizResults(quiz.id)}
                       className="aqz-action"

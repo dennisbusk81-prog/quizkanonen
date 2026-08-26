@@ -37,8 +37,16 @@ export type Quiz = {
   id: string
   title: string
   description: string
-  opens_at: string
-  closes_at: string
+  // NULLABLE fra 26. august 2026 (NONNULL-sveipet, C1 i
+  // .claude/QK_SVEIP_NONNULL_QUIZDATOER_26AUG.md): arkivquizer skal ha begge
+  // som NULL når `DROP NOT NULL`-migrasjonen kjører. NULL betyr «ingen
+  // tidsgrense» (opens_at NULL = har åpnet, closes_at NULL = stenger aldri) —
+  // samme semantikk som spillestien (lib/quiz-availability.ts). Merk fella som
+  // gjorde typeendringen påkrevd FØR migrasjonen: `new Date(null)` er epoch
+  // 1970, ikke Invalid Date, så en uguardet leser feiltolker NULL stille som
+  // «stengt for lenge siden». Typen tvinger fram guardene.
+  opens_at: string | null
+  closes_at: string | null
   time_limit_seconds: number
   num_options: number
   show_leaderboard: boolean

@@ -18,6 +18,12 @@ import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import { describeRetry } from '@/lib/retry-affordance'
 import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
+// Datolesing på quiz-raden: ALLTID via isQuizClosed/decideHiddenUntilClosed —
+// aldri rå `new Date(quiz.closes_at)`. NULL er «stenger aldri», ikke epoch
+// 1970, og serverruten (app/api/leaderboard/[id]) leser samme felt med samme
+// funksjoner — paritetskravet fra NONNULL-sveipet 26. august 2026 (B1).
+import { isQuizClosed } from '@/lib/standings-cache'
+import { decideHiddenUntilClosed } from '@/lib/leaderboard-visibility'
 import { decideFetchScope } from '@/lib/org-scope-fetch'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
@@ -704,7 +710,7 @@ export default function LeaderboardPage() {
   // Activate podium animation when quiz is closed and data is loaded
   useEffect(() => {
     if (!quiz || loading) return
-    const closed = new Date(quiz.closes_at) < new Date()
+    const closed = isQuizClosed(quiz.closes_at, Date.now())
     if (closed && attempts.length > 0) {
       const t = setTimeout(() => setPodiumActive(true), 50)
       return () => clearTimeout(t)
@@ -752,11 +758,6 @@ export default function LeaderboardPage() {
       challengeErrorTimerRef.current = setTimeout(() => setChallengeError(null), 3000)
     }
     setChallengeLoadingId(null)
-  }
-
-  const isOpen = (q: Quiz) => {
-    const now = new Date()
-    return new Date(q.opens_at) <= now && new Date(q.closes_at) >= now
   }
 
   const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
@@ -822,8 +823,15 @@ export default function LeaderboardPage() {
   // hasPlayed: sjekk BÅDE localStorage (savedResult) OG at forsøket finnes i leaderboard-data
   // Dette håndterer tilfellet der bruker spilte på annen enhet (savedResult = null)
   const hasPlayed = !!savedResult || !!userAttempt
-  // Only lift the hide for Premium users who have played — free users still get placement card treatment
-  const isHidden = quiz.hide_leaderboard_until_closed && isOpen(quiz) && !(isPremium && hasPlayed)
+  // Only lift the hide for Premium users who have played — free users still get placement card treatment.
+  // SAMME funksjon som serverruten bruker for å tømme entries — de to kan ikke
+  // lenger konkludere ulikt om samme quiz (B1, NONNULL-sveipet 26. august 2026).
+  const isHidden = decideHiddenUntilClosed({
+    hideUntilClosed: quiz.hide_leaderboard_until_closed,
+    closesAt: quiz.closes_at,
+    premiumViewerHasOwnRow: isPremium && hasPlayed,
+    now: Date.now(),
+  })
 
   const fastestSoloName = soloAttempts.length > 0
     ? soloAttempts.reduce((f, a) => a.total_time_ms < f.total_time_ms ? a : f).player_name
@@ -1125,7 +1133,7 @@ export default function LeaderboardPage() {
     )
   }
 
-  const isClosed = quiz ? new Date(quiz.closes_at) < new Date() : false
+  const isClosed = quiz ? isQuizClosed(quiz.closes_at, Date.now()) : false
 
   // Org-kontekst: matcher slug-en mot brukerens org-medlemskap (allerede lastet
   // i loadSession). Gir org-navn til header uten ekstra kall.

@@ -3024,9 +3024,14 @@ export default function QuizPage() {
             åpner {nextQuizLabel(nextQuizAt)} — logg inn nå, så er du klar når
             den åpner, og poengene dine teller i sesongen.</>
           ) : notYetOpen ? (
+            // opens_at NULL kan aldri gi 'not-open-yet' (NaN > now er false i
+            // lib/quiz-availability) — grenen er uoppnåelig for en NULL-quiz.
+            // Guarden finnes for typen og som backstop: uten dato, ingen dato
+            // å vise («snart» matcher «Åpner snart»-skjermen).
             <>Denne quizen har ikke åpnet ennå — den åpner{' '}
-            {formatQuizDate(new Date(quiz!.opens_at))}. Logg inn nå, så er du
-            klar når den åpner, og poengene dine teller i sesongen.</>
+            {quiz!.opens_at ? formatQuizDate(new Date(quiz!.opens_at)) : 'snart'}.
+            {' '}Logg inn nå, så er du klar når den åpner, og poengene dine
+            teller i sesongen.</>
           ) : (
             <>Logg inn for å spille. Da lagres resultatet ditt, du kommer på
             topplisten, og poengene teller i sesongen.</>
@@ -3232,8 +3237,10 @@ export default function QuizPage() {
             <strong style={{color:'#e8e4dd'}}>{nextQuizLabel(nextQuizAt)}</strong>.</>
           ) : (
             // Eksakt åpningsdato fra quizens egen rad — ikke fra site_settings.
+            // opens_at NULL når aldri hit ('not-open-yet' er uoppnåelig for en
+            // NULL-quiz, se lib/quiz-availability) — «snart» er typens backstop.
             <>Denne quizen åpner{' '}
-            <strong style={{color:'#e8e4dd'}}>{formatQuizDate(new Date(quiz.opens_at))}</strong>.
+            <strong style={{color:'#e8e4dd'}}>{quiz.opens_at ? formatQuizDate(new Date(quiz.opens_at)) : 'snart'}</strong>.
             {' '}Kom tilbake da — poengene dine teller i sesongen.</>
           )}
         </p>
