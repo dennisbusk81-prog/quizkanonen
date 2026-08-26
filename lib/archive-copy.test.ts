@@ -13,8 +13,10 @@
 //
 // MUTASJONSBEVIS: kjørt og rapportert i økta 26. august 2026 — én mutasjon per
 // bestilt punkt (arv av quiz_type/datoer/hide-flagg/is_test, bruksdata inn i
-// utgangen, order_index 1-basert, arvet kildens order_index, delt
-// array-referanse, mutasjon av inngangen). Se øktrapporten.
+// utgangen, order_index 0-basert regresjon, arvet kildens order_index, delt
+// array-referanse, mutasjon av inngangen). Se øktrapportene 26. august
+// (0-basert ble bygget først; Dennis byttet til husets 1-baserte konvensjon
+// samme kveld, og mutasjonen ble kjørt på nytt begge veier).
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -75,7 +77,7 @@ const SP_B = deepFreeze({
   time_limit_seconds: null,
   shuffle_options: false,
   quiz_id: 'kilde-quiz-2',
-  order_index: 3,
+  order_index: 21,
   usage_count: 13,
   last_used_at: '2026-06-12T18:30:00.000Z',
   is_classic: false,
@@ -194,9 +196,9 @@ test('bruksdata og identitet havner aldri i utgangsradene — eksakt nøkkelsett
   }
 })
 
-test('order_index er sammenhengende fra 0 i ID-LISTENS rekkefølge, uavhengig av radenes rekkefølge', () => {
+test('order_index er sammenhengende fra 1 (husets konvensjon) i ID-LISTENS rekkefølge, uavhengig av radenes rekkefølge', () => {
   // Id-listen snur rekkefølgen i forhold til sourceQuestions-arrayen, og
-  // kilderadenes egne order_index (14/3/9) overlapper ikke 0..2 — både
+  // kilderadenes egne order_index (14/21/9) overlapper ikke 1..3 — både
   // «arv kildens order_index» og «følg array-rekkefølgen» gir rød test.
   const res = buildArchiveCopy({
     title: 'Rekkefølge-test',
@@ -209,9 +211,9 @@ test('order_index er sammenhengende fra 0 i ID-LISTENS rekkefølge, uavhengig av
   assert.deepEqual(
     res.questions.map((q) => [q.order_index, q.question_text]),
     [
-      [0, SP_C.question_text],
-      [1, SP_A.question_text],
-      [2, SP_B.question_text],
+      [1, SP_C.question_text],
+      [2, SP_A.question_text],
+      [3, SP_B.question_text],
     ]
   )
 })
@@ -232,7 +234,7 @@ test('innholdskolonnene kopieres verbatim — hele raden, multi-svar inkludert',
     category: null,
     time_limit_seconds: null,
     shuffle_options: false,
-    order_index: 1,
+    order_index: 2,
   })
 })
 

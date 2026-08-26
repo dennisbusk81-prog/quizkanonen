@@ -67,14 +67,16 @@
 // kilden har» skal være en testbar egenskap ved signaturen — ikke en
 // antagelse om at ingen framtidig kaller frister.
 //
-// ── order_index: SAMMENHENGENDE FRA 0 I ID-LISTENS REKKEFØLGE ───────────────
-// Bestilt eksplisitt 26. august. To kjente motsignaler er RAPPORTERT, ikke
-// designet rundt: (1) alle eksisterende skrivere er 1-baserte, og en mulig
-// CHECK (order_index > 0) i prod er aldri verifisert (se kommentarene i
-// migrasjon 20260731000000/20260824000000) — må avklares FØR rute-økten
-// setter inn første rad; (2) delete_question_and_renumber renummererer til
-// 1..N, så invariansen overlever ikke en admin-sletting. Leserne sorterer på
-// order_index og antar ingen startverdi.
+// ── order_index: SAMMENHENGENDE FRA 1 I ID-LISTENS REKKEFØLGE ───────────────
+// 1-basert er husets konvensjon, ikke en DB-tvang (Dennis verifiserte
+// 26. august at questions ikke har noen CHECK-constraint): alle tre
+// eksisterende skrivere er 1-baserte — import (`i + 1`,
+// app/api/admin/quizzes/import/route.ts:84), classics-kopien (`count + 1`,
+// app/api/admin/classics/copy/route.ts:47) og quiz-byggeren (`idx + 1`,
+// app/admin/quizzes/new/page.tsx) — laveste verdi i prod er 1, og
+// delete_question_and_renumber renummererer til 1..N. To konvensjoner i
+// samme kolonne er en felle for framtidig kode som antar den ene — ikke
+// «rett» dette til 0-basert.
 
 /** Innholdskolonnene som kopieres — samme felt som spillestiens SELECT
  *  (app/api/quiz/[id]/questions/route.ts:25) trenger, pluss id for oppslag. */
@@ -171,7 +173,8 @@ export function buildArchiveCopy(input: {
       category: src.category,
       time_limit_seconds: src.time_limit_seconds,
       shuffle_options: src.shuffle_options,
-      order_index: i,
+      // 1-basert (i+1) er husets konvensjon — se filhodet. Ikke endre til i.
+      order_index: i + 1,
     })
   }
 
