@@ -74,10 +74,11 @@ function quizzesBuilder() {
     eq(_col: string, id: string) {
       const rows: Record<string, unknown> = {
         // Arkivkopien slik buildArchiveCopy skriver den: NULL-tider, egen type.
-        [ARCHIVE_QUIZ]: { id: ARCHIVE_QUIZ, opens_at: null, closes_at: null, quiz_type: 'archive' },
+        [ARCHIVE_QUIZ]: { id: ARCHIVE_QUIZ, is_active: true, opens_at: null, closes_at: null, quiz_type: 'archive' },
         // Fredagsquiz med åpent vindu rundt «nå».
         [FRIDAY_QUIZ]: {
           id: FRIDAY_QUIZ,
+          is_active: true,
           opens_at: new Date(Date.now() - 3_600_000).toISOString(),
           closes_at: new Date(Date.now() + 3_600_000).toISOString(),
           quiz_type: 'weekly',

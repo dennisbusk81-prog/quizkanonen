@@ -57,7 +57,7 @@ function builder(table: string) {
       if (table === 'quizzes') {
         return {
           data: {
-            id: QUIZ, opens_at: minutesAgo(240), closes_at: state.quizClosesAt,
+            id: QUIZ, is_active: true, opens_at: minutesAgo(240), closes_at: state.quizClosesAt,
             randomize_questions: false, quiz_type: 'weekly',
           },
           error: null,

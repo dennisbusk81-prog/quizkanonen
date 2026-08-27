@@ -111,7 +111,7 @@ function simpleBuilder(table: string) {
       if (table === 'profiles') return { data: { suspended_until: null }, error: null }
       if (table === 'quizzes') {
         return {
-          data: { id: QUIZ, opens_at: FOR_EN_TIME_SIDEN(), closes_at: OM_EN_TIME(), time_limit_seconds: 30 },
+          data: { id: QUIZ, is_active: true, opens_at: FOR_EN_TIME_SIDEN(), closes_at: OM_EN_TIME(), time_limit_seconds: 30 },
           error: null,
         }
       }

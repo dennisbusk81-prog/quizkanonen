@@ -104,7 +104,7 @@ export async function GET(
   const [quizRes, attemptRes] = await Promise.all([
     supabaseAdmin
       .from('quizzes')
-      .select('id, opens_at, closes_at, randomize_questions, quiz_type')
+      .select('id, is_active, opens_at, closes_at, randomize_questions, quiz_type')
       .eq('id', quizId)
       .maybeSingle(),
     supabaseAdmin
@@ -129,6 +129,25 @@ export async function GET(
   if (!quiz) {
     return NextResponse.json({ error: 'Quizen finnes ikke' }, { status: 404 })
   }
+
+  // ── Skjult quiz serverer ikke spørsmål (27. august 2026) ──────────────────
+  // Samme hull og samme vakt som i start-attempt — full begrunnelse der
+  // (paritet med listenes `.eq('is_active', true)`, og lesefeil gir ingen ny
+  // «vet ikke»-kategori: `quizRes.data` er null i begge tilfeller).
+  //
+  // Vakten måtte stå HER og ikke bare i porten: denne ruten serverer FASITEN,
+  // og et forsøk som ble startet før quizen ble skjult ville ellers kunne
+  // fortsette å hente den ut etterpå.
+  //
+  // BEVISST konsekvens: skjuler admin en quiz mens noen spiller, stopper de
+  // med én gang å få nye spørsmål. Det er hva «Skjul» skal bety. De kan
+  // fortsatt LEVERE det de har — `submit` er med vilje IKKE gatet på
+  // `is_active`, samme asymmetri som QUESTIONS_GRACE_MS < SUBMIT_GRACE_MS:
+  // spørsmålsserveringen stopper først, innleveringen får leve lengst.
+  if (quiz.is_active !== true) {
+    return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
+  }
+
   const now = Date.now()
   const opensAt = quiz.opens_at ? new Date(quiz.opens_at).getTime() : null
   const closesAt = quiz.closes_at ? new Date(quiz.closes_at).getTime() : null

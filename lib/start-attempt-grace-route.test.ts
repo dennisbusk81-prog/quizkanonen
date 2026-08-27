@@ -81,7 +81,7 @@ function simpleBuilder(table: string) {
       if (table === 'profiles') return { data: { suspended_until: null }, error: null }
       if (table === 'quizzes') {
         return {
-          data: { id: QUIZ, opens_at: minutesAgo(240), closes_at: state.quizClosesAt },
+          data: { id: QUIZ, is_active: true, opens_at: minutesAgo(240), closes_at: state.quizClosesAt },
           error: null,
         }
       }

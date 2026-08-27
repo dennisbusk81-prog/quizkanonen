@@ -84,6 +84,7 @@ function quizzesBuilder() {
       return {
         data: {
           id: QUIZ,
+          is_active: true,
           opens_at: new Date(Date.now() - 3_600_000).toISOString(),
           closes_at: new Date(Date.now() + 3_600_000).toISOString(),
         },

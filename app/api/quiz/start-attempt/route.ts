@@ -181,15 +181,41 @@ export async function POST(request: NextRequest) {
   // MOTSATTE retningen, med begrunnelsen i lib/archive-play-gate.ts.
   const callerIsPremium = callerPremium.ok && callerPremium.value
 
-  // ── Quizen må finnes og være åpen ─────────────────────────────────────────────
+  // ── Quizen må finnes, være SYNLIG og være åpen ────────────────────────────────
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
-    .select('id, opens_at, closes_at, quiz_type')
+    .select('id, is_active, opens_at, closes_at, quiz_type')
     .eq('id', quizId)
     .maybeSingle()
 
   if (!quiz) {
     return NextResponse.json({ error: 'Quizen finnes ikke' }, { status: 404 })
+  }
+
+  // ── Skjult quiz er ikke spillbar (27. august 2026) ────────────────────────
+  // Fram til nå leste denne ruten ikke `is_active` I DET HELE TATT. At en
+  // halvbygd eller skjult quiz likevel ikke kunne spilles, skyldtes at
+  // `opens_at` tilfeldigvis pekte framover — en BIEFFEKT, ikke en vakt. Samme
+  // rad med `opens_at` i fortiden var fullt spillbar, og «Skjul» i admin
+  // fjernet quizen fra listene uten å stenge spilleveien.
+  //
+  // Formen er `!== true`, ikke `=== false`, med vilje: PARITET med listene.
+  // `/quizer` og `/api/arkiv` filtrerer begge på `.eq('is_active', true)`, som
+  // ikke matcher NULL — en NULL-rad er altså allerede usynlig overalt, og skal
+  // da heller ikke være spillbar. Målt mot prod 27. august 2026: 13 quizer,
+  // alle med `is_active = true`, null NULL-rader. Ingen eksisterende quiz
+  // endrer oppførsel av denne vakten.
+  //
+  // RETNING VED LESEFEIL: ingen ny «vet ikke»-kategori oppstår. `is_active`
+  // hentes fra oppslaget rett over, som allerede kaster feilen (`data:`
+  // destruktureres alene) og faller til 404 på `!quiz`. Feiler oppslaget,
+  // feilet ruten også før denne vakten fantes.
+  //
+  // Står FØR arkiv-gaten: en skjult quiz avvises på IDENTITET, ikke på
+  // rettighet. Da slipper vi å konsultere premium-tilstand — og «vet ikke →
+  // 503»-stien i arkiv-gaten — for en quiz ingen skal inn på uansett svar.
+  if (quiz.is_active !== true) {
+    return NextResponse.json({ error: QUIZ_CLOSED_ERROR }, { status: 403 })
   }
 
   // ── Arkiv-gate: porten til en betalt SKRIVEFLATE (27. august 2026) ──────────
