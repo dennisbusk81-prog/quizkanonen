@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Libre_Baskerville, Instrument_Sans } from "next/font/google";
+import { Libre_Baskerville, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
@@ -16,16 +16,6 @@ import Link from "next/link";
 // eksporteres fra — verifisert mot dist/next/index.d.ts og dist/index.d.ts i
 // v2.0.1: `/next` eksporterer KUN `Analytics`.
 import { Analytics } from "@vercel/analytics/next";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 // Husets to fonter, lastet ÉN gang for hele appen.
 //
@@ -92,7 +82,7 @@ export default function RootLayout({
   return (
     <html
       lang="no"
-      className={`${geistSans.variable} ${geistMono.variable} ${libreBaskerville.variable} ${instrumentSans.variable} h-full antialiased`}
+      className={`${libreBaskerville.variable} ${instrumentSans.variable} h-full antialiased`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
