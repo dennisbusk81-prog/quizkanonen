@@ -293,6 +293,14 @@ export default async function QuizerPage() {
         <header className="qz-header">
           <p className="qz-eyebrow">Quizkanonen</p>
           <h1 className="qz-title">Alle quizer</h1>
+          {/* Inngangen til arkivet ([ARK-1] steg 1C) — synlig for ALLE:
+              at arkivet finnes skal ikke være skjult for gratisbrukere
+              (konvertering er funksjonens primærmål). Selve spillingen
+              gates av serveren. */}
+          <p style={{ fontSize: 13, color: '#918f8a', marginTop: 10, lineHeight: 1.6 }}>
+            Stengte quizer kan spilles på nytt som trening —{' '}
+            <a href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>gå til arkivet</a>
+          </p>
         </header>
 
         {quizList.length === 0 ? (

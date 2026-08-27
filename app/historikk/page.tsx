@@ -1106,6 +1106,13 @@ export default function HistorikkPage() {
                   {arkivLoadingMore ? 'Laster...' : 'Last inn flere'}
                 </button>
               )}
+
+              {/* Veien tilbake til kilden for radene over ([ARK-1] steg 1C). */}
+              <p style={{ fontSize: 12, margin: '10px 0 0' }}>
+                <Link href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+                  Spill flere fra arkivet →
+                </Link>
+              </p>
             </>
           )}
 
