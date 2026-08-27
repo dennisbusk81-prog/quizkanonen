@@ -50,6 +50,15 @@
 //   is_active=true        — påkrevd for at anon-lesingen i spillsiden ser
 //                           quizen i det hele tatt (samme grunn som i
 //                           .claude/QK_TESTQUIZ_OPPSKRIFT.md).
+//   source_quiz_id        — koblingen tilbake til originalquizen, som
+//                           plasseringsvisningen måler mot ([ARK-1] steg 1B,
+//                           27. august 2026). En INNGANG, ikke noe som leses
+//                           av `sourceQuiz`: beslutningen om hvorvidt kopien
+//                           i det hele tatt HAR en kilde bor i
+//                           lib/archive-source-quiz.ts, og «arves aldri fra
+//                           kilderaden» består derfor uendret. NULL er en
+//                           førsteklasses verdi — generert quiz, delvis
+//                           kopi, eller kilde som ikke er en ekte quiz.
 // Alle andre quizzes-kolonner utelates med vilje og får DB-default —
 // deriblant season_points_awarded=false (ærlig: aldri gjort opp; NULL-datoene
 // gater oppgjøret) og de døde reminder_sent_at/push_sent_at som aldri skal
@@ -127,6 +136,7 @@ export type ArchiveQuizRow = {
   hide_leaderboard_until_closed: false
   is_test: false
   is_active: true
+  source_quiz_id: string | null
 }
 
 export type ArchiveCopyResult =
@@ -138,6 +148,8 @@ export function buildArchiveCopy(input: {
   questionIds: string[]
   sourceQuestions: ArchiveSourceQuestion[]
   sourceQuiz: ArchiveSourceQuiz
+  /** Avgjort av lib/archive-source-quiz.ts — aldri lest av `sourceQuiz`. */
+  sourceQuizId: string | null
 }): ArchiveCopyResult {
   const title = typeof input.title === 'string' ? input.title.trim() : ''
   if (title.length === 0) return { ok: false, error: 'tom-tittel' }
@@ -188,6 +200,7 @@ export function buildArchiveCopy(input: {
       hide_leaderboard_until_closed: false,
       is_test: false,
       is_active: true,
+      source_quiz_id: input.sourceQuizId ?? null,
     },
     questions,
   }

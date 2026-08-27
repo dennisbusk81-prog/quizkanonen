@@ -39,6 +39,8 @@ const ME = '11111111-1111-4111-8111-111111111111'
 const NEW_QUIZ = 'ffffffff-9999-4999-8999-ffffffffffff'
 const Q1_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const Q2_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const FORELDER_A = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const FORELDER_B = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
 const OM_TRE_DAGER = () => new Date(Date.now() + 3 * 86_400_000).toISOString()
 
@@ -68,6 +70,8 @@ const state = {
   activateFails: false,
   cleanupQuizDeleteFails: false,
   quotaLogFails: false,
+  parentQuestionCount: 2 as number | null,
+  parentCountFails: false,
   ops: [] as Op[],
 }
 
@@ -97,7 +101,12 @@ function kildeRader() {
       category: 'Geografi',
       time_limit_seconds: 20,
       shuffle_options: true,
-      quiz: { closes_at: '2026-08-14T20:00:00Z', is_test: false },
+      quiz: {
+        id: FORELDER_A,
+        closes_at: '2026-08-14T20:00:00Z',
+        is_test: false,
+        quiz_type: 'weekly',
+      },
     },
     {
       id: Q2_ID,
@@ -112,9 +121,24 @@ function kildeRader() {
       category: 'Sport',
       time_limit_seconds: 30,
       shuffle_options: false,
-      quiz: { closes_at: '2026-08-21T19:00:00Z', is_test: false },
+      quiz: {
+        id: FORELDER_B,
+        closes_at: '2026-08-21T19:00:00Z',
+        is_test: false,
+        quiz_type: 'weekly',
+      },
     },
   ]
+}
+
+/** Samme to spørsmål, men med FELLES forelder — «spill quiz 47 på nytt».
+ *  Standardfixturen har med vilje to ULIKE foreldre (en generert quiz), så
+ *  kildekoblingen bare kan oppstå der en test ber om den. */
+function kildeRaderSammeForelder() {
+  return kildeRader().map((r) => ({
+    ...r,
+    quiz: { ...(r.quiz as Record<string, unknown>), id: FORELDER_A },
+  }))
 }
 
 function resolveOp(op: Op): Record<string, unknown> {
@@ -132,6 +156,18 @@ function resolveOp(op: Op): Record<string, unknown> {
     return { error: state.quotaLogFails ? { message: 'simulert bokføringsfeil' } : null }
   }
   if (op.table === 'questions' && op.action === 'select') {
+    // To ULIKE lesinger mot questions, skilt på filterformen:
+    //   .in('id', ids)         → kildespørsmålene
+    //   .eq('quiz_id', <id>)   → tellingen av forelderens spørsmål
+    //                            (kildekoblingen, [ARK-1] steg 1B)
+    const erForelderTelling = op.filters.some(
+      (f) => f.method === 'eq' && f.args[0] === 'quiz_id'
+    )
+    if (erForelderTelling) {
+      return state.parentCountFails
+        ? { count: null, error: { message: 'simulert tellefeil' } }
+        : { count: state.parentQuestionCount, error: null }
+    }
     return state.sourceFails
       ? { data: null, error: { message: 'simulert lesefeil' } }
       : { data: state.sourceRows, error: null }
@@ -235,6 +271,8 @@ beforeEach(() => {
   state.activateFails = false
   state.cleanupQuizDeleteFails = false
   state.quotaLogFails = false
+  state.parentQuestionCount = 2
+  state.parentCountFails = false
   state.ops = []
 })
 
@@ -261,6 +299,9 @@ test('suksess: 201 med quizId, og nøyaktig [quiz-insert, spørsmåls-insert, ak
     hide_leaderboard_until_closed: false,
     is_test: false,
     is_active: false,
+    // Standardfixturen er en GENERERT quiz (to ulike foreldre) → ingen
+    // kildekobling. Se kildekoblings-testene lenger nede.
+    source_quiz_id: null,
   })
 
   // Aktiveringen skriver KUN is_active, kun på den nye quizen, og verdien er
@@ -504,4 +545,79 @@ test('rate-limit: 6. kall fra samme IP får 429 (in-memory-førstelaget)', async
     assert.equal((await kall({ medToken: false, ip })).status, 401)
   }
   assert.equal((await kall({ medToken: false, ip })).status, 429)
+})
+
+// ── Kildekoblingen (source_quiz_id) — [ARK-1] steg 1B, 27. august 2026 ──────
+//
+// MUTASJONSBEVIS (alle kjørt 27. august 2026 og revertert):
+//   • send `sourceQuizId: parentCandidate` (uten dekningskravet) inn i
+//     buildArchiveCopy → delvis-kopi-testen rød (kobling på 2 av 15)
+//   • kall tellingen ubetinget (også uten felles forelder)
+//       → «ingen telling for generert quiz»-testen rød
+//   • la tellefeilen bli en 503 i stedet for en manglende kobling
+//       → tellefeil-testen rød (opprettelsen falt bort)
+
+test('kildekobling: full reprise av ÉN quiz gir source_quiz_id', async () => {
+  state.sourceRows = kildeRaderSammeForelder()
+  state.parentQuestionCount = 2 // forelderen har nøyaktig disse to
+  const res = await kall()
+  assert.equal(res.status, 201)
+  const payload = skrivinger()[0].payload as Record<string, unknown>
+  assert.equal(payload.source_quiz_id, FORELDER_A)
+})
+
+test('kildekobling: DELVIS kopi (2 av 15) gir INGEN kobling', async () => {
+  state.sourceRows = kildeRaderSammeForelder()
+  state.parentQuestionCount = 15
+  await kall()
+  const payload = skrivinger()[0].payload as Record<string, unknown>
+  assert.equal(payload.source_quiz_id, null)
+})
+
+test('kildekobling: generert quiz (to foreldre) koster ingen telle-rundtur', async () => {
+  await kall() // standardfixturen: FORELDER_A + FORELDER_B
+  const payload = skrivinger()[0].payload as Record<string, unknown>
+  assert.equal(payload.source_quiz_id, null)
+  const tellinger = state.ops.filter(
+    (o) =>
+      o.table === 'questions' &&
+      o.action === 'select' &&
+      o.filters.some((f) => f.method === 'eq' && f.args[0] === 'quiz_id')
+  )
+  assert.equal(tellinger.length, 0)
+})
+
+test('kildekobling: tellefeil gir NULL kobling — ikke en 503', async () => {
+  // Kopien skal fortsatt opprettes; den får bare «ingen plassering finnes»,
+  // som er en tilstand flaten uansett håndterer.
+  state.sourceRows = kildeRaderSammeForelder()
+  state.parentCountFails = true
+  const res = await kall()
+  assert.equal(res.status, 201)
+  const payload = skrivinger()[0].payload as Record<string, unknown>
+  assert.equal(payload.source_quiz_id, null)
+})
+
+test('kildekobling: tellingen går på forelder-id-en, ikke på noe annet', async () => {
+  state.sourceRows = kildeRaderSammeForelder()
+  await kall()
+  const telling = state.ops.find(
+    (o) =>
+      o.table === 'questions' &&
+      o.action === 'select' &&
+      o.filters.some((f) => f.method === 'eq' && f.args[0] === 'quiz_id')
+  )
+  assert.ok(telling, 'tellingen skal ha skjedd')
+  assert.deepEqual(telling.filters, [{ method: 'eq', args: ['quiz_id', FORELDER_A] }])
+})
+
+test('kildekobling: kildegaten kjører fortsatt FØR koblingen utledes', async () => {
+  // En åpen forelder skal avvises med 403 uten at noe telles eller skrives.
+  state.sourceRows = kildeRaderSammeForelder().map((r) => ({
+    ...r,
+    quiz: { ...(r.quiz as Record<string, unknown>), closes_at: OM_TRE_DAGER() },
+  }))
+  const res = await kall()
+  assert.equal(res.status, 403)
+  assert.deepEqual(skrivinger(), [])
 })

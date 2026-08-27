@@ -16,8 +16,11 @@ import {
   MAX_ARCHIVE_TITLE_LENGTH,
   decideArchiveCreateQuota,
   decideArchiveSourceEligibility,
-  type ArchiveSourceParentQuiz,
 } from '@/lib/archive-create-rules'
+import {
+  deriveArchiveSourceQuizId,
+  singleSourceParentId,
+} from '@/lib/archive-source-quiz'
 
 // ── POST /api/arkiv — opprett en arkivquiz fra en liste spørsmåls-id-er ─────
 //
@@ -59,13 +62,24 @@ export const maxDuration = 15
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Kolonnene buildArchiveCopy trenger + forelder-quizen kildegaten trenger. */
+/** Kolonnene buildArchiveCopy trenger + forelder-quizen kildegaten trenger.
+ *  `id` og `quiz_type` på forelderen kom til 27. august ([ARK-1] steg 1B):
+ *  kildekoblingen (source_quiz_id) trenger id-en, og `erEkteQuiz` inne i
+ *  lib/archive-source-quiz.ts trenger typen. Kildegaten bruker ingen av dem. */
 const SOURCE_SELECT =
   'id, question_text, option_a, option_b, option_c, option_d, ' +
   'correct_answer, correct_answers, explanation, category, ' +
-  'time_limit_seconds, shuffle_options, quiz:quizzes(closes_at, is_test)'
+  'time_limit_seconds, shuffle_options, ' +
+  'quiz:quizzes(id, closes_at, is_test, quiz_type)'
 
-type SourceRow = ArchiveSourceQuestion & { quiz: ArchiveSourceParentQuiz }
+type SourceParentQuiz = {
+  id: string | null
+  closes_at: string | null
+  is_test: boolean | null
+  quiz_type: string | null
+} | null
+
+type SourceRow = ArchiveSourceQuestion & { quiz: SourceParentQuiz }
 
 export async function POST(request: NextRequest) {
   // Lag 1: billig in-memory IP-brems foran auth- og DB-arbeidet. Den
@@ -197,11 +211,42 @@ export async function POST(request: NextRequest) {
   const sourceQuestions: ArchiveSourceQuestion[] = rows.map(
     ({ quiz: _quiz, ...question }) => question
   )
+  // ── Kildekoblingen: har kopien et FROSSET FELT å måles mot? ───────────────
+  // «Slik ville du havnet den uken» henter feltet fra attempts på
+  // ORIGINALQUIZEN, og quizzes.source_quiz_id (migrasjon 20260827000000) er
+  // den eneste veien dit — spørsmålsradene KOPIERES, så kopien bærer ellers
+  // ingen spor av hvor den kom fra. Reglene (én felles forelder, ekte quiz,
+  // FULL reprise) står i lib/archive-source-quiz.ts; her gjøres bare I/O-en.
+  //
+  // Tellingen kjøres KUN når det finnes en felles forelder i det hele tatt —
+  // en generert quiz skal ikke koste en rundtur for et svar som allerede er
+  // gitt. Feiler tellingen, blir koblingen NULL: kopien får «ingen plassering
+  // finnes», som er en tilstand flaten uansett håndterer (og normalen for
+  // genererte quizer). Den skal ikke velte en opprettelse.
+  const parentCandidate = singleSourceParentId(rows)
+  let parentQuestionCount: number | null = null
+  if (parentCandidate !== null) {
+    const { count, error: parentCountError } = await supabaseAdmin
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('quiz_id', parentCandidate)
+    if (parentCountError) {
+      console.error(
+        '[arkiv POST] kunne ikke telle kildequizens spørsmål — kopien får ingen kildekobling:',
+        parentCountError.message
+      )
+    } else {
+      parentQuestionCount = count ?? 0
+    }
+  }
+  const sourceQuizId = deriveArchiveSourceQuizId({ rows, parentQuestionCount })
+
   const built = buildArchiveCopy({
     title,
     questionIds: ids,
     sourceQuestions,
     sourceQuiz: rows[0]?.quiz ?? null,
+    sourceQuizId,
   })
   if (!built.ok) {
     const messages: Record<typeof built.error, string> = {

@@ -113,6 +113,7 @@ function kallStandard() {
     questionIds: deepFreeze(['id-a', 'id-b', 'id-c']) as string[],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
 }
 
@@ -149,7 +150,31 @@ test('quiz-raden er EKSAKT de besluttede kolonnene — ingenting arves fra en ki
     hide_leaderboard_until_closed: false,
     is_test: false,
     is_active: true,
+    source_quiz_id: null,
   })
+})
+
+test('source_quiz_id er INNGANGEN, ikke noe som leses av kilderaden', () => {
+  // Kilden har id-en 'kilde-quiz-1' på spørsmålsradene sine (SP_A/B/C), og
+  // KILDE_QUIZ er full av felter. Utgangen skal likevel bære NØYAKTIG det
+  // kalleren sendte inn — beslutningen om kobling bor i
+  // lib/archive-source-quiz.ts, ikke her.
+  const med = buildArchiveCopy({
+    title: 'Arkivkopi under test',
+    questionIds: ['id-a', 'id-b', 'id-c'],
+    sourceQuestions: ALLE,
+    sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: 'original-quiz-47',
+  })
+  assert.equal(med.ok, true)
+  if (!med.ok) return
+  assert.equal(med.quiz.source_quiz_id, 'original-quiz-47')
+
+  // Og null forblir null — ingen fallback til noe kilderaden måtte ha.
+  const uten = kallStandard()
+  assert.equal(uten.ok, true)
+  if (!uten.ok) return
+  assert.equal(uten.quiz.source_quiz_id, null)
 })
 
 test('hide_leaderboard_until_closed arves aldri — false uansett om kilden har true, false eller mangler', () => {
@@ -163,6 +188,7 @@ test('hide_leaderboard_until_closed arves aldri — false uansett om kilden har 
       questionIds: ['id-a'],
       sourceQuestions: ALLE,
       sourceQuiz: kilde,
+      sourceQuizId: null,
     })
     assert.equal(res.ok, true)
     if (!res.ok) return
@@ -205,6 +231,7 @@ test('order_index er sammenhengende fra 1 (husets konvensjon) i ID-LISTENS rekke
     questionIds: ['id-c', 'id-a', 'id-b'],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.equal(res.ok, true)
   if (!res.ok) return
@@ -261,6 +288,7 @@ test('tittelen trimmes, og tom/blank tittel avvises', () => {
     questionIds: ['id-a'],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.equal(ok.ok, true)
   if (ok.ok) assert.equal(ok.quiz.title, 'Fredagsquiz på nytt')
@@ -270,6 +298,7 @@ test('tittelen trimmes, og tom/blank tittel avvises', () => {
     questionIds: ['id-a'],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.deepEqual(blank, { ok: false, error: 'tom-tittel' })
 })
@@ -280,6 +309,7 @@ test('tom id-liste, duplikat-id og ukjent id avvises med hver sin grunn', () => 
     questionIds: [],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.deepEqual(tom, { ok: false, error: 'tom-liste' })
 
@@ -288,6 +318,7 @@ test('tom id-liste, duplikat-id og ukjent id avvises med hver sin grunn', () => 
     questionIds: ['id-a', 'id-b', 'id-a'],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.deepEqual(dup, { ok: false, error: 'duplikat-id', detail: 'id-a' })
 
@@ -296,6 +327,7 @@ test('tom id-liste, duplikat-id og ukjent id avvises med hver sin grunn', () => 
     questionIds: ['id-a', 'id-finnes-ikke'],
     sourceQuestions: ALLE,
     sourceQuiz: KILDE_QUIZ,
+    sourceQuizId: null,
   })
   assert.deepEqual(ukjent, { ok: false, error: 'ukjent-id', detail: 'id-finnes-ikke' })
 })
