@@ -1,0 +1,185 @@
+// ── «Slik ville du havnet den uken» — spøkelsesplasseringen ─────────────────
+//
+// Bygget 27. august 2026 ([ARK-1] steg 1B). Ren beslutning: ruten skaffer
+// fakta (arkivforsøket, det frosne feltet, org-medlemmene, blocked-settet) og
+// denne funksjonen avgjør hva som skal vises. Ingen I/O, ingen klokke.
+//
+// MÅLESTOKKEN ER DET ORIGINALE FELTET, IKKE SPILLERENS EGET GAMLE RESULTAT.
+// «Bedre enn sist» måler HUKOMMELSE, ikke ferdighet — samme feilklasse som
+// «raskere enn andre» (r = 0,06), som allerede er kastet ut av /historikk.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// DE TRE FELLENE — alle tre er håndtert HER, hos kalleren av computePlacement
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ── 1. TOMT FELT: computePlacement svarer «nr. 1 av 1» ─────────────────────
+// Funksjonen har INGEN tom-tilstand — den legger alltid spilleren til i sitt
+// eget «av N», så et tomt felt gir rank 1 av 1 (karakterisert 26. august i
+// lib/compute-placement.test.ts). Den er REN og skal forbli det: «ingen
+// plassering finnes» kan ikke uttrykkes av en funksjon hvis eneste jobb er å
+// plassere noen i en liste.
+//
+// Guarden bor derfor her, og den står FØR kallet: er det rangerte feltet
+// tomt, KALLES computePlacement aldri. Det er ikke en detalj — en guard
+// etterpå («hvis total === 1, skjul») ville vært en tolkning av et svar
+// funksjonen ikke kan gi, og den ville dessuten skjult det legitime
+// tilfellet der feltet faktisk hadde nøyaktig én deltaker.
+//
+// Tom-tilstanden er en FØRSTEKLASSES TILSTAND fra dag én, ikke en feilsti:
+// den er normalen for genererte og importerte arkivquizer, som aldri har
+// hatt et felt (`sourceQuizId` er da null — se lib/archive-source-quiz.ts).
+//
+// ── 2. SPILLERENS EGEN ORIGINALE RAD MÅ UT AV FELTET ───────────────────────
+// Spilte hun fredagsquizen den uken, ligger hun allerede i feltet. Måles
+// arkivscoren mot et felt hun selv er med i, konkurrerer hun mot seg selv:
+// gjorde hun det bra den gangen, dytter hennes egen gamle rad henne ett hakk
+// ned nå. Raden trekkes derfor ut FØR rangeringen, ikke etter — ellers ville
+// plassene 1..N vært tildelt med henne i lista og hullet blitt stående.
+//
+// Bieffekt som er verdt å kjenne: `total` blir da nøyaktig det ORIGINALE
+// deltakertallet for en spiller som var med (N − 1 andre + henne selv = N),
+// og originalen + 1 for en som ikke var med — hun trer inn i feltet. Begge
+// er sanne utsagn om «slik ville du havnet». `selfWasInField` sier hvilket
+// av de to som gjelder, så visningen kan si det presist.
+//
+// Gjester kan ikke trekkes ut: en gjesterad har ingen `user_id`, og det
+// finnes ingen annen kobling til kontoen. Spilte hun originalen uinnlogget,
+// blir hun stående i feltet. Kjent og akseptert — alternativet (navnematching)
+// ville truffet feil personer.
+//
+// ── 3. ORG-MEDLEMMER MÅLES MOT DET INTERNE FELTET ─────────────────────────
+// Elkjøp betaler ikke for en offentlig toppliste. «8. plass av 57» sier en
+// Elkjøp-ansatt ingenting; «3. plass av 29» er noe man nevner ved
+// kaffemaskinen. Org har ingen egne quizer — de spiller de samme globale
+// fredagsquizene — så det interne feltet FINNES allerede for hver historisk
+// quiz, som delmengden av forsøkene som tilhører medlemmene.
+//
+// Formen er HENTET, ikke oppfunnet: `resolveOrgMembership` +
+// `.filter(user_id ∈ memberIds)` + `includeGuests: false` er nøyaktig
+// app/api/leaderboard/[id]/route.ts:214-224. Medlemskapet verifiseres i
+// ruten, av samme delte gate.
+//
+// ── BLOCKED-SETTET GJELDER KUN DET GLOBALE FELTET ─────────────────────────
+// Samme skille som leaderboard-ruten gjør: i org-modus er visningen intern og
+// medlemskapet verifisert — «det er nettopp dit de blokkerte hører hjemme».
+// Globalt filtreres de bort, ellers ville nevneren her ikke stemt med
+// tellepillen på den samme quizens offentlige resultatliste.
+//
+// ── HVA SOM ALDRI FORLATER FUNKSJONEN ─────────────────────────────────────
+// Kun tall: rank, feltstørrelse, scope. INGEN navn — hverken topp-3 eller
+// naboene over/under, som computePlacement ellers returnerer. Arkivet har
+// ingen toppliste, og en spøkelsesplassering er et privat tall til én
+// spiller. Utvid ikke returtypen med `above`/`below` uten å ta
+// blocked-/gjeste-spørsmålet på nytt.
+
+import { rankQuizAttempts, type RankableAttempt } from './ranking'
+import { computePlacement, type SnapshotEntry } from './ranking-snapshot'
+
+/** Feltraden slik `attempts`-oppslaget på ORIGINALQUIZEN leverer den. */
+export type ArchiveFieldRow = RankableAttempt & {
+  id: string
+  user_id: string | null
+  player_name: string
+  correct_answers: number
+  total_time_ms: number
+  correct_streak: number | null
+}
+
+export type ArchivePlacementOutcome =
+  | {
+      kind: 'plassering'
+      /** Plasseringen spilleren VILLE fått i det originale feltet. */
+      rank: number
+      /** Nevneren rank garantert ligger innenfor (feltet + spilleren selv). */
+      total: number
+      /** Det frosne feltet etter scoping, uten spillerens egen gamle rad. */
+      fieldSize: number
+      /** Spilte hun originalen? Da er `total` det originale deltakertallet. */
+      selfWasInField: boolean
+      scope: 'org' | 'global'
+    }
+  | { kind: 'ingen'; reason: 'ingen-kilde' | 'tomt-felt' | 'lagforsok' }
+
+export function decideArchivePlacement(input: {
+  /** `quizzes.source_quiz_id` på arkivkopien. NULL → aldri hatt et felt. */
+  sourceQuizId: string | null
+  /** Alle leverte solo-forsøk på ORIGINALQUIZEN. */
+  field: readonly ArchiveFieldRow[]
+  self: {
+    userId: string
+    correctAnswers: number
+    totalTimeMs: number
+    isTeam: boolean
+  }
+  /** Satt → org-scope (internt felt). null → globalt felt. */
+  orgMemberIds: readonly string[] | null
+  /** Globalt blokkerte brukere. Ignoreres med vilje i org-scope. */
+  blockedUserIds: ReadonlySet<string>
+}): ArchivePlacementOutcome {
+  // FELLE 1, del A: ingen kilde → ingen frosset felt. Genererte og delvise
+  // arkivquizer lander her, og det er normaltilstanden for dem.
+  if (input.sourceQuizId === null) return { kind: 'ingen', reason: 'ingen-kilde' }
+
+  // Feltet er solo-populasjonen (is_team=false). Et lagforsøk har ingen
+  // sammenlignbar målestokk — og å måle et lag mot enkeltspillere ville vært
+  // å finne på en konkurranse som aldri fantes.
+  if (input.self.isTeam) return { kind: 'ingen', reason: 'lagforsok' }
+
+  const scope: 'org' | 'global' = input.orgMemberIds ? 'org' : 'global'
+
+  // FELLE 3: org-medlemmer måles mot det interne feltet. Samme form som
+  // leaderboard-ruten — medlemsfilter på user_id, gjester faller ut.
+  // Globalt: blocked-settet ut, gjester beholdes (de er en del av feltet).
+  const memberSet = input.orgMemberIds ? new Set(input.orgMemberIds) : null
+  const scoped = memberSet
+    ? input.field.filter((r) => r.user_id !== null && memberSet.has(r.user_id))
+    : input.field.filter((r) => r.user_id === null || !input.blockedUserIds.has(r.user_id))
+
+  // FELLE 2: egen original rad UT — før rangeringen, ikke etter.
+  const selfWasInField = scoped.some((r) => r.user_id === input.self.userId)
+  const withoutSelf = scoped.filter((r) => r.user_id !== input.self.userId)
+
+  const ranked = rankQuizAttempts(withoutSelf, {
+    includeGuests: memberSet ? false : true,
+    requireSubmitted: true,
+  })
+
+  // FELLE 1, del B: guarden STÅR FØR kallet. Et tomt felt gir «nr. 1 av 1»
+  // hvis det slippes inn i computePlacement — les filhodet før du flytter
+  // denne linja ned.
+  if (ranked.length === 0) return { kind: 'ingen', reason: 'tomt-felt' }
+
+  const entries: SnapshotEntry[] = ranked.map((a) => ({
+    id: a.id,
+    user_id: a.user_id,
+    player_name: a.player_name,
+    rank: a.rank,
+    correct_answers: a.correct_answers,
+    total_time_ms: a.total_time_ms,
+    correct_streak: a.correct_streak ?? 0,
+  }))
+
+  const placement = computePlacement(entries, {
+    // Arkivforsøket er IKKE i det frosne feltet (det ligger på kopiens
+    // quiz-id), så self-grenen skal aldri treffe. `null` sier det eksplisitt
+    // i stedet for å hvile på at id-ene tilfeldigvis ikke kolliderer.
+    attemptId: null,
+    correct: input.self.correctAnswers,
+    time: input.self.totalTimeMs,
+    // false → `total = felt + 1`. Riktig og nødvendig: spilleren er beviselig
+    // ikke i feltet (raden hennes er nettopp trukket ut), og grenen er den
+    // eneste som garanterer rank <= total også når hun ville havnet sist.
+    playerInPool: false,
+    // Ingen projeksjon: både hennes tall og feltets gjelder hele quizen.
+    // (`answered`/`totalQuestions` utelatt — se computePlacement.)
+  })
+
+  return {
+    kind: 'plassering',
+    rank: placement.rank,
+    total: placement.total,
+    fieldSize: ranked.length,
+    selfWasInField,
+    scope,
+  }
+}
