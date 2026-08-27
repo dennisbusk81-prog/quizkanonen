@@ -34,6 +34,14 @@
 //       → begge aktiveringsfeil-testene røde (200 i stedet for 500)
 //   • fjern opprydnings-delete i spørsmåls-feil-grenen
 //       → rekkefølge-asserten i spørsmålsfeil-testen rød
+//
+// MUTASJONSBEVIS for `activate`-flagget (27. august 2026):
+//   • fjern `if (skalAktiveres)` (aktiver alltid)
+//       → «activate:false … INGEN aktivering» rød
+//   • snu defaulten (`activate === true ? true : false`)
+//       → «activate utelatt — Excel-importen aktiverer som før» rød
+//   • bytt `activate === false` mot `!activate`
+//       → «kun et eksplisitt false slår av» rød (null ville blitt til «skjul»)
 import { test, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -181,7 +189,7 @@ beforeEach(() => {
 test('suksess: 200 med quizId, og nøyaktig [quiz-insert, spørsmåls-insert, aktivering] i den rekkefølgen', async () => {
   const res = await kall()
   assert.equal(res.status, 200)
-  assert.deepEqual(await res.json(), { quizId: NEW_QUIZ })
+  assert.deepEqual(await res.json(), { quizId: NEW_QUIZ, activated: true })
 
   const w = skrivinger()
   assert.deepEqual(
@@ -343,4 +351,68 @@ test('tom spørsmålsliste: 400 og ingen skrivinger', async () => {
   const res = await kall({ questions: [] })
   assert.equal(res.status, 400)
   assert.deepEqual(state.ops, [])
+})
+
+// ── `activate: false` — kalleren tar over publiseringen (27. august 2026) ────
+//
+// Veiviseren (app/admin/quizzes/new/page.tsx) kaller ruten på TITTEL-BLUR, før
+// et eneste spørsmål er skrevet. Fikk den en aktiv quiz tilbake, sto en tom
+// quiz publisert gjennom hele byggeperioden. Den publiserer nå selv, som siste
+// steg i «Lagre og publiser».
+//
+// Merk hva som IKKE endres av flagget: opprettelsen var allerede inaktiv ([N-1]
+// over). Flagget styrer utelukkende om det SISTE steget kjører.
+
+test('activate:false — quizen står INAKTIV, og INGEN aktivering skjer', async () => {
+  const res = await kall({ activate: false })
+  assert.equal(res.status, 200)
+  assert.deepEqual(await res.json(), { quizId: NEW_QUIZ, activated: false })
+
+  // Spørsmålene skal fortsatt inn — det er bare publiseringen som utsettes.
+  assert.deepEqual(
+    skrivinger().map((o) => `${o.table}:${o.action}`),
+    ['quizzes:insert', 'questions:insert'],
+    'ingen quizzes:update skal forekomme når kalleren eier publiseringen'
+  )
+  assert.equal((skrivinger()[0].payload as Record<string, unknown>).is_active, false)
+  // Den harde asserten: «står inaktiv» er ikke at insertet skrev false, men at
+  // ingen senere skriving satte den til true.
+  assert.deepEqual(aktiveringer(), [])
+})
+
+test('activate utelatt — Excel-importen aktiverer som før (defaulten er true)', async () => {
+  // app/admin/quizzes/page.tsx sender kun { title, questions }. Snus defaulten,
+  // ville den kalleren stille begynt å lage skjulte quizer.
+  const res = await kall()
+  assert.equal(res.status, 200)
+  assert.equal((await res.json()).activated, true)
+  assert.equal(aktiveringer().length, 1, 'en utelatt activate skal aktivere')
+})
+
+test('activate:true eksplisitt — aktiverer', async () => {
+  const res = await kall({ activate: true })
+  assert.equal(res.status, 200)
+  assert.equal(aktiveringer().length, 1)
+})
+
+test('kun et eksplisitt false slår av — activate:null aktiverer', async () => {
+  // Vakten er `activate === false`, ikke `!activate`. Et slurvete falsy-uttrykk
+  // ville gjort null/0/'' til «ikke publiser», altså skjulte quizer fra en
+  // kaller som bare sendte noe rart.
+  const res = await kall({ activate: null })
+  assert.equal(res.status, 200)
+  assert.equal(aktiveringer().length, 1)
+})
+
+test('activate:false + feilet spørsmålsinnsetting: 500, og quizen ryddes likevel', async () => {
+  // Oppryddingen henger på spørsmålsfeilen, ikke på aktiveringssteget — den
+  // skal stå uendret når publiseringen er utsatt.
+  state.questionsInsertFails = true
+  const res = await kall({ activate: false })
+  assert.equal(res.status, 500)
+  assert.deepEqual(
+    skrivinger().map((o) => `${o.table}:${o.action}`),
+    ['quizzes:insert', 'questions:insert', 'quizzes:delete']
+  )
+  assert.deepEqual(aktiveringer(), [])
 })

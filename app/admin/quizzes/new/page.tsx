@@ -904,6 +904,11 @@ function QuizEditorInner() {
   const isTestRef        = useRef(false)
   const quizIdRef        = useRef<string | null>(null)
   const questionDbIdsRef = useRef<string[]>([])
+  // Satt av createQuiz: «denne økta opprettet raden INAKTIV, og skylder den en
+  // aktivering i handleFinish». Er den false, skal is_active ikke røres — da
+  // redigerer vi en quiz som fantes fra før, og en skjult quiz skal IKKE bli
+  // republisert av et lagringsklikk. Se «publiser SIST» over handleFinish.
+  const venterPaaPubliseringRef = useRef(false)
   const opensAtRef       = useRef(opensAt)
   const closesAtRef      = useRef(closesAt)
   const quizTypeRef      = useRef(quizType)
@@ -1044,6 +1049,13 @@ function QuizEditorInner() {
   }
 
   // Create quiz + placeholder questions in DB (called on title blur)
+  //
+  // ── OPPRETTES INAKTIV (27. august 2026) ───────────────────────────────────
+  // Denne kjører på tittel-blur, altså FØR admin har skrevet et eneste
+  // spørsmål. Fram til nå fikk den en AKTIV quiz tilbake, og da sto en tom
+  // quiz publisert gjennom hele byggeperioden — minutter til timer, hver uke.
+  // `activate: false` gjør at importruten hopper over aktiveringssteget sitt;
+  // publiseringen skjer i handleFinish i stedet.
   const createQuiz = useCallback(async (): Promise<string | null> => {
     const t = titleRef.current.trim()
     if (!t || quizIdRef.current) return quizIdRef.current
@@ -1059,6 +1071,8 @@ function QuizEditorInner() {
           closes_at: closesAtRef.current ? new Date(closesAtRef.current).toISOString() : undefined,
           quiz_type: quizTypeRef.current,
           is_test:   isTestRef.current,
+          // Se «OPPRETTES INAKTIV» over: veiviseren eier publiseringen selv.
+          activate:  false,
           questions: Array.from({ length: count }, () => ({
             question_text: '', option_a: '', option_b: '',
             option_c: null, option_d: null,
@@ -1076,6 +1090,9 @@ function QuizEditorInner() {
       const data = await res.json()
       setQuizId(data.quizId)
       quizIdRef.current = data.quizId
+      // Raden finnes nå, men er INAKTIV. Herfra og til handleFinish er det
+      // denne økta som skylder den en publisering.
+      venterPaaPubliseringRef.current = true
 
       // Fetch question IDs for subsequent individual patches.
       //
@@ -1915,6 +1932,19 @@ function QuizEditorInner() {
   }
 
   // Final: save everything and navigate to questions overview
+  // ── PUBLISER SIST (27. august 2026) ───────────────────────────────────────
+  // Knappen het «Lagre og publiser» lenge før den publiserte noe: quizen var
+  // allerede aktiv fra tittel-blur, og handleFinish rørte ikke is_active i det
+  // hele tatt. Nå opprettes raden inaktiv (se createQuiz), og aktiveringen
+  // skjer HER — etter at spørsmålene er lagret. Samme invariant som
+  // «aktiver sist» i importruten, bare strukket over hele byggeperioden.
+  //
+  // Rekkefølgen er ikke kosmetikk: aktiveres den før `Promise.all`-en under,
+  // er quizen synlig og spillbar i det vinduet lagringene pågår.
+  //
+  // KUN når denne økta opprettet raden. Redigerer vi en quiz som fantes fra
+  // før, skal is_active stå urørt — ellers ville et lagringsklikk republisert
+  // en quiz admin bevisst har skjult med «Skjul».
   const handleFinish = async () => {
     setFinishError(null)
     try {
@@ -1928,6 +1958,28 @@ function QuizEditorInner() {
       }
       // Save ALL questions in parallel — not just the active one.
       await Promise.all(questionsRef.current.map((_, i) => saveQuestion(i)))
+
+      if (venterPaaPubliseringRef.current) {
+        const res = await adminFetch(`/api/admin/quizzes/${qId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_active: true }),
+        })
+        // Feiler aktiveringen, står quizen igjen INAKTIV — og da skal admin få
+        // vite det her, ikke oppdage det på forsiden på fredag. Ingen
+        // router.push: en stille suksess ville sendt admin videre i troen på at
+        // quizen er publisert. Spørsmålene er lagret uansett, så «prøv igjen»
+        // er trygt, og «Publiser» i /admin/quizzes er den andre veien inn.
+        if (!res.ok) {
+          setFinishError(
+            'Spørsmålene er lagret, men quizen ble IKKE publisert — den står ' +
+            'fortsatt skjult. Prøv «Lagre og publiser» igjen, eller publiser ' +
+            'den fra listen over quizer.'
+          )
+          return
+        }
+        venterPaaPubliseringRef.current = false
+      }
+
       router.push('/admin')
     } catch {
       setFinishError('Noe gikk galt under lagring — prøv igjen')

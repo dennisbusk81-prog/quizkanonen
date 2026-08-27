@@ -34,14 +34,25 @@ type ImportQuestion = {
 // radene» er ikke en mulig tilstand.
 // Testdekket i lib/quiz-import-route.test.ts.
 //
-// MERK hva dette IKKE er: veiviseren (app/admin/quizzes/new/page.tsx) kaller
-// ruten på tittel-blur og får en aktiv quiz med TOMME placeholder-spørsmål som
-// står slik mens admin skriver. Det er uendret og bevisst. Vinduet som lukkes
-// her er det ATOMISKE — det som oppstår når en skriving feiler, ikke det
-// admin selv står i.
+// ── `activate: false` — kalleren tar over publiseringen (27. august 2026) ───
+// Veiviseren (app/admin/quizzes/new/page.tsx) kaller ruten på tittel-blur, før
+// admin har skrevet et eneste spørsmål. Fikk den en AKTIV quiz tilbake, sto en
+// tom quiz publisert gjennom hele byggeperioden — minutter til timer, hver uke.
+// Det er samme feilklasse som «aktiver sist» over, men med et vindu som er
+// størrelsesordener større, og det er admin selv som står i det.
+//
+// Veiviseren sender derfor `activate: false` og aktiverer i stedet SELV, som
+// siste steg i «Lagre og publiser». Da er dette den samme invarianten på et
+// større tidsspenn: raden er inaktiv til innholdet er inne.
+//
+// DEFAULTEN ER `true`, og det er med vilje: Excel-importen i
+// app/admin/quizzes/page.tsx sender ingenting og skal fortsette å få en ferdig
+// publisert quiz — den har jo alle spørsmålene med seg i samme kall.
+const ACTIVATE_BY_DEFAULT = true
 
-/** Verdien quizen ender på når importen er bekreftet. Skrives KUN i det siste
- *  steget; opprettelsen bruker alltid is_active=false. */
+/** Verdien quizen ender på når importen er bekreftet OG kalleren vil ha den
+ *  aktivert. Skrives KUN i det siste steget; opprettelsen bruker alltid
+ *  is_active=false. */
 const ACTIVE_AFTER_IMPORT = true
 
 // Batch-/kaskade-arbeid: flere eksterne kall, bulk-e-post eller tunge
@@ -52,14 +63,19 @@ export async function POST(request: NextRequest) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, questions, opens_at, closes_at, quiz_type, is_test }: {
+  const { title, questions, opens_at, closes_at, quiz_type, is_test, activate }: {
     title: string
     questions: ImportQuestion[]
     opens_at?: string
     closes_at?: string
     quiz_type?: string
     is_test?: boolean
+    activate?: boolean
   } = body
+
+  // Kun et eksplisitt `false` slår av aktiveringen. Utelatt felt, `undefined`
+  // og alt annet betyr «som før» — se ACTIVATE_BY_DEFAULT i filhodet.
+  const skalAktiveres = activate === false ? false : ACTIVATE_BY_DEFAULT
 
   if (!title || !questions?.length) {
     return NextResponse.json({ error: 'Mangler tittel eller spørsmål.' }, { status: 400 })
@@ -144,30 +160,35 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Skriving 3: aktiver — først nå blir quizen synlig/spillbar ────────────
-  const { error: activateError } = await supabaseAdmin
-    .from('quizzes')
-    .update({ is_active: ACTIVE_AFTER_IMPORT })
-    .eq('id', quiz.id)
+  // Hoppes HELT over når kalleren sa `activate: false`. Da eier kalleren
+  // publiseringen, og en inaktiv rad er ikke en halvferdig tilstand å rydde
+  // opp i — den er nøyaktig det som ble bestilt.
+  if (skalAktiveres) {
+    const { error: activateError } = await supabaseAdmin
+      .from('quizzes')
+      .update({ is_active: ACTIVE_AFTER_IMPORT })
+      .eq('id', quiz.id)
 
-  if (activateError) {
-    console.error('[quiz-import] aktivering feilet:', activateError.message)
-    // Rydd begge radsettene eksplisitt (antar ikke kaskade); feiler det, står
-    // quizen komplett men inaktiv — usynlig, og trygg å rydde manuelt.
-    const { error: cleanupQuestionsError } = await supabaseAdmin
-      .from('questions')
-      .delete()
-      .eq('quiz_id', quiz.id)
-    const { error: cleanupQuizError } = cleanupQuestionsError
-      ? { error: cleanupQuestionsError }
-      : await supabaseAdmin.from('quizzes').delete().eq('id', quiz.id)
-    if (cleanupQuizError) {
-      console.error(
-        `[quiz-import] opprydding etter aktiveringsfeil — INAKTIV quiz ${quiz.id} står igjen:`,
-        cleanupQuizError.message
-      )
+    if (activateError) {
+      console.error('[quiz-import] aktivering feilet:', activateError.message)
+      // Rydd begge radsettene eksplisitt (antar ikke kaskade); feiler det, står
+      // quizen komplett men inaktiv — usynlig, og trygg å rydde manuelt.
+      const { error: cleanupQuestionsError } = await supabaseAdmin
+        .from('questions')
+        .delete()
+        .eq('quiz_id', quiz.id)
+      const { error: cleanupQuizError } = cleanupQuestionsError
+        ? { error: cleanupQuestionsError }
+        : await supabaseAdmin.from('quizzes').delete().eq('id', quiz.id)
+      if (cleanupQuizError) {
+        console.error(
+          `[quiz-import] opprydding etter aktiveringsfeil — INAKTIV quiz ${quiz.id} står igjen:`,
+          cleanupQuizError.message
+        )
+      }
+      return NextResponse.json({ error: activateError.message }, { status: 500 })
     }
-    return NextResponse.json({ error: activateError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ quizId: quiz.id })
+  return NextResponse.json({ quizId: quiz.id, activated: skalAktiveres })
 }
