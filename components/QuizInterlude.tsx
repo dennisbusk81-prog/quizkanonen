@@ -62,6 +62,12 @@ interface QuizInterludeProps {
   // /api/quiz/live-ranking — et andre kall mot nøyaktig samme snapshot, per
   // spørsmål, per premium-spiller.
   liveRanking?: LiveRanking
+  // Arkivquiz ([ARK-1] steg 1C): mellomskjermen skal være HELT stille om
+  // plassering — intet spenn, ingen antydning, heller ikke venteteksten
+  // «plasseringen din kommer …» (et løfte som aldri innfris; kallene gjøres
+  // ikke). page.tsx dropper rangeringskallene under samme flagg; dette
+  // demper flatene som ellers ville lovet noe.
+  hidePlacement?: boolean
   onNext: () => void
 }
 
@@ -115,6 +121,7 @@ export default function QuizInterlude({
   rankingSnapshot,
   isLoggedIn,
   liveRanking,
+  hidePlacement,
   onNext,
 }: QuizInterludeProps) {
   // PERSENTIL FJERNET 2. august 2026 (siste flate i samme opprydding som
@@ -145,7 +152,9 @@ export default function QuizInterlude({
   // samme tall skal ikke stå to steder på samme skjerm. Gjelder kun
   // innloggede (gjester har ikke blokken) og kun når det finnes en score å
   // vise (answeredSoFar >= 1; 0-tilstanden er urekkelig i dag, men defensiv).
-  const subThresholdScoreShown = !!isLoggedIn && !placementReady && answeredSoFar >= 1
+  // hidePlacement slår av hele under-terskel-blokken (den bærer ventetekst om
+  // plassering); scoren vises da av score-linja nederst i stedet.
+  const subThresholdScoreShown = !!isLoggedIn && !placementReady && answeredSoFar >= 1 && !hidePlacement
 
   // Score-linja nederst vises når det ikke finnes et rangeringsspenn å vise i
   // stedet, og tar da med «· N på rad» fra og med streak 2. Begge uttrykkene
@@ -308,7 +317,7 @@ export default function QuizInterlude({
             urekkelig i dag (mellomskjermen rendres kun etter et registrert
             svar), men defensiv: en framtidig flytendring skal ikke kunne
             rendre «0 av 0» eller en løgn om timing. */}
-        {isLoggedIn && !placementReady && (
+        {isLoggedIn && !placementReady && !hidePlacement && (
           <div className="qk-il-block" style={{ marginBottom: 18 }}>
             {answeredSoFar >= 1 && (
               <>

@@ -1,5 +1,5 @@
 ﻿'use client'
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { useParams } from 'next/navigation'
 import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
@@ -25,6 +25,14 @@ import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
+import { ARCHIVE_PLAY_PREMIUM_ERROR } from '@/lib/archive-play-gate'
+import {
+  parseArchivePlacementResponse,
+  archivePlacementText,
+  ARCHIVE_NO_FIELD_TEXT,
+  ARCHIVE_PLACEMENT_ERROR_TEXT,
+  type ArchivePlacementView,
+} from '@/lib/archive-result-view'
 // Traktmåling. `spor` er den eneste inngangen til track(); den kan ikke kaste,
 // returnerer void (så den kan ikke await-es foran noe spilleren venter på), og
 // sender ingenting for testquizer. Se lib/analytics.ts.
@@ -1028,6 +1036,21 @@ export default function QuizPage() {
     orgsLoaded: myOrgsLoaded,
     orgs: myOrgs,
   })
+  // ── Arkivquiz ([ARK-1] steg 1C, 27. august 2026) ──────────────────────────
+  // quiz_type er allerede i raden (select('*') i fetchData). En arkivkopi
+  // spilles som en vanlig quiz, men ALLE ukesrangeringsflater er stille for
+  // den: mellomskjermen sier ingenting om plassering (avgjort 27. august —
+  // delscore mot delscore er umulig, de andres fremdrift ble aldri skrevet),
+  // og resultatskjermen viser spøkelsesplasseringen mot det FROSNE feltet
+  // (GET /api/arkiv/[id]/plassering) i stedet for standings på kopien —
+  // standings/leaderboard på kopiens egen id ville vist «nr. 1 av 1».
+  const isArchive = quiz?.quiz_type === 'archive'
+  // Spøkelsesplasseringen — «slik ville du havnet den uken». 'venter' til
+  // svaret er inne; 'feil' er «vet ikke» og vises aldri som «ingen
+  // plassering» (lib/archive-result-view.ts eier tolkningen).
+  const [arkivPlassering, setArkivPlassering] = useState<ArchivePlacementView | { kind: 'venter' }>({ kind: 'venter' })
+  // Bumpes av «Prøv igjen» på feil-tilstanden — re-trigger henteeffekten.
+  const [arkivPlasseringForsok, setArkivPlasseringForsok] = useState(0)
   const [shareResultCopied, setShareResultCopied] = useState(false)
   const [challengeResultCopied, setChallengeResultCopied] = useState(false)
   const [cardShareState, setCardShareState] = useState<'idle' | 'loading' | 'done'>('idle')
@@ -1237,6 +1260,10 @@ export default function QuizPage() {
   const internalPlacementFetchedFor = useRef<string | null>(null)
   useEffect(() => {
     if (phase !== 'finished') return
+    // Arkiv: kallet ville truffet KOPIENS leaderboard — et felt med kun denne
+    // spilleren — og vist «1. plass av 1». Spøkelsesplasseringen (egen effekt
+    // under) er arkivets eneste rangeringsflate.
+    if (isArchive) return
     if (placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'both') return
     const orgSlug = placementDisplay.org.orgSlug
     if (internalPlacementFetchedFor.current === orgSlug) return
@@ -1263,7 +1290,47 @@ export default function QuizPage() {
         }
       } catch { /* intern plassering er et tillegg — resultatskjermen skal ikke feile på den */ }
     })()
-  }, [phase, placementDisplay, quizId])
+  }, [phase, placementDisplay, quizId, isArchive])
+
+  // ── Spøkelsesplasseringen — «slik ville du havnet den uken» ───────────────
+  // Hentes når resultatskjermen vises på en arkivkopi. ?org= leses fra
+  // SIDENS URL (husets form fra /leaderboard/[id]: org-scope kommer fra
+  // query-parameteren, båret hele veien fra /arkiv?org= → /quiz/<id>?org=).
+  // Uten den måles en Elkjøp-ansatt mot det globale feltet. Lest via
+  // window.location, ikke useSearchParams — slipper en Suspense-grense
+  // (samme grep som /admin/login).
+  // Ref-vakt mot dobbelthenting (StrictMode) — forsøkstelleren i nøkkelen er
+  // det som slipper «Prøv igjen» forbi vakten.
+  const arkivPlasseringHentetFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (phase !== 'finished' || !isArchive || !attemptId) return
+    const nokkel = `${attemptId}:${arkivPlasseringForsok}`
+    if (arkivPlasseringHentetFor.current === nokkel) return
+    arkivPlasseringHentetFor.current = nokkel
+    ;(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          // Uten sesjon finnes ikke noe svar å hente — «vet ikke», aldri
+          // «ingen plassering finnes».
+          setArkivPlassering({ kind: 'feil' })
+          return
+        }
+        const org = new URLSearchParams(window.location.search).get('org')?.trim()
+        const params = new URLSearchParams({ attempt: attemptId })
+        if (org) params.set('org', org)
+        const res = await fetch(`/api/arkiv/${quizId}/plassering?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        const json: unknown = await res.json().catch(() => null)
+        // Tolkningen — inkludert kollapsen av de tre «ingen plassering»-
+        // grunnene til ÉN visning — bor i lib/archive-result-view.ts.
+        setArkivPlassering(parseArchivePlacementResponse(res.status, json))
+      } catch {
+        setArkivPlassering({ kind: 'feil' })
+      }
+    })()
+  }, [phase, isArchive, attemptId, quizId, arkivPlasseringForsok])
 
   useEffect(() => {
     async function fetchData() {
@@ -1317,15 +1384,19 @@ export default function QuizPage() {
         // stopper opp på klienten ville låst hele siden på lasteskjermen. Topp-3
         // er pynt her — ved timeout viser vi resten av skjermen uten den, i
         // stedet for ikke å vise noe i det hele tatt.
-        const t3Controller = new AbortController()
-        const t3json = await withTimeoutOrNull(
-          (async () => {
-            const t3res = await fetch(`/api/quiz/${quizId}/standings`, { signal: t3Controller.signal })
-            return t3res.ok ? (await t3res.json()) as { top3?: typeof top3 } : null
-          })(),
-          { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
-        )
-        if (t3json && Array.isArray(t3json.top3)) setTop3(t3json.top3)
+        // Arkiv: standings på KOPIENS id er et felt med kun denne spilleren —
+        // en «Topp 3» med henne alene. Kallet droppes helt.
+        if (quizData?.quiz_type !== 'archive') {
+          const t3Controller = new AbortController()
+          const t3json = await withTimeoutOrNull(
+            (async () => {
+              const t3res = await fetch(`/api/quiz/${quizId}/standings`, { signal: t3Controller.signal })
+              return t3res.ok ? (await t3res.json()) as { top3?: typeof top3 } : null
+            })(),
+            { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
+          )
+          if (t3json && Array.isArray(t3json.top3)) setTop3(t3json.top3)
+        }
         setLoading(false)
         return
       }
@@ -1448,7 +1519,8 @@ export default function QuizPage() {
     // Topp 3: på 'finished' hentes den sammen med plasseringen i finishQuiz
     // (samme /standings-liste, samme øyeblikk — kan ikke divergere). Her henter
     // vi kun for 'already_played', der plasseringskortet ikke vises.
-    if (phase === 'already_played') {
+    // Arkiv: standings på kopiens id = spilleren alene — se fetchData-grenen.
+    if (phase === 'already_played' && !isArchive) {
       // Ingen fryserisiko her (ingenting venter på dette kallet), men det får
       // samme grense som de øvrige standings-kallene — et hengende kall skal
       // ikke bli liggende og lande midt i en senere fase.
@@ -1459,7 +1531,7 @@ export default function QuizPage() {
         { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
       ).then(j => { if (j && Array.isArray(j.top3)) setTop3(j.top3) })
     }
-  }, [phase, quizId])
+  }, [phase, quizId, isArchive])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -1689,7 +1761,9 @@ export default function QuizPage() {
     timeSoFar: number,
     answeredSoFar: number
   ) => {
-    if (!quiz?.show_live_placement) return
+    // Arkiv: ingen plassering under spilling i det hele tatt (27. august 2026)
+    // — kallet ville dessuten målt mot kopiens tomme felt.
+    if (!quiz?.show_live_placement || quiz.quiz_type === 'archive') return
     if (answeredSoFar < MIN_ANSWERED_FOR_PLACEMENT) { setLiveRank(null); return }
     try {
       const res = await fetch(
@@ -1992,18 +2066,23 @@ export default function QuizPage() {
       }
 
       // Parallel: fetch rival data (non-blocking)
+      // Arkiv: droppes — rival/snapshot/duellforslag utledes av forsøkene på
+      // DENNE quiz-id-en, og kopien har ingen andre spillere. Uten data holder
+      // render-vilkårene (rivalData/suggestions) flatene skjult av seg selv.
       const accessToken = session?.access_token
       if (accessToken) {
-        fetch(`/api/quiz/rival?quizId=${quizId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        })
-          .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null, suggestions: [] })
-          .then(j => {
-            if (j.rival) setRivalData(j.rival)
-            if (j.rankingSnapshot) setRankingSnapshot(j.rankingSnapshot)
-            if (Array.isArray(j.suggestions)) setDuelSuggestions(j.suggestions)
+        if (quiz?.quiz_type !== 'archive') {
+          fetch(`/api/quiz/rival?quizId=${quizId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
           })
-          .catch(() => {})
+            .then(r => r.ok ? r.json() : { rival: null, rankingSnapshot: null, suggestions: [] })
+            .then(j => {
+              if (j.rival) setRivalData(j.rival)
+              if (j.rankingSnapshot) setRankingSnapshot(j.rankingSnapshot)
+              if (Array.isArray(j.suggestions)) setDuelSuggestions(j.suggestions)
+            })
+            .catch(() => {})
+        }
 
         // Bevisst resjekk ved quiz-start — founders kan ha aktivert etter at
         // quiz-siden mountet. Rutes gjennom context sin refreshProfile()
@@ -2295,13 +2374,18 @@ export default function QuizPage() {
     // Rangeringen er allerede «ikke kritisk» ved feil (begge helperne fanger og
     // returnerer null). En timeout behandles likt: mellomskjermen vises uten
     // plassering i stedet for ikke å vises i det hele tatt.
-    const premiumRankingPromise = isLoggedIn && isPremium && placementReady
+    // Arkiv: BEGGE rangeringskallene droppes (27. august 2026) — mellomskjermen
+    // er stille om plassering. Delscore mot delscore er umulig: de andres
+    // fremdrift ble aldri skrevet, og kopiens eget felt er tomt. `!isArchive`
+    // må stå i BEGGE vilkårene — gates bare det ene, faller premium-spilleren
+    // stille ned i spenn-stien i stedet for til stillhet.
+    const premiumRankingPromise = isLoggedIn && isPremium && placementReady && !isArchive
       ? withTimeoutOrNull(
           fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
           { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
         )
       : null
-    const spanRankingPromise = !isPremium && isLoggedIn && placementReady
+    const spanRankingPromise = !isPremium && isLoggedIn && placementReady && !isArchive
       ? withTimeoutOrNull(
           fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
           { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
@@ -2641,7 +2725,12 @@ export default function QuizPage() {
       // uten plassering i stedet for ikke i det hele tatt, samme degradering som
       // rangeringskallene i goToNext har.
       const extrasController = new AbortController()
-      await withTimeoutOrNull(
+      // Arkiv: hele pynte-blokken (topp-3 + estimert plassering) hoppes over.
+      // Både standings og leaderboard-fallbacken leser KOPIENS felt — kun
+      // denne spilleren — og ville satt «nr. 1 av 1». Arkivets plassering
+      // hentes i stedet fra det frosne feltet av spøkelsesplassering-effekten
+      // når resultatskjermen står.
+      if (quiz?.quiz_type !== 'archive') await withTimeoutOrNull(
         (async () => {
           // finishSess brukes også av fallback-leaderboard-fetchen lenger nede.
           const { data: { session: finishSess } } = await supabase.auth.getSession()
@@ -3044,6 +3133,12 @@ export default function QuizPage() {
             {quiz!.opens_at ? formatQuizDate(new Date(quiz!.opens_at)) : 'snart'}.
             {' '}Logg inn nå, så er du klar når den åpner, og poengene dine
             teller i sesongen.</>
+          ) : isArchive ? (
+            // Arkivkopi delt som rå lenke: standardteksten lover toppliste og
+            // sesongpoeng — begge usanne for en treningsrunde, og spilling
+            // krever dessuten Premium (start-attempt-gaten).
+            <>Dette er en treningsrunde fra arkivet — resultatet teller ikke i
+            sesongen, og spilling krever Premium. Logg inn for å fortsette.</>
           ) : (
             <>Logg inn for å spille. Da lagres resultatet ditt, du kommer på
             topplisten, og poengene teller i sesongen.</>
@@ -3096,7 +3191,9 @@ export default function QuizPage() {
           ? 'Logg inn, så er du klar når neste quiz åpner. Resultatene lagres på deg, og poengene teller i sesongen.'
           : notYetOpen
             ? 'Logg inn, så er du klar når quizen åpner. Resultatene lagres på deg, og poengene teller i sesongen.'
-            : 'Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen.'
+            : isArchive
+              ? 'Logg inn for å fortsette. Treningsrunder fra arkivet krever Premium og teller ikke i sesongen.'
+              : 'Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen.'
       }
     />
     </>
@@ -3133,8 +3230,12 @@ export default function QuizPage() {
         </span>
         <p className="qk-eyebrow" style={{textAlign:'center'}}>Allerede fullført</p>
         <h1 className="qk-heading" style={{textAlign:'center',marginBottom:8}}>Du har spilt denne quizen</h1>
-        <p className="qk-sub" style={{textAlign:'center'}}>Én gjennomspilling per quiz.</p>
-        <div style={{
+        <p className="qk-sub" style={{textAlign:'center'}}>
+          {/* Arkiv: veien videre er en NY runde fra arkivet, ikke fredagens
+              neste quiz — gullboksen under byttes med Til arkivet-knappen. */}
+          {isArchive ? 'Denne treningsrunden er ferdigspilt — start en ny fra arkivet.' : 'Én gjennomspilling per quiz.'}
+        </p>
+        {!isArchive && <div style={{
           margin:'16px 0 0',
           padding:'12px 16px',
           background:'rgba(201,168,76,0.08)',
@@ -3144,7 +3245,7 @@ export default function QuizPage() {
           color:'var(--gold)',
         }}>
           Neste quiz: <strong>{nextDateStr}</strong>
-        </div>
+        </div>}
         {top3.length > 0 && (
           <div style={{ marginTop: 20, textAlign: 'left' }}>
             <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10 }}>
@@ -3191,7 +3292,11 @@ export default function QuizPage() {
         )}
         <div className="qk-divider"/>
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {quiz.show_leaderboard && (
+          {/* Arkiv: kopiens leaderboard er spilleren alene — lenken byttes med
+              utgangen til arkivet (skjermens ene gull-element begge veier). */}
+          {isArchive ? (
+            <a href="/arkiv" className="qk-btn-primary">Til arkivet</a>
+          ) : quiz.show_leaderboard && (
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se ukens resultater</a>
           )}
           {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
@@ -3285,6 +3390,15 @@ export default function QuizPage() {
       <h1 className="qk-heading">{quiz.title}</h1>
       {quiz.category && (
         <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#918f8a', marginBottom: 16 }}>{quiz.category}</p>
+      )}
+      {/* «Trening»-markøren — samme pilleform som arkivradene på /historikk
+          (treningPill, 15af651). Raden sier hva denne runden er og ikke er,
+          FØR spilleren starter — resultatskjermen gjentar det ikke. */}
+      {isArchive && (
+        <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 12, color: '#918f8a', lineHeight: 1.5 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20, flexShrink: 0, whiteSpace: 'nowrap' }}>Trening</span>
+          Fra arkivet — resultatet teller ikke i sesongen.
+        </p>
       )}
       {/* Navne-FELTET er fjernet (24. august 2026). Det var siste rest av
           gjeste-veien: en uinnlogget kunne skrive hva som helst her, og
@@ -3428,6 +3542,16 @@ export default function QuizPage() {
       {startError && (
         <p style={{ textAlign: 'center', fontSize: 13, color: '#e8e4dd', marginTop: 12, lineHeight: 1.5 }}>
           {startError}
+          {/* Arkivets premium-avslag fra start-attempt — delt kontrakt med
+              lib/archive-play-gate.ts (samme mønster som QUIZ_CLOSED_ERROR):
+              den ene 403-en der veien videre faktisk finnes, får en lenke dit.
+              Andre feiltekster (503 «vet ikke», nettverk) står som de er. */}
+          {isArchive && startError === ARCHIVE_PLAY_PREMIUM_ERROR && (
+            <>
+              {' '}
+              <a href="/premium" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Les om Premium</a>
+            </>
+          )}
         </p>
       )}
       {!resumeData && (
@@ -3436,7 +3560,10 @@ export default function QuizPage() {
         </p>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+      {/* Arkiv: lenken peker på DENNE spillerens kopi — en venn som følger den
+          møter premium-porten eller spiller et løp uten felles felt. Inngangen
+          til arkivspill er /arkiv, ikke delte kopi-lenker. */}
+      {!isArchive && <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
         <button onClick={() => {
           navigator.clipboard.writeText(window.location.href).then(() => {
             setLinkCopied(true)
@@ -3449,7 +3576,7 @@ export default function QuizPage() {
         }}>
           {linkCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
         </button>
-      </div>
+      </div>}
 
       {/* Tidsgrensen leses fra SPØRSMÅLENE (via social-proof-ruten), ikke fra
           quiz-raden: `getTimeLimit` lar spørsmål-nivået vinne, og de to
@@ -3658,6 +3785,7 @@ export default function QuizPage() {
             rankingSnapshot={rankingSnapshot ?? undefined}
             isLoggedIn={isLoggedIn}
             liveRanking={interLiveRanking ?? undefined}
+            hidePlacement={isArchive}
             onNext={handleInterludeNext}
           />
         </ErrorBoundary>
@@ -3820,9 +3948,13 @@ export default function QuizPage() {
         </div>
       </div>
 
-      {/* Høyre panel — Akkurat nå (kun desktop 1100px+) */}
+      {/* Høyre panel — Akkurat nå (kun desktop 1100px+).
+          Arkiv: hele kortet skjules — både leder-blokken og plass-kolonnen er
+          feltinformasjon, og «Svar på minst 3 …»-venteteksten er et løfte som
+          aldri innfris (rangeringskallene gjøres ikke). Ytterdiven består, som
+          i venstre panel uten rival, så grid-kolonnene ikke flytter seg. */}
       <div className="qk-side">
-        <div className="qk-side-card">
+        {!isArchive && <div className="qk-side-card">
           <p className="qk-side-label">Akkurat nå</p>
           {/* totalPlayers > 0: serveren teller nå kun LEVERTE forsøk (rival-
               rutens buildRankingSnapshot), så 0 betyr «ingen har levert» —
@@ -3873,7 +4005,7 @@ export default function QuizPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
 
       </div>{/* end qk-game-wrap */}</>
@@ -3927,7 +4059,13 @@ export default function QuizPage() {
       <h1 className="qk-heading" style={{textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
         {playerInfo.name.length > 20 ? playerInfo.name.slice(0, 20) + '…' : playerInfo.name}
       </h1>
-      <p className="qk-rsec" style={{fontSize:13,color:'#e8e4dd',marginBottom:24}}>{quiz.title}</p>
+      <p className="qk-rsec" style={{fontSize:13,color:'#e8e4dd',marginBottom:24, display:'flex', alignItems:'center', justifyContent:'center', gap:8, flexWrap:'wrap'}}>
+        {quiz.title}
+        {/* Samme pilleform som arkivradene på /historikk (treningPill). */}
+        {isArchive && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20, flexShrink: 0, whiteSpace: 'nowrap' }}>Trening</span>
+        )}
+      </p>
 
       {/* B-10: hun ble avbrutt av stengetid og hoppet rett hit fra midt i
           quizen — uten denne linja ser resultatskjermen ut som en feil.
@@ -3991,6 +4129,88 @@ export default function QuizPage() {
               })}
             </div>
           </div>
+        )
+      })()}
+
+      {/* ── Spøkelsesplasseringen — «slik ville du havnet den uken» ──────────
+          Arkivets ENESTE rangeringsflate, målt mot det FROSNE feltet fra
+          originalquizen (GET /api/arkiv/[id]/plassering — effekten lenger
+          oppe). Tre tilstander utover tallet, og de er ULIKE med vilje:
+            'ingen' — førsteklasses tilstand, normalen for genererte quizer
+                      («ingen plassering finnes», én tekst for alle grunnene)
+            'feil'  — «vet ikke», med Prøv igjen — aldri forkledd som 'ingen'
+          Tallet er HVITT, ikke gull — score-heroen over eier ikke gull, men
+          støtte-stats-raden gjør (samme regel som Rekorder-kortet på
+          /historikk: tall i hvitt når skjermen alt har gull). */}
+      {isArchive && (() => {
+        const kort = (innhold: ReactNode) => (
+          <div className="qk-rsec" style={{
+            background: '#21242e',
+            border: '0.5px solid #2a2d38',
+            borderRadius: 16,
+            padding: '20px 16px',
+            textAlign: 'center',
+            marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 10, color: '#918f8a', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 8 }}>
+              Slik ville du havnet den uken
+            </div>
+            {innhold}
+          </div>
+        )
+        if (arkivPlassering.kind === 'venter') {
+          return kort(
+            <div style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.5 }}>
+              Henter det historiske feltet …
+            </div>
+          )
+        }
+        if (arkivPlassering.kind === 'ingen') {
+          return kort(
+            <div style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6 }}>
+              {ARCHIVE_NO_FIELD_TEXT}
+            </div>
+          )
+        }
+        if (arkivPlassering.kind === 'feil') {
+          return kort(
+            <div style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6 }}>
+              {ARCHIVE_PLACEMENT_ERROR_TEXT}{' '}
+              <button
+                onClick={() => {
+                  setArkivPlassering({ kind: 'venter' })
+                  setArkivPlasseringForsok(n => n + 1)
+                }}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  font: 'inherit', color: '#e8e4dd', textDecoration: 'underline',
+                }}
+              >
+                Prøv igjen
+              </button>
+            </div>
+          )
+        }
+        // Org-navnet til scope-merkingen: sluggen står i sidens URL (?org=,
+        // båret fra /arkiv), navnet hentes fra samme delte context som resten
+        // av org-flatene. Mangler navnet, sier teksten «bedriften din».
+        const orgSlugFraUrl = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('org')?.trim() ?? null
+          : null
+        const orgNavn = myOrgs.find(o => o.orgSlug === orgSlugFraUrl)?.orgName ?? null
+        const tekst = archivePlacementText(arkivPlassering, orgNavn)
+        return kort(
+          <>
+            <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 34, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+              {arkivPlassering.rank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
+            </div>
+            <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
+              {tekst.kontekst}
+            </div>
+            <div style={{ fontSize: 12, color: '#918f8a', lineHeight: 1.6, marginTop: 8 }}>
+              {tekst.forklaring}
+            </div>
+          </>
         )
       })()}
 
@@ -4129,7 +4349,10 @@ export default function QuizPage() {
           en betingelse her — teksten skal aldri kunne påstå feil årsak.
           Diskret hint-farge, ingen gull: dette er en forklaring, ikke en
           handling, og skjermen har allerede sin ene gule flate. ── */}
-      {placementDisplay.mode === 'internal-only' && (() => {
+      {/* !isArchive på begge blokkene under: forklaringen og retry-knappen
+          handler om fredagens åpne toppliste — arkivet HAR ingen toppliste,
+          og spøkelsesplasseringskortet over er arkivets hele rangeringsflate. */}
+      {!isArchive && placementDisplay.mode === 'internal-only' && (() => {
         const org = placementDisplay.org
         const grunn = globalExclusionReason(org)
         // De to grenene skal IKKE se like ut, og det er ikke en inkonsekvens.
@@ -4167,7 +4390,7 @@ export default function QuizPage() {
           spillerens egen plassering for resten av økta — se
           shouldOfferPlacementRetry i lib/placement-visibility.ts. Dempet og
           uten gull: skjermen har allerede sin ene gule flate. ── */}
-      {(() => {
+      {!isArchive && (() => {
         // describeRetry gir mellomtilstanden et navn. Uten den forsvant HELE
         // dette avsnittet i klikkøyeblikket (19. august 2026) — se
         // lib/retry-affordance.ts.
@@ -4594,7 +4817,13 @@ export default function QuizPage() {
           </div>
         )}
 
-        {quiz.show_leaderboard && (
+        {/* Arkiv: kopiens toppliste er spilleren alene — utgangen er arkivet,
+            i samme gull-primærposisjon som «Se topplisten» ellers har. */}
+        {isArchive ? (
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <a href="/arkiv" className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Til arkivet</a>
+          </div>
+        ) : quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se topplisten</a>
           </div>
