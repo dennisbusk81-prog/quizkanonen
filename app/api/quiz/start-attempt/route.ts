@@ -5,6 +5,8 @@ import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
 import { decidePremiumFromProfile, PREMIUM_PROFILE_COLUMNS, type PremiumProfileRow } from '@/lib/premium-check'
+import { decideArchivePlayGate } from '@/lib/archive-play-gate'
+import type { Loaded } from '@/lib/fetch-result'
 import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
   // quiz). Kolonnene kommer fra PREMIUM_PROFILE_COLUMNS, og avgjørelsen fra
   // decidePremiumFromProfile — samme grace-regler som getUserPremium, ikke en
   // ny kopi.
-  let callerIsPremium = false
+  let callerPremium: Loaded<boolean> = { ok: true, value: false }
   if (userId) {
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -158,28 +160,48 @@ export async function POST(request: NextRequest) {
     if (profile?.suspended_until && new Date(profile.suspended_until) > new Date()) {
       return NextResponse.json({ error: 'Kontoen er suspendert', suspended: true }, { status: 403 })
     }
-    // «Vet ikke» blir her til «ikke premium» — et BEVISST valg, ikke en
-    // forglemmelse, og det eneste stedet i kodebasen der den retningen er
-    // riktig. Alternativet er å nekte quiz-start på en lesefeil, og det ville
-    // gjort en visningsdetalj til en sperre foran hele produktet. Prisen er at
-    // en Premium-spiller ser spennet i stedet for eksakt plass i den ene
-    // quizen — de spiller videre, og en sidelast henter nytt token. Logges
-    // fordi et stille tap av en betalt funksjon ellers ikke etterlater spor.
     if (profileError) {
       console.error('[start-attempt] kunne ikke lese premium for token-kravet:', profileError.message)
     }
-    callerIsPremium = decidePremiumFromProfile(profile ?? null, new Date())
+    // En lesefeil bæres VIDERE som «vet ikke» (Loaded) i stedet for å
+    // kollapses til false her: arkivgaten under må kunne skille lesefeil
+    // (503) fra gratisbruker (403). Se lib/archive-play-gate.ts.
+    callerPremium = profileError
+      ? { ok: false }
+      : { ok: true, value: decidePremiumFromProfile(profile ?? null, new Date()) }
   }
+  // For TOKEN-KRAVET blir «vet ikke» fortsatt til «ikke premium» — et BEVISST
+  // valg, ikke en forglemmelse, og det eneste stedet i kodebasen der den
+  // retningen er riktig: dette er et VISNINGSKRAV. Alternativet er å nekte
+  // quiz-start på en lesefeil, og det ville gjort en visningsdetalj til en
+  // sperre foran hele produktet. Prisen er at en Premium-spiller ser spennet
+  // i stedet for eksakt plass i den ene quizen — de spiller videre, og en
+  // sidelast henter nytt token. Loggen over finnes fordi et stille tap av en
+  // betalt funksjon ellers ikke etterlater spor. Arkivgaten under har den
+  // MOTSATTE retningen, med begrunnelsen i lib/archive-play-gate.ts.
+  const callerIsPremium = callerPremium.ok && callerPremium.value
 
   // ── Quizen må finnes og være åpen ─────────────────────────────────────────────
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
-    .select('id, opens_at, closes_at')
+    .select('id, opens_at, closes_at, quiz_type')
     .eq('id', quizId)
     .maybeSingle()
 
   if (!quiz) {
     return NextResponse.json({ error: 'Quizen finnes ikke' }, { status: 404 })
+  }
+
+  // ── Arkiv-gate: porten til en betalt SKRIVEFLATE (27. august 2026) ──────────
+  // Kalles UBETINGET — «gjelder kun arkivquizer» er gatens egen første linje,
+  // ikke et hvis-ledd her som kan flyttes. For arkivquizer er retningen
+  // «vet ikke → 503», bevisst MOTSATT av token-kravet over; fredagsquizen er
+  // per konstruksjon upåvirket. Full begrunnelse i lib/archive-play-gate.ts.
+  // Står FØR tidsvinduet og replay-/gjenbrukslogikken: en avvist bruker skal
+  // ikke koste flere oppslag, og ingen attempt-rad skal kunne skrives.
+  const archiveGate = decideArchivePlayGate(quiz.quiz_type, callerPremium)
+  if (!archiveGate.allowed) {
+    return NextResponse.json({ error: archiveGate.error }, { status: archiveGate.status })
   }
 
   const now = Date.now()
