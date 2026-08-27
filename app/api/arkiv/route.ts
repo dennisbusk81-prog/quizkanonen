@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getUserPremium } from '@/lib/premium-check'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
+import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import {
   buildArchiveCopy,
   type ArchiveSourceQuestion,
@@ -286,4 +288,112 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ quizId: createdQuiz.id }, { status: 201 })
+}
+
+// ── GET /api/arkiv — listen over quizer som kan spilles på nytt ─────────────
+//
+// UGATET MED VILJE (Dennis-beslutning 27. august): gratisbrukere SKAL se at
+// arkivet finnes — ikke skjult, ikke smakebit. Konvertering er primærmålet
+// med funksjonen. Gaten sitter på SKRIVEFLATENE: POST over (opprettelse) og
+// spill-porten (start-attempt). Listen avslører kun titler, stengetider og
+// spørsmåls-ID-ER — aldri innhold eller fasit (spørsmålsdata krever
+// attempt-token, og et attempt på en arkivkopi krever Premium).
+// Ingen rate-limit — samme linje som /api/toppliste, den tyngre ugatede
+// leseruten: ren lesing mot egen DB, grensen ville kun vært kostnadsdemping.
+//
+// PAGINERT FRA FØRSTE LINJE. Ved ~300 stengte quizer og ~5000 spørsmål biter
+// PostgREST sitt stille 1000-radskutt i spørsmålsoppslaget fra dag én —
+// bygges dette for ti quizer og gjøres om senere, er det en omskriving, ikke
+// en utvidelse. Derfor fetchAllRows (quizene) + fetchAllRowsChunked
+// (spørsmålene — .in()-lister brekker ved ~390 id-er, en LAVERE grense enn
+// radtaket). Begge spørringene har eksplisitt .order() med TOTALORDNING
+// (unik halerekkefølge): et paginert kutt uten totalordning gir
+// ikke-reproduserbare resultatsett — side 2 kan gjenta side 1 (husregel, og
+// kartleggingen 27. august fant fem season_scores-spørringer med nettopp
+// det hullet; det mønsteret skal ikke gjenoppstå i ny kode).
+//
+// Populasjonen speiler kildegaten i POST (decideArchiveSourceEligibility):
+// ekte quiz (onlyRealQuizzes — arkivkopier og testquizer faller ut med
+// vilje), synlig (is_active=true, admin-«Skjul» skal gjelde her også) og
+// STENGT (closes_at <= nå; NULL matcher aldri en lte og faller riktig ut).
+// Listen skal aldri vise en quiz POST ville avvist.
+
+/** Kvizfelter listen trenger — closes_at er «når den gikk», visningsfeltet. */
+type ArchiveListQuizRow = { id: string; title: string; closes_at: string | null }
+
+type ArchiveListQuestionRow = { id: string; quiz_id: string; order_index: number }
+
+export async function GET() {
+  const nowIso = new Date().toISOString()
+
+  let quizzes: ArchiveListQuizRow[]
+  try {
+    quizzes = await fetchAllRows<ArchiveListQuizRow>((from, to) => {
+      // SPØRRINGEN i en lokal variabel og helperen påført ETTERPÅ — inlinet
+      // som argument gir TS2589 i `next build` (regelen i
+      // lib/real-quiz-population.ts; samme form som app/page.tsx).
+      const base = supabaseAdmin
+        .from('quizzes')
+        .select('id, title, closes_at')
+        .eq('is_active', true)
+        .lte('closes_at', nowIso)
+      const query = onlyRealQuizzes(base)
+      // Totalordning: nyeste først, id som unik tiebreaker (closes_at er ikke
+      // garantert unik — to quizer kan dele stengetid).
+      return query
+        .order('closes_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to)
+    })
+  } catch (e) {
+    console.error('[arkiv GET] kunne ikke lese quizlisten:', e instanceof Error ? e.message : e)
+    return NextResponse.json(
+      { error: 'Kunne ikke hente arkivet akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+
+  // Spørsmåls-ID-ene per quiz er selve NYTTELASTEN: «spill quiz 47 på nytt» er
+  // nøyaktig denne id-listen sendt til POST over. Klienten har ingen egen
+  // lesevei til questions (ingen anon-policy), så listen må bære dem.
+  let questionRows: ArchiveListQuestionRow[]
+  try {
+    questionRows = await fetchAllRowsChunked<ArchiveListQuestionRow>(
+      quizzes.map((q) => q.id),
+      (chunk, from, to) =>
+        supabaseAdmin
+          .from('questions')
+          .select('id, quiz_id, order_index')
+          .in('quiz_id', chunk)
+          // Totalordning innad i biten: (quiz_id, order_index) er UNIQUE
+          // (migrasjon 20260729000000). order_index-rekkefølgen ER
+          // spillerekkefølgen kopien skal gjenskape.
+          .order('quiz_id', { ascending: true })
+          .order('order_index', { ascending: true })
+          .range(from, to)
+    )
+  } catch (e) {
+    console.error('[arkiv GET] kunne ikke lese spørsmåls-id-ene:', e instanceof Error ? e.message : e)
+    return NextResponse.json(
+      { error: 'Kunne ikke hente arkivet akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+
+  const idsByQuiz = new Map<string, string[]>()
+  for (const row of questionRows) {
+    const ids = idsByQuiz.get(row.quiz_id)
+    if (ids) ids.push(row.id)
+    else idsByQuiz.set(row.quiz_id, [row.id])
+  }
+
+  return NextResponse.json({
+    quizzes: quizzes.flatMap((q) => {
+      const questionIds = idsByQuiz.get(q.id)
+      // En quiz uten spørsmål kan ikke spilles (POST ville svart 'tom-liste')
+      // — den skal heller ikke vises som spillbar.
+      if (!questionIds || questionIds.length === 0) return []
+      return [{ id: q.id, title: q.title, closesAt: q.closes_at, questionIds }]
+    }),
+  })
 }
