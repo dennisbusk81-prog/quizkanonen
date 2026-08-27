@@ -85,7 +85,7 @@ export default function NameRequiredModal() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
       }}
       role="dialog"
       aria-modal="true"
@@ -110,7 +110,7 @@ export default function NameRequiredModal() {
           Velg ditt navn
         </p>
         <h2 style={{
-          fontFamily: "'Libre Baskerville', serif",
+          fontFamily: "var(--font-libre-baskerville), serif",
           fontSize: 22,
           fontWeight: 700,
           color: '#ffffff',
@@ -140,7 +140,7 @@ export default function NameRequiredModal() {
             padding: '12px 14px',
             fontSize: 15,
             color: '#ffffff',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             outline: 'none',
             marginBottom: 8,
           }}
@@ -169,7 +169,7 @@ export default function NameRequiredModal() {
             borderRadius: 10,
             fontSize: 15,
             fontWeight: 700,
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             cursor: isValid && !saving ? 'pointer' : 'not-allowed',
             marginTop: 4,
           }}

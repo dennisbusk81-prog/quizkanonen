@@ -14,7 +14,6 @@ import PasswordInput from '@/components/PasswordInput'
 // Samme visuelle mønster som /login (samme panel, samme farger).
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -32,7 +31,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -66,7 +65,7 @@ const STYLES = `
   }
 
   .sp-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 28px;
     font-weight: 700;
     color: var(--white);
@@ -107,7 +106,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--radius-btn);
     padding: 12px 16px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     color: var(--white);
     outline: none;
@@ -168,7 +167,7 @@ const STYLES = `
     width: 100%;
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 700;
     padding: 10px 28px;

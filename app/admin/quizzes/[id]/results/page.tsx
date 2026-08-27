@@ -40,7 +40,6 @@ type ResultsData = {
 }
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -63,7 +62,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -90,7 +89,7 @@ const STYLES = `
   .res-back:hover { color: var(--gold); }
 
   .res-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: var(--white);
@@ -127,7 +126,7 @@ const STYLES = `
     font-weight: 500;
     color: var(--body);
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     white-space: nowrap;
     transition: color 0.15s, border-color 0.15s;
     align-self: flex-end;
@@ -178,7 +177,7 @@ const STYLES = `
     border: 1px solid var(--gold-bdr);
   }
   .res-mid-rank {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 22px;
     font-weight: 700;
     color: var(--muted);
@@ -190,7 +189,7 @@ const STYLES = `
   .res-mid-rank span { font-size: 11px; color: var(--muted); font-weight: 400; }
   .res-mid-main { flex: 1; min-width: 0; }
   .res-mid-name {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 16px;
     font-weight: 700;
     color: var(--white);
@@ -221,7 +220,7 @@ const STYLES = `
   .res-q-main { flex: 1; min-width: 0; }
   .res-q-num { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
   .res-q-text {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 14px;
     color: var(--white);
     line-height: 1.4;
@@ -229,7 +228,7 @@ const STYLES = `
   }
   .res-q-right { text-align: right; flex-shrink: 0; }
   .res-q-pct {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 22px;
     font-weight: 700;
     line-height: 1;
@@ -262,7 +261,7 @@ const STYLES = `
   .res-callout-label.easy { color: var(--green); }
   .res-callout-label.hard { color: var(--red); }
   .res-callout-q {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 13px;
     color: var(--white);
     line-height: 1.4;
@@ -279,7 +278,7 @@ const STYLES = `
     text-align: center;
   }
   .res-empty-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     color: var(--white);
     margin-bottom: 8px;
@@ -291,7 +290,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 20px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     color: var(--body);
@@ -307,7 +306,7 @@ const STYLES = `
     justify-content: center;
   }
   .res-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;

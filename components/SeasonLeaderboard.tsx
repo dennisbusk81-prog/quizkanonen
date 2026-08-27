@@ -33,8 +33,6 @@ import { decideSessionCheck } from '@/lib/session-check'
 // onAuthStateChange eventuelt lander sesjonen.
 const SESSION_CHECK_MS = 1500
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 const EXTRA_STYLES = `
   .tp-tab-row::-webkit-scrollbar { display: none; }
   .tp-tab-row { scrollbar-width: none; -ms-overflow-style: none; }
@@ -55,7 +53,7 @@ const EXTRA_STYLES = `
     border: none;
     width: 100%;
     text-align: left;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     transition: background 150ms ease;
   }
   .tp-accordion-btn:hover { background: #262930; }
@@ -255,17 +253,17 @@ function assignBadges(entries: Entry[]): Map<string, BadgeKind> {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = {
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   spinWrap: { padding: '56px 0', textAlign: 'center' as const },
 
   tabRow:      { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 20, marginTop: 4, overflowX: 'auto' as const, msOverflowStyle: 'none' as const },
-  tabActive:   { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
-  tabInactive: { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
+  tabActive:   { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
+  tabInactive: { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 },
 
   countdown: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.04em' },
   quizLabel: { fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const, marginBottom: 20, letterSpacing: '0.02em' },
 
-  name: { fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
+  name: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 15, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap' as const, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, marginBottom: 2 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 10px' },
   sectionText:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', whiteSpace: 'nowrap' as const },
@@ -274,13 +272,13 @@ const s = {
   userCard: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px 24px', marginTop: 8 },
 
   ctaText:    { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 14 },
-  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
-  btnOutline: { display: 'inline-block', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
+  btnOutline: { display: 'inline-block', background: 'transparent', color: '#e8e4dd', border: '0.5px solid #2a2d38', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' },
 
   legendRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 13, color: '#e8e4dd' },
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 12 },
-  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
+  emptyTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
   emptySub:   { fontSize: 13, color: '#e8e4dd', lineHeight: 1.6 },
 
   // Historikk-accordion
@@ -1049,7 +1047,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   if (loading && !data) {
     return (
       <>
-        <style>{FONT_IMPORT + EXTRA_STYLES}</style>
+        <style>{EXTRA_STYLES}</style>
         <SkeletonCard rows={8} showHeader style={{ marginTop: 16 }} />
       </>
     )
@@ -1060,21 +1058,21 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     const showError = loadError && sessionChecked && !!session
     return (
       <>
-        <style>{FONT_IMPORT + EXTRA_STYLES}</style>
+        <style>{EXTRA_STYLES}</style>
         <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '36px 28px', textAlign: 'center' }}>
           {showError ? (
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff' }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff' }}>
               Noe gikk galt. Prøv å laste siden på nytt.
             </p>
           ) : (
             <>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
                 Ingen data ennå
               </p>
               <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
                 Logg inn for å se din sesong-plassering.
               </p>
-              <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
+              <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
                 Logg inn
               </Link>
             </>
@@ -1086,7 +1084,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   return (
     <>
-      <style>{FONT_IMPORT + EXTRA_STYLES}</style>
+      <style>{EXTRA_STYLES}</style>
 
       {/* Fane-rad */}
       <div className="tp-tab-row" style={s.tabRow}>
@@ -1152,7 +1150,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             style={{
               width: '100%', boxSizing: 'border-box', background: 'transparent',
               border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px',
-              fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+              fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none',
             }}
           />
           {showJumpToMe && (
@@ -1161,7 +1159,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               style={{
                 marginTop: 10, background: 'transparent', color: '#e8e4dd',
                 border: '1px solid #e8e4dd', borderRadius: 10, padding: '10px 28px',
-                fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif",
+                fontSize: 14, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif",
                 cursor: 'pointer', width: 'auto',
               }}
             >
@@ -1184,7 +1182,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           tre døde kontroller. Badgen er markeringen; raden er outline i
           søkefeltets form (sideknappene under rendres aldri for gratis). */}
       {showLockedControls && (
-        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent' }}>
+        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "var(--font-instrument-sans), sans-serif", background: 'transparent' }}>
           <span>Søk og bla blant alle {totalCount} deltakere</span>
           <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 999, padding: '2px 8px' }}>
             Premium
@@ -1279,7 +1277,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                     border: `1px solid ${p === pageNo ? '#c9a84c' : '#2a2d38'}`,
                     color: p === pageNo ? '#c9a84c' : '#e8e4dd',
                     borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600,
-                    fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const,
+                    fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const,
                   }}
                 >
                   {intervalLabel(p)}

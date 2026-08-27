@@ -120,7 +120,7 @@ export default function QuizCountdown({ initialDate }: { initialDate: string | n
                   fontSize: '1.75rem',
                   fontWeight: 700,
                   fontVariantNumeric: 'tabular-nums',
-                  fontFamily: "'Libre Baskerville', serif",
+                  fontFamily: "var(--font-libre-baskerville), serif",
                 }}>
                   {pad(value)}
                 </span>

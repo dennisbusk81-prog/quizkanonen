@@ -7,8 +7,6 @@ import { supabase } from '@/lib/supabase'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 type League = {
   id: string
   name: string
@@ -21,15 +19,15 @@ type League = {
 }
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 60px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   hero:        { paddingTop: 24, paddingBottom: 20 },
   heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
-  heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' },
+  heroTitle:   { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' },
   heroTitleEm: { fontStyle: 'italic', color: '#c9a84c' },
   rule:        { width: '100%', height: 1, background: '#2a2d38', marginBottom: 20 },
 
@@ -40,7 +38,7 @@ const s = {
 
   rowBase:   { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const, transition: 'border-color 0.12s' },
   rowHover:  { background: '#252836', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, textDecoration: 'none', cursor: 'pointer' as const },
-  rowName:   { fontFamily: "'Instrument Sans', sans-serif", fontSize: 18, fontWeight: 500, color: '#ffffff', marginBottom: 3 },
+  rowName:   { fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 18, fontWeight: 500, color: '#ffffff', marginBottom: 3 },
   rowMeta:   { fontSize: 13, color: '#e8e4dd' },
   rowRight:  { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
   ownerBadge:{ fontSize: 10, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 4, padding: '2px 7px' },
@@ -49,22 +47,22 @@ const s = {
   createCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 20px', marginBottom: 16 },
   createLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 10 },
   inputRow:    { display: 'flex', gap: 8 },
-  input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
-  btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  btnGoldDis:  { padding: '10px 20px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed' },
-  cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "'Instrument Sans', sans-serif" },
+  input:       { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 15, color: '#ffffff', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' },
+  btnGold:     { padding: '10px 20px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' },
+  btnGoldDis:  { padding: '10px 20px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'not-allowed' },
+  cancelBtn:   { marginTop: 10, background: 'none', border: 'none', fontSize: 12, color: '#e8e4dd', cursor: 'pointer', padding: 0, fontFamily: "var(--font-instrument-sans), sans-serif" },
   createErrMsg:{ fontSize: 12, color: '#f87171', marginTop: 8 },
 
-  openCreateBtn: { padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', marginBottom: 20 },
+  openCreateBtn: { padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', marginBottom: 20 },
 
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 4 },
-  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
+  emptyTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 },
   emptySub:   { fontSize: 13, color: '#e8e4dd', lineHeight: 1.6 },
 
   ctaCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '24px 20px', textAlign: 'center' as const, marginTop: 24 },
-  ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
+  ctaTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
   ctaSub:   { fontSize: 13, color: '#e8e4dd', marginBottom: 16, lineHeight: 1.5 },
-  ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
+  ctaLink:  { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
 type LoadState = 'loading' | 'ready' | 'error' | 'guest'
@@ -145,7 +143,6 @@ export default function MineLigaerPage() {
 
   if (loadState === 'loading') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.centered}>
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Henter ligaene dine …</p>
@@ -167,7 +164,6 @@ export default function MineLigaerPage() {
 
   if (loadState === 'error') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.centered}>
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Vi klarte ikke å hente ligaene.</p>
@@ -184,7 +180,6 @@ export default function MineLigaerPage() {
 
   if (loadState === 'guest') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.centered}>
         <div style={{ ...s.empty, maxWidth: 420 }}>
           <div style={s.emptyTitle}>Logg inn for å se ligaene dine</div>
@@ -197,7 +192,6 @@ export default function MineLigaerPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>

@@ -11,7 +11,7 @@ export default function QuizCockpitRedirect() {
   }, [params.id, router])
   return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+      <p style={{ color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>Laster...</p>
     </div>
   )
 }

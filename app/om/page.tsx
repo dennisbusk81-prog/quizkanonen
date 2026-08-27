@@ -9,7 +9,7 @@ const s = {
   wrap: {
     minHeight: '100vh',
     background: '#1a1c23',
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     color: '#e8e4dd',
   },
   page: {
@@ -37,7 +37,7 @@ const s = {
     marginBottom: 10,
   },
   title: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 'clamp(28px, 6vw, 38px)' as string,
     fontWeight: 700,
     color: '#ffffff',
@@ -51,7 +51,7 @@ const s = {
     padding: '28px 28px',
   },
   sectionTitle: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 18,
     fontWeight: 700,
     color: '#ffffff',
@@ -59,7 +59,7 @@ const s = {
     marginTop: 28,
   },
   firstSectionTitle: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 18,
     fontWeight: 700,
     color: '#ffffff',

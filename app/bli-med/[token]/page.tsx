@@ -9,8 +9,6 @@ import AuthForm from '@/components/AuthForm'
 import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 type InviteInfo = { valid: true; orgName: string; orgSlug: string } | { valid: false; error: string }
 
 // Invitasjonen peker på en organisasjon som brukeren allerede er sperret fra å
@@ -99,9 +97,8 @@ export default function BliMedPage() {
   if (inviteLoading || session === undefined) {
     return (
       <>
-        <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -111,11 +108,10 @@ export default function BliMedPage() {
   if (!invite || !invite.valid) {
     return (
       <>
-        <style>{FONT}</style>
         <UserMenuWrapper />
-        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
               Ugyldig lenke
             </p>
             <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24, lineHeight: 1.6 }}>
@@ -134,9 +130,9 @@ export default function BliMedPage() {
 
   return (
     <>
-      <style>{FONT + ' * { box-sizing: border-box; }'}</style>
+      <style>{' * { box-sizing: border-box; }'}</style>
       <UserMenuWrapper />
-      <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
         <div style={{ maxWidth: 420, width: '100%' }}>
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 32px' }}>
@@ -154,7 +150,7 @@ export default function BliMedPage() {
               <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
                 Invitasjon
               </p>
-              <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+              <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
                 Bli med i<br /><em style={{ fontStyle: 'italic', color: '#c9a84c' }}>{orgName}</em>
               </h1>
               <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 28, lineHeight: 1.6 }}>
@@ -196,7 +192,7 @@ export default function BliMedPage() {
                 <button
                   onClick={handleJoin}
                   disabled={joining}
-                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: joining ? 'not-allowed' : 'pointer', opacity: joining ? 0.6 : 1, marginBottom: 10 }}
+                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: joining ? 'not-allowed' : 'pointer', opacity: joining ? 0.6 : 1, marginBottom: 10 }}
                 >
                   {joining ? 'Bli med...' : `Bli med i ${orgName} →`}
                 </button>

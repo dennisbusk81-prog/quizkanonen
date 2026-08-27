@@ -7,7 +7,6 @@ import { adminFetch } from '@/lib/admin-fetch'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -23,7 +22,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -52,11 +51,11 @@ const STYLES = `
     width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
     background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px; font-weight: 700; color: var(--gold);
   }
   .up-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 24px; font-weight: 700; color: var(--white); letter-spacing: -0.01em;
   }
   .up-subtitle { font-size: 12px; color: var(--hint); margin-top: 2px; }
@@ -91,7 +90,7 @@ const STYLES = `
 
   .up-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
   .up-stat-tile { background: var(--bg); border: 0.5px solid var(--border); border-radius: 12px; padding: 12px 14px; }
-  .up-stat-value { font-family: 'Libre Baskerville', serif; font-size: 20px; font-weight: 700; color: var(--white); }
+  .up-stat-value { font-family: var(--font-libre-baskerville), serif; font-size: 20px; font-weight: 700; color: var(--white); }
   .up-stat-label { font-size: 10px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
 
   .up-quiz-row {
@@ -114,7 +113,7 @@ const STYLES = `
   .up-empty { font-size: 13px; color: var(--hint); }
 
   .up-btn-primary {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px; font-weight: 600;
     background: var(--gold); color: #1a1c23;
     border: none; border-radius: 10px;
@@ -125,7 +124,7 @@ const STYLES = `
   .up-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .up-btn-outline {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px; font-weight: 600;
     background: transparent; color: var(--body);
     border: 1px solid var(--border); border-radius: 10px;
@@ -136,7 +135,7 @@ const STYLES = `
   .up-btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .up-btn-danger {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px; font-weight: 600;
     background: transparent; color: #c94c4c;
     border: 1px solid rgba(201,76,76,0.35); border-radius: 10px;
@@ -156,7 +155,7 @@ const STYLES = `
     min-height: 100vh; background: var(--bg);
     display: flex; align-items: center; justify-content: center;
   }
-  .up-loading p { font-family: 'Libre Baskerville', serif; font-size: 18px; color: var(--hint); font-style: italic; }
+  .up-loading p { font-family: var(--font-libre-baskerville), serif; font-size: 18px; color: var(--hint); font-style: italic; }
 
   @media (max-width: 520px) {
     .up-grid-2 { grid-template-columns: 1fr; }
@@ -363,7 +362,7 @@ export default function UserDetailPage() {
           <Link href="/admin/users" className="up-back">← Alle brukere</Link>
         </div>
         <div className="up-section" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
             {loadError ?? 'Kunne ikke laste brukeren'}
           </p>
         </div>
@@ -627,8 +626,8 @@ export default function UserDetailPage() {
       {/* Karantene-bekreftelse */}
       {confirm === 'suspend' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 380, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 380, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
               Sett i karantene?
             </p>
             <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
@@ -642,14 +641,14 @@ export default function UserDetailPage() {
               <button
                 onClick={handleSuspend}
                 disabled={actionLoading}
-                style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: actionLoading ? 'default' : 'pointer', opacity: actionLoading ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, cursor: actionLoading ? 'default' : 'pointer', opacity: actionLoading ? 0.6 : 1, fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {actionLoading ? 'Venter…' : 'Sett i karantene'}
               </button>
               <button
                 onClick={() => { setConfirm(null); setActionError(null) }}
                 disabled={actionLoading}
-                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
@@ -661,8 +660,8 @@ export default function UserDetailPage() {
       {/* Slett-bekreftelse — krever brukerens e-post skrevet inn */}
       {confirm === 'delete' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
               Slett {name}?
             </p>
             <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
@@ -680,14 +679,14 @@ export default function UserDetailPage() {
               autoFocus
               disabled={!profile.email}
               onKeyDown={e => { if (e.key === 'Enter' && canDelete) handleDelete() }}
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
             />
             {actionError && <p style={{ fontSize: 12, color: '#f87171', marginBottom: 8 }}>{actionError}</p>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button
                 onClick={() => { setConfirm(null); setActionError(null); setDeleteInput('') }}
                 disabled={actionLoading}
-                style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
@@ -700,7 +699,7 @@ export default function UserDetailPage() {
                   background: canDelete ? '#f87171' : '#2a2d38',
                   border: 'none', borderRadius: 8, padding: '8px 20px',
                   cursor: canDelete && !actionLoading ? 'pointer' : 'not-allowed',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                 }}
               >
                 {actionLoading ? 'Sletter…' : 'Slett bruker'}

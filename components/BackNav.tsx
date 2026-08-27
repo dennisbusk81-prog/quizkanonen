@@ -47,7 +47,7 @@ export default function BackNav() {
       padding: '10px 16px',
     }}>
       <Link href="/" style={{
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         fontSize: 13,
         color: '#918f8a',
         textDecoration: 'none',

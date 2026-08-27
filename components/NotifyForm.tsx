@@ -27,7 +27,7 @@ export default function NotifyForm() {
       <p style={{
         fontSize: 14,
         color: '#4ade80',
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         textAlign: 'center',
         lineHeight: 1.6,
       }}>
@@ -52,7 +52,7 @@ export default function NotifyForm() {
           padding: '10px 14px',
           fontSize: 14,
           color: '#ffffff',
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           outline: 'none',
           flex: '1 1 180px',
           minWidth: 0,
@@ -66,7 +66,7 @@ export default function NotifyForm() {
         style={{
           background: 'transparent',
           color: '#e8e4dd',
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           fontSize: 14,
           fontWeight: 600,
           padding: '10px 20px',

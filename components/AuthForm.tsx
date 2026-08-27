@@ -434,7 +434,7 @@ const STYLES = `
   .qk-auth-form { margin: 0; }
 
   .qk-auth-label {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.1em;
@@ -450,7 +450,7 @@ const STYLES = `
     border: 1px solid #2a2d38;
     border-radius: 10px;
     padding: 12px 16px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     color: #ffffff;
     outline: none;
@@ -475,7 +475,7 @@ const STYLES = `
   .qk-auth-input:autofill { box-shadow: 0 0 0 1000px #1a1c23 inset; }
 
   .qk-auth-hint {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 12px;
     color: #918f8a;
     margin: 0 0 16px;
@@ -489,7 +489,7 @@ const STYLES = `
   }
 
   .qk-auth-error {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     color: #f87171;
     text-align: center;
@@ -502,7 +502,7 @@ const STYLES = `
   }
 
   .qk-auth-success {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     color: #4ade80;
     text-align: center;
@@ -521,7 +521,7 @@ const STYLES = `
     width: 100%;
     background: #c9a84c;
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 700;
     padding: 12px 28px;
@@ -538,7 +538,7 @@ const STYLES = `
     align-items: center;
     gap: 12px;
     margin: 20px 0;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 12px;
     color: #918f8a;
   }
@@ -558,7 +558,7 @@ const STYLES = `
     gap: 12px;
     background: #ffffff;
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 600;
     padding: 13px 20px;
@@ -580,7 +580,7 @@ const STYLES = `
     gap: 12px;
     background: #2a2d38;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 600;
     padding: 13px 20px;
@@ -597,7 +597,7 @@ const STYLES = `
 
   .qk-auth-switch {
     text-align: center;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     color: #918f8a;
     margin-top: 20px;
@@ -616,7 +616,7 @@ const STYLES = `
   .qk-auth-link-action { margin-top: 8px; display: inline-block; }
 
   .qk-auth-terms {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 11px;
     color: #918f8a;
     text-align: center;

@@ -7,7 +7,6 @@ import { readAdminList } from '@/lib/admin-load'
 import Link from 'next/link'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -23,7 +22,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -48,7 +47,7 @@ const STYLES = `
     margin-bottom: 6px;
   }
   .ret-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 28px;
     font-weight: 700;
     color: var(--white);
@@ -121,7 +120,7 @@ const STYLES = `
   }
 
   .ret-empty {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-style: italic;
     font-size: 15px;
     color: var(--hint);
@@ -130,7 +129,7 @@ const STYLES = `
   }
 
   .ret-error-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 16px;
     color: var(--white);
     margin: 0 0 8px;
@@ -153,7 +152,7 @@ const STYLES = `
     font-size: 13px;
     font-weight: 500;
     color: var(--body);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
   }
   .ret-retry:disabled { cursor: not-allowed; opacity: 0.6; }
@@ -167,7 +166,7 @@ const STYLES = `
     justify-content: center;
   }
   .ret-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--hint);
     font-style: italic;

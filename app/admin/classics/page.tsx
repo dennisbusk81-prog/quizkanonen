@@ -24,7 +24,6 @@ type ClassicQuestion = {
 type QuizOption = { id: string; title: string }
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -41,18 +40,18 @@ const STYLES = `
     --rbtn:   10px;
   }
 
-  body { background: var(--bg); font-family: 'Instrument Sans', sans-serif; color: var(--body); }
+  body { background: var(--bg); font-family: var(--font-instrument-sans), sans-serif; color: var(--body); }
 
   .cl-page { flex: 1; max-width: 800px; margin: 0 auto; padding: 0 20px 80px; }
   .cl-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 32px 0 20px; flex-wrap: wrap; }
   .cl-back { font-size: 12px; color: var(--body); text-decoration: none; display: inline-block; margin-bottom: 6px; }
   .cl-back:hover { color: var(--white); }
-  .cl-title { font-family: 'Libre Baskerville', serif; font-size: 26px; font-weight: 700; color: var(--white); }
+  .cl-title { font-family: var(--font-libre-baskerville), serif; font-size: 26px; font-weight: 700; color: var(--white); }
   .cl-rule { height: 1px; background: var(--border); margin-bottom: 24px; }
 
   .cl-search {
     width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: var(--rbtn);
-    padding: 12px 16px; font-family: 'Instrument Sans', sans-serif; font-size: 14px; color: var(--white);
+    padding: 12px 16px; font-family: var(--font-instrument-sans), sans-serif; font-size: 14px; color: var(--white);
     outline: none; margin-bottom: 20px; transition: border-color 0.15s;
   }
   .cl-search::placeholder { color: var(--muted); }
@@ -80,12 +79,12 @@ const STYLES = `
   .cl-copy-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .cl-select {
     background: var(--bg); border: 1px solid var(--border); border-radius: var(--rbtn);
-    padding: 7px 12px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; color: var(--body);
+    padding: 7px 12px; font-family: var(--font-instrument-sans), sans-serif; font-size: 13px; color: var(--body);
     cursor: pointer; outline: none; min-width: 160px; flex: 1;
   }
   .cl-btn-copy {
     background: transparent; border: 1px solid var(--border); border-radius: var(--rbtn);
-    padding: 7px 16px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 600;
+    padding: 7px 16px; font-family: var(--font-instrument-sans), sans-serif; font-size: 13px; font-weight: 600;
     color: var(--body); cursor: pointer; transition: border-color 0.15s, color 0.15s; white-space: nowrap;
   }
   .cl-btn-copy:hover { border-color: rgba(201,168,76,0.4); color: var(--white); }
@@ -94,11 +93,11 @@ const STYLES = `
 
   .cl-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
   .cl-error { text-align: center; padding: 60px 20px; }
-  .cl-error-title { font-family: 'Libre Baskerville', serif; font-size: 16px; color: var(--white); margin: 0 0 8px; }
+  .cl-error-title { font-family: var(--font-libre-baskerville), serif; font-size: 16px; color: var(--white); margin: 0 0 8px; }
   .cl-error-sub { font-size: 13px; color: var(--muted); margin: 0 0 20px; line-height: 1.6; }
   .cl-retry {
     background: transparent; border: 1px solid var(--border); border-radius: var(--rbtn);
-    padding: 10px 20px; font-family: 'Instrument Sans', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 10px 20px; font-family: var(--font-instrument-sans), sans-serif; font-size: 13px; font-weight: 500;
     color: var(--body); cursor: pointer;
   }
   .cl-retry:disabled { opacity: 0.6; cursor: not-allowed; }

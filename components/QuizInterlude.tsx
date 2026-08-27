@@ -267,7 +267,7 @@ export default function QuizInterlude({
 
         {/* Dynamic headline */}
         <h2 className="qk-il-headline" style={{
-          fontFamily: "'Libre Baskerville', serif",
+          fontFamily: "var(--font-libre-baskerville), serif",
           fontSize: 28, fontWeight: 700, color: '#ffffff',
           lineHeight: 1.2, marginBottom: message.subline ? 10 : 20,
           // Tekstbredden er 296px (maxWidth 360 − 2×32 padding) — et langt norsk
@@ -353,7 +353,7 @@ export default function QuizInterlude({
               Din rangering
             </p>
             <p className="qk-il-rank" style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
             }}>
               {low}–{high}
@@ -385,7 +385,7 @@ export default function QuizInterlude({
               Din plassering
             </p>
             <p className="qk-il-rank" style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1,
             }}>
               {liveRanking.userRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
@@ -468,7 +468,7 @@ export default function QuizInterlude({
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             background: '#c9a84c', color: '#1a1c23',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             fontSize: 15, fontWeight: 600,
             padding: '11px 28px',
             borderRadius: 10, border: 'none',

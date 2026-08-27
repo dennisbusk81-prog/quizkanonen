@@ -13,18 +13,16 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
 import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
   page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   avatarSection: { paddingTop: 8, paddingBottom: 6, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', textAlign: 'center' as const },
-  avatar:        { width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
-  displayName:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
+  avatar:        { width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
+  displayName:   { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 2 },
   badgePremium:  { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   badgeStandard: { display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#918f8a', background: 'rgba(122,120,115,0.08)', border: '1px solid rgba(122,120,115,0.2)', borderRadius: 6, padding: '3px 10px', marginBottom: 2 },
   rule:          { width: '100%', height: 1, background: '#2a2d38', marginBottom: 12 },
@@ -34,9 +32,9 @@ const s = {
   sectionLabel:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 },
   fieldHint:     { fontSize: 12, color: '#918f8a', marginBottom: 12, lineHeight: 1.5 },
   inputRow:      { display: 'flex', gap: 8 },
-  input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 15, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' },
-  saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  input:         { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 14px', fontSize: 15, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' },
+  saveBtn:       { padding: '10px 22px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  saveBtnDis:    { padding: '10px 22px', background: '#2a2d38', color: '#918f8a', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
   saveError:     { fontSize: 12, color: '#f87171', marginTop: 8 },
   saveSuccess:   { fontSize: 12, color: '#4ade80', marginTop: 8 },
 
@@ -46,7 +44,7 @@ const s = {
 
   statsGrid:  { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 12 },
   statsCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 12, padding: '12px', textAlign: 'center' as const },
-  statsNum:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
+  statsNum:   { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 4 },
   statsLbl:   { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 },
 
   // Nøytral (hvit outline), ikke gull: lenka står permanent på siden, mens
@@ -54,18 +52,18 @@ const s = {
   // gull-elementer så snart brukeren skrev ett tegn i navnefeltet. Gullet
   // følger handlingen brukeren er midt i; navigasjon er sekundær — samme
   // begrunnelse som pwBtn under.
-  btnOutline:     { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #e8e4dd' },
-  redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
-  redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  btnOutline:     { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 10, textDecoration: 'none', border: '1px solid #e8e4dd' },
+  redeemInput:    { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.06em' },
+  redeemBtn:      { padding: '8px 16px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  redeemBtnDis:   { padding: '8px 16px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', fontSize: 14, fontWeight: 500, borderRadius: 10, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   // Nøytral knapp (hvit outline) — passord-seksjonen skal ikke konkurrere med de
   // gule primærknappene ellers på siden. Samme mønster som Lagre-knappen for kallenavn.
-  pwBtn:    { padding: '10px 22px', background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
-  pwBtnDis: { padding: '10px 22px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
+  pwBtn:    { padding: '10px 22px', background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  pwBtnDis: { padding: '10px 22px', background: 'transparent', color: '#918f8a', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'not-allowed', whiteSpace: 'nowrap' as const },
 
   ctaCard:  { background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: 16, padding: '16px 20px' },
-  ctaTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
+  ctaTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 },
   ctaSub:   { fontSize: 13, color: '#918f8a', marginBottom: 16, lineHeight: 1.6 },
 } as const
 
@@ -759,7 +757,6 @@ export default function ProfilPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
           <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <SkeletonCard rows={4} showHeader />
@@ -778,12 +775,11 @@ export default function ProfilPage() {
   if (loadState === 'error') {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <SiteNav />
         <div style={s.wrap}>
           <div style={{ ...s.page, paddingTop: 40 }}>
             <div style={{ ...s.card, textAlign: 'center' }}>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
                 Vi fikk ikke hentet profilen din
               </p>
               <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 6 }}>
@@ -813,7 +809,6 @@ export default function ProfilPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
@@ -858,7 +853,7 @@ export default function ProfilPage() {
                 { val: isPremium && stats ? String(stats.best_streak) : '—', lbl: 'Beste streak' },
               ].map(({ val, lbl }) => (
                 <div key={lbl} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
+                  <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 4 }}>
                     {val}
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a', lineHeight: 1.3 }}>
@@ -935,7 +930,7 @@ export default function ProfilPage() {
                       color: (savingNickname || editNickname.trim() === nickname.trim()) ? '#918f8a' : '#e8e4dd',
                       border: `1px solid ${(savingNickname || editNickname.trim() === nickname.trim()) ? '#2a2d38' : '#e8e4dd'}`,
                       borderRadius: 10, fontSize: 14, fontWeight: 700,
-                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
                       cursor: (savingNickname || editNickname.trim() === nickname.trim()) ? 'not-allowed' : 'pointer',
                       whiteSpace: 'nowrap',
                     }}
@@ -970,7 +965,7 @@ export default function ProfilPage() {
                 {orgs.map((org, i) => (
                   <div key={org.orgId} style={{ marginTop: i > 0 ? 20 : 0 }}>
                     <p style={{
-                      fontFamily: "'Libre Baskerville', serif",
+                      fontFamily: "var(--font-libre-baskerville), serif",
                       fontSize: 16, fontWeight: 700, color: '#ffffff',
                       marginBottom: 10,
                     }}>
@@ -1213,7 +1208,7 @@ export default function ProfilPage() {
                     onClick={() => {
                       setShowPwForm(false); setNewPassword(''); setConfirmPassword(''); setPwError(null)
                     }}
-                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline' }}
                   >
                     Avbryt
                   </button>
@@ -1276,7 +1271,7 @@ export default function ProfilPage() {
                         background: 'transparent',
                         border: '1px solid #2a2d38',
                         color: portalLoading ? '#918f8a' : '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         fontSize: 13,
                         fontWeight: 600,
                         padding: '9px 18px',
@@ -1311,7 +1306,7 @@ export default function ProfilPage() {
             {!showRedeem ? (
               <button
                 onClick={() => setShowRedeem(true)}
-                style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textDecorationColor: '#e8e4dd' }}
+                style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline', textDecorationColor: '#e8e4dd' }}
               >
                 Har du en verdikode? →
               </button>
@@ -1356,7 +1351,7 @@ export default function ProfilPage() {
                 background: 'none', border: 'none', padding: 0,
                 fontSize: 12, color: '#918f8a',
                 cursor: deleting ? 'not-allowed' : 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 textDecoration: 'underline', textDecorationColor: '#918f8a',
               }}
             >

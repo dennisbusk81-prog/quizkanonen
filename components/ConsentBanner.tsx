@@ -40,7 +40,7 @@ export default function ConsentBanner() {
         padding: '14px 16px',
         zIndex: 1000,
         boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         display: 'flex',
         flexDirection: 'column',
         gap: 10,

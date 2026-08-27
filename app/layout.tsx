@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Libre_Baskerville, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
@@ -27,6 +27,52 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Husets to fonter, lastet ÉN gang for hele appen.
+//
+// Fram til 27. august 2026 lastet 40 ulike filer hver sin
+// `@import url('https://fonts.googleapis.com/…')` inne i en <style>-tagg.
+// Et @import i CSS er render-blokkerende og kan ikke oppdages av
+// preload-scanneren: nettleseren måtte først hente og parse vårt eget
+// stilark, DERETTER slå opp fonts.googleapis.com (ny DNS + TLS), hente et
+// CSS-svar som selv peker videre på fonts.gstatic.com (enda en DNS + TLS),
+// og først da begynne på selve fontfilene. Fire serielle rundturer til to
+// tredjepartsverter før første tegn kunne tegnes — på hver eneste side.
+//
+// next/font laster ned og SELV-HOSTER filene ved build, så de serveres fra
+// vårt eget opphav med resten av bundelen: null tredjeparts-DNS, null
+// tredjeparts-TLS, og `<link rel="preload">` legges inn automatisk.
+//
+// Familienavnene next/font genererer er hashet (`__Libre_Baskerville_a1b2c3`),
+// så de kan ikke skrives som literaler. Derfor eksponeres de som CSS-variabler
+// på <html> under, og all typografi i appen refererer dem som
+// `var(--font-libre-baskerville)` / `var(--font-instrument-sans)`.
+//
+// Merk: variablene arves gjennom React-treet fra <html>. To flater står
+// UTENFOR det treet og beholder derfor sin egen fontsetting med vilje —
+// `app/global-error.tsx` (rendrer sitt eget <html>) og
+// `app/api/notifications/unsubscribe/route.ts` (frittstående HTML fra en
+// route handler).
+const libreBaskerville = Libre_Baskerville({
+  variable: "--font-libre-baskerville",
+  subsets: ["latin"],
+  // 700 + italic er ikke overdrivelse: titlene er `font-weight: 700` og har
+  // `<em>` inni seg (f.eks. `.adm-title em`), altså BOLD KURSIV. Det gamle
+  // @import-et ba kun om `1,400`, så den kombinasjonen ble syntetisert av
+  // nettleseren — nå får den en ekte snitt.
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+  fallback: ["Georgia", "serif"],
+});
+
+const instrumentSans = Instrument_Sans({
+  // Variabel font — ingen `weight`-liste; 400/500/600 dekkes av samme fil.
+  variable: "--font-instrument-sans",
+  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "-apple-system", "sans-serif"],
+});
+
 export const metadata: Metadata = {
   title: "Quizkanonen",
   description: "Ukentlig quiz for deg og laget ditt",
@@ -46,7 +92,7 @@ export default function RootLayout({
   return (
     <html
       lang="no"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${libreBaskerville.variable} ${instrumentSans.variable} h-full antialiased`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />

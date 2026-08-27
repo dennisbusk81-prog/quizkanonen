@@ -25,30 +25,28 @@ function scorePct(correct: number, total: number): number {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd', flexGrow: 1 },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', backgroundColor: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd', flexGrow: 1 },
   page:     { maxWidth: 680, margin: '0 auto', padding: '0 20px 60px' },
 
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
 
   back:     { display: 'inline-block', fontSize: 12, color: '#918f8a', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
-  backBtn:  { display: 'inline-block', fontSize: 12, color: '#e8e4dd', background: 'none', border: 'none', padding: 0, marginBottom: 14, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" },
+  backBtn:  { display: 'inline-block', fontSize: 12, color: '#e8e4dd', background: 'none', border: 'none', padding: 0, marginBottom: 14, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" },
 
   // Hero card
   heroCard:    { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '20px', marginBottom: 12 },
   heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
-  heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 12 },
+  heroTitle:   { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 12 },
   heroDate:    { fontSize: 12, color: '#918f8a', marginBottom: 14 },
 
   // Three key numbers row
   statsRow:   { display: 'flex', gap: 0, borderTop: '1px solid #2a2d38', paddingTop: 14 },
   statCell:   { flex: 1, textAlign: 'center' as const },
   statDivider:{ width: 1, background: '#2a2d38', margin: '0 4px' },
-  statBig:    { fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 3 },
-  statBigGrey:{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 },
+  statBig:    { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#c9a84c', lineHeight: 1, marginBottom: 3 },
+  statBigGrey:{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 },
   statLbl:    { fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: '#918f8a' },
   heroSub:    { fontSize: 12, color: '#918f8a', textAlign: 'center' as const, marginTop: 10 },
 
@@ -91,9 +89,9 @@ const s = {
 
   // Not found / error
   empty:      { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '40px 24px', textAlign: 'center' as const, marginTop: 24 },
-  emptyTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 6 },
+  emptyTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 6 },
   emptySub:   { fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 },
-  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
+  btnGold:    { display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' },
 } as const
 
 // ─── Answer cards ─────────────────────────────────────────────────────────────
@@ -261,7 +259,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <div style={s.centered}><p style={s.spinner}>Laster quiz-detaljer…</p></div>
       </>
     )
@@ -270,7 +267,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'not-found') {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -290,7 +286,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'timeout') {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -315,7 +310,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'error' || !detail) {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -341,7 +335,6 @@ export default function AttemptDetailPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.wrap}>
         <div style={s.page}>
 

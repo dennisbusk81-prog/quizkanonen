@@ -111,7 +111,7 @@ export default function AuthModal({ open, onClose, next, description, onSuccess 
 
         {/* Header */}
         <p style={{
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           fontSize: 10,
           fontWeight: 600,
           letterSpacing: '0.18em',
@@ -123,7 +123,7 @@ export default function AuthModal({ open, onClose, next, description, onSuccess 
           Quizkanonen
         </p>
         <h2 style={{
-          fontFamily: "'Libre Baskerville', serif",
+          fontFamily: "var(--font-libre-baskerville), serif",
           fontSize: 24,
           fontWeight: 700,
           color: '#ffffff',
@@ -134,7 +134,7 @@ export default function AuthModal({ open, onClose, next, description, onSuccess 
           Logg <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>inn</em>
         </h2>
         <p style={{
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           fontSize: 13,
           color: '#e8e4dd',
           textAlign: 'center',

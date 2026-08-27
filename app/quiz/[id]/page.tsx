@@ -97,7 +97,6 @@ function getDeviceId(): string {
 }
 
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -117,7 +116,7 @@ const styles = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -175,7 +174,7 @@ const styles = `
   }
 
   .qk-heading {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: var(--white);
@@ -239,7 +238,7 @@ const styles = `
     flex: 1;
     padding: 6px 14px;
     border-radius: var(--rbtn);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 600;
     background: transparent;
@@ -285,7 +284,7 @@ const styles = `
     width: 100%;
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 600;
     padding: 11px;
@@ -318,7 +317,7 @@ const styles = `
     width: 100%;
     background: transparent;
     color: var(--body);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     font-weight: 500;
     padding: 10px;
@@ -403,7 +402,7 @@ const styles = `
   }
 
   .qk-timer {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     font-weight: 700;
     color: var(--white);
@@ -459,7 +458,7 @@ const styles = `
   }
 
   .qk-question-text {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     font-weight: 400;
     color: #ffffff;
@@ -673,7 +672,7 @@ const styles = `
   }
 
   .qk-stat-value {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 24px;
     font-weight: 700;
     color: #c9a84c;
@@ -816,7 +815,7 @@ const styles = `
   .qk-score-pop-el {
     position: fixed;
     pointer-events: none; z-index: 10002;
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 32px; font-weight: 700;
     color: #c9a84c;
     text-shadow: 0 0 20px rgba(201,168,76,0.5);
@@ -826,7 +825,7 @@ const styles = `
     position: fixed;
     left: 50%; top: 40%;
     pointer-events: none; z-index: 10003;
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 24px; font-weight: 700;
     color: #c9a84c;
     text-shadow: 0 0 30px rgba(201,168,76,0.6);
@@ -854,7 +853,7 @@ const styles = `
     text-transform: uppercase;
     color: #918f8a;
     margin-bottom: 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
   }
   @media (min-width: 1100px) {
     .qk-game-wrap {
@@ -2821,6 +2820,19 @@ export default function QuizPage() {
       const ctx = canvas.getContext('2d')!
       ctx.scale(2, 2)
 
+      // `ctx.font` er en ren CSS-font-shorthand-STRENG og løser ikke var().
+      // Etter overgangen til next/font (27. august 2026) er familienavnet
+      // hashet og finnes bare i CSS-variabelen, så det må slås opp i
+      // kjøretid. Fallbacken er ikke pynt: feiler oppslaget, faller vi til
+      // generisk serif/sans og kortet tegnes fortsatt — i motsetning til en
+      // ugyldig `ctx.font`-streng, som ville blitt IGNORERT og latt forrige
+      // font gjelde videre uten noe spor.
+      const rootStyle = getComputedStyle(document.documentElement)
+      const cssFamily = (name: string, fallback: string) =>
+        rootStyle.getPropertyValue(name).trim() || fallback
+      const SERIF = cssFamily('--font-libre-baskerville', 'Georgia, serif')
+      const SANS = cssFamily('--font-instrument-sans', 'system-ui, sans-serif')
+
       // Rounded rect path helper
       const rr = (x: number, y: number, w: number, h: number, rad: number) => {
         ctx.beginPath()
@@ -2864,21 +2876,21 @@ export default function QuizPage() {
       const cx = W / 2
 
       // Eyebrow
-      ctx.font = '600 11px "Instrument Sans", sans-serif'
+      ctx.font = `600 11px ${SANS}`
       ctx.fillStyle = '#c9a84c'
       ctx.fillText('QUIZKANONEN', cx, cY + 40)
 
       // Player name
       const rawName = playerInfo.name
       const displayName = rawName.length > 26 ? rawName.slice(0, 26) + '…' : rawName
-      ctx.font = '700 38px "Libre Baskerville", serif'
+      ctx.font = `700 38px ${SERIF}`
       ctx.fillStyle = '#ffffff'
       ctx.fillText(displayName, cx, cY + 90)
 
       // Quiz title
       const rawTitle = quiz?.title ?? ''
       const displayTitle = rawTitle.length > 50 ? rawTitle.slice(0, 50) + '…' : rawTitle
-      ctx.font = '400 13px "Instrument Sans", sans-serif'
+      ctx.font = `400 13px ${SANS}`
       ctx.fillStyle = '#918f8a'
       ctx.fillText(displayTitle, cx, cY + 116)
 
@@ -2904,15 +2916,15 @@ export default function QuizPage() {
       // Den sentrerte varianten er ikke ny — den ble allerede brukt for alle
       // ikke-Premium-spillere, så dette er én kjent utforming for alle.
       const statY = cY + 212
-      ctx.font = '700 58px "Libre Baskerville", serif'
+      ctx.font = `700 58px ${SERIF}`
       ctx.fillStyle = '#c9a84c'
       ctx.fillText(`${cCount}/${totalQuestions}`, cx, statY)
-      ctx.font = '500 16px "Instrument Sans", sans-serif'
+      ctx.font = `500 16px ${SANS}`
       ctx.fillStyle = '#e8e4dd'
       ctx.fillText('riktige svar', cx, statY + 36)
 
       // Branding
-      ctx.font = '400 11px "Instrument Sans", sans-serif'
+      ctx.font = `400 11px ${SANS}`
       ctx.fillStyle = 'rgba(122, 120, 115, 0.45)'
       ctx.textAlign = 'right'
       ctx.fillText('quizkanonen.no', cX + cW - 20, cY + cH - 16)
@@ -2977,7 +2989,7 @@ export default function QuizPage() {
   if (isSuspended) return (
     <><style>{styles}</style>
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
-      <p style={{fontFamily:"'Libre Baskerville', serif", fontSize:20, fontWeight:700, color:'#ffffff', marginBottom:12}}>Kontoen er midlertidig suspendert</p>
+      <p style={{fontFamily:"var(--font-libre-baskerville), serif", fontSize:20, fontWeight:700, color:'#ffffff', marginBottom:12}}>Kontoen er midlertidig suspendert</p>
       <p style={{color:'#e8e4dd', fontSize:14, lineHeight:1.6}}>Kontakt oss på <a href="mailto:support@quizkanonen.no" style={{color:'#e8e4dd'}}>support@quizkanonen.no</a> for mer informasjon.</p>
     </div></div></div></>
   )
@@ -3295,7 +3307,7 @@ export default function QuizPage() {
           <span className="qk-social-proof-dot" />
           <span style={{
             fontSize: 14, color: '#e8e4dd',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             whiteSpace: 'nowrap',
           }}>
             <span style={{ color: '#e8e4dd', fontWeight: 600 }}>{socialProof.totalPlayers}</span>
@@ -3312,7 +3324,7 @@ export default function QuizPage() {
                   padding: '4px 10px',
                   fontSize: 11,
                   color: '#e8e4dd',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   whiteSpace: 'nowrap',
                 }}>
                   {name}
@@ -3432,7 +3444,7 @@ export default function QuizPage() {
           }).catch(() => {})
         }} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif",
+          fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif",
           padding: '4px 0',
         }}>
           {linkCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
@@ -3537,13 +3549,13 @@ export default function QuizPage() {
             <button
               onClick={retryFinishQuiz}
               disabled={isAdvancing}
-              style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
+              style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
             >
               {isAdvancing ? 'Prøver…' : 'Prøv igjen'}
             </button>
             <button
               onClick={() => { setFinishTimedOut(false); setPhase('finished') }}
-              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' }}
             >
               Vis resultatet
             </button>
@@ -3569,14 +3581,14 @@ export default function QuizPage() {
               <button
                 onClick={() => setAuthModalOpen(true)}
                 disabled={isAdvancing}
-                style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
+                style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: isAdvancing ? 'default' : 'pointer', opacity: isAdvancing ? 0.6 : 1 }}
               >
                 {isAdvancing ? 'Lagrer…' : 'Logg inn og lagre'}
               </button>
             )}
             <button
               onClick={() => { setFinishNeedsLogin(false); setPhase('finished') }}
-              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+              style={{ width: 'auto', padding: '10px 28px', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' }}
             >
               Vis resultatet
             </button>
@@ -3610,7 +3622,7 @@ export default function QuizPage() {
           </p>
           <button
             onClick={() => { setNextLoadFailed(null); goToNext() }}
-            style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+            style={{ width: 'auto', padding: '10px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' }}
           >
             Prøv igjen
           </button>
@@ -3658,12 +3670,12 @@ export default function QuizPage() {
           <div className="qk-side-card">
             <p className="qk-side-label">Din rival</p>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: rivalData.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: rivalData.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
                 {getAvatarInitial(rivalData.name)}
               </div>
               {/* maxWidth + break-word: display_name kan være 40 tegn uten
                   mellomrom — kortet er bare 180px bredt. */}
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', lineHeight: 1.3, maxWidth: '100%', overflowWrap: 'break-word' }}>{rivalData.name}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", textAlign: 'center', lineHeight: 1.3, maxWidth: '100%', overflowWrap: 'break-word' }}>{rivalData.name}</span>
             </div>
             {/* Rivalens tall er en SLUTTSUM (findRival teller kun leverte
                 forsøk) — vises som et mål å slå, aldri side om side med
@@ -3671,10 +3683,10 @@ export default function QuizPage() {
                 2026: delsum-mot-sluttsum er ikke en reell kappestrid, og
                 spillerens løpende score står allerede i poeng-pillen i
                 headeren på samme skjerm. */}
-            <p style={{ fontSize: 12, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", textAlign: 'center', margin: 0 }}>
               Ferdig med {rivalData.score} {pluralNo(rivalData.score, 'riktig', 'riktige')}
             </p>
-            <p style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", textAlign: 'center', margin: '4px 0 0' }}>
+            <p style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", textAlign: 'center', margin: '4px 0 0' }}>
               Kan du slå det?
             </p>
           </div>
@@ -3723,7 +3735,7 @@ export default function QuizPage() {
         }}>
           <div key={questionKey} className="qk-question-card qk-animate-in">
             {question?.category && (
-              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginBottom: 8 }}>
                 {question.category}
               </p>
             )}
@@ -3820,14 +3832,14 @@ export default function QuizPage() {
               møter aldri et felt den ikke kjenner. */}
           {rankingSnapshot && rankingSnapshot.totalPlayers > 0 && (
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 6 }}>I tet</div>
+              <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginBottom: 6 }}>I tet</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#1a1c23', fontFamily: "'Libre Baskerville', serif", flexShrink: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#1a1c23', fontFamily: "var(--font-libre-baskerville), serif", flexShrink: 0 }}>
                   {getAvatarInitial(rankingSnapshot.leaderName)}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderName}</div>
-                  <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif" }}>{rankingSnapshot.leaderCorrect} {pluralNo(rankingSnapshot.leaderCorrect, 'riktig', 'riktige')}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>{rankingSnapshot.leaderName}</div>
+                  <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif" }}>{rankingSnapshot.leaderCorrect} {pluralNo(rankingSnapshot.leaderCorrect, 'riktig', 'riktige')}</div>
                 </div>
               </div>
             </div>
@@ -3835,11 +3847,11 @@ export default function QuizPage() {
           <div style={{ borderTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? 14 : 0 }}>
             {interLow !== null && interHigh !== null ? (
               <>
-                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginBottom: 4 }}>Din plass</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#c9a84c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginBottom: 4 }}>Din plass</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#c9a84c', fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: '-0.02em' }}>
                   #{interLow}–{interHigh}
                 </div>
-                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", marginTop: 2 }}>estimert</div>
+                <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginTop: 2 }}>estimert</div>
               </>
             ) : answers.length < MIN_ANSWERED_FOR_PLACEMENT ? (
               // Under terskelen: sant — det er faktisk antall besvarte som
@@ -3848,7 +3860,7 @@ export default function QuizPage() {
               // uteble (én spiller i feltet, eller feilet kall), og da var
               // «Svar på minst 3» en usann forklaring til en som hadde svart
               // på fire (VINDU D, 13. august 2026).
-              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", lineHeight: 1.5 }}>
                 Svar på minst {MIN_ANSWERED_FOR_PLACEMENT} spørsmål for å se din estimerte plass.
               </div>
             ) : (
@@ -3856,7 +3868,7 @@ export default function QuizPage() {
               // å røre goToNext (der low/high settes): «for få har levert» og
               // «kallet feilet» ender i samme tilstand. Ordlyden er derfor
               // årsaksnøytral — sann i begge — i stedet for å påstå en av dem.
-              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", lineHeight: 1.5 }}>
                 Ingen estimert plass ennå.
               </div>
             )}
@@ -3928,7 +3940,7 @@ export default function QuizPage() {
 
       {/* Riktige svar — stor hero-visning */}
       <div style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:12,padding:'16px 12px 12px',textAlign:'center',marginBottom:8}}>
-        <div style={{fontFamily:"'Libre Baskerville', serif",fontSize:40,fontWeight:700,color:'#ffffff',lineHeight:1}}>
+        <div style={{fontFamily:"var(--font-libre-baskerville), serif",fontSize:40,fontWeight:700,color:'#ffffff',lineHeight:1}}>
           {correctCount}<span style={{fontSize:22,color:'#918f8a',fontWeight:400}}>/{totalQuestions}</span>
         </div>
         <div style={{fontSize:10,color:'#918f8a',textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600,marginTop:6}}>Riktige svar</div>
@@ -4044,7 +4056,7 @@ export default function QuizPage() {
               <div style={{ fontSize: 10, color: '#918f8a', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
                 Din plassering hos {orgName}
               </div>
-              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+              <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {internalPlacement.exactRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
               {internalPlacement.total === 1 ? (
@@ -4236,7 +4248,7 @@ export default function QuizPage() {
               <div style={{ fontSize: 10, color: '#918f8a', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, marginBottom: 6 }}>
                 Din plassering
               </div>
-              <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+              <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {exactRank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
               </div>
               {placementView === 'premium-first' ? (
@@ -4433,7 +4445,7 @@ export default function QuizPage() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: c.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: c.avatarColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-libre-baskerville), serif", fontSize: 13, fontWeight: 700, color: '#1a1c23', flexShrink: 0 }}>
                         {getAvatarInitial(c.name)}
                       </div>
                       <div style={{ minWidth: 0 }}>
@@ -4480,7 +4492,7 @@ export default function QuizPage() {
         }} style={{
           width:'100%',background:'transparent',border:'0.5px solid #2a2d38',
           borderRadius:10,padding:'8px 20px',fontSize:14,color:'#e8e4dd',
-          fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
+          fontFamily:"var(--font-instrument-sans), sans-serif",cursor:'pointer',
         }}>
           {shareResultCopied ? 'Kopiert!' : 'Del resultatet →'}
         </button>
@@ -4501,7 +4513,7 @@ export default function QuizPage() {
         }} style={{
           width:'100%',background:'transparent',border:'0.5px solid #2a2d38',
           borderRadius:10,padding:'8px 20px',fontSize:14,color: challengeResultCopied ? '#4ade80' : '#e8e4dd',
-          fontFamily:"'Instrument Sans', sans-serif",cursor:'pointer',
+          fontFamily:"var(--font-instrument-sans), sans-serif",cursor:'pointer',
           transition: 'color 0.15s',
         }}>
           {challengeResultCopied ? 'Lenke kopiert!' : 'Utfordre en venn →'}
@@ -4519,7 +4531,7 @@ export default function QuizPage() {
               padding: '8px 20px',
               fontSize: 14,
               color: cardShareState === 'done' ? '#4ade80' : '#e8e4dd',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
               cursor: cardShareState === 'loading' ? 'default' : 'pointer',
               opacity: cardShareState === 'loading' ? 0.6 : 1,
               transition: 'color 0.2s, opacity 0.2s',
@@ -4546,7 +4558,7 @@ export default function QuizPage() {
                 fontWeight: 500,
                 color: '#e8e4dd',
                 textDecoration: 'none',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
               }}>Se dine svar →</a>
             ) : (
               // Låst variant (22. august 2026) — samme mønster som forsidens
@@ -4565,7 +4577,7 @@ export default function QuizPage() {
                 fontWeight: 500,
                 color: '#e8e4dd',
                 textDecoration: 'none',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
               }}>
                 Se dine svar
                 <span style={{
@@ -4604,7 +4616,7 @@ export default function QuizPage() {
             padding: 28,
           }}>
             <p style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 18,
               fontWeight: 700,
               color: '#ffffff',

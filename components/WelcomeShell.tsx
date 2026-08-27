@@ -1,6 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
 import {
-  WELCOME_FONT_IMPORT,
   welcomeBodyText,
   welcomeColumn,
   welcomeEyebrow,
@@ -8,7 +7,7 @@ import {
   welcomeTitle,
 } from '@/lib/welcome-styles'
 
-// Den felles rammen rundt en velkomstskjerm: font, sidebakgrunn, kolonnebredde
+// Den felles rammen rundt en velkomstskjerm: sidebakgrunn, kolonnebredde
 // og toppseksjonen (eyebrow → tittel → ingress).
 //
 // Rent presentasjonelt med vilje. Ingen state, ingen henting, ingen betingelser
@@ -20,7 +19,7 @@ import {
 // klientkomponenter.
 
 type Props = {
-  /** Legges etter font-importen i samme <style>. F.eks. en box-sizing-reset. */
+  /** Ekstra CSS for denne skjermen. F.eks. en box-sizing-reset. */
   styleExtra?: string
   /** Rendres mellom <style> og sideinnholdet — typisk en brukermeny. */
   nav?: ReactNode
@@ -36,7 +35,7 @@ const leadStyle: CSSProperties = { ...welcomeBodyText, marginBottom: 32 }
 export default function WelcomeShell({ styleExtra, nav, eyebrow, title, lead, children }: Props) {
   return (
     <>
-      <style>{WELCOME_FONT_IMPORT + (styleExtra ?? '')}</style>
+      <style>{styleExtra ?? ''}</style>
       {nav}
 
       <div style={welcomeScreen}>

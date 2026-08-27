@@ -9,8 +9,6 @@ import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import { fetchMembersActivity } from '@/lib/members-activity-fetch'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LeagueInfo = {
@@ -26,19 +24,19 @@ type LeagueInfo = {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = {
-  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
+  wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
   // 900px, ikke 680 — se samme begrunnelse i app/leaderboard/[id]/page.tsx:
   // siden rendrer SeasonLeaderboard sin 4-kolonners ResultsTable og hører
   // dermed i «innholdsrike sider»-gruppen, ikke i 680-gruppen den ble plassert
   // i før tabellformatet fantes.
   page:     { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered: { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  spinner:  { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  spinner:  { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 14, letterSpacing: '0.04em' },
 
   hero:        { paddingTop: 24, paddingBottom: 16 },
   heroEyebrow: { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 6 },
-  heroTitle:   { fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em', marginBottom: 6 },
+  heroTitle:   { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em', marginBottom: 6 },
   heroBadge:   { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e8e4dd' },
   rule:        { width: '100%', height: 1, background: '#2a2d38', marginBottom: 16 },
 
@@ -46,11 +44,11 @@ const s = {
   inviteCard:  { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '16px 18px', marginBottom: 12 },
   inviteLabel: { fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#918f8a', marginBottom: 8 },
   inviteRow:   { display: 'flex', gap: 8 },
-  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#918f8a', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
-  copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', flexShrink: 0 },
-  copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "'Instrument Sans', sans-serif", cursor: 'default', flexShrink: 0 },
+  inviteInput: { flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
+  copyBtn:     { padding: '8px 16px', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', flexShrink: 0 },
+  copyBtnDone: { padding: '8px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#4ade80', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'default', flexShrink: 0 },
 
-  resetCancelBtn:   { padding: '6px 14px', background: 'none', border: '1px solid #2a2d38', borderRadius: 7, fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  resetCancelBtn:   { padding: '6px 14px', background: 'none', border: '1px solid #2a2d38', borderRadius: 7, fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' },
 
   errorMsg: { fontSize: 13, color: '#f87171', marginTop: 8 },
 } as const
@@ -274,7 +272,6 @@ export default function LigaPage() {
 
   if (loadState === 'loading') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <SkeletonCard rows={2} showHeader style={{ height: 100 }} />
@@ -286,7 +283,6 @@ export default function LigaPage() {
 
   if (loadState === 'notfound') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.centered}>
         <div style={{ textAlign: 'center' }}>
           <p style={s.spinner}>Fant ikke ligaen.</p>
@@ -298,14 +294,12 @@ export default function LigaPage() {
 
   if (loadState === 'error') return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
     </>
   )
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
@@ -360,7 +354,7 @@ export default function LigaPage() {
             <div style={{ marginBottom: 16 }}>
               <button
                 onClick={() => setSeasonOpen(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'border-color 150ms' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: seasonOpen ? '16px 16px 0 0' : 16, padding: '14px 18px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", transition: 'border-color 150ms' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = '#c9a84c'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = seasonOpen ? '#2a2d38' : '#2a2d38'}
               >
@@ -377,7 +371,7 @@ export default function LigaPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <button
                       onClick={() => { setSeasonResetModal(true); setSeasonResetInput('') }}
-                      style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
+                      style={{ fontSize: 13, fontWeight: 500, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -419,7 +413,7 @@ export default function LigaPage() {
                     <button
                       key={p}
                       onClick={() => setActivityPeriod(p)}
-                      style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: activityPeriod === p ? 'rgba(201,168,76,0.15)' : 'transparent', color: activityPeriod === p ? '#c9a84c' : '#e8e4dd', transition: 'background 0.15s, color 0.15s' }}
+                      style={{ fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", background: activityPeriod === p ? 'rgba(201,168,76,0.15)' : 'transparent', color: activityPeriod === p ? '#c9a84c' : '#e8e4dd', transition: 'background 0.15s, color 0.15s' }}
                     >
                       {p === 'month' ? 'Måned' : p === 'quarter' ? 'Kvartal' : 'År'}
                     </button>
@@ -427,7 +421,7 @@ export default function LigaPage() {
                 </div>
                 <button
                   onClick={downloadCsv}
-                  style={{ fontSize: 12, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                  style={{ fontSize: 12, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                 >
                   Last ned CSV
                 </button>
@@ -449,7 +443,7 @@ export default function LigaPage() {
                   </p>
                   <button
                     onClick={() => { if (league) loadActivity(activityPeriod, league.id) }}
-                    style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                    style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
                   >
                     Prøv igjen
                   </button>
@@ -477,7 +471,7 @@ export default function LigaPage() {
                       <button
                         onClick={() => handleExclude(m.userId, m.isExcluded)}
                         disabled={excludingId === m.userId}
-                        style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                        style={{ fontSize: 11, color: m.isExcluded ? '#c9a84c' : '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: excludingId === m.userId ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                       >
                         {excludingId === m.userId ? '…' : m.isExcluded ? 'Vis igjen' : 'Ekskluder'}
                       </button>
@@ -506,7 +500,7 @@ export default function LigaPage() {
                 </p>
                 <button
                   onClick={() => { setDeleteModal(true); setDeleteInput(''); setDeleteError(null) }}
-                  style={{ fontSize: 13, fontWeight: 600, color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s' }}
+                  style={{ fontSize: 13, fontWeight: 600, color: '#f87171', background: 'transparent', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", transition: 'background 0.15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
@@ -522,7 +516,7 @@ export default function LigaPage() {
       {/* Slett-liga modal */}
       {deleteModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>Slett liga</p>
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               Ligaen <strong style={{ color: '#ffffff' }}>{league?.name}</strong> slettes permanent. Alle medlemmer mister tilgang og alle sesong-poeng fjernes. Dette kan ikke angres.
@@ -535,7 +529,7 @@ export default function LigaPage() {
               placeholder="SLETT"
               autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleDeleteLeague() }}
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 8, boxSizing: 'border-box' }}
             />
             {deleteError && (
               <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{deleteError}</p>
@@ -545,7 +539,7 @@ export default function LigaPage() {
               <button
                 onClick={handleDeleteLeague}
                 disabled={deleteInput !== 'SLETT' || deleting}
-                style={{ fontSize: 13, fontWeight: 600, color: deleteInput === 'SLETT' ? '#1a1c23' : '#918f8a', background: deleteInput === 'SLETT' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteInput === 'SLETT' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteInput === 'SLETT' ? '#1a1c23' : '#918f8a', background: deleteInput === 'SLETT' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteInput === 'SLETT' ? 'pointer' : 'not-allowed', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {deleting ? 'Sletter…' : 'Slett liga'}
               </button>
@@ -557,7 +551,7 @@ export default function LigaPage() {
       {/* Sesong-reset modal */}
       {seasonResetModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 400, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>Nullstill sesong-data</p>
             <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 20 }}>
               Dette sletter alle sesong-poeng for ligaen. Handlingen kan ikke angres.
@@ -570,14 +564,14 @@ export default function LigaPage() {
               placeholder="NULLSTILL"
               autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleSeasonReset() }}
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setSeasonResetModal(false); setSeasonResetInput('') }} style={{ ...s.resetCancelBtn, padding: '8px 16px' }}>Avbryt</button>
               <button
                 onClick={handleSeasonReset}
                 disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
-                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

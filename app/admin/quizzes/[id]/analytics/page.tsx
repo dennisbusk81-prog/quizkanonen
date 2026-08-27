@@ -50,7 +50,6 @@ type QuestionStat = {
 }
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -76,7 +75,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -104,7 +103,7 @@ const STYLES = `
   .an-back:hover { color: var(--gold); }
 
   .an-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: var(--white);
@@ -152,7 +151,7 @@ const STYLES = `
   .an-stat-icon { font-size: 18px; margin-bottom: 10px; }
 
   .an-stat-value {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 24px;
     font-weight: 700;
     color: var(--white);
@@ -217,7 +216,7 @@ const STYLES = `
   .an-q-num { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 5px; }
 
   .an-q-text {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 14px;
     color: var(--white);
     line-height: 1.45;
@@ -227,7 +226,7 @@ const STYLES = `
   .an-q-score { text-align: right; flex-shrink: 0; }
 
   .an-q-pct {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     line-height: 1;
@@ -296,7 +295,7 @@ const STYLES = `
     border: none;
     padding: 0;
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     line-height: 1;
     transition: color 0.15s;
   }
@@ -319,7 +318,7 @@ const STYLES = `
     border-radius: 6px;
     padding: 3px 9px;
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     margin-top: 8px;
     display: block;
     transition: color 0.15s, border-color 0.15s;
@@ -344,7 +343,7 @@ const STYLES = `
     background: none;
     color: var(--body);
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     transition: all 0.15s;
   }
   .an-change-opt.selected { border-color: var(--gold); color: var(--gold); background: var(--gold-bg); }
@@ -360,7 +359,7 @@ const STYLES = `
     background: var(--gold);
     color: #1a1c23;
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
   }
   .an-change-confirm:disabled { opacity: 0.5; cursor: default; }
 
@@ -373,7 +372,7 @@ const STYLES = `
     background: none;
     color: var(--muted);
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
   }
 
   /* Feedback */
@@ -422,7 +421,7 @@ const STYLES = `
     text-align: center;
   }
   .an-empty-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     color: var(--white);
     margin-bottom: 8px;
@@ -434,7 +433,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 20px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     color: var(--body);
@@ -446,7 +445,7 @@ const STYLES = `
     background: transparent;
     border: none;
     padding: 0;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 12px;
     font-weight: 600;
     color: inherit;
@@ -462,7 +461,7 @@ const STYLES = `
     justify-content: center;
   }
   .an-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;
@@ -861,7 +860,7 @@ export default function QuizAnalytics() {
                                   borderRadius: 6,
                                   padding: '3px 9px',
                                   cursor: 'pointer',
-                                  fontFamily: "'Instrument Sans', sans-serif",
+                                  fontFamily: "var(--font-instrument-sans), sans-serif",
                                   transition: 'border-color 0.15s, color 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(248,113,113,0.4)'; e.currentTarget.style.color = '#f87171' }}
@@ -1025,7 +1024,7 @@ export default function QuizAnalytics() {
         }}>
           <div style={{
             background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16,
-            padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif",
+            padding: '28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif",
           }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
               Fjern deltaker

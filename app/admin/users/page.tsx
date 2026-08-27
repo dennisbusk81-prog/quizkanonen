@@ -7,7 +7,6 @@ import { adminFetch } from '@/lib/admin-fetch'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -23,7 +22,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -43,7 +42,7 @@ const STYLES = `
     text-transform: uppercase; color: var(--gold); margin-bottom: 6px;
   }
   .adm-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 28px; font-weight: 700; color: var(--white); letter-spacing: -0.01em;
   }
   .adm-title em { font-style: italic; color: var(--gold); }
@@ -65,7 +64,7 @@ const STYLES = `
     border: 0.5px solid var(--border);
     border-radius: 10px;
     padding: 10px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     color: var(--white);
     outline: none;
@@ -82,7 +81,7 @@ const STYLES = `
     border: 0.5px solid var(--border);
     border-radius: 8px;
     padding: 7px 10px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 12px;
     color: var(--body);
     outline: none;
@@ -114,7 +113,7 @@ const STYLES = `
     width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
     background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 13px; font-weight: 700; color: var(--gold);
   }
 
@@ -144,7 +143,7 @@ const STYLES = `
     display: flex; align-items: center; justify-content: center;
   }
   .adm-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px; color: var(--hint); font-style: italic;
   }
 
@@ -352,7 +351,7 @@ export default function AdminUsersPage() {
             background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
             padding: '56px 32px', textAlign: 'center',
           }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, color: '#ffffff', marginBottom: 8 }}>
               Kunne ikke laste brukere
             </p>
             <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 }}>
@@ -371,7 +370,7 @@ export default function AdminUsersPage() {
                 fontWeight: 500,
                 color: '#e8e4dd',
                 cursor: retrying ? 'not-allowed' : 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 opacity: retrying ? 0.6 : 1,
               }}
             >

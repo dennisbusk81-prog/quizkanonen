@@ -106,7 +106,7 @@ export default function GlobalLeagueChoiceBanner() {
           style={{
             background: '#c9a84c', color: '#1a1c23', border: 'none',
             borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 700,
-            fontFamily: "'Instrument Sans', sans-serif", cursor: saving ? 'default' : 'pointer',
+            fontFamily: "var(--font-instrument-sans), sans-serif", cursor: saving ? 'default' : 'pointer',
             opacity: saving ? 0.6 : 1, whiteSpace: 'nowrap',
           }}
         >
@@ -118,7 +118,7 @@ export default function GlobalLeagueChoiceBanner() {
           style={{
             background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd',
             borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 600,
-            fontFamily: "'Instrument Sans', sans-serif", cursor: saving ? 'default' : 'pointer',
+            fontFamily: "var(--font-instrument-sans), sans-serif", cursor: saving ? 'default' : 'pointer',
             opacity: saving ? 0.6 : 1, whiteSpace: 'nowrap',
           }}
         >

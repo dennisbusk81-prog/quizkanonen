@@ -48,9 +48,9 @@ export default function DuelChallengeModal({ pending, onCancel, onConfirm }: Pro
         aria-modal="true"
         aria-labelledby="qk-challenge-title"
         onClick={e => e.stopPropagation()}
-        style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 360, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}
+        style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 360, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}
       >
-        <p id="qk-challenge-title" style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
+        <p id="qk-challenge-title" style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 8 }}>
           Utfordre {pending.name}?
         </p>
         <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 24 }}>
@@ -59,13 +59,13 @@ export default function DuelChallengeModal({ pending, onCancel, onConfirm }: Pro
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={() => onConfirm(pending.id)}
-            style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+            style={{ flex: 1, background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 700, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' }}
           >
             Send utfordring
           </button>
           <button
             onClick={onCancel}
-            style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' }}
+            style={{ flex: 1, background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', borderRadius: 10, padding: '11px', fontSize: 14, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' }}
           >
             Avbryt
           </button>

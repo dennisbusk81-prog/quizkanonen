@@ -111,7 +111,6 @@ function addHours(localDT: string, hours: number): string {
 // ── CSS ────────────────────────────────────────────────────────────────────────
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -130,7 +129,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -179,7 +178,7 @@ const STYLES = `
     border-bottom: 2px solid var(--border);
     border-radius: 0;
     padding: 4px 0 8px;
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     color: var(--white);
     outline: none;
@@ -201,7 +200,7 @@ const STYLES = `
     gap: 6px;
     border-radius: 6px;
     font-size: 13px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     white-space: nowrap;
     transition: color 0.15s;
   }
@@ -232,7 +231,7 @@ const STYLES = `
     font-size: 13px;
     font-weight: 600;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     white-space: nowrap;
     transition: border-color 0.15s, color 0.15s;
@@ -332,7 +331,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
     padding: 11px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     color: var(--white);
     outline: none;
@@ -367,7 +366,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
     padding: 12px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 16px;
     color: var(--white);
     outline: none;
@@ -450,7 +449,7 @@ const STYLES = `
     font-size: 13px;
     font-weight: 500;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
     margin-top: 10px;
@@ -473,7 +472,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
     padding: 11px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     color: var(--white);
     outline: none;
@@ -557,7 +556,7 @@ const STYLES = `
     font-size: 14px;
     font-weight: 600;
     color: var(--body);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
     white-space: nowrap;
@@ -597,7 +596,7 @@ const STYLES = `
     background: none;
     border: none;
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     transition: color 0.15s;
   }
   .nq-add-q-link:hover { color: var(--gold); }
@@ -628,7 +627,7 @@ const STYLES = `
     font-size: 13px;
     font-weight: 600;
     color: #f87171;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
   }
@@ -655,7 +654,7 @@ const STYLES = `
     width: 100%;
   }
   .nq-modal-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     font-weight: 700;
     color: var(--white);
@@ -680,7 +679,7 @@ const STYLES = `
     font-size: 14px;
     font-weight: 600;
     color: var(--body);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
   }
@@ -693,7 +692,7 @@ const STYLES = `
     font-size: 14px;
     font-weight: 700;
     color: #ffffff;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     transition: background 0.15s;
   }
@@ -712,7 +711,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--rbtn);
     padding: 11px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     color: var(--white);
     outline: none;
@@ -758,7 +757,7 @@ const STYLES = `
     font-size: 12px;
     font-weight: 600;
     color: var(--body);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     cursor: pointer;
     white-space: nowrap;
     transition: border-color 0.15s, color 0.15s;
@@ -1939,7 +1938,7 @@ function QuizEditorInner() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+      <p style={{ color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>Laster...</p>
     </div>
   )
 
@@ -1949,10 +1948,10 @@ function QuizEditorInner() {
   if (loadError) return (
     <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 24px', maxWidth: 440, textAlign: 'center' }}>
-        <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#ffffff', marginBottom: 10 }}>
+        <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 10 }}>
           Kunne ikke laste quizen
         </p>
-        <p style={{ fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
+        <p style={{ fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 20 }}>
           Noe gikk galt under henting av quizen eller spørsmålene. Ingenting er
           endret — quizen ligger trygt i databasen. Editoren åpnes ikke før alt
           er lastet, så du ikke redigerer en halv quiz.
@@ -1965,7 +1964,7 @@ function QuizEditorInner() {
             border: '1px solid #2a2d38',
             borderRadius: 10,
             padding: '10px 20px',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             fontSize: 13,
             fontWeight: 500,
             color: '#e8e4dd',
@@ -1976,7 +1975,7 @@ function QuizEditorInner() {
           {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
         </button>
         <div style={{ marginTop: 16 }}>
-          <Link href="/admin/quizzes" style={{ fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, color: '#e8e4dd' }}>
+          <Link href="/admin/quizzes" style={{ fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, color: '#e8e4dd' }}>
             ← Alle quizer
           </Link>
         </div>
@@ -2081,7 +2080,7 @@ function QuizEditorInner() {
                         fontWeight: 600,
                         color: '#e8e4dd',
                         cursor: 'pointer',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         whiteSpace: 'nowrap',
                         flexShrink: 0,
                       }}
@@ -2099,7 +2098,7 @@ function QuizEditorInner() {
                         type="button"
                         aria-label="Lukk feilmelding"
                         onClick={() => setClosesAtResult(null)}
-                        style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                        style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
                       >
                         Lukk
                       </button>
@@ -2325,15 +2324,15 @@ function QuizEditorInner() {
               marginTop: 12, padding: '14px 16px', background: '#1a1c23',
               border: '1px solid rgba(201,168,76,0.22)', borderRadius: 10,
             }}>
-              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 6, fontFamily: "'Instrument Sans', sans-serif", fontWeight: 600 }}>
+              <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 6, fontFamily: "var(--font-instrument-sans), sans-serif", fontWeight: 600 }}>
                 Endre fasit fra {q.correctAnswers.join(', ')} til {keyPanel.pending.join(', ')}?
               </p>
-              <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+              <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "var(--font-instrument-sans), sans-serif" }}>
                 Dette påvirker leaderboard for {activeAnsweredCount} {activeAnsweredCount === 1 ? 'spiller' : 'spillere'}.
                 Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?
               </p>
               {keyPanelError && (
-                <p style={{ fontSize: 11, color: '#c94c4c', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>
+                <p style={{ fontSize: 11, color: '#c94c4c', marginBottom: 10, fontFamily: "var(--font-instrument-sans), sans-serif" }}>
                   {keyPanelError}
                 </p>
               )}
@@ -2348,7 +2347,7 @@ function QuizEditorInner() {
                     background: 'transparent',
                     color: keyPanelLoading ? '#918f8a' : '#e8e4dd',
                     cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                   }}
                 >
                   {keyPanelLoading ? 'Oppdaterer…' : 'Bekreft endring'}
@@ -2361,7 +2360,7 @@ function QuizEditorInner() {
                     fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38',
                     background: 'transparent', color: '#918f8a',
                     cursor: keyPanelLoading ? 'not-allowed' : 'pointer',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                   }}
                 >
                   Avbryt
@@ -2378,7 +2377,7 @@ function QuizEditorInner() {
               background: keyPanelResult.failed ? 'rgba(248,113,113,0.08)' : 'rgba(74,222,128,0.08)',
               border: `1px solid ${keyPanelResult.failed ? 'rgba(248,113,113,0.18)' : 'rgba(74,222,128,0.18)'}`,
               borderRadius: 6, padding: '4px 10px',
-              display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif",
+              display: 'inline-block', fontFamily: "var(--font-instrument-sans), sans-serif",
             }}>
               {keyPanelResult.text}
             </p>
@@ -2598,7 +2597,7 @@ export default function QuizEditorPage() {
   return (
     <Suspense fallback={
       <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>Laster...</p>
+        <p style={{ color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>Laster...</p>
       </div>
     }>
       <QuizEditorInner />

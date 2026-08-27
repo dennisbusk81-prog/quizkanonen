@@ -5,7 +5,6 @@ import { setAdminToken, safeNextPath } from '@/lib/admin-session'
 import { verifyAdminPassword } from '@/lib/admin-actions'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -23,7 +22,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -57,7 +56,7 @@ const STYLES = `
   }
 
   .login-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 28px;
     font-weight: 700;
     color: var(--white);
@@ -98,7 +97,7 @@ const STYLES = `
     border: 1px solid #2a2d38;
     border-radius: 8px;
     padding: 12px 16px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     color: var(--white);
     outline: none;
@@ -128,7 +127,7 @@ const STYLES = `
   .login-btn {
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     font-weight: 600;
     padding: 10px 24px;

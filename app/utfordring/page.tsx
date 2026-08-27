@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 export default function UtfordringPage() {
   const [fra,       setFra]       = useState<string | null>(null)
   const [quiz,      setQuiz]      = useState('')
@@ -29,11 +27,10 @@ export default function UtfordringPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={{
         minHeight: '100vh',
         background: '#1a1c23',
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         color: '#e8e4dd',
         display: 'flex',
         alignItems: 'center',
@@ -60,7 +57,7 @@ export default function UtfordringPage() {
             </p>
 
             <h1 style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 'clamp(22px, 5vw, 28px)',
               fontWeight: 700,
               color: '#ffffff',
@@ -84,7 +81,7 @@ export default function UtfordringPage() {
                   display: 'inline-block',
                   background: '#c9a84c',
                   color: '#1a1c23',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   fontSize: 15,
                   fontWeight: 600,
                   padding: '11px 28px',
@@ -105,7 +102,7 @@ export default function UtfordringPage() {
                   display: 'inline-block',
                   background: '#c9a84c',
                   color: '#1a1c23',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   fontSize: 15,
                   fontWeight: 600,
                   padding: '11px 28px',

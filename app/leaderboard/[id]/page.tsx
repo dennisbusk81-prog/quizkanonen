@@ -66,7 +66,7 @@ const podiumStyles = `
 `
 
 const s = {
-  wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' },
+  wrap:         { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
   // 900px, ikke 680: bredde-regelen fra e79f6b2 (13. juni 2026) satte 680 for
   // «enkeltside-innhold» og 900 for «innholdsrike sider». Denne siden var
   // kort-basert den gang; siden ResultsTable ble innført 26. juli er den en
@@ -74,14 +74,14 @@ const s = {
   // derfor i 900-gruppen. Samme flytting gjort for /liga/[slug].
   page:         { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  centeredText: { fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  centeredText: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
 
   header:   { padding: '48px 0 36px', textAlign: 'center' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
   eyebrow:  { fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 8 },
-  title:    { fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(28px, 6vw, 38px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
+  title:    { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(28px, 6vw, 38px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 },
   titleEm:  { fontStyle: 'italic', color: '#c9a84c' },
-  subtitle: { fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' as const },
+  subtitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' as const },
   rule:     { width: '100%', height: 1, background: '#2a2d38', marginTop: 32 },
 
   sectionHeader: { display: 'flex', alignItems: 'center', gap: 10, margin: '32px 0 14px' },
@@ -97,20 +97,20 @@ const s = {
   cardTitle:  { fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 3 },
   cardSub:    { fontSize: 12, color: '#918f8a' },
 
-  btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
-  btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
-  btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", marginTop: 4, marginBottom: 16 },
+  btnGold:    { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, textDecoration: 'none' },
+  btnOutline: { background: 'none', color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 12, fontWeight: 600, padding: '4px 0', border: 'none', cursor: 'pointer' },
+  btnMore:    { width: '100%', padding: 12, background: '#21242e', border: '1px solid #2a2d38', borderRadius: 10, color: '#e8e4dd', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", marginTop: 4, marginBottom: 16 },
 
   tabRow:     { display: 'flex', borderBottom: '1px solid #2a2d38', marginBottom: 16 },
-  tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
-  tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer' },
+  tabActive:  { padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid #c9a84c', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#c9a84c', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' },
+  tabInactive:{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', marginBottom: -1, fontSize: 13, fontWeight: 600, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer' },
   tabEmpty:   { padding: '24px 0', textAlign: 'center' as const, fontSize: 13, color: '#918f8a', fontStyle: 'italic' as const },
 
   empty:     { background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20, padding: '56px 32px', textAlign: 'center' as const, marginTop: 32 },
   emptyIcon: { fontSize: 44, marginBottom: 16, opacity: 0.5 },
-  emptyTitle:{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
+  emptyTitle:{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, color: '#ffffff', marginBottom: 8 },
   emptySub:  { fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 },
-  btnLink:   { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', border: '1px solid #2a2d38', borderRadius: 10, textDecoration: 'none' },
+  btnLink:   { display: 'inline-block', background: 'transparent', color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', border: '1px solid #2a2d38', borderRadius: 10, textDecoration: 'none' },
 }
 
 
@@ -1011,7 +1011,7 @@ export default function LeaderboardPage() {
       // Én diskret rad, ikke tre døde kontroller — badgen er markeringen,
       // raden selv er outline i søkefeltets form.
       return (
-        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent' }}>
+        <Link href="/premium" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 14, color: '#e8e4dd', textDecoration: 'none', fontFamily: "var(--font-instrument-sans), sans-serif", background: 'transparent' }}>
           <span>Søk og bla blant alle {roomTotal} spillere</span>
           <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 999, padding: '2px 8px' }}>
             Premium
@@ -1027,12 +1027,12 @@ export default function LeaderboardPage() {
           value={browseSearchInput}
           onChange={e => setBrowseSearchInput(e.target.value)}
           placeholder="Søk etter navn…"
-          style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+          style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 14px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' }}
         />
         {showJumpToMeBrowse && (
           <button
             onClick={goToMyPlacementBrowse}
-            style={{ marginTop: 10, background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', width: 'auto' }}
+            style={{ marginTop: 10, background: 'transparent', color: '#e8e4dd', border: '1px solid #e8e4dd', borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', width: 'auto' }}
           >
             Gå til min plassering (#{roomUserRank})
           </button>
@@ -1124,7 +1124,7 @@ export default function LeaderboardPage() {
             : <button
                 key={p}
                 onClick={() => { setBrowsePage(p); setBrowseMode(true) }}
-                style={{ background: p === browsePage ? 'rgba(201,168,76,0.12)' : 'transparent', border: `1px solid ${p === browsePage ? '#c9a84c' : '#2a2d38'}`, color: p === browsePage ? '#c9a84c' : '#e8e4dd', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const }}
+                style={{ background: p === browsePage ? 'rgba(201,168,76,0.12)' : 'transparent', border: `1px solid ${p === browsePage ? '#c9a84c' : '#2a2d38'}`, color: p === browsePage ? '#c9a84c' : '#e8e4dd', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer', whiteSpace: 'nowrap' as const }}
               >
                 {`${(p - 1) * BROWSE_PAGE_SIZE + 1}–${Math.min(p * BROWSE_PAGE_SIZE, roomTotal)}`}
               </button>
@@ -1192,7 +1192,7 @@ export default function LeaderboardPage() {
                     disabled={orgScopeUpgradeRequested}
                     style={{
                       background: 'transparent', color: '#e8e4dd',
-                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
                       fontSize: 13, fontWeight: 600, padding: '10px 28px',
                       border: '1px solid #2a2d38', borderRadius: 10,
                       cursor: orgScopeUpgradeRequested ? 'default' : 'pointer',
@@ -1264,7 +1264,7 @@ export default function LeaderboardPage() {
                   {/* Score-seksjon */}
                   {correctAnswers != null && (
                     <div>
-                      <p style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 }}>
+                      <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontWeight: 700, color: '#ffffff', lineHeight: 1, marginBottom: 3 }}>
                         <span className="qk-lb-hero-score" style={{ fontSize: 52 }}>{correctAnswers}</span>
                         {totalQ != null && <span className="qk-lb-score-label" style={{ fontSize: 22, color: '#918f8a', fontWeight: 400 }}> av {totalQ}</span>}
                       </p>
@@ -1276,7 +1276,7 @@ export default function LeaderboardPage() {
                   {hasStats && (
                     <div className="qk-lb-meta-row" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' as const, justifyContent: 'center' }}>
                       {rank != null && (
-                        <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, fontWeight: 700, color: '#c9a84c', whiteSpace: 'nowrap' as const }}>
+                        <span style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, fontWeight: 700, color: '#c9a84c', whiteSpace: 'nowrap' as const }}>
                           Plass {rank} av {totalCount}
                         </span>
                       )}
@@ -1290,19 +1290,19 @@ export default function LeaderboardPage() {
                       )}
                       {timeMs != null && (
                         <div style={{ textAlign: 'center' as const }}>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{formatTime(timeMs)}</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>{formatTime(timeMs)}</p>
                           <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Tid</p>
                         </div>
                       )}
                       {scorePct != null && (
                         <div style={{ textAlign: 'center' as const }}>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{scorePct}%</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>{scorePct}%</p>
                           <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Score</p>
                         </div>
                       )}
                       {streak != null && streak > 0 && (
                         <div style={{ textAlign: 'center' as const }}>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif" }}>{streak}</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif" }}>{streak}</p>
                           <p style={{ fontSize: 10, color: '#918f8a', marginTop: 1, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600 }}>Streak</p>
                         </div>
                       )}
@@ -1401,7 +1401,7 @@ export default function LeaderboardPage() {
                     background: 'transparent',
                     border: '1px solid #2a2d38',
                     color: shareCopied ? '#4ade80' : '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     fontSize: 13,
                     fontWeight: 600,
                     padding: '10px 24px',
@@ -1418,7 +1418,7 @@ export default function LeaderboardPage() {
                     background: 'transparent',
                     border: '1px solid #2a2d38',
                     color: challengeCopied ? '#4ade80' : '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     fontSize: 13,
                     fontWeight: 600,
                     padding: '10px 24px',
@@ -1745,7 +1745,7 @@ export default function LeaderboardPage() {
                       }
                       setShowAnswerDist(v => !v)
                     }}
-                    style={{ background: 'none', border: '1px solid #2a2d38', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                    style={{ background: 'none', border: '1px solid #2a2d38', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                   >
                     {showAnswerDist ? 'Skjul' : 'Vis'}
                   </button>
@@ -1781,7 +1781,7 @@ export default function LeaderboardPage() {
                             </p>
                             {list.map(q => (
                               <div key={q.questionId} style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '20px 22px', marginBottom: 10 }}>
-                                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 4, lineHeight: 1.4 }}>
+                                <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 15, fontWeight: 700, color: '#ffffff', marginBottom: 4, lineHeight: 1.4 }}>
                                   {q.questionText}
                                 </p>
                                 <p style={{ fontSize: 11, color: '#918f8a', marginBottom: 12 }}>

@@ -15,9 +15,6 @@ import type { CSSProperties } from 'react'
 // 6. august 2026 hardkodet lokalt i org-siden. Verdiene under er FLYTTET
 // derfra, uendret, tegn for tegn.
 
-export const WELCOME_FONT_IMPORT =
-  `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 export const welcomeCard: CSSProperties = {
   background: '#21242e',
   border: '1px solid #2a2d38',
@@ -36,7 +33,7 @@ export const welcomeStepLabel: CSSProperties = {
 }
 
 export const welcomeHeading: CSSProperties = {
-  fontFamily: "'Libre Baskerville', serif",
+  fontFamily: "var(--font-libre-baskerville), serif",
   fontSize: 19,
   fontWeight: 700,
   color: '#ffffff',
@@ -62,7 +59,7 @@ export const welcomeHintText: CSSProperties = {
 export const welcomeScreen: CSSProperties = {
   minHeight: '100vh',
   background: '#1a1c23',
-  fontFamily: "'Instrument Sans', sans-serif",
+  fontFamily: "var(--font-instrument-sans), sans-serif",
   color: '#e8e4dd',
 }
 
@@ -82,7 +79,7 @@ export const welcomeEyebrow: CSSProperties = {
 }
 
 export const welcomeTitle: CSSProperties = {
-  fontFamily: "'Libre Baskerville', serif",
+  fontFamily: "var(--font-libre-baskerville), serif",
   fontSize: 'clamp(26px, 5vw, 34px)',
   fontWeight: 700,
   color: '#ffffff',
@@ -108,7 +105,7 @@ export function welcomePrimaryButton(disabled: boolean): CSSProperties {
     width: '100%',
     background: '#c9a84c',
     color: '#1a1c23',
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     fontSize: 15,
     fontWeight: 700,
     padding: '13px',

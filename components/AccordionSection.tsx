@@ -78,7 +78,7 @@ export default function AccordionSection() {
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 textAlign: 'left',
               }}
             >

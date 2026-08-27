@@ -6,14 +6,14 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 const s = {
-  page: { minHeight: '100vh', background: '#1a1c23', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '40px 20px', fontFamily: "'Instrument Sans', sans-serif" },
+  page: { minHeight: '100vh', background: '#1a1c23', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center', padding: '40px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" },
   card: { background: '#21242e', border: '1px solid #2a2d38', borderRadius: '16px', padding: '40px', maxWidth: '500px', width: '100%', textAlign: 'center' as const },
   icon: { width: 56, height: 56, borderRadius: '50%', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' },
-  title: { fontFamily: "'Libre Baskerville', serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
+  title: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
   subtitle: { color: '#e8e4dd', marginBottom: '32px', fontSize: '1rem', lineHeight: 1.6 },
-  loadingTitle: { fontFamily: "'Libre Baskerville', serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
+  loadingTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: '1.75rem', color: '#ffffff', marginBottom: '8px' },
   loadingSub: { color: '#918f8a', fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic' as const },
-  btn: { display: 'inline-block', padding: '11px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif" },
+  btn: { display: 'inline-block', padding: '11px 28px', background: '#c9a84c', color: '#1a1c23', border: 'none', borderRadius: '10px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'none', fontFamily: "var(--font-instrument-sans), sans-serif" },
 }
 
 function PremiumSuccessContent() {

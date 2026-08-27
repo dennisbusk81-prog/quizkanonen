@@ -17,8 +17,6 @@ const PLANS = [
 
 const AVAILABLE_PLAN_IDS = PLANS.filter(p => !('disabled' in p && p.disabled)).map(p => p.id)
 
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 export default function BedriftRegistrerPage() {
   const router = useRouter()
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -199,10 +197,9 @@ export default function BedriftRegistrerPage() {
   if (session === undefined) {
     return (
       <>
-        <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter kontoen din …</p>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter kontoen din …</p>
             {slowSessionLoad && (
               <p style={{ fontSize: 13, color: '#918f8a', marginTop: 12 }}>
                 Dette tar lengre tid enn vanlig.{' '}
@@ -217,9 +214,9 @@ export default function BedriftRegistrerPage() {
 
   return (
     <>
-      <style>{FONT + ' * { box-sizing: border-box; }'}</style>
+      <style>{' * { box-sizing: border-box; }'}</style>
       <UserMenuWrapper />
-      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 500, margin: '0 auto', padding: '48px 20px 80px' }}>
 
           <Link href="/bedrift" style={{ display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 32, letterSpacing: '0.04em' }}>
@@ -229,7 +226,7 @@ export default function BedriftRegistrerPage() {
           <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
             Quizkanonen for bedrifter
           </p>
-          <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 }}>
+          <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 6 }}>
             Registrer <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>bedriften</em>
           </h1>
           <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 32, lineHeight: 1.6 }}>
@@ -250,7 +247,7 @@ export default function BedriftRegistrerPage() {
               placeholder="Acme AS"
               maxLength={60}
               autoFocus
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' }}
             />
 
             {validatedCode ? (
@@ -261,7 +258,7 @@ export default function BedriftRegistrerPage() {
                   <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 6 }}>
                     Promo-kode aktivert
                   </p>
-                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+                  <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
                     {validatedCode.trial_days} dager gratis — {planLabel(validatedCode.package)}
                   </p>
                   <p style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
@@ -269,7 +266,7 @@ export default function BedriftRegistrerPage() {
                   </p>
                   <button
                     onClick={clearPromo}
-                    style={{ marginTop: 12, fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                    style={{ marginTop: 12, fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline' }}
                   >
                     Fjern kode
                   </button>
@@ -323,7 +320,7 @@ export default function BedriftRegistrerPage() {
                   {!promoOpen ? (
                     <button
                       onClick={() => setPromoOpen(true)}
-                      style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline' }}
+                      style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline' }}
                     >
                       Har du en promo-kode?
                     </button>
@@ -339,12 +336,12 @@ export default function BedriftRegistrerPage() {
                           onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError('') }}
                           onKeyDown={e => e.key === 'Enter' && validatePromo()}
                           placeholder="F.eks. PILOT-ELKJOP"
-                          style={{ flex: 1, minWidth: 0, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', letterSpacing: '0.04em' }}
+                          style={{ flex: 1, minWidth: 0, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10, padding: '12px 16px', fontSize: 15, color: '#ffffff', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', letterSpacing: '0.04em' }}
                         />
                         <button
                           onClick={() => validatePromo()}
                           disabled={promoValidating || !promoCode.trim()}
-                          style={{ background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: promoValidating || !promoCode.trim() ? 'not-allowed' : 'pointer', opacity: promoValidating || !promoCode.trim() ? 0.4 : 1, whiteSpace: 'nowrap' }}
+                          style={{ background: 'transparent', color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 600, padding: '10px 28px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: promoValidating || !promoCode.trim() ? 'not-allowed' : 'pointer', opacity: promoValidating || !promoCode.trim() ? 0.4 : 1, whiteSpace: 'nowrap' }}
                         >
                           {promoValidating ? 'Sjekker…' : 'Bruk kode'}
                         </button>
@@ -381,7 +378,7 @@ export default function BedriftRegistrerPage() {
                 <button
                   onClick={handleTrial}
                   disabled={loading || trialLoading || !orgName.trim()}
-                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
+                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
                 >
                   {trialLoading ? 'Starter...' : 'Aktiver prøveperiode →'}
                 </button>
@@ -394,7 +391,7 @@ export default function BedriftRegistrerPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading || trialLoading || !orgName.trim()}
-                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
+                  style={{ width: '100%', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, border: 'none', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
                 >
                   {loading ? 'Sender...' : 'Gå til betaling →'}
                 </button>
@@ -411,7 +408,7 @@ export default function BedriftRegistrerPage() {
                 <button
                   onClick={handleTrial}
                   disabled={loading || trialLoading || !orgName.trim()}
-                  style={{ width: '100%', background: 'transparent', color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
+                  style={{ width: '100%', background: 'transparent', color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 600, padding: '13px', borderRadius: 10, border: '1px solid #e8e4dd', cursor: loading || trialLoading || !orgName.trim() ? 'not-allowed' : 'pointer', opacity: loading || trialLoading || !orgName.trim() ? 0.4 : 1 }}
                 >
                   {trialLoading ? 'Starter...' : 'Prøv gratis i 14 dager'}
                 </button>

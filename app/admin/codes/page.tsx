@@ -31,7 +31,6 @@ function defaultValidUntil(): string {
 }
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,7 +53,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -81,7 +80,7 @@ const STYLES = `
   .ac-back:hover { color: var(--gold); }
 
   .ac-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: var(--white);
@@ -126,7 +125,7 @@ const STYLES = `
   }
 
   .ac-form-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 15px;
     font-weight: 700;
     color: var(--white);
@@ -149,7 +148,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--radius-btn);
     padding: 11px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     color: var(--white);
     outline: none;
@@ -169,7 +168,7 @@ const STYLES = `
     width: 100%;
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     font-weight: 600;
     padding: 11px;
@@ -276,7 +275,7 @@ const STYLES = `
     border: none;
     cursor: pointer;
     flex-shrink: 0;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     transition: opacity 0.15s;
   }
   .ac-toggle-btn:hover { opacity: 0.75; }
@@ -301,7 +300,7 @@ const STYLES = `
     justify-content: center;
   }
   .ac-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;
@@ -551,7 +550,7 @@ export default function AdminCodes() {
                       borderRadius: 10,
                       cursor: 'pointer',
                       textAlign: 'left' as const,
-                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
                       transition: 'border-color 0.15s, background 0.15s',
                     }}
                   >
@@ -699,7 +698,7 @@ export default function AdminCodes() {
                   background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
                   padding: '10px 20px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
                   cursor: retrying ? 'not-allowed' : 'pointer', opacity: retrying ? 0.6 : 1,
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                 }}
               >
                 {retrying ? 'Prøver igjen…' : 'Prøv igjen'}

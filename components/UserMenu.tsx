@@ -148,7 +148,7 @@ export default function UserMenu() {
                 borderRadius: 999,
                 padding: '4px 12px 4px 4px',
                 cursor: 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 transition: 'border-color 0.15s',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(201,168,76,0.3)'}
@@ -194,7 +194,7 @@ export default function UserMenu() {
                   <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 3 }}>
                     Innlogget som
                   </p>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'Instrument Sans', sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "var(--font-instrument-sans), sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
                     {displayName}
                   </p>
                   {profileLoaded && (isPremium ? (
@@ -223,7 +223,7 @@ export default function UserMenu() {
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none',
                     borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
                     boxSizing: 'border-box', whiteSpace: 'nowrap',
                   }}
@@ -246,7 +246,7 @@ export default function UserMenu() {
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none',
                     borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
                     boxSizing: 'border-box', whiteSpace: 'nowrap',
                   }}
@@ -264,7 +264,7 @@ export default function UserMenu() {
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '8px 10px', background: 'none',
                       borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
                       textDecoration: 'none', transition: 'background 0.12s',
                       boxSizing: 'border-box', whiteSpace: 'nowrap',
                     }}
@@ -281,7 +281,7 @@ export default function UserMenu() {
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none',
                     borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     textDecoration: 'none', transition: 'background 0.12s',
                     boxSizing: 'border-box', whiteSpace: 'nowrap',
                   }}
@@ -307,7 +307,7 @@ export default function UserMenu() {
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '8px 10px', background: 'none',
                         borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         textDecoration: 'none', transition: 'background 0.12s',
                         boxSizing: 'border-box', whiteSpace: 'nowrap',
                       }}
@@ -344,7 +344,7 @@ export default function UserMenu() {
                           display: 'block', width: '100%', textAlign: 'left',
                           padding: '8px 10px', background: 'none', border: 'none',
                           borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                          fontFamily: "'Instrument Sans', sans-serif",
+                          fontFamily: "var(--font-instrument-sans), sans-serif",
                           cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = '#262930'}
@@ -378,7 +378,7 @@ export default function UserMenu() {
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '8px 10px', background: 'none', border: 'none',
                         borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         textDecoration: 'none', transition: 'background 0.12s',
                         boxSizing: 'border-box', whiteSpace: 'nowrap',
                       }}
@@ -396,7 +396,7 @@ export default function UserMenu() {
                     display: 'block', width: '100%', textAlign: 'left',
                     padding: '8px 10px', background: 'none', border: 'none',
                     borderRadius: 8, fontSize: 13, color: '#f87171',
-                    fontFamily: "'Instrument Sans', sans-serif",
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
                     cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
@@ -417,7 +417,7 @@ export default function UserMenu() {
               padding: '7px 16px',
               fontSize: 13, fontWeight: 600,
               color: '#e8e4dd',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
               cursor: 'pointer',
               transition: 'border-color 0.15s, color 0.15s',
             }}

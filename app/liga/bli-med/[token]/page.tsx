@@ -6,13 +6,11 @@ import { supabase } from '@/lib/supabase'
 import AuthModal from '@/components/AuthModal'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 const s = {
   page: {
     minHeight: '100vh',
     background: '#1a1c23',
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -22,10 +20,10 @@ const s = {
   eyebrow: {
     fontSize: 11, fontWeight: 600, letterSpacing: '0.18em',
     textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 14,
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
   },
   logo: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 'clamp(32px, 7vw, 44px)',
     fontWeight: 700, color: '#ffffff',
     lineHeight: 1.08, letterSpacing: '-0.02em', marginBottom: 48,
@@ -46,7 +44,7 @@ const s = {
     textAlign: 'center' as const,
   },
   heading: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 'clamp(22px, 5vw, 28px)',
     fontWeight: 700, color: '#ffffff',
     letterSpacing: '-0.01em', marginBottom: 10,
@@ -57,11 +55,11 @@ const s = {
     background: '#c9a84c', color: '#1a1c23',
     border: 'none', borderRadius: 10,
     fontSize: 15, fontWeight: 700,
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     cursor: 'pointer', transition: 'opacity 0.15s',
   },
   spinner: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 16, color: '#918f8a', fontStyle: 'italic' as const,
     marginBottom: 0,
   },
@@ -159,7 +157,6 @@ export default function BliMedPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <div style={s.page}>
         <div style={s.inner}>
           <p style={s.eyebrow}>Den ukentlige quizen</p>

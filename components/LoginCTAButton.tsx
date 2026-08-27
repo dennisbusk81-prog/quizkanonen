@@ -17,7 +17,7 @@ export default function LoginCTAButton() {
           border: '1px solid #c9a84c',
           borderRadius: 10,
           color: '#c9a84c',
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',

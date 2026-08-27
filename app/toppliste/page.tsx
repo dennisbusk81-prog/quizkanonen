@@ -65,17 +65,17 @@ export default function TopplisterPage() {
   return (
     <>
       <SiteNav />
-      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' }}>
 
           <div style={{ padding: '20px 0 12px', textAlign: 'center' as const }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 6 }}>
               Quizkanonen · Sesong
             </p>
-            <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
+            <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
               Sesong<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>topplisten</em>
             </h1>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' }}>
               Hvem dominerer over tid?
             </p>
             <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 6 }}>

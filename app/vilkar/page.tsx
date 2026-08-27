@@ -1,10 +1,9 @@
 ﻿export default function Vilkar() {
   return (
-    <main className="min-h-screen" style={{ background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif" }}>
+    <main className="min-h-screen" style={{ background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
-        .page-title { font-family: 'Libre Baskerville', serif; }
-        .section-title { font-family: 'Libre Baskerville', serif; }
+        .page-title { font-family: var(--font-libre-baskerville), serif; }
+        .section-title { font-family: var(--font-libre-baskerville), serif; }
       `}</style>
 
       {/* Header */}
@@ -15,7 +14,7 @@
               Next sin router-cache, som kan være opptil 30 s gammel. Ikke en
               forglemmelse — se lint-oppryddingen 5. august 2026. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "'Libre Baskerville', serif" }}>
+          <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "var(--font-libre-baskerville), serif" }}>
             Quizkanonen
           </a>
           <span style={{ color: '#918f8a', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>

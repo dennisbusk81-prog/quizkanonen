@@ -56,7 +56,7 @@ export default function FoundersFarewellBanner() {
   } as const
 
   const sectionHeading = {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 16,
     fontWeight: 700,
     color: '#ffffff',
@@ -87,7 +87,7 @@ export default function FoundersFarewellBanner() {
       </button>
 
       <h2 style={{
-        fontFamily: "'Libre Baskerville', serif",
+        fontFamily: "var(--font-libre-baskerville), serif",
         fontSize: 20,
         fontWeight: 700,
         color: '#ffffff',
@@ -161,7 +161,7 @@ export default function FoundersFarewellBanner() {
           style={{
             background: '#c9a84c', color: '#1a1c23',
             borderRadius: 10, padding: '10px 28px', fontSize: 14, fontWeight: 700,
-            fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'none',
+            fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'none',
             whiteSpace: 'nowrap',
           }}
         >
@@ -173,7 +173,7 @@ export default function FoundersFarewellBanner() {
           style={{
             background: 'none', border: 'none', padding: 0,
             fontSize: 14, color: '#e8e4dd', cursor: 'pointer',
-            fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline',
+            fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline',
           }}
         >
           Ikke nå

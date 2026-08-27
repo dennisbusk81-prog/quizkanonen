@@ -29,7 +29,6 @@ type ParsedQuestion = {
 }
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -50,7 +49,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -78,7 +77,7 @@ const STYLES = `
   .aqz-back:hover { color: var(--gold); }
 
   .aqz-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: var(--white);
@@ -90,7 +89,7 @@ const STYLES = `
   .aqz-btn-primary {
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 600;
     padding: 10px 18px;
@@ -144,7 +143,7 @@ const STYLES = `
   }
 
   .aqz-card-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 17px;
     font-weight: 700;
     color: var(--white);
@@ -193,7 +192,7 @@ const STYLES = `
     text-decoration: none;
     display: inline-block;
     transition: opacity 0.15s;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
   }
 
   /* Kun ekte hover-enheter — samme mønster som .qk-option i quiz/[id]/page.tsx.
@@ -236,7 +235,7 @@ const STYLES = `
   }
 
   .aqz-empty-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     color: var(--white);
     margin-bottom: 8px;
@@ -253,7 +252,7 @@ const STYLES = `
   }
 
   .aqz-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;
@@ -673,7 +672,7 @@ export default function AdminQuizzes() {
                 fontWeight: 500,
                 color: '#e8e4dd',
                 cursor: retrying ? 'not-allowed' : 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 opacity: retrying ? 0.6 : 1,
               }}
             >
@@ -721,7 +720,7 @@ export default function AdminQuizzes() {
                       style={{
                         background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
                         padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none', width: 110,
+                        fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 110,
                       }}
                     />
                     <input
@@ -732,7 +731,7 @@ export default function AdminQuizzes() {
                       style={{
                         background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
                         padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif", outline: 'none', width: 72,
+                        fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 72,
                       }}
                     />
                     <button
@@ -740,7 +739,7 @@ export default function AdminQuizzes() {
                       style={{
                         background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
                         padding: '6px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
-                        cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+                        cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
                       }}
                     >
                       Oppdater
@@ -809,7 +808,7 @@ export default function AdminQuizzes() {
         }}>
           <div style={{
             background: '#21242e', border: '1px solid #2a2d38', borderRadius: 20,
-            padding: '28px', width: '100%', maxWidth: 520, fontFamily: "'Instrument Sans', sans-serif",
+            padding: '28px', width: '100%', maxWidth: 520, fontFamily: "var(--font-instrument-sans), sans-serif",
           }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
               Importer quiz fra Excel

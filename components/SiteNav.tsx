@@ -72,7 +72,7 @@ export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId,
           <Link
             href="/"
             style={{
-              fontFamily: "'Libre Baskerville', serif", fontSize: 17, fontWeight: 700,
+              fontFamily: "var(--font-libre-baskerville), serif", fontSize: 17, fontWeight: 700,
               color: '#ffffff', textDecoration: 'none', flexShrink: 0,
             }}
           >

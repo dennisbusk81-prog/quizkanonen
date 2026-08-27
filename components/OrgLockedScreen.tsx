@@ -4,8 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import LeaveOrgModal from '@/components/LeaveOrgModal'
 
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 // Vennlig lås-skjerm for org-sider når en B2B-trial er utløpt uten betaling
 // (subscription_status === 'locked'). Gater KUN selve org-siden — ansatte kan
 // fortsatt spille den ukentlige quizen som vanlig, og ingen data slettes.
@@ -48,15 +46,14 @@ export default function OrgLockedScreen({
 
   return (
     <>
-      <style>{FONT}</style>
-      <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
         <div style={{ maxWidth: 460, width: '100%', background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '32px 28px', textAlign: 'center' }}>
 
           <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
             {orgName}
           </p>
 
-          <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 24, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 14, lineHeight: 1.3 }}>
+          <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 24, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 14, lineHeight: 1.3 }}>
             Prøveperioden er over
           </h1>
 
@@ -70,7 +67,7 @@ export default function OrgLockedScreen({
           <button
             onClick={reactivate}
             disabled={loading}
-            style={{ background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '10px 28px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1 }}
+            style={{ background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 700, padding: '10px 28px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1 }}
           >
             {loading ? 'Sender…' : 'Legg inn betaling →'}
           </button>
@@ -94,7 +91,7 @@ export default function OrgLockedScreen({
                 onClick={() => setLeaveModal(true)}
                 style={{
                   background: 'transparent', color: '#e8e4dd',
-                  fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                  fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, fontWeight: 600,
                   padding: '10px 28px', borderRadius: 10, border: '1px solid #2a2d38',
                   cursor: 'pointer',
                 }}

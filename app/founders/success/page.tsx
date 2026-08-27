@@ -14,7 +14,7 @@ const s = {
   page: {
     minHeight: '100vh',
     background: '#1a1c23',
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -25,7 +25,7 @@ const s = {
     width: '100%',
   },
   eyebrow: {
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.18em',
@@ -34,7 +34,7 @@ const s = {
     marginBottom: 14,
   },
   logo: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 'clamp(32px, 7vw, 44px)',
     fontWeight: 700,
     color: '#ffffff',
@@ -54,7 +54,7 @@ const s = {
     textAlign: 'center' as const,
   },
   heading: {
-    fontFamily: "'Libre Baskerville', serif",
+    fontFamily: "var(--font-libre-baskerville), serif",
     fontSize: 'clamp(22px, 5vw, 28px)',
     fontWeight: 700,
     color: '#ffffff',
@@ -78,7 +78,7 @@ const s = {
     display: 'inline-block',
     background: '#c9a84c',
     color: '#1a1c23',
-    fontFamily: "'Instrument Sans', sans-serif",
+    fontFamily: "var(--font-instrument-sans), sans-serif",
     fontSize: 15,
     fontWeight: 700,
     padding: '11px 28px',

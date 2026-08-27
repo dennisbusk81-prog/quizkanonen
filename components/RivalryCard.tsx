@@ -185,7 +185,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
     <div style={{ marginTop: 12 }}>
       <button
         onClick={() => setHistoryOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
       >
         <span style={{ fontSize: 12, fontWeight: 600, color: '#918f8a', letterSpacing: '0.04em' }}>
           Tidligere dueller
@@ -272,7 +272,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1, margin: '0 0 4px' }}>
                 {me}
               </p>
               <p style={{ fontSize: 11, color: '#918f8a', margin: 0 }}>Deg</p>
@@ -281,7 +281,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
             <p style={{ fontSize: 13, fontWeight: 700, color: '#2a2d38', flexShrink: 0, margin: 0 }}>vs</p>
 
             <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#e8e4dd', lineHeight: 1, margin: '0 0 4px' }}>
                 {them}
               </p>
               <p style={{ fontSize: 11, color: '#918f8a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -309,7 +309,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
                 color: '#e8e4dd',
                 fontSize: 12,
                 cursor: 'pointer',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 padding: 0,
                 textDecoration: 'underline',
               }}
@@ -366,7 +366,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
               fontSize: 13,
               fontWeight: 700,
               cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
             }}
           >
             {actionLoading === incoming.id + 'accept' ? 'Aksepterer...' : 'Aksepter'}
@@ -384,7 +384,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
             }}
           >
             {actionLoading === incoming.id + 'decline' ? 'Avslår...' : 'Avslå'}
@@ -428,7 +428,7 @@ export default function RivalryCard({ prioritySlot }: Props) {
               color: '#e8e4dd',
               fontSize: 12,
               cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
               padding: 0,
               textDecoration: 'underline',
             }}

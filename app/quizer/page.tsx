@@ -22,13 +22,12 @@ type QuizRow = {
 }
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     background: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: #e8e4dd;
     min-height: 100vh;
   }
@@ -64,7 +63,7 @@ const css = `
   }
 
   .qz-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: clamp(24px, 5vw, 32px);
     font-weight: 700;
     color: #ffffff;
@@ -127,7 +126,7 @@ const css = `
   }
 
   .qz-quiz-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 19px;
     font-weight: 700;
     color: #ffffff;
@@ -152,7 +151,7 @@ const css = `
     align-items: center;
     background: transparent;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 600;
     padding: 9px 18px;

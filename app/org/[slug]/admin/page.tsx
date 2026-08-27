@@ -22,9 +22,8 @@ import type { Session } from '@supabase/supabase-js'
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #1a1c23; font-family: 'Instrument Sans', sans-serif; color: #e8e4dd; min-height: 100vh; }
+  body { background: #1a1c23; font-family: var(--font-instrument-sans), sans-serif; color: #e8e4dd; min-height: 100vh; }
 
   .oa-page { max-width: 900px; margin: 0 auto; padding: 0 20px 80px; }
 
@@ -51,14 +50,14 @@ const CSS = `
 
   /* ── Tabs ── */
   .oa-tab-row { display: flex; border-bottom: 1px solid #2a2d38; margin-bottom: 0; }
-  .oa-tab-a { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid #c9a84c; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #c9a84c; font-family: 'Instrument Sans', sans-serif; cursor: pointer; }
-  .oa-tab-i { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #e8e4dd; font-family: 'Instrument Sans', sans-serif; cursor: pointer; }
+  .oa-tab-a { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid #c9a84c; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #c9a84c; font-family: var(--font-instrument-sans), sans-serif; cursor: pointer; }
+  .oa-tab-i { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 13px; font-weight: 600; color: #e8e4dd; font-family: var(--font-instrument-sans), sans-serif; cursor: pointer; }
 
   /* ── Input ── */
   .oa-input {
     background: #1a1c23; border: 1px solid #2a2d38; border-radius: 8px;
     padding: 9px 12px; font-size: 13px; color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif; outline: none;
+    font-family: var(--font-instrument-sans), sans-serif; outline: none;
     transition: border-color 0.15s;
   }
   .oa-input::placeholder { color: #918f8a; }
@@ -1093,7 +1092,7 @@ export default function OrgAdminPage() {
       <>
         <style>{CSS}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -1103,9 +1102,9 @@ export default function OrgAdminPage() {
     return (
       <>
         <style>{CSS}</style>
-        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
               {errorKind === 'access' ? 'Ingen tilgang' : 'Kunne ikke laste bedriftsdata'}
             </p>
             <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24 }}>{error}</p>
@@ -1116,7 +1115,7 @@ export default function OrgAdminPage() {
                   style={{
                     padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
                     border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                    fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                    fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer',
                   }}
                 >
                   Prøv igjen
@@ -1143,7 +1142,7 @@ export default function OrgAdminPage() {
       <>
         <style>{CSS}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
             Henter oppsettet …
           </p>
         </div>
@@ -1225,7 +1224,7 @@ export default function OrgAdminPage() {
 
       <SiteNav variant="org-admin" orgSlug={slug} orgName={data?.org.name} />
 
-      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div className="oa-page">
 
           {/* ══════════════════════════════════════════════════════════════════
@@ -1243,7 +1242,7 @@ export default function OrgAdminPage() {
               Bedriftspanel
             </span>
             <h1 style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 'clamp(28px, 5vw, 40px)',
               fontWeight: 700, color: '#ffffff',
               letterSpacing: '-0.02em', lineHeight: 1.15,
@@ -1264,7 +1263,7 @@ export default function OrgAdminPage() {
 
             <div className="oa-stat">
               <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Medlemmer</p>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
                 {memberCount}
               </p>
             </div>
@@ -1272,7 +1271,7 @@ export default function OrgAdminPage() {
             <div className="oa-stat">
               <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Aktive denne måneden</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#4ade80', lineHeight: 1 }}>
+                <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#4ade80', lineHeight: 1 }}>
                   {activeCount}
                 </p>
                 {activePercent > 0 && (
@@ -1283,14 +1282,14 @@ export default function OrgAdminPage() {
 
             <div className="oa-stat">
               <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Quizer spilt denne måneden</p>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 28, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
                 {totalQuizzes ?? '—'}
               </p>
             </div>
 
             <div className="oa-stat">
               <p style={{ fontSize: 11, color: '#918f8a', letterSpacing: '0.04em', marginBottom: 8 }}>Abonnement</p>
-              <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
                 {planName || '—'}
               </p>
             </div>
@@ -1310,7 +1309,7 @@ export default function OrgAdminPage() {
                 <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
               ) : weeklySummary ? (
                 <>
-                  <h2 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 4 }}>
+                  <h2 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1.25, marginBottom: 4 }}>
                     {weeklySummary.winner
                       ? <>{weeklySummary.winner.displayName} <span style={{ color: '#c9a84c' }}>vant {weeklySummary.quizTitle}</span></>
                       : <>{weeklySummary.quizTitle} er avgjort</>}
@@ -1348,7 +1347,7 @@ export default function OrgAdminPage() {
                       <pre style={{
                         background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 12,
                         padding: '16px 18px', fontSize: 13, lineHeight: 1.6, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'pre-wrap',
+                        fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word', margin: '0 0 14px',
                       }}>
                         {weeklyShareText}
@@ -1358,7 +1357,7 @@ export default function OrgAdminPage() {
                         style={{
                           padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
                           border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                          fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                          fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer',
                         }}
                       >
                         {weeklyCopied ? 'Kopiert!' : 'Kopier tekst'}
@@ -1388,7 +1387,7 @@ export default function OrgAdminPage() {
                 Kom i gang
               </p>
               <p style={{
-                fontFamily: "'Libre Baskerville', serif",
+                fontFamily: "var(--font-libre-baskerville), serif",
                 fontSize: 20, fontWeight: 700, color: '#ffffff',
                 marginBottom: 10, lineHeight: 1.3,
               }}>
@@ -1409,7 +1408,7 @@ export default function OrgAdminPage() {
                   fontSize: 14,
                   fontWeight: 700,
                   textDecoration: 'none',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                 }}
               >
                 Opprett invitasjonslenke →
@@ -1459,7 +1458,7 @@ export default function OrgAdminPage() {
                     padding: '8px 18px', background: 'transparent',
                     border: '1px solid #2a2d38', borderRadius: 10,
                     fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                    fontFamily: "'Instrument Sans', sans-serif", cursor: portalLoading ? 'not-allowed' : 'pointer',
+                    fontFamily: "var(--font-instrument-sans), sans-serif", cursor: portalLoading ? 'not-allowed' : 'pointer',
                     transition: 'border-color 0.15s', whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.borderColor = '#c9a84c' }}
@@ -1472,7 +1471,7 @@ export default function OrgAdminPage() {
                   <button
                     onClick={openPortal}
                     disabled={portalLoading}
-                    style={{ fontSize: 12, color: '#918f8a', background: 'transparent', border: 'none', padding: 0, cursor: portalLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", textDecoration: 'underline', textAlign: 'right' }}
+                    style={{ fontSize: 12, color: '#918f8a', background: 'transparent', border: 'none', padding: 0, cursor: portalLoading ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", textDecoration: 'underline', textAlign: 'right' }}
                   >
                     Legg inn betaling for å fortsette etter prøveperioden
                   </button>
@@ -1501,7 +1500,7 @@ export default function OrgAdminPage() {
                         padding: '8px 18px', background: 'transparent',
                         border: '1px solid #2a2d38', borderRadius: 10,
                         fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         cursor: changingPlan ? 'not-allowed' : 'pointer',
                         opacity: changingPlan && changingPlan !== p.id ? 0.5 : 1,
                         whiteSpace: 'nowrap', transition: 'border-color 0.15s',
@@ -1569,14 +1568,14 @@ export default function OrgAdminPage() {
                   <button
                     onClick={downloadCsv}
                     disabled={csvLoading}
-                    style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: csvLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: csvLoading ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     {csvLoading ? 'Laster ned…' : 'Last ned CSV'}
                   </button>
                   <button
                     onClick={sendReminder}
                     disabled={reminderSending}
-                    style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '6px 14px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '6px 14px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     {/* Sa tidligere «Send påminnelse til inaktive». Ordet
                         «inaktiv» betydde da noe annet enn AKTIV-merket rett
@@ -1702,7 +1701,7 @@ export default function OrgAdminPage() {
                           <button
                             onClick={() => handleSetAdmin('remove', undefined, member.user_id)}
                             disabled={adminActionLoading}
-                            style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                           >
                             Admin
                           </button>
@@ -1710,7 +1709,7 @@ export default function OrgAdminPage() {
                           <button
                             onClick={() => handleSetAdmin('add', undefined, member.user_id)}
                             disabled={adminActionLoading}
-                            style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: adminActionLoading ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                           >
                             Gjør admin
                           </button>
@@ -1718,7 +1717,7 @@ export default function OrgAdminPage() {
                         {!member.scheduled_removal_at && (
                           <button
                             onClick={() => setScheduleTarget(member)}
-                            style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                           >
                             Planlegg
                           </button>
@@ -1729,7 +1728,7 @@ export default function OrgAdminPage() {
                             setRemoveMemberError(null)
                           }}
                           disabled={removingId === member.id}
-                          style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                          style={{ fontSize: 11, fontWeight: 600, color: '#f87171', background: 'transparent', border: '0.5px solid rgba(248,113,113,0.35)', borderRadius: 6, padding: '4px 10px', cursor: removingId === member.id ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                         >
                           {removingId === member.id ? '…' : 'Fjern'}
                         </button>
@@ -1744,7 +1743,7 @@ export default function OrgAdminPage() {
                               border: activity.isExcluded ? '0.5px solid #2a2d38' : '0.5px solid rgba(251,146,60,0.35)',
                               borderRadius: 6, padding: '4px 10px',
                               cursor: excludingId === member.user_id ? 'not-allowed' : 'pointer',
-                              fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+                              fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
                             }}
                           >
                             {excludingId === member.user_id ? '…' : activity.isExcluded ? 'Vis igjen' : 'Ekskluder'}
@@ -1792,7 +1791,7 @@ export default function OrgAdminPage() {
                         border: `1px solid ${copiedToken === primaryInvite.token ? 'rgba(74,222,128,0.4)' : '#2a2d38'}`,
                         borderRadius: 8, fontSize: 12, fontWeight: 600,
                         color: copiedToken === primaryInvite.token ? '#4ade80' : '#e8e4dd',
-                        cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                        cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif",
                         whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
@@ -1806,7 +1805,7 @@ export default function OrgAdminPage() {
                         border: '0.5px solid #2a2d38', borderRadius: 8,
                         fontSize: 12, color: '#918f8a',
                         cursor: (deactivatingId === primaryInvite.id || creatingInvite) ? 'not-allowed' : 'pointer',
-                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                        fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
                       {(deactivatingId === primaryInvite.id || creatingInvite) ? '…' : 'Ny lenke'}
@@ -1825,7 +1824,7 @@ export default function OrgAdminPage() {
                         border: '1px solid rgba(201,168,76,0.3)', borderRadius: 8,
                         fontSize: 12, fontWeight: 600, color: '#c9a84c',
                         cursor: creatingInvite ? 'not-allowed' : 'pointer',
-                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                        fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
                       {creatingInvite ? 'Oppretter…' : '+ Opprett lenke'}
@@ -1842,7 +1841,7 @@ export default function OrgAdminPage() {
               <div style={{ marginTop: 12 }}>
                 <button
                   onClick={() => { setEmailInviteOpen(o => !o); setEmailInviteResult(null); setEmailInviteError(null) }}
-                  style={{ fontSize: 12, color: '#918f8a', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", padding: 0 }}
+                  style={{ fontSize: 12, color: '#918f8a', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", padding: 0 }}
                 >
                   + Inviter via e-post
                 </button>
@@ -1853,7 +1852,7 @@ export default function OrgAdminPage() {
                       onChange={e => { setEmailInviteText(e.target.value); setEmailInviteResult(null); setEmailInviteError(null) }}
                       placeholder="e-post til ansatt..."
                       rows={2}
-                      style={{ flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', resize: 'none' }}
+                      style={{ flex: 1, background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', resize: 'none' }}
                       onFocus={e => { e.currentTarget.style.borderColor = '#c9a84c' }}
                       onBlur={e => { e.currentTarget.style.borderColor = '#2a2d38' }}
                     />
@@ -1867,7 +1866,7 @@ export default function OrgAdminPage() {
                         borderRadius: 8, fontSize: 13, fontWeight: 700,
                         color: emailInviteSending || !emailInviteText.trim() ? '#918f8a' : '#1a1c23',
                         cursor: emailInviteSending || !emailInviteText.trim() ? 'not-allowed' : 'pointer',
-                        fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
+                        fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
                       {emailInviteSending ? 'Sender…' : 'Send invitasjon →'}
@@ -1922,14 +1921,14 @@ export default function OrgAdminPage() {
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button
                         onClick={() => setScheduleTarget(m)}
-                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                       >
                         Endre dato
                       </button>
                       <button
                         onClick={() => cancelScheduledRemoval(m.id)}
                         disabled={cancellingPlanId === m.id}
-                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: cancellingPlanId === m.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap' }}
+                        style={{ fontSize: 11, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 6, padding: '4px 10px', cursor: cancellingPlanId === m.id ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' }}
                       >
                         {cancellingPlanId === m.id ? '…' : 'Avbryt'}
                       </button>
@@ -1993,7 +1992,7 @@ export default function OrgAdminPage() {
                     </p>
                     <button
                       onClick={() => { if (data && session) loadQuizLeaderboard(data.org.id, session.access_token) }}
-                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
                     >
                       Prøv igjen
                     </button>
@@ -2005,7 +2004,7 @@ export default function OrgAdminPage() {
                       <rect x="13" y="5" width="6" height="19" rx="1"/>
                       <rect x="23" y="14" width="6" height="10" rx="1"/>
                     </svg>
-                    <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 }}>
+                    <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 16, fontWeight: 700, color: '#ffffff', marginBottom: 6 }}>
                       Ingen har spilt ennå
                     </p>
                     <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 18, lineHeight: 1.5 }}>
@@ -2014,7 +2013,7 @@ export default function OrgAdminPage() {
                     <button
                       onClick={sendReminder}
                       disabled={reminderSending}
-                      style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 8, padding: '8px 18px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#c9a84c', background: 'transparent', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 8, padding: '8px 18px', cursor: reminderSending ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
                     >
                       {reminderSending ? 'Sender…' : 'Send påminnelse →'}
                     </button>
@@ -2075,7 +2074,7 @@ export default function OrgAdminPage() {
                     </p>
                     <button
                       onClick={() => { if (data && session) loadActivity(data.org.id, session.access_token, activityPeriod) }}
-                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                      style={{ fontSize: 13, fontWeight: 600, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '10px 28px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
                     >
                       Prøv igjen
                     </button>
@@ -2099,7 +2098,7 @@ export default function OrgAdminPage() {
                       >
                         <span
                           className={rankColor}
-                          style={{ width: 24, textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#918f8a', flexShrink: 0 }}
+                          style={{ width: 24, textAlign: 'center', fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, fontWeight: 700, color: rankColor ? undefined : '#918f8a', flexShrink: 0 }}
                         >
                           {rank}
                         </span>
@@ -2124,7 +2123,7 @@ export default function OrgAdminPage() {
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
+                          <span style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 16, fontWeight: 700, color: rank <= 3 ? '#c9a84c' : '#e8e4dd' }}>
                             {m.totalPoints}
                           </span>
                           <span style={{ fontSize: 11, color: '#918f8a', marginLeft: 4 }}>poeng</span>
@@ -2156,7 +2155,7 @@ export default function OrgAdminPage() {
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 12 }}>
                     Flest fikk dette rett
                   </p>
-                  <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.4, marginBottom: 10 }}>
+                  <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, fontWeight: 700, color: '#ffffff', lineHeight: 1.4, marginBottom: 10 }}>
                     {insightsData.easiest.questionText}
                   </p>
                   <p style={{ fontSize: 13, color: '#e8e4dd', fontWeight: 600 }}>
@@ -2228,7 +2227,7 @@ export default function OrgAdminPage() {
                       style={{
                         display: 'inline-block', fontSize: 11, padding: '4px 12px',
                         border: '1px solid #2a2d38', borderRadius: 6, background: 'transparent',
-                        color: '#e8e4dd', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                        color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif",
                       }}
                     >
                       Prøv igjen
@@ -2240,7 +2239,7 @@ export default function OrgAdminPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Avatar name={loaded.value.winner.displayName} size={36} />
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {loaded.value.winner.displayName}
                       </p>
                       <p style={{ fontSize: 12, color: '#c9a84c', fontWeight: 600 }}>{loaded.value.winner.points} poeng</p>
@@ -2253,7 +2252,7 @@ export default function OrgAdminPage() {
                           border: `1px solid ${shareHovered === period || copiedWinner === period ? '#c9a84c' : '#2a2d38'}`,
                           borderRadius: 6, background: 'transparent',
                           color: copiedWinner === period ? '#e8e4dd' : shareHovered === period ? '#c9a84c' : '#918f8a',
-                          cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+                          cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif",
                           transition: 'color 0.15s, border-color 0.15s',
                         }}
                       >
@@ -2292,7 +2291,7 @@ export default function OrgAdminPage() {
                   padding: '10px 28px', background: 'transparent',
                   border: '1px solid #e8e4dd', borderRadius: 10,
                   fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   cursor: savingName || !orgNameInput.trim() || orgNameInput.trim() === data?.org.name ? 'not-allowed' : 'pointer',
                   opacity: savingName || !orgNameInput.trim() || orgNameInput.trim() === data?.org.name ? 0.5 : 1,
                   whiteSpace: 'nowrap', flexShrink: 0,
@@ -2353,7 +2352,7 @@ export default function OrgAdminPage() {
                 style={{
                   padding: '10px 28px', background: '#c9a84c', color: '#1a1c23',
                   border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   cursor: savingTiming ? 'not-allowed' : 'pointer',
                 }}
               >
@@ -2411,7 +2410,7 @@ export default function OrgAdminPage() {
                   padding: '9px 22px', background: 'transparent',
                   border: '1px solid #e8e4dd', borderRadius: 10,
                   fontSize: 13, fontWeight: 600, color: '#e8e4dd',
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   cursor: savingQuizTimes ? 'not-allowed' : 'pointer',
                   opacity: savingQuizTimes ? 0.6 : 1,
                 }}
@@ -2454,7 +2453,7 @@ export default function OrgAdminPage() {
                 padding: '9px 18px', background: 'transparent',
                 border: '1px solid rgba(248,113,113,0.4)',
                 borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
-                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer',
                 transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
@@ -2486,7 +2485,7 @@ export default function OrgAdminPage() {
                 padding: '9px 18px', background: 'transparent',
                 border: '1px solid rgba(248,113,113,0.4)',
                 borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
-                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer',
                 transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
@@ -2518,7 +2517,7 @@ export default function OrgAdminPage() {
                 padding: '9px 18px', background: 'transparent',
                 border: '1px solid rgba(248,113,113,0.4)',
                 borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#f87171',
-                fontFamily: "'Instrument Sans', sans-serif", cursor: 'pointer',
+                fontFamily: "var(--font-instrument-sans), sans-serif", cursor: 'pointer',
                 transition: 'background 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
               }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)' }}
@@ -2550,7 +2549,7 @@ export default function OrgAdminPage() {
           egne modaler i designsystemet. */}
       {removeTarget && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
               Fjern medlem
             </p>
@@ -2565,14 +2564,14 @@ export default function OrgAdminPage() {
               <button
                 onClick={() => { setRemoveTarget(null); setRemoveMemberError(null) }}
                 disabled={removingId === removeTarget.id}
-                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
               <button
                 onClick={removeMember}
                 disabled={removingId === removeTarget.id}
-                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: '#f87171', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', opacity: removingId === removeTarget.id ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: '#f87171', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: removingId === removeTarget.id ? 'not-allowed' : 'pointer', opacity: removingId === removeTarget.id ? 0.6 : 1, fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {removingId === removeTarget.id ? 'Fjerner…' : 'Fjern medlem'}
               </button>
@@ -2595,7 +2594,7 @@ export default function OrgAdminPage() {
       {/* ── Season-reset modal ─────────────────────────────────────────────── */}
       {seasonResetModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
               Nullstill sesong-data
             </p>
@@ -2612,7 +2611,7 @@ export default function OrgAdminPage() {
               placeholder="NULLSTILL"
               autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleSeasonReset() }}
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
             />
             {seasonResetError && (
               <p style={{ fontSize: 12, color: '#f87171', marginBottom: 16, lineHeight: 1.5 }}>{seasonResetError}</p>
@@ -2620,14 +2619,14 @@ export default function OrgAdminPage() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => { setSeasonResetModal(false); setSeasonResetInput(''); setSeasonResetError(null) }}
-                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
               <button
                 onClick={handleSeasonReset}
                 disabled={seasonResetInput !== 'NULLSTILL' || seasonResetting}
-                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: seasonResetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: seasonResetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: seasonResetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {seasonResetting ? 'Nullstiller…' : 'Nullstill'}
               </button>
@@ -2639,7 +2638,7 @@ export default function OrgAdminPage() {
       {/* ── Avslutt-bedriftskonto-modal ────────────────────────────────────── */}
       {deleteOrgModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
               Avslutt bedriftskonto
             </p>
@@ -2657,7 +2656,7 @@ export default function OrgAdminPage() {
               placeholder={data?.org.name}
               autoFocus
               onKeyDown={e => { if (e.key === 'Enter') handleDeleteOrg() }}
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
             />
             {deleteOrgError && (
               <p style={{ fontSize: 12, color: '#f87171', marginBottom: 16 }}>{deleteOrgError}</p>
@@ -2665,14 +2664,14 @@ export default function OrgAdminPage() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => { setDeleteOrgModal(false); setDeleteOrgInput(''); setDeleteOrgError(null) }}
-                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
               <button
                 onClick={handleDeleteOrg}
                 disabled={deleteOrgInput.trim() !== data?.org.name || deletingOrg}
-                style={{ fontSize: 13, fontWeight: 600, color: deleteOrgInput.trim() === data?.org.name ? '#1a1c23' : '#918f8a', background: deleteOrgInput.trim() === data?.org.name ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteOrgInput.trim() === data?.org.name ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: deleteOrgInput.trim() === data?.org.name ? '#1a1c23' : '#918f8a', background: deleteOrgInput.trim() === data?.org.name ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: deleteOrgInput.trim() === data?.org.name ? 'pointer' : 'not-allowed', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {deletingOrg ? 'Avslutter…' : 'Avslutt konto'}
               </button>

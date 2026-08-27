@@ -71,7 +71,7 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
               border: '1px solid #2a2d38',
               borderRadius: '8px',
               padding: '8px 12px',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
               fontSize: '13px',
               color: '#e8e4dd',
               outline: 'none',
@@ -88,7 +88,7 @@ export default function LeagueCard({ leagues }: { leagues: LeagueCardData[] }) {
       )}
 
       <p style={{
-        fontFamily: "'Libre Baskerville', serif",
+        fontFamily: "var(--font-libre-baskerville), serif",
         fontSize: 18,
         fontWeight: 700,
         color: '#ffffff',

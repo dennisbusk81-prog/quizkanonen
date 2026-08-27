@@ -86,7 +86,7 @@ export default function WeeklyActivityChart({ data }: { data: WeekPoint[] }) {
           <text
             x={PAD_L - 8} y={yFor(v) + 3}
             textAnchor="end" fontSize={10} fill={HINT}
-            fontFamily="'Instrument Sans', sans-serif"
+            fontFamily="var(--font-instrument-sans), sans-serif"
           >
             {v}
           </text>
@@ -99,7 +99,7 @@ export default function WeeklyActivityChart({ data }: { data: WeekPoint[] }) {
           key={p}
           x={W - PAD_R + 8} y={yForPct(p) + 3}
           textAnchor="start" fontSize={10} fill={HINT}
-          fontFamily="'Instrument Sans', sans-serif"
+          fontFamily="var(--font-instrument-sans), sans-serif"
         >
           {p}%
         </text>
@@ -125,7 +125,7 @@ export default function WeeklyActivityChart({ data }: { data: WeekPoint[] }) {
             <text
               x={xCenter(i)} y={H - PAD_B + 16}
               textAnchor="middle" fontSize={10} fill={HINT}
-              fontFamily="'Instrument Sans', sans-serif"
+              fontFamily="var(--font-instrument-sans), sans-serif"
             >
               {formatWeek(d.weekStart)}
             </text>

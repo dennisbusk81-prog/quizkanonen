@@ -15,8 +15,6 @@ import { activationLogLevel, decideActivationNotice } from '@/lib/trial-activati
 // samme som den avviklede founders_checkout-flyten brukte.
 const PENDING_TRIAL = 'trial_activate'
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' }
 
 const FEATURES = [
@@ -242,7 +240,6 @@ export default function PremiumPage() {
 
   return (
     <>
-      <style>{FONT_IMPORT}</style>
       <UserMenuWrapper />
       <div style={{
         minHeight: '100vh',
@@ -252,7 +249,7 @@ export default function PremiumPage() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '60px 20px',
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         color: '#e8e4dd',
       }}>
         <div style={{ maxWidth: 480, width: '100%' }}>
@@ -264,7 +261,7 @@ export default function PremiumPage() {
             Quizkanonen
           </p>
           <h1 style={{
-            fontFamily: "'Libre Baskerville', serif",
+            fontFamily: "var(--font-libre-baskerville), serif",
             fontSize: 'clamp(28px, 6vw, 36px)',
             fontWeight: 700, color: '#ffffff',
             letterSpacing: '-0.02em', marginBottom: 32,
@@ -282,7 +279,7 @@ export default function PremiumPage() {
               borderRadius: 16, padding: '24px 20px', marginBottom: 20,
             }}>
               <p style={{
-                fontFamily: "'Libre Baskerville', serif",
+                fontFamily: "var(--font-libre-baskerville), serif",
                 fontSize: 20, fontWeight: 700, color: '#ffffff',
                 lineHeight: 1.3, marginBottom: 8,
               }}>
@@ -311,7 +308,7 @@ export default function PremiumPage() {
                 Bruker sidens eksisterende tittel-typografi (serif), ikke et
                 nytt visuelt system. */}
             <p style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 20,
               fontWeight: 700,
               color: '#ffffff',
@@ -343,7 +340,7 @@ export default function PremiumPage() {
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{PLAN.name}</div>
                   <div style={{ fontSize: 12, color: '#e8e4dd' }}>{PLAN.desc}</div>
                 </div>
-                <div style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
+                <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
                   {PLAN.price}
                 </div>
               </div>
@@ -371,7 +368,7 @@ export default function PremiumPage() {
                       color: trialPhase === 'running' ? '#918f8a' : '#1a1c23',
                       border: 'none', borderRadius: 10,
                       fontSize: 15, fontWeight: 700,
-                      fontFamily: "'Instrument Sans', sans-serif",
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
                       cursor: trialPhase === 'running' ? 'not-allowed' : 'pointer',
                       transition: 'opacity 0.15s',
                     }}
@@ -439,7 +436,7 @@ export default function PremiumPage() {
                   borderRadius: 10,
                   fontSize: showTrial ? 14 : 15,
                   fontWeight: showTrial ? 600 : 700,
-                  fontFamily: "'Instrument Sans', sans-serif",
+                  fontFamily: "var(--font-instrument-sans), sans-serif",
                   cursor: (loading || session === undefined) ? 'not-allowed' : 'pointer',
                   opacity: session === undefined ? 0.6 : 1,
                   transition: 'opacity 0.15s',

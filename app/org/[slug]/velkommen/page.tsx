@@ -12,7 +12,6 @@ import type { Session } from '@supabase/supabase-js'
 // uendret, til lib/welcome-styles.ts slik at /velkommen (B2C) arver nøyaktig
 // samme utseende. Kun presentasjon er delt — tilstandsmodellen her er urørt.
 import {
-  WELCOME_FONT_IMPORT,
   welcomeBodyText,
   welcomeCard,
   welcomeErrorBox,
@@ -302,9 +301,8 @@ export default function OrgVelkommenPage() {
   if (session === undefined || loadState === 'loading') {
     return (
       <>
-        <style>{WELCOME_FONT_IMPORT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>
             Henter bedriften din …
           </p>
         </div>
@@ -315,11 +313,10 @@ export default function OrgVelkommenPage() {
   if (loadState === 'error' || !data) {
     return (
       <>
-        <style>{WELCOME_FONT_IMPORT}</style>
         <UserMenuWrapper />
-        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Instrument Sans', sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center', maxWidth: 380 }}>
-            <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
+            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
               Kunne ikke hente bedriften din
             </p>
             <p style={{ fontSize: 14, color: '#918f8a', marginBottom: 24, lineHeight: 1.6 }}>
@@ -330,7 +327,7 @@ export default function OrgVelkommenPage() {
               style={{
                 display: 'inline-block', padding: '10px 28px', background: '#c9a84c',
                 color: '#1a1c23', borderRadius: 10, fontSize: 14, fontWeight: 700,
-                textDecoration: 'none', fontFamily: "'Instrument Sans', sans-serif",
+                textDecoration: 'none', fontFamily: "var(--font-instrument-sans), sans-serif",
               }}
             >
               Prøv igjen
@@ -359,7 +356,7 @@ export default function OrgVelkommenPage() {
   const timeInput = {
     width: '100%', background: '#1a1c23', border: '1px solid #2a2d38',
     borderRadius: 10, padding: '11px 14px', fontSize: 15, color: '#ffffff',
-    fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+    fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none',
   } as const
 
   const currentTimesLabel = data.org.org_quiz_closes_at

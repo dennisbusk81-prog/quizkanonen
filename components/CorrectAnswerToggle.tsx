@@ -61,7 +61,7 @@ export default function CorrectAnswerToggle({
                 border: `1px solid ${active ? 'rgba(74,222,128,0.3)' : '#2a2d38'}`,
                 background: active ? 'rgba(74,222,128,0.1)' : '#1a1c23',
                 color: active ? '#4ade80' : '#918f8a',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 fontSize,
                 fontWeight: 600,
                 cursor: disabled ? 'not-allowed' : 'pointer',
@@ -79,7 +79,7 @@ export default function CorrectAnswerToggle({
           fontSize: 11,
           color: '#918f8a',
           marginTop: 6,
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
         }}>
           Valgt: {value.join(', ')} — {value.length} riktige svar
         </p>

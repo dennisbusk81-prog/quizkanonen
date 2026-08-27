@@ -8,8 +8,6 @@ import UserMenuWrapper from '@/components/UserMenuWrapper'
 import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
 
-const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');`
-
 type OrgData = {
   org: { id: string; name: string; plan: string }
   invites: Array<{ id: string; token: string; use_count: number; is_active: boolean; created_at: string }>
@@ -100,9 +98,8 @@ function SuccessContent() {
   if (loading) {
     return (
       <>
-        <style>{FONT}</style>
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
+          <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Laster…</p>
         </div>
       </>
     )
@@ -110,9 +107,9 @@ function SuccessContent() {
 
   return (
     <>
-      <style>{FONT + ' * { box-sizing: border-box; }'}</style>
+      <style>{' * { box-sizing: border-box; }'}</style>
       <UserMenuWrapper />
-      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", color: '#e8e4dd' }}>
+      <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '60px 20px 80px' }}>
 
           {/* Success header */}
@@ -125,7 +122,7 @@ function SuccessContent() {
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 8 }}>
               Betaling fullført
             </p>
-            <h1 style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+            <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 8 }}>
               {data ? `Velkommen, ${data.org.name}!` : 'Betaling mottatt!'}
             </h1>
             <p style={{ fontSize: 14, color: '#918f8a', lineHeight: 1.6 }}>
@@ -149,7 +146,7 @@ function SuccessContent() {
                 </div>
                 <button
                   onClick={copyInvite}
-                  style={{ background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 13, fontWeight: 700, padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                  style={{ background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 13, fontWeight: 700, padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                 >
                   {copied ? 'Kopiert!' : 'Kopier'}
                 </button>
@@ -194,7 +191,7 @@ function SuccessContent() {
             {orgSlug && (
               <Link
                 href={`/org/${orgSlug}/velkommen`}
-                style={{ display: 'block', textAlign: 'center', background: '#c9a84c', color: '#1a1c23', fontFamily: "'Instrument Sans', sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, textDecoration: 'none' }}
+                style={{ display: 'block', textAlign: 'center', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 15, fontWeight: 700, padding: '13px', borderRadius: 10, textDecoration: 'none' }}
               >
                 Sett opp bedriften →
               </Link>
@@ -202,7 +199,7 @@ function SuccessContent() {
             {orgSlug && (
               <Link
                 href={`/org/${orgSlug}`}
-                style={{ display: 'block', textAlign: 'center', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontFamily: "'Instrument Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: '12px', borderRadius: 10, textDecoration: 'none' }}
+                style={{ display: 'block', textAlign: 'center', background: 'transparent', color: '#e8e4dd', border: '1px solid #2a2d38', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 600, padding: '12px', borderRadius: 10, textDecoration: 'none' }}
               >
                 Se bedrifts-leaderboard
               </Link>

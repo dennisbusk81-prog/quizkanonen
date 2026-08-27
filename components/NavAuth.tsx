@@ -52,7 +52,7 @@ const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
   borderRadius: 8, fontSize: 13, color: '#e8e4dd',
-  fontFamily: "'Instrument Sans', sans-serif",
+  fontFamily: "var(--font-instrument-sans), sans-serif",
   textDecoration: 'none', transition: 'background 0.12s',
   boxSizing: 'border-box', whiteSpace: 'nowrap',
 }
@@ -136,12 +136,12 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   const navLink: React.CSSProperties = {
     fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
-    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+    fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
   }
 
   const toplisteLinkStyle: React.CSSProperties = {
     fontSize: 14, color: '#e8e4dd', textDecoration: 'none',
-    fontFamily: "'Instrument Sans', sans-serif", whiteSpace: 'nowrap',
+    fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
   }
 
   // ── Not logged in ──
@@ -245,7 +245,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               color: '#e8e4dd', background: 'transparent',
               textDecoration: 'none', padding: '6px 14px',
               borderRadius: 10, border: '1px solid #918f8a',
-              whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
+              whiteSpace: 'nowrap', fontFamily: "var(--font-instrument-sans), sans-serif",
               transition: 'border-color 0.15s, color 0.15s',
             }}
           >
@@ -274,7 +274,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             color: '#e8e4dd', background: 'transparent',
             textDecoration: 'none', padding: '6px 14px',
             borderRadius: 10, border: '1px solid #918f8a',
-            whiteSpace: 'nowrap', fontFamily: "'Instrument Sans', sans-serif",
+            whiteSpace: 'nowrap', fontFamily: "var(--font-instrument-sans), sans-serif",
             transition: 'border-color 0.15s, color 0.15s',
           }}
         >
@@ -421,7 +421,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             display: 'flex', alignItems: 'center', gap: 7,
             background: '#21242e', border: '1px solid #2a2d38',
             borderRadius: 999, padding: '4px 12px 4px 4px',
-            cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif",
+            cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif",
             transition: 'border-color 0.15s',
           }}
           onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(201,168,76,0.3)'}
@@ -541,7 +541,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '8px 10px', background: 'none', border: 'none',
                         borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                        fontFamily: "'Instrument Sans', sans-serif",
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
                         cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = '#262930'}
@@ -580,7 +580,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '8px 10px', background: 'none', border: 'none',
                 borderRadius: 8, fontSize: 13, color: '#f87171',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}

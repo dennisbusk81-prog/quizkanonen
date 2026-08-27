@@ -248,7 +248,7 @@ export default function WelcomeScreen() {
               style={{
                 width: '100%', background: '#1a1c23', border: '1px solid #2a2d38',
                 borderRadius: 10, padding: '12px 14px', fontSize: 15, color: '#ffffff',
-                fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+                fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none',
               }}
             />
             <p style={{ ...welcomeHintText, fontSize: 12, marginTop: 8 }}>

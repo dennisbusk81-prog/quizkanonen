@@ -76,7 +76,7 @@ export default function ScheduleRemovalModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 440, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+      <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 440, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
 
         <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
           {currentDate ? 'Endre planlagt fjerning' : 'Planlegg fjerning'}
@@ -98,7 +98,7 @@ export default function ScheduleRemovalModal({
           style={{
             width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
             padding: '10px 12px', fontSize: 14, color: '#e8e4dd',
-            fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+            fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none',
             marginBottom: 18, boxSizing: 'border-box',
           }}
         />
@@ -129,7 +129,7 @@ export default function ScheduleRemovalModal({
           style={{
             width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
             padding: '10px 12px', fontSize: 14, color: '#e8e4dd',
-            fontFamily: "'Instrument Sans', sans-serif", outline: 'none',
+            fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none',
             marginBottom: 16, boxSizing: 'border-box',
           }}
         />
@@ -144,7 +144,7 @@ export default function ScheduleRemovalModal({
           <button
             onClick={onClose}
             disabled={saving}
-            style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+            style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
           >
             Avbryt
           </button>
@@ -157,7 +157,7 @@ export default function ScheduleRemovalModal({
               background: canSave ? '#f87171' : '#2a2d38',
               border: 'none', borderRadius: 8, padding: '8px 20px',
               cursor: canSave ? 'pointer' : 'not-allowed',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
             }}
           >
             {saving ? 'Lagrer…' : currentDate ? 'Lagre ny dato' : 'Planlegg fjerning'}

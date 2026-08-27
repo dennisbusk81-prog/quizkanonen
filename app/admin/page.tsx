@@ -8,7 +8,6 @@ import { readAdminBody, readAdminList } from '@/lib/admin-load'
 import Link from 'next/link'
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -25,7 +24,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -50,7 +49,7 @@ const STYLES = `
     margin-bottom: 6px;
   }
   .adm-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 28px;
     font-weight: 700;
     color: var(--white);
@@ -93,7 +92,7 @@ const STYLES = `
   .adm-actions { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 
   .adm-btn-primary {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 600;
     background: #c9a84c;
@@ -110,7 +109,7 @@ const STYLES = `
   .adm-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .adm-btn-primary-sm {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     background: transparent;
@@ -127,7 +126,7 @@ const STYLES = `
   .adm-btn-primary-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .adm-btn-outline {
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     background: transparent;
@@ -163,7 +162,7 @@ const STYLES = `
     border: 0.5px solid var(--border);
     border-radius: 8px;
     padding: 7px 14px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     color: var(--body);
@@ -187,7 +186,7 @@ const STYLES = `
   .adm-stat:hover { border-color: rgba(201,168,76,0.25); }
 
   .adm-stat-value {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 24px;
     font-weight: 700;
     color: var(--white);
@@ -250,7 +249,7 @@ const STYLES = `
     background: transparent;
     border: none;
     padding: 0;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 11px;
     font-weight: 600;
     color: inherit;
@@ -355,7 +354,7 @@ const STYLES = `
     justify-content: center;
   }
   .adm-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;
@@ -801,7 +800,7 @@ export default function AdminHome() {
                           borderRadius: 8,
                           padding: '4px 10px',
                           cursor: 'pointer',
-                          fontFamily: "'Instrument Sans', sans-serif",
+                          fontFamily: "var(--font-instrument-sans), sans-serif",
                           whiteSpace: 'nowrap',
                           transition: 'color 0.15s, border-color 0.15s',
                           flexShrink: 0,
@@ -851,7 +850,7 @@ export default function AdminHome() {
                 type="number"
                 value={foundersSettings.max}
                 onChange={e => setFoundersSettings(p => ({ ...p, max: Number(e.target.value) }))}
-                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' }}
               />
             </div>
             <div>
@@ -862,7 +861,7 @@ export default function AdminHome() {
                 type="number"
                 value={foundersSettings.daysFree}
                 onChange={e => setFoundersSettings(p => ({ ...p, daysFree: Number(e.target.value) }))}
-                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' }}
               />
             </div>
             <div>
@@ -873,7 +872,7 @@ export default function AdminHome() {
                 type="number"
                 value={foundersSettings.trialDays}
                 onChange={e => setFoundersSettings(p => ({ ...p, trialDays: Number(e.target.value) }))}
-                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none' }}
+                style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none' }}
               />
             </div>
           </div>
@@ -889,7 +888,7 @@ export default function AdminHome() {
                 padding: '8px 20px',
                 fontSize: 13,
                 fontWeight: 600,
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
                 cursor: foundersSaving ? 'not-allowed' : 'pointer',
               }}
             >
@@ -912,13 +911,13 @@ export default function AdminHome() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => { setResetModal('all'); setResetInput('') }}
-              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #c0392b', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #c0392b', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
             >
               Nullstill all data
             </button>
             <button
               onClick={() => { setResetModal('test'); setResetInput('') }}
-              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+              style={{ fontSize: 13, fontWeight: 500, color: '#e8e4dd', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10, padding: '8px 20px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
             >
               Nullstill kun testdata
             </button>
@@ -937,7 +936,7 @@ export default function AdminHome() {
                   type="button"
                   aria-label="Lukk feilmelding"
                   onClick={() => setResetError(null)}
-                  style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                  style={{ marginLeft: 8, background: 'transparent', border: 'none', padding: 0, fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
                 >
                   Lukk
                 </button>
@@ -952,7 +951,7 @@ export default function AdminHome() {
       {/* Reset-modal */}
       {resetModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+          <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px 28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
             <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
               {resetModal === 'all' ? 'Nullstill all sesong-data' : 'Nullstill testdata'}
             </p>
@@ -968,7 +967,7 @@ export default function AdminHome() {
               onChange={e => setResetInput(e.target.value)}
               placeholder="NULLSTILL"
               autoFocus
-              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "'Instrument Sans', sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+              style={{ width: '100%', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8, padding: '10px 12px', fontSize: 14, color: '#e8e4dd', fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', marginBottom: 16, boxSizing: 'border-box' }}
               onKeyDown={e => { if (e.key === 'Enter') handleReset() }}
             />
             {resetError && (
@@ -978,7 +977,7 @@ export default function AdminHome() {
                   type="button"
                   aria-label="Lukk feilmelding"
                   onClick={() => setResetError(null)}
-                  style={{ background: 'transparent', border: 'none', padding: 0, fontFamily: "'Instrument Sans', sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ background: 'transparent', border: 'none', padding: 0, fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 11, fontWeight: 600, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', flexShrink: 0 }}
                 >
                   Lukk
                 </button>
@@ -995,7 +994,7 @@ export default function AdminHome() {
               <button
                 onClick={handleReset}
                 disabled={resetInput !== 'NULLSTILL' || resetting}
-                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "'Instrument Sans', sans-serif", transition: 'background 0.15s, color 0.15s' }}
+                style={{ fontSize: 13, fontWeight: 600, color: resetInput === 'NULLSTILL' ? '#1a1c23' : '#918f8a', background: resetInput === 'NULLSTILL' ? '#f87171' : '#2a2d38', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: resetInput === 'NULLSTILL' ? 'pointer' : 'not-allowed', fontFamily: "var(--font-instrument-sans), sans-serif", transition: 'background 0.15s, color 0.15s' }}
               >
                 {resetting ? 'Nullstiller…' : 'Nullstill'}
               </button>

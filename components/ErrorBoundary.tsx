@@ -31,7 +31,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             color: '#e8e4dd',
             lineHeight: 1.6,
             marginBottom: 16,
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
           }}>
             Noe gikk galt her. Prøv å laste siden på nytt.
           </p>
@@ -46,7 +46,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               fontWeight: 600,
               color: '#e8e4dd',
               cursor: 'pointer',
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
             }}
           >
             Last inn på nytt

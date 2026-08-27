@@ -105,7 +105,7 @@ export default function PushNotificationPrompt() {
       gap: 12,
       zIndex: 9000,
       flexWrap: 'wrap',
-      fontFamily: "'Instrument Sans', sans-serif",
+      fontFamily: "var(--font-instrument-sans), sans-serif",
     }}>
       <p style={{ fontSize: 14, color: '#e8e4dd', margin: 0, lineHeight: 1.4, flex: iosInstallHint ? '1 1 240px' : undefined }}>
         {iosInstallHint
@@ -127,7 +127,7 @@ export default function PushNotificationPrompt() {
               color: '#e8e4dd',
               cursor: loading ? 'default' : 'pointer',
               opacity: loading ? 0.6 : 1,
-              fontFamily: "'Instrument Sans', sans-serif",
+              fontFamily: "var(--font-instrument-sans), sans-serif",
               transition: 'border-color 0.15s',
             }}
           >
@@ -142,7 +142,7 @@ export default function PushNotificationPrompt() {
             fontSize: 13,
             color: '#918f8a',
             cursor: 'pointer',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
             padding: 0,
           }}
         >

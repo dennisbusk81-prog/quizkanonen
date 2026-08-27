@@ -42,7 +42,6 @@ const emptyForm = (): QuestionForm => ({
 })
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -65,7 +64,7 @@ const STYLES = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -93,7 +92,7 @@ const STYLES = `
   .qq-back:hover { color: var(--gold); }
 
   .qq-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 22px;
     font-weight: 700;
     color: var(--white);
@@ -156,7 +155,7 @@ const STYLES = `
   }
 
   .qq-form-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 15px;
     font-weight: 700;
     color: var(--white);
@@ -179,7 +178,7 @@ const STYLES = `
     border: 1px solid var(--border);
     border-radius: var(--radius-btn);
     padding: 10px 13px;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     color: var(--white);
     outline: none;
@@ -230,7 +229,7 @@ const STYLES = `
     flex: 1;
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 600;
     padding: 10px;
@@ -246,7 +245,7 @@ const STYLES = `
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--muted);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 13px;
     font-weight: 500;
     padding: 10px 16px;
@@ -339,7 +338,7 @@ const STYLES = `
     border-radius: 7px;
     border: none;
     cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     transition: opacity 0.15s;
     white-space: nowrap;
   }
@@ -400,7 +399,7 @@ const STYLES = `
   }
 
   .qq-loading p {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--muted);
     font-style: italic;
@@ -915,7 +914,7 @@ export default function QuizQuestions() {
                 background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
                 padding: '10px 20px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
                 cursor: retrying ? 'not-allowed' : 'pointer', opacity: retrying ? 0.6 : 1,
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
               }}
             >
               {retrying ? 'Prøver igjen…' : 'Prøv igjen'}
@@ -984,7 +983,7 @@ export default function QuizQuestions() {
                         const blocked = correctLoading || unchanged
                         return (
                         <div style={{ marginTop: 12, padding: '14px 16px', background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 10 }}>
-                          <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 10, fontFamily: "'Instrument Sans', sans-serif" }}>Riktig svar — velg ett eller flere:</p>
+                          <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 10, fontFamily: "var(--font-instrument-sans), sans-serif" }}>Riktig svar — velg ett eller flere:</p>
                           <div style={{ marginBottom: 12 }}>
                             <CorrectAnswerToggle
                               options={options}
@@ -994,7 +993,7 @@ export default function QuizQuestions() {
                               disabled={correctLoading}
                             />
                           </div>
-                          <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "'Instrument Sans', sans-serif" }}>
+                          <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "var(--font-instrument-sans), sans-serif" }}>
                             {correctAnsweredCount === null
                               ? 'Henter antall besvarelser…'
                               : correctAnsweredCount === 0
@@ -1011,14 +1010,14 @@ export default function QuizQuestions() {
                                 background: 'transparent',
                                 color: blocked ? '#918f8a' : '#e8e4dd',
                                 cursor: blocked ? 'not-allowed' : 'pointer',
-                                fontFamily: "'Instrument Sans', sans-serif",
+                                fontFamily: "var(--font-instrument-sans), sans-serif",
                               }}
                             >
                               {correctLoading ? 'Oppdaterer…' : 'Bekreft endring'}
                             </button>
                             <button
                               onClick={() => setCorrectingId(null)}
-                              style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38', background: 'transparent', color: '#918f8a', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                              style={{ fontSize: 12, padding: '7px 14px', borderRadius: 8, border: '1px solid #2a2d38', background: 'transparent', color: '#918f8a', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
                             >
                               Avbryt
                             </button>
@@ -1030,11 +1029,11 @@ export default function QuizQuestions() {
                       {/* Rett svar — resultat */}
                       {correctResults[q.id] !== undefined && (
                         correctResults[q.id].failed > 0 ? (
-                          <p style={{ fontSize: 11, color: '#f87171', marginTop: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
+                          <p style={{ fontSize: 11, color: '#f87171', marginTop: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
                             Delvis rettet — {correctResults[q.id].updated} oppdatert, {correctResults[q.id].failed} feilet. Kjør rettingen på nytt.
                           </p>
                         ) : (
-                          <p style={{ fontSize: 11, color: '#4ade80', marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "'Instrument Sans', sans-serif" }}>
+                          <p style={{ fontSize: 11, color: '#4ade80', marginTop: 8, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.18)', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
                             Rettet — {correctResults[q.id].updated} besvarelser oppdatert
                           </p>
                         )
@@ -1049,7 +1048,7 @@ export default function QuizQuestions() {
                           if (correctingId === q.id) { setCorrectingId(null) }
                           else { openCorrectPanel(q) }
                         }}
-                        style={{ fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif", background: 'transparent', color: '#e8e4dd', textDecoration: 'underline', textDecorationColor: 'rgba(232,228,221,0.3)', whiteSpace: 'nowrap' }}
+                        style={{ fontSize: 11, fontWeight: 500, padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", background: 'transparent', color: '#e8e4dd', textDecoration: 'underline', textDecorationColor: 'rgba(232,228,221,0.3)', whiteSpace: 'nowrap' }}
                       >
                         Rett svar
                       </button>

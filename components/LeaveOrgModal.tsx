@@ -73,7 +73,7 @@ export default function LeaveOrgModal({
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "'Instrument Sans', sans-serif" }}>
+      <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '28px', maxWidth: 420, width: '100%', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
 
         <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f87171', marginBottom: 10 }}>
           Forlat organisasjon
@@ -90,7 +90,7 @@ export default function LeaveOrgModal({
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={onClose}
-                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Lukk
               </button>
@@ -117,14 +117,14 @@ export default function LeaveOrgModal({
               <button
                 onClick={onClose}
                 disabled={leaving}
-                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: leaving ? 'not-allowed' : 'pointer', fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, color: '#e8e4dd', background: 'transparent', border: '0.5px solid #2a2d38', borderRadius: 8, padding: '8px 16px', cursor: leaving ? 'not-allowed' : 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 Avbryt
               </button>
               <button
                 onClick={handleLeave}
                 disabled={leaving}
-                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: '#f87171', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: leaving ? 'not-allowed' : 'pointer', opacity: leaving ? 0.6 : 1, fontFamily: "'Instrument Sans', sans-serif" }}
+                style={{ fontSize: 13, fontWeight: 600, color: '#1a1c23', background: '#f87171', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: leaving ? 'not-allowed' : 'pointer', opacity: leaving ? 0.6 : 1, fontFamily: "var(--font-instrument-sans), sans-serif" }}
               >
                 {leaving ? 'Forlater…' : 'Forlat'}
               </button>

@@ -107,7 +107,7 @@ export default function OrgCard() {
         Din arbeidsplass
       </p>
       <p style={{
-        fontFamily: "'Libre Baskerville', serif",
+        fontFamily: "var(--font-libre-baskerville), serif",
         fontSize: 18, fontWeight: 700, color: '#ffffff',
         marginBottom: (placement || locked) ? 4 : 14, letterSpacing: '-0.01em',
       }}>

@@ -44,7 +44,7 @@ export default function InAppBrowserWarning() {
       marginBottom: 16,
     }}>
       <p style={{
-        fontFamily: "'Libre Baskerville', serif",
+        fontFamily: "var(--font-libre-baskerville), serif",
         fontSize: 14,
         fontWeight: 700,
         color: '#ffffff',
@@ -53,7 +53,7 @@ export default function InAppBrowserWarning() {
         Google-innlogging virker ikke her
       </p>
       <p style={{
-        fontFamily: "'Instrument Sans', sans-serif",
+        fontFamily: "var(--font-instrument-sans), sans-serif",
         fontSize: 13,
         color: '#e8e4dd',
         lineHeight: 1.6,
@@ -75,14 +75,14 @@ export default function InAppBrowserWarning() {
             fontWeight: 600,
             color: '#e8e4dd',
             textDecoration: 'none',
-            fontFamily: "'Instrument Sans', sans-serif",
+            fontFamily: "var(--font-instrument-sans), sans-serif",
           }}
         >
           Åpne i Chrome
         </a>
       ) : (
         <p style={{
-          fontFamily: "'Instrument Sans', sans-serif",
+          fontFamily: "var(--font-instrument-sans), sans-serif",
           fontSize: 12,
           color: '#918f8a',
           marginTop: 10,

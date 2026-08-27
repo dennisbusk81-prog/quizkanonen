@@ -578,7 +578,6 @@ async function computeFounderStoryStats(): Promise<FounderStoryStats> {
 const getFounderStoryStats = unstable_cache(computeFounderStoryStats, ['home-founder-story-stats-v3'], { revalidate: 3600, tags: ['home-founder-story-stats'] })
 
 const SHARED_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Instrument+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -597,7 +596,7 @@ const SHARED_CSS = `
 
   body {
     background: var(--bg);
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     color: var(--body);
     min-height: 100vh;
   }
@@ -630,7 +629,7 @@ const SHARED_CSS = `
   }
 
   .qk-nav-logo {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 17px;
     font-weight: 700;
     color: var(--white);
@@ -671,7 +670,7 @@ const SHARED_CSS = `
   }
 
   .qk-hero-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: clamp(28px, 6vw, 44px);
     font-weight: 700;
     color: var(--white);
@@ -708,7 +707,7 @@ const SHARED_CSS = `
     width: auto;
     background: var(--gold);
     color: #1a1c23;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 700;
     padding: 10px 28px;
@@ -802,7 +801,7 @@ const SHARED_CSS = `
   }
 
   .qk-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 26px;
     font-weight: 700;
     color: #ffffff;
@@ -892,7 +891,7 @@ const SHARED_CSS = `
     background-color: transparent;
     border: 1px solid #c9a84c;
     color: #c9a84c;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 600;
     padding: 10px 28px;
@@ -912,7 +911,7 @@ const SHARED_CSS = `
     background: transparent;
     border: 1px solid #2a2d38;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 15px;
     font-weight: 600;
     padding: 10px 28px;
@@ -938,7 +937,7 @@ const SHARED_CSS = `
   }
 
   .qk-empty-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 18px;
     color: var(--white);
     margin-bottom: 8px;
@@ -989,7 +988,7 @@ const SHARED_CSS = `
   }
 
   .qk-founder-story-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: clamp(18px, 4vw, 20px);
     font-weight: 700;
     color: var(--white);
@@ -1015,7 +1014,7 @@ const SHARED_CSS = `
   }
 
   .qk-founder-stat-num {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 22px;
     font-weight: 700;
     color: var(--white);
@@ -1052,7 +1051,7 @@ const SHARED_CSS = `
   }
 
   .qk-biz-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 20px;
     font-weight: 700;
     color: var(--white);
@@ -1095,7 +1094,7 @@ const SHARED_CSS = `
   }
 
   .qk-founders-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: clamp(18px, 4vw, 22px);
     font-weight: 700;
     color: var(--white);
@@ -1117,7 +1116,7 @@ const SHARED_CSS = `
     border: 1px solid #e8e4dd;
     border-radius: 10px;
     color: #e8e4dd;
-    font-family: 'Instrument Sans', sans-serif;
+    font-family: var(--font-instrument-sans), sans-serif;
     font-size: 14px;
     font-weight: 700;
     text-decoration: none;
@@ -1264,7 +1263,7 @@ const SHARED_CSS = `
   }
 
   .qk-interlude-card-title {
-    font-family: 'Libre Baskerville', serif;
+    font-family: var(--font-libre-baskerville), serif;
     font-size: 15px;
     font-weight: 700;
     color: #ffffff;
@@ -1638,7 +1637,7 @@ export default async function Home() {
           <section style={{ paddingTop: 40, paddingBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
               <h1 className="qkp-greeting" style={{
-                fontFamily: "'Libre Baskerville', serif",
+                fontFamily: "var(--font-libre-baskerville), serif",
                 fontWeight: 700,
                 color: '#ffffff',
                 lineHeight: 1.2,
@@ -1947,7 +1946,7 @@ export default async function Home() {
               {/* Kjernesetningen — innledning til punktene under, ikke en
                   erstatning for dem. Kortets egen tittel-typografi. */}
               <p style={{
-                fontFamily: "'Libre Baskerville', serif",
+                fontFamily: "var(--font-libre-baskerville), serif",
                 fontSize: 16,
                 fontWeight: 700,
                 color: '#ffffff',
@@ -1985,7 +1984,7 @@ export default async function Home() {
                 borderRadius: 10,
                 padding: '8px 20px',
                 textDecoration: 'none',
-                fontFamily: "'Instrument Sans', sans-serif",
+                fontFamily: "var(--font-instrument-sans), sans-serif",
               }}>
                 {trialOffer.show ? `Prøv Premium gratis i ${trialOffer.days} dager →` : 'Se Premium →'}
               </Link>
@@ -2193,11 +2192,11 @@ export default async function Home() {
             <div className="qk-preview-card">
               <p className="qk-preview-card-label">Plassering</p>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#918f8a' }}>18.</span>
+                <span style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#918f8a' }}>18.</span>
                 <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{ flexShrink: 0 }}>
                   <path d="M1 6H15M15 6L10 1M15 6L10 11" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span style={{ fontFamily: "'Libre Baskerville', serif", fontSize: 22, fontWeight: 700, color: '#ffffff' }}>11.</span>
+                <span style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff' }}>11.</span>
               </div>
               <p className="qk-preview-card-text">Du klatret fra 18. til 11. plass</p>
             </div>
@@ -2208,7 +2207,7 @@ export default async function Home() {
                 <div style={{
                   width: 32, height: 32, borderRadius: '50%',
                   background: '#2a2d38', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Libre Baskerville', serif", fontSize: 14, fontWeight: 700, color: '#e8e4dd',
+                  fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, fontWeight: 700, color: '#e8e4dd',
                 }}>M</div>
                 <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff' }}>Maria</span>
               </div>
@@ -2348,7 +2347,7 @@ export default async function Home() {
             textAlign: 'center',
           }}>
             <p style={{
-              fontFamily: "'Libre Baskerville', serif",
+              fontFamily: "var(--font-libre-baskerville), serif",
               fontSize: 16,
               fontWeight: 700,
               color: '#ffffff',
