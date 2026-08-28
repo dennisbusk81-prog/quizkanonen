@@ -23,7 +23,7 @@ import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
 // 1970, og serverruten (app/api/leaderboard/[id]) leser samme felt med samme
 // funksjoner — paritetskravet fra NONNULL-sveipet 26. august 2026 (B1).
 import { isQuizClosed } from '@/lib/standings-cache'
-import { decideHiddenUntilClosed } from '@/lib/leaderboard-visibility'
+import { decideHiddenUntilClosed, decideHiddenLeaderboardView, osloClosingTime } from '@/lib/leaderboard-visibility'
 import { decideFetchScope } from '@/lib/org-scope-fetch'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
@@ -1585,24 +1585,60 @@ export default function LeaderboardPage() {
           })()}
 
           {isHidden ? (
-            // Vis ingenting mens auth loader (forhindrer at premium-bruker ser låse-skjerm)
-            // Vis låse-skjerm kun når vi vet sikkert at bruker ikke har spilt
-            (!authLoading && !hasPlayed) ? (
-              <div style={s.empty}>
-                <div style={{ ...s.emptyIcon, fontSize: undefined }}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
-                    <rect x="3" y="11" width="18" height="11" rx="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
+            // Tre utfall, ikke to — se decideHiddenLeaderboardView i
+            // lib/leaderboard-visibility.ts. 'nothing' er den ekte
+            // lastetilstanden (uendret); 'locked' er låseskjermen som før
+            // (uendret tekst); 'waiting' er den som manglet: en innlogget
+            // gratisbruker SOM HAR SPILT fikk tom luft, fordi hasPlayed lå i
+            // samme ledd som authLoading.
+            (() => {
+              const hiddenView = decideHiddenLeaderboardView({ authLoading, hasPlayed })
+              if (hiddenView === 'nothing') return null
+              if (hiddenView === 'locked') return (
+                <div style={s.empty}>
+                  <div style={{ ...s.emptyIcon, fontSize: undefined }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                  </div>
+                  <p style={s.emptyTitle}>Spill quizen for å se ukens resultater</p>
+                  <p style={s.emptySub}>
+                    Ukens resultater er kun synlig for de som har spilt.<br />
+                    Publiseres for alle når quizen stenger.
+                  </p>
+                  <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
                 </div>
-                <p style={s.emptyTitle}>Spill quizen for å se ukens resultater</p>
-                <p style={s.emptySub}>
-                  Ukens resultater er kun synlig for de som har spilt.<br />
-                  Publiseres for alle når quizen stenger.
-                </p>
-                <Link href={`/quiz/${quizId}`} style={s.btnLink}>Spill quizen →</Link>
-              </div>
-            ) : null
+              )
+              // 'waiting'. Klokkeslettet leses av quiz.closes_at, aldri
+              // hardkodet: stengetiden er per quiz, og en org-quiz kan ha en
+              // annen. Formateringen går via osloClosingTime — ingen rå
+              // `new Date` på en quiz-dato her, samme NONNULL-regel som toppen
+              // av filen. NULL er formelt uoppnåelig (decideHiddenUntilClosed
+              // returnerer false på NULL, så vi står ikke her), men setningen
+              // faller uansett tilbake på en uten klokkeslett.
+              // Ikonet er en KLOKKE, ikke hengelåsen over: hun er ikke stengt
+              // ute, hun venter. En lås her ville motsagt setningen under seg.
+              const stengetid = osloClosingTime(quiz.closes_at)
+              return (
+                <div style={s.empty}>
+                  <div style={{ ...s.emptyIcon, fontSize: undefined }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9"/>
+                      <path d="M12 7v5l3 2"/>
+                    </svg>
+                  </div>
+                  <p style={s.emptyTitle}>Resultatet ditt er registrert</p>
+                  <p style={s.emptySub}>
+                    Listen holdes skjult mens quizen pågår, så den ikke røper noe for dem som ikke har spilt ennå.<br />
+                    {stengetid
+                      ? `Den publiseres for alle når quizen stenger kl. ${stengetid}.`
+                      : 'Den publiseres for alle når quizen stenger.'}
+                  </p>
+                  <Link href="/premium" style={s.btnLink}>Se listen nå med Premium →</Link>
+                </div>
+              )
+            })()
           ) : attempts.length === 0 ? (
             <div style={s.empty}>
               <div style={s.emptyIcon}>

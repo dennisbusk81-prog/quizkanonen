@@ -84,3 +84,110 @@ test('samme inndata gir samme svar — funksjonen er deterministisk over feltene
     assert.equal(klient, server)
   }
 })
+
+// ── decideHiddenLeaderboardView — hva en SKJULT stilling viser ───────────────
+//
+// REGRESJONEN som utløste funksjonen (28. august 2026): JSX-en i
+// app/leaderboard/[id]/page.tsx sto som
+//   `(!authLoading && !hasPlayed) ? <låseskjerm> : null`
+// Betingelsen var skrevet for authLoading, men hasPlayed lå i samme ledd. En
+// innlogget gratisbruker SOM HAR SPILT traff null-grenen og fikk tom luft.
+//
+// MUTASJONSBEVIS — fire mutasjoner kjørt 28. august 2026, hver med diff mot
+// backup verifisert FØR resultatet ble tolket (en sed som bommer gir grønn
+// suite som ser ut som «overlevd»). Baseline 13/13 grønn. Alle fire ble røde:
+//   1. `return input.hasPlayed ? 'waiting' : 'locked'` → `return 'locked'`
+//        → 2 røde: «regresjonen» + «tre utfall dekker fire inndata»
+//   2. samme linje → `return input.hasPlayed ? 'nothing' : 'locked'`
+//        (NØYAKTIG dagens feilform: har spilt ⇒ tom render)
+//        → 2 røde: samme to
+//   3. `if (input.authLoading) return 'nothing'` slettet
+//        → 2 røde: «laster gir ingen tekst» + «tre utfall»
+//   4. KALLSTEDET forbi gaten: i app/leaderboard/[id]/page.tsx byttes
+//        `const hiddenView = decideHiddenLeaderboardView({ authLoading, hasPlayed })`
+//        mot den gamle inline-formen `(!authLoading && !hasPlayed) ? 'locked' : 'nothing'`
+//        → 1 rød: «kallstedet bruker gaten»
+//
+// Mutasjon 4 er den viktigste. Uten den kunne 1–3 vært grønne mens JSX-en
+// beholdt den gamle formen — funksjonen til stede, men aldri i bruk. Det er
+// nøyaktig hullet middleware-cookie-guard har og som er dokumentert som ærlig
+// hull i CLAUDE.md; her er koblingen faktisk felt.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { decideHiddenLeaderboardView, osloClosingTime } from './leaderboard-visibility'
+
+test('HAR spilt gir en egen ventetilstand — aldri tom render (regresjonen)', () => {
+  // Dette er brukeren som fikk ingenting: innlogget, ikke Premium, har spilt,
+  // stillingen skjult til stengetid.
+  const view = decideHiddenLeaderboardView({ authLoading: false, hasPlayed: true })
+  assert.equal(view, 'waiting')
+  // Poenget er ikke hvilken streng det ble, men at det IKKE ble tomt. Skulle
+  // utfallsnavnene endres senere, skal denne fortsatt felle en tom render.
+  assert.notEqual(view, 'nothing', 'gratisbruker som har spilt får tom skjerm igjen')
+})
+
+test('har IKKE spilt gir låseskjermen — uendret oppførsel', () => {
+  assert.equal(decideHiddenLeaderboardView({ authLoading: false, hasPlayed: false }), 'locked')
+})
+
+test('mens auth laster vises ingenting — uendret, dette er den ekte lastetilstanden', () => {
+  // Begge hasPlayed-verdiene: authLoading skal vinne alene. Var det leddet
+  // fortsatt sammenvevd med hasPlayed, ville én av de to falt gjennom.
+  assert.equal(decideHiddenLeaderboardView({ authLoading: true, hasPlayed: true }), 'nothing')
+  assert.equal(decideHiddenLeaderboardView({ authLoading: true, hasPlayed: false }), 'nothing')
+})
+
+test('de tre utfallene er gjensidig utelukkende og dekker alle fire inndata', () => {
+  // Uten dette kunne en framtidig fjerde gren gjeninnføre et hull uten at
+  // noen av testene over merket det: de spør hver sin celle, ikke tabellen.
+  const sett = new Set<string>()
+  for (const authLoading of [true, false]) {
+    for (const hasPlayed of [true, false]) {
+      sett.add(decideHiddenLeaderboardView({ authLoading, hasPlayed }))
+    }
+  }
+  assert.deepEqual([...sett].sort(), ['locked', 'nothing', 'waiting'])
+})
+
+test('osloClosingTime: norsk klokkeslett, og NULL/ugyldig gir null — ikke epoch', () => {
+  // 20:00Z i august = sommertid i Oslo = 22:00. Bruker dagens faktiske
+  // stengetid som fixtur, så testen felles hvis tidssonen faller bort.
+  assert.equal(osloClosingTime('2026-08-28T20:00:00+00:00'), '22:00')
+  // Den som gjør regelen nødvendig: new Date(null) er epoch, ikke ugyldig, og
+  // ville gitt «01:00» uten å feile.
+  assert.equal(osloClosingTime(null), null)
+  assert.equal(osloClosingTime('ikke en dato'), null)
+})
+
+// ── Kallstedet, ikke bare logikken ──────────────────────────────────────────
+// Uten denne kan hele gaten over være grønn mens JSX-en beholder den gamle
+// inline-formen — funksjonen ville da vært til stede uten å være i bruk.
+// Ankrene står på LINJESTART etter kommentarstripping, så en utkommentert
+// rest ikke kan oppfylle dem.
+test('kallstedet bruker gaten, og ventegrenen finnes i JSX-en', () => {
+  const kode = readFileSync(
+    join(process.cwd(), 'app/leaderboard/[id]/page.tsx'), 'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[\n \t])\/\/[^\n]*/g, '$1')
+
+  assert.match(
+    kode,
+    /^\s*const hiddenView = decideHiddenLeaderboardView\(\{ authLoading, hasPlayed \}\)/m,
+    'JSX-en regner ikke lenger skjul-visningen via den delte gaten',
+  )
+  // Ventegrenen må faktisk RENDRE noe. Ankeret er teksten som bærer de tre
+  // tingene brukeren skal få vite, ikke bare navnet 'waiting'.
+  assert.match(kode, /Resultatet ditt er registrert/,
+    'ventetilstandens overskrift er borte')
+  assert.match(kode, /Den publiseres for alle når quizen stenger kl\. \$\{stengetid\}/,
+    'ventetilstanden sier ikke lenger NÅR listen publiseres')
+  assert.match(kode, /href="\/premium"/,
+    'ventetilstanden peker ikke lenger på Premium')
+  // Den gamle feilformen skal ikke kunne stå igjen ved siden av den nye.
+  assert.doesNotMatch(
+    kode,
+    /\(!authLoading && !hasPlayed\) \?/,
+    'den sammenvevde authLoading/hasPlayed-betingelsen er tilbake',
+  )
+})

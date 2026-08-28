@@ -49,3 +49,62 @@ export function decideHiddenUntilClosed(input: HiddenUntilClosedInput): boolean 
   if (isQuizClosed(input.closesAt, input.now)) return false
   return !input.premiumViewerHasOwnRow
 }
+
+// ── Hva skal en SKJULT stilling vise? (28. august 2026) ──────────────────────
+// decideHiddenUntilClosed svarer på OM radene holdes tilbake. Denne svarer på
+// hva brukeren da får se i stedet — og finnes fordi de to spørsmålene ble
+// besvart i samme inline-betingelse, med ett utfall for lite.
+//
+// Feilen: `(!authLoading && !hasPlayed) ? <låseskjerm> : null`. Betingelsen var
+// skrevet for authLoading (ikke vis låseskjerm mens vi ennå ikke vet om
+// brukeren er Premium), men `hasPlayed` ble foldet inn i samme ledd. En
+// innlogget GRATISBRUKER SOM HAR SPILT falt dermed i null-grenen: ingen liste,
+// ingen låseskjerm, ingen forklaring — tom luft der stillingen skulle stått.
+// Med hide_leaderboard_until_closed på (dagens fredagsquiz) er det flertallet
+// av spillerne, i hele vinduet quizen er åpen.
+//
+// De tre utfallene er tre ULIKE ting å si, ikke to og et hull:
+//   'nothing' — vi vet ennå ikke hvem som spør. Å gjette gir enten en
+//               låseskjerm til en Premium-bruker eller motsatt; ingen tekst er
+//               riktigere enn feil tekst i et vindu som varer i millisekunder.
+//   'locked'  — har ikke spilt. «Kun synlig for de som har spilt» er sant, og
+//               handlingen er å spille.
+//   'waiting' — HAR spilt. Samme setning ville vært usann her: hun oppfylte
+//               nettopp vilkåret den stiller. Hun venter, hun er ikke stengt
+//               ute — og det er derfor et eget utfall og ikke en variant.
+//
+// Som ren funksjon kan gaten mutasjonstestes; den inline-betingelsen den
+// erstatter kunne ikke. Samme begrunnelse som shouldShowFreePlacementCard i
+// lib/placement-visibility.ts, som ble flyttet ut av JSX-en på nøyaktig samme
+// side, av nøyaktig samme grunn.
+export type HiddenLeaderboardView = 'nothing' | 'locked' | 'waiting'
+
+export function decideHiddenLeaderboardView(input: {
+  /** Auth/profil er ikke avklart ennå — vi vet ikke hvem som spør. */
+  authLoading: boolean
+  /** Har brukeren et resultat på denne quizen? */
+  hasPlayed: boolean
+}): HiddenLeaderboardView {
+  if (input.authLoading) return 'nothing'
+  return input.hasPlayed ? 'waiting' : 'locked'
+}
+
+/**
+ * Stengetid som norsk klokkeslett, eller `null` når quizen ikke stenger.
+ *
+ * Finnes for at kallstedene ikke skal skrive `new Date(quiz.closes_at)` selv —
+ * NONNULL-regelen øverst i app/leaderboard/[id]/page.tsx og strukturvakten i
+ * lib/nonnull-quiz-date-sites.test.ts. Regelen er bevisst FORM-basert, ikke
+ * resonnement-basert: `new Date(null)` er epoch, og «kl. 01:00» skrevet med
+ * full selvtillit er verre enn ingen tid. Da skal ingen kaller måtte utlede på
+ * nytt at akkurat deres sted er trygt.
+ *
+ * Eksplisitt Europe/Oslo: uten tidssone leser toLocaleTimeString besøkerens
+ * EGEN nettleserklokke, som er feil for enhver spiller utenfor Norge.
+ */
+export function osloClosingTime(closesAt: string | null): string | null {
+  if (closesAt === null) return null
+  const d = new Date(closesAt)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' })
+}
