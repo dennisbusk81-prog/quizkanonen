@@ -272,6 +272,7 @@ export default function LigaPage() {
 
   if (loadState === 'loading') return (
     <>
+      <SiteNav />
       <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <SkeletonCard rows={2} showHeader style={{ height: 100 }} />
@@ -283,6 +284,7 @@ export default function LigaPage() {
 
   if (loadState === 'notfound') return (
     <>
+      <SiteNav />
       <div style={s.centered}>
         <div style={{ textAlign: 'center' }}>
           <p style={s.spinner}>Fant ikke ligaen.</p>
@@ -294,6 +296,7 @@ export default function LigaPage() {
 
   if (loadState === 'error') return (
     <>
+      <SiteNav />
       <div style={s.centered}><p style={s.spinner}>Noe gikk galt. Prøv igjen.</p></div>
     </>
   )

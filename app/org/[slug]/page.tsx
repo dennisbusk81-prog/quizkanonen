@@ -72,6 +72,7 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'loading') {
     return (
       <>
+        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter bedriften din …</p>
@@ -94,6 +95,7 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'error') {
     return (
       <>
+        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
@@ -132,6 +134,7 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'notfound') {
     return (
       <>
+        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>

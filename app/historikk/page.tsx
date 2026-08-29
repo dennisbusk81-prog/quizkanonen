@@ -678,6 +678,7 @@ export default function HistorikkPage() {
   if (loadState === 'loading') {
     return (
       <>
+        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
           <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <SkeletonCard rows={3} showHeader={false} style={{ height: 120 }} />
@@ -691,6 +692,7 @@ export default function HistorikkPage() {
   if (loadState === 'error') {
     return (
       <>
+        <SiteNav />
         <div style={s.centered}>
           <div style={{ textAlign: 'center' as const }}>
             <p style={s.spinner}>Vi klarte ikke å hente historikken.</p>

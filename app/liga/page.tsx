@@ -143,6 +143,7 @@ export default function MineLigaerPage() {
 
   if (loadState === 'loading') return (
     <>
+      <SiteNav />
       <div style={s.centered}>
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Henter ligaene dine …</p>
@@ -164,6 +165,7 @@ export default function MineLigaerPage() {
 
   if (loadState === 'error') return (
     <>
+      <SiteNav />
       <div style={s.centered}>
         <div style={{ textAlign: 'center' as const }}>
           <p style={s.spinner}>Vi klarte ikke å hente ligaene.</p>
@@ -180,6 +182,7 @@ export default function MineLigaerPage() {
 
   if (loadState === 'guest') return (
     <>
+      <SiteNav />
       <div style={s.centered}>
         <div style={{ ...s.empty, maxWidth: 420 }}>
           <div style={s.emptyTitle}>Logg inn for å se ligaene dine</div>
