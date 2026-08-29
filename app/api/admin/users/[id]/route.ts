@@ -2,9 +2,22 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchAllRowsChunked } from '@/lib/paginate'
+import {
+  onlyRealQuizAttempts,
+  erEkteQuiz,
+  REAL_QUIZ_ATTEMPT_EMBED,
+} from '@/lib/real-quiz-population'
 import Stripe from 'stripe'
 
-type QuizRow = { id: string; title: string; opens_at: string | null }
+// `quiz_type`/`is_test` er ikke visningsfelt — de mater `erEkteQuiz` lenger
+// nede, som avgjør om raden i loggen faktisk telte med i flisene over den.
+type QuizRow = {
+  id: string
+  title: string
+  opens_at: string | null
+  quiz_type: string | null
+  is_test: boolean | null
+}
 
 // Samme vakt som start-attempt/questions/cleanup-orgs: id-en kommer rått fra
 // URL-stien, og en ikke-UUID (f.eks. en e-postadresse limt inn i adressefeltet)
@@ -59,16 +72,51 @@ export async function GET(
   if (hasPasswordErr) console.error('[users/[id]] auth_has_password feilet:', hasPasswordErr.message)
 
   // ── Aktivitet ────────────────────────────────────────────────────────────
+  // TO SPØRRINGER, MED VILJE — de to flatene under stiller ulike spørsmål, og
+  // ett filter på én spørring kan ikke svare på begge:
+  //
+  //   LOGGEN (`attempts`)      = «hva har brukeren faktisk gjort?». Skal vise
+  //     ALT, arkiv-/treningsrunder inkludert. Filtreres den, blir admin blind
+  //     for at brukeren i det hele tatt spilte en arkivquiz — og det er
+  //     nettopp dét man åpner denne siden for å finne ut.
+  //   FLISENE (`realAttempts`) = «hvor står brukeren i konkurransen?». Det er
+  //     PÅSTANDER («Lengste streak»), og må regnes over ekte quizer alene.
+  //     Samme gulv som getPlayerStats legger på /historikk (lib/history.ts).
+  //
+  // Radene loggen viser men flisene ikke teller, merkes `countsInStats: false`
+  // lenger ned. Uten den markøren ser «3 quizer spilt» over en seks rader lang
+  // liste ut som en feil, i stedet for som to ulike spørsmål.
+  //
   // Én bruker har et beskjedent antall forsøk (attempts_user_quiz_unique
   // hindrer duplikater per quiz for individuelle forsøk) — ingen paginering
   // nødvendig for én enkelt profil, i motsetning til listesiden.
-  const { data: attempts, error: attemptsErr } = await supabaseAdmin
+  //
+  // Lokal variabel før helper-kallet, ikke inlinet som argument — TS2589-regelen
+  // fra lib/real-quiz-population.ts. `.order()` før helperen er greit; det er
+  // `.single()`/`.maybeSingle()` som må komme ETTER.
+  const listQuery = supabaseAdmin
     .from('attempts')
     .select('id, quiz_id, is_team, correct_answers, total_questions, total_time_ms, correct_streak, submitted_at, completed_at')
     .eq('user_id', id)
     .order('completed_at', { ascending: false })
 
+  const statsBase = supabaseAdmin
+    .from('attempts')
+    .select(`correct_streak, completed_at, ${REAL_QUIZ_ATTEMPT_EMBED}`)
+    .eq('user_id', id)
+    .order('completed_at', { ascending: false })
+  const statsQuery = onlyRealQuizAttempts(statsBase)
+
+  const [
+    { data: attempts, error: attemptsErr },
+    { data: realAttempts, error: realAttemptsErr },
+  ] = await Promise.all([listQuery, statsQuery])
+
   if (attemptsErr) return NextResponse.json({ error: attemptsErr.message }, { status: 500 })
+  // Egen sjekk, ikke slått sammen med den over: feiler kun denne, ville flisene
+  // ellers vist 0/0/0 for en bruker med full historikk — et målt tall som i
+  // virkeligheten betyr «hentingen feilet».
+  if (realAttemptsErr) return NextResponse.json({ error: realAttemptsErr.message }, { status: 500 })
 
   // Kommentaren over gjelder RADTAKET og stemmer fortsatt: én profil har få
   // forsøk. .in()-taket er en annen grense — hele id-lista havner i URL-en, og
@@ -81,7 +129,7 @@ export async function GET(
     quizRows = await fetchAllRowsChunked<QuizRow>(quizIds, (chunk, from, to) =>
       supabaseAdmin
         .from('quizzes')
-        .select('id, title, opens_at')
+        .select('id, title, opens_at, quiz_type, is_test')
         .in('id', chunk)
         .order('id', { ascending: true })
         .range(from, to)
@@ -123,15 +171,31 @@ export async function GET(
       correctStreak: a.correct_streak,
       submittedAt: a.submitted_at,
       rank: rankMap.get(`${a.quiz_id}::${a.is_team}`) ?? null,
+      // Speiler `onlyRealQuizAttempts` på rad-nivå — se paritetsavsnittet over
+      // `erEkteQuiz` i lib/real-quiz-population.ts: predikatet er bygget på
+      // SAMME `REAL_QUIZ_TYPES`, og deler `not.is.true`-semantikken, slik at en
+      // rad som passerer det er nøyaktig den raden filteret ville sluppet
+      // gjennom. Ikke skriv sjekken på nytt her.
+      //
+      // En quiz som ikke finnes i `quizMap` (slettet quiz, eller et feilet
+      // quiz-oppslag i catch-en over) gir `false` — og det er riktig i begge
+      // retninger: `!inner`-joinen i statsQuery dropper nøyaktig de samme
+      // radene, så markøren og flisene er enige uansett.
+      countsInStats: erEkteQuiz(quiz),
     }
   })
 
-  // "Nåværende" streak = siste forsøks correct_streak (attempts er allerede
+  // "Nåværende" streak = siste forsøks correct_streak (`realAttempts` er
   // sortert nyest først). "Lengste" = MAX over alle forsøk. Dette er
   // svar-streak INNAD i én quiz (attempts.correct_streak), ikke en
-  // uke-til-uke spille-streak — den konseptet finnes ikke i skjemaet.
-  const currentStreak = attempts?.[0]?.correct_streak ?? 0
-  const longestStreak = (attempts ?? []).reduce((max, a) => Math.max(max, a.correct_streak ?? 0), 0)
+  // uke-til-uke spille-streak — det konseptet finnes ikke i skjemaet.
+  //
+  // Begge leser `realAttempts`, ikke `attempts`: en treningsrunde på en
+  // arkivquiz er ikke en konkurransestreak. Fram til 29. august 2026 leste de
+  // hele loggen, og for en konto som nettopp hadde spilt arkiv viste
+  // "Nåværende streak" da resultatet av en treningsrunde.
+  const currentStreak = realAttempts?.[0]?.correct_streak ?? 0
+  const longestStreak = (realAttempts ?? []).reduce((max, a) => Math.max(max, a.correct_streak ?? 0), 0)
 
   // ── Premium og betaling ──────────────────────────────────────────────────
   // Rå Stripe-ID vises ALDRI i UI — kun en ferdigbygd dashboard-URL herfra.
@@ -209,7 +273,11 @@ export async function GET(
       },
     },
     activity: {
-      totalQuizzes: quizzes.length,
+      // `realAttempts.length`, IKKE `quizzes.length`: flisen heter «Quizer
+      // spilt» og står ved siden av to streak-tall som alle tre er påstander om
+      // konkurransen. `quizzes` er loggen og er med vilje lengre — differansen
+      // er nøyaktig radene som bærer `countsInStats: false`.
+      totalQuizzes: realAttempts?.length ?? 0,
       currentStreak,
       longestStreak,
       quizzes,

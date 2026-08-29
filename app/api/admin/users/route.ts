@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -44,16 +45,29 @@ export async function GET(request: NextRequest) {
   // auth.admin.listUsers()-løkken over: én enkelt .select() her kutter
   // stille ved 1000 rader uten feilmelding). Feiler "myk" som listUsers over
   // — attempt_count er en tilleggsstatistikk, ikke kritisk for siden.
+  //
+  // onlyRealQuizAttempts er GULVET, og hører hjemme nettopp her: tallet vises
+  // som «N quizer» per rad og styrer sorteringsvalgene «Flest/Færrest quizer
+  // spilt» (app/admin/users/page.tsx). Uten filteret veier en arkiv-/
+  // treningsrunde like tungt som en fredagsquiz, og rekkefølgen svarer da på
+  // et annet spørsmål enn den lover. Samme populasjon som /historikk viser
+  // brukeren selv (getPlayerStats i lib/history.ts) — de to flatene skal ikke
+  // kunne oppgi ulikt antall spilte quizer for samme person.
+  //
+  // Lokal variabel før helper-kallet, ikke inlinet som argument — TS2589-regelen
+  // fra lib/real-quiz-population.ts. Samme form som fetchCategoryStrength i
+  // lib/history.ts bruker inne i en fetchAllRows-callback.
   let attempts: { user_id: string }[] = []
   try {
-    attempts = await fetchAllRows<{ user_id: string }>((from, to) =>
-      supabaseAdmin
+    attempts = await fetchAllRows<{ user_id: string }>((from, to) => {
+      const base = supabaseAdmin
         .from('attempts')
-        .select('user_id')
+        .select(`user_id, ${REAL_QUIZ_ATTEMPT_EMBED}`)
         .not('user_id', 'is', null)
+      return onlyRealQuizAttempts(base)
         .order('id', { ascending: true })
         .range(from, to)
-    )
+    })
   } catch (e) {
     console.error('attempts fetch failed:', e)
   }

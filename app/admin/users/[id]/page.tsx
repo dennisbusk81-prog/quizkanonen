@@ -101,6 +101,17 @@ const STYLES = `
   .up-quiz-row:first-of-type { padding-top: 0; }
   .up-quiz-title { font-size: 13px; color: var(--body); }
   .up-quiz-date { font-size: 11px; color: var(--hint); margin-top: 2px; }
+  /* Markør på rader som IKKE telte i flisene over (arkiv/trening, testquiz,
+     slettet quiz). Samme pille-form som «Trening»-markøren på /historikk
+     (app/historikk/page.tsx sin treningPill), men ordlyden sier her det
+     admin faktisk trenger å vite: hvorfor lista er lengre enn tallet. */
+  .up-quiz-pill {
+    display: inline-block; margin-left: 8px; padding: 1px 7px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--hint); background: var(--bg);
+    border: 0.5px solid var(--border); border-radius: 20px;
+    white-space: nowrap; vertical-align: middle;
+  }
   .up-quiz-stats { font-size: 12px; color: var(--hint); white-space: nowrap; text-align: right; }
 
   .up-list-row {
@@ -197,6 +208,11 @@ type QuizActivity = {
   correctStreak: number | null
   submittedAt: string | null
   rank: number | null
+  // Om raden telte med i de tre flisene over lista. Falsk for arkiv-/
+  // treningsrunder, testquizer og slettede quizer — se `countsInStats` i
+  // app/api/admin/users/[id]/route.ts. Uten dette feltet ville differansen
+  // mellom «N quizer spilt» og antall rader vært uforklart på skjermen.
+  countsInStats: boolean
 }
 
 type Membership = {
@@ -456,6 +472,11 @@ export default function UserDetailPage() {
             </div>
           </div>
 
+          {/* Lista viser ALT brukeren har gjort — også det flisene over ikke
+              teller. Rader som ikke telte, bærer «teller ikke»-pillen, slik at
+              differansen mellom tallet og radantallet er lesbar på skjermen i
+              stedet for å se ut som en feil. Se `countsInStats` i
+              app/api/admin/users/[id]/route.ts. */}
           {activity.quizzes.length === 0 ? (
             <p className="up-empty">Har ikke spilt noen quiz ennå.</p>
           ) : (
@@ -463,7 +484,9 @@ export default function UserDetailPage() {
               {activity.quizzes.map(q => (
                 <div key={q.attemptId} className="up-quiz-row">
                   <div style={{ minWidth: 0 }}>
-                    <p className="up-quiz-title">{q.title}{q.isTeam && <span className="up-field-value--muted"> · lag</span>}</p>
+                    <p className="up-quiz-title">{q.title}{q.isTeam && <span className="up-field-value--muted"> · lag</span>}
+                      {!q.countsInStats && <span className="up-quiz-pill">teller ikke</span>}
+                    </p>
                     <p className="up-quiz-date">{fmtDate(q.opensAt ?? q.submittedAt)}</p>
                   </div>
                   <div className="up-quiz-stats">

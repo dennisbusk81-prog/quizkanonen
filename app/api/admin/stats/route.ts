@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -14,6 +15,26 @@ export async function GET(request: NextRequest) {
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // Samme gulv som de to andre admin-flatene (/admin/users og
+  // /admin/users/[id]) og som /historikk: et forsøk på en arkiv- eller
+  // testquiz er ikke en spilt quiz.
+  //
+  // Tallet leses ikke av noen klient i dag — `Stats`-typen i app/admin/page.tsx
+  // har hverken `attempts` eller `codes`, og de fire flisene viser
+  // players/active30d/quizzes/premium. Filteret står her likevel: en nyttelast
+  // som teller treningsrunder som spilte quizer er feil den dagen noen først
+  // viser den, og da er dette ikke stedet man leter.
+  //
+  // Lokal variabel før helper-kallet — TS2589-regelen fra
+  // lib/real-quiz-population.ts. `select(embed, {count:'exact', head:true})` er
+  // samme form som count-spørringen i getPlayerHistory (lib/history.ts):
+  // embeden MÅ stå i select-listen for at quizzes-filteret skal binde på en
+  // count, ellers svarer PostgREST 400 PGRST108.
+  const attemptCountBase = supabaseAdmin
+    .from('attempts')
+    .select(REAL_QUIZ_ATTEMPT_EMBED, { count: 'exact', head: true })
+  const attemptCountQuery = onlyRealQuizAttempts(attemptCountBase)
+
   const [
     { count: quizzes },
     { count: attempts },
@@ -23,7 +44,7 @@ export async function GET(request: NextRequest) {
     premiumRows,
   ] = await Promise.all([
     supabaseAdmin.from('quizzes').select('*', { count: 'exact', head: true }),
-    supabaseAdmin.from('attempts').select('*', { count: 'exact', head: true }),
+    attemptCountQuery,
     supabaseAdmin.from('access_codes').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }).gte('last_seen_at', thirtyDaysAgo),
