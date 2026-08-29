@@ -54,12 +54,26 @@ export type Hero =
  * mange av dem uansett hva kolonnen måler.
  *
  * LABELEN PÅ TOTALEN ER «quizer spilt», IKKE «fredagsquizer»:
- * `total_attempts` telles i getPlayerStats() over `correct_streak IS NOT NULL`
- * UTEN filter på `is_test` eller `quiz_type`, mens `deltakelsesrekke` filtrerer
- * på begge (lib/participation-streak.ts). I dag er populasjonene identiske —
- * alle 13 quizene i prod er `weekly` og ekte, målt 13. august 2026 — men den
- * første bonusquizen eller testquizen gjør «fredagsquizer» usant uten at noe
- * ser galt ut. «quizer» er sant i begge tilfeller.
+ * de to tallene heroen kan vise regnes over ULIKE populasjoner.
+ *
+ *   `total_attempts`   — getPlayerStats() i lib/history.ts, gatet med
+ *                        `onlyRealQuizAttempts` (history.ts:596). Slipper
+ *                        gjennom HELE hvitelisten `REAL_QUIZ_TYPES`, altså
+ *                        `weekly` OG `bonus`.
+ *   `deltakelsesrekke` — fetchParticipationStreak, som legger
+ *                        `.eq('quiz_type', 'weekly')` OPPÅ gulvet
+ *                        (history.ts:434). Kun fredagsserien.
+ *
+ * Gapet er altså «bonus», ikke «alt kunstig»: begge utelukker testquizer og
+ * arkivrunder. I dag er populasjonene like — alle quizene i prod er `weekly`
+ * (målt 25. august 2026) — men den første bonusquizen gjør «fredagsquizer»
+ * usant uten at noe ser galt ut. «quizer» er sant i begge tilfeller.
+ *
+ * Rettet 29. august 2026. Fram til da sa dette avsnittet at `total_attempts`
+ * telles «UTEN filter på `is_test` eller `quiz_type`». Det var sant til
+ * 25. august, da gulvet kom inn i getPlayerStats — og en begrunnelse som
+ * hviler på et premiss som ikke lenger gjelder er verre enn ingen: neste
+ * leser ville avvist den, og med den labelen den forsvarer.
  *
  * GRENREKKEFØLGEN ER BINDENDE. `total === rekke` sjekkes FØR rekord-grenene,
  * ellers ville sub-teksten sagt «{total} quizer til sammen» med nøyaktig det
