@@ -278,8 +278,10 @@ export async function GET(
   //
   //   2. `hide_leaderboard_until_closed = true` — stillingen er MIDLERTIDIG
   //      skjult mens quizen er åpen. To ting løfter den: at quizen stenger, og
-  //      at en Premium-bruker HAR spilt. Klienten viser en låseskjerm
-  //      («Publiseres for alle når quizen stenger») i stedet for listen.
+  //      at kalleren SELV har levert på quizen — se `viewerHasOwnRow` lenger
+  //      nede for hvorfor Premium-leddet falt bort 29. august 2026. Klienten
+  //      viser en låseskjerm («Publiseres for alle når quizen stenger») til
+  //      dem som ikke har spilt, og en ventetekst til dem som har.
   //
   // De er altså ikke samme regel — den ene er permanent og unntaksfri, den
   // andre tidsbegrenset med to unntak. Men VIRKNINGEN på svaret er identisk,
@@ -322,11 +324,48 @@ export async function GET(
   // så de to kan ikke tolke closes_at ulikt (B1/B5, NONNULL-sveipet 26. august
   // 2026). NULL i closes_at = stenger aldri → skjules IKKE for alltid;
   // arkivkopier skal uansett ikke arve flagget (håndheves i kopieringsruten).
+  //
+  // ── `viewerHasOwnRow`: hvorfor Premium-leddet falt bort (29. august 2026) ──
+  // Leddet var `userIsPremium && !!mine`. Flagget skal hindre at noen ser
+  // stillingen FØR de spiller; den som har levert er ferdig — forsøket er låst
+  // (submit er ikke idempotent, et nytt svarer 403), så topp 10 kan ikke lenger
+  // påvirke resultatet hennes. Premium-leddet gjorde altså en BETALINGSVEGG av
+  // en INTEGRITETSREGEL, og overstyrte samtidig trappen (P-1), som sier at
+  // innlogget gratis ser topp 10. Fram til 28. august fikk hun tom luft; fiksen
+  // den kvelden (8242bf6) ga henne en forklaring i stedet — riktig, men fortsatt
+  // ikke det trappen lover.
+  //
+  // `mine` er signalet, ikke et flagg fra klienten: den er et oppslag i
+  // `ranked`, som krever `submitted_at` (requireSubmitted i lib/ranking) og
+  // `user_id` = den JWT-verifiserte kalleren over. Den kan bare bli sann ved
+  // faktisk å ha levert. `is_team` velger rom, men `scopedRows` filtreres på
+  // samme verdi, så et solo-forsøk låser ikke opp lag-rommet.
+  //
+  // UTVIDELSEN GJELDER KUN NASJONAL STI. `(!orgSlug || userIsPremium)` leses
+  // som: nasjonalt holder det å ha levert; i org-rommet står DAGENS regel
+  // (Premium + egen rad) uendret. Det er en scope-beslutning, ikke en
+  // prinsipiell — org-rommet har med vilje ingen trapp (`tierCap` er null
+  // under), så et rent `!!mine` ville gitt et gratis org-medlem HELE
+  // org-listen i det åpne vinduet. Det er en langt større endring enn den
+  // bestilte, på den ene flaten vi har en betalende B2B-kunde. Egen sak.
+  //
+  // Merk hvorfor leddet er `|| userIsPremium` og ikke bare `!orgSlug`: et
+  // rent `!orgSlug && !!mine` ville TATT løftet fra en Premium-bruker i
+  // org-modus, som har det i dag. Utvidelsen skal legge til en gruppe, ikke
+  // bytte ut en.
+  //
+  // Org-leddet MÅ speiles i klientens isHidden (app/leaderboard/[id]/page.tsx).
+  // Klienten rendrer samme side i org-modus, så uten leddet der ville et gratis
+  // org-medlem som har spilt fått listegrenen mot et svar med tom `entries` —
+  // altså «Ingen resultater ennå» på en quiz med 29 spillere. Det er den samme
+  // klient/server-uenigheten den delte funksjonen ble skrevet for å fjerne,
+  // bare flyttet opp i inndataen.
+  const viewerHasOwnRow = !!mine && (!orgSlug || userIsPremium)
   const hiddenUntilClosed = !!quizRow
     && decideHiddenUntilClosed({
       hideUntilClosed: quizRow.hide_leaderboard_until_closed,
       closesAt: quizRow.closes_at,
-      premiumViewerHasOwnRow: userIsPremium && !!mine,
+      viewerHasOwnRow,
       now: Date.now(),
     })
 

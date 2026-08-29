@@ -418,6 +418,23 @@ export default function LeaderboardPage() {
         const soloRows: LbEntry[] = soloRes?.entries ?? []
         setSoloTotal(soloRes?.totalCount ?? soloRows.length)
         setServerGuestRank(typeof soloRes?.guestRank === 'number' ? soloRes.guestRank : null)
+        // `userEntry` lå allerede i DETTE svaret, men ble ikke lest — den ble
+        // kun hentet av loadSoloPlacement (limit=1) i sesjons-effekten. Fra
+        // 29. august 2026 avgjør den også om skjulingen løftes (isHidden), og
+        // da er ett kall for sent: en gratisbruker UTENFOR topp 10 ville sett
+        // ventekortet blinke til det andre kallet landet. Samme svar, ingen ny
+        // rundtur — bare lest i den tick-en `entries` settes.
+        //
+        // Kun når raden faktisk finnes: et svar uten `userEntry` skal ikke
+        // NULLE en rad loadSoloPlacement allerede har satt. De to kallene kan
+        // lande i vilkårlig rekkefølge, og «vet ikke» er ikke «har ikke spilt».
+        if (soloRes?.userEntry) {
+          setServerUserSolo({
+            ...entryToAttempt(soloRes.userEntry, quizId),
+            rank: soloRes.userEntry.rank,
+            isTied: false,
+          })
+        }
         const attemptsResult: Attempt[] = soloRows.map(e => entryToAttempt(e, quizId))
         setAttempts(attemptsResult)
 
@@ -823,13 +840,40 @@ export default function LeaderboardPage() {
   // hasPlayed: sjekk BÅDE localStorage (savedResult) OG at forsøket finnes i leaderboard-data
   // Dette håndterer tilfellet der bruker spilte på annen enhet (savedResult = null)
   const hasPlayed = !!savedResult || !!userAttempt
-  // Only lift the hide for Premium users who have played — free users still get placement card treatment.
+  // ── Hva løfter skjulingen (29. august 2026) ────────────────────────────────
+  // Var `isPremium && hasPlayed`. Premium-leddet falt bort — den som har levert
+  // er ferdig, og trappen (P-1) gir innlogget gratis topp 10. Begrunnelsen i
+  // sin helhet står ved `viewerHasOwnRow` i app/api/leaderboard/[id]/route.ts.
+  //
+  // `hasPlayed` er BEVISST IKKE inndataen her, selv om den betyr «har spilt» og
+  // brukes til alt annet på siden. Den er `!!savedResult || !!userAttempt`, og
+  // `savedResult` er localStorage — forfalskbart på ett sekund i konsollen. Så
+  // lenge leddet også krevde Premium var det ufarlig; alene ville en forfalsket
+  // `qk_result_`-nøkkel vippet grenen for hvem som helst. Ingen data lekker
+  // (serveren er porten og sender `entries: []` uansett), men siden ville falt
+  // til «Ingen resultater ennå» der låseskjermen skal stå — en usann tom
+  // tilstand, samme klasse feil som 8242bf6 rettet.
+  //
+  // `userAttempt` er derimot serverens eget svar tilbake: den er raden fra
+  // `entries` eller `serverUserSolo`, som begge kommer fra `userEntry` — altså
+  // nøyaktig serverens `mine`. `!!session` foran, fordi bare en innlogget
+  // kaller har en JWT-verifisert identitet serveren kan svare `mine` på; en
+  // gjest med lagret resultat skal fortsatt vente (hun kan ikke skilles fra en
+  // som aldri spilte).
+  //
+  // `(!orgSlug || isPremium)` speiler serverens org-gate og MÅ stå: uten den
+  // ville et gratis org-medlem som har spilt fått listegrenen mot et tomt
+  // `entries`. Premium-leddet står der fordi org-rommet beholder DAGENS regel
+  // — utvidelsen legger til en gruppe nasjonalt, den bytter ikke ut en i org.
+  // Faller org-unntaket bort på serveren en dag, skal det falle her i samme
+  // runde.
+  //
   // SAMME funksjon som serverruten bruker for å tømme entries — de to kan ikke
   // lenger konkludere ulikt om samme quiz (B1, NONNULL-sveipet 26. august 2026).
   const isHidden = decideHiddenUntilClosed({
     hideUntilClosed: quiz.hide_leaderboard_until_closed,
     closesAt: quiz.closes_at,
-    premiumViewerHasOwnRow: isPremium && hasPlayed,
+    viewerHasOwnRow: !!session && !!userAttempt && (!orgSlug || isPremium),
     now: Date.now(),
   })
 

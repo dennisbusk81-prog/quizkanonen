@@ -74,6 +74,7 @@ import assert from 'node:assert/strict'
 
 const QUIZ = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const ME = '11111111-1111-4111-8111-111111111111'
+const ORG = '22222222-2222-4222-8222-222222222222'
 
 const OM_EN_TIME = () => new Date(Date.now() + 3_600_000).toISOString()
 const FOR_EN_TIME_SIDEN = () => new Date(Date.now() - 3_600_000).toISOString()
@@ -120,6 +121,14 @@ const state: {
   premiumLookupFails: boolean
   /** true = kallenavn-oppslaget (profiles .in) feiler. */
   nicknameLookupFails: boolean
+  /**
+   * null = ingen bedrift finnes (grunntilstanden for denne filen). Ellers en
+   * org med `slug` og `memberIds` — nødvendig for å teste ?org= i det hele
+   * tatt: uten en ekte medlemsliste ville `memberIdSet` blitt tom,
+   * `scopedRows` tom, og `entries` tom UANSETT om org-gaten sto der eller ei.
+   * En slik test er grønn av feil grunn og feller ingen mutasjon.
+   */
+  org: { slug: string; memberIds: string[] } | null
 } = {
   attempts: [],
   profile: { premium_status: false, org_premium_grace_until: null },
@@ -127,6 +136,7 @@ const state: {
   orgLookupsThrow: false,
   premiumLookupFails: false,
   nicknameLookupFails: false,
+  org: null,
 }
 
 /** Et innsendt solo-forsøk. Færre riktige = dårligere plassering. */
@@ -158,9 +168,32 @@ function attempt(n: number, correct: number, userId: string | null = null): Atte
 // fail-safe i stedet for det den faktisk handler om. Se
 // «FAIL-SAFE mot org-oppslaget» nederst for den bevisste versjonen av det.
 //
-// `organizations` og `organization_members` svarer TOMT: ingen bedrift har
-// skrudd av global liga i disse fixturene, som er riktig grunntilstand for en
-// fil som handler om Premium-gating.
+// `organizations` og `organization_members` er TOMME så lenge `state.org` er
+// null — ingen bedrift har skrudd av global liga i disse fixturene, som er
+// riktig grunntilstand for en fil som handler om Premium-gating.
+//
+// Settes `state.org`, svarer de med ekte rader, og FILTRENE ANVENDES (29.
+// august 2026). Begge deler er nødvendig:
+//   • Ekte rader, fordi resolveOrgMembership ellers ikke slipper kalleren inn
+//     og ?org=-testene aldri når gaten de handler om.
+//   • Filtrene, fordi lib/globally-blocked-set spør SAMME to tabeller på den
+//     nasjonale stien (`allow_global_league = false`,
+//     `global_league_opt_out = true`). Fixtur-org-en settes med begge feltene
+//     i «ikke blokkert»-stilling, så den faller ut av de spørringene og kan
+//     ikke smitte over på de nasjonale testene.
+function orgRows(table: string): Record<string, unknown>[] {
+  if (!state.org) return []
+  if (table === 'organizations') {
+    return [{ id: ORG, slug: state.org.slug, allow_global_league: true }]
+  }
+  return state.org.memberIds.map(uid => ({
+    user_id: uid,
+    organization_id: ORG,
+    role: 'member',
+    global_league_opt_out: false,
+  }))
+}
+
 function builder(table: string, orgLookupsThrow: boolean) {
   const filters: Array<(r: Record<string, unknown>) => boolean> = []
 
@@ -173,6 +206,14 @@ function builder(table: string, orgLookupsThrow: boolean) {
     range() { return b },
     maybeSingle() {
       if (table === 'quizzes') return Promise.resolve({ data: state.quiz, error: null })
+      if (table === 'organizations' || table === 'organization_members') {
+        if (orgLookupsThrow) {
+          return Promise.resolve({ data: null, error: { message: 'simulert DB-feil' } })
+        }
+        let out = orgRows(table)
+        for (const f of filters) out = out.filter(f)
+        return Promise.resolve({ data: out[0] ?? null, error: null })
+      }
       // Ellers: premium-oppslaget i lib/premium-check.
       if (state.premiumLookupFails) {
         return Promise.resolve({ data: null, error: { message: 'simulert DB-feil' } })
@@ -189,7 +230,9 @@ function builder(table: string, orgLookupsThrow: boolean) {
         if (orgLookupsThrow) {
           return resolve({ data: null, error: { message: 'simulert DB-feil' } })
         }
-        return resolve({ data: [], error: null })
+        let out = orgRows(table)
+        for (const f of filters) out = out.filter(f)
+        return resolve({ data: out, error: null })
       }
       // profiles → nickname-oppslaget
       if (state.nicknameLookupFails) {
@@ -262,6 +305,7 @@ beforeEach(() => {
   state.orgLookupsThrow = false
   state.premiumLookupFails = false
   state.nicknameLookupFails = false
+  state.org = null
 })
 
 // Kallenavn-oppslaget er personvern, ikke pynt: et kallenavn finnes gjerne
@@ -386,17 +430,76 @@ test('rank 1–10 grovmales til 1 (ingen bånd-start på 0 eller negativt)', asy
 
 // ── SAK 1: hide_leaderboard_until_closed ────────────────────────────────────
 // Gaten er den samme regelen som klientens `isHidden`:
-//   skjult = hide_leaderboard_until_closed && quizen er ÅPEN && !(Premium && har spilt)
+//   skjult = hide_leaderboard_until_closed && quizen er ÅPEN && !viewerHasOwnRow
 // «Åpen» avgjøres av den delte isQuizClosed() mot closes_at — samme signal som
 // /api/quiz/[id]/standings, ikke et nytt.
+//
+// ── ENDRET 29. august 2026: Premium-leddet falt bort nasjonalt ──────────────
+// `viewerHasOwnRow` var `userIsPremium && !!mine`; den er nå
+// `!!mine && (!orgSlug || userIsPremium)`. Flagget skal hindre at noen ser
+// stillingen FØR de spiller — den som HAR levert er ferdig, forsøket er låst,
+// og trappen (P-1) gir innlogget gratis topp 10. Premium-leddet gjorde en
+// betalingsvegg av en integritetsregel.
+//
+// Standardkalleren i denne filen (`hent()` uten `gjørMegPremium`) er nettopp
+// den brukeren: innlogget, gratis, med et innsendt forsøk på plass 12. To
+// tester her målte derfor tidligere at HUN fikk tom liste. De er snudd, ikke
+// slettet — den gamle assertionen er beholdt som ny, motsatt påstand, slik at
+// det står i historikken hva som faktisk endret seg.
+//
+// MUTASJONSBEVIS for endringen — MÅLT 29. august 2026, ikke anslått. Hver
+// mutasjon ble verifisert med `git diff` i fila før tallet ble lest av:
+//   • `userIsPremium &&` satt tilbake foran `!!mine`      → 1 test ryker
+//     («GRATIS som HAR spilt får topp 10»). Bevisst ETT drap og ikke flere:
+//     de øvrige skjul-testene er skrevet om til kallere som IKKE løfter
+//     skjulingen, nettopp for å måle gaten og ikke standardkalleren.
+//   • `(!orgSlug || userIsPremium)` fjernet helt          → 2 tester ryker
+//     (org-medlemmet uten Premium ville fått HELE org-listen).
+//   • `!orgSlug` alene i stedet for hele leddet           → 1 test ryker
+//     (ville tatt løftet fra Premium i org-modus — utvidelsen skal legge til
+//     en gruppe, ikke bytte ut en).
+//
+// Klientsiden har sine egne tre mutasjoner, felt i
+// lib/leaderboard-visibility.test.ts — de kan ikke felles herfra.
 
-test('SKJULT + ÅPEN quiz: ingen av de andre spillernes rader forlater serveren', async () => {
+test('SKJULT + ÅPEN: GRATIS som HAR spilt får topp 10 — trappen, ikke tom luft', async () => {
+  // Den snudde testen. Fram til 29. august 2026 assertet denne `entries: []`
+  // for nøyaktig denne kalleren (innlogget, gratis, forsøk på plass 12).
   state.quiz = quizRow({ hide_leaderboard_until_closed: true })
 
   const svar = await hent('is_team=false&limit=50')
 
+  assert.equal(svar.leaderboardHidden, false, 'egen innsendt rad løfter skjulingen')
+  // 10, ikke 20 og ikke 50: trappen (P-1) klemmer gratis til FREE_TOP. At
+  // skjulingen løftes betyr topp 10, ikke hele feltet — de to gatene er
+  // uavhengige, og denne assertionen er det som skiller dem.
+  assert.equal(svar.entries.length, 10)
+  assert.equal(svar.entries[0].rank, 1, 'listen starter på toppen av feltet')
+})
+
+test('SKJULT + ÅPEN: gratis som IKKE har spilt får fortsatt null rader', async () => {
+  // Kontrollen som gjør testen over til et bevis på «har spilt» og ikke bare
+  // på «er innlogget». Samme kaller, eneste forskjell er det egne forsøket.
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  state.attempts = state.attempts.filter(a => a.user_id !== ME)
+
+  const svar = await hent('is_team=false&limit=50')
+
   assert.equal(svar.leaderboardHidden, true)
-  assert.deepEqual(svar.entries, [], 'stillingen skal ikke kunne hentes rått mens quizen er åpen')
+  assert.deepEqual(svar.entries, [], 'stillingen skal ikke kunne hentes rått før man har spilt')
+})
+
+test('SKJULT + ÅPEN: gratis med et IKKE-INNSENDT forsøk får null rader', async () => {
+  // Søsken til premium-varianten lenger nede. Å bare STARTE quizen skal ikke
+  // låse opp stillingen — ellers ville `start-attempt` alene vært nøkkelen,
+  // og da holder flagget ingenting tilbake i det hele tatt.
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  state.attempts = state.attempts.map(a => a.user_id === ME ? { ...a, submitted_at: null } : a)
+
+  const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.leaderboardHidden, true)
+  assert.equal(svar.entries.length, 0)
 })
 
 test('SKJULT + ÅPEN: også en uinnlogget klient får null rader', async () => {
@@ -411,15 +514,95 @@ test('SKJULT + ÅPEN: svaret er REDUSERT, ikke tomt — eget resultat og totalCo
   // Resultatskjermen i app/quiz/[id] og plasseringskortet på leaderboard-siden
   // kaller ruten nettopp mens quizen er åpen. Derfor ingen 403 og ingen blank
   // respons: spilleren skal få SITT eget, bare ikke andres.
+  //
+  // Kalleren er byttet 29. august 2026. Standardkalleren — gratis MED forsøk —
+  // sto her før, men hun er ikke lenger skjult for. Påstanden er derfor delt i
+  // to, fordi ingen ÉN kaller lenger bærer begge halvdelene: den som er skjult
+  // for uten å ha spilt har heller ingen egen rad å bevare. Denne holder på
+  // totalCount (Premium uten forsøk), den neste på userEntry (org-medlem med
+  // forsøk).
+  gjørMegPremium()
   state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  state.attempts = state.attempts.filter(a => a.user_id !== ME)
 
   const svar = await hent('is_team=false&limit=50')
+
+  assert.equal(svar.entries.length, 0, 'andres rader holdes tilbake')
+  assert.equal(svar.totalCount, 19, 'totalCount står igjen — spennet regnes ut fra det')
+})
+
+// ── ORG-SCOPET beholder DAGENS regel (29. august 2026) ──────────────────────
+// Utvidelsen gjelder kun nasjonal sti. Org-rommet har med vilje ingen trapp
+// (`tierCap` er null der), så et rent `!!mine` ville gitt et gratis org-medlem
+// HELE org-listen i det åpne vinduet. Det er en annen, større endring enn den
+// bestilte — og på den ene flaten med en betalende B2B-kunde.
+//
+// De to testene under er et PAR, og må leses sammen: den første feller
+// «org-leddet fjernet», den andre feller «org-leddet skrevet som `!orgSlug`
+// alene». Kun én av dem ville sluppet den motsatte feilen gjennom.
+//
+// MERK fixturen: `state.org.memberIds` MÅ inneholde flere enn ME. Med bare ME
+// i org-en ville `entries` inneholdt maksimalt kallerens egen rad, og testen
+// vært grønn uansett om gaten sto der — det er ikke andres rader den da måler.
+const ANDRE_1 = '33333333-3333-4333-8333-333333333333'
+const ANDRE_2 = '44444444-4444-4444-8444-444444444444'
+
+/** Gjør de to første fixture-forsøkene til navngitte org-kolleger. */
+function medOrgKolleger() {
+  state.attempts = state.attempts.map(a =>
+    a.id === 'attempt-1' ? { ...a, user_id: ANDRE_1 }
+    : a.id === 'attempt-2' ? { ...a, user_id: ANDRE_2 }
+    : a
+  )
+  state.org = { slug: 'elkjop', memberIds: [ME, ANDRE_1, ANDRE_2] }
+}
+
+test('SKJULT + ÅPEN i ORG: gratis medlem som HAR spilt får IKKE org-listen', async () => {
+  medOrgKolleger()
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+
+  const svar = await hent('is_team=false&limit=50&org=elkjop')
+
+  assert.equal(svar.leaderboardHidden, true, 'org-rommet beholder dagens regel')
+  assert.equal(svar.entries.length, 0)
+  // Den positive kontrollen, på SAMME fixtur og samme spørrestreng: uten den
+  // beviser 0 ovenfor ingenting — en tom medlemsliste eller en feilstavet slug
+  // gir samme null uten at gaten er involvert i det hele tatt.
+  state.quiz = quizRow({ hide_leaderboard_until_closed: false })
+  const synlig = await hent('is_team=false&limit=50&org=elkjop')
+  assert.equal(synlig.entries.length, 3, 'org-listen er 3 rader når den IKKE er skjult')
+})
+
+test('SKJULT + ÅPEN i ORG: PREMIUM-medlem som har spilt får listen — uendret', async () => {
+  // Regresjonsvakten mot en for smal org-gate. Skrives leddet som `!orgSlug`
+  // alene i stedet for `(!orgSlug || userIsPremium)`, TAR utvidelsen løftet
+  // fra en gruppe som har det i dag. Den skal legge til en gruppe, ikke bytte
+  // ut en.
+  medOrgKolleger()
+  gjørMegPremium()
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+
+  const svar = await hent('is_team=false&limit=50&org=elkjop')
+
+  assert.equal(svar.leaderboardHidden, false)
+  assert.equal(svar.entries.length, 3, 'org-rommet har ingen trapp — Premium ser alle medlemmene')
+})
+
+test('SKJULT + ÅPEN i ORG: egen rad står igjen for et gratis medlem', async () => {
+  // Den andre halvdelen av påstanden over, på den flaten der en skjult
+  // stilling FORTSATT kan sammenfalle med at kalleren har en egen rad:
+  // org-rommet, der gratis-medlemmet ikke løfter skjulingen. Svaret skal være
+  // redusert, ikke tomt — plasseringskortet lever av userEntry og totalCount.
+  state.org = { slug: 'elkjop', memberIds: [ME] }
+  state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+
+  const svar = await hent('is_team=false&limit=50&org=elkjop')
 
   assert.equal(svar.entries.length, 0)
   assert.ok(svar.userEntry, 'brukerens egen rad skal overleve skjulingen')
   assert.equal(svar.userEntry?.correctAnswers, 4)
-  assert.equal(svar.userEntry?.rank, 11, 'fortsatt grovmalt bånd-start for gratis')
-  assert.equal(svar.totalCount, 20, 'spennet «mellom plass X og Y» regnes ut fra dette tallet')
+  assert.equal(svar.userEntry?.rank, 1, 'alene blant org-medlemmene i fixturen')
+  assert.equal(svar.totalCount, 1)
 })
 
 test('SKJULT + STENGT quiz: listen er tilbake (skjulingen gjelder kun mens quizen er åpen)', async () => {
@@ -659,8 +842,16 @@ test('ÅRSAK: «disabled» og «until_closed» skilles i svaret', async () => {
   state.quiz = quizRow({ show_leaderboard: false })
   assert.equal((await hent('is_team=false&limit=50')).hiddenReason, 'disabled')
 
+  // `until_closed` måles på en kaller som FAKTISK er skjult for. Fra 29. august
+  // 2026 løfter standardkalleren (gratis, med eget innsendt forsøk) skjulingen
+  // selv, og ville gitt `null` her — ikke fordi årsaken sluttet å skilles, men
+  // fordi hun ikke lenger er i den tilstanden årsaken beskriver.
   state.quiz = quizRow({ hide_leaderboard_until_closed: true })
+  const utenEgetForsok = state.attempts.filter(a => a.user_id !== ME)
+  const medForsok = state.attempts
+  state.attempts = utenEgetForsok
   assert.equal((await hent('is_team=false&limit=50')).hiddenReason, 'until_closed')
+  state.attempts = medForsok
 
   state.quiz = quizRow()
   assert.equal((await hent('is_team=false&limit=50')).hiddenReason, null)

@@ -35,8 +35,18 @@ export type HiddenUntilClosedInput = {
   hideUntilClosed: boolean
   /** quizzes.closes_at — NULL = stenger aldri */
   closesAt: string | null
-  /** Premium-og-har-spilt-unntaket: egen rad løfter skjulingen for den som spør */
-  premiumViewerHasOwnRow: boolean
+  /**
+   * Har-spilt-unntaket: en egen, INNSENDT rad løfter skjulingen for den som
+   * spør. Het `premiumViewerHasOwnRow` fram til 29. august 2026, da
+   * Premium-leddet falt bort på kallstedene — navnet ville da påstått et
+   * vilkår funksjonen ikke lenger kjenner.
+   *
+   * Funksjonen spør IKKE hvem kalleren er. Den tar imot ferdig utledet «har
+   * egen rad», og HVEM som får utlede den til true bor hos kallstedet. Det er
+   * nettopp derfor server og klient kan mate den fra hver sin kilde
+   * (`mine` / `userAttempt`) og likevel svare identisk om samme quiz.
+   */
+  viewerHasOwnRow: boolean
   /** Millisekunder siden epoch — injisert for testbarhet */
   now: number
 }
@@ -47,7 +57,7 @@ export function decideHiddenUntilClosed(input: HiddenUntilClosedInput): boolean 
   // for alltid er ikke et utfall flagget skal kunne gi. Vis stillingen.
   if (input.closesAt === null) return false
   if (isQuizClosed(input.closesAt, input.now)) return false
-  return !input.premiumViewerHasOwnRow
+  return !input.viewerHasOwnRow
 }
 
 // ── Hva skal en SKJULT stilling vise? (28. august 2026) ──────────────────────

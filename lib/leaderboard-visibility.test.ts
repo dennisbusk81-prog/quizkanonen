@@ -12,7 +12,7 @@
 //   • Byttes til klientens gamle epoch-tolkning (NULL ∼ stengt 1970 → vis) på
 //     EN av sidene → strukturtestene i nonnull-quiz-date-sites ryker, for
 //     logikken bor kun her.
-//   • Fjernes premium-unntaket → «egen rad løfter skjulingen» ryker.
+//   • Fjernes har-spilt-unntaket → «egen rad løfter skjulingen» ryker.
 //   • Fjernes flagg-sjekken → «uten flagg skjules ingenting» ryker.
 //   • Snus isQuizClosed-grenen → «stengt quiz skjules ikke» ryker.
 //
@@ -30,7 +30,7 @@ function inndata(overstyr: Partial<Parameters<typeof decideHiddenUntilClosed>[0]
   return {
     hideUntilClosed: true,
     closesAt: CLOSES_FRAMTID as string | null,
-    premiumViewerHasOwnRow: false,
+    viewerHasOwnRow: false,
     now: NOW,
     ...overstyr,
   }
@@ -51,8 +51,12 @@ test('uten flagg skjules ingenting, uansett dato', () => {
   assert.equal(decideHiddenUntilClosed(inndata({ hideUntilClosed: false, closesAt: null })), false)
 })
 
-test('Premium med egen rad løfter skjulingen på en åpen quiz', () => {
-  assert.equal(decideHiddenUntilClosed(inndata({ premiumViewerHasOwnRow: true })), false)
+test('egen rad løfter skjulingen på en åpen quiz', () => {
+  // Het `premiumViewerHasOwnRow` fram til 29. august 2026. Funksjonen spurte
+  // aldri om Premium — den tok imot et ferdig utledet «har egen rad», og
+  // Premium-leddet bodde hos kallstedene. Da det falt bort nasjonalt, var
+  // navnet det eneste som fortsatt påsto vilkåret.
+  assert.equal(decideHiddenUntilClosed(inndata({ viewerHasOwnRow: true })), false)
 })
 
 // ── B5: NULL = stenger aldri → aldri skjult for alltid ──────────────────────
@@ -64,10 +68,10 @@ test('NULL closes_at låser aldri stillingen ute for alltid', () => {
   assert.equal(decideHiddenUntilClosed(inndata({ closesAt: null })), false)
 })
 
-test('NULL closes_at: utfallet avhenger ikke av premium-unntaket', () => {
+test('NULL closes_at: utfallet avhenger ikke av har-spilt-unntaket', () => {
   // Skjulingen er alt løftet av NULL-standpunktet — ikke av hvem som spør.
   assert.equal(
-    decideHiddenUntilClosed(inndata({ closesAt: null, premiumViewerHasOwnRow: true })),
+    decideHiddenUntilClosed(inndata({ closesAt: null, viewerHasOwnRow: true })),
     false
   )
 })
@@ -189,5 +193,98 @@ test('kallstedet bruker gaten, og ventegrenen finnes i JSX-en', () => {
     kode,
     /\(!authLoading && !hasPlayed\) \?/,
     'den sammenvevde authLoading/hasPlayed-betingelsen er tilbake',
+  )
+})
+
+/** page.tsx uten kommentarer — så ingen anker kan oppfylles av utkommentert kode. */
+function klientKode(): string {
+  return readFileSync(join(process.cwd(), 'app/leaderboard/[id]/page.tsx'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[\n \t])\/\/[^\n]*/g, '$1')
+}
+
+/** Kall-kroppen til decideHiddenUntilClosed i klienten — fram til første `})`,
+ *  en ekte grense og ikke et tegnantall. */
+function kallKroppen(): string {
+  const m = klientKode().match(/decideHiddenUntilClosed\(\{([\s\S]*?)\}\)/)
+  assert.ok(m, 'fant ikke decideHiddenUntilClosed-kallet i klienten')
+  return m![1]
+}
+
+// ── HVA klienten mater inn i løftet (29. august 2026) ───────────────────────
+// Uten denne er `viewerHasOwnRow: hasPlayed` en OVERLEVENDE mutasjon: målt
+// 29. august ga den full grønn suite (77/77). Ingen av de andre testene ser på
+// inndataen — parity-testen i nonnull-quiz-date-sites sjekker `closesAt` og
+// `hideUntilClosed`, ikke dette feltet, og rutens egne tester kjører serveren,
+// ikke siden.
+//
+// Og `hasPlayed` ER den nærliggende feilen, ikke en konstruert en: den heter
+// nettopp «har spilt», brukes til alt annet på siden, og står tre linjer over
+// kallet. Men den er `!!savedResult || !!userAttempt`, og `savedResult` leses
+// fra localStorage — forfalskbart. Serveren er porten, så ingenting lekker,
+// men siden ville falt til «Ingen resultater ennå» der låseskjermen skal stå.
+//
+// Ankeret er KALL-KROPPEN, ikke hele filen: `userAttempt` og `session`
+// forekommer dusinvis av steder i page.tsx, så en filbred match ville vært
+// grønn uansett hva som sto i feltet.
+test('klientens løfte-inndata er serverbekreftet, ikke localStorage', () => {
+  const kropp = kallKroppen()
+
+  const felt = kropp.match(/viewerHasOwnRow:([^\n]*)/)
+  assert.ok(felt, 'viewerHasOwnRow mangler i kall-kroppen')
+  const uttrykk = felt![1]
+
+  assert.doesNotMatch(
+    uttrykk,
+    /\bhasPlayed\b/,
+    'hasPlayed er tilbake som løfte-inndata — den bærer localStorage (savedResult) og er forfalskbar',
+  )
+  assert.match(uttrykk, /\buserAttempt\b/,
+    'løftet hviler ikke lenger på den serverbekreftede raden')
+  assert.match(uttrykk, /\bsession\b/,
+    'løftet krever ikke lenger en innlogget kaller')
+  assert.match(uttrykk, /\borgSlug\b/,
+    'org-leddet er borte — serveren har det, og de to må ikke kunne bli uenige')
+})
+
+// `hasPlayed` skal fortsatt LEVE, bare ikke der. Den styrer hvilken TEKST en
+// skjult stilling viser (låseskjerm vs. venting), og der er localStorage riktig
+// kilde: den utloggede retur-spilleren er nettopp den `savedResult` finnes for.
+// Uten denne kunne testen over blitt «tilfredsstilt» ved å slette hasPlayed helt.
+test('hasPlayed er fortsatt inndata til VISNINGS-valget, bare ikke til løftet', () => {
+  const kode = klientKode()
+  assert.match(kode, /^\s*const hasPlayed = !!savedResult \|\| !!userAttempt/m)
+  assert.match(kode, /decideHiddenLeaderboardView\(\{ authLoading, hasPlayed \}\)/)
+})
+
+// ── Anti-blink: userEntry leses fra HOVEDsvaret (29. august 2026) ───────────
+// Dette var kosmetikk fram til løftet begynte å hvile på `userAttempt`. Nå er
+// det lastbærende: leses `userEntry` kun av loadSoloPlacement (det andre,
+// senere kallet), står en gratisbruker UTENFOR topp 10 med isHidden=true til
+// det kallet lander — altså ventekortet, og deretter listen. Målt som
+// overlevende mutasjon 29. august før denne testen fantes.
+//
+// Betingelsen ankres på linjestart, ikke bare kallet: `if (false && ...)` ville
+// ellers latt setServerUserSolo stå igjen og oppfylt et anker på kallet alene.
+test('hovedhentingen leser userEntry fra sitt EGET svar, ikke bare fra limit=1-kallet', () => {
+  const kode = klientKode()
+
+  assert.match(
+    kode,
+    /^\s*if \(soloRes\?\.userEntry\) \{$/m,
+    'hovedsvarets userEntry leses ikke lenger — gratisbrukere utenfor topp 10 får ventekortet i blink',
+  )
+  assert.match(
+    kode,
+    /setServerUserSolo\([\s\S]{0,200}?soloRes\.userEntry/,
+    'serverUserSolo settes ikke fra hovedsvaret',
+  )
+  // «Vet ikke» er ikke «har ikke spilt»: et svar UTEN userEntry skal ikke nulle
+  // en rad det andre kallet allerede har satt. Derfor en if, ikke en ternær
+  // med null i else-grenen.
+  assert.doesNotMatch(
+    kode,
+    /setServerUserSolo\(\s*soloRes\?\.userEntry\s*\?[\s\S]{0,200}?:\s*null\s*\)/,
+    'et svar uten userEntry nuller nå en rad loadSoloPlacement allerede satte',
   )
 })
