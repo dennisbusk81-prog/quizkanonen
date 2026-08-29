@@ -42,13 +42,22 @@
 //      svelget nabogrenen — som HAR SiteNav — og testen blitt grønn av feil
 //      grunn.
 //
-// ── BEVISST UTENFOR TABELLEN ────────────────────────────────────────────────
-// `loading` og `not-found` i app/historikk/[attemptId]/page.tsx. Den filen har
-// IKKE SiteNav i sin vellykkede retur; å legge nav i loading ville latt
-// navigasjonen FORSVINNE i det innholdet lander — nøyaktig det hoppet en
-// lastetilstand skal unngå. Grenene står i AVVIK-listen under, som er
-// testdekket for seg: legges nav inn i den vellykkede returen, skal disse to
-// inn samtidig, og da ryker AVVIK-testen med vilje.
+// ── AVVIK-LISTEN, OG HVORFOR DEN NÅ ER TOM ──────────────────────────────────
+// Fram til 29. august 2026 sto `loading` og `not-found` i
+// app/historikk/[attemptId]/page.tsx utenfor tabellen: den filen hadde IKKE
+// SiteNav i sin vellykkede retur, så nav i loading ville latt navigasjonen
+// FORSVINNE i det innholdet landet — nøyaktig det hoppet en lastetilstand
+// skal unngå.
+//
+// Beslutningen samme kveld var nav i ALLE fem grenene på den siden, og da
+// faller forutsetningen bort: den vellykkede returen HAR nav nå, så loading
+// har ikke lenger noe å hoppe fra. Begge grenene er flyttet til GRENER, og
+// den vellykkede returen er tatt inn som egen rad (`suksess`) — nettopp
+// fordi det er DEN som bar avvikets forutsetning. Mister den nav igjen, skal
+// det felles her, ikke oppdages som et layout-hopp i produksjon.
+//
+// AVVIK står igjen tom, med maskineriet intakt: en framtidig gren som
+// BEVISST skal stå uten nav hører hjemme der, ikke utenfor tabellen.
 //
 // MUTASJONSBEVIS — hver test peker på en konkret feilendring den fanger:
 //   • SiteNav fjernes fra én gren → «<gren>: har navigasjon» ryker.
@@ -92,9 +101,16 @@ type Gren = { fil: string; stat: string; vakt: string }
  */
 const GRENER: Gren[] = [
   // /historikk/[attemptId] — ingen BackNav, ingen UserMenu, router.back()
-  // fører ingensteds fra en delt lenke. Verste tilfellet i settet.
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'timeout',  vakt: "if (loadState === 'timeout') {" },
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'error',    vakt: "if (loadState === 'error' || !detail) {" },
+  // fører ingensteds fra en delt lenke. Verste tilfellet i settet, og den
+  // eneste fila der ALLE grenene — inkludert den vellykkede — står oppført.
+  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'loading',   vakt: "if (loadState === 'loading') {" },
+  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'not-found', vakt: "if (loadState === 'not-found') {" },
+  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'timeout',   vakt: "if (loadState === 'timeout') {" },
+  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'error',     vakt: "if (loadState === 'error' || !detail) {" },
+  // Den vellykkede returen har ingen loadState-vakt. Ankeret er linja rett
+  // over den, som forekommer nøyaktig én gang i fila — samme unikhetskrav
+  // som de andre vaktene, håndhevet av returGren().
+  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'suksess',   vakt: 'const pct = scorePct(detail.correct_answers, detail.total_questions)' },
 
   // /historikk — historyLocked HADDE nav fra før; de to andre ikke.
   { fil: 'app/historikk/page.tsx',             stat: 'loading',  vakt: "if (loadState === 'loading') {" },
@@ -120,11 +136,14 @@ const GRENER: Gren[] = [
   { fil: 'app/profil/page.tsx',                stat: 'error',    vakt: "if (loadState === 'error') {" },
 ]
 
-/** loadState-grener som BEVISST ikke har nav. Se «BEVISST UTENFOR» over. */
-const AVVIK: Gren[] = [
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'loading',   vakt: "if (loadState === 'loading') {" },
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'not-found', vakt: "if (loadState === 'not-found') {" },
-]
+/**
+ * loadState-grener som BEVISST ikke har nav. Se «AVVIK-LISTEN» over.
+ *
+ * Tom per 29. august 2026. Listen beholdes fordi den er den dokumenterte
+ * plassen et framtidig avvik skal stå — fullstendighetstesten under leser
+ * ALLE = GRENER + AVVIK, så en gren som havner utenfor BEGGE listene felles.
+ */
+const AVVIK: Gren[] = []
 
 const ALLE = [...GRENER, ...AVVIK]
 const FILER = [...new Set(GRENER.map(g => g.fil))]
