@@ -135,6 +135,10 @@ export default function UserMenu() {
     pathname === '/login' ||
     pathname === '/slik-fungerer-det' ||
     pathname === '/arkiv' ||
+    // Eksakt, ikke startsWith('/premium'): salgssiden /premium har IKKE egen
+    // SiteNav og skal beholde denne pillen — kun kvitteringen /premium/success
+    // fikk SiteNav (29. august 2026). BackNav har samme eksakte oppføring.
+    pathname === '/premium/success' ||
     pathname.startsWith('/liga') ||
     pathname.startsWith('/leaderboard') ||
     pathname.startsWith('/toppliste') ||

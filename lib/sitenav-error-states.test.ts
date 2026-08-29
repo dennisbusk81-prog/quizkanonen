@@ -134,6 +134,17 @@ const GRENER: Gren[] = [
 
   { fil: 'app/profil/page.tsx',                stat: 'loading',  vakt: "if (loadState === 'loading') {" },
   { fil: 'app/profil/page.tsx',                stat: 'error',    vakt: "if (loadState === 'error') {" },
+
+  // /premium/success — kvitteringen etter EKTE betaling (29. august 2026).
+  // Fram til da hadde siden ingen nav i noen gren, og hver feilvei var en
+  // redirect til salgssiden (den feilen felles av
+  // lib/premium-success-verify.test.ts). Alle fire grenene står her, samme
+  // resonnement som /historikk/[attemptId]: suksessgrenen bærer
+  // forutsetningen for at loading/feil kan ha nav uten layout-hopp.
+  { fil: 'app/premium/success/page.tsx',       stat: 'verifying', vakt: "if (loadState === 'verifying') {" },
+  { fil: 'app/premium/success/page.tsx',       stat: 'ukjent',    vakt: "if (loadState === 'ukjent') {" },
+  { fil: 'app/premium/success/page.tsx',       stat: 'nosession', vakt: "if (loadState === 'nosession') {" },
+  { fil: 'app/premium/success/page.tsx',       stat: 'paid',      vakt: "if (loadState === 'paid') {" },
 ]
 
 /**
