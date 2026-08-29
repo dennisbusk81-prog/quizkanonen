@@ -148,10 +148,20 @@ describe('KRAV 3 — testquizer sender NULL hendelser gjennom sinket', () => {
 describe('KRAV 4 — ingen latens i kritisk sti', () => {
   // Den mekaniske garantien: returverdien er ikke thenable, så et kallsted
   // KAN ikke await-e seg til en forsinkelse foran en innsending.
+  //
+  // `then` leses gjennom en hjelper som tar `unknown`, ikke med en cast på
+  // stedet. Grunnen: `assert.equal` fra node:assert/strict er `strictEqual`,
+  // som er deklarert `asserts actual is T`. Etter `assert.equal(r, undefined)`
+  // er `r` derfor smalnet til `undefined`, og en cast derfra til et objekt er
+  // en EKTE typefeil (TS2352 — den sto rød i 18 dager), ikke en formalitet.
+  // Hjelperen tar den smalnede verdien imot som `unknown` igjen, så lesningen
+  // er lovlig uten å undertrykke noe — og den tåler at linjene bytter rekkefølge.
+  const thenOf = (v: unknown) => (v as { then?: unknown } | null | undefined)?.then
+
   test('spor() returnerer undefined, ikke en Promise', () => {
     const r = spor({ hendelse: 'quiz_fullfort', quiz: EKTE_QUIZ, tilgang: 'gratis' }) as unknown
     assert.equal(r, undefined)
-    assert.equal(typeof (r as { then?: unknown })?.then, 'undefined')
+    assert.equal(typeof thenOf(r), 'undefined')
   })
 })
 
