@@ -16,6 +16,10 @@ const EXCLUDED_EXACT = new Set([
   // Egen /bedrift-marketingside har nå SiteNav — kun eksakt match, IKKE prefiks,
   // så /bedrift/registrer og /bedrift/success (utenfor SiteNav-utrullingen) er uendret.
   '/bedrift',
+  // Manglet i BEGGE listene fram til 29. august 2026: /arkiv rendret SiteNav og
+  // fikk i tillegg denne stripen og UserMenus flytende konto-pille oppå.
+  // Eksakt match, ikke prefiks — samme mønster som '/bedrift' over.
+  '/arkiv',
 ])
 
 export default function BackNav() {
@@ -24,6 +28,18 @@ export default function BackNav() {
   // Disse prefiksene har nå SiteNav (se components/SiteNav.tsx) — samme sett
   // sider som i UserMenu.tsx sin ekvivalente liste under, holdt synkronisert
   // bevisst (de to var tidligere usynkroniserte, som ga inkonsekvent nav).
+  //
+  // ── NÅR EN NY SIDE FÅR SiteNav: LEGG STIEN INN HER OG I UserMenu.tsx ──────
+  // At de to listene er enige med HVERANDRE er ikke sjekken som betyr noe —
+  // det var de også da /arkiv manglet i begge. Sjekken er mot
+  // SiteNav-UTRULLINGEN: hver `app/**/page.tsx` som rendrer <SiteNav /> må
+  // treffes av begge listene. `lib/site-nav-hide-lists.test.ts` gjør den
+  // sammenligningen mot filsystemet.
+  //
+  // MERK at denne lista er et SUPERSETT av UserMenus: /personvern, /vilkar,
+  // /om, /founders og *-success-sidene har hverken SiteNav eller BackNav, og
+  // hører derfor hjemme her men ikke der. De to er ikke samme predikat, og
+  // skal ikke slås sammen til ett.
   const hidden =
     EXCLUDED_EXACT.has(pathname) ||
     pathname.startsWith('/admin') ||

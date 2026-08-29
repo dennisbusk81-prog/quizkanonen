@@ -112,10 +112,29 @@ export default function UserMenu() {
   // holdt synkronisert bevisst (de to var tidligere usynkroniserte).
   // '/login' lagt til her: eneste side der denne globale widgeten tidligere
   // vistes uten grunn (BackNav ekskluderte den, UserMenu gjorde ikke).
+  //
+  // ── NÅR EN NY SIDE FÅR SiteNav: LEGG STIEN INN HER OG I BackNav.tsx ───────
+  // Det er ikke nok at de to listene er enige med HVERANDRE — det var de hele
+  // tiden. De henger etter SiteNav-UTRULLINGEN, og det er den sammenligningen
+  // som må gjøres: hver `app/**/page.tsx` som rendrer <SiteNav /> skal treffes
+  // av begge listene. Gjør den ikke det, får siden to konto-menyer (denne
+  // flytende pillen OVER SiteNavs egen) og en løs «← Tilbake»-stripe.
+  // `lib/site-nav-hide-lists.test.ts` gjør nettopp den sammenligningen mot
+  // filsystemet og feller en ny side som mangler her.
+  //
+  // '/arkiv' manglet i BEGGE fram til 29. august 2026 — /arkiv viste da to
+  // konto-menyer med ulikt innhold (denne har «Innlogget som», Premium-merket
+  // og «Sesong-topplisten →»; NavAuths har dem ikke).
+  //
+  // '/quizer' står bevisst IKKE her: den fanges allerede av
+  // `startsWith('/quiz')` under. Det er et SAMMENTREFF i navngivningen — den
+  // regelen ble skrevet for spillesiden /quiz/[id] — så snevres den noen gang
+  // inn til '/quiz/', må '/quizer' inn som egen linje samtidig.
   if (
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/slik-fungerer-det' ||
+    pathname === '/arkiv' ||
     pathname.startsWith('/liga') ||
     pathname.startsWith('/leaderboard') ||
     pathname.startsWith('/toppliste') ||
