@@ -27,6 +27,17 @@ import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-ti
 import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
 import { ARCHIVE_PLAY_PREMIUM_ERROR } from '@/lib/archive-play-gate'
 import {
+  isArchiveQuiz,
+  shouldFetchInternalPlacement,
+  shouldFetchAlreadyPlayedTop3OnLoad,
+  shouldFetchPhaseTop3,
+  shouldFetchLiveRank,
+  shouldFetchRival,
+  shouldFetchPremiumInterludeRanking,
+  shouldFetchSpanInterludeRanking,
+  shouldFetchFinishExtras,
+} from '@/lib/archive-ranking-gates'
+import {
   parseArchivePlacementResponse,
   archivePlacementText,
   ARCHIVE_NO_FIELD_TEXT,
@@ -1259,13 +1270,25 @@ export default function QuizPage() {
   // dobbelthenting (StrictMode/re-render) uten å blokkere en NY org-slug.
   const internalPlacementFetchedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (phase !== 'finished') return
-    // Arkiv: kallet ville truffet KOPIENS leaderboard — et felt med kun denne
-    // spilleren — og vist «1. plass av 1». Spøkelsesplasseringen (egen effekt
-    // under) er arkivets eneste rangeringsflate.
-    if (isArchive) return
-    if (placementDisplay.mode !== 'internal-only' && placementDisplay.mode !== 'both') return
-    const orgSlug = placementDisplay.org.orgSlug
+    // G1. Fase, arkiv-vakten og visningsmodus i ÉN testbar beslutning
+    // (lib/archive-ranking-gates.ts). Arkiv: kallet ville truffet KOPIENS
+    // leaderboard — et felt med kun denne spilleren — og vist «1. plass av 1».
+    // Spøkelsesplasseringen (egen effekt under) er arkivets eneste
+    // rangeringsflate.
+    if (!shouldFetchInternalPlacement({
+      quizType: quiz?.quiz_type,
+      phase,
+      placementMode: placementDisplay.mode,
+    })) return
+    // PlacementDisplay er en diskriminert union der `org` er non-null nøyaktig
+    // for 'internal-only' og 'both'. Da vilkåret flyttet inn i gaten mistet
+    // TypeScript den innsnevringen. Dette er derfor IKKE en kopi av
+    // beslutningen — gaten har allerede bestemt at vi skal hente — men
+    // kompilatorens bevisbyrde på verdien vi er i ferd med å bruke.
+    // Grenen er uoppnåelig; skulle unionen en dag få en femte variant, faller
+    // vi til å la være å hente i stedet for å kaste på resultatskjermen.
+    const orgSlug = placementDisplay.org?.orgSlug
+    if (!orgSlug) return
     if (internalPlacementFetchedFor.current === orgSlug) return
     internalPlacementFetchedFor.current = orgSlug
     ;(async () => {
@@ -1290,7 +1313,7 @@ export default function QuizPage() {
         }
       } catch { /* intern plassering er et tillegg — resultatskjermen skal ikke feile på den */ }
     })()
-  }, [phase, placementDisplay, quizId, isArchive])
+  }, [phase, placementDisplay, quizId, quiz?.quiz_type])
 
   // ── Spøkelsesplasseringen — «slik ville du havnet den uken» ───────────────
   // Hentes når resultatskjermen vises på en arkivkopi. ?org= leses fra
@@ -1384,9 +1407,12 @@ export default function QuizPage() {
         // stopper opp på klienten ville låst hele siden på lasteskjermen. Topp-3
         // er pynt her — ved timeout viser vi resten av skjermen uten den, i
         // stedet for ikke å vise noe i det hele tatt.
-        // Arkiv: standings på KOPIENS id er et felt med kun denne spilleren —
-        // en «Topp 3» med henne alene. Kallet droppes helt.
-        if (quizData?.quiz_type !== 'archive') {
+        // G2. Arkiv: standings på KOPIENS id er et felt med kun denne
+        // spilleren — en «Topp 3» med henne alene. Kallet droppes helt.
+        // Vakten er delt med fase-effekten (G3) via
+        // lib/archive-ranking-gates.ts — begge inngangene til den samme
+        // dobbelthentingen må gates, ellers henter den andre likevel.
+        if (shouldFetchAlreadyPlayedTop3OnLoad({ quizType: quizData?.quiz_type })) {
           const t3Controller = new AbortController()
           const t3json = await withTimeoutOrNull(
             (async () => {
@@ -1519,8 +1545,9 @@ export default function QuizPage() {
     // Topp 3: på 'finished' hentes den sammen med plasseringen i finishQuiz
     // (samme /standings-liste, samme øyeblikk — kan ikke divergere). Her henter
     // vi kun for 'already_played', der plasseringskortet ikke vises.
-    // Arkiv: standings på kopiens id = spilleren alene — se fetchData-grenen.
-    if (phase === 'already_played' && !isArchive) {
+    // G3. Arkiv: standings på kopiens id = spilleren alene — se
+    // fetchData-grenen (G2), som deler vakt med denne.
+    if (shouldFetchPhaseTop3({ quizType: quiz?.quiz_type, phase })) {
       // Ingen fryserisiko her (ingenting venter på dette kallet), men det får
       // samme grense som de øvrige standings-kallene — et hengende kall skal
       // ikke bli liggende og lande midt i en senere fase.
@@ -1531,7 +1558,7 @@ export default function QuizPage() {
         { ms: FINISH_TIMEOUT_MS, onTimeout: () => t3Controller.abort() },
       ).then(j => { if (j && Array.isArray(j.top3)) setTop3(j.top3) })
     }
-  }, [phase, quizId, isArchive])
+  }, [phase, quizId, quiz?.quiz_type])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -1761,10 +1788,20 @@ export default function QuizPage() {
     timeSoFar: number,
     answeredSoFar: number
   ) => {
-    // Arkiv: ingen plassering under spilling i det hele tatt (27. august 2026)
-    // — kallet ville dessuten målt mot kopiens tomme felt.
-    if (!quiz?.show_live_placement || quiz.quiz_type === 'archive') return
-    if (answeredSoFar < MIN_ANSWERED_FOR_PLACEMENT) { setLiveRank(null); return }
+    // G4. Arkiv: ingen plassering under spilling i det hele tatt (27. august
+    // 2026) — kallet ville dessuten målt mot kopiens tomme felt. Flagget,
+    // arkiv-vakten og terskelen ligger samlet i lib/archive-ranking-gates.ts.
+    // Nullingen under terskelen står igjen her: den er en SIDEEFFEKT (rydder
+    // et gammelt tall bort), ikke en del av beslutningen om å hente.
+    if (!shouldFetchLiveRank({
+      quizType: quiz?.quiz_type,
+      showLivePlacement: quiz?.show_live_placement,
+      answeredSoFar,
+      minAnsweredForPlacement: MIN_ANSWERED_FOR_PLACEMENT,
+    })) {
+      if (quiz?.show_live_placement && !isArchiveQuiz(quiz?.quiz_type)) setLiveRank(null)
+      return
+    }
     try {
       const res = await fetch(
         `/api/quiz/${quizId}/ranking-snapshot?question=${currentIndex}&correct=${correctSoFar}&time=${timeSoFar}&answered=${answeredSoFar}&total=${totalQuestions}${attemptId ? `&attemptId=${attemptId}` : ''}`,
@@ -2071,7 +2108,8 @@ export default function QuizPage() {
       // render-vilkårene (rivalData/suggestions) flatene skjult av seg selv.
       const accessToken = session?.access_token
       if (accessToken) {
-        if (quiz?.quiz_type !== 'archive') {
+        // G5 — se lib/archive-ranking-gates.ts.
+        if (shouldFetchRival({ quizType: quiz?.quiz_type, hasAccessToken: true })) {
           fetch(`/api/quiz/rival?quizId=${quizId}`, {
             headers: { Authorization: `Bearer ${accessToken}` },
           })
@@ -2374,18 +2412,27 @@ export default function QuizPage() {
     // Rangeringen er allerede «ikke kritisk» ved feil (begge helperne fanger og
     // returnerer null). En timeout behandles likt: mellomskjermen vises uten
     // plassering i stedet for ikke å vises i det hele tatt.
-    // Arkiv: BEGGE rangeringskallene droppes (27. august 2026) — mellomskjermen
-    // er stille om plassering. Delscore mot delscore er umulig: de andres
-    // fremdrift ble aldri skrevet, og kopiens eget felt er tomt. `!isArchive`
-    // må stå i BEGGE vilkårene — gates bare det ene, faller premium-spilleren
-    // stille ned i spenn-stien i stedet for til stillhet.
-    const premiumRankingPromise = isLoggedIn && isPremium && placementReady && !isArchive
+    // G6/G7. Arkiv: BEGGE rangeringskallene droppes (27. august 2026) —
+    // mellomskjermen er stille om plassering. Delscore mot delscore er umulig:
+    // de andres fremdrift ble aldri skrevet, og kopiens eget felt er tomt.
+    // Arkiv-vakten må stå i BEGGE vilkårene — gates bare det ene, faller
+    // premium-spilleren stille ned i spenn-stien i stedet for til stillhet.
+    // Nettopp derfor bor de to i SAMME modul med en test som prøver begge
+    // isPremium-verdiene mot en arkivquiz (lib/archive-ranking-gates.test.ts,
+    // «premium-spilleren faller ikke ned i spenn-stien»).
+    const rankingGateArgs = {
+      quizType: quiz?.quiz_type,
+      isLoggedIn,
+      isPremium,
+      placementReady,
+    }
+    const premiumRankingPromise = shouldFetchPremiumInterludeRanking(rankingGateArgs)
       ? withTimeoutOrNull(
           fetchLiveRankingFull(correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
           { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
         )
       : null
-    const spanRankingPromise = !isPremium && isLoggedIn && placementReady && !isArchive
+    const spanRankingPromise = shouldFetchSpanInterludeRanking(rankingGateArgs)
       ? withTimeoutOrNull(
           fetchRankingSnapshot(currentIndex, correctSoFar, totalTimeMs, answeredSoFar, rankingController.signal),
           { ms: NEXT_STEP_TIMEOUT_MS, onTimeout: () => rankingController.abort() },
@@ -2725,12 +2772,12 @@ export default function QuizPage() {
       // uten plassering i stedet for ikke i det hele tatt, samme degradering som
       // rangeringskallene i goToNext har.
       const extrasController = new AbortController()
-      // Arkiv: hele pynte-blokken (topp-3 + estimert plassering) hoppes over.
-      // Både standings og leaderboard-fallbacken leser KOPIENS felt — kun
-      // denne spilleren — og ville satt «nr. 1 av 1». Arkivets plassering
-      // hentes i stedet fra det frosne feltet av spøkelsesplassering-effekten
-      // når resultatskjermen står.
-      if (quiz?.quiz_type !== 'archive') await withTimeoutOrNull(
+      // G8 — se lib/archive-ranking-gates.ts. Arkiv: hele pynte-blokken
+      // (topp-3 + estimert plassering) hoppes over. Både standings og
+      // leaderboard-fallbacken leser KOPIENS felt — kun denne spilleren — og
+      // ville satt «nr. 1 av 1». Arkivets plassering hentes i stedet fra det
+      // frosne feltet av spøkelsesplassering-effekten når resultatskjermen står.
+      if (shouldFetchFinishExtras({ quizType: quiz?.quiz_type })) await withTimeoutOrNull(
         (async () => {
           // finishSess brukes også av fallback-leaderboard-fetchen lenger nede.
           const { data: { session: finishSess } } = await supabase.auth.getSession()
