@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
 import { isDuelExpired, PENDING_REPLY_WINDOW_MS } from '@/lib/duel-expiry'
 import { computePointsByMonth, monthKeyOf, pointsForDuel, type ScoredAttempt } from '@/lib/duel-scoring'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 // GET /api/rivalries/my — returns active + pending rivalries, plus declined from this month
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
@@ -66,20 +67,43 @@ export async function GET(request: NextRequest) {
     1,
   ))
 
-  // is_test-guarden speiler poeng-cronene: en testquiz i en duellmåned ville
-  // ellers telt inn i computePointsByMonth og gitt kunstige duellpoeng.
+  // Duellpoeng skal kun regnes fra ekte konkurransequizer — samme populasjon
+  // som poeng-cronene bruker. Her sto tidligere `.eq('is_test', false)` alene,
+  // med en kommentar om at den «speiler poeng-cronene». Det stemte ikke:
+  // award-season-points og publish-quiz går begge via onlyRealQuizzes. To hull
+  // fulgte av avviket:
+  //
+  //   1. INGEN quiz_type-VAKT. En arkivquiz får `is_test = false` satt
+  //      EKSPLISITT (lib/archive-copy.ts:201) — is_test-leddet slapp den altså
+  //      GJENNOM. Det eneste som holdt treningsrunder ute av duellpoengene var
+  //      at `closes_at` er NULL og `NULL >= x` er NULL i SQL. Altså en
+  //      DATOVERDI, ikke en vakt. Får en arkivquiz noen gang en `closes_at`
+  //      — import-default, en manuell admin-redigering, eller en framtidig
+  //      arkivvariant med tidsvindu — begynner treningsrunder å telle i
+  //      duellpoengene uten at én linje her er endret.
+  //   2. `.eq('is_test', false)` matcher IKKE `is_test IS NULL`, og kolonnen er
+  //      nullable. `.not('is_test', 'is', true)` dekker både false og NULL.
+  //
+  // Målt mot prod 29. august 2026: 13 quizer før OG etter — populasjonen er
+  // uendret i dag. Motprøve `quiz_type=in.(archive)` → 0 (filteret binder
+  // faktisk); 16 quizer totalt, hvorav 3 arkiv, alle med `closes_at = NULL`.
+  //
+  // FORM: spørringen i lokal variabel, helperen påført etterpå. Inlinet
+  // argument gir `next build` TS2589 på lange byggerkjeder — samme grunn som
+  // i cron-rutene.
+  const rangeQuizzesQuery = supabaseAdmin
+    .from('quizzes')
+    .select('id, closes_at')
+    .gte('closes_at', rangeStart.toISOString())
+    .lt('closes_at', rangeEnd.toISOString())
+    .lte('closes_at', now.toISOString())
+
   const [profilesRes, rangeQuizzesRes] = await Promise.all([
     supabaseAdmin
       .from('profiles')
       .select('id, display_name, nickname')
       .in('id', uniqueOpponentIds),
-    supabaseAdmin
-      .from('quizzes')
-      .select('id, closes_at')
-      .gte('closes_at', rangeStart.toISOString())
-      .lt('closes_at', rangeEnd.toISOString())
-      .lte('closes_at', now.toISOString())
-      .eq('is_test', false),
+    onlyRealQuizzes(rangeQuizzesQuery),
   ])
 
   const { data: profiles, error: profilesError } = profilesRes
@@ -150,6 +174,15 @@ export async function GET(request: NextRequest) {
   if (quizIds.length > 0) {
     // Uten eksplisitt grense kutter PostgREST stille ved 1000 rader — paginert
     // full henting i stedet.
+    //
+    // BEVISST UTEN onlyRealQuizAttempts: `quizIds` kommer fra `monthByQuizId`,
+    // som bygges av den allerede filtrerte `rangeQuizzesQuery` over — så
+    // `.in('quiz_id', quizIds)` ER quiz-populasjonen. computePointsByMonth
+    // slår dessuten hver attempt opp i samme kart og hopper over den om den
+    // mangler (`if (!monthKey) continue`, lib/duel-scoring.ts:66). Et
+    // `quizzes!inner(id)`-embed her ville lagt en join på hver side av en
+    // paginert fullhenting uten å fjerne én rad. Flyttes eller fjernes
+    // `.in('quiz_id', quizIds)`, må vakten inn her i samme endring.
     const rangeAttempts = await fetchAllRows((from, to) =>
       supabaseAdmin
         .from('attempts')

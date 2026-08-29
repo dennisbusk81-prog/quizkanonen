@@ -7,9 +7,10 @@
 // tallene fra poengmodellen (rank 1 = 12, rank 2 = 10).
 //
 // MUTASJONSBEVIS (verifisert ved å fjerne mekanismen midlertidig):
-//   - fjernes .eq('is_test', false) i rangeQuizzes-oppslaget, feiler
-//     «testquiz i duellmåneden teller ikke inn i duellpoengene»
-//     (motstanderen får 22 i stedet for 10)
+//   - fjernes onlyRealQuizzes() rundt rangeQuizzesQuery, feiler BÅDE
+//     «testquiz i duellmåneden teller ikke inn i duellpoengene» OG
+//     «arkivquiz MED closes_at teller ikke inn i duellpoengene»
+//     (motstanderen får 22 i stedet for 10 i begge)
 //   - fjernes feilsjekken på rangeQuizzes, feiler
 //     «feilende quiz-spørring gir 500, ikke stille 0-0»
 //     (ruten svarer da 200 med alle dueller 0-0)
@@ -20,8 +21,10 @@ const ME  = '11111111-1111-1111-1111-111111111111'
 const OPP = '22222222-2222-2222-2222-222222222222'
 const REAL_QUIZ = 'aaaaaaaa-1111-2222-3333-444444444444'
 const TEST_QUIZ = 'cccccccc-1111-2222-3333-444444444444'
+const ARCHIVE_QUIZ = 'dddddddd-1111-2222-3333-444444444444'
+const NULLTEST_QUIZ = 'eeeeeeee-1111-2222-3333-444444444444'
 
-type QuizRow = { id: string; closes_at: string; is_test: boolean }
+type QuizRow = { id: string; closes_at: string; is_test: boolean | null; quiz_type: string }
 type AttemptRow = {
   user_id: string; quiz_id: string; correct_answers: number
   total_time_ms: number; correct_streak: number
@@ -50,9 +53,13 @@ const closedAgo = (minutes: number) =>
 
 function builder(table: string) {
   const eqs: Record<string, unknown> = {}
-  let inCol: string | null = null, inVals: string[] = []
+  // Flere `.in()` per spørring: onlyRealQuizzes legger `.in('quiz_type', …)`
+  // oppå kallerens egne. Én `inCol`-variabel ville latt den siste overskrive
+  // den første, og testen blitt grønn av feil grunn.
+  const ins: Array<{ col: string; vals: string[] }> = []
   let gteVal: string | null = null, ltVal: string | null = null, lteVal: string | null = null
   const notNullCols: string[] = []
+  const notTrueCols: string[] = []
   let rangeFrom = 0, rangeTo = Number.MAX_SAFE_INTEGER
 
   const source = (): Record<string, unknown>[] => {
@@ -68,11 +75,14 @@ function builder(table: string) {
   const rows = (): Record<string, unknown>[] =>
     source().filter(r => {
       for (const [k, v] of Object.entries(eqs)) if (r[k] !== v) return false
-      if (inCol && !inVals.includes(String(r[inCol] ?? ''))) return false
+      for (const { col, vals } of ins) if (!vals.includes(String(r[col] ?? ''))) return false
       if (gteVal !== null && String(r.closes_at) <  gteVal) return false
       if (ltVal  !== null && String(r.closes_at) >= ltVal)  return false
       if (lteVal !== null && String(r.closes_at) >  lteVal) return false
       for (const c of notNullCols) if (r[c] === null || r[c] === undefined) return false
+      // `.not(col, 'is', true)` — speiler PostgREST: filtrerer bort KUN true,
+      // og slipper både false og NULL/undefined gjennom.
+      for (const c of notTrueCols) if (r[c] === true) return false
       return true
     }).slice(rangeFrom, rangeTo + 1)
 
@@ -82,12 +92,13 @@ function builder(table: string) {
     // testdataene inneholder kun relevante rader.
     or() { return b },
     eq(col: string, val: unknown) { eqs[col] = val; return b },
-    in(col: string, vals: string[]) { inCol = col; inVals = vals.map(String); return b },
+    in(col: string, vals: readonly string[]) { ins.push({ col, vals: vals.map(String) }); return b },
     gte(_col: string, val: string) { gteVal = val; return b },
     lt(_col: string, val: string) { ltVal = val; return b },
     lte(_col: string, val: string) { lteVal = val; return b },
     not(col: string, op: string, val: unknown) {
       if (op === 'is' && val === null) notNullCols.push(col)
+      if (op === 'is' && val === true) notTrueCols.push(col)
       return b
     },
     order() { return b },
@@ -139,7 +150,7 @@ beforeEach(() => {
     { id: ME,  display_name: 'Meg Selv',   nickname: null },
     { id: OPP, display_name: 'Motstander', nickname: null },
   ]
-  db.quizzes = [{ id: REAL_QUIZ, closes_at: closedAgo(30), is_test: false }]
+  db.quizzes = [{ id: REAL_QUIZ, closes_at: closedAgo(30), is_test: false, quiz_type: 'weekly' }]
   db.attempts = [
     attempt(ME,  REAL_QUIZ, 8),  // rank 1 → 12 poeng
     attempt(OPP, REAL_QUIZ, 5),  // rank 2 → 10 poeng
@@ -156,9 +167,10 @@ test('ugyldig token gir 401', async () => {
 // ── is_test-filteret ────────────────────────────────────────────────────────
 
 test('testquiz i duellmåneden teller ikke inn i duellpoengene', async () => {
-  // MUTASJONSBEVIS: uten .eq('is_test', false) vinner motstanderen testquizen
+  // MUTASJONSBEVIS: uten onlyRealQuizzes vinner motstanderen testquizen
   // (rank 1 = 12 poeng) og stillingen vises som 12–22 i stedet for 12–10.
-  db.quizzes.push({ id: TEST_QUIZ, closes_at: closedAgo(10), is_test: true })
+  // Fanges av helperens `.not('is_test', 'is', true)`-ledd.
+  db.quizzes.push({ id: TEST_QUIZ, closes_at: closedAgo(10), is_test: true, quiz_type: 'weekly' })
   db.attempts.push(attempt(OPP, TEST_QUIZ, 10))
 
   const res = await call()
@@ -168,6 +180,55 @@ test('testquiz i duellmåneden teller ikke inn i duellpoengene', async () => {
   assert.equal(body.rivalries.length, 1)
   assert.equal(body.rivalries[0].myPoints, 12)
   assert.equal(body.rivalries[0].opponentPoints, 10, 'testquizens 12 poeng skal ikke telle')
+})
+
+// ── quiz_type-vakten (onlyRealQuizzes) ──────────────────────────────────────
+
+test('arkivquiz MED closes_at teller ikke inn i duellpoengene', async () => {
+  // KJERNEN I FIKSEN. Arkivquizen har `is_test = false` — nøyaktig som
+  // lib/archive-copy.ts:201 setter den — så det gamle `.eq('is_test', false)`
+  // slapp den GJENNOM. Det eneste som holdt den ute i prod var at `closes_at`
+  // sto NULL og dermed falt ut av `.gte()`. Her HAR den en closes_at, altså
+  // den framtidige tilstanden (import-default / manuell redigering / en
+  // arkivvariant med tidsvindu). Kun quiz_type-hvitelisten stopper den.
+  //
+  // MUTASJONSBEVIS: fjernes onlyRealQuizzes fra ruten, vinner motstanderen
+  // arkivquizen (rank 1 = 12 poeng) og stillingen vises som 12–22.
+  db.quizzes.push({
+    id: ARCHIVE_QUIZ, closes_at: closedAgo(10), is_test: false, quiz_type: 'archive',
+  })
+  db.attempts.push(attempt(OPP, ARCHIVE_QUIZ, 10))
+
+  const res = await call()
+  assert.equal(res.status, 200)
+
+  const body = await res.json() as { rivalries: Array<{ myPoints: number; opponentPoints: number }> }
+  assert.equal(body.rivalries[0].myPoints, 12)
+  assert.equal(
+    body.rivalries[0].opponentPoints, 10,
+    'arkivquizens 12 poeng skal ikke telle — treningsrunder er ikke duellpoeng',
+  )
+})
+
+test('testquiz med is_test = NULL teller heller ikke', async () => {
+  // `.eq('is_test', false)` matcher ikke NULL. Denne quizen har `quiz_type`
+  // 'weekly', så hvitelisten slipper den gjennom — kun `.not(is_test,is,true)`
+  // står igjen, og den skal IKKE stoppe en NULL-rad. Testen felles altså om
+  // noen bytter helperens form tilbake til `.eq('is_test', false)`: da faller
+  // NULL-raden ut og motstanderen får 10 i stedet for 22.
+  db.quizzes.push({
+    id: NULLTEST_QUIZ, closes_at: closedAgo(10), is_test: null, quiz_type: 'weekly',
+  })
+  db.attempts.push(attempt(OPP, NULLTEST_QUIZ, 10))
+
+  const res = await call()
+  assert.equal(res.status, 200)
+
+  const body = await res.json() as { rivalries: Array<{ opponentPoints: number }> }
+  assert.equal(
+    body.rivalries[0].opponentPoints, 22,
+    'is_test = NULL er ikke en testquiz — den skal telle (12 + 10)',
+  )
 })
 
 test('ekte quizer teller fortsatt — filteret låser ikke ute legitim scoring', async () => {
