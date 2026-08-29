@@ -227,12 +227,23 @@ export async function GET(
     return NextResponse.json({ placement: null, reason: outcome.reason })
   }
 
+  // `previous` er hennes eget gamle resultat på originalquizen. Det krever
+  // INGEN ekstra spørring: raden lå allerede i `field` (FIELD_SELECT henter
+  // correct_answers), og ble fram til nå brukt kun som en boolean
+  // (`selfWasInField`) før den ble filtrert bort. Kostnaden er én sortering
+  // av en array som allerede er i minnet.
+  //
+  // Fortsatt kun TALL ut av ruten — ingen navn, ingen liste, ingen naboer.
+  // Se «HVA SOM ALDRI FORLATER FUNKSJONEN» i lib/archive-placement.ts, og
+  // les forbeholdet på ArchivePreviousResult før du formulerer noe om tallet:
+  // det er «slik resultatlisten står i dag», ikke «det hun så den kvelden».
   return NextResponse.json({
     placement: {
       rank: outcome.rank,
       total: outcome.total,
       fieldSize: outcome.fieldSize,
       selfWasInField: outcome.selfWasInField,
+      previous: outcome.previous,
       scope: outcome.scope,
     },
     sourceQuizId,

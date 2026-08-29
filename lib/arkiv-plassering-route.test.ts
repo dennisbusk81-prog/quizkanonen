@@ -460,6 +460,7 @@ test('FELLE 2: min egen originale rad trekkes ut av feltet', async () => {
     total: 3,
     fieldSize: 2,
     selfWasInField: true,
+    previous: { rank: 1, correctAnswers: 15 },
     scope: 'global',
   })
 })
@@ -472,6 +473,7 @@ test('spilte jeg ikke originalen, trer jeg inn i feltet (selfWasInField=false)',
     total: 3,
     fieldSize: 2,
     selfWasInField: false,
+    previous: null,
     scope: 'global',
   })
 })
@@ -488,6 +490,7 @@ test('FELLE 3: ?org= måler mot det interne feltet, og slår ikke opp blocked-se
     total: 2,
     fieldSize: 1,
     selfWasInField: false,
+    previous: null,
     scope: 'org',
   })
   // Globalt ville ANNEN (15) ligget foran — beviser at feltet faktisk krympet.
@@ -549,7 +552,7 @@ test('svaret bærer kun tall — ingen navn fra det frosne feltet', async () => 
   assert.deepEqual(Object.keys(body).sort(), ['placement', 'sourceQuizId'])
   assert.deepEqual(
     Object.keys(body.placement).sort(),
-    ['fieldSize', 'rank', 'scope', 'selfWasInField', 'total']
+    ['fieldSize', 'previous', 'rank', 'scope', 'selfWasInField', 'total']
   )
   assert.equal(JSON.stringify(body).includes('spiller-'), false)
 })

@@ -85,6 +85,45 @@ export type ArchiveFieldRow = RankableAttempt & {
   correct_streak: number | null
 }
 
+/**
+ * Spillerens EGET gamle resultat på originalquizen, slik resultatlisten for
+ * den quizen viser det I DAG.
+ *
+ * ── LES DETTE FØR DU FORMULERER NOE OM DETTE TALLET ────────────────────────
+ * Dette er IKKE «det hun så den fredagen». Det er en rekonstruksjon, og den
+ * er beviselig lik dagens `/api/leaderboard/[kilde-id]` (samme
+ * `rankQuizAttempts`, samme opsjoner, samme blokkert-filter — se
+ * app/api/leaderboard/[id]/route.ts:216 mot linja under). Men to ting kan ha
+ * flyttet den siden den kvelden:
+ *
+ *   1. RADER KAN VÆRE SLETTET. Tre produksjonsruter hard-sletter `attempts`:
+ *      app/api/profile/delete (GDPR art. 17, bevisst), app/api/admin/users/[id]
+ *      og app/api/admin/quizzes/[id]/reset (tømmer HELE feltet). Slettet én
+ *      som lå over henne kontoen sin, er hennes rekonstruerte plassering
+ *      BEDRE enn den hun så.
+ *   2. FASITEN KAN VÆRE RETTET. app/api/admin/correct-answer:198 skriver
+ *      `attempts.correct_answers` og `correct_streak` på nytt. Da er dette
+ *      den RETTEDE sannheten, ikke tallet på skjermen den kvelden.
+ *
+ * Derfor sier teksten «står i dag» (lib/archive-result-view.ts), ikke «du
+ * fikk». Setningen påstår ikke hva hun så — den peker på en liste hun kan
+ * åpne og verifisere, og som per konstruksjon viser nøyaktig dette tallet.
+ * Endrer du ordlyden, ta med den forskjellen.
+ *
+ * `season_scores.rank` ble vurdert som «lagret fasit» og FORKASTET: den
+ * utelater gjester (nøklet på user_id), bruker delt plassering ved likhet der
+ * leaderboardet bruker strengt økende, regner rank FØR blokkert-filteret, og
+ * skrives også om ved fasitretting (lib/resync-season-scores.ts). Den er et
+ * annet tall for et annet formål — ikke en bedre kilde.
+ */
+export type ArchivePreviousResult = {
+  /** Plasseringen på originalquizens resultatliste slik den står i dag. */
+  rank: number
+  /** Antall riktige. Ingen nevner: en DELVIS arkivkopi kan ha færre
+   *  spørsmål enn originalen, så kopiens spørsmålstall er ikke originalens. */
+  correctAnswers: number
+}
+
 export type ArchivePlacementOutcome =
   | {
       kind: 'plassering'
@@ -96,6 +135,8 @@ export type ArchivePlacementOutcome =
       fieldSize: number
       /** Spilte hun originalen? Da er `total` det originale deltakertallet. */
       selfWasInField: boolean
+      /** Hennes eget gamle resultat, eller null om hun ikke var med. */
+      previous: ArchivePreviousResult | null
       scope: 'org' | 'global'
     }
   | { kind: 'ingen'; reason: 'ingen-kilde' | 'tomt-felt' | 'lagforsok' }
@@ -139,10 +180,37 @@ export function decideArchivePlacement(input: {
   const selfWasInField = scoped.some((r) => r.user_id === input.self.userId)
   const withoutSelf = scoped.filter((r) => r.user_id !== input.self.userId)
 
-  const ranked = rankQuizAttempts(withoutSelf, {
+  const rankOptions = {
     includeGuests: memberSet ? false : true,
     requireSubmitted: true,
-  })
+  }
+
+  // ── Hennes eget gamle resultat, på det UFILTRERTE feltet ─────────────────
+  // Spøkelsesplasseringen rangerer `withoutSelf` — hun skal ikke konkurrere
+  // mot seg selv. Det gamle resultatet må rangeres på `scoped`, MED henne i,
+  // fordi hun beviselig var i feltet den gangen. To ulike spørsmål, to ulike
+  // populasjoner, med vilje.
+  //
+  // Samme `rankOptions` som spøkelsesplasseringen og som
+  // /api/leaderboard/[id]: det er dette som gjør tallet etterprøvbart mot
+  // resultatlisten hun kan åpne. Ikke la de to drifte fra hverandre.
+  //
+  // Kun beregnet når hun faktisk var med — ellers finnes det ikke noe å
+  // rekonstruere, og en spiller som ikke deltok skal ikke koste en sortering.
+  //
+  // `rankQuizAttempts` deduper til beste forsøk per spiller (ranking.ts:127),
+  // så flere gamle forsøk gir samme rad som resultatlisten viser.
+  // Finner vi henne likevel ikke — hun ble filtrert bort av `requireSubmitted`
+  // eller `includeGuests` — blir det null, ikke en gjetning. Da faller
+  // teksten tilbake til setningen uten tillegg.
+  let previous: ArchivePreviousResult | null = null
+  if (selfWasInField) {
+    const meg = rankQuizAttempts(scoped, rankOptions)
+      .find((r) => r.user_id === input.self.userId)
+    if (meg) previous = { rank: meg.rank, correctAnswers: meg.correct_answers }
+  }
+
+  const ranked = rankQuizAttempts(withoutSelf, rankOptions)
 
   // FELLE 1, del B: guarden STÅR FØR kallet. Et tomt felt gir «nr. 1 av 1»
   // hvis det slippes inn i computePlacement — les filhodet før du flytter
@@ -180,6 +248,7 @@ export function decideArchivePlacement(input: {
     total: placement.total,
     fieldSize: ranked.length,
     selfWasInField,
+    previous,
     scope,
   }
 }

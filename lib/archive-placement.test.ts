@@ -123,6 +123,7 @@ test('FELLE 1: et EKTE felt med nøyaktig én deltaker skjules IKKE', () => {
     total: 2,
     fieldSize: 1,
     selfWasInField: false,
+    previous: null,
     scope: 'global',
   })
 })
@@ -157,6 +158,7 @@ test('FELLE 2: egen original rad trekkes ut FØR rangeringen', () => {
     total: 3,
     fieldSize: 2,
     selfWasInField: true,
+    previous: { rank: 1, correctAnswers: 14 },
     scope: 'global',
   })
 })
@@ -172,6 +174,7 @@ test('FELLE 2: spilte hun IKKE originalen, er hun ny i feltet', () => {
     total: 3,
     fieldSize: 2,
     selfWasInField: false,
+    previous: null,
     scope: 'global',
   })
 })
@@ -214,6 +217,7 @@ test('FELLE 3: org-medlem måles mot det INTERNE feltet, ikke det globale', () =
     total: 3,
     fieldSize: 2,
     selfWasInField: true,
+    previous: { rank: 3, correctAnswers: 8 },
     scope: 'org',
   })
 
@@ -224,6 +228,7 @@ test('FELLE 3: org-medlem måles mot det INTERNE feltet, ikke det globale', () =
     total: 6,
     fieldSize: 5,
     selfWasInField: true,
+    previous: { rank: 6, correctAnswers: 8 },
     scope: 'global',
   })
 })
@@ -287,6 +292,128 @@ test('utfallet bærer KUN tall — ingen navn, ingen naboer over/under', () => {
   if (res.kind !== 'plassering') return
   assert.deepEqual(
     Object.keys(res).sort(),
-    ['fieldSize', 'kind', 'rank', 'scope', 'selfWasInField', 'total']
+    ['fieldSize', 'kind', 'previous', 'rank', 'scope', 'selfWasInField', 'total']
   )
+})
+
+test('previous bærer også KUN tall — ingen navn lekker via det gamle resultatet', () => {
+  // `previous` utledes av en RAD, ikke av et tall, og raden har `player_name`.
+  // Nøkkellisten over ville ikke fanget at hele raden ble sendt videre — den
+  // ser bare at feltet «previous» finnes. Derfor felles innholdet separat.
+  const res = kall({
+    field: [rad('a', 'annen', 15, 40_000), rad('min-gamle', MEG, 12, 70_000)],
+    self: { userId: MEG, correctAnswers: 11, totalTimeMs: 80_000, isTeam: false },
+  })
+  assert.equal(res.kind, 'plassering')
+  if (res.kind !== 'plassering') return
+  assert.deepEqual(Object.keys(res.previous ?? {}).sort(), ['correctAnswers', 'rank'])
+})
+
+// ═══ «Står i dag» — eget gammelt resultat (previous) ═══════════════════════
+//
+// TO ULIKE SPØRSMÅL, TO ULIKE POPULASJONER. Spøkelsesplasseringen rangerer
+// feltet UTEN henne (hun skal ikke konkurrere mot seg selv); `previous`
+// rangerer feltet MED henne (hun var beviselig med den gangen). Testene under
+// låser at de to ikke smelter sammen.
+//
+// MUTASJONSBEVIS — konkrete feilendringer disse fanger:
+//   • `rankQuizAttempts(scoped, …)` → `rankQuizAttempts(withoutSelf, …)`
+//     (rangér previous på feil populasjon) → «previous rangeres MED henne i
+//     feltet» ryker: hun finnes ikke i withoutSelf, så previous blir null.
+//   • fjern `if (selfWasInField)`-gaten → ingen test ryker på det alene
+//     (previous blir uansett null når hun ikke er i feltet), men gaten er en
+//     ytelsesvakt, ikke en korrekthetsvakt. Det er ærlig oppgitt her framfor
+//     å påstå dekning som ikke finnes. Korrekthetsgaten er `.find()`, og den
+//     ER dekket av «deltok ikke gir previous null».
+//   • bytt `meg.rank` mot `meg.correct_answers` (eller omvendt) → begge
+//     tallene assertes separat, så ombytting ryker.
+//   • dropp `rankOptions` og hardkod `includeGuests: true` i previous-kallet
+//     → «previous følger org-scope» ryker.
+
+test('previous: rangeres MED henne i feltet — ikke mot det reduserte', () => {
+  // Feltet den gangen: Anne 15, MEG 14, Bjørn 12. Hun var nr. 2 av 3.
+  // Spøkelsesplasseringen for dagens runde (13) måles mot feltet UTEN henne
+  // (Anne 15, Bjørn 12) → 2. plass av 3. Tallene er like her ved en
+  // tilfeldighet i nevneren, men rank-kildene er ulike — derfor assertes
+  // previous eksplisitt mot sitt eget felt.
+  const res = kall({
+    field: [
+      rad('a', 'anne', 15, 40_000),
+      rad('min-gamle', MEG, 14, 55_000),
+      rad('b', 'bjorn', 12, 72_000),
+    ],
+    self: { userId: MEG, correctAnswers: 13, totalTimeMs: 60_000, isTeam: false },
+  })
+  assert.equal(res.kind, 'plassering')
+  if (res.kind !== 'plassering') return
+  assert.deepEqual(res.previous, { rank: 2, correctAnswers: 14 })
+  // Og spøkelsesplasseringen er fortsatt regnet uten henne.
+  assert.equal(res.fieldSize, 2)
+})
+
+test('previous: deltok ikke → null, ingen gjetning', () => {
+  const res = kall({
+    field: [rad('a', 'anne', 15, 40_000), rad('b', 'bjorn', 12, 72_000)],
+    self: { userId: MEG, correctAnswers: 13, totalTimeMs: 60_000, isTeam: false },
+  })
+  assert.equal(res.kind, 'plassering')
+  if (res.kind !== 'plassering') return
+  assert.equal(res.previous, null)
+  assert.equal(res.selfWasInField, false)
+})
+
+test('previous: gjesterad gir IKKE previous — samme grense som selfWasInField', () => {
+  // Spilte hun originalen uinnlogget, finnes ingen kobling til kontoen.
+  // Da skal det heller ikke dukke opp et «du står i dag med»-tall som
+  // tilhører en annen person med samme navn.
+  const res = kall({
+    field: [rad('gjest', null, 14, 55_000)],
+    self: { userId: MEG, correctAnswers: 13, totalTimeMs: 60_000, isTeam: false },
+  })
+  assert.equal(res.kind, 'plassering')
+  if (res.kind !== 'plassering') return
+  assert.equal(res.previous, null)
+})
+
+test('previous følger ORG-scope når org er satt — ikke det globale feltet', () => {
+  // Globalt lå hun sist av seks; internt var hun sist av tre. To ulike sanne
+  // tall, og kortet viser org-tallet når org-scope er i spill — samme regel
+  // som spøkelsesplasseringen selv.
+  const field = [
+    rad('x1', 'utenfor-1', 15, 40_000),
+    rad('x2', 'utenfor-2', 14, 45_000),
+    rad('a', 'user-anne', 14, 50_000),
+    rad('x3', 'utenfor-3', 13, 47_000),
+    rad('b', 'user-bjorn', 11, 66_000),
+    rad('min-gamle', MEG, 8, 90_000),
+  ]
+  const self = { userId: MEG, correctAnswers: 12, totalTimeMs: 60_000, isTeam: false }
+
+  const org = kall({ field, self, orgMemberIds: ELKJOP })
+  const globalt = kall({ field, self })
+  assert.equal(org.kind, 'plassering')
+  assert.equal(globalt.kind, 'plassering')
+  if (org.kind !== 'plassering' || globalt.kind !== 'plassering') return
+  assert.deepEqual(org.previous, { rank: 3, correctAnswers: 8 })
+  assert.deepEqual(globalt.previous, { rank: 6, correctAnswers: 8 })
+})
+
+test('previous: blokkert spiller over henne er ute også av det gamle tallet', () => {
+  // Paritet med resultatlisten: er noen filtrert bort der, er de filtrert bort
+  // her. Ellers ville «står i dag med 3. plass» ikke stemt med listen hun kan
+  // åpne — og etterprøvbarheten er hele grunnen til at tallet kan vises.
+  const field = [
+    rad('a', 'anne', 15, 40_000),
+    rad('blokkert', 'user-skjult', 14, 45_000),
+    rad('min-gamle', MEG, 12, 70_000),
+  ]
+  const self = { userId: MEG, correctAnswers: 11, totalTimeMs: 80_000, isTeam: false }
+
+  const utenBlokkert = kall({ field, self, blockedUserIds: new Set(['user-skjult']) })
+  const medBlokkert = kall({ field, self })
+  assert.equal(utenBlokkert.kind, 'plassering')
+  assert.equal(medBlokkert.kind, 'plassering')
+  if (utenBlokkert.kind !== 'plassering' || medBlokkert.kind !== 'plassering') return
+  assert.deepEqual(utenBlokkert.previous, { rank: 2, correctAnswers: 12 })
+  assert.deepEqual(medBlokkert.previous, { rank: 3, correctAnswers: 12 })
 })

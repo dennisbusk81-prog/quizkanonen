@@ -24,10 +24,38 @@
 // Begge er sanne utsagn om «slik ville du havnet» — men de er ULIKE utsagn,
 // og forskjellen skal ikke skjules bak samme setning.
 
+// ── «STÅR I DAG», IKKE «DU FIKK» ────────────────────────────────────────────
+// `previous` er spillerens eget gamle resultat på originalquizen — men det er
+// en REKONSTRUKSJON, ikke et minne. Den er beviselig lik dagens
+// /api/leaderboard/[kilde-id] (samme rankQuizAttempts, samme opsjoner, samme
+// blokkert-filter), men to ting kan ha flyttet den siden den fredagen: rader
+// kan være slettet (tre hard-delete-ruter, GDPR-sletting inkludert), og
+// fasiten kan være rettet (correct-answer skriver om correct_answers).
+//
+// Setningen sier derfor «står i dag med», ikke «du fikk». Den påstår ikke hva
+// hun så — den peker på en liste hun kan åpne og verifisere, og som per
+// konstruksjon viser nøyaktig dette tallet. Full begrunnelse og den forkastede
+// season_scores-kilden: se ArchivePreviousResult i lib/archive-placement.ts.
+//
+// NØYTRALT MED VILJE: ingen differanse mot dagens runde, ingen pil, ingen
+// fargekoding, ingen påstand om utvikling. Bare tallet. Å regne «3 bedre enn
+// sist» ville dessuten målt HUKOMMELSE, ikke ferdighet — samme feilklasse som
+// hele spøkelsesplasseringen er bygget for å unngå (se filhodet i
+// lib/archive-placement.ts).
+
+import { pluralNo } from './plural-no'
+
+export type ArchivePreviousResultView = {
+  rank: number
+  correctAnswers: number
+}
+
 export type ArchivePlacement = {
   rank: number
   total: number
   selfWasInField: boolean
+  /** Eget gamle resultat. null = deltok ikke, ELLER svaret manglet feltet. */
+  previous: ArchivePreviousResultView | null
   scope: 'org' | 'global'
 }
 
@@ -70,6 +98,7 @@ export function parseArchivePlacementResponse(
     rank?: unknown
     total?: unknown
     selfWasInField?: unknown
+    previous?: unknown
     scope?: unknown
   }
   // Talljekk, ikke bare truthy: rank/total er det eneste flaten viser, og et
@@ -82,8 +111,28 @@ export function parseArchivePlacementResponse(
     rank: p.rank,
     total: p.total,
     selfWasInField: p.selfWasInField === true,
+    previous: parsePrevious(p.previous),
     scope: p.scope === 'org' ? 'org' : 'global',
   }
+}
+
+/**
+ * `previous` er et TILLEGG, ikke et krav. Mangler eller er ødelagt → null, og
+ * kortet viser setningen uten tillegget. Aldri `{ kind: 'feil' }`.
+ *
+ * Dette er ikke pynt. En fane som sto åpen over deployen har et svar UTEN
+ * feltet i det hele tatt; ble det tolket som feil, mistet hun hele
+ * plasseringskortet fordi en tilleggssetning manglet. Samme retning som
+ * `== null`-regelen for bufrede svar: et gammelt skjema skal degradere, ikke
+ * felle flaten.
+ */
+function parsePrevious(raw: unknown): ArchivePreviousResultView | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const v = raw as { rank?: unknown; correctAnswers?: unknown }
+  // Begge må være tall, ellers vises ingenting: en halv setning («står i dag
+  // med undefined riktige») er verre enn ingen setning.
+  if (typeof v.rank !== 'number' || typeof v.correctAnswers !== 'number') return null
+  return { rank: v.rank, correctAnswers: v.correctAnswers }
 }
 
 /**
@@ -98,10 +147,21 @@ export function archivePlacementText(
 ): { kontekst: string; forklaring: string } {
   const hvor =
     p.scope === 'org' ? `hos ${orgName ?? 'bedriften din'}` : 'i hele feltet den uken'
+  if (!p.selfWasInField) {
+    return {
+      kontekst: `av ${p.total} deltakere ${hvor}`,
+      forklaring:
+        'Du deltok ikke da quizen gikk — plasseringen viser hvor du ville havnet med denne runden i feltet.',
+    }
+  }
+  // Deltok. Tillegget krever `previous`; mangler det (gammelt svar fra en fane
+  // som sto åpen over deployen), står setningen som før — uten tillegg.
+  const deltok =
+    'Du deltok også da quizen gikk — denne runden er målt mot det samme feltet, med det gamle resultatet ditt holdt utenfor.'
   return {
     kontekst: `av ${p.total} deltakere ${hvor}`,
-    forklaring: p.selfWasInField
-      ? 'Du deltok også da quizen gikk — denne runden er målt mot det samme feltet, med det gamle resultatet ditt holdt utenfor.'
-      : 'Du deltok ikke da quizen gikk — plasseringen viser hvor du ville havnet med denne runden i feltet.',
+    forklaring: p.previous
+      ? `${deltok} På resultatlisten for den quizen står du i dag med ${p.previous.correctAnswers} ${pluralNo(p.previous.correctAnswers, 'riktig', 'riktige')} og ${p.previous.rank}. plass.`
+      : deltok,
   }
 }
