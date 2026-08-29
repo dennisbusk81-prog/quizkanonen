@@ -4925,6 +4925,17 @@ export default function QuizPage() {
                 // /slik-fungerer-det sier det selv. Dette er det Premium
                 // faktisk gir der (server-gatet siden 9651416).
                 'Din nøyaktige plass på sesongtopplisten — med søk og bla',
+                // Arkivet, lagt til her fordi dette er den ENESTE flaten med
+                // ren `isLoggedIn && !isPremium`-gate — altså den presise
+                // konverteringsmålgruppen. Ordlyd fra app/arkiv/page.tsx.
+                //
+                // Dette er et KULEPUNKT, ikke en CTA: det legger ingen ny
+                // lenke til flaten, og rører derfor verken `premium_cta_vist`
+                // (effekten ved linje ~1607) eller `premium_cta_klikk` på
+                // <a href="/premium"> under. Advarselen i kommentaren rett
+                // nedenfor gjelder CTA-er som kan telles dobbelt — et punkt i
+                // en liste som allerede rendres kan ikke det.
+                'Arkivet — spill tidligere quizer og se hvilken plass du ville fått',
               ].map(txt => (
                 <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
