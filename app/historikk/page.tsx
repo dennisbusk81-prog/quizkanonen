@@ -1106,15 +1106,34 @@ export default function HistorikkPage() {
                   {arkivLoadingMore ? 'Laster...' : 'Last inn flere'}
                 </button>
               )}
-
-              {/* Veien tilbake til kilden for radene over ([ARK-1] steg 1C). */}
-              <p style={{ fontSize: 12, margin: '10px 0 0' }}>
-                <Link href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
-                  Spill flere fra arkivet →
-                </Link>
-              </p>
             </>
           )}
+
+          {/* Veien til arkivet. STÅR UTENFOR `arkiv.length > 0` MED VILJE
+              (29. august 2026) — inne i den var lenken en lukket sløyfe: den
+              eneste inngangen til arkivet fra denne siden, synlig kun for den
+              som allerede hadde funnet arkivet en annen vei. Den kunne aldri
+              være noens første møte med funksjonen, som er nettopp det en
+              inngang skal kunne være.
+
+              LISTEN over arkivforsøk blir stående bak vakten: et seksjonshode
+              med null rader er støy. Det er kun DØRA som alltid vises.
+
+              Teksten bøyes fordi «flere» er en påstand om brukerens historikk,
+              ikke om arkivet: uten et eneste arkivforsøk er «Spill flere» rett
+              og slett usant. Samme sannhetskrav som markedsføringspunktene i
+              samme runde. `arkiv.length` er 0 også når hentingen FEILET, og da
+              er den nøytrale teksten fortsatt riktig — den inviterer, den
+              påstår ingenting om hva brukeren har spilt. `arkivFeilet`-linja
+              under sier selv fra om at vi ikke fikk hentet radene.
+
+              Vakten mot at lenken havner tilbake i betingelsen står i
+              lib/historikk-arkivlenke-wiring.test.ts. */}
+          <p style={{ fontSize: 12, margin: '10px 0 0' }}>
+            <Link href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+              {arkiv.length > 0 ? 'Spill flere fra arkivet →' : 'Spill en tidligere quiz fra arkivet →'}
+            </Link>
+          </p>
 
           {/* Feil er ikke tomt: en mislykket arkiv-henting sier «vet ikke»
               i stedet for å skjule seksjonen stille. */}
