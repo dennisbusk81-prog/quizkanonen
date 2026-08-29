@@ -75,6 +75,8 @@ const s = {
   page:         { maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' },
   centered:     { minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   centeredText: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' as const },
+  // Samme form som «Prøv igjen»-knappen på org-admin-panelets vinnerkort.
+  retryBtn: { fontSize: 12, padding: '6px 14px', border: '1px solid #2a2d38', borderRadius: 6, background: 'transparent', color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" },
 
   header:   { padding: '48px 0 36px', textAlign: 'center' as const },
   back:     { display: 'inline-block', fontSize: 12, color: '#e8e4dd', textDecoration: 'none', marginBottom: 20, letterSpacing: '0.04em' },
@@ -243,6 +245,10 @@ export default function LeaderboardPage() {
   // hentes i egen effekt under.
   const [internalSolo, setInternalSolo] = useState<{ rank: number | null; total: number } | null>(null)
   const [fetchError, setFetchError] = useState(false)
+  // Retry for hovedlasten: bumpes av «Prøv igjen» på feilskjermen. Knappen
+  // nuller også listFetchKeyRef — paritetsvakten i effekten ville ellers
+  // kortsluttet et nytt forsøk med samme identitet.
+  const [fetchAttempt, setFetchAttempt] = useState(0)
   const [shareCopied, setShareCopied] = useState(false)
   const [challengeCopied, setChallengeCopied] = useState(false)
   // Fix 3: store timer ref so it can be cleared on unmount
@@ -286,6 +292,13 @@ export default function LeaderboardPage() {
   const [browseSearch, setBrowseSearch]           = useState('')
   const [browseData, setBrowseData]   = useState<{ entries: LbEntry[]; totalCount: number; userRank: number | null } | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
+  // Feil er ikke tomt (lib/fetch-result.ts): fram til 29. august 2026 kollapset
+  // både !res.ok og catch til browseData=null, som renderBrowseList leste som
+  // «Ingen resultater.» — en faktapåstand om et søk/en side vi aldri fikk svar
+  // på. Feilen har egen state; browseAttempt er retry-knappens vei til å
+  // re-kjøre henteeffekten (samme form som hentForsok i app/arkiv/page.tsx).
+  const [browseError, setBrowseError] = useState(false)
+  const [browseAttempt, setBrowseAttempt] = useState(0)
 
   // «Begge tall»: org-medlemmer i en org som deltar åpent får det interne
   // tallet i tillegg til det offentlige i hero-kortet. Egen effekt (ikke i
@@ -411,7 +424,11 @@ export default function LeaderboardPage() {
         // gjester, 10 for gratis, 50 for Premium/org.
         const [{ data: quizData, error: e1 }, soloRes] = await Promise.all([
           supabaseData.from('quizzes').select('*').eq('id', quizId).single(),
-          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}${guestQS}`, { headers: authHeader }).then(r => r.ok ? r.json() : null),
+          // Feil er ikke tomt: et !ok-svar her ble til soloRes=null → attempts=[]
+          // → «Ingen resultater ennå» — en faktapåstand om en liste vi aldri
+          // fikk. Kastet lander i catch under, som setter fetchError (ekte
+          // feilskjerm med retry) i stedet.
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}${guestQS}`, { headers: authHeader }).then(r => { if (!r.ok) throw new Error(`leaderboard-listen svarte ${r.status}`); return r.json() }),
         ])
         if (e1) throw e1
         setQuiz(quizData)
@@ -484,7 +501,7 @@ export default function LeaderboardPage() {
     }
     fetchData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizId, orgSlug, sessionIdentity, orgScopeUpgradeRequested])
+  }, [quizId, orgSlug, sessionIdentity, orgScopeUpgradeRequested, fetchAttempt])
 
   useEffect(() => {
     try {
@@ -683,6 +700,7 @@ export default function LeaderboardPage() {
     setBrowseSearchInput('')
     setBrowseSearch('')
     setBrowseData(null)
+    setBrowseError(false)
   }, [activeTab])
 
   // Debounce søkefelt → browseSearch. Tomt søk på side 1 = tilbake til klassisk.
@@ -704,15 +722,20 @@ export default function LeaderboardPage() {
     if (activeTab !== 'alle') return
     let cancelled = false
     setBrowseLoading(true)
+    // Nytt forsøk (side, søk eller retry-knapp): feilen viker for en synlig
+    // «prøver»-tilstand (Laster…), ikke for ingenting — lib/retry-affordance.ts.
+    setBrowseError(false)
     const headers: Record<string, string> = {}
     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
     let url = `/api/leaderboard/${quizId}?is_team=false&page=${browsePage}`
     if (browseSearch) url += `&search=${encodeURIComponent(browseSearch)}`
     if (orgSlug) url += `&org=${encodeURIComponent(orgSlug)}`
     fetch(url, { headers })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => { if (!cancelled) setBrowseData(j ? { entries: j.entries ?? [], totalCount: j.totalCount ?? 0, userRank: j.userRank ?? null } : null) })
-      .catch(() => { if (!cancelled) setBrowseData(null) })
+      // Feil er ikke tomt: !ok kastes hit til catch i stedet for å kollapse
+      // til null — null ble lest som «Ingen resultater.» i renderBrowseList.
+      .then(r => { if (!r.ok) throw new Error(`browse-listen svarte ${r.status}`); return r.json() })
+      .then(j => { if (!cancelled) setBrowseData({ entries: j.entries ?? [], totalCount: j.totalCount ?? 0, userRank: j.userRank ?? null }) })
+      .catch(() => { if (!cancelled) setBrowseError(true) })
       .finally(() => { if (!cancelled) setBrowseLoading(false) })
     return () => { cancelled = true }
   // Hele session-OBJEKTET som dep er trygt HER, i motsetning til /premium,
@@ -722,7 +745,7 @@ export default function LeaderboardPage() {
   // seg (lastSessionIdentityRef) — så samme logiske sesjon gir aldri to ULIKE
   // referanser. Vurdert 12. august 2026 og bevisst latt stå; effekten er
   // dessuten gatet på browseMode, som er av ved mount.
-  }, [browseMode, activeTab, browsePage, browseSearch, quizId, session, orgSlug])
+  }, [browseMode, activeTab, browsePage, browseSearch, quizId, session, orgSlug, browseAttempt])
 
   // Activate podium animation when quiz is closed and data is loaded
   useEffect(() => {
@@ -800,8 +823,25 @@ export default function LeaderboardPage() {
   if (!quiz) return (
     <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
       <p style={s.centeredText}>
-        {fetchError ? 'Noe gikk galt. Prøv å laste siden på nytt.' : 'Fant ikke quizen.'}
+        {fetchError ? 'Kunne ikke laste resultatene.' : 'Fant ikke quizen.'}
       </p>
+      {fetchError && (
+        /* En ekte retry, ikke en beskjed om å laste siden på nytt: nuller
+           paritetsnøkkelen (ellers kortslutter effektens vakt et forsøk med
+           samme identitet), eier loading selv (samme form som retry-knappen i
+           app/arkiv/page.tsx) og re-kjører henteeffekten via fetchAttempt. */
+        <button
+          onClick={() => {
+            listFetchKeyRef.current = null
+            setFetchError(false)
+            setLoading(true)
+            setFetchAttempt(n => n + 1)
+          }}
+          style={s.retryBtn}
+        >
+          Prøv igjen
+        </button>
+      )}
       <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
     </div>
   )
@@ -1131,6 +1171,16 @@ export default function LeaderboardPage() {
   }
 
   function renderBrowseList() {
+    // Feilet henting FØR tom-grenene: «Ingen resultater.» er en faktapåstand
+    // og skal kun stå når serveren faktisk svarte med en tom liste.
+    if (browseError) {
+      return (
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <p style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 10 }}>Kunne ikke hente resultatene.</p>
+          <button onClick={() => setBrowseAttempt(n => n + 1)} style={s.retryBtn}>Prøv igjen</button>
+        </div>
+      )
+    }
     if (browseLoading && !browseData) {
       return <p style={{ fontSize: 13, color: '#918f8a', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>Laster…</p>
     }

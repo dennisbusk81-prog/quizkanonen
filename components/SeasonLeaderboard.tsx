@@ -18,6 +18,7 @@ import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { decidePlacementDisplay, globalExclusionReason } from '@/lib/placement-visibility'
 import { withTimeout } from '@/lib/with-timeout'
 import { decideSessionCheck } from '@/lib/session-check'
+import { shouldFetchExpanded } from '@/lib/expanded-history-state'
 
 // Sikkerhetsventil mot auth-lås-konflikt i getSession() — samme verdi og samme
 // begrunnelse som AuthListener.tsx: oppslaget leser normalt cookie/localStorage
@@ -305,6 +306,8 @@ const s = {
   expandedName:  { fontSize: 13, color: '#e8e4dd', flex: 1, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   expandedScore: { fontSize: 13, fontWeight: 600, color: '#c9a84c', flexShrink: 0 },
   expandedSpin:  { padding: '12px 0', fontSize: 12, color: '#e8e4dd', textAlign: 'center' as const },
+  // Samme form som «Prøv igjen»-knappen på org-admin-panelets vinnerkort.
+  retryBtn:      { fontSize: 11, padding: '4px 12px', border: '1px solid #2a2d38', borderRadius: 6, background: 'transparent', color: '#e8e4dd', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif" },
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -396,7 +399,16 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const expandedKey                     = searchParams.get('histKey')
   const [histData, setHistData]         = useState<HistoryEntry[] | null>(null)
   const [histLoading, setHistLoading]   = useState(false)
-  const [expandedData, setExpandedData] = useState<Map<string, ExpandedEntry[] | 'loading'>>(new Map())
+  // Feil er ikke tomt (lib/fetch-result.ts): en feilet henting skal hverken
+  // skrives inn i histData (som en tom liste som RENDRES som «ingen perioder»)
+  // eller cache seg fast (histData !== null-guarden i loadHistory ville aldri
+  // hentet på nytt). Feilen bor derfor i en egen state, og histData forblir
+  // null — «vet ikke» — så «Prøv igjen» faktisk kan lykkes.
+  const [histError, setHistError]       = useState(false)
+  // 'error' i cachen: se lib/expanded-history-state.ts — en feilet henting
+  // caches som FEIL, ikke som en tom liste, og guarden i fetchExpanded slipper
+  // den gjennom til nytt forsøk.
+  const [expandedData, setExpandedData] = useState<Map<string, ExpandedEntry[] | 'loading' | 'error'>>(new Map())
 
   // ── H2H Duell ("Utfordre") ──────────────────────────────────────────────────
   const [challengeLoadingId, setChallengeLoadingId] = useState<string | null>(null)
@@ -585,6 +597,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // over nullstiller dem allerede eksplisitt ved fanebytte.
   useEffect(() => {
     setHistData(null)
+    setHistError(false)
     setExpandedData(new Map())
     setBrowseMode(false)
     setPageNo(1)
@@ -596,6 +609,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const loadHistory = useCallback(async () => {
     if (histData !== null || period === 'alltime') return
     setHistLoading(true)
+    // Nullstilles ETTER guarden: et no-op-kall skal ikke viske ut en stående
+    // feil. Mens forsøket pågår viser histLoading «Laster…» — feilteksten
+    // erstattes av en synlig «prøver»-tilstand, ikke av ingenting
+    // (lib/retry-affordance.ts-regelen).
+    setHistError(false)
     try {
       let url = `/api/toppliste/history?period=${period}&scope=${scope}`
       if (scopeId) url += `&scope_id=${encodeURIComponent(scopeId)}`
@@ -606,10 +624,13 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         const json = await res.json()
         setHistData(json.entries ?? [])
       } else {
-        setHistData([])
+        // Feil er ikke tomt: histData forblir null («vet ikke»), så guarden
+        // over slipper et nytt forsøk gjennom og skjermen sier «fikk ikke
+        // hentet» i stedet for å påstå at ingen perioder finnes.
+        setHistError(true)
       }
     } catch {
-      setHistData([])
+      setHistError(true)
     } finally {
       setHistLoading(false)
     }
@@ -633,7 +654,10 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // (loadExpanded under) og automatisk når ?histKey= finnes i URL-en ved
   // mount/direktelast (effekten rett under).
   async function fetchExpanded(key: string) {
-    if (expandedData.has(key)) return
+    // Ikke has(): en 'error'-verdi skal IKKE regnes som hentet — det var den
+    // formen som cachet en feilet henting permanent, så «Ingen data for denne
+    // perioden» sto til siden ble lastet på nytt. Se lib/expanded-history-state.ts.
+    if (!shouldFetchExpanded(expandedData.get(key))) return
     setExpandedData(prev => new Map(prev).set(key, 'loading'))
     try {
       const range = getPeriodRange(key, period as 'month' | 'quarter' | 'year')
@@ -650,7 +674,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       }))
       setExpandedData(prev => new Map(prev).set(key, entries))
     } catch {
-      setExpandedData(prev => new Map(prev).set(key, []))
+      // Feil er ikke tomt: en tom liste her ville rendres som «Ingen data for
+      // denne perioden» — en faktapåstand — og bli sittende i cachen.
+      setExpandedData(prev => new Map(prev).set(key, 'error'))
     }
   }
 
@@ -1001,6 +1027,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           <div style={s.expandedWrap}>
             {expanded === 'loading' ? (
               <div style={s.expandedSpin}>Laster…</div>
+            ) : expanded === 'error' ? (
+              /* Tom-teksten i grenen under ville vært en påstand om at ingen
+                 spilte. Vi vet ikke — hentingen feilet. Knappen går tilbake
+                 via fetchExpanded, som slipper 'error' gjennom. */
+              <div style={s.expandedSpin}>
+                <span style={{ display: 'block', marginBottom: 8 }}>Kunne ikke hente topplisten for perioden.</span>
+                <button onClick={() => fetchExpanded(entry.key)} style={s.retryBtn}>Prøv igjen</button>
+              </div>
             ) : expanded.length === 0 ? (
               <div style={s.expandedSpin}>Ingen data for denne perioden</div>
             ) : (
@@ -1031,6 +1065,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           <div style={s.histBody}>
             {histLoading ? (
               <div style={s.histEmpty}>Laster…</div>
+            ) : histError ? (
+              /* Feilet henting foreslår, ikke låser: ingen påstand om at
+                 perioder mangler. loadHistory kan lykkes fordi histData
+                 fortsatt er null. */
+              <div style={s.histEmpty}>
+                <span style={{ display: 'block', marginBottom: 8 }}>Kunne ikke hente tidligere perioder.</span>
+                <button onClick={() => loadHistory()} style={s.retryBtn}>Prøv igjen</button>
+              </div>
             ) : !histData || histData.length === 0 ? (
               <div style={s.histEmpty}>Ingen avsluttede perioder ennå — kom tilbake om en stund</div>
             ) : (
