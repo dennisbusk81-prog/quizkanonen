@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
+import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 
 // Retention-beregningen, delt av /api/admin/retention (tabellen på
 // /admin/retention) og /api/admin/dashboard (kortet + grafen).
@@ -97,21 +98,57 @@ export async function fetchRetentionRows(): Promise<RetentionRow[]> {
   // opp»-markøren (satt av award-season-points, se lib/award-season-points.ts)
   // — IKKE en closes_at-datosammenligning. Dennis planlegger quizer flere uker
   // fram, så en ren dato-sjekk ville tatt med alle de kommende, uspilte
-  // radene. season_points_awarded unngår også testquiz-fallgruven: is_test
-  // filtreres i tillegg, samme prinsipp som app/quizer/page.tsx.
-  const { data: quizzes, error: quizErr } = await supabaseAdmin
+  // radene. Leddet BEHOLDES: det er en egen betingelse («gjort opp»), ikke en
+  // erstatning for populasjonsfilteret under.
+  //
+  // POPULASJONEN kommer derimot fra onlyRealQuizzes. Her sto tidligere
+  // `.eq('is_test', false)`, med to hull:
+  //
+  //   1. INGEN quiz_type-VAKT. En arkivquiz får `is_test = false` satt
+  //      EKSPLISITT (lib/archive-copy.ts:201), så is_test-leddet slapp den
+  //      GJENNOM. Det eneste som holdt treningsrunder ute av retention-tallet
+  //      var at `season_points_awarded` sto på DB-defaulten false — altså en
+  //      VERDI ingen har bestemt skal være en vakt. Gjør noe en arkivquiz opp
+  //      (en gjenbrukt kodesti, en manuell retting, en framtidig arkiv-XP),
+  //      begynner treningsrunder å telle i oppslutningskurven uten at én linje
+  //      her er endret. Samme feilklasse som i /api/rivalries/my, der
+  //      `closes_at IS NULL` var den tilfeldige vakten.
+  //   2. `.eq('is_test', false)` matcher IKKE `is_test IS NULL`, og kolonnen er
+  //      nullable — filteret var altså ikke engang totalt for testquizer.
+  //      Husformen `.not('is_test', 'is', true)` dekker både false og NULL, og
+  //      ligger allerede i helperen.
+  //
+  // Målt mot prod 29. august 2026: 11 quizer før OG etter — retention-tallet
+  // Dennis har lest på /admin/retention og dashboardet er UENDRET, og
+  // historiske avlesninger er fortsatt sammenlignbare. Motprøve
+  // `quiz_type=in.(archive)` → 0 (filteret binder faktisk).
+  //
+  // FORM: spørringen i lokal variabel, helperen påført etterpå — inlinet
+  // argument gir `next build` TS2589 på lange byggerkjeder.
+  const retentionQuizQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, opens_at, closes_at')
     .not('opens_at', 'is', null)
     .eq('season_points_awarded', true)
-    .eq('is_test', false)
     .order('opens_at', { ascending: true })
+
+  const { data: quizzes, error: quizErr } = await onlyRealQuizzes(retentionQuizQuery)
 
   if (quizErr) throw new Error(quizErr.message)
 
   // Denne listen vokser monotont over hele historikken (nullstilles aldri) og
   // passerte PostgREST sin stille 1000-rads-grense innen rekkevidde — derfor
   // paginert full henting i stedet for ett enkelt .select().
+  //
+  // BEVISST UTEN onlyRealQuizAttempts: computeRetention slår KUN opp
+  // `playersByQuiz.get(quiz.id)` for quizer som står i listen over — både for
+  // `players` og for forgjengeren `prev`. En attempt på en arkiv- eller
+  // testquiz havner i kartet under en id ingen spør etter, og teller derfor
+  // ikke i noen teller eller nevner. Et `quizzes!inner(id)`-embed her ville
+  // lagt en join på hver side av en paginert fullhenting over HELE
+  // attempt-historikken uten å endre ett eneste tall. Quiz-listen er gaten;
+  // byttes den ut mot noe som ikke avgrenser populasjonen, må vakten inn her
+  // i samme endring.
   const attempts = await fetchAllRows<RetentionAttempt>((from, to) =>
     supabaseAdmin
       .from('attempts')
