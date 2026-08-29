@@ -189,14 +189,25 @@ const start = () =>
     body: JSON.stringify({ quizId: QUIZ, playerName: 'Anna' }),
   }) as never)
 
-const fetchQuestion = () =>
-  questions(
+const fetchQuestion = () => {
+  // createAttemptToken returnerer `string | null` — null når signeringsnøkkelen
+  // mangler. Nøkkelen settes øverst i fila, så grenen er uoppnåelig her, men
+  // den skal KASTE, ikke falle tilbake på ''. Et tomt token er ikke «samme
+  // token uten nøkkel»; det er en TOKEN-LØS forespørsel, og questions-ruten
+  // avviser den på et helt annet grunnlag enn is_active-vakten denne fila
+  // tester. Testene ville da vært grønne av feil grunn — nøyaktig samme
+  // feilklasse som M4/M5 i toppkommentaren, der en for sjenerøs mock lot
+  // rutene bestå uten å gjøre det de skulle.
+  const token = createAttemptToken(ATTEMPT, QUIZ)
+  assert.ok(token, 'createAttemptToken ga null — er QUIZ_TOKEN_SECRET fjernet fra toppen av fila?')
+  return questions(
     new Request(
       `https://quizkanonen.no/api/quiz/${QUIZ}/questions?index=0&attemptId=${ATTEMPT}`,
-      { headers: { 'x-attempt-token': createAttemptToken(ATTEMPT, QUIZ) } },
+      { headers: { 'x-attempt-token': token } },
     ) as never,
     { params: Promise.resolve({ id: QUIZ }) } as never,
   )
+}
 
 beforeEach(() => {
   state.quizIsActive = true
