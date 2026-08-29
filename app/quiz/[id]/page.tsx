@@ -4138,46 +4138,18 @@ export default function QuizPage() {
           { val: String(streak), label: 'Streak' },
         ].map(({ val, label }) => (
           <div key={label} style={{background:'#21242e',border:'0.5px solid #2a2d38',borderRadius:10,padding:'8px 4px',textAlign:'center'}}>
-            <div style={{fontSize:14,fontWeight:500,color:'#c9a84c',lineHeight:1.2}}>{val}</div>
+            {/* HVITT, ikke gull (29. august 2026). Da kategoriblokken ble
+                flyttet ned under plasseringen, ble score-delen og
+                plasseringskortet naboer — og støtte-stats-raden ville da ligget
+                rett over et gullfarget plasseringstall. Gullet på denne
+                skjermen eies av PLASSERINGEN, som er grunnen til at man spilte;
+                støttetallene er kontekst. Gjelder begge varianter: arkivets
+                spøkelsesplassering er gull av samme grunn. */}
+            <div style={{fontSize:14,fontWeight:500,color:'#ffffff',lineHeight:1.2}}>{val}</div>
             <div style={{fontSize:8,color:'#918f8a',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:3}}>{label}</div>
           </div>
         ))}
       </div>
-
-      <div className="qk-divider"/>
-
-      {(() => {
-        // Ren beregning i lib/category-stats.ts — sørger for at summen av
-        // radene alltid er antall besvarte spørsmål (svar uten kategori samles
-        // i en egen «Uten kategori»-rad nederst i stedet for å droppes), og at
-        // «Historie » og «historie» havner i samme rad.
-        const cats = computeCategoryStats(answers, questions)
-        if (cats.length === 0) return null
-        return (
-          <div className="qk-rsec" style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10, textAlign: 'left' }}>
-              Kategorier
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {cats.map(({ category: cat, correct, total }) => {
-                const pct = Math.round((correct / total) * 100)
-                const isGood = pct >= 60
-                return (
-                  <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 12, color: '#e8e4dd', flex: 1, textAlign: 'left' }}>{cat}</span>
-                    <div style={{ width: 100, height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: isGood ? '#4ade80' : '#c94c4c', borderRadius: 4, transition: 'width 0.6s ease' }} />
-                    </div>
-                    <span style={{ fontSize: 11, color: isGood ? '#4ade80' : '#c94c4c', fontWeight: 600, width: 36, textAlign: 'right', flexShrink: 0 }}>
-                      {correct}/{total}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })()}
 
       {/* ── Spøkelsesplasseringen — «slik ville du havnet den uken» ──────────
           Arkivets ENESTE rangeringsflate, målt mot det FROSNE feltet fra
@@ -4186,9 +4158,15 @@ export default function QuizPage() {
             'ingen' — førsteklasses tilstand, normalen for genererte quizer
                       («ingen plassering finnes», én tekst for alle grunnene)
             'feil'  — «vet ikke», med Prøv igjen — aldri forkledd som 'ingen'
-          Tallet er HVITT, ikke gull — score-heroen over eier ikke gull, men
-          støtte-stats-raden gjør (samme regel som Rekorder-kortet på
-          /historikk: tall i hvitt når skjermen alt har gull). */}
+          Tallet er GULL (endret 29. august 2026). Fram til da var det hvitt,
+          begrunnet med at støtte-stats-raden over eide skjermens ene gullflate.
+          Den begrunnelsen falt bort i samme runde: kategoriblokken ble flyttet
+          ned under plasseringen, og støtte-stats-verdiene ble hvite nettopp for
+          å frigjøre gullet hit. Plasseringen er grunnen til at man spilte —
+          den skal eie gullet, ikke Score/Tid/Streak.
+          Merk: den gullfylte «Til arkivet»-primærknappen nederst i CTA-blokken
+          er skjermens andre gullflate. Antallet er uendret av denne runden
+          (før: stats + knapp), men paret er ikke løst — se rapporten. */}
       {isArchive && (() => {
         const kort = (innhold: ReactNode) => (
           <div className="qk-rsec" style={{
@@ -4248,7 +4226,7 @@ export default function QuizPage() {
         const tekst = archivePlacementText(arkivPlassering, orgNavn)
         return kort(
           <>
-            <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 34, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>
+            <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 34, fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>
               {arkivPlassering.rank}.<span style={{ fontSize: 18, color: '#918f8a', fontWeight: 400 }}> plass</span>
             </div>
             <div style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8 }}>
@@ -4607,6 +4585,41 @@ export default function QuizPage() {
             }}>
               Oppgrader til Premium for å se nøyaktig plassering →
             </a>
+          </div>
+        )
+      })()}
+
+      <div className="qk-divider"/>
+
+      {(() => {
+        // Ren beregning i lib/category-stats.ts — sørger for at summen av
+        // radene alltid er antall besvarte spørsmål (svar uten kategori samles
+        // i en egen «Uten kategori»-rad nederst i stedet for å droppes), og at
+        // «Historie » og «historie» havner i samme rad.
+        const cats = computeCategoryStats(answers, questions)
+        if (cats.length === 0) return null
+        return (
+          <div className="qk-rsec" style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 10, textAlign: 'left' }}>
+              Kategorier
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cats.map(({ category: cat, correct, total }) => {
+                const pct = Math.round((correct / total) * 100)
+                const isGood = pct >= 60
+                return (
+                  <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: '#e8e4dd', flex: 1, textAlign: 'left' }}>{cat}</span>
+                    <div style={{ width: 100, height: 4, background: '#2a2d38', borderRadius: 4, overflow: 'hidden', flexShrink: 0 }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: isGood ? '#4ade80' : '#c94c4c', borderRadius: 4, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: isGood ? '#4ade80' : '#c94c4c', fontWeight: 600, width: 36, textAlign: 'right', flexShrink: 0 }}>
+                      {correct}/{total}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )
       })()}
