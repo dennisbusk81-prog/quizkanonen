@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, ReactNode } from 'react'
+import { logClientError } from '@/lib/client-error'
 
 interface Props { children: ReactNode }
 interface State { crashed: boolean }
@@ -12,8 +13,12 @@ export default class ErrorBoundary extends Component<Props, State> {
     return { crashed: true }
   }
 
+  // En error boundary STOPPER feilen fra å nå window.onerror, så
+  // GlobalHandlers-integrasjonen ser den aldri. Uten linja under er en full
+  // render-krasj i denne komponenten usynlig for Dennis — og den er montert 12
+  // steder: forsiden ×5, quiz-siden, /historikk, /arkiv, /toppliste.
   componentDidCatch(error: Error) {
-    console.error('[ErrorBoundary]', error)
+    logClientError('error-boundary', error)
   }
 
   render() {
