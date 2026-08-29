@@ -1965,6 +1965,13 @@ export default async function Home() {
                   // «hvert spørsmål» var usant — ruten leverer bevisst 2+2
                   // (sikkerhetsbeslutning 26. juli); ordlyd fra /leaderboard/[id].
                   'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
+                  // Arkivet. Denne lista er ord for ord den samme som FEATURES
+                  // i app/premium/page.tsx, og 7e5160b rettet begge i samme
+                  // runde — de skal holdes identiske, ellers drifter de.
+                  // Derfor står sesong-parentesen også her: kortet er
+                  // «Dette får du med Premium», vist til premiumLocked, altså
+                  // samme løfte til samme publikum som salgssiden gir.
+                  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
                 ] as const).map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 2, flexShrink: 0 }}>

@@ -212,6 +212,12 @@ export default function SlikFungererDetPage() {
                   // «hvert spørsmål» var usant — ruten leverer bevisst 2+2
                   // (sikkerhetsbeslutning 26. juli); ordlyd fra /leaderboard/[id].
                   'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
+                  // Ordlyd fra app/arkiv/page.tsx, flatens egen sanne tekst.
+                  // Kortere enn punktet på /premium med vilje: kolonnen her er
+                  // 13px og står ved siden av gratis-kolonnen, så «spill
+                  // tidligere quizer» må bære forskjellen alene — gratis ser
+                  // hele arkivlista, men kan ikke spille den.
+                  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <span style={{ color: '#c9a84c', flexShrink: 0, marginTop: 1 }}>✓</span>

@@ -28,6 +28,15 @@ const FEATURES = [
   // answer-distribution/route.ts). Samme ordlyd som svarfordeling-seksjonen
   // på /leaderboard/[id] allerede bruker.
   'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
+  // Arkivet ble bygget 27. august ([ARK-1]) og var fram til nå ikke nevnt i
+  // NOEN markedsføringstekst — hverken her, på /slik-fungerer-det eller i
+  // oppsalgspanelet på resultatskjermen. Ordlyden er hentet fra flatens egen
+  // tekst i app/arkiv/page.tsx, som allerede sier det sant: «som trening»,
+  // «teller ikke i sesongen», «hvilken plass du ville fått den uken».
+  // Sesong-forbeholdet står MED i punktet, ikke bare på flaten det gjelder —
+  // dette er salgssiden, og et arkivresultat som ikke dukker opp på
+  // topplisten ville ellers lest som en feil, ikke som funksjonen.
+  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
 ]
 
 export default function PremiumPage() {
