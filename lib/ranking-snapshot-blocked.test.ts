@@ -114,6 +114,10 @@ function call(opts: { correct?: number; time?: number; premium?: boolean } = {})
     attemptId: ATTEMPT,
   })
   const token = createAttemptToken(ATTEMPT, QUIZ, { premium })
+  // Ternæren under narrer null-typen; assert-en gjør nullen høylytt. Et
+  // token-løst kall er ikke «samme kall uten nøkkel» — premium-gaten ville
+  // skjult `rank`, og fila ville bevist feil gate uten å bli rød.
+  assert.ok(token, 'createAttemptToken ga null — er QUIZ_TOKEN_SECRET fjernet fra toppen av fila?')
   return GET(
     new Request(`https://quizkanonen.no/api/quiz/${QUIZ}/ranking-snapshot?${params}`, {
       headers: token ? { 'x-attempt-token': token } : {},

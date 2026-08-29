@@ -138,6 +138,19 @@ mock.module('@/lib/supabase-admin', {
 const { POST: submit } = await import('@/app/api/quiz/[id]/submit/route')
 const { createAttemptToken } = await import('@/lib/attempt-token')
 
+// createAttemptToken returnerer `string | null` — null når signeringsnøkkelen
+// mangler. Nøkkelen settes øverst i fila, så grenen er uoppnåelig her, men
+// formen på håndteringen betyr noe: `?? ''` kompilerer og er feil. Et tomt
+// token er ikke «samme token uten nøkkel», det er en TOKEN-LØS forespørsel,
+// og ruten avviser den på et helt annet grunnlag enn det denne fila måler.
+// Testene ville da vært grønne av feil grunn. Derfor assert: en manglende
+// signeringsnøkkel blir en høylytt feil i stedet for en stille omvei.
+function attemptToken(): string {
+  const t = createAttemptToken(ATTEMPT, QUIZ)
+  assert.ok(t, 'createAttemptToken ga null — er QUIZ_TOKEN_SECRET fjernet fra toppen av fila?')
+  return t
+}
+
 let ipTeller = 0
 const send = ({ withToken = true }: { withToken?: boolean } = {}) =>
   submit(
@@ -146,7 +159,7 @@ const send = ({ withToken = true }: { withToken?: boolean } = {}) =>
       headers: {
         'content-type': 'application/json',
         'x-forwarded-for': `198.51.100.${++ipTeller}`,
-        'x-attempt-token': createAttemptToken(ATTEMPT, QUIZ) ?? '',
+        'x-attempt-token': attemptToken(),
         ...(withToken ? { authorization: 'Bearer anna' } : {}),
       },
       body: JSON.stringify({

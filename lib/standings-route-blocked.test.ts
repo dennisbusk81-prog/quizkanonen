@@ -118,7 +118,15 @@ function call(query = '', opts: { attemptId?: string; premium?: boolean } = {}) 
   // attemptId hentes ut av query-strengen når den ikke er oppgitt eksplisitt,
   // så tokenet alltid gjelder NØYAKTIG det forsøket kallet spør om.
   const id = attemptId ?? new URLSearchParams(query).get('attemptId')
-  const token = id ? createAttemptToken(id, 'q-1', { premium }) : null
+  // `id === null` er en EKTE testinngang (kallet uten token nederst i fila).
+  // En null fra createAttemptToken betyr derimot at signeringsnøkkelen mangler,
+  // og de to må ikke se like ut: den siste ville stille gjort et premium-kall
+  // token-løst og latt premium-gaten skjule `rank` — grønt av feil grunn.
+  let token: string | null = null
+  if (id) {
+    token = createAttemptToken(id, 'q-1', { premium })
+    assert.ok(token, 'createAttemptToken ga null — er QUIZ_TOKEN_SECRET fjernet fra toppen av fila?')
+  }
   const request = new Request(
     `https://quizkanonen.no/api/quiz/q-1/standings${query ? `?${query}` : ''}`,
     token ? { headers: { 'x-attempt-token': token } } : undefined,
