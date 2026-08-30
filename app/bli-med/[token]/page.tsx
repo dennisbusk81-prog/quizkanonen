@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 import AuthForm from '@/components/AuthForm'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
 type InviteInfo = { valid: true; orgName: string; orgSlug: string } | { valid: false; error: string }
@@ -108,7 +107,6 @@ export default function BliMedPage() {
   if (!invite || !invite.valid) {
     return (
       <>
-        <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, fontWeight: 700, color: '#ffffff', marginBottom: 10 }}>
@@ -131,7 +129,6 @@ export default function BliMedPage() {
   return (
     <>
       <style>{' * { box-sizing: border-box; }'}</style>
-      <UserMenuWrapper />
       <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
         <div style={{ maxWidth: 420, width: '100%' }}>
 

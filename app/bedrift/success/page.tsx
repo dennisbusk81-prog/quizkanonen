@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import { getSessionIdentity } from '@/lib/session-identity'
 import type { Session } from '@supabase/supabase-js'
 
@@ -108,7 +107,6 @@ function SuccessContent() {
   return (
     <>
       <style>{' * { box-sizing: border-box; }'}</style>
-      <UserMenuWrapper />
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 560, margin: '0 auto', padding: '60px 20px 80px' }}>
 

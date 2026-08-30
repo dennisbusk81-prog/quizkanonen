@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import type { Session } from '@supabase/supabase-js'
 
 const STORAGE_KEY = 'qk-bedrift-pending'
@@ -215,7 +214,6 @@ export default function BedriftRegistrerPage() {
   return (
     <>
       <style>{' * { box-sizing: border-box; }'}</style>
-      <UserMenuWrapper />
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 500, margin: '0 auto', padding: '48px 20px 80px' }}>
 

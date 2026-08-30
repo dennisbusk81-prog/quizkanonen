@@ -146,7 +146,7 @@ export type NameFieldState = 'show' | 'hide' | 'pending'
  * DOKUMENTERE hvilket av dem som er lovlig å lese:
  *
  * `displayNameRaw` er den rå kolonneverdien fra profiles.display_name, som en
- * bekreftet henting. `displayName` er visningsverdien for UserMenu/NavAuth og
+ * bekreftet henting. `displayName` er visningsverdien for NavAuth og
  * har en FALLBACK TIL E-POSTENS LOKALDEL (ProfileProvider ~linje 144) — for
  * support@quizkanonen.no «heter» brukeren der support. Den duger aldri som
  * «har navn»-signal og tas imot her KUN for at testene skal kunne felle en

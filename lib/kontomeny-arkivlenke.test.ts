@@ -1,27 +1,22 @@
 // Kjøres med:  npm test
 //
-// STRUKTURELL SPERRE: at «Arkivet» står i konto-menyen i BEGGE de to
-// komponentene som implementerer den.
+// STRUKTURELL SPERRE: at «Arkivet» står i konto-menyen — nå ÉN komponent,
+// components/NavAuth.tsx (dropdownen i SiteNav-baren).
 //
 // ── HVILKEN FEIL DENNE FILEN FINNES FOR ─────────────────────────────────────
-// Konto-menyen finnes i to filer som er bevisste tvillinger:
-//   • components/NavAuth.tsx   — dropdownen i SiteNav-baren
-//   • components/UserMenu.tsx  — den globale flytende pillen
-// De har ULIKT innhold fra før (UserMenu har «Innlogget som», Premium-merket og
-// «Sesong-topplisten →»; NavAuth har ikke det), og skal ikke harmoniseres. Men
-// hver lenke som skal være en INNGANG må stå begge steder — ellers finnes den
-// bare på halvparten av sidene, avhengig av hvilken meny den siden rendrer.
+// Fram til B-30/A2 steg 2 fantes konto-menyen i to bevisste tvillinger
+// (NavAuth + UserMenu, den globale flytende pillen), og denne filen voktet at
+// arkivlenken sto i begge. UserMenu er pensjonert (steg 2) — de sju
+// elementene den hadde alene ble flyttet inn i NavAuth i steg 1 (c47b87f),
+// og nav-en er global via components/GlobalNav.tsx. MENYFILER-løkka under er
+// beholdt med vilje: får menyen noen gang en tvilling igjen, er det én
+// listelinje å legge til, og hele vakten gjelder den nye fila.
 //
 // Fram til 30. august 2026 hadde /arkiv tre innganger, og alle var dårlige:
 // /historikk (Premium-only — kan aldri være noens FØRSTE møte), /quizer (uten
 // desktop-navlenke, kun i hamburgeren som er skjult over 640px) og
 // resultatskjermen etter en arkivrunde (forutsetter at du allerede er der). En
 // uinnlogget desktop-besøkende hadde null vei inn.
-//
-// Feilen er lett å gjeninnføre: en endring gjøres i den ene tvillingen, og den
-// andre glemmes fordi den ser tilstrekkelig annerledes ut til at man ikke leter
-// etter den. Denne filen er vakten mot nettopp den halve endringen — derfor
-// kjøres HVER test over BEGGE filene, ikke over «komponenten».
 //
 // Hvorfor kildetekst-test og ikke oppførselstest: samme grunn som
 // lib/historikk-arkivlenke-wiring.test.ts og lib/sitenav-error-states.test.ts —
@@ -37,8 +32,8 @@
 // sammenligningene under er ikke avhengige av at kommentaren forsvant sporløst.
 //
 // MUTASJONSBEVIS — hver test peker på en konkret feilendring den fanger:
-//   • Lenken slettes fra ÉN av filene → «arkivlenken finnes» ryker for den
-//     fila. Dette er selve regresjonen: en halv endring.
+//   • Lenken slettes → «arkivlenken finnes» ryker. /arkiv mister da sin
+//     eneste ugatede desktop-inngang.
 //   • Lenken flyttes ut av konto-menyen (f.eks. ned til hamburgeren i NavAuth)
 //     → «står mellom Mine ligaer og Quizhistorikk» ryker.
 //   • Lenken får en Premium-lås-badge → «bærer ingen lås-markering» ryker.
@@ -51,10 +46,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-/** De to tvillingene. Begge må bestå hver eneste test under. */
+/** Filene som implementerer konto-menyen. Hver må bestå hver test under. */
 const MENYFILER = [
   'components/NavAuth.tsx',
-  'components/UserMenu.tsx',
 ] as const
 
 /**
@@ -205,8 +199,8 @@ for (const fil of MENYFILER) {
         'allerede flere gullelementer.'
     )
     // NavAuth bruker den delte `menuItem`-konstanten (som selv setter
-    // #e8e4dd); UserMenu skriver stilen inline på hver lenke. Begge formene
-    // godtas — det som felles er en lenke som har mistet brødtekstfargen.
+    // #e8e4dd); inline #e8e4dd godtas også (formen UserMenu brukte før den
+    // ble pensjonert) — det som felles er en lenke uten brødtekstfargen.
     assert.match(
       el,
       /#e8e4dd|style=\{menuItem\}/,

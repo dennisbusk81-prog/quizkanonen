@@ -72,7 +72,7 @@ interface ProfileContextValue {
   loading: boolean
   // true straks innlogget/utlogget-status er avgjort (første auth-event eller
   // timeout) — uavhengig av om profildata er ferdig hentet. Brukes av chrome
-  // (NavAuth/UserMenu) til å unngå å flashe feil innloggingstilstand.
+  // (NavAuth) til å unngå å flashe feil innloggingstilstand.
   resolved: boolean
   // Tvinger en fersk server-sjekk av premium-status og oppdaterer context.
   // Null-safe: nedgraderer ALDRI på transient feil (behold forrige verdi).
@@ -168,7 +168,7 @@ export default function ProfileProvider({ children }: { children: React.ReactNod
       // BEKREFTET svar får endre contexten. `profileRes.data?.…` leste tidligere
       // kun `.data`, så en spørringsfeil (RLS-avslag, 500, nettverksbrudd) ble
       // umulig å skille fra «raden har ikke noe navn» — og hele appen fikk da
-      // e-postens lokaldel presentert som visningsnavn i UserMenu og NavAuth.
+      // e-postens lokaldel presentert som visningsnavn i NavAuth.
       // Ved feil beholdes forrige verdi; en bruker som ser navnet sitt skal ikke
       // se det bli til «dennisbusk81» fordi en re-henting feilet.
       const nameRow = toLoadedRow<{ display_name: string | null }>(profileRes)

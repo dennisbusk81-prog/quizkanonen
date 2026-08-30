@@ -11,18 +11,21 @@ interface State {
   hasError: boolean
 }
 
-export default class UserMenuErrorBoundary extends Component<Props, State> {
+// Omdøpt fra UserMenuErrorBoundary i B-30/A2 steg 2: den wrapper nå
+// <GlobalNav /> — hele toppnavigasjonen — i app/layout.tsx. En ufanget krasj
+// i en layout-montert klientkomponent ville ellers blanket HELE appen.
+export default class NavErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false }
 
   static getDerivedStateFromError(): State {
     return { hasError: true }
   }
 
-  // Denne står i app/layout.tsx og wrapper UserMenu på HVER side. Den rendrer
+  // Denne står i app/layout.tsx og wrapper GlobalNav på HVER side. Den rendrer
   // dessuten `fallback ?? null` ved krasj — altså ingenting. Uten linja under
-  // forsvinner brukermenyen sporløst for brukeren OG for oss.
+  // forsvinner navigasjonen sporløst for brukeren OG for oss.
   componentDidCatch(error: Error) {
-    logClientError('user-menu-boundary', error)
+    logClientError('global-nav-boundary', error)
   }
 
   render() {

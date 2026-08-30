@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
 import { fetchTrialOffer } from '@/lib/trial-offer-fetch'
 import { getSessionIdentity } from '@/lib/session-identity'
@@ -249,7 +248,6 @@ export default function PremiumPage() {
 
   return (
     <>
-      <UserMenuWrapper />
       <div style={{
         minHeight: '100vh',
         background: '#1a1c23',

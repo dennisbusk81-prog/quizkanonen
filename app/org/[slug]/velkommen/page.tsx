@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase, supabaseData } from '@/lib/supabase'
-import UserMenuWrapper from '@/components/UserMenuWrapper'
 import WelcomeShell from '@/components/WelcomeShell'
 import { isOrgLocked } from '@/lib/org-access'
 import { getSessionIdentity } from '@/lib/session-identity'
@@ -313,7 +312,6 @@ export default function OrgVelkommenPage() {
   if (loadState === 'error' || !data) {
     return (
       <>
-        <UserMenuWrapper />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center', maxWidth: 380 }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
@@ -368,7 +366,6 @@ export default function OrgVelkommenPage() {
   return (
     <WelcomeShell
       styleExtra=" * { box-sizing: border-box; }"
-      nav={<UserMenuWrapper />}
       eyebrow="Kom i gang"
       title={<>Velkommen, {data.org.name}</>}
       /* «Alt kan endres senere» står i INGRESSEN, FØR valgene — ikke bare som

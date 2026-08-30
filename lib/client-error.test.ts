@@ -11,7 +11,7 @@
 // MUTASJONSBEVIS — hver test peker på en konkret feilendring den fanger:
 //   • Fjernes logClientError fra ErrorBoundary.componentDidCatch → «forsidens
 //     ErrorBoundary rapporterer» ryker.
-//   • Samme i UserMenuErrorBoundary → «brukermenyens boundary rapporterer» ryker.
+//   • Samme i NavErrorBoundary → «nav-boundaryen rapporterer» ryker.
 //   • Byttes >= til > i area-taket → «fjerde i samme area dempes» ryker.
 //   • Fjernes `state.total += 1` → «totaltaket griper» ryker.
 //   • Flyttes `total += 1` ut av 'send'-grenen → «dempede events spiser ikke
@@ -48,7 +48,7 @@ test('et annet area har sitt eget tak', () => {
   const s = createThrottleState()
   for (let i = 0; i < MAX_PER_AREA; i++) decideClientErrorReport(s, 'error-boundary')
   assert.equal(decideClientErrorReport(s, 'error-boundary'), 'area-capped')
-  assert.equal(decideClientErrorReport(s, 'user-menu-boundary'), 'send')
+  assert.equal(decideClientErrorReport(s, 'global-nav-boundary'), 'send')
 })
 
 test('totaltaket griper på tvers av mange areas', () => {
@@ -91,7 +91,7 @@ test('taket per fane holder en 60-spillers utetid under månedskvoten', () => {
   // ganger boundaryene krasjer. Totaltaket er backstoppen for trinn 2, når
   // antall areas vokser.
   for (let i = 0; i < 1000; i++) {
-    if (decideClientErrorReport(s, i % 2 === 0 ? 'error-boundary' : 'user-menu-boundary') === 'send') sent++
+    if (decideClientErrorReport(s, i % 2 === 0 ? 'error-boundary' : 'global-nav-boundary') === 'send') sent++
   }
   assert.equal(sent, 2 * MAX_PER_AREA, 'taket per fane i trinn 1 er ikke 2 × MAX_PER_AREA')
   assert.ok(sent <= MAX_TOTAL, 'area-takene til sammen overstiger totaltaket')
@@ -102,7 +102,9 @@ test('taket per fane holder en 60-spillers utetid under månedskvoten', () => {
 // ── 2. Wiringen i de to boundaries ──────────────────────────────────────────
 
 const ERROR_BOUNDARY = readFileSync('components/ErrorBoundary.tsx', 'utf8')
-const USER_MENU_BOUNDARY = readFileSync('components/UserMenuErrorBoundary.tsx', 'utf8')
+// Omdøpt fra UserMenuErrorBoundary i B-30/A2 steg 2 — wrapper nå GlobalNav
+// (hele toppnavigasjonen) i app/layout.tsx.
+const NAV_BOUNDARY = readFileSync('components/NavErrorBoundary.tsx', 'utf8')
 
 /**
  * Henter kroppen til componentDidCatch. Ankeret er selve metoden og ikke
@@ -130,12 +132,12 @@ test('forsidens ErrorBoundary rapporterer krasjen — den når ikke GlobalHandle
     'ErrorBoundary importerer ikke logClientError')
 })
 
-test('brukermenyens boundary rapporterer krasjen — den rendrer ingenting ved feil', () => {
-  const body = componentDidCatchBody(USER_MENU_BOUNDARY, 'components/UserMenuErrorBoundary.tsx')
-  assert.match(body, /logClientError\(\s*'user-menu-boundary'\s*,/,
-    'componentDidCatch i UserMenuErrorBoundary kaller ikke logClientError — brukermenyen forsvinner sporløst på hver side')
-  assert.match(USER_MENU_BOUNDARY, /^import \{ logClientError \} from '@\/lib\/client-error'$/m,
-    'UserMenuErrorBoundary importerer ikke logClientError')
+test('nav-boundaryen rapporterer krasjen — den rendrer ingenting ved feil', () => {
+  const body = componentDidCatchBody(NAV_BOUNDARY, 'components/NavErrorBoundary.tsx')
+  assert.match(body, /logClientError\(\s*'global-nav-boundary'\s*,/,
+    'componentDidCatch i NavErrorBoundary kaller ikke logClientError — hele toppnavigasjonen forsvinner sporløst på hver side')
+  assert.match(NAV_BOUNDARY, /^import \{ logClientError \} from '@\/lib\/client-error'$/m,
+    'NavErrorBoundary importerer ikke logClientError')
 })
 
 // ── 3. Formen trinn 2 skal kopiere ──────────────────────────────────────────

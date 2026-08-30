@@ -35,7 +35,7 @@ import {
 // INGEN EGEN OPPSTARTSHENTING (omskrevet 7. august 2026). Første versjon
 // gjorde getSession() + egen profiles-spørring ved montering — og ble dermed
 // en TREDJE getSession()-konkurrent bak auth-låsen på nettopp den siden der
-// sesjonen akkurat er skrevet (UserMenu og AuthListener kaller den også ved
+// sesjonen akkurat er skrevet (AuthListener kaller den også ved
 // montering). Timet noen av leddene ut, kollapset «vet ikke» til «har navn»,
 // feltet forsvant, og NameRequiredModal fanget navnet på NESTE side — den
 // doble navnespørringen AuthListener-unntaket skulle fjerne. Skjedde i prod

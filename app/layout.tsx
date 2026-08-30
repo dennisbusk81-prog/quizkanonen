@@ -4,9 +4,8 @@ import "./globals.css";
 import ConsentBanner from "@/components/ConsentBanner";
 import AuthListener from "@/components/AuthListener";
 import NameRequiredModal from "@/components/NameRequiredModal";
-import UserMenu from "@/components/UserMenu";
-import UserMenuErrorBoundary from "@/components/UserMenuErrorBoundary";
-import BackNav from "@/components/BackNav";
+import GlobalNav from "@/components/GlobalNav";
+import NavErrorBoundary from "@/components/NavErrorBoundary";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ProfileProvider from "@/components/ProfileProvider";
 import Link from "next/link";
@@ -91,10 +90,17 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <ProfileProvider>
-        <UserMenuErrorBoundary>
-          <UserMenu />
-        </UserMenuErrorBoundary>
-        <BackNav />
+        {/* Global toppnav (B-30/A2 steg 2) — nav er standard på alle ruter;
+            opt-out bor i lib/global-nav-routes.ts. Erstatter de pensjonerte
+            UserMenu (flytende konto-pille) og BackNav («← Tilbake»-stripen).
+            Boundaryen er PÅKREVD: en ufanget krasj i en layout-montert
+            klientkomponent blanker hele appen. Og hold GlobalNav som direkte
+            barn av <body> — en forelder med filter/backdrop-filter/transform/
+            perspective blir containing block for position: fixed (det var
+            AuthModal-havariet i c47b87f). */}
+        <NavErrorBoundary>
+          <GlobalNav />
+        </NavErrorBoundary>
         {children}
         <AuthListener />
         <NameRequiredModal />
