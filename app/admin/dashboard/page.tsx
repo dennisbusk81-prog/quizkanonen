@@ -35,6 +35,9 @@ type DashboardData = {
     b2b: number
     b2c: number
     b2cCount: number
+    /** Nedre grense: b2b eksakt + b2c regnet som om alle gikk årlig. */
+    totalFloor: number
+    b2cFloor: number
     trialingValue: number
     trialingByPlan: Record<string, number>
   }
@@ -367,6 +370,18 @@ export default function AdminDashboard() {
                     ? `+ ${trialingNote} på trial (${nf.format(data.mrr.trialingValue)})`
                     : 'Kun aktive abonnementer'}
                 </p>
+                {/* Forbehold, ikke pynt: b2c-delen regner hver personlig
+                    abonnent som kr 49/mnd, men en årsabonnent bidrar 33.
+                    Databasen kjenner ikke intervallet (se konstantene i
+                    app/api/admin/dashboard/route.ts), så tallet over er
+                    taket. Uten denne linja leses et øvre estimat som en
+                    fasit. Vises kun når spennet faktisk er reelt. */}
+                {data.mrr.totalFloor < data.mrr.total && (
+                  <p className="dsh-stat-sub">
+                    Øvre estimat — {nf.format(data.mrr.totalFloor)} kr hvis alle
+                    {' '}{data.mrr.b2cCount === 1 ? 'den ene' : `de ${data.mrr.b2cCount}`} personlige går årlig
+                  </p>
+                )}
               </div>
             </div>
 

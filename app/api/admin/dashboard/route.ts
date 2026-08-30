@@ -32,7 +32,31 @@ const PLAN_PRICE_NOK: Record<string, number> = {
   enterprise: 2499,
 }
 
+// ── B2C-MRR er et ØVRE ESTIMAT, og det er en bevisst begrensning ────────────
+// (30. august 2026, da årsprisen kr 399/år ble live — e18eac6)
+//
+// Tellingen er `antall profiles med premium_source='personal'` × månedsprisen.
+// En årsabonnent bidrar reelt 399/12 = 33,25 kr/mnd, ikke 49. Tallet er derfor
+// korrekt bare så lenge alle personlige abonnenter går månedlig, og for høyt
+// ellers — inntil 32 % for høyt på b2c-delen i det ytterste tilfellet.
+//
+// HVORFOR DET IKKE ER RETTET HER: databasen VET ikke hvilket intervall en
+// abonnent har. `profiles` har ingen intervall-/priskolonne, webhooken skriver
+// ingen (bekreftet ved gjennomgang 30. august), og `stripe_events` stempler
+// kun event-id-er. Å utlede intervallet krever enten et Stripe-oppslag fra
+// denne ruten — som i dag gjør NULL eksterne kall og henter alt fra egen DB,
+// se maxDuration-kommentaren under — eller en ny kolonne som webhooken fyller,
+// pluss backfill av eksisterende rader. Begge er større enn en tekstretting,
+// og begge endrer rutens feilmodus: med Stripe i løkka ville en Stripe-
+// forstyrrelse tatt ned hele dashbordet, ikke bare ett tall.
+//
+// I STEDET: spennet regnes ut og sendes med, slik at kortet kan vise gulvet
+// ved siden av taket i stedet for å presentere ett tall som en fasit.
+// `b2cFloor` er hva MRR ville vært om ALLE personlige abonnenter gikk årlig.
+// Er de to like, er det fordi ingen b2c-abonnenter finnes ennå.
 const B2C_PREMIUM_PRICE_NOK = 49
+const B2C_PREMIUM_YEARLY_NOK = 399
+const B2C_YEARLY_AS_MONTHLY = B2C_PREMIUM_YEARLY_NOK / 12
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -212,7 +236,10 @@ export async function GET(request: NextRequest) {
     }
 
     const b2cCount = personalPremiumRes.count ?? 0
+    // Taket: alle går månedlig. Gulvet: alle går årlig. Sannheten ligger
+    // imellom, og databasen kan ikke si hvor — se konstantene øverst.
     const b2cMrr = b2cCount * B2C_PREMIUM_PRICE_NOK
+    const b2cFloor = Math.round(b2cCount * B2C_YEARLY_AS_MONTHLY)
 
     // ── Graf: ukentlig aktivitet + retention som sekundærserie ───────────────
     const weekly = ((weeklyRes.data ?? []) as { week_start: string; active_players: number }[])
@@ -265,6 +292,9 @@ export async function GET(request: NextRequest) {
         b2b: b2bMrr,
         b2c: b2cMrr,
         b2cCount,
+        // Nedre grense for TOTALEN: b2b er eksakt, b2c er spennet.
+        totalFloor: b2bMrr + b2cFloor,
+        b2cFloor,
         trialingValue,
         trialingByPlan,
       },
