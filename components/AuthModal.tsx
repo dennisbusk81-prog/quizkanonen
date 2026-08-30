@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import AuthForm from '@/components/AuthForm'
 
 // Kun innpakningen: overlay, lukkeknapp og overskrift. Selve innloggingen bor i
@@ -59,7 +60,16 @@ export default function AuthModal({ open, onClose, next, description, onSuccess 
     else window.location.reload()
   }
 
-  return (
+  // PORTAL TIL document.body — vakten bor hos skriveren, ikke hos kalleren.
+  // Et element med `filter`/`backdrop-filter`/`transform` på en FORFAR blir
+  // containing block for `position: fixed`-etterkommere. Da NavAuth begynte å
+  // rendre denne modalen inne i SiteNavs <nav> (backdropFilter: blur(12px),
+  // c47b87f), målte overlegget 1280×54 — nav-baren, ikke viewporten — og
+  // modalen viste bare lukkekrysset. Portalen gjør modalen trygg uansett hvor
+  // den kalles fra. SSR-trygt: `open` starter false hos alle kallere, så
+  // denne grenen nås først etter et klientklikk, når document finnes.
+  // lib/authmodal-portal.test.ts feller at portalen fjernes.
+  return createPortal(
     <div
       ref={overlayRef}
       onClick={e => { if (e.target === overlayRef.current) onClose() }}
@@ -148,6 +158,7 @@ export default function AuthModal({ open, onClose, next, description, onSuccess 
 
         <AuthForm next={next} onSuccess={handleSuccess} variant="modal" />
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
