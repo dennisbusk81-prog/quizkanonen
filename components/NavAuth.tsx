@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { signOut } from '@/lib/auth'
+import AuthModal from '@/components/AuthModal'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { useProfile } from '@/components/ProfileProvider'
 import type React from 'react'
@@ -48,6 +50,14 @@ const NAV_MOBILE_CSS = `
   }
 `
 
+function formatPeriodDate(unix: number): string {
+  const d = new Date(unix * 1000)
+  const day = d.getDate()
+  const month = d.toLocaleDateString('no-NO', { month: 'short' }).replace('.', '')
+  const year = d.getFullYear()
+  return `${day}. ${month} ${year}`
+}
+
 const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
@@ -58,13 +68,19 @@ const menuItem: React.CSSProperties = {
 }
 
 export default function NavAuth({ quizId }: { quizId?: string }) {
+  const pathname = usePathname()
   // All profil-/premium-/org-tilstand kommer nå fra delt context (ProfileProvider).
   const { userId, displayName, isPremium, hasStripeCustomer, myOrgs, loading, resolved } = useProfile()
   const isLoggedIn = userId !== null
   const sessionResolved = resolved
   const profileLoaded = !loading
+  // ALLE admin-orger, ikke bare den første: en bruker som er admin i to
+  // bedrifter skal ha inngang til begge panelene (flyttet fra UserMenus
+  // dropdown, B-30/A2 steg 1, 30. august 2026).
+  const adminOrgs = myOrgs.filter(o => o.isAdmin)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
   const [signOutError, setSignOutError] = useState<string | null>(null)
@@ -74,6 +90,33 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   // state/ref. For gjest finnes kun hamburgeren.
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
   const hamburgerRef = useRef<HTMLDivElement>(null)
+
+  // Fornyelses-/avslutningsdatoen i dropdown-hodet (flyttet fra UserMenu,
+  // B-30/A2 steg 1). Hentes LAZY — først når dropdownen faktisk åpnes, og
+  // høyst én gang per montering. UserMenu fyrte dette kallet ved mount på
+  // HVER sidelast for Premium-brukere (effekten lå før skjule-sjekken, så
+  // pathname-listen skjulte kun renderingen, ikke kallet); datoen er bare
+  // synlig inne i den åpne dropdownen, så mount-henting var ren sløsing.
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
+  const subscriptionRequested = useRef(false)
+  // Skiller unmount fra dropdown-lukking: effekten under har med vilje INGEN
+  // cleanup, ellers ville en rask åpne-lukk kastet svaret underveis og
+  // subscriptionRequested sperret for nytt forsøk — datoen ville da aldri
+  // vist seg resten av sidelasten.
+  const alive = useRef(true)
+  useEffect(() => () => { alive.current = false }, [])
+
+  useEffect(() => {
+    if (!dropdownOpen || !isPremium || subscriptionRequested.current) return
+    subscriptionRequested.current = true
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!alive.current || !session?.access_token) return
+      fetch('/api/stripe/subscription', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => { if (alive.current) setSubscriptionInfo(data ?? null) })
+        .catch(() => { /* datoen er tilleggsinfo — feiler kallet, vises bare merket */ })
+    }).catch(() => { /* samme: hodet rendrer fint uten dato */ })
+  }, [dropdownOpen, isPremium])
 
   async function handlePortal() {
     if (portalLoading) return
@@ -234,8 +277,26 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
         {/* Identitetsknapp — "din konto". Samme posisjon som avatar-pillen
             for innlogget bruker (se under), alltid synlig, aldri gjemt i
-            hamburgeren. */}
-        <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
+            hamburgeren.
+
+            Åpner AuthModal i stedet for å navigere til /login (flyttet fra
+            UserMenus gjeste-knapp, B-30/A2 steg 1): innlogging uten å forlate
+            siden brukeren står på. Unntak på selve /login — en modal oppå
+            innloggingssiden gir ingen mening, der beholdes lenke-atferden. */}
+        {pathname === '/login' ? (
+          <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
+        ) : (
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            style={{
+              ...navLink, color: '#e8e4dd', background: 'none',
+              border: 'none', padding: 0, cursor: 'pointer',
+            }}
+          >
+            Logg inn
+          </button>
+        )}
+        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
 
         {quizId && (
           <Link
@@ -307,18 +368,22 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >For bedrifter</a>
       )}
-      {/* Bedriftspanel — only for org admins */}
-      {myOrgs.some(o => o.isAdmin) && (
+      {/* Bedriftspanel — kun for org-admins. Mapper over ALLE admin-orger
+          (samme konvensjon som UserMenus dropdown hadde): én org → generisk
+          «Bedriftspanel», flere → org-navnet per lenke, ellers ville bare den
+          første bedriften vært nåbar. */}
+      {adminOrgs.map(org => (
         <a
-          href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`}
+          key={org.orgSlug}
+          href={`/org/${org.orgSlug}/admin`}
           style={navLink}
           className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >
-          Bedriftspanel
+          {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
         </a>
-      )}
+      ))}
       <a href="/slik-fungerer-det" style={navLink} className="nav-hide-mobile"
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -388,14 +453,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 For bedrifter
               </a>
             )}
-            {myOrgs.some(o => o.isAdmin) && (
-              <a href={`/org/${myOrgs.find(o => o.isAdmin)!.orgSlug}/admin`} onClick={() => setHamburgerOpen(false)} style={menuItem}
+            {adminOrgs.map(org => (
+              <a key={org.orgSlug} href={`/org/${org.orgSlug}/admin`} onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                Bedriftspanel
+                {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
               </a>
-            )}
+            ))}
             <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
               onMouseEnter={e => e.currentTarget.style.background = '#262930'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
@@ -458,6 +523,42 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
             zIndex: 9000,
           }}>
+            {/* Kontohodet — «Innlogget som», Premium-/Standardkonto-merket og
+                fornyelsesdatoen (flyttet fra UserMenu, B-30/A2 steg 1).
+                profileLoaded-gaten på merket hindrer at en Premium-bruker ser
+                «Standardkonto» i blaffet før profilen har landet; navnet over
+                gaten vises med én gang. Datoen kommer fra den lazy hentingen
+                øverst i fila og vises kun når den faktisk landet. */}
+            <div style={{
+              padding: '8px 10px 10px',
+              borderBottom: '0.5px solid #2a2d38',
+              marginBottom: 4,
+            }}>
+              <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 3 }}>
+                Innlogget som
+              </p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "var(--font-instrument-sans), sans-serif", wordBreak: 'break-all', marginBottom: 6 }}>
+                {displayName}
+              </p>
+              {profileLoaded && (isPremium ? (
+                <>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#c9a84c', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.31)', borderRadius: 4, padding: '2px 8px' }}>
+                    Premium
+                  </span>
+                  {subscriptionInfo?.current_period_end && (
+                    <p style={{ fontSize: 11, color: '#918f8a', marginTop: 5 }}>
+                      {subscriptionInfo.cancel_at_period_end
+                        ? `Avsluttes ${formatPeriodDate(subscriptionInfo.current_period_end)}`
+                        : `Fornyes ${formatPeriodDate(subscriptionInfo.current_period_end)}`}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <span style={{ fontSize: 11, fontWeight: 400, color: '#918f8a', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 4, padding: '2px 8px' }}>
+                  Standardkonto
+                </span>
+              ))}
+            </div>
             <a
               href="/profil"
               onClick={() => setDropdownOpen(false)}
@@ -547,7 +648,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             {profileLoaded && (
               <>
                 {!hasStripeCustomer ? (
-                  isPremium && (
+                  isPremium ? (
                     <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
                       <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
                         Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
@@ -560,6 +661,26 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                         Se Premium-funksjoner →
                       </a>
                     </div>
+                  ) : (
+                    // Gratis bruker uten Stripe-kunde hadde ingenting her —
+                    // UserMenu hadde konverteringsinngangen (flyttet hit,
+                    // B-30/A2 steg 1). Gull er bevisst: samme farge som
+                    // «Mitt abonnement»-linjen den deler plass med.
+                    <a
+                      href="/premium"
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 10px', background: 'none', border: 'none',
+                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
+                        fontFamily: "var(--font-instrument-sans), sans-serif",
+                        textDecoration: 'none', transition: 'background 0.12s',
+                        boxSizing: 'border-box', whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      Oppgrader til Premium
+                    </a>
                   )
                 ) : (
                   <>
