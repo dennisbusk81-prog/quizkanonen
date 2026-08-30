@@ -52,6 +52,13 @@ export default function PremiumPage() {
   // det ærlige svaret («du har allerede hatt en prøveperiode …») — den skal
   // leses som informasjon, ikke som at noe gikk i stykker.
   const [trialNotice, setTrialNotice] = useState<string | null>(null)
+  // Har brukeren allerede et levende abonnement (active/trialing)? Da vises
+  // «Administrer abonnement» i stedet for kjøp — et kjøp til ville gitt doble
+  // trekk. `null` = ukjent/ikke hentet → kjøpsflaten vises (visningen faller
+  // åpent; checkout-rutens 409 er PORTEN, samme skille som admin-sesjonen).
+  const [hasSub, setHasSub] = useState<boolean | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
   // Dagtallet vi lovet FØR aktiveringen. Etter suksess svarer ruten
   // eligible=false, så tilbudet forsvinner — bekreftelsen må ha tallet lagret.
   const [activatedDays, setActivatedDays] = useState<number | null>(null)
@@ -94,6 +101,19 @@ export default function PremiumPage() {
     fetchTrialOffer(session?.access_token).then(offer => {
       if (!cancelled) setTrialOffer(offer)
     })
+    // Abonnementsoppslaget deler denne effekten med vilje: samme livssyklus,
+    // samme stabile dep (sessionIdentity — se lib/premium-session-dep.test.ts).
+    // Feiler kallet, forblir hasSub null og kjøpsflaten vises — serveren
+    // avviser uansett et dobbeltkjøp med 409.
+    if (session?.access_token) {
+      const bearer = session.access_token
+      fetch('/api/stripe/subscription', { headers: { Authorization: `Bearer ${bearer}` } })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => { if (!cancelled && data) setHasSub(data.has_subscription === true) })
+        .catch(() => { /* visning faller åpent; 409-porten står */ })
+    } else {
+      setHasSub(false)
+    }
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionIdentity])
@@ -231,12 +251,40 @@ export default function PremiumPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        showError('Noe gikk galt. Prøv igjen eller kontakt oss.')
+        // Serverens egen tekst når den finnes — 409-en fra dobbeltkjøp-vakten
+        // sier hva man skal gjøre i stedet, og skal ikke maskeres som en
+        // teknisk feil.
+        showError(data?.error ?? 'Noe gikk galt. Prøv igjen eller kontakt oss.')
       }
     } catch {
       showError('Noe gikk galt. Prøv igjen eller kontakt oss.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Samme form som handlePortal på /profil: portalen er stedet for å endre,
+  // gjenoppta eller legge inn kort på et abonnement som allerede finnes.
+  async function handlePortal() {
+    if (portalLoading) return
+    setPortalLoading(true)
+    setPortalError(null)
+    try {
+      const { data: { session: fresh } } = await supabase.auth.getSession()
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: fresh?.access_token ? { Authorization: `Bearer ${fresh.access_token}` } : {},
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPortalError(data.error ?? 'Noe gikk galt. Prøv igjen.')
+      } else if (data.url) {
+        window.location.href = data.url
+      }
+    } catch {
+      setPortalError('Noe gikk galt. Prøv igjen.')
+    } finally {
+      setPortalLoading(false)
     }
   }
 
@@ -363,6 +411,40 @@ export default function PremiumPage() {
               </div>
             )}
 
+            {hasSub === true ? (
+              /* Levende abonnement: kjøpsflaten byttes ut. To-gule-regelen
+                 holdes — prisrammen + denne ene gullknappen, som før. */
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
+                  Du har allerede et aktivt abonnement, så et nytt kjøp her ville
+                  gitt doble trekk. Endre, gjenoppta eller oppdater kort fra
+                  abonnementssiden.
+                </p>
+                <button
+                  onClick={handlePortal}
+                  disabled={portalLoading}
+                  style={{
+                    padding: '10px 28px',
+                    background: portalLoading ? '#2a2d38' : '#c9a84c',
+                    color: portalLoading ? '#918f8a' : '#1a1c23',
+                    border: 'none', borderRadius: 10,
+                    fontSize: 15, fontWeight: 700,
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
+                    cursor: portalLoading ? 'not-allowed' : 'pointer',
+                    transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!portalLoading) e.currentTarget.style.opacity = '0.88' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                >
+                  {portalLoading ? 'Åpner…' : 'Administrer abonnement'}
+                </button>
+                {portalError && (
+                  <p style={{ fontSize: 14, color: '#e8e4dd', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+                    {portalError}
+                  </p>
+                )}
+              </div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 16 }}>
               {trialCta && (
                 <>
@@ -459,10 +541,13 @@ export default function PremiumPage() {
                 </p>
               )}
             </div>
+            )}
 
-            <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', lineHeight: 1.6 }}>
-              Du må være innlogget for å kjøpe. Betaling håndteres trygt av Stripe.
-            </p>
+            {hasSub !== true && (
+              <p style={{ fontSize: 12, color: '#e8e4dd', textAlign: 'center', lineHeight: 1.6 }}>
+                Du må være innlogget for å kjøpe. Betaling håndteres trygt av Stripe.
+              </p>
+            )}
           </div>
         </div>
       </div>

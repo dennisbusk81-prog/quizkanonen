@@ -3,7 +3,8 @@ import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
-import { getCodeCoverage } from '@/lib/premium-state-io'
+import { getCodeCoverage, getStripeCoverage } from '@/lib/premium-state-io'
+import { isStripeLive } from '@/lib/premium-state'
 
 const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
 
@@ -120,6 +121,46 @@ export async function POST(request: NextRequest) {
     }
     const resolvedPriceId = process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
     const mode = 'subscription'
+
+    // ── Vakt mot dobbelt abonnement (30. august 2026) ──────────────────────────
+    // Checkout sjekket aldri om brukeren allerede HAR et levende abonnement, og
+    // getStripeCoverage henter limit:1 — så et kjøp nummer to ga to samtidige
+    // abonnementer der det andre var USYNLIG for all app-logikk. Stille
+    // dobbelttrekk. Med en årspris ved siden av månedsprisen blir «kjøp igjen»
+    // dessuten den naturlige bytte-handlingen, ikke en sjelden brukerfeil.
+    //
+    // «Levende» er isStripeLive — SAMME definisjon som resten av kodebasen
+    // (active + trialing), og samme vakt som founders-activate allerede har.
+    // Konsekvenser som er bevisste, ikke tilfeldige:
+    //   - trialing (Founders uten kort) sperres: konverteringsveien deres er
+    //     portalen (legg inn kort), empirisk bevist i drift. Et checkout-kjøp
+    //     under trial ville gitt to abonnementer på samme kunde.
+    //   - past_due/unpaid sperres IKKE: karens er ikke levende dekning
+    //     (se lib/premium-state.ts), og et nytt kjøp er da et lovlig valg.
+    //   - org-dekning og verdikoder ses ikke av denne vakten i det hele tatt —
+    //     rad E-stien under er urørt, og org-medlemmer kan fortsatt kjøpe
+    //     personlig Premium som overlever at de forlater org-en.
+    //
+    // Kaster getStripeCoverage (Stripe nede), fanger catch-en under og svarer
+    // 500 — fail-closed. Riktig her: uten svar fra Stripe VET vi ikke at kjøpet
+    // er trygt, og sessions.create ville uansett feilet mot samme nedetid.
+    const { data: gateProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .maybeSingle()
+    const existingSub = await getStripeCoverage(gateProfile?.stripe_customer_id ?? null, stripe)
+    if (isStripeLive(existingSub)) {
+      return NextResponse.json(
+        {
+          error:
+            'Du har allerede et løpende abonnement eller en aktiv prøveperiode, så et ' +
+            'nytt kjøp ville gitt doble trekk. Gå til profilsiden og velg ' +
+            '«Administrer abonnement» for å endre, gjenoppta eller legge inn kort.',
+        },
+        { status: 409 },
+      )
+    }
 
     // ── Rad E: kunden har en aktiv verdikode og kjøper abonnement ──────────────
     // Kjøp er tillatt — men kunden skal ikke belastes for en periode de samtidig

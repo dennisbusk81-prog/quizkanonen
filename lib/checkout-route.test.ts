@@ -14,7 +14,7 @@
 // belastet umiddelbart for en periode de allerede har gratis.
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import type { CodeCoverage } from './premium-state'
+import type { CodeCoverage, StripeCoverage } from './premium-state'
 
 process.env.NEXT_PUBLIC_SITE_URL = 'https://quizkanonen.no'
 process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_live_monthly'
@@ -26,6 +26,8 @@ type StripeCustomerRow = { id: string; deleted?: boolean }
 
 const state: {
   code: CodeCoverage | null
+  /** Brukerens levende abonnement slik dobbeltkjøp-vakten ser det. */
+  stripeCoverage: StripeCoverage | null
   sessions: Array<Record<string, unknown>>
   /** profiles.stripe_customer_id slik den ligger i databasen. */
   storedCustomerId: string | null
@@ -37,6 +39,7 @@ const state: {
   profileUpdates: Array<Record<string, unknown>>
 } = {
   code: null,
+  stripeCoverage: null,
   sessions: [],
   storedCustomerId: null,
   stripeCustomers: new Map(),
@@ -78,7 +81,10 @@ mock.module('@/lib/rate-limit-shared', {
 })
 
 mock.module('@/lib/premium-state-io', {
-  namedExports: { getCodeCoverage: async () => state.code },
+  namedExports: {
+    getCodeCoverage: async () => state.code,
+    getStripeCoverage: async () => state.stripeCoverage,
+  },
 })
 
 // Speiler Stripes feilform så nøyaktig som ruten trenger: den skiller på
@@ -142,6 +148,7 @@ const activeCode = (expiresAt: string | null): CodeCoverage =>
 
 beforeEach(() => {
   state.code = null
+  state.stripeCoverage = null
   state.sessions = []
   state.storedCustomerId = null
   state.stripeCustomers = new Map()
@@ -324,6 +331,84 @@ test('gjenbruk og kode-trial virker sammen — Rad E er ikke rørt', async () =>
 
   await checkout()
   assert.equal(state.sessions[0].customer, 'cus_founder')
+  assert.equal(
+    (state.sessions[0].subscription_data as { trial_end?: number }).trial_end,
+    Math.floor(new Date(endsAt).getTime() / 1000),
+  )
+})
+
+// ── Vakt mot dobbelt abonnement (30. august 2026) ────────────────────────────
+//
+// Checkout sjekket aldri om brukeren allerede hadde et levende abonnement, og
+// getStripeCoverage henter limit:1 — kjøp nummer to ga to samtidige
+// abonnementer der det andre var usynlig for all app-logikk. Stille
+// dobbelttrekk på ekte penger.
+//
+// «Levende» er isStripeLive (active + trialing) — samme definisjon som resten
+// av kodebasen, og samme vakt som founders-activate allerede har. past_due
+// sperres BEVISST ikke: karens er ikke levende dekning, og et nytt kjøp er da
+// et lovlig valg.
+//
+// MUTASJONSBEVIS: nøytraliseres vakten (`if (isStripeLive(...))` → `if
+// (false)`), ryker begge 409-testene under — sesjonen opprettes da for en
+// bruker som allerede betaler. Gjøres den ubetinget (`if (true)`), ryker
+// past_due-testen OG hele Rad E-/gjenbruks-suiten over, siden ingen lenger
+// får kjøpe i det hele tatt.
+
+const levendeSub = (status: string): StripeCoverage => ({
+  subscriptionId: 'sub_eksisterende',
+  status,
+  trialEnd: null,
+  currentPeriodEnd: inDays(20),
+  pauseResumesAt: null,
+})
+
+test('aktivt abonnement → 409, ingen sesjon opprettes, meldingen sier hva man gjør i stedet', async () => {
+  state.stripeCoverage = levendeSub('active')
+
+  const res = await checkout()
+  assert.equal(res.status, 409)
+  assert.equal(state.sessions.length, 0, 'ingen checkout-sesjon skal opprettes — det er selve dobbelttrekket')
+  assert.match((await res.json()).error, /Administrer abonnement/, 'meldingen skal peke på veien videre, ikke bare avvise')
+})
+
+test('trialing (Founders uten kort) → 409 — konverteringsveien er portalen', async () => {
+  state.stripeCoverage = levendeSub('trialing')
+
+  const res = await checkout()
+  assert.equal(res.status, 409)
+  assert.equal(state.sessions.length, 0)
+})
+
+test('past_due sperres IKKE — isStripeLive-definisjonen er delt, ikke en ny', async () => {
+  // Et abonnement i dunning er ikke levende dekning (lib/premium-state.ts).
+  // Brukeren kan la det dø og kjøpe på nytt — det skal ikke sperres.
+  state.stripeCoverage = levendeSub('past_due')
+
+  const res = await checkout()
+  assert.equal(res.status, 200)
+  assert.equal(state.sessions.length, 1, 'kjøpet skal gå gjennom')
+})
+
+test('paused abonnement (rad B/D-stabling) er fortsatt active → 409', async () => {
+  // Kode stablet på betalt abonnement pauser innkrevingen, men statusen hos
+  // Stripe er fortsatt 'active'. Et kjøp til ville gitt sub nummer to.
+  state.stripeCoverage = { ...levendeSub('active'), pauseResumesAt: inDays(10) }
+
+  const res = await checkout()
+  assert.equal(res.status, 409)
+  assert.equal(state.sessions.length, 0)
+})
+
+test('Rad E består: kode aktiv + INGEN levende sub → kjøp med trial_end', async () => {
+  // Selve beviset på at vakten ikke brakk rad E: kode-brukeren uten abonnement
+  // går forbi vakten og får trial_end som før.
+  const endsAt = inDays(30)
+  state.code = activeCode(endsAt)
+  state.stripeCoverage = null
+
+  const res = await checkout()
+  assert.equal(res.status, 200)
   assert.equal(
     (state.sessions[0].subscription_data as { trial_end?: number }).trial_end,
     Math.floor(new Date(endsAt).getTime() / 1000),
