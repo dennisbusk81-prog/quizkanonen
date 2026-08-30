@@ -455,51 +455,13 @@ type Gren = {
  * (eller den andre betingelsen) og brukes til fullstendighetssjekken under.
  */
 const GRENER: Gren[] = [
-  // /historikk/[attemptId] — ingen BackNav, ingen UserMenu, router.back()
-  // fører ingensteds fra en delt lenke. Verste tilfellet i settet, og den
-  // eneste fila der ALLE grenene — inkludert den vellykkede — står oppført.
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'loading',   vakt: "if (loadState === 'loading') {" },
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'not-found', vakt: "if (loadState === 'not-found') {" },
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'timeout',   vakt: "if (loadState === 'timeout') {" },
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'error',     vakt: "if (loadState === 'error' || !detail) {" },
-  // Den vellykkede returen har ingen loadState-vakt. Ankeret er linja rett
-  // over den, som forekommer nøyaktig én gang i fila — samme unikhetskrav
-  // som de andre vaktene, håndhevet av returGren().
-  { fil: 'app/historikk/[attemptId]/page.tsx', stat: 'suksess',   vakt: 'const pct = scorePct(detail.correct_answers, detail.total_questions)', form: 'anker' },
-
-  // /historikk — historyLocked HADDE nav fra før; de to andre ikke.
-  { fil: 'app/historikk/page.tsx',             stat: 'loading',  vakt: "if (loadState === 'loading') {" },
-  { fil: 'app/historikk/page.tsx',             stat: 'error',    vakt: "if (loadState === 'error') {" },
-  { fil: 'app/historikk/page.tsx',             stat: 'locked',   vakt: 'if (historyLocked) {' },
-
-  { fil: 'app/liga/page.tsx',                  stat: 'loading',  vakt: "if (loadState === 'loading') return (" },
-  { fil: 'app/liga/page.tsx',                  stat: 'error',    vakt: "if (loadState === 'error') return (" },
-  { fil: 'app/liga/page.tsx',                  stat: 'guest',    vakt: "if (loadState === 'guest') return (" },
-
-  { fil: 'app/liga/[slug]/page.tsx',           stat: 'loading',  vakt: "if (loadState === 'loading') return (" },
-  { fil: 'app/liga/[slug]/page.tsx',           stat: 'notfound', vakt: "if (loadState === 'notfound') return (" },
-  { fil: 'app/liga/[slug]/page.tsx',           stat: 'error',    vakt: "if (loadState === 'error') return (" },
-
-  // Bruker variant="default" (ingen props) fordi den VELLYKKEDE returen i
-  // samme fil gjør det: dette er selve bedriftssiden, ikke en side UNDER den,
-  // så «← Tilbake til bedriften» ville pekt på seg selv.
-  { fil: 'app/org/[slug]/page.tsx',            stat: 'loading',  vakt: "if (loadState === 'loading') {" },
-  { fil: 'app/org/[slug]/page.tsx',            stat: 'error',    vakt: "if (loadState === 'error') {" },
-  { fil: 'app/org/[slug]/page.tsx',            stat: 'notfound', vakt: "if (loadState === 'notfound') {" },
-
-  { fil: 'app/profil/page.tsx',                stat: 'loading',  vakt: "if (loadState === 'loading') {" },
-  { fil: 'app/profil/page.tsx',                stat: 'error',    vakt: "if (loadState === 'error') {" },
-
-  // /premium/success — kvitteringen etter EKTE betaling (29. august 2026).
-  // Fram til da hadde siden ingen nav i noen gren, og hver feilvei var en
-  // redirect til salgssiden (den feilen felles av
-  // lib/premium-success-verify.test.ts). Alle fire grenene står her, samme
-  // resonnement som /historikk/[attemptId]: suksessgrenen bærer
-  // forutsetningen for at loading/feil kan ha nav uten layout-hopp.
-  { fil: 'app/premium/success/page.tsx',       stat: 'verifying', vakt: "if (loadState === 'verifying') {" },
-  { fil: 'app/premium/success/page.tsx',       stat: 'ukjent',    vakt: "if (loadState === 'ukjent') {" },
-  { fil: 'app/premium/success/page.tsx',       stat: 'nosession', vakt: "if (loadState === 'nosession') {" },
-  { fil: 'app/premium/success/page.tsx',       stat: 'paid',      vakt: "if (loadState === 'paid') {" },
+  // STEG 3 (B-30/A2): radene for /historikk, /historikk/[attemptId], /liga,
+  // /liga/[slug], /org/[slug], /profil og /premium/success er FJERNET — de
+  // sidene mistet sin lokale <SiteNav /> og arver nav fra rot-layouten
+  // (components/GlobalNav.tsx), som rendres UTENFOR sidenes grener og derfor
+  // ikke kan mistes av noen av dem. Vakten som gjenstår for de sidene er
+  // lib/global-nav-coverage.test.ts: får en av dem lokal SiteNav igjen uten
+  // opt-out-rad, felles det som dobbel nav der.
 
   // /quiz/[id] — spillesiden, ni toppgrener (30. august 2026).
   // Fem hadde nav fra før (needsLogin, already_played, register×2 og

@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import SiteNav from '@/components/SiteNav'
 
 // Samme form som «Hard timeout — show page after 5s» i app/bedrift/success:
 // 'verifying' skal ikke kunne stå for alltid. Fristen kan være stram fordi et
@@ -103,7 +102,6 @@ function PremiumSuccessContent() {
   if (loadState === 'verifying') {
     return (
       <>
-        <SiteNav />
         <div style={s.page}>
           <div style={s.card}>
             {CheckIcon}
@@ -118,7 +116,6 @@ function PremiumSuccessContent() {
   if (loadState === 'ukjent') {
     return (
       <>
-        <SiteNav />
         <div style={s.page}>
           <div style={s.card}>
             {CheckIcon}
@@ -141,7 +138,6 @@ function PremiumSuccessContent() {
   if (loadState === 'nosession') {
     return (
       <>
-        <SiteNav />
         <div style={s.page}>
           <div style={s.card}>
             {CheckIcon}
@@ -164,7 +160,6 @@ function PremiumSuccessContent() {
   if (loadState === 'paid') {
     return (
       <>
-        <SiteNav />
         <div style={s.page}>
           <div style={s.card}>
             {CheckIcon}

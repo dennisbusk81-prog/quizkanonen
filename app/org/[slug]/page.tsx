@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import OrgLockedScreen from '@/components/OrgLockedScreen'
 import LeaveOrgModal from '@/components/LeaveOrgModal'
@@ -72,7 +71,6 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#918f8a', fontStyle: 'italic' }}>Henter bedriften din …</p>
@@ -95,7 +93,6 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'error') {
     return (
       <>
-        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>
@@ -134,7 +131,6 @@ export default function OrgLeaderboardPage() {
   if (loadState === 'notfound') {
     return (
       <>
-        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "var(--font-instrument-sans), sans-serif" }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 22, color: '#ffffff', marginBottom: 10 }}>Ingen tilgang</p>
@@ -156,7 +152,6 @@ export default function OrgLeaderboardPage() {
   return (
     <>
 
-      <SiteNav />
 
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' }}>

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { PlayerStats } from '@/lib/history'
-import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
 import { useProfile } from '@/components/ProfileProvider'
@@ -757,7 +756,6 @@ export default function ProfilPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
           <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <SkeletonCard rows={4} showHeader />
@@ -776,7 +774,6 @@ export default function ProfilPage() {
   if (loadState === 'error') {
     return (
       <>
-        <SiteNav />
         <div style={s.wrap}>
           <div style={{ ...s.page, paddingTop: 40 }}>
             <div style={{ ...s.card, textAlign: 'center' }}>
@@ -810,7 +807,6 @@ export default function ProfilPage() {
 
   return (
     <>
-      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
           {/* Avatar + identity */}

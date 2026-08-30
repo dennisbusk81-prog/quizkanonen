@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import SiteNav from '@/components/SiteNav'
 
 const STYLES = `
   html { overflow-x: hidden; }
@@ -131,7 +130,6 @@ export default function BedriftPage() {
   return (
     <>
       <style>{STYLES}</style>
-      <SiteNav />
       <div className="page">
 
         {/* Header */}

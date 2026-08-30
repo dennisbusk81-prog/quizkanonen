@@ -27,7 +27,6 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useProfile } from '@/components/ProfileProvider'
 import { MAX_ARCHIVE_TITLE_LENGTH } from '@/lib/archive-create-rules'
-import SiteNav from '@/components/SiteNav'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
 type ArkivQuiz = {
@@ -185,7 +184,6 @@ export default function ArkivPage() {
 
   return (
     <ErrorBoundary>
-      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
           <p style={s.eyebrow}>Quizkanonen</p>

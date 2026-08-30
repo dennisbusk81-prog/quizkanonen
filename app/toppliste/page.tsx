@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import SiteNav from '@/components/SiteNav'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { supabase } from '@/lib/supabase'
@@ -64,7 +63,6 @@ function PlacementLockedBanner() {
 export default function TopplisterPage() {
   return (
     <>
-      <SiteNav />
       <div style={{ minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 80px' }}>
 

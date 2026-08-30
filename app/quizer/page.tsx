@@ -1,5 +1,4 @@
 ﻿import { supabaseAdmin } from '@/lib/supabase-admin'
-import SiteNav from '@/components/SiteNav'
 import Link from 'next/link'
 import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { fetchParticipantCounts } from '@/lib/quiz-participant-counts'
@@ -288,7 +287,6 @@ export default async function QuizerPage() {
   return (
     <>
       <style>{css}</style>
-      <SiteNav />
       <div className="qz-page">
         <header className="qz-header">
           <p className="qz-eyebrow">Quizkanonen</p>

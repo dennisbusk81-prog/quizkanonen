@@ -17,7 +17,7 @@
 // og testet i den gamle modellen, og i denne modellen snur det til en felle:
 // '/quizer' skal leve av den globale nav-en, så en prefiks-match på '/quiz'
 // ville gjort quizoversikten navløs. Derfor matches det på HELE segmenter:
-//   eksakt    '/arkiv'         → kun /arkiv
+//   eksakt    '/'              → kun forsiden
 //   '*'       '/quiz/*'        → /quiz/<én ting>, ALDRI /quizer, aldri dypere
 //   '**' sist '/admin/**'      → /admin og alt under, vilkårlig dybde
 // lib/global-nav-coverage.test.ts feller en matcher som er skrevet om til
@@ -27,15 +27,13 @@
  * Rutene som IKKE skal ha den globale toppnav-en, med begrunnelse per rad.
  *
  * En begrunnelse er ikke pynt: den er forskjellen på et valg og en
- * forglemmelse. To klasser rader:
- *
- *   VARIG — ruter som rendrer sin egen <SiteNav … /> med props layouten ikke
- *   kan kjenne (quizId fra server-data, orgName fra fetch, backQuery fra
- *   sidehistorikk), pluss admin og selve spillestien.
- *
- *   STEG 2-TILSTAND — sider som fortsatt har en lokal, propfri <SiteNav />.
- *   De krympes i steg 3: slett den lokale SiteNav-en og fjern raden HER i
- *   samme commit — testen er toveis og feller begge halvdelene alene.
+ * forglemmelse. Alle radene er VARIG: ruter som rendrer sin egen
+ * <SiteNav … /> med props layouten ikke kan kjenne (quizId fra server-data,
+ * orgName fra fetch, backQuery fra sidehistorikk), pluss admin og selve
+ * spillestien. STEG 2-klassen (17 sider med propfri lokal SiteNav) ble
+ * krympet til null i steg 3 (30. august 2026) — de sidene lever nå av den
+ * globale nav-en, og lib/global-nav-coverage.test.ts feller både en ny rad
+ * uten side og en lokal SiteNav uten rad.
  */
 export const GLOBAL_NAV_OPT_OUT: Record<string, string> = {
   '/':
@@ -65,54 +63,6 @@ export const GLOBAL_NAV_OPT_OUT: Record<string, string> = {
     'SiteNav-utrullingen. Undersidene har egen «← Admin»-lenke, /admin har ' +
     '«Se siden ↗». ÅPENT PUNKT som består: /admin/login har ingen lenke ut ' +
     'i det hele tatt (dit sendes man av decideAdminRedirect på 401).',
-
-  // ── STEG 2-TILSTAND — krympes i steg 3, rad for rad ──────────────────────
-  '/arkiv':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/bedrift':
-    'STEG 2: marketingsiden har egen <SiteNav />. EKSAKT segment med vilje: ' +
-    '/bedrift/registrer og /bedrift/success skal ha den globale nav-en — det ' +
-    'er B-18-fiksen (inert UserMenuWrapper ga dem ingenting).',
-  '/historikk':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/historikk/*':
-    'STEG 2: attempt-detaljsiden har egen propfri <SiteNav /> i alle fem ' +
-    'grener. Steg 3: slett de lokale og fjern denne raden i samme commit.',
-  '/liga':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/liga/*':
-    'STEG 2: liga-siden har egen propfri <SiteNav />. Dekker IKKE ' +
-    '/liga/bli-med/<token> (tre segmenter) — invitasjonssiden var navløs i ' +
-    'den gamle modellen (arvet skjulingen uten erstatningen) og lever nå av ' +
-    'den globale nav-en.',
-  '/login':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/org/*':
-    'STEG 2: bedriftssiden har egen propfri <SiteNav />. Dekker IKKE ' +
-    '/org/<slug>/velkommen — veiviseren var navløs (B-18) og lever nå av den ' +
-    'globale nav-en.',
-  '/premium/success':
-    'STEG 2: kvitteringen har egen propfri <SiteNav />. EKSAKT med vilje: ' +
-    'salgssiden /premium skal ha den globale nav-en (hadde dobbel konto-pille ' +
-    'i den gamle modellen, B-27).',
-  '/profil':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/quizer':
-    'STEG 2: quizoversikten har egen propfri <SiteNav />. EGEN rad — dekkes ' +
-    'med vilje IKKE av /quiz/* (segmentmatcheren skiller /quiz fra /quizer; ' +
-    'prefiks-matching var sammentreffet som bar den gamle modellen). Steg 3: ' +
-    'slett den lokale og fjern denne raden i samme commit.',
-  '/slik-fungerer-det':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
-  '/toppliste':
-    'STEG 2: har egen propfri <SiteNav /> i sidefila. Steg 3: slett den ' +
-    'lokale og fjern denne raden i samme commit.',
 }
 
 /**

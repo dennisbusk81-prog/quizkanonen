@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { hasSettledPlays } from '@/lib/has-settled-plays'
-import SiteNav from '@/components/SiteNav'
 import type { AttemptDetail, AttemptAnswerDetail } from '@/lib/history'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -260,7 +259,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <SiteNav />
         <div style={s.centered}><p style={s.spinner}>Laster quiz-detaljer…</p></div>
       </>
     )
@@ -269,7 +267,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'not-found') {
     return (
       <>
-        <SiteNav />
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -289,7 +286,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'timeout') {
     return (
       <>
-        <SiteNav />
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -314,7 +310,6 @@ export default function AttemptDetailPage() {
   if (loadState === 'error' || !detail) {
     return (
       <>
-        <SiteNav />
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 20 }}>
@@ -340,7 +335,6 @@ export default function AttemptDetailPage() {
 
   return (
     <>
-      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
 

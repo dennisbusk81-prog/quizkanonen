@@ -9,7 +9,6 @@ import { decideHero, decideRecords, pickBesteResultat } from '@/lib/historikk-ov
 import { decideSisteQuiz, settPersonligRekord } from '@/lib/siste-quiz'
 import type { FieldProgress } from '@/lib/field-relative-progress'
 import type { HistoryAttempt, PlayerStats } from '@/lib/history'
-import SiteNav from '@/components/SiteNav'
 import SkeletonCard from '@/components/SkeletonCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import KategoriTall from '@/components/KategoriTall'
@@ -678,7 +677,6 @@ export default function HistorikkPage() {
   if (loadState === 'loading') {
     return (
       <>
-        <SiteNav />
         <div style={{ minHeight: '100vh', background: '#1a1c23', padding: '40px 20px' }}>
           <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <SkeletonCard rows={3} showHeader={false} style={{ height: 120 }} />
@@ -692,7 +690,6 @@ export default function HistorikkPage() {
   if (loadState === 'error') {
     return (
       <>
-        <SiteNav />
         <div style={s.centered}>
           <div style={{ textAlign: 'center' as const }}>
             <p style={s.spinner}>Vi klarte ikke å hente historikken.</p>
@@ -771,7 +768,6 @@ export default function HistorikkPage() {
   if (historyLocked) {
     return (
       <>
-        <SiteNav />
         <div style={s.wrap}>
           <div style={s.page}>
             <div style={{ paddingTop: 48, maxWidth: 520, margin: '0 auto' }}>
@@ -798,7 +794,6 @@ export default function HistorikkPage() {
   return (
     <ErrorBoundary>
     <>
-      <SiteNav />
       <div style={s.wrap}>
         <div style={s.page}>
 
