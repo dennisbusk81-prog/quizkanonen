@@ -14,7 +14,17 @@ import { activationLogLevel, decideActivationNotice } from '@/lib/trial-activati
 // samme som den avviklede founders_checkout-flyten brukte.
 const PENDING_TRIAL = 'trial_activate'
 
-const PLAN = { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Ubegrenset tilgang, avslutt når som helst', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' }
+// To planer, begge tilbys — årsprisen er et tillegg, ikke en erstatning
+// (Dennis' beslutning 30. august 2026). priceId er SYMBOLSKE navn; de ekte
+// price-ID-ene bor i Vercels env og oversettes av PRICE_ENV_BY_SYMBOL i
+// checkout-ruta. Årsplanen står øverst og er forvalgt: gullrammen skal lande
+// på den, og begge kortene viser begge tallene (588 på månedskortet, 33 på
+// årskortet) slik at sammenligningen kan gjøres uten hoderegning.
+const PLANS = [
+  { id: 'yearly', name: 'Premium årlig', price: 'kr 399/år', desc: 'Tilsvarer kr 33/mnd — spar 189 kr i året', priceId: 'STRIPE_PRICE_PREMIUM_YEARLY' },
+  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'kr 588 i året — avslutt når du vil', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
+] as const
+type PlanId = (typeof PLANS)[number]['id']
 
 const FEATURES = [
   'Nøyaktig plassering på leaderboard',
@@ -43,6 +53,7 @@ export default function PremiumPage() {
   const [showLoginAlert, setShowLoginAlert] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [planId, setPlanId] = useState<PlanId>('yearly')
 
   // Prøveperiode-tilbudet. `null` = ikke hentet ennå (vis ingenting framfor å
   // blinke feil tilbud); ellers avgjort av decideTrialOffer.
@@ -234,7 +245,7 @@ export default function PremiumPage() {
         setShowLoginAlert(true)
         return
       }
-      const plan = PLAN
+      const plan = PLANS.find(p => p.id === planId) ?? PLANS[0]
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: {
@@ -383,22 +394,45 @@ export default function PremiumPage() {
               ))}
             </ul>
 
-            {/* Pricing */}
-            <div style={{
-              background: '#1a1c23',
-              border: '2px solid #c9a84c',
-              borderRadius: 12, padding: '20px 24px',
-              marginBottom: 24,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{PLAN.name}</div>
-                  <div style={{ fontSize: 12, color: '#e8e4dd' }}>{PLAN.desc}</div>
-                </div>
-                <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: '#c9a84c', flexShrink: 0 }}>
-                  {PLAN.price}
-                </div>
-              </div>
+            {/* Pricing — to valgbare kort. Gull-regelen holdes ved at KUN det
+                valgte kortet bærer gullrammen og gullprisen (vei (a), valgt
+                30. august 2026): gullantallet er konstant uansett valg, og
+                begge prisene står synlige samtidig — en måned/år-toggle ville
+                skjult den ene og tatt bort selve sammenligningen. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+              {PLANS.map(p => {
+                const valgt = p.id === planId
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPlanId(p.id)}
+                    aria-pressed={valgt}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: '#1a1c23',
+                      border: valgt ? '2px solid #c9a84c' : '1px solid #2a2d38',
+                      // 2px- og 1px-rammen kompenseres i padding, så kortene
+                      // ikke hopper 1px når valget flyttes.
+                      padding: valgt ? '20px 24px' : '21px 25px',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      fontFamily: "var(--font-instrument-sans), sans-serif",
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 15, color: '#ffffff', marginBottom: 3 }}>{p.name}</div>
+                        <div style={{ fontSize: 12, color: '#e8e4dd' }}>{p.desc}</div>
+                      </div>
+                      <div style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 20, fontWeight: 700, color: valgt ? '#c9a84c' : '#e8e4dd', flexShrink: 0 }}>
+                        {p.price}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
 
             {showLoginAlert && (
