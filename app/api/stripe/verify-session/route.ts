@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId)
+    // subscription ekspanderes for å kunne oppgi trial_end på kvitteringen —
+    // samme ene Stripe-kall som før, bare med mer i svaret.
+    const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['subscription'] })
 
     // Fail-closed: sesjonen MÅ ha userId i metadata, og den må matche innlogget
     // bruker. Mangler userId, avviser vi (ingen eierskap kan bekreftes).
@@ -44,7 +46,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ paid: false }, { status: 403 })
     }
 
-    return NextResponse.json({ paid: session.payment_status === 'paid' })
+    // ── B-14 (30. august 2026): trial-checkout er også et fullført kjøp ──────
+    // payment_status har tre verdier: 'paid', 'unpaid' og 'no_payment_required'.
+    // En rad E-checkout (aktiv verdikode → subscription_data.trial_end) ender i
+    // 'no_payment_required' — abonnementet ER opprettet, kunden HAR kjøpt, men
+    // `paid === 'paid'` sa nei, og kvitteringssiden viste «ukjent» om et kjøp
+    // som gikk bra.
+    //
+    // 'no_payment_required' alene er likevel IKKE bevis på et fullført kjøp:
+    // verdien kan stå på sesjonen FØR kunden har fullført. Det autoritative
+    // «checkouten er ferdig»-signalet er session.status === 'complete' — Stripe
+    // redirecter riktignok først da, men denne ruten kan kalles med en hvilken
+    // som helst sesjons-id kunden eier. Derfor begge betingelsene, ikke én.
+    //
+    // 'unpaid' på en complete sesjon (asynkrone betalingsmetoder vi ikke
+    // tilbyr) forblir paid: false → «ukjent»-kortet, som aldri påstår at noe
+    // feilet — «vet ikke» er ikke «nei».
+    const complete = session.status === 'complete'
+    const deferred = complete && session.payment_status === 'no_payment_required'
+    const paid = complete && (session.payment_status === 'paid' || deferred)
+
+    // trial_end fra det ekspanderte abonnementet — kvitteringen kan da si NÅR
+    // første trekk skjer. Mangler det (ikke-subscription, race), sier siden det
+    // samme uten dato.
+    const sub = session.subscription
+    const trialEnd = sub && typeof sub === 'object'
+      ? (sub as unknown as { trial_end: number | null }).trial_end
+      : null
+
+    return NextResponse.json({ paid, deferred, trial_end: deferred ? trialEnd : null })
   } catch (err) {
     console.error('[verify-session] retrieve failed:', err)
     return NextResponse.json({ paid: false, error: 'Noe gikk galt' }, { status: 500 })

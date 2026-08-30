@@ -43,7 +43,14 @@ function PremiumSuccessContent() {
   //   'ukjent'    = verifiseringen feilet eller rakk ikke fram i tide
   //   'nosession' = ingen innlogging i denne fanen — kan ikke kalle
   //                 verify-session (krever Bearer), men betalingen står
-  const [loadState, setLoadState] = useState<'verifying' | 'paid' | 'ukjent' | 'nosession'>('verifying')
+  //   'trial'     = fullført kjøp UTEN trekk nå (rad E: aktiv verdikode ga
+  //                 subscription_data.trial_end). «Betalingen gikk gjennom»
+  //                 ville vært usant — det er registreringen som er fullført,
+  //                 og første trekk kommer først når koden løper ut (B-14)
+  const [loadState, setLoadState] = useState<'verifying' | 'paid' | 'trial' | 'ukjent' | 'nosession'>('verifying')
+  // Datoen for første trekk (fra abonnementets trial_end), ferdig formatert.
+  // Kun satt sammen med 'trial'; mangler den, sier teksten det samme uten dato.
+  const [firstChargeDate, setFirstChargeDate] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
 
   // Verifiser betalingen direkte mot Stripe via session_id — ikke avhengig av at
@@ -86,7 +93,14 @@ function PremiumSuccessContent() {
         if (cancelled) return
         // Et sent 'paid' overstyrer med vilje en 'ukjent' som hard-timeren
         // rakk å vise — verifisert er verifisert.
-        if (data.paid) setLoadState('paid')
+        if (data.paid) {
+          if (data.deferred && typeof data.trial_end === 'number') {
+            setFirstChargeDate(new Date(data.trial_end * 1000).toLocaleDateString('nb-NO', {
+              day: 'numeric', month: 'long', year: 'numeric',
+            }))
+          }
+          setLoadState(data.deferred ? 'trial' : 'paid')
+        }
         else setLoadState('ukjent')
       } catch {
         if (!cancelled) setLoadState('ukjent')
@@ -157,6 +171,28 @@ function PremiumSuccessContent() {
     )
   }
 
+  if (loadState === 'trial') {
+    return (
+      <>
+        <div style={s.page}>
+          <div style={s.card}>
+            {CheckIcon}
+            <div style={s.title}>Abonnementet er registrert</div>
+            <div style={s.subtitle}>
+              Kjøpet er fullført, og du blir ikke trukket nå: du har allerede
+              Premium-dekning, og første betaling skjer
+              {firstChargeDate ? ` ${firstChargeDate}` : ' først når den nåværende dekningen din løper ut'}.
+              Du har full tilgang hele veien.
+            </div>
+            <Link href="/" style={s.btn}>
+              Gå til forsiden
+            </Link>
+          </div>
+        </div>
+      </>
+    )
+  }
+
   if (loadState === 'paid') {
     return (
       <>
@@ -176,7 +212,7 @@ function PremiumSuccessContent() {
     )
   }
 
-  // Kan ikke nås — alle fire tilstandene er håndtert over. Finnes for at en
+  // Kan ikke nås — alle fem tilstandene er håndtert over. Finnes for at en
   // NY tilstand ikke skal falle stille inn i en av kvitteringene: uten egen
   // gren rendres ingenting, som oppdages umiddelbart.
   return null

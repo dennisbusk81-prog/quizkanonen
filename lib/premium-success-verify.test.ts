@@ -159,6 +159,35 @@ test('hard-timeren ryddes i cleanup', () => {
   )
 })
 
+// ── B-14: trial-kjøp er et kjøp, ikke et «ukjent» (30. august 2026) ─────────
+// Rad E-kunden (aktiv verdikode → subscription_data.trial_end) fullfører med
+// payment_status 'no_payment_required'. Ruta svarer nå paid=true + deferred, og
+// siden skal vise en EGEN kvittering som ikke påstår at penger ble trukket nå.
+// Rutesiden felles behavioralt av lib/verify-session-route.test.ts.
+
+test('deferred-svar gir trial-tilstanden, ikke paid — og ikke ukjent', () => {
+  assert.equal(
+    antall(kilde, "setLoadState(data.deferred ? 'trial' : 'paid')"), 1,
+    'skillet mellom «betalt nå» og «trekkes senere» er borte fra verify-flyten — trial-kunden får da en kvittering som lyver om et trekk',
+  )
+})
+
+test('trial-tilstanden har sin egen kvitteringsgren', () => {
+  assert.equal(
+    antall(kilde, "loadState === 'trial'"), 1,
+    'trial-grenen er borte — deferred-svaret ville da falt i return null-fallbacken og rendret ingenting',
+  )
+})
+
+test('datoen for første trekk tas kun fra et tall — aldri fra fravær', () => {
+  // trial_end kan mangle (ikke ekspandert, race). Da skal teksten falle
+  // tilbake til ordlyden uten dato, ikke vise «Invalid Date».
+  assert.equal(
+    antall(kilde, "typeof data.trial_end === 'number'"), 1,
+    'tallvakten på trial_end er borte — et manglende felt ville gitt Invalid Date i kvitteringen',
+  )
+})
+
 // ── Veien videre ────────────────────────────────────────────────────────────
 
 test('login-lenken bærer encodet next tilbake til kvitteringen', () => {
