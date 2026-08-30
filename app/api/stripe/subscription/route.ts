@@ -37,8 +37,21 @@ export async function GET(request: NextRequest) {
     // oppslaget under (active ?? trialing, limit 1) er NØYAKTIG det samme som
     // getStripeCoverage bak checkout-rutens 409 — klient og server skal tolke
     // samme kilde identisk (samme regel som admin-sesjonens readTokenExpiry).
+    // interval/amount_ore (30. august 2026): prislinja på /profil hardkodet
+    // «kr 49/mnd», som ble usann for enhver årsabonnent da årsprisen kom
+    // (e18eac6). Begge feltene leses ut av abonnementet vi ALLEREDE henter
+    // under — `sub.items.data[0].price` er et ekspandert Price-objekt i samme
+    // svar, ikke et nytt oppslag. Denne ruten gjør derfor nøyaktig like mange
+    // Stripe-kall som før. Null i begge betyr UKJENT, og /profil viser da
+    // ingen prislinje i stedet for å gjette (se lib/personal-plan-label.ts).
     if (!profile?.stripe_customer_id) {
-      return NextResponse.json({ has_subscription: false, current_period_end: null, cancel_at_period_end: false })
+      return NextResponse.json({
+        has_subscription: false,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        interval: null,
+        amount_ore: null,
+      })
     }
 
     // Fetch active and trialing separately — Stripe list() does not accept an array for status
@@ -48,13 +61,24 @@ export async function GET(request: NextRequest) {
     ])
     const sub = activeSubs.data[0] ?? trialingSubs.data[0] ?? null
     if (!sub) {
-      return NextResponse.json({ has_subscription: false, current_period_end: null, cancel_at_period_end: false })
+      return NextResponse.json({
+        has_subscription: false,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        interval: null,
+        amount_ore: null,
+      })
     }
+
+    // Samme item som current_period_end alltid har blitt lest fra.
+    const item = sub.items.data[0]
 
     return NextResponse.json({
       has_subscription: true,
-      current_period_end: sub.items.data[0]?.current_period_end ?? null,
+      current_period_end: item?.current_period_end ?? null,
       cancel_at_period_end: sub.cancel_at_period_end,
+      interval: item?.price?.recurring?.interval ?? null,
+      amount_ore: item?.price?.unit_amount ?? null,
     })
   } catch (err) {
     if (
@@ -62,7 +86,13 @@ export async function GET(request: NextRequest) {
       err.code === 'resource_missing'
     ) {
       console.warn('Stripe subscription: ukjent customer_id (mulig live/test-mismatch):', (err as Error).message)
-      return NextResponse.json({ has_subscription: false, current_period_end: null, cancel_at_period_end: false })
+      return NextResponse.json({
+        has_subscription: false,
+        current_period_end: null,
+        cancel_at_period_end: false,
+        interval: null,
+        amount_ore: null,
+      })
     }
     console.error('Stripe subscription error:', err)
     return NextResponse.json({ error: 'Noe gikk galt' }, { status: 500 })

@@ -11,6 +11,7 @@ import { useProfile } from '@/components/ProfileProvider'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
 import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
+import { describePersonalPlan } from '@/lib/personal-plan-label'
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
@@ -171,6 +172,10 @@ export default function ProfilPage() {
   const [isMobile, setIsMobile] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+  // Prislinja på abonnementskortet. null = ukjent → ingen linje vises.
+  // Se lib/personal-plan-label.ts for hvorfor «ukjent» ikke faller til
+  // månedsprisen.
+  const [planLine, setPlanLine] = useState<string | null>(null)
   const [pushSupported, setPushSupported] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
@@ -269,6 +274,31 @@ export default function ProfilPage() {
     })
     return () => { cancelled = true }
   }, [isPremium])
+
+  // Abonnementets FAKTISKE pris og intervall, til prislinja på kortet under.
+  // Hentes kun når kortet i det hele tatt kan vises (hasStripeCustomer) —
+  // ingen grunn til en Stripe-rundtur for en bruker uten kundeforhold.
+  //
+  // Feiler kallet, forblir planLine null og linja utelates. Det er med vilje:
+  // en manglende linje er en liten skade, en gal pris på kundens egen
+  // abonnementsside er en stor (se lib/personal-plan-label.ts).
+  useEffect(() => {
+    if (!hasStripeCustomer) { setPlanLine(null); return }
+    let cancelled = false
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (cancelled || !session?.access_token) return
+      try {
+        const res = await fetch('/api/stripe/subscription', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (cancelled || !res.ok) return
+        const json = await res.json()
+        if (json?.has_subscription !== true) { setPlanLine(null); return }
+        setPlanLine(describePersonalPlan({ interval: json.interval ?? null, amountOre: json.amount_ore ?? null }))
+      } catch { /* ukjent → ingen prislinje */ }
+    })
+    return () => { cancelled = true }
+  }, [hasStripeCustomer])
 
   useEffect(() => {
     let cancelled = false
@@ -1252,7 +1282,7 @@ export default function ProfilPage() {
                       {isPremium ? (
                         <>
                           <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 2 }}>Premium — aktivt</p>
-                          <p style={{ fontSize: 12, color: '#918f8a' }}>kr 49/mnd · Avslutt når du vil</p>
+                          {planLine && <p style={{ fontSize: 12, color: '#918f8a' }}>{planLine}</p>}
                         </>
                       ) : (
                         <>
