@@ -9,6 +9,7 @@ import { Quiz } from '@/lib/supabase'
 // `new Date(quiz.opens_at/closes_at)` — NULL er «ingen tidsgrense», ikke epoch
 // 1970 (B3, NONNULL-sveipet 26. august 2026).
 import { getQuizStatus, formatQuizDateOrDash } from '@/lib/quiz-status'
+import { adminQuizStatus } from '@/lib/admin-quiz-status'
 import { isQuizClosed } from '@/lib/standings-cache'
 import Link from 'next/link'
 
@@ -161,6 +162,14 @@ const STYLES = `
   .aqz-badge.open   { background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
   .aqz-badge.closed { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .aqz-badge.hidden { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  /* Arkiv: FYLT nøytral — den eneste badgen med bakgrunn utenom den grønne,
+     så en arkivkopi ikke kan forveksles med en åpen fredagsquiz i en liste
+     der «Reset» og «Slett» står rett ved siden av. Ikke grønn, og ikke gull
+     (den gule «Ny quiz»-knappen eier gullet på denne skjermen). */
+  .aqz-badge.arkiv    { background: var(--border); color: var(--white); border: 1px solid var(--border); }
+  /* Planlagt: brødtekstfarge mot «Stengt» sin muted — skiller FREMTIDIG fra
+     STENGT, som badgen kollapset til én etikett før 30. august 2026. */
+  .aqz-badge.kommende { background: transparent; color: var(--body); border: 1px solid var(--border); }
 
   .aqz-card-desc { font-size: 13px; color: var(--muted); }
 
@@ -573,9 +582,32 @@ export default function AdminQuizzes() {
     setTimeout(() => setClosesAtStatus(prev => ({ ...prev, [quizId]: null })), 3000)
   }
 
+  // FIRE utfall, ikke to. Badgen spurte tidligere kun `isOpen` og lot ALT
+  // annet falle til «Stengt» — to feil i samme linje (B-29, 30. august 2026):
+  //
+  //   • en arkivkopi (begge datoer NULL) er 'åpen' etter spillestiens
+  //     semantikk og fikk GRØNN «● ÅPEN», rett ved siden av «Reset»/«Slett»
+  //     i en liste der arkivkopier og ekte fredagsquizer står blandet;
+  //   • «Fredagsquiz 11.09.2026» er 'kommende' og ble vist som STENGT.
+  //
+  // Arkivkopiene filtreres ALDRI bort herfra — admin må kunne finne og
+  // slette dem (Dennis' beslutning). De merkes i stedet.
+  //
+  // `adminQuizStatus`, ikke `getQuizStatus`: sistnevnte deler regel med
+  // spillestien (en quiz uten tidsvindu ER spillbar) og skal ikke få et
+  // visnings-skille lagt inn i seg. `isOpen` under leser fortsatt den —
+  // stengetid-editoren skal fortsatt kunne åpnes på en arkivquiz.
+  //
+  // Pre-hydrering (`!mounted`) er badgen den samme som før: `isOpen` ga
+  // false og lista rendret «Stengt». Serveren har ingen klokke å være enig
+  // med klienten om, så utfallet må ikke avhenge av `new Date()` her.
   const statusBadge = (quiz: Quiz) => {
     if (!quiz.is_active) return <span className="aqz-badge hidden">Skjult</span>
-    if (isOpen(quiz)) return <span className="aqz-badge open">● Åpen</span>
+    if (!mounted) return <span className="aqz-badge closed">Stengt</span>
+    const status = adminQuizStatus(quiz.opens_at, quiz.closes_at, new Date())
+    if (status === 'arkiv') return <span className="aqz-badge arkiv">Arkiv</span>
+    if (status === 'kommende') return <span className="aqz-badge kommende">Planlagt</span>
+    if (status === 'åpen') return <span className="aqz-badge open">● Åpen</span>
     return <span className="aqz-badge closed">Stengt</span>
   }
 

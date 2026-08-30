@@ -386,6 +386,38 @@ test('users: quiz_count teller kun ekte quizer', async () => {
 // Flate 3 — /api/admin/stats
 // ════════════════════════════════════════════════════════════════════════════
 
+test('stats: quizzes-tallet teller kun ekte quizer', async () => {
+  const { GET } = await import('@/app/api/admin/stats/route')
+  prodSituasjonen()
+
+  const res = await GET(req())
+  const body = await res.json() as { quizzes: number }
+
+  // «QUIZER TOTALT» på /admin. Sto ugatet og talte 16 i prod der det finnes
+  // 13 ekte fredagsquizer og 3 arkivkopier — og tallet ville vokst for hver
+  // arkivrunde som spilles (B-29, 30. august 2026). Fixturen har 3 ekte og
+  // 2 arkiv, så et ufiltrert tall gir 5 og ikke 3.
+  assert.equal(body.quizzes, 3,
+    'kortet skal telle fredagsquizer, ikke arkivkopier')
+})
+
+test('stats: quizzes-tallet fanger BEGGE testformene, ikke bare arkiv', async () => {
+  const { GET } = await import('@/app/api/admin/stats/route')
+  db.quizzes = [
+    quiz('ekte', { title: 'Fredagsquiz uke 34' }),
+    quiz('testtype', { title: '[TEST – ikke ekte]', ...TEST_TYPE }),
+    quiz('testbryter', { title: '[TEST via bryter]', ...TEST_FLAGG }),
+    quiz('arkiv', { title: 'Arkiv: 21.08', ...ARKIV }),
+  ]
+
+  const res = await GET(req())
+  const body = await res.json() as { quizzes: number }
+
+  // is_test alene fanger ikke quiz_type, og omvendt — begge ledd av
+  // onlyRealQuizzes må binde på en count-spørring.
+  assert.equal(body.quizzes, 1)
+})
+
 test('stats: attempts-tallet teller kun ekte quizer', async () => {
   const { GET } = await import('@/app/api/admin/stats/route')
   prodSituasjonen()

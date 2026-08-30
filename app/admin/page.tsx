@@ -5,6 +5,8 @@ import { isAdminLoggedIn, logoutAdmin, adminLoginPath } from '@/lib/admin-sessio
 import { adminFetch } from '@/lib/admin-fetch'
 import { autoDismissMs } from '@/lib/admin-feedback'
 import { readAdminBody, readAdminList } from '@/lib/admin-load'
+import { selectRecentQuizzes } from '@/lib/admin-recent-quizzes'
+import { adminQuizStatus } from '@/lib/admin-quiz-status'
 import Link from 'next/link'
 
 const STYLES = `
@@ -397,7 +399,10 @@ const PREMIUM_SOURCE_LABELS: Record<string, string> = {
   code: 'kode',
   ukjent: 'ukjent kilde',
 }
-type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string; opens_at: string | null; closes_at: string | null }
+// `quiz_type`/`is_test` er ikke visningsfelt — de mater `erEkteQuiz` inne i
+// `selectRecentQuizzes`. Begge ligger på raden og kommer med i rutens
+// `select('*')`; de manglet bare i denne lokale typen.
+type QuizRow = { id: string; title: string; is_active: boolean; created_at: string; updated_at: string; opens_at: string | null; closes_at: string | null; quiz_type: string | null; is_test: boolean | null }
 type ResetModal = null | 'all' | 'test'
 
 export default function AdminHome() {
@@ -472,8 +477,12 @@ export default function AdminHome() {
     try {
       if (quizR.status !== 'fulfilled') throw quizR.reason
       const all = await readAdminList<QuizRow>(quizR.value, null)
-      const sorted = [...all].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-      setRecentQuizzes(sorted.slice(0, 3))
+      // Filtrer FØR kuttet på tre. GET /api/admin/quizzes leverer hele
+      // tabellen — arkivkopiene er de ferskeste radene og la seg øverst,
+      // så lista viste tre arkivkopier og null fredagsquizer (B-29).
+      // Ruten kan ikke filtrere: den mater også /admin/quizzes, som SKAL
+      // beholde arkivkopiene. Se lib/admin-recent-quizzes.ts.
+      setRecentQuizzes(selectRecentQuizzes(all))
     } catch (e) {
       console.error('quiz-hentingen feilet:', e)
       setRecentQuizzes(null)
@@ -765,11 +774,23 @@ export default function AdminHome() {
               const now = new Date()
               const opensAt = quiz.opens_at ? new Date(quiz.opens_at) : null
               const closesAt = quiz.closes_at ? new Date(quiz.closes_at) : null
-              const isOpen = opensAt && opensAt <= now && (!closesAt || closesAt > now)
-              const isClosed = closesAt && closesAt <= now
-              const isPlanned = opensAt && opensAt > now
-              const statusLabel = isOpen ? '● Åpen' : isClosed ? 'Stengt' : isPlanned ? 'Planlagt' : 'Stengt'
-              const statusClass = isOpen ? 'adm-badge--open' : isClosed ? 'adm-badge--closed' : isPlanned ? 'adm-badge--hidden' : 'adm-badge--closed'
+              // Sto som en tredje inline-kopi av statuslogikken, med
+              // «begge datoer NULL» kollapset ned i den samme 'Stengt'-grenen
+              // som en faktisk stengt quiz. Delt funksjon nå (B-29).
+              // 'arkiv'-grenen skal ikke kunne nås her — selectRecentQuizzes
+              // filtrerer arkivkopiene bort før lista rendres — men den står
+              // med vilje: forsvinner filteret, skal raden si «Arkiv», ikke
+              // låne en av de tre andre etikettene.
+              const status = adminQuizStatus(quiz.opens_at, quiz.closes_at, now)
+              const isClosed = status === 'stengt'
+              const statusLabel = status === 'åpen' ? '● Åpen'
+                : status === 'kommende' ? 'Planlagt'
+                : status === 'arkiv' ? 'Arkiv'
+                : 'Stengt'
+              const statusClass = status === 'åpen' ? 'adm-badge--open'
+                : status === 'kommende' ? 'adm-badge--hidden'
+                : status === 'arkiv' ? 'adm-badge--hidden'
+                : 'adm-badge--closed'
               const opensDate = opensAt ? opensAt.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
               const closesDate = closesAt ? closesAt.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
               const dateHint = opensDate && closesDate

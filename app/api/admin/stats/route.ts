@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchAllRows } from '@/lib/paginate'
-import { onlyRealQuizAttempts, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
+import { onlyRealQuizAttempts, onlyRealQuizzes, REAL_QUIZ_ATTEMPT_EMBED } from '@/lib/real-quiz-population'
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin
@@ -35,6 +35,19 @@ export async function GET(request: NextRequest) {
     .select(REAL_QUIZ_ATTEMPT_EMBED, { count: 'exact', head: true })
   const attemptCountQuery = onlyRealQuizAttempts(attemptCountBase)
 
+  // «QUIZER TOTALT» på /admin. Sto UGATET og talte 16 der prod har 13 ekte
+  // fredagsquizer — de tre arkivkopiene ble talt med, og tallet ville vokst
+  // for hver arkivrunde som spilles (B-29, 30. august 2026). Samme
+  // populasjonsvakt som attempts-tallet rett over; hvitelisten
+  // quiz_type IN ('weekly', 'bonus') slipper arkivet ut uten at én rad røres.
+  //
+  // Lokal variabel før helper-kallet — TS2589-regelen fra
+  // lib/real-quiz-population.ts.
+  const quizCountBase = supabaseAdmin
+    .from('quizzes')
+    .select('*', { count: 'exact', head: true })
+  const quizCountQuery = onlyRealQuizzes(quizCountBase)
+
   const [
     { count: quizzes },
     { count: attempts },
@@ -43,7 +56,7 @@ export async function GET(request: NextRequest) {
     { count: active30d },
     premiumRows,
   ] = await Promise.all([
-    supabaseAdmin.from('quizzes').select('*', { count: 'exact', head: true }),
+    quizCountQuery,
     attemptCountQuery,
     supabaseAdmin.from('access_codes').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
