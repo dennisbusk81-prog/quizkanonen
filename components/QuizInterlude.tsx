@@ -196,6 +196,11 @@ export default function QuizInterlude({
     <div
       className={`${animClass} qk-il-wrap`}
       style={{
+        // FELLE FOR EN FRAMTIDIG GLOBAL NAV (B-30 / A2): dette er et
+        // fullskjerms-overlegg med zIndex 20, mens SiteNavs sticky topplinje
+        // har zIndex 100. Flyttes nav opp i en layout som også dekker
+        // spillesiden, legger den seg OPPÅ mellomskjermen — synlig og
+        // klikkbar midt i et forsøk som ikke tåler navigasjon.
         position: 'fixed', inset: 0, background: '#1a1c23', zIndex: 20,
         display: 'flex', overflowY: 'auto',
         padding: '40px 32px',

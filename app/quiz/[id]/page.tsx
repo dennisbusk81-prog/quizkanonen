@@ -3117,6 +3117,7 @@ export default function QuizPage() {
 
   if (loading) return (
     <><style>{styles}</style>
+    <SiteNav />
     <div className="qk-loading">
       <span className="qk-loading-dot"/><span className="qk-loading-dot"/><span className="qk-loading-dot"/>
     </div></>
@@ -3124,6 +3125,7 @@ export default function QuizPage() {
 
   if (isSuspended) return (
     <><style>{styles}</style>
+    <SiteNav />
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
       <p style={{fontFamily:"var(--font-libre-baskerville), serif", fontSize:20, fontWeight:700, color:'#ffffff', marginBottom:12}}>Kontoen er midlertidig suspendert</p>
       <p style={{color:'#e8e4dd', fontSize:14, lineHeight:1.6}}>Kontakt oss på <a href="mailto:support@quizkanonen.no" style={{color:'#e8e4dd'}}>support@quizkanonen.no</a> for mer informasjon.</p>
@@ -3249,6 +3251,7 @@ export default function QuizPage() {
 
   if (!quiz) return (
     <><style>{styles}</style>
+    <SiteNav />
     <div className="qk-shell"><div className="qk-box"><div className="qk-panel" style={{textAlign:'center'}}>
       <p style={{color:'#e8e4dd',fontSize:14}}>Fant ikke quizen.</p>
       {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
@@ -3641,6 +3644,13 @@ export default function QuizPage() {
   )
 
   // SPILL
+  //
+  // ── DEN ENESTE GRENEN HER SOM BEVISST STÅR UTEN <SiteNav /> ───────────────
+  // Timeren løper, quizen er «kun én gjennomspilling», og et feiltrykk på en
+  // navlenke avslutter forsøket — det finnes ingen vei tilbake inn i det.
+  // De tre andre nav-løse grenene i denne fila var derimot forglemmelser og
+  // fikk nav 30. august 2026; se AVVIK-raden i lib/sitenav-error-states.test.ts,
+  // som feller at denne grenen får nav uten at beslutningen tas om igjen.
   if (phase === 'playing') {
     const question = questions[currentIndex]
     const limit = getTimeLimit(question)

@@ -56,8 +56,28 @@
 // fordi det er DEN som bar avvikets forutsetning. Mister den nav igjen, skal
 // det felles her, ikke oppdages som et layout-hopp i produksjon.
 //
-// AVVIK står igjen tom, med maskineriet intakt: en framtidig gren som
-// BEVISST skal stå uten nav hører hjemme der, ikke utenfor tabellen.
+// AVVIK sto igjen tom, med maskineriet intakt: en framtidig gren som BEVISST
+// skal stå uten nav hører hjemme der, ikke utenfor tabellen.
+//
+// ── AVVIK ER IKKE TOM LENGER (30. august 2026) ──────────────────────────────
+// Tabellen dekket fram til nå bare filer som styrer på en `loadState`-verdi.
+// De to største flatene i appen gjør ikke det: app/quiz/[id]/page.tsx (9
+// toppgrener) og app/org/[slug]/admin/page.tsx (4 grener foran hovedreturen)
+// styrer på `loading` / `phase` / `needsWelcome`, og falt derfor helt utenfor
+// — ikke som avvik, men som noe tabellen aldri hadde hørt om.
+//
+// Det er den samme feilklassen én etasje opp: fullstendighetstesten under er
+// bundet til ÉN skriveform (`if (loadState === '…')`), så en fil som velger en
+// annen form er usynlig for den. Denne runden tar de to filene inn manuelt.
+// Den generelle sperren — «hver SIDE har nav, eller står i AVVIK» — er lagt i
+// lib/nav-side-dekning.test.ts, som teller sider i stedet for grener og derfor
+// ikke kan omgås ved å skrive vakten annerledes.
+//
+// ⚠ ÆRLIG HULL: for quiz/[id] og org/[slug]/admin er det INGEN
+// fullstendighetssjekk på grennivå. Fem grener i quiz/[id] står hverken i
+// GRENER eller AVVIK (de HAR nav, men ingenting feller at de mister den), og
+// en NY gren i noen av de to filene glir inn ubemerket. loadState-filene har
+// den sperren; disse to har den ikke.
 //
 // MUTASJONSBEVIS — hver test peker på en konkret feilendring den fanger:
 //   • SiteNav fjernes fra én gren → «<gren>: har navigasjon» ryker.
@@ -145,16 +165,56 @@ const GRENER: Gren[] = [
   { fil: 'app/premium/success/page.tsx',       stat: 'ukjent',    vakt: "if (loadState === 'ukjent') {" },
   { fil: 'app/premium/success/page.tsx',       stat: 'nosession', vakt: "if (loadState === 'nosession') {" },
   { fil: 'app/premium/success/page.tsx',       stat: 'paid',      vakt: "if (loadState === 'paid') {" },
+
+  // /quiz/[id] — spillesiden, ni toppgrener (30. august 2026).
+  // Fem hadde nav fra før (needsLogin, already_played, register×2 og
+  // resultatskjermen, som er den VELLYKKEDE returen). Disse tre var
+  // forglemmelser av nøyaktig den formen denne fila finnes for: nabogrenen
+  // over hadde nav, nabogrenen under hadde nav, disse ble skrevet imellom.
+  // Den niende, `phase === 'playing'`, står i AVVIK — se der.
+  { fil: 'app/quiz/[id]/page.tsx',             stat: 'loading',     vakt: 'if (loading) return (' },
+  { fil: 'app/quiz/[id]/page.tsx',             stat: 'isSuspended', vakt: 'if (isSuspended) return (' },
+  { fil: 'app/quiz/[id]/page.tsx',             stat: 'notfound',    vakt: 'if (!quiz) return (' },
 ]
 
 /**
- * loadState-grener som BEVISST ikke har nav. Se «AVVIK-LISTEN» over.
+ * Grener som BEVISST ikke har nav. Se «AVVIK-LISTEN» over.
  *
- * Tom per 29. august 2026. Listen beholdes fordi den er den dokumenterte
- * plassen et framtidig avvik skal stå — fullstendighetstesten under leser
- * ALLE = GRENER + AVVIK, så en gren som havner utenfor BEGGE listene felles.
+ * Listen sto tom fra 29. august 2026 til 30. august 2026. Den er den
+ * dokumenterte plassen et avvik skal stå — fullstendighetstesten under leser
+ * ALLE = GRENER + AVVIK, så en loadState-gren som havner utenfor BEGGE
+ * listene felles.
+ *
+ * Hver rad her er en PÅSTAND OM AT FRAVÆRET ER VALGT. Testen nederst feller
+ * at raden får <SiteNav /> uten at begrunnelsen tas opp igjen.
  */
-const AVVIK: Gren[] = []
+const AVVIK: Gren[] = [
+  // Timeren løper, quizen er «kun én gjennomspilling», og et feiltrykk på en
+  // navlenke avslutter forsøket — det finnes ingen vei tilbake inn i det.
+  // Fram til 30. august 2026 var dette en UDOKUMENTERT antakelse i en fil på
+  // 5000+ linjer, der tre andre nav-løse grener så helt like ut. De tre var
+  // forglemmelser og fikk nav samme dag; denne skal ikke ha det. Begrunnelsen
+  // står nå også i kilden, rett over vakten.
+  { fil: 'app/quiz/[id]/page.tsx',       stat: 'playing', vakt: "if (phase === 'playing') {" },
+
+  // /org/[slug]/admin — bedriftspanelet. Fire nav-løse grener foran en
+  // hovedretur som HAR nav.
+  //
+  // De står i AVVIK og ikke i GRENER fordi fiksen her ikke er en linje:
+  // hovedreturen bruker `<SiteNav variant="org-admin" orgSlug={slug}
+  // orgName={data?.org.name} />`, og i loading-grenen finnes `data` ennå ikke.
+  // En `<SiteNav />` uten variant ville gitt en ANNEN topplinje i lastingen enn
+  // i panelet som lander — altså nettopp det layout-hoppet AVVIK-resonnementet
+  // over handler om, bare med motsatt fortegn.
+  //
+  // Dette er derfor et ÅPENT punkt, ikke en ferdig beslutning: radene finnes
+  // for at grenene skal være TALT, slik at en omlegging til global nav ikke
+  // kan gå forbi dem i stillhet.
+  { fil: 'app/org/[slug]/admin/page.tsx', stat: 'loading',      vakt: 'if (loading) {' },
+  { fil: 'app/org/[slug]/admin/page.tsx', stat: 'error',        vakt: 'if (error) {' },
+  { fil: 'app/org/[slug]/admin/page.tsx', stat: 'orgLocked',    vakt: 'if (data && session && isOrgLocked(data.org)) {' },
+  { fil: 'app/org/[slug]/admin/page.tsx', stat: 'needsWelcome', vakt: 'if (needsWelcome) {' },
+]
 
 const ALLE = [...GRENER, ...AVVIK]
 const FILER = [...new Set(GRENER.map(g => g.fil))]
@@ -210,6 +270,36 @@ for (const g of ALLE) {
         !blokk.includes(annen.vakt),
         `blokken for ${merke} inneholder vakten «${annen.vakt}» — parentestellingen overskjøt, og et treff på SiteNav kan komme fra nabogrenen`,
       )
+    }
+  })
+}
+
+for (const fil of [...new Set(ALLE.map(g => g.fil))]) {
+  test(`${fil}: to vakter måler ikke SAMME blokk`, () => {
+    // Det fjerde forsvaret i topplisten fanger at uttrekket SVELGER en
+    // nabogren. Det fanger IKKE at uttrekket BOMMER på sin egen og lander helt
+    // inne i naboens — da inneholder blokken ingen fremmed vakt, og alt ser
+    // riktig ut.
+    //
+    // Slik skjer det: står grenen som `return <Komponent />` uten parentes,
+    // finner `s.indexOf('return (', i)` den NESTE grenens retur i stedet.
+    // Nøyaktig det gjorde `isOrgLocked` i app/org/[slug]/admin/page.tsx fram
+    // til 30. august 2026 — den målte needsWelcome-grenen, og begge sto som
+    // AVVIK, så begge var grønne på en blokk bare den ene av dem eide.
+    //
+    // To vakter i samme fil som gir identisk blokk kan derfor ikke være riktig.
+    const sett = new Map<string, string>()
+    for (const g of ALLE.filter(x => x.fil === fil)) {
+      const blokk = returGren(g.fil, g.vakt)
+      const eier = sett.get(blokk)
+      assert.equal(
+        eier, undefined,
+        `«${g.vakt}» og «${eier}» gir NØYAKTIG samme blokk i ${fil}. Da eier ` +
+        `minst én av dem ikke det den måles på — som regel fordi grenen står ` +
+        `som «return <Komponent />» uten «return (». Gi den et eksplisitt ` +
+        `return ( <> … </> ), slik isOrgLocked fikk 30. august 2026.`,
+      )
+      sett.set(blokk, g.vakt)
     }
   })
 }

@@ -1133,7 +1133,18 @@ export default function OrgAdminPage() {
   // MÅ stå før oppsett-viderekoblingen under: en låst org hører hjemme her,
   // ikke i et oppsett den ikke får lagre.
   if (data && session && isOrgLocked(data.org)) {
-    return <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} orgSlug={slug} accessToken={session.access_token} />
+    // Fragmentet ser overflødig ut, men er ANKERET denne grenen måles på.
+    // Uten `return (` hopper parentestellingen i lib/sitenav-error-states.test.ts
+    // videre til NESTE `return (` i fila — needsWelcome-grenen rett under — og
+    // måler den i stedet, uten å merke det: blokkene er like lange, og
+    // nabovakt-testen slår ikke ut fordi uttrekket starter ETTER needsWelcome
+    // sin vakt. Pakker du ut fragmentet, måler testen feil gren og blir grønn
+    // av feil grunn.
+    return (
+      <>
+        <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} orgSlug={slug} accessToken={session.access_token} />
+      </>
+    )
   }
 
   // ── Ufullført oppsett: effekten over navigerer, så ikke blink panelet ──────
