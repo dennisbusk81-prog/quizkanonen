@@ -197,7 +197,7 @@ export default function SlikFungererDetPage() {
             {/* Premium */}
             <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 12, padding: '16px 18px' }}>
               <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: '#c9a84c', marginBottom: 12 }}>
-                Premium · kr 49/mnd
+                Premium · kr 49/mnd eller kr 399/år
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
                 <li style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.4, fontStyle: 'italic' }}>Alt i gratis, pluss:</li>

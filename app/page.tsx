@@ -2141,7 +2141,7 @@ export default async function Home() {
                   Prøv Premium gratis i {anonTrialOffer.days} dager →
                 </Link>
               ) : (
-                <span style={{ color: '#e8e4dd' }}>Premium kr 49/mnd</span>
+                <span style={{ color: '#e8e4dd' }}>Premium fra kr 49/mnd</span>
               )}
             </div>
           )}
