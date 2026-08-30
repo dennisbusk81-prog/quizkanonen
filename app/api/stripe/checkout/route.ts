@@ -6,7 +6,14 @@ import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { getCodeCoverage, getStripeCoverage } from '@/lib/premium-state-io'
 import { isStripeLive } from '@/lib/premium-state'
 
-const ALLOWED_PRICE_IDS = ['STRIPE_PRICE_PREMIUM_MONTHLY']
+// Klienten sender et SYMBOLSK navn — aldri en ekte price-ID. Nøklene i denne
+// mappen ER hvitelisten; verdien er env-variabelen som bærer den ekte
+// price-ID-en i Vercel. En ekte price-ID i body er ikke en nøkkel her og
+// avvises derfor med 400, akkurat som et ukjent navn.
+const PRICE_ENV_BY_SYMBOL: Record<string, string> = {
+  STRIPE_PRICE_PREMIUM_MONTHLY: 'STRIPE_PRICE_PREMIUM_MONTHLY',
+  STRIPE_PRICE_PREMIUM_YEARLY: 'STRIPE_PRICE_PREMIUM_YEARLY',
+}
 
 /**
  * Kundens Stripe-kunde som checkouten skal bruke — den EKSISTERENDE når vi har
@@ -116,10 +123,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ingen tilgang' }, { status: 403 })
     }
 
-    if (!ALLOWED_PRICE_IDS.includes(priceId)) {
+    // Object.hasOwn, ikke et rent oppslag: `priceId` er fri tekst fra body, og
+    // arvede nøkler ('constructor', 'toString') skal være like ugyldige som
+    // alt annet utenfor hvitelisten.
+    if (typeof priceId !== 'string' || !Object.hasOwn(PRICE_ENV_BY_SYMBOL, priceId)) {
       return NextResponse.json({ error: 'Ugyldig priceId' }, { status: 400 })
     }
-    const resolvedPriceId = process.env.STRIPE_PRICE_PREMIUM_MONTHLY!
+    const priceEnvName = PRICE_ENV_BY_SYMBOL[priceId]
+    const resolvedPriceId = process.env[priceEnvName]
+    if (!resolvedPriceId) {
+      // Hvitelistet navn uten env-verdi er en KONFIGURASJONSFEIL, ikke en
+      // brukerfeil. Uten denne sperren hadde undefined gått rett inn i
+      // sessions.create og kunden fått en generisk 500 uten spor av årsaken.
+      // Kunden kan ikke handle på dette — detaljene går til loggen, ikke UI-et.
+      console.error(`[checkout] priceId ${priceId} er hvitelistet, men env-variabelen ${priceEnvName} mangler eller er tom`)
+      return NextResponse.json(
+        { error: 'Denne prisen er ikke tilgjengelig akkurat nå. Prøv igjen senere, eller kontakt oss.' },
+        { status: 500 },
+      )
+    }
     const mode = 'subscription'
 
     // ── Vakt mot dobbelt abonnement (30. august 2026) ──────────────────────────

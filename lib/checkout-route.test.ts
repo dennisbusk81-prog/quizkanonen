@@ -18,6 +18,7 @@ import type { CodeCoverage, StripeCoverage } from './premium-state'
 
 process.env.NEXT_PUBLIC_SITE_URL = 'https://quizkanonen.no'
 process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_live_monthly'
+process.env.STRIPE_PRICE_PREMIUM_YEARLY = 'price_live_yearly'
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy'
 
 const USER_ID = '5c312683-2010-46d5-8a9d-a3529ee2e285'
@@ -129,12 +130,12 @@ mock.module('stripe', {
 
 const { POST } = await import('@/app/api/stripe/checkout/route')
 
-function checkout() {
+function checkout(priceId = 'STRIPE_PRICE_PREMIUM_MONTHLY') {
   const request = new Request('https://quizkanonen.no/api/stripe/checkout', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer test-token' },
     body: JSON.stringify({
-      priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY',
+      priceId,
       userId: USER_ID,
       email: 'kunde@example.no',
     }),
@@ -398,6 +399,72 @@ test('paused abonnement (rad B/D-stabling) er fortsatt active → 409', async ()
   const res = await checkout()
   assert.equal(res.status, 409)
   assert.equal(state.sessions.length, 0)
+})
+
+// ── Årspris i hvitelisten (30. august 2026) ─────────────────────────────────
+//
+// ALLOWED_PRICE_IDS ble til PRICE_ENV_BY_SYMBOL: symbolsk navn → env-variabel.
+// Klienten sender fortsatt KUN symbolske navn; de ekte price-ID-ene finnes
+// bare i Vercels env og kan ikke velges utenfra.
+//
+// MUTASJONSBEVIS: fjern STRIPE_PRICE_PREMIUM_YEARLY-nøkkelen fra mappen i
+// ruten, og «årsprisen godtas» + «rad E med årspris» ryker begge med 400.
+
+test('årsprisen godtas — sesjonen bruker env-verdien for årsprisen', async () => {
+  const res = await checkout('STRIPE_PRICE_PREMIUM_YEARLY')
+  assert.equal(res.status, 200)
+  assert.equal(state.sessions.length, 1)
+  const lineItems = state.sessions[0].line_items as Array<{ price?: string }>
+  assert.equal(
+    lineItems[0].price,
+    'price_live_yearly',
+    'sesjonen skal bære ÅRSPRISENS env-verdi, ikke månedsprisens',
+  )
+})
+
+test('ukjent symbolsk navn avvises med 400 — også arvede objektnøkler', async () => {
+  for (const ugyldig of ['STRIPE_PRICE_UKJENT', 'constructor', 'toString']) {
+    const res = await checkout(ugyldig)
+    assert.equal(res.status, 400, `«${ugyldig}» skulle vært avvist`)
+  }
+  assert.equal(state.sessions.length, 0, 'ingen sesjon for noen av dem')
+})
+
+test('ekte price-ID avvises — klienten kan aldri velge pris direkte', async () => {
+  // Selv den FAKTISKE verdien env-variabelen bærer er ugyldig som body-verdi:
+  // vakten er at klienten kun får sende symbolske navn.
+  const res = await checkout('price_live_yearly')
+  assert.equal(res.status, 400)
+  assert.equal(state.sessions.length, 0)
+})
+
+test('rad E med årspris: aktiv kode gir trial_end også der', async () => {
+  const endsAt = inDays(30)
+  state.code = activeCode(endsAt)
+
+  const res = await checkout('STRIPE_PRICE_PREMIUM_YEARLY')
+  assert.equal(res.status, 200)
+  assert.equal(
+    (state.sessions[0].subscription_data as { trial_end?: number }).trial_end,
+    Math.floor(new Date(endsAt).getTime() / 1000),
+    'kode-perioden skal utsette første faktura uavhengig av valgt plan',
+  )
+  assert.equal((state.sessions[0].line_items as Array<{ price?: string }>)[0].price, 'price_live_yearly')
+})
+
+test('hvitelistet navn uten env-verdi → 500 med klar tekst, ingen sesjon', async () => {
+  // Konfigurasjonsfeilen som ellers hadde vært stille: navnet står i mappen,
+  // men Vercel mangler variabelen. undefined skal ALDRI nå sessions.create.
+  const original = process.env.STRIPE_PRICE_PREMIUM_YEARLY
+  delete process.env.STRIPE_PRICE_PREMIUM_YEARLY
+  try {
+    const res = await checkout('STRIPE_PRICE_PREMIUM_YEARLY')
+    assert.equal(res.status, 500)
+    assert.match((await res.json()).error, /ikke tilgjengelig/)
+    assert.equal(state.sessions.length, 0, 'sessions.create skal aldri kalles med undefined pris')
+  } finally {
+    process.env.STRIPE_PRICE_PREMIUM_YEARLY = original
+  }
 })
 
 test('Rad E består: kode aktiv + INGEN levende sub → kjøp med trial_end', async () => {
