@@ -313,6 +313,44 @@ export default function UserMenu() {
                 >
                   Sesong-topplisten →
                 </a>
+                {/* Arkivet — BEVISST uten lås-badge og UTENFOR
+                    profileLoaded-gaten, til forskjell fra Quizhistorikk rett
+                    under. Samme tilføyelse som i NavAuth.tsx (andre kopi av
+                    samme meny) — de to er bevisste tvillinger med ulikt
+                    innhold ellers, og skal ikke harmoniseres her.
+
+                    /arkiv-LISTEN er ugatet med vilje: en gratisbruker ser hele
+                    listen med «Premium»-piller der «Spill» ville stått, pluss
+                    et forklaringskort. Det er selve konverteringsflaten. En lås
+                    her ville sagt at siden er stengt, og ført gratisbrukeren
+                    bort fra den ene flaten som er bygget for å konvertere hen.
+                    Arkivet er ikke låst — det er SPILLINGEN av en arkivquiz som
+                    krever Premium, og den låsen står allerede på hver rad inne
+                    på siden.
+
+                    Uten badge trenger lenken heller ingen isPremium-verdi, og
+                    da er profileLoaded-gaten unødvendig: den finnes for å
+                    hindre at en Premium-bruker ser låst variant i blaffet før
+                    profilen har landet. Her finnes ingen låst variant.
+
+                    Bevisst hard navigasjon, ikke <Link> — samme mønster som
+                    resten av menyen. */}
+                <a
+                  href="/arkiv"
+                  onClick={() => setDropdownOpen(false)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', background: 'none',
+                    borderRadius: 8, fontSize: 13, color: '#e8e4dd',
+                    fontFamily: "var(--font-instrument-sans), sans-serif",
+                    textDecoration: 'none', transition: 'background 0.12s',
+                    boxSizing: 'border-box', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  Arkivet
+                </a>
                 {profileLoaded && (
                   <>
                     {/* Bevisst hard navigasjon, ikke <Link>: fersk server-data

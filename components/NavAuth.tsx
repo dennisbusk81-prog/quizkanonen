@@ -480,6 +480,34 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             >
               Mine ligaer
             </a>
+            {/* Arkivet — BEVISST uten lås-badge og UTENFOR profileLoaded-gaten,
+                til forskjell fra Quizhistorikk rett under.
+
+                /arkiv-LISTEN er ugatet med vilje: en gratisbruker ser hele
+                listen med «Premium»-piller der «Spill» ville stått, pluss et
+                forklaringskort. Det er selve konverteringsflaten. En lås her
+                ville sagt at siden er stengt, og dermed ført gratisbrukeren
+                bort fra den ene flaten som er bygget for å konvertere hen.
+                Arkivet er ikke låst — det er SPILLINGEN av en arkivquiz som
+                krever Premium, og den låsen står allerede på hver rad inne
+                på siden.
+
+                Uten badge trenger lenken heller ingen isPremium-verdi, og
+                da er profileLoaded-gaten unødvendig: den finnes for å hindre
+                at en Premium-bruker ser låst variant i blaffet før profilen
+                har landet. Her finnes ingen låst variant.
+
+                Bevisst hard navigasjon, ikke <Link> — samme mønster som resten
+                av menyen, se toppkommentaren. */}
+            <a
+              href="/arkiv"
+              onClick={() => setDropdownOpen(false)}
+              style={menuItem}
+              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              Arkivet
+            </a>
             {profileLoaded && (
               // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
               // server-data i stedet for Next sin router-cache. Ikke en forglemmelse
