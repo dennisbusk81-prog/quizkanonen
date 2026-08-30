@@ -123,6 +123,30 @@ export async function fetchRetentionRows(): Promise<RetentionRow[]> {
   // historiske avlesninger er fortsatt sammenlignbare. Motprøve
   // `quiz_type=in.(archive)` → 0 (filteret binder faktisk).
   //
+  // ── is_active FILTRERES BEVISST IKKE (B-33, 30. august 2026) ─────────────
+  // Ikke glemt — vurdert og forkastet. Retention er en REGNSKAPSFLATE: den
+  // teller hvem som faktisk kom tilbake på quizer som allerede er spilt og
+  // gjort opp. «Skjul» i admin skal ikke fjerne resultater folk har spilt —
+  // samme side av linjen som cron/award-season-points:58 og
+  // org/[slug]/quiz-insights:56, og motsatt av butikkflatene (forsidens «Ukens
+  // fakta», /quizer, /api/arkiv, start-attempt). Full drøfting står i
+  // app/api/admin/dashboard/route.ts, som er den andre leseren av disse radene.
+  //
+  // HER LIGGER DESSUTEN DEN AVGJØRENDE GRUNNEN, og den er strukturell:
+  // computeRetention regner hver quiz mot FORGJENGEREN I LISTA (linje 68
+  // under). Lista er altså ikke et sett, den er en KJEDE. Filtreres en skjult
+  // quiz bort herfra, blir etterfølgerens forgjenger stille den nest forrige —
+  // og prosenten for en HELT ANNEN quiz endrer seg, etter at den er lest og
+  // notert. En vakt her er derfor ikke «ett filter til»; den skriver om
+  // historikk stille. Forkastet av den grunn.
+  //
+  // TAS DETTE OPP IGJEN, er svaret VARIANT 4, og den hører hjemme et annet
+  // sted enn her: la KJEDEN regnes komplett som nå, og filtrer kun
+  // VISNINGSVALGET — `latestClosedRetention` (nederst i denne filen) og
+  // `lastQuiz` i dashboard-ruta. RetentionRow må da bære `is_active`.
+  // /admin/retention beholder alle radene, dashbordets to kort flytter seg
+  // sammen, og ingen prosent endrer seg bakover.
+  //
   // FORM: spørringen i lokal variabel, helperen påført etterpå — inlinet
   // argument gir `next build` TS2589 på lange byggerkjeder.
   const retentionQuizQuery = supabaseAdmin

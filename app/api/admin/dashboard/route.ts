@@ -53,6 +53,54 @@ export async function GET(request: NextRequest) {
     // dessuten kortet ENIG med retention-kortet rett ved siden av, som allerede
     // avgrenser på is_test (lib/retention.ts:107). Se lib/real-quiz-population.ts.
     //
+    // ── is_active FILTRERES BEVISST IKKE (B-33, 30. august 2026) ────────────
+    // Ikke glemt — vurdert og forkastet. Fram til nå sto det ingenting her, og
+    // søsken-sveipet 30. august meldte fraværet som en bug av samme form som
+    // [A-7]: «en vakt som finnes ett sted og mangler et annet». Kartleggingen
+    // viste at det ikke er den klassen.
+    //
+    // LINJEN GÅR MELLOM BUTIKKFLATE OG REGNSKAPSFLATE, ikke mellom ruter som
+    // tilfeldigvis «har» eller «mangler» vakten:
+    //   • Butikkflater — forsidens «Ukens fakta» (app/page.tsx:425), /quizer,
+    //     /api/arkiv, start-attempt, questions, send-reminders — FILTRERER.
+    //     «Skjul» skal fjerne quizen fra det folk kan se og spille.
+    //   • Regnskapsflater — cron/award-season-points:58, cron/publish-quiz:111
+    //     og org/[slug]/quiz-insights:56 — FILTRERER IKKE, eksplisitt: «Skjul»
+    //     skal ikke fjerne resultater folk allerede har spilt.
+    // Dette kortet er en regnskapsflate. Det teller innsendte forsøk på en quiz
+    // som ALLEREDE er stengt og spilt, på admins egen KPI-skjerm, og
+    // org-admin-søskenet med nøyaktig samme form (quiz-insights: siste stengte
+    // quiz + tall) står bevisst på den siden.
+    //
+    // ALLE TRE POPULASJONENE i denne nyttelasten er enige om å ikke filtrere:
+    // dette kortet, retention-kortet (lib/retention.ts) og grafens
+    // aktivitetsserie (weekly_active_players, migrasjon 20260825000000). Legger
+    // du vakten på ÉN av dem, blir ruta uenig med seg selv.
+    //
+    // FORKASTET ALTERNATIV — «filtrer alle tre»: computeRetention regner hver
+    // quiz mot FORGJENGEREN I LISTA (lib/retention.ts:68). Fjernes en skjult
+    // quiz fra midten, blir etterfølgerens forgjenger stille den nest forrige,
+    // og et historisk retention-tall for en ANNEN quiz endrer seg under føttene
+    // på en avlesning som allerede er gjort. Stille omskriving av historikk.
+    //
+    // TAS DETTE OPP IGJEN, er svaret VARIANT 4: la kjeden regnes komplett som i
+    // dag, og filtrer kun VISNINGSVALGET — `lastQuiz` her og
+    // `latestClosedRetention` (lib/retention.ts:172), som da må bære
+    // `is_active` på RetentionRow. Begge kortene flytter seg da sammen,
+    // /admin/retention beholder alle radene, og ingen prosent endrer seg
+    // bakover.
+    //
+    // MERK at de to kortene allerede kan peke på HVER SIN quiz uten at noe er
+    // skjult: retention krever i tillegg `season_points_awarded = true`, så i
+    // vinduet mellom stenging og oppgjør viser dette kortet den nye quizen mens
+    // oppslutningskortet fortsatt viser den forrige. Det er normaltilstand hver
+    // fredag — og nettopp derfor ville en PERMANENT slik uenighet vært vanskelig
+    // å oppdage: den ser ut som cronen som ikke har kjørt ennå.
+    //
+    // Beslutningen er Dennis', 30. august 2026, og bevisst UTSATT snarere enn
+    // avsluttet: han vet ikke ennå når han faktisk ville brukt «Skjul»-knappen,
+    // og kan da heller ikke bestemme hva den skal bety for dashbordet.
+    //
     // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
     // onlyRealQuizzes() ga TS2589 «Type instantiation is excessively deep».
     // Se lib/real-quiz-population.ts. Ikke inline den tilbake.

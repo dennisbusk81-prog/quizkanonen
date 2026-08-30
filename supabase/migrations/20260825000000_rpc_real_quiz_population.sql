@@ -24,6 +24,40 @@
 --     IN-listene i DENNE filen endres i en ny migrasjon i samme runde —
 --     SQL-siden følger ikke TS-konstanten automatisk.
 --
+-- ── is_active FILTRERES BEVISST IKKE (B-33, 30. august 2026) ────────────────
+-- Kommentar lagt til i ettertid; SQL-en under er UENDRET siden migrasjonen ble
+-- kjørt 25. august 2026. Ikke glemt — vurdert og forkastet.
+--
+-- Joinen over avgrenser på is_test og quiz_type, men ikke på is_active. Det er
+-- riktig her: begge funksjonene teller FAKTISK DELTAKELSE som har skjedd, altså
+-- en REGNSKAPSFLATE. «Skjul» i admin skal ikke fjerne spillere fra en telling
+-- av hva folk allerede har spilt — samme side av linjen som
+-- cron/award-season-points:58, cron/publish-quiz:111 og
+-- org/[slug]/quiz-insights:56, og motsatt av BUTIKKFLATENE (forsidens «Ukens
+-- fakta» app/page.tsx:425, /quizer, /api/arkiv, start-attempt, questions,
+-- send-reminders), som filtrerer fordi «Skjul» skal fjerne quizen fra det folk
+-- kan se og spille.
+--
+-- weekly_active_players mater grafens aktivitetsserie på /admin/dashboard, som
+-- har TRE quiz-populasjoner: denne, retention-kortet (lib/retention.ts) og
+-- «Deltakere siste quiz» (app/api/admin/dashboard/route.ts:59). Alle tre er
+-- enige om å ikke filtrere. Legges vakten på ÉN av dem, blir dashbordet uenig
+-- med seg selv — og en slik uenighet er stille: de to kortene kan allerede
+-- peke på hver sin quiz i vinduet før oppgjøret, så en permanent versjon ser ut
+-- som en cron som ikke har kjørt ennå.
+--
+-- FORKASTET ALTERNATIV — «filtrer alle tre»: computeRetention (lib/retention.ts)
+-- regner hver quiz mot FORGJENGEREN I LISTA. Fjernes en skjult quiz fra midten,
+-- endres et historisk retention-tall for en ANNEN quiz. Stille omskriving av
+-- historikk.
+--
+-- TAS DETTE OPP IGJEN, er svaret VARIANT 4: filtrer VISNINGSVALGET, ikke
+-- kjeden — `lastQuiz` og `latestClosedRetention`. Da trenger denne filen
+-- ingen ny migrasjon i det hele tatt, siden en serie ikke er et visningsvalg.
+--
+-- Beslutningen er Dennis', 30. august 2026, og bevisst utsatt: bruken av
+-- «Skjul»-knappen er ikke avklart, og da kan heller ikke virkningen være det.
+--
 -- ── TO FELLER SOM ER RESPEKTERT ─────────────────────────────────────────────
 --
 -- 1. CREATE OR REPLACE NULLSTILLER FUNKSJONSATTRIBUTTER. Migrasjon
