@@ -74,8 +74,12 @@ export async function GET(request: NextRequest) {
     //
     // onlyRealQuizzes lukker [A-7]: uten den overtar en testquiz kortet, og
     // deltakertallet blir de 2–3 radene testkjøringen la igjen. Filteret gjør
-    // dessuten kortet ENIG med retention-kortet rett ved siden av, som allerede
-    // avgrenser på is_test (lib/retention.ts:107). Se lib/real-quiz-population.ts.
+    // dessuten kortet ENIG med retention-kortet rett ved siden av, som avgrenser
+    // populasjonen sin med NØYAKTIG samme helper: `onlyRealQuizzes` påført
+    // `retentionQuizQuery` i lib/retention.ts. (Der sto det tidligere en
+    // håndskrevet `.eq('is_test', false)` — den slapp arkivquizer gjennom og
+    // matchet ikke `is_test IS NULL`; begrunnelsen står over spørringen der.)
+    // Se lib/real-quiz-population.ts.
     //
     // ── is_active FILTRERES BEVISST IKKE (B-33, 30. august 2026) ────────────
     // Ikke glemt — vurdert og forkastet. Fram til nå sto det ingenting her, og
@@ -109,7 +113,7 @@ export async function GET(request: NextRequest) {
     //
     // TAS DETTE OPP IGJEN, er svaret VARIANT 4: la kjeden regnes komplett som i
     // dag, og filtrer kun VISNINGSVALGET — `lastQuiz` her og
-    // `latestClosedRetention` (lib/retention.ts:172), som da må bære
+    // `latestClosedRetention` (nederst i lib/retention.ts), som da må bære
     // `is_active` på RetentionRow. Begge kortene flytter seg da sammen,
     // /admin/retention beholder alle radene, og ingen prosent endrer seg
     // bakover.
