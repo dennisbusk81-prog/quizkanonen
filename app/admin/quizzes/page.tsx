@@ -10,6 +10,7 @@ import { Quiz } from '@/lib/supabase'
 // 1970 (B3, NONNULL-sveipet 26. august 2026).
 import { getQuizStatus, formatQuizDateOrDash } from '@/lib/quiz-status'
 import { adminQuizStatus } from '@/lib/admin-quiz-status'
+import { splitAdminQuizList, arkivGruppeTittel } from '@/lib/admin-quiz-groups'
 import { isQuizClosed } from '@/lib/standings-cache'
 import Link from 'next/link'
 
@@ -170,6 +171,42 @@ const STYLES = `
   /* Planlagt: brødtekstfarge mot «Stengt» sin muted — skiller FREMTIDIG fra
      STENGT, som badgen kollapset til én etikett før 30. august 2026. */
   .aqz-badge.kommende { background: transparent; color: var(--body); border: 1px solid var(--border); }
+
+  /* Arkivseksjonen: dempet, ikke en ny gullflate. Overskriftsformen er den
+     samme som seksjonsskillene på /historikk — liten versal-etikett, linje,
+     og en pille til høyre. */
+  .aqz-arkiv { margin-top: 28px; }
+  .aqz-arkiv-sum {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .aqz-arkiv-sum::-webkit-details-marker { display: none; }
+  .aqz-arkiv-tittel {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .aqz-arkiv-sum:hover .aqz-arkiv-tittel { color: var(--body); }
+  .aqz-arkiv-linje { flex: 1; height: 1px; background: var(--border); }
+  .aqz-arkiv-hint {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .aqz-arkiv-liste { padding-top: 6px; }
 
   .aqz-card-desc { font-size: 13px; color: var(--muted); }
 
@@ -601,6 +638,131 @@ export default function AdminQuizzes() {
   // Pre-hydrering (`!mounted`) er badgen den samme som før: `isOpen` ga
   // false og lista rendret «Stengt». Serveren har ingen klokke å være enig
   // med klienten om, så utfallet må ikke avhenge av `new Date()` her.
+  // Delingen er klient-side med vilje: GET /api/admin/quizzes mater også
+  // «Siste quizer» på /admin, og de to flatene har motsatt behov — den ene
+  // skal filtrere arkivet bort, denne skal beholde det. Se
+  // lib/admin-quiz-groups.ts og lib/admin-recent-quizzes.ts.
+  //
+  // Uttømmende og gjensidig utelukkende: ingen rad forsvinner, og en ekte
+  // quiz kan ikke havne i arkivgruppen. Tomme-tilstanden under leser
+  // fortsatt `quizzes.length`, ikke `ekte.length` — «ingen quizer ennå»
+  // skal ikke vises på en flate som har rader å slette.
+  const { ekte, arkiv } = splitAdminQuizList(quizzes)
+
+  // ÉN kortrenderer, brukt av BEGGE gruppene. Sto som en inline `.map`
+  // før delingen (B-29b) — trukket ut, ikke omskrevet, nettopp fordi
+  // arkivradene skal beholde ALT: «Slett» (Dennis' eneste vei til å rydde
+  // dem), «Reset», «Skjul», stengetid-editoren og ARKIV-badgen fra c32c62d.
+  // En egen, forenklet arkivrad ville stille mistet en av dem.
+  const quizKort = (quiz: Quiz) => (
+          <div key={quiz.id} className="aqz-card">
+            <div className="aqz-card-top">
+              <div className="flex-1 min-w-0">
+                <div className="aqz-card-title-row">
+                  <h2 className="aqz-card-title">{quiz.title}</h2>
+                  {statusBadge(quiz)}
+                </div>
+                {quiz.description && (
+                  <p className="aqz-card-desc">{quiz.description}</p>
+                )}
+                <div className="aqz-card-meta">
+                  <span>{formatDate(quiz.opens_at)}</span>
+                  <span>{formatDate(quiz.closes_at)}</span>
+                  <span>{quiz.time_limit_seconds}s</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Inline closes_at editor — kun for åpne quizer ── */}
+            {mounted && isOpen(quiz) && (
+              <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', flexShrink: 0 }}>
+                  Stenger
+                </span>
+                <input
+                  type="text"
+                  value={closesAtDate[quiz.id] ?? toDatetimeParts(quiz.closes_at)[0]}
+                  onChange={e => setClosesAtDate(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                  placeholder="DD.MM.ÅÅÅÅ"
+                  style={{
+                    background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
+                    padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
+                    fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 110,
+                  }}
+                />
+                <input
+                  type="text"
+                  value={closesAtTime[quiz.id] ?? toDatetimeParts(quiz.closes_at)[1]}
+                  onChange={e => setClosesAtTime(prev => ({ ...prev, [quiz.id]: e.target.value }))}
+                  placeholder="TT:MM"
+                  style={{
+                    background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
+                    padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
+                    fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 72,
+                  }}
+                />
+                <button
+                  onClick={() => updateClosesAt(quiz.id)}
+                  style={{
+                    background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
+                    padding: '6px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
+                    cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
+                  }}
+                >
+                  Oppdater
+                </button>
+                {closesAtError[quiz.id] && (
+                  <span style={{ fontSize: 12, color: '#f87171' }}>{closesAtError[quiz.id]}</span>
+                )}
+                {closesAtStatus[quiz.id] === 'ok' && (
+                  <span style={{ fontSize: 12, color: '#c9a84c' }}>Oppdatert ✓</span>
+                )}
+                {closesAtStatus[quiz.id] === 'error' && (
+                  <span style={{ fontSize: 12, color: '#e8e4dd' }}>Feil — prøv igjen</span>
+                )}
+              </div>
+            )}
+
+            <div className="aqz-actions">
+              <Link href={`/admin/quizzes/${quiz.id}/questions`} className="aqz-action blue">
+                Spørsmål
+              </Link>
+              <Link href={`/admin/quizzes/new?id=${quiz.id}`} className="aqz-action gray">
+                Rediger
+              </Link>
+              <Link href={`/admin/quizzes/${quiz.id}/analytics`} className="aqz-action gray">
+                Analytics
+              </Link>
+              <Link href={`/admin/quizzes/${quiz.id}/results`} className="aqz-action gray">
+                Resultater
+              </Link>
+              <button onClick={() => toggleActive(quiz)}
+                className={`aqz-action ${quiz.is_active ? 'orange' : 'green'}`}>
+                {quiz.is_active ? 'Skjul' : 'Publiser'}
+              </button>
+              <button onClick={() => resetQuiz(quiz.id, quiz.title)} className="aqz-action purple">
+                Reset
+              </button>
+              <button onClick={() => deleteQuiz(quiz.id, quiz.title)} className="aqz-action red">
+                Slett
+              </button>
+              {mounted && isQuizClosed(quiz.closes_at, Date.now()) && (
+                <button
+                  onClick={() => shareQuizResults(quiz.id)}
+                  className="aqz-action"
+                  style={{
+                    color: copiedQuizId === quiz.id ? '#4ade80' : '#e8e4dd',
+                    border: `1px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
+                    background: 'transparent',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {copiedQuizId === quiz.id ? 'Kopiert! ✓' : 'Del resultater'}
+                </button>
+              )}
+            </div>
+          </div>
+  )
   const statusBadge = (quiz: Quiz) => {
     if (!quiz.is_active) return <span className="aqz-badge hidden">Skjult</span>
     if (!mounted) return <span className="aqz-badge closed">Stengt</span>
@@ -719,115 +881,35 @@ export default function AdminQuizzes() {
           </div>
         ) : (
           <div>
-            {quizzes.map(quiz => (
-              <div key={quiz.id} className="aqz-card">
-                <div className="aqz-card-top">
-                  <div className="flex-1 min-w-0">
-                    <div className="aqz-card-title-row">
-                      <h2 className="aqz-card-title">{quiz.title}</h2>
-                      {statusBadge(quiz)}
-                    </div>
-                    {quiz.description && (
-                      <p className="aqz-card-desc">{quiz.description}</p>
-                    )}
-                    <div className="aqz-card-meta">
-                      <span>{formatDate(quiz.opens_at)}</span>
-                      <span>{formatDate(quiz.closes_at)}</span>
-                      <span>{quiz.time_limit_seconds}s</span>
-                    </div>
-                  </div>
-                </div>
+            {/* Ekte quizer først, i rutens rekkefølge (created_at DESC).
+                Uendret fra før delingen. */}
+            {ekte.map(quizKort)}
 
-                {/* ── Inline closes_at editor — kun for åpne quizer ── */}
-                {mounted && isOpen(quiz) && (
-                  <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#918f8a', flexShrink: 0 }}>
-                      Stenger
-                    </span>
-                    <input
-                      type="text"
-                      value={closesAtDate[quiz.id] ?? toDatetimeParts(quiz.closes_at)[0]}
-                      onChange={e => setClosesAtDate(prev => ({ ...prev, [quiz.id]: e.target.value }))}
-                      placeholder="DD.MM.ÅÅÅÅ"
-                      style={{
-                        background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
-                        padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 110,
-                      }}
-                    />
-                    <input
-                      type="text"
-                      value={closesAtTime[quiz.id] ?? toDatetimeParts(quiz.closes_at)[1]}
-                      onChange={e => setClosesAtTime(prev => ({ ...prev, [quiz.id]: e.target.value }))}
-                      placeholder="TT:MM"
-                      style={{
-                        background: '#1a1c23', border: '1px solid #2a2d38', borderRadius: 8,
-                        padding: '6px 10px', fontSize: 13, color: '#e8e4dd',
-                        fontFamily: "var(--font-instrument-sans), sans-serif", outline: 'none', width: 72,
-                      }}
-                    />
-                    <button
-                      onClick={() => updateClosesAt(quiz.id)}
-                      style={{
-                        background: 'transparent', border: '1px solid #2a2d38', borderRadius: 10,
-                        padding: '6px 16px', fontSize: 13, fontWeight: 500, color: '#e8e4dd',
-                        cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Oppdater
-                    </button>
-                    {closesAtError[quiz.id] && (
-                      <span style={{ fontSize: 12, color: '#f87171' }}>{closesAtError[quiz.id]}</span>
-                    )}
-                    {closesAtStatus[quiz.id] === 'ok' && (
-                      <span style={{ fontSize: 12, color: '#c9a84c' }}>Oppdatert ✓</span>
-                    )}
-                    {closesAtStatus[quiz.id] === 'error' && (
-                      <span style={{ fontSize: 12, color: '#e8e4dd' }}>Feil — prøv igjen</span>
-                    )}
-                  </div>
-                )}
+            {/* Arkivkopiene BLIR VÆRENDE på flaten — dette er eneste vei til
+                å slette dem — men de skal ikke skyve fredagsquizene under
+                skjermkanten (B-29b). Egen, sammenslått seksjon under
+                hovedlista, samme grep som /historikk fikk 26. august.
 
-                <div className="aqz-actions">
-                  <Link href={`/admin/quizzes/${quiz.id}/questions`} className="aqz-action blue">
-                    Spørsmål
-                  </Link>
-                  <Link href={`/admin/quizzes/new?id=${quiz.id}`} className="aqz-action gray">
-                    Rediger
-                  </Link>
-                  <Link href={`/admin/quizzes/${quiz.id}/analytics`} className="aqz-action gray">
-                    Analytics
-                  </Link>
-                  <Link href={`/admin/quizzes/${quiz.id}/results`} className="aqz-action gray">
-                    Resultater
-                  </Link>
-                  <button onClick={() => toggleActive(quiz)}
-                    className={`aqz-action ${quiz.is_active ? 'orange' : 'green'}`}>
-                    {quiz.is_active ? 'Skjul' : 'Publiser'}
-                  </button>
-                  <button onClick={() => resetQuiz(quiz.id, quiz.title)} className="aqz-action purple">
-                    Reset
-                  </button>
-                  <button onClick={() => deleteQuiz(quiz.id, quiz.title)} className="aqz-action red">
-                    Slett
-                  </button>
-                  {mounted && isQuizClosed(quiz.closes_at, Date.now()) && (
-                    <button
-                      onClick={() => shareQuizResults(quiz.id)}
-                      className="aqz-action"
-                      style={{
-                        color: copiedQuizId === quiz.id ? '#4ade80' : '#e8e4dd',
-                        border: `1px solid ${copiedQuizId === quiz.id ? '#e8e4dd' : '#2a2d38'}`,
-                        background: 'transparent',
-                        transition: 'color 0.15s, border-color 0.15s',
-                      }}
-                    >
-                      {copiedQuizId === quiz.id ? 'Kopiert! ✓' : 'Del resultater'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+                <details> og ikke React-state: seksjonen skal være LUKKET
+                hver gang siden lastes, og da er «ingen tilstand» hele
+                kravet — ikke en useState som må nullstilles. Elementet er
+                lukket med mindre `open` står der, så en reload gir alltid
+                lukket uten at én linje kode holder rede på det.
+
+                Null arkivkopier → ingen seksjon. En tom overskrift er støy. */}
+            {arkiv.length > 0 && (
+              <details className="aqz-arkiv">
+                <summary className="aqz-arkiv-sum">
+                  <span className="aqz-arkiv-tittel">{arkivGruppeTittel(arkiv)}</span>
+                  <span className="aqz-arkiv-linje" />
+                  <span className="aqz-arkiv-hint">Treningsrunder</span>
+                </summary>
+                {/* SAMME kortrenderer som hovedlista. Ikke en forenklet
+                    kopi: alle handlingene — særlig «Slett» — og
+                    ARKIV-badgen fra c32c62d skal virke uendret her. */}
+                <div className="aqz-arkiv-liste">{arkiv.map(quizKort)}</div>
+              </details>
+            )}
           </div>
         )}
       </div>

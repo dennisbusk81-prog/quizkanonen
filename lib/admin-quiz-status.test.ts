@@ -200,7 +200,18 @@ test('kallsted: /admin/quizzes filtrerer ALDRI bort arkivkopiene', () => {
   // Peker MOTSATT vei av testene over, med vilje. Den billigste
   // «konsistens»-endringen noen kan gjøre er å legge samme filter her som på
   // forsiden — og da mister admin veien til å finne og slette arkivkopiene.
+  //
+  // Ankeret ble byttet 30. august 2026 (B-29b). Fram til da sto det som
+  // «fila nevner ikke onlyRealQuizzes/erEkteQuiz» — et navne-anker, som
+  // slutter å svare på spørsmålet i det øyeblikket arkivkopiene deles ut i
+  // en egen SEKSJON i stedet for å filtreres bort. Invarianten er ikke
+  // «ingen filternavn i fila», den er «ingen rad forsvinner»:
+  // splitAdminQuizList er uttømmende (testdekket i
+  // lib/admin-quiz-groups.test.ts), og siden rendrer BEGGE gruppene.
   const kode = aktivKode(ADMIN_LISTE)
-  assert.doesNotMatch(kode, /onlyRealQuizzes|selectRecentQuizzes|erEkteQuiz/,
-    'lista skal vise alle quizer — arkivkopiene merkes, de filtreres ikke bort')
+  assert.match(kode, /\{ekte\.map\(quizKort\)\}/)
+  assert.match(kode, /\{arkiv\.map\(quizKort\)\}/,
+    'arkivgruppen rendres ikke lenger — kopiene er borte fra flaten, og med dem eneste vei til å slette dem')
+  assert.doesNotMatch(kode, /quizzes\.filter\(|\.filter\(erEkteQuiz\)/,
+    'lista er filtrert i stedet for delt')
 })
