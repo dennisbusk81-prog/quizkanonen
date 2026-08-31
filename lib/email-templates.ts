@@ -2533,7 +2533,7 @@ export function quizReminderEmail(quizId: string, closesAt?: string | null, quiz
               <!-- Body text -->
               ${titleLine}
               <p style="margin:0 0 ${closesAt ? '16' : '28'}px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Ukens quiz på Quizkanonen er nå åpen. Spill med en gang —
+                En ny quiz på Quizkanonen er nå åpen. Spill med en gang —
                 vær rask for best mulig plassering.
               </p>
               ${closesLine}
@@ -2929,7 +2929,7 @@ export function subscriptionResumedEmail(): string {
 }
 
 /**
- * «Ukens quiz er klar» til e-postlisten for UINNLOGGEDE (`quiz_notifications`),
+ * «Ny quiz er klar» til e-postlisten for UINNLOGGEDE (`quiz_notifications`),
  * sendt av /api/cron/notify-subscribers.
  *
  * `unsubscribeUrl` er påkrevd, i motsetning til i de profilbaserte malene:
@@ -2947,7 +2947,7 @@ export function quizOpenedEmail(quizTitleRaw: string | null | undefined, unsubsc
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ukens quiz er klar!</title>
+  <title>Ny quiz er klar!</title>
 </head>
 <body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1c23;padding:40px 20px;">
@@ -2964,12 +2964,12 @@ export function quizOpenedEmail(quizTitleRaw: string | null | undefined, unsubsc
           <tr>
             <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
               <p style="margin:0 0 8px;font-family:Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
-                Ukens quiz er klar!
+                Ny quiz er klar!
               </p>
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
               ${titleLine}
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Ukens quiz på Quizkanonen er nå åpen. Spill nå og se hvor du havner på topplisten!
+                En ny quiz på Quizkanonen er nå åpen. Spill nå og se hvor du havner på topplisten!
               </p>
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
                 <tr>

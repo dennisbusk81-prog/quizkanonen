@@ -43,7 +43,7 @@
 //     utenfor både cache og `.catch`, og repoet har ingen app/error.tsx — et
 //     kast der bytter ut HELE siden, ikke ett kort.
 //   • Fjern `{playedStatusUnknown ? …}` fra CTA-kjeden (den eksakte
-//     pre-fiks-koden) → «kan ikke gi «Spill ukens quiz»» ryker.
+//     pre-fiks-koden) → «kan ikke gi «Spill quizen»» ryker.
 //   • Gate oppsalget på `!isPremium` igjen → «premium nedgraderes ikke» ryker.
 //   • Fjern `!playedThisMonthUnknown` fra én av de to setningene → «kan ikke
 //     påstå «du er ikke i gang denne måneden»» ryker.
@@ -385,19 +385,23 @@ test('de PERSONALISERTE vaktene LOGGER — de kaster ikke', () => {
   }
 })
 
-test('en lesefeil på spilt-status kan ikke gi «Spill ukens quiz»', () => {
+test('en lesefeil på spilt-status kan ikke gi «Spill quizen»', () => {
   // Kravet fra bestillingen: en innlogget som HAR spilt skal aldri se
-  // «Spill ukens quiz». Uten den tredje tilstanden ga en lesefeil tomme
+  // «Spill quizen». Uten den tredje tilstanden ga en lesefeil tomme
   // attempt-rader ⇒ alreadyPlayed=false ⇒ nettopp den knappen, og hun ble
   // lokket inn i allerede-spilt-skjermen eller en 403.
   const iUkjent = HOME.indexOf('playedStatusUnknown ?')
   const iSpilt = HOME.indexOf('alreadyPlayed ?')
-  const spillKnapper = [...HOME.matchAll(/Spill ukens quiz/g)].map(m => m.index as number)
+  // Ankeret er BUNDET TIL KLASSEN, ikke bare til teksten: «Spill quizen» står
+  // også som steg-1-tittel i «Slik fungerer det»-lista lenger nede, og en naken
+  // literal ville talt tre. Se memory-regelen «naboen kan oppfylle test-ankeret
+  // ditt» — ankeret må SKILLE CTA-en fra naboen, ikke bare finne teksten.
+  const spillKnapper = [...HOME.matchAll(/className="qk-btn-primary"\s*>\s*Spill quizen/g)].map(m => m.index as number)
 
   assert.notEqual(
     iUkjent, -1,
     'playedStatusUnknown-grenen finnes ikke i CTA-kjeden — en lesefeil faller da ' +
-    'rett ned i «Spill ukens quiz»',
+    'rett ned i «Spill quizen»',
   )
   assert.notEqual(iSpilt, -1, 'alreadyPlayed-grenen finnes ikke lenger')
   assert.ok(
@@ -405,10 +409,10 @@ test('en lesefeil på spilt-status kan ikke gi «Spill ukens quiz»', () => {
     'playedStatusUnknown står ETTER alreadyPlayed i ternær-kjeden — da nås den ' +
     'aldri, siden alreadyPlayed er false ved nettopp den feilen',
   )
-  assert.equal(spillKnapper.length, 2, 'forventet to «Spill ukens quiz» (innlogget + gjest)')
+  assert.equal(spillKnapper.length, 2, 'forventet to «Spill quizen» som gull-primær (innlogget + gjest)')
   assert.ok(
     iUkjent < spillKnapper[0],
-    'den innloggede «Spill ukens quiz» står FØR ukjent-grenen',
+    'den innloggede «Spill quizen» står FØR ukjent-grenen',
   )
 })
 

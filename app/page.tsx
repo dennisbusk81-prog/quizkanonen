@@ -1283,7 +1283,7 @@ const SHARED_CSS = `
   }
 
   /* ── Visuell forhåndsvisning — fiktivt eksempel, sekundær kortstil, IKKE gull
-     (respekterer to-gule-regel: "Spill ukens quiz"/"Se topplisten" er allerede
+     (respekterer to-gule-regel: "Spill quizen"/"Se topplisten" er allerede
      det ene gule elementet på denne skjermen) ── */
   .qk-preview {
     max-width: 680px;
@@ -1567,7 +1567,7 @@ export default async function Home() {
     //
     // playedStatusUnknown står FØRST i CTA-kjeden i JSX-en under, og må bli
     // stående der. Fram til 24. august 2026 falt en lesefeil her helt ned i
-    // «Spill ukens quiz» — vi lokket en som ALLEREDE hadde spilt inn i
+    // «Spill quizen» — vi lokket en som ALLEREDE hadde spilt inn i
     // allerede-spilt-skjermen eller en 403. Begge flaggene under er `false`
     // ved feil (data er null), og det er nettopp derfor de ikke kan brukes
     // til å skille «har ikke spilt» fra «vi vet ikke».
@@ -1676,7 +1676,7 @@ export default async function Home() {
             <QuizStatusUnavailableCard />
           ) : quiz ? (
             <div className="qk-card">
-              <p className="qk-card-eyebrow">Denne uken</p>
+              <p className="qk-card-eyebrow">Åpen nå</p>
               <h2 className="qk-title">{quiz.title}</h2>
               <p className="qk-card-tagline">
                 {participantCount > 0 ? `${participantCount} deltakere · Kan du slå dem?` : 'Kan du slå dem?'}
@@ -1702,22 +1702,22 @@ export default async function Home() {
               <div className="qk-card-actions">
                 {/* playedStatusUnknown FØRST i kjeden, av samme grunn som
                     sharedUnavailable står først rundt hele kortet: uten den
-                    faller en lesefeil ned i «Spill ukens quiz», og en som har
+                    faller en lesefeil ned i «Spill quizen», og en som har
                     spilt lokkes inn i en vegg. Kortet ellers er delt data og
                     fortsatt gyldig, så vi beholder det — det er bare
                     handlingen som ikke kan påstå noe. */}
                 {playedStatusUnknown ? (
                   <>
                     <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>
-                      Vi fikk ikke sjekket om du har spilt denne uken.
+                      Vi fikk ikke sjekket om du har spilt denne quizen.
                     </p>
                     <Link href={`/quiz/${quiz.id}`} className="qk-btn-outline-gold">
-                      Åpne ukens quiz →
+                      Åpne quizen →
                     </Link>
                   </>
                 ) : alreadyPlayed ? (
                   <>
-                    <p style={{ fontSize: 14, color: '#e8e4dd' }}>Du har allerede spilt denne uken</p>
+                    <p style={{ fontSize: 14, color: '#e8e4dd' }}>Du har allerede spilt denne quizen</p>
                     <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-outline-gold">
                       Se topplisten →
                     </Link>
@@ -1728,9 +1728,9 @@ export default async function Home() {
                   </Link>
                 ) : (
                   <>
-                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>Ukens quiz venter på deg.</p>
+                    <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 10 }}>Quizen venter på deg.</p>
                     <Link href={`/quiz/${quiz.id}`} className="qk-btn-primary">
-                      Spill ukens quiz
+                      Spill quizen
                     </Link>
                   </>
                 )}
@@ -2091,7 +2091,7 @@ export default async function Home() {
                 href={authUnknown ? `/quiz/${activeQuiz.id}` : `/login?next=/quiz/${activeQuiz.id}`}
                 className="qk-btn-primary"
               >
-                Spill ukens quiz
+                Spill quizen
               </Link>
             ) : (
               <>
@@ -2240,7 +2240,7 @@ export default async function Home() {
           <QuizStatusUnavailableCard />
         ) : activeQuiz ? (
           <div className="qk-card">
-            <p className="qk-card-eyebrow">Denne uken</p>
+            <p className="qk-card-eyebrow">Åpen nå</p>
             <h2 className="qk-title">{activeQuiz.title}</h2>
             <p className="qk-card-tagline">
               {activeParticipantCount > 0
@@ -2271,7 +2271,7 @@ export default async function Home() {
               </a>
               <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
                 <Link href={`/leaderboard/${activeQuiz.id}`} className="qk-card-toplist">
-                  Ukens resultater ↗
+                  Se resultatene ↗
                 </Link>
                 <Link href="/quizer" className="qk-card-toplist">
                   Alle quizer →

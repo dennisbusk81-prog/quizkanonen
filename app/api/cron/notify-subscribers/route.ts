@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
       // signert med abonnentens egen rad-id, så den kan ikke deles på tvers.
       // Emnefeltet er ren tekst og skal IKKE escapes — der ville `&amp;` blitt
       // stående synlig.
-      const subject = `Ukens quiz er klar — ${quizSnapshot.title ?? 'Quizkanonen'}`
+      const subject = `Ny quiz er klar — ${quizSnapshot.title ?? 'Quizkanonen'}`
 
       const result = await dispatchInBatches<Subscriber>(
         subscribers,

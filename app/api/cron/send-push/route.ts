@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       }
 
       const payload = JSON.stringify({
-        title: 'Ukens quiz er klar!',
+        title: 'Ny quiz er klar!',
         body: 'Spill nå på Quizkanonen',
         url: 'https://www.quizkanonen.no',
       })

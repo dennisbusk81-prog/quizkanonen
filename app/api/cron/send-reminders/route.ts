@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
           return
         }
 
-        const subject = 'Fredagsquizen er nå åpen'
+        const subject = 'Quizen er nå åpen'
 
         const result = await dispatchInBatches<EmailTarget>(
           entriesToSend,
