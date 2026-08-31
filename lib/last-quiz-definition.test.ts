@@ -275,8 +275,8 @@ test('åpen quiz samtidig med stengte: forrige ukes quiz forsvinner ikke fra beg
 test('åpen quiz og BARE åpen quiz: fanen lover ikke et resultat som ikke finnes', async () => {
   // Grensetilfellet av samme feil. Finnes ingen stengt quiz, skal fanen være
   // tom — klientens tomme tilstand sier nettopp «Ingen avsluttede quizer ennå.
-  // Kom tilbake etter at ukens quiz er stengt»
-  // (components/SeasonLeaderboard.tsx:332), og den setningen var usann så lenge
+  // Kom tilbake etter at neste quiz er stengt»
+  // (components/SeasonLeaderboard.tsx:343), og den setningen var usann så lenge
   // en åpen quiz kunne fylle fanen med en halvtom liste.
   db.quizzes = [quiz('apen-uke35', dagerFram(2))]
   db.attempts = [forsok('apen-uke35', SPILLER_A), forsok('apen-uke35', SPILLER_B)]
@@ -289,10 +289,25 @@ test('åpen quiz og BARE åpen quiz: fanen lover ikke et resultat som ikke finne
 // SØSKNENE: samme antakelse, motsatt utslag — dobbeltvisning
 // ════════════════════════════════════════════════════════════════════════════
 
-test('bonusquiz stenger sist: den forsvinner ikke, og weeklyen vises ikke dobbelt', async () => {
-  // Fanen krever 'weekly', historikken tillater 'bonus'. Stenger en bonusquiz
-  // sist, kastet `.slice(1)` DEN — mens fanen viste forrige weekly, som dermed
-  // ble rad 1 i historikken og sto to steder samtidig.
+test('bonusquiz stenger sist: den EIER fanen, og weeklyen vises i accordionen uten dobbelt', async () => {
+  // ── DENNE TESTEN ER SKREVET OM 31. AUGUST 2026 ────────────────────────────
+  // Den het før «bonusquiz stenger sist: den forsvinner ikke, og weeklyen vises
+  // ikke dobbelt», og krevde `weekly-uke34` i fanen. Det var den GAMLE
+  // beslutningen kodet inn som forventning: fanen krevde 'weekly', historikken
+  // tillot 'bonus', og testen felte bare den ene halvdelen av problemet — at
+  // ingenting sto to steder. Den sa ingenting om at bonusquizen var forvist til
+  // accordionen, fordi det den gang var meningen.
+  //
+  // Samme klasse som season-period-table.test.ts:62, som krevde at liga IKKE
+  // var et lukket rom og ville stoppet den fiksen: en test kan pinne en
+  // BESLUTNING og se ut som den pinner en invariant. Invarianten her — ingen
+  // borte, ingen dobbelt — er uendret og felles fortsatt. Det som er byttet ut
+  // er hvilken quiz som skal EIE fanen.
+  //
+  // Ny regel (Dennis, 31. august 2026): «Siste quiz» = siste quiz som teller i
+  // sesongkonkurransen. Bonusquizen stenger sist, altså eier den fanen, og
+  // weeklyen skal da dukke opp i accordionen — ikke forsvinne, ikke stå begge
+  // steder. Se lib/last-quiz.ts.
   db.quizzes = [
     quiz('bonus-julequiz', dagerSiden(3), { quiz_type: 'bonus' }),
     quiz('weekly-uke34', dagerSiden(7)),
@@ -304,7 +319,37 @@ test('bonusquiz stenger sist: den forsvinner ikke, og weeklyen vises ikke dobbel
     forsok('weekly-uke33', SPILLER_A),
   ]
 
-  await sjekkDekning(['bonus-julequiz', 'weekly-uke34', 'weekly-uke33'], 'weekly-uke34')
+  await sjekkDekning(['bonus-julequiz', 'weekly-uke34', 'weekly-uke33'], 'bonus-julequiz')
+
+  // Eksplisitt om DET som er nytt: weeklyen er ikke borte, den er rad 1 i
+  // accordionen. `sjekkDekning` felles av unionen, men unionen alene skiller
+  // ikke «weeklyen ligger i accordionen» fra «weeklyen ligger i fanen» — det
+  // er nettopp den forvekslingen den gamle testen levde i.
+  assert.deepEqual((await historikk()).map(r => r.key), ['weekly-uke34', 'weekly-uke33'],
+    'weeklyen skal ligge øverst i accordionen når bonusquizen eier fanen')
+})
+
+test('bonusquiz STENGT mens fredagsquizen er ÅPEN: fanen viser den stengte bonusquizen', async () => {
+  // Kanttilfellet Dennis ba om bekreftet før endringen (31. august 2026), og
+  // den ene kombinasjonen den nye regelen gjør nåbar: to ULIKE typer der den
+  // nyeste er åpen. Beslutningen fra 26. august — fanen viser nyeste STENGTE —
+  // er uendret og skal fortsatt vinne over «nyeste».
+  //
+  // Uten denne ville den nye regelen vært forenlig med at en åpen weekly tok
+  // fanen tilbake, siden ingen annen test har en åpen og en stengt quiz av
+  // ULIK type samtidig.
+  db.quizzes = [
+    quiz('apen-uke36', dagerFram(2)),
+    quiz('bonus-eurovision', dagerSiden(2), { quiz_type: 'bonus' }),
+    quiz('weekly-uke34', dagerSiden(9)),
+  ]
+  db.attempts = [
+    forsok('apen-uke36', SPILLER_A), forsok('apen-uke36', SPILLER_B),
+    forsok('bonus-eurovision', SPILLER_A),
+    forsok('weekly-uke34', SPILLER_B),
+  ]
+
+  await sjekkDekning(['bonus-eurovision', 'weekly-uke34'], 'bonus-eurovision')
 })
 
 test('weekly uten forsøk stenger sist: den forsvinner ikke, og forrige vises ikke dobbelt', async () => {
@@ -382,6 +427,7 @@ test('ingen åpen quiz: fanen viser nyeste stengte, historikken resten — uendr
 //   M3  ekskluder på `title` i stedet for `id`               → 6 røde
 //   M4  fjern `.eq('quiz_type', LAST_QUIZ_TYPE)`             → 1 rød
 //       «bonusquiz stenger sist …»
+//       ⚠ M4 GJELDER IKKE LENGER — se mutasjonsloggen for 31. august under.
 //   M5  fjern `attempts!inner(id)` (forsøkskravet)           → 1 rød
 //       «weekly uten forsøk stenger sist …»
 //
@@ -389,3 +435,40 @@ test('ingen åpen quiz: fanen viser nyeste stengte, historikken resten — uendr
 // et filter skrevet på feil kolonne så identisk ut, og beviset beviste
 // ingenting. Titlene ble derfor gjort ulike id-ene, og `sjekkDekning` sjekker
 // nå begge kolonnene hver for seg.
+//
+// ── MUTASJONER KJØRT 31. AUGUST 2026 (definisjonsendringen) ────────────────
+// Kjørt mot lib/last-quiz-definition.test.ts + lib/toppliste-real-quiz-
+// population.test.ts + lib/org-real-quiz-population.test.ts +
+// lib/real-quiz-population.test.ts (35 tester). Hver mutasjon verifisert med
+// `git diff` FØR testresultatet ble lest, og reversert etterpå.
+//
+// «Slipper bonus inn» — den nye regelen, ett kallsted hver:
+//   N1  lib/last-quiz.ts:  `.in(…LAST_QUIZ_SEASON_TYPES)` → `.eq(…,'weekly')`
+//                                                             → 3 røde
+//       «bonusquiz stenger sist …», «bonusquiz STENGT mens fredagsquizen er
+//       ÅPEN …», «last_quiz: bonusquiz KAN overta Siste quiz …»
+//   N2  toppliste/route.ts (emptyResponse), samme substitusjon    → 1 rød
+//       «tom toppliste: åpen bonusquiz SETTER activeQuizClosesAt»
+//   N3  org/[slug]/quiz-scores/route.ts, samme substitusjon       → 1 rød
+//       «quiz-scores: bonusquiz som stenger sist EIER bedriftens …»
+//
+// «Slipper ikke arkiv/test inn» — og her er funnet som er verdt å skrive ned:
+//   N4  fjern `.in(…)` fra fetchLastQuiz, behold gulvet          → 0 røde
+//   N5  utvid LAST_QUIZ_SEASON_TYPES med 'archive'               → 0 røde
+//   N6  fjern `onlyRealQuizzes(…)` fra fetchLastQuiz, behold `.in`→ 1 rød
+//       «last_quiz: spilt testquiz overtar ikke Siste quiz» — arkivtesten
+//       overlevde, fordi `.in` fortsatt utelukker 'archive'
+//   N7  fjern BEGGE i fetchLastQuiz                              → 3 røde
+//       inkl. «last_quiz: spilt arkivkopi overtar ikke Siste quiz»
+//   N8/N9  samme par på emptyResponse   → gulvet alene: 2 røde (begge
+//       testquiz-testene); begge fjernet: 3 røde, arkivtesten med
+//   N10/N11 samme par på quiz-scores    → gulvet alene: 1 rød (is_test);
+//       begge fjernet: 2 røde, arkivtesten med
+//
+// N4–N7 er poenget: de to vaktene OVERLAPPER på quiz_type-aksen, og `is_test`
+// holdes KUN av gulvet. En mutasjonsrunde som stopper etter N6 ville meldt
+// arkivtestene som tannløse. De er dekket to ganger — ikke ikke-dekket.
+// Se lib/last-quiz.ts for hvorfor overlappet står med vilje.
+//
+// M4 fra 26. august er dermed erstattet: filteret er ikke lenger `.eq`, og
+// den gamle testen den felte er skrevet om (se kommentaren i selve testen).

@@ -4,7 +4,7 @@
 // INTEGRASJONSTEST av /api/toppliste sitt userBlockedFromGlobal-flagg og
 // last_quiz-fallbacken (funn 3, 5. august 2026): en kaller som er blokkert fra
 // den åpne topplisten (stengt org / eget opt-out) fikk userEntry: null, og
-// klienten viste «Du spilte ikke ukens quiz.» til en som faktisk spilte —
+// klienten viste «Du spilte ikke denne quizen.» til en som faktisk spilte —
 // samme feilklasse som «Reaktiver Premium». Ruten speiler nå
 // /api/leaderboard/[id] sin mine-fallback («egne tall skjules aldri for en
 // selv») og bærer i tillegg et eksplisitt flagg klienten kan si sannheten med.

@@ -329,8 +329,18 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   const scopeInfix = scope === 'league' ? ' i ligaen' : scope === 'organization' ? ' i bedriften' : ''
   const notPlayedSuffix = scope !== 'global' ? ' Bli med de andre!' : ''
 
+  // ── TYPENØYTRAL ORDLYD I last_quiz-TEKSTENE (31. august 2026) ─────────────
+  // «ukens quiz» sto i `last_quiz`-radene her og i NOT_PLAYED_TEXT under, og
+  // var sant så lenge fanen bare kunne vise en weekly. Definisjonsendringen
+  // samme dag (lib/last-quiz.ts) lot en bonusquiz eie fanen, og da er «ukens
+  // quiz» en påstand om typen som teksten ikke har dekning for.
+  //
+  // Grepet er det samme som i dd962b8: gjør strengen TYPENØYTRAL, ikke
+  // typebevisst. Ingen ny prop, ingen `quiz_type` inn i komponenten, ingen
+  // forgrening — kun formuleringer som er sanne for begge. Kilden til
+  // usannheten er at en vakt ble flyttet; se b146b0a for samme feilklasse.
   const EMPTY_TEXT: Record<Period, { title: string; sub: string }> = {
-    last_quiz: { title: 'Ingen avsluttede quizer ennå',                       sub: 'Kom tilbake etter at ukens quiz er stengt.' },
+    last_quiz: { title: 'Ingen avsluttede quizer ennå',                       sub: 'Kom tilbake etter at neste quiz er stengt.' },
     month:     { title: `Ingen${scopeInfix} har spilt denne måneden ennå`,    sub: 'Spill en quiz for å komme på listen!' },
     quarter:   { title: `Ingen${scopeInfix} har spilt dette kvartalet ennå`,  sub: 'Spill en quiz for å komme på listen!' },
     year:      { title: `Ingen${scopeInfix} har spilt i år ennå`,             sub: 'Spill en quiz for å komme på listen!' },
@@ -338,7 +348,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   }
 
   const NOT_PLAYED_TEXT: Record<Period, string> = {
-    last_quiz: 'Du spilte ikke ukens quiz.',
+    last_quiz: 'Du spilte ikke denne quizen.',
     month:     `Du har ikke spilt ennå denne måneden.${notPlayedSuffix}`,
     quarter:   `Du har ikke spilt ennå dette kvartalet.${notPlayedSuffix}`,
     year:      `Du har ikke spilt ennå i år.${notPlayedSuffix}`,
@@ -844,7 +854,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     if (!data) return null
 
     // ── Blokkert fra den åpne topplisten (stengt org / eget opt-out) ─────────
-    // Si det som er sant i stedet for «Du spilte ikke ukens quiz.» / «Du har
+    // Si det som er sant i stedet for «Du spilte ikke denne quizen.» / «Du har
     // ikke spilt ennå …» — begge var usanne for en blokkert som spilte (funn 3,
     // 5. august 2026; samme feilklasse som «Reaktiver Premium»). Grenen står
     // FØR ue-grenene: fallback-userEntry kan ha rank <= 10, og uten denne ville
@@ -876,7 +886,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 din» er alltid sant der. */}
             <p style={{ ...s.ctaText, marginBottom: reason ? 8 : internalHome ? 14 : 0 }}>
               {isLastQuiz
-                ? 'Du spilte ukens quiz — resultatet ditt vises ikke i den åpne topplisten.'
+                ? 'Du spilte denne quizen — resultatet ditt vises ikke i den åpne topplisten.'
                 : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i den åpne topplisten.`}
             </p>
             {/* ── Årsaken, som egen linje ────────────────────────────────────
@@ -946,7 +956,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
     const quizStillOpen = !isLastQuiz && data?.activeQuizClosesAt && new Date(data.activeQuizClosesAt) > new Date()
     const notPlayedMsg = quizStillOpen
-      ? 'Poeng registreres når ukens quiz stenger. Kom tilbake for å se plasseringen din.'
+      ? 'Poeng registreres når quizen stenger. Kom tilbake for å se plasseringen din.'
       : NOT_PLAYED_TEXT[period]
 
     return (
@@ -1281,7 +1291,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
               <div style={s.empty}>
                 <p style={s.emptyTitle}>Poeng beregnes etter quizen</p>
                 <p style={{ ...s.emptySub, marginBottom: 18 }}>
-                  Poeng for ukens quiz registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
+                  Poeng registreres når quizen stenger. Kom tilbake senere for oppdatert toppliste.
                 </p>
                 <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
               </div>

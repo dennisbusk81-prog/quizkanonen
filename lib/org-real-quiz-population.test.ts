@@ -382,6 +382,9 @@ test('quiz-scores: is_test=true på en weekly-quiz overtar ikke Siste quiz', asy
   // Ruten hadde `.eq('quiz_type','weekly')` fra før, men INGEN is_test-vakt.
   // Admin-editorens testbryter setter nettopp `is_test = true` mens nedtrekket
   // blir stående på 'weekly' — hvitelisten alene ser altså ikke denne raden.
+  // (Filteret ble `.in('quiz_type', LAST_QUIZ_SEASON_TYPES)` 31. august 2026;
+  // testbryteren står fortsatt på 'weekly', så denne testen felles av
+  // is_test-vakten nøyaktig som før.)
   db.quizzes = [
     quiz('ekte', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
     quiz('adminbryter', { closes_at: dagerSiden(1), title: '[TEST via bryter]', ...TEST_FLAGG }),
@@ -395,6 +398,65 @@ test('quiz-scores: is_test=true på en weekly-quiz overtar ikke Siste quiz', asy
   const body = await res.json() as { quizTitle: string; entries: unknown[] }
 
   assert.equal(body.quizTitle, 'Fredagsquiz uke 34')
+  assert.equal(body.entries.length, 2)
+})
+
+test('quiz-scores: bonusquiz som stenger sist EIER bedriftens «Siste quiz»-tabell', async () => {
+  const { GET } = await import('@/app/api/org/[slug]/quiz-scores/route')
+  orgMedTo()
+
+  // Definisjonsendringen 31. august 2026 (Dennis): tabellen heter «Siste quiz»,
+  // ikke «Fredagsquizen», og følger sesongkonkurransen. Fram til nå svarte
+  // ruten med forrige fredagsquiz mens bedriften nettopp hadde spilt julequizen
+  // sammen — altså feil tabell, uten noen feilmelding.
+  //
+  // Denne er samtidig motprøven som hindrer at hvitelisten strammes tilbake til
+  // ['weekly']: uten den ville is_test- og arkiv-testene rundt vært forenlige
+  // med akkurat det.
+  db.quizzes = [
+    quiz('ekte-b', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
+    quiz('bonus', { closes_at: dagerSiden(1), title: 'Julequiz 2026', quiz_type: 'bonus' }),
+  ]
+  db.attempts = [
+    forsok('ekte-b', KALLER, 9), forsok('ekte-b', KOLLEGA, 5),
+    forsok('bonus', KALLER, 10),
+  ]
+
+  const res = await GET(req(), { params: Promise.resolve({ slug: ORG }) })
+  const body = await res.json() as { quizTitle: string; entries: unknown[] }
+
+  assert.equal(body.quizTitle, 'Julequiz 2026',
+    'en bonusquiz som teller i sesongen og stenger sist skal eie bedriftens «Siste quiz»')
+  assert.equal(body.entries.length, 1, 'tabellen skal vise deltakerne fra bonusquizen')
+})
+
+test('quiz-scores: arkivkopi overtar ikke bedriftens «Siste quiz»', async () => {
+  const { GET } = await import('@/app/api/org/[slug]/quiz-scores/route')
+  orgMedTo()
+
+  // Arkiv-aksen på dette oppslaget, som ingen test dekket før 31. august 2026.
+  // En arkivkopi er `is_test = false`, så is_test-vakten ser den ikke; den er
+  // spilt, så `attempts!inner` slipper den gjennom; og den stenger ferskest,
+  // så den vinner `order('closes_at', desc)`.
+  //
+  // Som søsteren i lib/toppliste-real-quiz-population.test.ts felles denne av
+  // TO overlappende vakter og derfor av ingen av dem alene. Målt 31. august:
+  // fjern `.in('quiz_type', …)` → 0 røde; fjern `onlyRealQuizzes(…)` → kun
+  // «is_test=true på en weekly-quiz …»; fjern BEGGE → denne blir rød.
+  db.quizzes = [
+    quiz('ekte-c', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
+    quiz('arkiv', { closes_at: dagerSiden(1), title: 'Arkiv: 2024-runden', ...ARKIV }),
+  ]
+  db.attempts = [
+    forsok('ekte-c', KALLER, 9), forsok('ekte-c', KOLLEGA, 5),
+    forsok('arkiv', KALLER, 10),
+  ]
+
+  const res = await GET(req(), { params: Promise.resolve({ slug: ORG }) })
+  const body = await res.json() as { quizTitle: string; entries: unknown[] }
+
+  assert.equal(body.quizTitle, 'Fredagsquiz uke 34',
+    'en spilt arkivkopi skal ikke kunne overta bedriftens «Siste quiz»')
   assert.equal(body.entries.length, 2)
 })
 

@@ -5,7 +5,7 @@ import { TOPPLISTE_PAGE_SIZE } from '@/lib/leaderboard-page-size'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
-import { fetchLastQuiz } from '@/lib/last-quiz'
+import { fetchLastQuiz, LAST_QUIZ_SEASON_TYPES } from '@/lib/last-quiz'
 import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { isClosedRoom } from '@/lib/leaderboard-scope'
@@ -348,13 +348,20 @@ export async function GET(request: NextRequest) {
     // /api/toppliste/history hadde sin egen — de to var uenige på TRE punkter
     // samtidig, og historikkens `.slice(1)` antok at de var enige. Se
     // lib/last-quiz.ts for hele feilbildet, og for hvorfor de tre kravene
-    // (stengt + weekly + minst ett forsøk) hører hjemme ett sted.
+    // (stengt + teller-i-sesongen + minst ett forsøk) hører hjemme ett sted.
+    //
+    // Kravet i midten sto som «weekly» fram til 31. august 2026. Se
+    // «HVA ‘SISTE QUIZ’ BETYR» i lib/last-quiz.ts: en bonusquiz som stenger
+    // sist EIER nå fanen, og historikk-accordionen ekskluderer den på ID —
+    // ikke på type — så dobbeltvisningen 26. august lukket kan ikke komme
+    // tilbake av denne endringen.
     //
     // Endringen for denne flaten er `closes_at < now`: en ÅPEN quiz kan ikke
     // lenger være «Siste quiz». Klientens tomme tilstand for last_quiz sier
     // allerede nøyaktig dette («Ingen avsluttede quizer ennå — kom tilbake
-    // etter at ukens quiz er stengt», components/SeasonLeaderboard.tsx:332),
-    // og var usann helt til nå.
+    // etter at neste quiz er stengt», components/SeasonLeaderboard.tsx:343),
+    // og var usann helt til nå. Ordlyden sa «ukens quiz» fram til 31. august
+    // 2026; se den typenøytrale ordlyden over EMPTY_TEXT for hvorfor.
     const latestQuiz = await fetchLastQuiz(new Date().toISOString())
 
     if (!latestQuiz) {
@@ -467,7 +474,7 @@ export async function GET(request: NextRequest) {
     // ── Egne tall skjules aldri for en selv (5. august 2026) ──────────────────
     // En BLOKKERT kaller finnes ikke i withRanks (det filtrerte feltet) og
     // fikk fram til nå userEntry: null — klienten viste da «Du spilte ikke
-    // ukens quiz.» til en som faktisk spilte. Samme prinsipp som
+    // denne quizen.» til en som faktisk spilte. Samme prinsipp som
     // /api/leaderboard/[id] sin mine-fallback: raden hentes fra det
     // UFILTRERTE feltet (uten blocked-gaten, fortsatt uten excluded/
     // suspenderte). Ranken derfra er mot hele feltet og tegnes ikke av
@@ -602,19 +609,34 @@ export async function GET(request: NextRequest) {
     let activeQuizClosesAt: string | null = null
     if (!isPaginated) {
       // Denne henter bare ÉN kolonne, men verdien er ikke intern: klienten
-      // utleder `quizStillOpen` av den (components/SeasonLeaderboard.tsx:914
-      // og :1225) og bytter mellom «Poeng beregnes etter quizen» og «Spill en
+      // utleder `quizStillOpen` av den (components/SeasonLeaderboard.tsx:947
+      // og :1274) og bytter mellom «Poeng beregnes etter quizen» og «Spill en
       // quiz for å komme på listen». En testquiz med `is_test = true` og
       // `quiz_type = 'weekly'` som stenger FØR den ekte vinner
       // `order('closes_at', asc)`, og topplisten lover da en quiz som ikke
       // finnes — eller feil stengetid for den som gjør det.
+      //
+      // ── HVILKEN ÅPEN QUIZ NEDTELLINGEN GJELDER (31. august 2026) ────────
+      // Sto som `.eq('quiz_type','weekly')`. Beslutning av Dennis: dette
+      // oppslaget svarer på «hvilken quiz er åpen nå og gjør opp sesongen når
+      // den stenger», og det spørsmålet følger sesongen, ikke fredagen — samme
+      // definisjonsendring som traff «Siste quiz»-fanen over. Er en bonusquiz
+      // den som er åpen, er det DEN som avgjør når poengene registreres, og
+      // det er den setningen klienten viser. Se lib/last-quiz.ts.
+      //
+      // ARBEIDSDELINGEN MELLOM DE TO VAKTENE, mutasjonsmålt 31. august 2026:
+      // `onlyRealQuizzes` under er ALENE om `is_test` — fjernes den, faller
+      // test-scenarioet i avsnittet over inn igjen. På quiz_type-aksen
+      // overlapper de to (samme verdiliste i dag), så `.in` her er inert så
+      // lenge gulvet står. Ikke bytt den ene mot den andre: de dekker hver sin
+      // halvdel. Se lib/last-quiz.ts.
       //
       // Spørringen står i en LOKAL VARIABEL, og helperen FØR `.maybeSingle()`
       // — se latest_quiz-oppslaget over.
       const openQuizQuery = supabaseAdmin
         .from('quizzes')
         .select('closes_at')
-        .eq('quiz_type', 'weekly')
+        .in('quiz_type', LAST_QUIZ_SEASON_TYPES)
         .gt('closes_at', new Date().toISOString())
         .order('closes_at', { ascending: true })
         .limit(1)

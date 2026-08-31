@@ -2,8 +2,8 @@
 // (krever --experimental-test-module-mocks, se package.json)
 //
 // INTEGRASJONSTEST av POPULASJONEN i /api/toppliste — den OFFENTLIGE
-// topplisten. To oppslag mot `quizzes` avgrenset på `quiz_type = 'weekly'`
-// uten noen `is_test`-vakt:
+// topplisten. To oppslag mot `quizzes` som fram til 25. august 2026 var
+// avgrenset på `quiz_type = 'weekly'` uten noen `is_test`-vakt:
 //
 //   1. last_quiz-grenen  — «Siste quiz»-fanen: tittel, deltakere, rangering
 //   2. emptyResponse     — `activeQuizClosesAt`, som klienten oversetter til
@@ -17,11 +17,23 @@
 // finnes nettopp for at testquizer skal spilles, og en spilt testquiz passerer
 // joinen uten videre.
 //
-// `.eq('quiz_type','weekly')` fanger oppskriftens quiz (`quiz_type='test'`).
-// Den fanger IKKE admin-editorens testbryter, som setter `is_test = true` mens
+// `.eq('quiz_type','weekly')` fanget oppskriftens quiz (`quiz_type='test'`).
+// Den fanget IKKE admin-editorens testbryter, som setter `is_test = true` mens
 // nedtrekket blir stående på 'weekly'. Testene under bruker derfor nettopp den
 // formen — TEST_FLAGG — for begge funnene: det er den ENE quiz-formen som
-// slipper gjennom begge de gamle vaktene samtidig.
+// slapp gjennom begge de gamle vaktene samtidig.
+//
+// ── HVA SOM ENDRET SEG 31. AUGUST 2026, OG HVORFOR DET KREVDE NYE TESTER ───
+// Begge oppslagene er nå `.in('quiz_type', LAST_QUIZ_SEASON_TYPES)` i stedet
+// for `.eq('quiz_type','weekly')` — «Siste quiz» følger sesongen, ikke fredagen
+// (Dennis' beslutning, se lib/last-quiz.ts).
+//
+// Det fjernet en vakt ingen hadde ment å sette opp: `.eq(…,'weekly')` utelot
+// ARKIVKOPIER (`quiz_type='archive'`) som en bieffekt, og etter endringen er
+// `onlyRealQuizzes` alene om å gjøre det. Vakten er altså like sterk, men den
+// bor nå ETT sted i stedet for to — og ingen test felte arkiv-aksen på disse
+// to oppslagene i det hele tatt. De to `arkivkopi`-testene under lukker det
+// hullet, slik at gulvet ikke kan fjernes fra kallstedet uten at noe blir rødt.
 //
 // ── HVORFOR EN FAKE SOM FAKTISK FILTRERER ──────────────────────────────────
 // Samme begrunnelse som lib/real-quiz-population.test.ts og
@@ -171,6 +183,12 @@ function forsok(quizId: string, userId: string, riktige = 8, over: Partial<Rad> 
 // snart quizen faktisk er spilt, som er hele poenget med en testquiz.
 const TEST_FLAGG = { quiz_type: 'weekly', is_test: true }
 
+// Arkivkopi: `quiz_type = 'archive'`, `is_test = false` — altså en HELT ekte
+// rad på is_test-aksen. Den ble fram til 31. august 2026 utelatt av
+// `.eq('quiz_type','weekly')` på begge oppslagene under, og holdes nå ute
+// utelukkende av `onlyRealQuizzes`. Se filheaderen.
+const ARKIVKOPI = { quiz_type: 'archive', is_test: false }
+
 type RuteRequest = Parameters<typeof import('@/app/api/toppliste/route')['GET']>[0]
 
 // Anonym forespørsel, som forsiden gjør den. Ingen authorization-header.
@@ -233,6 +251,78 @@ test('last_quiz: is_test = NULL regnes fortsatt som ekte quiz', async () => {
   assert.equal(body.entries.length, 2)
 })
 
+test('last_quiz: spilt arkivkopi overtar ikke Siste quiz', async () => {
+  const { GET } = await import('@/app/api/toppliste/route')
+
+  // Aksen `.eq('quiz_type','weekly')` dekket ved et uhell fram til 31. august
+  // 2026, og som ingen test felte. Arkivkopien er `is_test = false`, så
+  // is_test-vakten slipper den glatt gjennom; den er spilt, så `attempts!inner`
+  // slipper den gjennom; og den stenger ferskest, så den vinner
+  // `order('closes_at', desc)`.
+  //
+  // ── TO OVERLAPPENDE SPERRER: MÅLT, IKKE ANTATT (31. august 2026) ─────────
+  // Denne testen felles av BEGGE de to gjenværende quiz_type-vaktene, og
+  // derfor av ingen av dem alene. Mutasjonsrunden:
+  //
+  //   fjern `.in('quiz_type', …)` fra fetchLastQuiz    → 0 røde (gulvet tar den)
+  //   fjern `onlyRealQuizzes(…)` fra fetchLastQuiz     → 1 rød, og det er
+  //       «spilt testquiz …» — IKKE denne (`.in` tar arkiv-aksen)
+  //   fjern BEGGE                                      → 3 røde, DENNE blant dem
+  //
+  // Det er verdt å skrive ned, fordi den naive forventningen — «test av vakt X
+  // blir rød når X fjernes» — er feil her, og en framtidig mutasjonsrunde som
+  // stopper etter den ene mutasjonen ville konkludert med at testen er tannløs.
+  // Den er ikke tannløs; den er dekket to ganger. Se lib/last-quiz.ts for
+  // hvorfor den doble dekningen står med vilje.
+  db.quizzes = [
+    quiz('lq-ekte-a', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
+    quiz('lq-arkiv', { closes_at: dagerSiden(1), title: 'Arkivrunde 12', ...ARKIVKOPI }),
+  ]
+  db.attempts = [
+    forsok('lq-ekte-a', SPILLER_A, 9), forsok('lq-ekte-a', SPILLER_B, 5),
+    forsok('lq-arkiv', SPILLER_A, 10),
+  ]
+  db.profiles = [
+    { id: SPILLER_A, display_name: 'Anne', nickname: null },
+    { id: SPILLER_B, display_name: 'Bjørn', nickname: null },
+  ]
+
+  const res = await GET(req('period=last_quiz&scope=global'))
+  const body = await res.json() as { quizTitle: string | null; entries: unknown[] }
+
+  assert.equal(body.quizTitle, 'Fredagsquiz uke 34',
+    'en spilt arkivkopi skal ikke kunne overta «Siste quiz» på den offentlige topplisten')
+  assert.equal(body.entries.length, 2, 'deltakerlista skal komme fra den ekte quizen')
+})
+
+test('last_quiz: bonusquiz KAN overta Siste quiz — motprøve mot en for streng hviteliste', async () => {
+  const { GET } = await import('@/app/api/toppliste/route')
+
+  // Motprøven til testen over, og til begge testquiz-testene: uten den ville
+  // alle sammen vært forenlige med en «fiks» som strammet hvitelisten tilbake
+  // til kun ['weekly'] — nøyaktig den tilstanden som ble forlatt 31. august
+  // 2026. Bonusquizen er ekte, spilt og stenger sist, altså eier den fanen.
+  db.quizzes = [
+    quiz('lq-ekte-b', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
+    quiz('lq-bonus', { closes_at: dagerSiden(1), title: 'Julequiz 2026', quiz_type: 'bonus' }),
+  ]
+  db.attempts = [
+    forsok('lq-ekte-b', SPILLER_A, 9), forsok('lq-ekte-b', SPILLER_B, 5),
+    forsok('lq-bonus', SPILLER_A, 10),
+  ]
+  db.profiles = [
+    { id: SPILLER_A, display_name: 'Anne', nickname: null },
+    { id: SPILLER_B, display_name: 'Bjørn', nickname: null },
+  ]
+
+  const res = await GET(req('period=last_quiz&scope=global'))
+  const body = await res.json() as { quizTitle: string | null; entries: unknown[] }
+
+  assert.equal(body.quizTitle, 'Julequiz 2026',
+    'en bonusquiz som teller i sesongen og stenger sist skal eie «Siste quiz»')
+  assert.equal(body.entries.length, 1, 'deltakerlista skal komme fra bonusquizen')
+})
+
 // ════════════════════════════════════════════════════════════════════════════
 // Funn 2 — emptyResponse sin activeQuizClosesAt
 // ════════════════════════════════════════════════════════════════════════════
@@ -278,4 +368,48 @@ test('tom toppliste: bare en testquiz åpen gir ingen stengetid i det hele tatt'
 
   assert.equal(body.activeQuizClosesAt, null,
     'en åpen testquiz skal ikke få topplisten til å love at en quiz er i gang')
+})
+
+test('tom toppliste: åpen arkivkopi setter ikke activeQuizClosesAt', async () => {
+  const { GET } = await import('@/app/api/toppliste/route')
+
+  // Arkiv-aksen på DETTE oppslaget — samme hull som «spilt arkivkopi overtar
+  // ikke Siste quiz» lukker for fanen. En arkivrunde er `is_test = false`, så
+  // is_test-vakten ser ingenting, og den stenger før den ekte, så den vinner
+  // `order('closes_at', asc)`. Etter 31. august 2026 er `onlyRealQuizzes` alene
+  // om å holde den ute av nedtellingen.
+  const ekteStenger = dagerFram(5)
+  db.quizzes = [
+    quiz('ar-ekte-a', { closes_at: ekteStenger, title: 'Fredagsquiz uke 35' }),
+    quiz('ar-arkiv', { closes_at: dagerFram(1), title: 'Arkivrunde 12', ...ARKIVKOPI }),
+  ]
+
+  const res = await GET(req('period=month&scope=global'))
+  const body = await res.json() as { entries: unknown[]; activeQuizClosesAt: string | null }
+
+  assert.equal(body.entries.length, 0, 'forutsetningen: dette skal være emptyResponse-grenen')
+  assert.equal(body.activeQuizClosesAt, ekteStenger,
+    'stengetiden skal komme fra den ekte quizen, ikke fra en åpen arkivrunde')
+})
+
+test('tom toppliste: åpen bonusquiz SETTER activeQuizClosesAt', async () => {
+  const { GET } = await import('@/app/api/toppliste/route')
+
+  // Motprøven, og selve definisjonsendringen på denne flaten (31. august 2026).
+  // Er en bonusquiz den som er åpen, er det DEN som avgjør når sesongpoengene
+  // registreres — og det er nettopp den setningen klienten viser
+  // («Poeng beregnes etter quizen»). Fram til nå svarte ruten null her, og
+  // topplisten sa i stedet «Spill en quiz for å komme på listen» mens en quiz
+  // faktisk var i gang.
+  const bonusStenger = dagerFram(2)
+  db.quizzes = [
+    quiz('ab-gammel', { closes_at: dagerSiden(7), title: 'Fredagsquiz uke 34' }),
+    quiz('ab-bonus', { closes_at: bonusStenger, title: 'Julequiz 2026', quiz_type: 'bonus' }),
+  ]
+
+  const res = await GET(req('period=month&scope=global'))
+  const body = await res.json() as { activeQuizClosesAt: string | null }
+
+  assert.equal(body.activeQuizClosesAt, bonusStenger,
+    'en åpen bonusquiz som teller i sesongen skal gi nedtellingen sin stengetid')
 })

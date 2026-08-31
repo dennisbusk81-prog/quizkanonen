@@ -6,6 +6,7 @@ import {
   onlyRealQuizAttempts,
   REAL_QUIZ_ATTEMPT_EMBED,
 } from '@/lib/real-quiz-population'
+import { LAST_QUIZ_SEASON_TYPES } from '@/lib/last-quiz'
 
 type Params = { params: Promise<{ slug: string }> }
 
@@ -50,15 +51,22 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   const { slug: orgId } = await params
 
-  // `.eq('quiz_type','weekly')` avgrenser STRENGERE enn gulvet i
-  // onlyRealQuizzes, og skal bli stående — «ukens quiz» er en
-  // produktdefinisjon her. Men strengere på ÉN akse er ikke det samme som
-  // dekket: hvitelisten var på plass, is_test-vakten var det ikke, og
-  // admin-editorens testbryter (app/admin/quizzes/new/page.tsx:1061) setter
-  // nettopp `is_test = true` mens nedtrekket blir stående på 'weekly'. En slik
-  // quiz stenger ferskest og vinner `order('closes_at', desc)`, så bedriftens
-  // «Siste quiz»-tabell ville vist testresultater. Helperen legger på begge
-  // halvdelene av gulvet; `.eq` over vinner fortsatt på quiz_type-aksen.
+  // ── «Siste quiz» FØLGER SESONGEN, IKKE FREDAGEN (31. august 2026) ────────
+  // Beslutning av Dennis. Sto her som `.eq('quiz_type','weekly')`, med en
+  // kommentar som sa at den «skal bli stående». Den er nå erstattet av
+  // LAST_QUIZ_SEASON_TYPES, og begrunnelsen er snudd: tabellen heter «Siste
+  // quiz», ikke «Fredagsquizen», og etiketten er det bedriftsadmin leser. En
+  // julequiz eller en månedsquiz som teller i sesongen skal eie tabellen når
+  // den er sist. Se lib/last-quiz.ts for hele beslutningen og for hvorfor
+  // konstanten IKKE er REAL_QUIZ_TYPES selv om verdien er den samme i dag.
+  //
+  // is_test-vakten er en HELT ANNEN akse og er uendret: admin-editorens
+  // testbryter (app/admin/quizzes/new/page.tsx:1061) setter `is_test = true`
+  // mens nedtrekket blir stående på 'weekly'. En slik quiz stenger ferskest og
+  // vinner `order('closes_at', desc)`, så tabellen ville vist testresultater.
+  // Helperen under legger på begge halvdelene av gulvet, og den er ALENE om
+  // `is_test`-halvdelen — mutasjonsmålt 31. august 2026. På quiz_type-aksen
+  // overlapper den med `.in` over. Ikke bytt den ene mot den andre.
   //
   // Spørringen står i en LOKAL VARIABEL: inlinet som argument til
   // onlyRealQuizzes() ga `next build` TS2589 «Type instantiation is
@@ -66,7 +74,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const sisteQuizQuery = supabaseAdmin
     .from('quizzes')
     .select('id, title, attempts!inner(id)')
-    .eq('quiz_type', 'weekly')
+    .in('quiz_type', LAST_QUIZ_SEASON_TYPES)
     .order('closes_at', { ascending: false })
     .limit(1, { referencedTable: 'attempts' })
     .limit(1)
@@ -121,10 +129,27 @@ export async function GET(request: NextRequest, { params }: Params) {
   // org-admin så en ubrutt rekke der den ekte var brutt. (Hvor ofte det har
   // slått ut i prod er IKKE målt; feilformen er felt av test, ikke av telling.)
   //
-  // GULVET, ikke `quiz_type='weekly'` som «Siste quiz» over: en bonusquiz er en
-  // ekte quiz medlemmet faktisk spilte, og hvilke ekte quizer som skal holde en
-  // UKESrekke i live er et produktvalg. Denne endringen er en
-  // integritetsretting og skal ikke smugle inn det valget.
+  // GULVET, og BEVISST fortsatt gulvet: en bonusquiz er en ekte quiz medlemmet
+  // faktisk spilte, og hvilke ekte quizer som skal holde en UKESrekke i live er
+  // et produktvalg. Integritetsrettingen som la på gulvet her skulle ikke
+  // smugle inn det valget, og gjør det fortsatt ikke.
+  //
+  // ── TO NABOER, SAMME FILTER, TO ULIKE GRUNNER (31. august 2026) ──────────
+  // Fram til 31. august sto «Siste quiz» over på `.eq('quiz_type','weekly')`
+  // mens denne sto på gulvet, og kontrasten var HELE poenget med avsnittet
+  // over. Nå filtrerer de to spørringene likt — begge slipper gjennom
+  // 'weekly' og 'bonus' — og det er ikke fordi de er blitt samme spørsmål:
+  //
+  //   «Siste quiz» over  LAST_QUIZ_SEASON_TYPES: hvilken quiz teller i
+  //                      SESONGEN og kan derfor eie tabellen. Følger en
+  //                      produktdefinisjon som kan endre seg.
+  //   Streaken her       gulvet i onlyRealQuizAttempts: hva er det forsvarlig
+  //                      å telle i det hele tatt. Følger populasjonen.
+  //
+  // At de er like i dag er en tilfeldighet av at begge listene har verdien
+  // ['weekly','bonus'] akkurat nå. Blir `counts_in_season` et eget felt (QK_3),
+  // eller flyttes streaken tilbake til kun fredager, skiller de lag igjen.
+  // Ikke slå dem sammen til én konstant fordi de ser like ut her.
   //
   // Embeden MÅ stå i `.select()` — uten den svarer PostgREST 400 PGRST108.
   // Spørringen står i en LOKAL VARIABEL av samme grunn som over (TS2589).
