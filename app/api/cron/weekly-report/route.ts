@@ -27,7 +27,7 @@ function osloParts(d: Date): { weekday: string; hour: number; dateKey: string } 
 }
 
 // GET /api/cron/weekly-report — kjøres hvert 15. min via cron-job.org.
-// Sender ukens oppsummering til Standard-bedrifter basert på valgt tidspunkt.
+// Sender quiz-oppsummeringen til Standard-bedrifter basert på valgt tidspunkt.
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       const { sent: okCount } = await sendToOrgAdmins(
         emails,
         {
-          subject: `Ukens quiz-oppsummering — ${org.name}`,
+          subject: `Quiz-oppsummering — ${org.name}`,
           from: 'Quizkanonen <support@quizkanonen.no>',
           html: weeklyReportEmail({
             orgName: org.name,

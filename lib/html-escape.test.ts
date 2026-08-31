@@ -71,7 +71,7 @@ test('weeklyReportEmail escaper spillernavn fra attempts.player_name', () => {
       { displayName: ATTR_BREAK, correct: 8, total: 10 },
     ],
     participantCount: 12,
-    shareText: '🏆 Ukens vinner: <b>x</b>\nNeste fredag?',
+    shareText: '🏆 Quiz-vinner: <b>x</b>\nNeste quiz?',
   })
 
   assert.ok(!html.includes('<script'), 'script-tag lekket inn via displayName')

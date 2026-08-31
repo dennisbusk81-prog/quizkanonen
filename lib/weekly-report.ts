@@ -161,10 +161,10 @@ export function buildWeeklyShareText(summary: WeeklySummary): string {
   const firstName = w ? w.displayName.split(' ')[0] : null
   return [
     w
-      ? `🏆 Ukens quiz-vinner: ${w.displayName} (${w.correct}/${w.total})`
-      : '🏆 Ukens quiz er avgjort!',
-    `${summary.participantCount} ansatte kjempet om seieren denne uken.`,
-    firstName ? `Kan du slå ${firstName} neste fredag? 👇` : 'Kan du ta seieren neste fredag? 👇',
+      ? `🏆 Quiz-vinner: ${w.displayName} (${w.correct}/${w.total})`
+      : '🏆 Quizen er avgjort!',
+    `${summary.participantCount} ansatte kjempet om seieren.`,
+    firstName ? `Kan du slå ${firstName} i neste quiz? 👇` : 'Kan du ta seieren i neste quiz? 👇',
     'quizkanonen.no',
   ].join('\n')
 }

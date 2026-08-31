@@ -2395,7 +2395,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ukens quiz-oppsummering — ${orgName}</title>
+  <title>Quiz-oppsummering — ${orgName}</title>
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0;padding:0;background:#1a1c23;font-family:'Instrument Sans',Arial,sans-serif;">
@@ -2418,15 +2418,15 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
             <td style="background:#21242e;border:1px solid #2a2d38;border-radius:20px;padding:40px 36px;">
 
               <p style="margin:0 0 8px;font-family:'Libre Baskerville',Georgia,serif;font-size:26px;font-weight:700;color:#ffffff;line-height:1.3;">
-                Ukens oppsummering
+                Quiz-oppsummering
               </p>
 
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 20px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 ${winner
-                  ? `Ukens vinner i <strong style="color:#ffffff;">${orgName}</strong> er <strong style="color:#ffffff;">${winnerName}</strong> med <strong style="color:#c9a84c;">${winner.correct}/${winner.total}</strong> riktige.`
-                  : `Ukens quiz i <strong style="color:#ffffff;">${orgName}</strong> er avgjort.`}
+                  ? `Vinneren i <strong style="color:#ffffff;">${orgName}</strong> er <strong style="color:#ffffff;">${winnerName}</strong> med <strong style="color:#c9a84c;">${winner.correct}/${winner.total}</strong> riktige.`
+                  : `Siste quiz i <strong style="color:#ffffff;">${orgName}</strong> er avgjort.`}
               </p>
 
               <p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#918f8a;">
@@ -2438,7 +2438,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                <strong style="color:#ffffff;">${participantCount}</strong> ansatte kjempet om ukens seier.
+                <strong style="color:#ffffff;">${participantCount}</strong> ansatte kjempet om seieren.
               </p>
 
               <!-- Kopierbar tekstblokk for Teams/Slack -->
@@ -2459,7 +2459,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
                     <a href="https://www.quizkanonen.no"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
-                      Se ukens quiz &rarr;
+                      Se quizen &rarr;
                     </a>
                   </td>
                 </tr>
