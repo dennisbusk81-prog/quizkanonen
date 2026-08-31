@@ -848,7 +848,7 @@ export default function LeaderboardPage() {
 
   if (!quiz.show_leaderboard) return (
     <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
-      <p style={s.centeredText}>Resultater er ikke aktivert for denne quizen.</p>
+      <p style={s.centeredText}>Resultatene er ikke aktivert for denne quizen.</p>
       <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
     </div>
   )
@@ -1696,7 +1696,7 @@ export default function LeaderboardPage() {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                   </div>
-                  <p style={s.emptyTitle}>Spill quizen for å se ukens resultater</p>
+                  <p style={s.emptyTitle}>Spill quizen for å se resultatene</p>
                   <p style={s.emptySub}>
                     Resultatene er kun synlige for de som har spilt.<br />
                     Publiseres for alle når quizen stenger.

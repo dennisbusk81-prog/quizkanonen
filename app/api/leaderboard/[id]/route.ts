@@ -272,7 +272,7 @@ export async function GET(
   //
   //   1. `show_leaderboard = false` — «Resultater» er skrudd AV for
   //      quizen. PERMANENT: ingen tidsgrense, ingen unntak. Klienten returnerer
-  //      hele siden tidlig («Resultater er ikke aktivert for denne
+  //      hele siden tidlig («Resultatene er ikke aktivert for denne
   //      quizen», app/leaderboard/[id]/page.tsx) — før faner, liste og
   //      plasseringskort i det hele tatt vurderes.
   //

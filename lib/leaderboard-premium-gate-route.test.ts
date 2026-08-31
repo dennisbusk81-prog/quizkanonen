@@ -37,7 +37,7 @@
 //
 // SAK 3 (samme feilklasse, lukket rett etter): `show_leaderboard = false` ble
 //        også håndhevet kun i klienten — der er det en full tidlig retur av
-//        HELE siden («Resultater er ikke aktivert for denne quizen»).
+//        HELE siden («Resultatene er ikke aktivert for denne quizen»).
 //        Ruten leverte stillingen som normalt. Virkningen er identisk med sak 1
 //        (entries tømmes), men BETINGELSEN er en annen: permanent, uten
 //        tidsgrense og uten Premium-unntak.

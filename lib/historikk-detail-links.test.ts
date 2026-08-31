@@ -16,7 +16,7 @@
 //   • is_active = false («Skjul» i admin) — RLS-policyen quizzes_select_active
 //     gir klienten null rader, .single() feiler, og siden tegner «Noe gikk
 //     galt. Prøv å laste siden på nytt.»
-//   • show_leaderboard = false — siden sier «Resultater er ikke aktivert
+//   • show_leaderboard = false — siden sier «Resultatene er ikke aktivert
 //     for denne quizen».
 //
 // DERFOR MÅ BEGGE FLAGGENE STÅ I SELECT-LISTEN, og det er hovedpoenget med
