@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { PENDING_ACTION_KEY } from '@/lib/pendingAction'
+import { decideOrgJoinNavigation } from '@/lib/org-join-navigation'
 import AuthForm from '@/components/AuthForm'
 import type { Session } from '@supabase/supabase-js'
 
@@ -18,7 +19,6 @@ type BlockedByOrg = { orgName: string | null; orgSlug: string | null }
 
 export default function BliMedPage() {
   const { token } = useParams<{ token: string }>()
-  const router = useRouter()
 
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [invite, setInvite] = useState<InviteInfo | null>(null)
@@ -73,16 +73,24 @@ export default function BliMedPage() {
         return
       }
       if (!res.ok) { setJoinError(data.error ?? 'Noe gikk galt. Prøv igjen.'); return }
-      if (data.slug) {
+      const nav = decideOrgJoinNavigation(data.slug)
+      if (nav.kind === 'hard-navigate') {
         // Clear pending fallback now that join succeeded
         localStorage.removeItem(PENDING_ACTION_KEY)
-        // Fire-and-forget velkomst-e-post
+        // Fire-and-forget velkomst-e-post. keepalive fordi den harde
+        // navigasjonen under river siden — uten den kan nettleseren avbryte
+        // kallet før det når serveren, og e-posten uteblir stille.
         fetch('/api/org/welcome-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ access_token: session.access_token, orgSlug: data.slug }),
+          keepalive: true,
         }).catch(() => {})
-        router.push(`/org/${data.slug}`)
+        // HARD navigasjon, ikke router.push: ProfileProviders myOrgs er hentet
+        // FØR innmeldingen og re-hentes ikke ved myk navigasjon, så
+        // /org/[slug] ville vist «Ingen tilgang» til et ferskt medlem.
+        // Begrunnelsen i sin helhet: lib/org-join-navigation.ts.
+        window.location.assign(nav.url)
       } else {
         setJoinError('Noe gikk galt. Prøv igjen.')
       }
