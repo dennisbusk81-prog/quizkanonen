@@ -25,6 +25,8 @@ import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { decideHiddenUntilClosed, decideHiddenLeaderboardView, osloClosingTime } from '@/lib/leaderboard-visibility'
 import { decideFetchScope } from '@/lib/org-scope-fetch'
+import { fetchResult, type Loaded } from '@/lib/fetch-result'
+import { decideLeagueAffordance } from '@/lib/league-affordance'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
 
@@ -212,7 +214,10 @@ export default function LeaderboardPage() {
   const [prevRankMap, setPrevRankMap] = useState<Map<string, number>>(new Map())
   const [mostImprovedName, setMostImprovedName] = useState<string | null>(null)
   const [podiumActive, setPodiumActive] = useState(false)
-  const [hasLeagues, setHasLeagues] = useState(false)
+  // «Vet ikke» er ikke «har ikke»: en feilet /api/leagues skal hverken skjule
+  // «Blant venner»-fanen ELLER tenne «Opprett en liga (Premium)»-CTA-en.
+  // Beslutningen ligger i lib/league-affordance.ts.
+  const [leaguesState, setLeaguesState] = useState<Loaded<boolean>>({ ok: false })
   const [activeDuelExists, setActiveDuelExists] = useState(false)
   const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
@@ -558,39 +563,50 @@ export default function LeaderboardPage() {
       }
 
       const loadLeagueFriends = async () => {
-        // Hent ligamedlemmer for "Blant venner"-fane
+        // Hent ligamedlemmer for "Blant venner"-fane.
+        //
+        // Feil er ikke tomt (lib/fetch-result.ts) — samme grep som browseError
+        // lenger opp i fila. Fram til 31. august 2026 sto ligastatusen i en
+        // useState(false), og BÅDE en kastet feil OG en !ok-status (som ikke
+        // engang treffer catch-en under) etterlot den false. Da forsvant
+        // «Blant venner»-fanen samtidig som CTA-en «Opprett en liga (Premium)»
+        // tentes — en bruker som HAR ligaer fikk solgt noe hun allerede hadde.
+        // fetchResult skiller de to utfallene; lib/league-affordance.ts avgjør
+        // hva hver av dem skal vise.
+        const leaguesLoaded = await fetchResult(
+          () => fetch('/api/leagues', { headers: { Authorization: `Bearer ${accessToken}` } }),
+          json => ((json as { leagues?: { id: string }[] } | null)?.leagues ?? []),
+        )
+        setLeaguesState(leaguesLoaded.ok ? { ok: true, value: leaguesLoaded.value.length > 0 } : { ok: false })
+        // Ligavennene under er en TILLEGGSHENTING: feiler den, står ligastatusen
+        // over uansett fast. Uten svar på selve ligalista har vi ingen id-er å
+        // slå opp medlemmer for, så da er det ingenting å prøve på.
+        if (!leaguesLoaded.ok) return
+        const leagues = leaguesLoaded.value
         try {
-          const leaguesRes = await fetch('/api/leagues', {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-          if (leaguesRes.ok) {
-            const leaguesJson = await leaguesRes.json()
-            const leagues: { id: string }[] = leaguesJson.leagues ?? []
-            setHasLeagues(leagues.length > 0)
-            const memberResponses = await Promise.all(
-              leagues.map(l =>
-                fetch(`/api/leagues/${l.id}`, {
-                  headers: { Authorization: `Bearer ${accessToken}` },
-                }).then(r => r.ok ? r.json() : null)
-              )
+          const memberResponses = await Promise.all(
+            leagues.map(l =>
+              fetch(`/api/leagues/${l.id}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              }).then(r => r.ok ? r.json() : null)
             )
-            const userIds = new Set<string>()
-            for (const res of memberResponses) {
-              for (const m of (res?.members ?? []) as { user_id: string }[]) {
-                userIds.add(m.user_id)
-              }
+          )
+          const userIds = new Set<string>()
+          for (const res of memberResponses) {
+            for (const m of (res?.members ?? []) as { user_id: string }[]) {
+              userIds.add(m.user_id)
             }
-            if (userIds.size > 0) {
-              const { data: friendProfiles } = await supabaseData
-                .from('profiles')
-                .select('display_name')
-                .in('id', [...userIds])
-              setFriendNames(new Set(
-                (friendProfiles ?? [])
-                  .map((p: { display_name: string | null }) => p.display_name)
-                  .filter((n): n is string => !!n)
-              ))
-            }
+          }
+          if (userIds.size > 0) {
+            const { data: friendProfiles } = await supabaseData
+              .from('profiles')
+              .select('display_name')
+              .in('id', [...userIds])
+            setFriendNames(new Set(
+              (friendProfiles ?? [])
+                .map((p: { display_name: string | null }) => p.display_name)
+                .filter((n): n is string => !!n)
+            ))
           }
         } catch { /* ikke kritisk */ }
       }
@@ -861,7 +877,18 @@ export default function LeaderboardPage() {
   // lista: fram til 24. august 2026 krevde den friendAttempts.length > 0, og
   // siden lista er trappekuttet (topp 10 gratis / topp 50 Premium) forsvant
   // fanen stille for en ligabruker hvis venner lå utenfor vinduet.
-  const showVennerTab = !orgSlug && !!session && hasLeagues
+  // Fanen OG CTA-en avgjøres av ÉN funksjon, fordi de er to utfall av samme
+  // ukjente: hvor mange ligaer brukeren er med i. Fram til 31. august 2026 leste
+  // de hver sin side av den samme false-en, og en feilet henting slo derfor ut
+  // begge veier samtidig — fanen forsvant og oppsalget tentes. Se
+  // lib/league-affordance.ts.
+  const leagueAffordance = decideLeagueAffordance({
+    leagues: leaguesState,
+    loggedIn: !!session,
+    orgMode: !!orgSlug,
+    authLoading,
+  })
+  const showVennerTab = leagueAffordance.showFriendsTab
   // Lista klienten filtrerer venner ut av er kuttet server-side — når kuttet
   // faktisk er i effekt, skal venner-fanen SI det i stedet for å late som
   // utvalget er komplett. soloTotal er eksakt for innloggede (kun gjeste-rank
@@ -1838,8 +1865,9 @@ export default function LeaderboardPage() {
             </>
           )}
 
-          {/* Liga CTA for innloggede uten ligaer — skjult i org-modus */}
-          {!authLoading && session && !hasLeagues && !orgSlug && (
+          {/* Liga CTA for innloggede som er BEKREFTET uten ligaer — skjult i
+              org-modus, og skjult når ligahentingen ikke svarte. */}
+          {leagueAffordance.showLeagueCta && (
             <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13 }}>
               Vil du konkurrere mot vennene dine?{' '}
               <Link href="/liga" style={{ color: '#e8e4dd', textDecoration: 'none' }}>Opprett en liga (Premium) →</Link>
