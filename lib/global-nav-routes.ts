@@ -38,8 +38,10 @@
 export const GLOBAL_NAV_OPT_OUT: Record<string, string> = {
   '/':
     'VARIG: forsiden er server-komponent og sender quizId til SiteNav ' +
-    '(«Spill ukens quiz →»-knappen) fra server-hentet quiz-data i begge ' +
-    'returgrenene — props en global klientnav ikke kan kjenne.',
+    'som gir den videre til NavAuth — der spill-knappen faktisk rendres ' +
+    '(«Spill ukens quiz →» på desktop, «Spill nå →» på mobil; SiteNav selv ' +
+    'har ingen slik label). Verdien kommer fra server-hentet quiz-data i ' +
+    'begge returgrenene — props en global klientnav ikke kan kjenne.',
 
   '/quiz/*':
     'VARIG: spillesiden. `phase === \'playing\'` skal ikke ha nav (timeren ' +

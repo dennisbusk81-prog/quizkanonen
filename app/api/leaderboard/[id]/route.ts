@@ -270,9 +270,9 @@ export async function GET(
   // KUN i klienten. Ruten leste aldri quizzes-tabellen, så hele stillingen
   // kunne hentes rått fra API-et uansett hva UI-et valgte å tegne.
   //
-  //   1. `show_leaderboard = false` — «Ukens resultater» er skrudd AV for
+  //   1. `show_leaderboard = false` — «Resultater» er skrudd AV for
   //      quizen. PERMANENT: ingen tidsgrense, ingen unntak. Klienten returnerer
-  //      hele siden tidlig («Ukens resultater er ikke aktivert for denne
+  //      hele siden tidlig («Resultater er ikke aktivert for denne
   //      quizen», app/leaderboard/[id]/page.tsx) — før faner, liste og
   //      plasseringskort i det hele tatt vurderes.
   //

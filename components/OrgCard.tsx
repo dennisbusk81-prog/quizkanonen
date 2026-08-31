@@ -136,6 +136,10 @@ export default function OrgCard() {
             Du var {placement.rank} av {placement.total} i {placement.quizTitle}
           </p>
         ) : (
+          /* «ukens» står med vilje (vurdert 31. august 2026): `placement`
+             gjelder den quizen som er ÅPEN NÅ, ikke en vilkårlig quiz-id, så
+             «ukens» er sant rundt førti uker i året — og produktets stemme er
+             «hver fredag». Ikke meld den på nytt ved neste ukens-sveip. */
           <p style={{ fontSize: 13, color: '#918f8a', marginBottom: 14, lineHeight: 1.5 }}>
             Du spilte ikke ukens quiz
           </p>

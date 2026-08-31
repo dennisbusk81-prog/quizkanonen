@@ -151,7 +151,7 @@ export type AttemptDetail = {
   //                                   null rader til klienten, og
   //                                   /leaderboard/[id] havner i sin
   //                                   fetchError-gren.
-  //   quiz_show_leaderboard = false → siden svarer «Ukens resultater er ikke
+  //   quiz_show_leaderboard = false → siden svarer «Resultater er ikke
   //                                   aktivert for denne quizen».
   quiz_is_active: boolean
   quiz_show_leaderboard: boolean

@@ -964,6 +964,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         <div style={s.sectionHeader}><span style={s.sectionText}>Din plassering</span><div style={s.sectionLine} /></div>
         <div style={s.userCard}>
           <p style={{ ...s.ctaText, marginBottom: 12 }}>{notPlayedMsg}</p>
+          {/* «ukens» står med vilje (vurdert 31. august 2026): lenken peker på
+              forsiden, altså den quizen som er ÅPEN NÅ — ikke en vilkårlig
+              quiz-id. Da er «ukens» sant rundt førti uker i året, og
+              produktets stemme er «hver fredag». Ikke meld den på nytt.
+              Samme vurdering gjelder de fire søsknene lenger ned i filen. */}
           <Link href="/" style={s.btnOutline}>Se ukens quiz →</Link>
         </div>
       </>
@@ -1260,6 +1265,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                   <p style={{ ...s.emptySub, marginBottom: 18 }}>
                     Denne quizen har ingen offentlig resultatliste. Sesong-topplistene finner du i fanene over.
                   </p>
+                  {/* «ukens» står med vilje i denne og de tre neste
+                      «Se ukens quiz»-lenkene (vurdert 31. august 2026): alle
+                      peker på forsiden — den quizen som er ÅPEN NÅ, ikke en
+                      vilkårlig quiz-id. Se den utfyllende begrunnelsen ved
+                      den første forekomsten i «Din plassering»-kortet. */}
                   <Link href="/" style={s.btnOutline}>Se ukens quiz &rarr;</Link>
                 </div>
               )

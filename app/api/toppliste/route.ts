@@ -542,7 +542,7 @@ export async function GET(request: NextRequest) {
 
     // ── Resultater permanent av — håndheves server-side (23. august 2026) ─────
     // `show_leaderboard = false` er den ANDRE skjul-årsaken fra
-    // /api/leaderboard/[id], og den siste som manglet her: «Ukens resultater»
+    // /api/leaderboard/[id], og den siste som manglet her: «Resultater»
     // er skrudd AV for quizen, PERMANENT og uten unntak — ingen tidsgrense,
     // ingen Premium-vei (unntaket over hører kun til
     // hide_leaderboard_until_closed). Samme tolkning som leaderboard-ruten

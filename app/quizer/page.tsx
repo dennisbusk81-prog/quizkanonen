@@ -344,7 +344,7 @@ export default async function QuizerPage() {
                           {status === 'åpen' ? 'Spill nå' : 'Se quiz'}
                         </Link>
                       )}
-                      <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Ukens resultater →</Link>
+                      <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Resultater →</Link>
                     </div>
                   </div>
                 )

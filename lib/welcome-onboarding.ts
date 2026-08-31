@@ -183,6 +183,11 @@ export function greetingName(name: string | null | undefined): string | null {
  * /slik-fungerer-det allerede gjør («Hver fredag kl. 12:00»). /api/quiz/active
  * svarer kun {id}, så et datadrevet klokkeslett hadde krevd et endret kall.
  * Endres åpningstiden noen gang, må BEGGE sidene oppdateres.
+ *
+ * «Ukens quiz er åpen nå» står med vilje (vurdert 31. august 2026): linjen
+ * beskriver den quizen /api/quiz/active melder som ÅPEN NÅ, ikke en vilkårlig
+ * quiz-id, så «ukens» er sant rundt førti uker i året — og produktets stemme
+ * er «hver fredag». Ikke meld den på nytt ved neste ukens-sveip.
  */
 export function quizStatusLine(active: Loaded<string | null> | null): string {
   if (active?.ok && active.value) return 'Ukens quiz er åpen nå — 15 spørsmål venter.'
