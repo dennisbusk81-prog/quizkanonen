@@ -19,10 +19,13 @@ const PENDING_TRIAL = 'trial_activate'
 // price-ID-ene bor i Vercels env og oversettes av PRICE_ENV_BY_SYMBOL i
 // checkout-ruta. Årsplanen står øverst og er forvalgt: gullrammen skal lande
 // på den, og begge kortene viser begge tallene (588 på månedskortet, 33 på
-// årskortet) slik at sammenligningen kan gjøres uten hoderegning.
+// årskortet) slik at sammenligningen kan gjøres uten hoderegning. Begge
+// omregningene innledes med «Tilsvarer» — symmetrien er poenget: uten den
+// leses «kr 588 i året» som en prislapp i stedet for som et regnestykke, og
+// jobber mot at 49 kr/mnd skal føles liten og reversibel.
 const PLANS = [
   { id: 'yearly', name: 'Premium årlig', price: 'kr 399/år', desc: 'Tilsvarer kr 33/mnd — spar 189 kr i året', priceId: 'STRIPE_PRICE_PREMIUM_YEARLY' },
-  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'kr 588 i året — avslutt når du vil', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
+  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Tilsvarer kr 588 i året — avslutt når du vil', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
 ] as const
 type PlanId = (typeof PLANS)[number]['id']
 
