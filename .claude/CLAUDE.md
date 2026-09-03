@@ -785,6 +785,32 @@ Månedlig leaderboard i quiz-kortet:
 - `FOUNDERS_ACTIVE`-konstanten i `app/page.tsx` (forsiden — eneste forekomst
   i repoet; sto tidligere feilaktig oppført som `app/quiz/[id]/page.tsx`)
 - Autentiseringsflyt og OAuth callback (`app/auth/callback/route.ts`)
+- **CAPTCHA-bryteren i Supabase (Authentication → Attack Protection) skal IKKE
+  slås på.** Den ser ut som en ren påslags-innstilling, men den er en
+  utestengning. Verifisert 3. september 2026: `captchaToken` sendes **null
+  steder** i repoet (case-insensitivt søk på `captcha` gir treff kun i
+  dokumentasjon). Slås den på, svarer GoTrue
+  `captcha_verification_process_failed` på `signUp`, `signInWithPassword`,
+  `signInWithOtp` OG `resetPasswordForEmail` **samtidig** — alle fire e-post-
+  baserte inngangene, i samme øyeblikk.
+
+  Verre enn at det feiler: det feiler **uforståelig**. Ingen av
+  feilmeldingene i `components/AuthForm.tsx` nevner CAPTCHA, fordi ingen av
+  dem vet at den finnes. Innlogging faller til `diagnoseLoginFailure()` —
+  som spør `/api/auth/check-email` (service_role, upåvirket av bryteren),
+  får «konto finnes, har passord» tilbake og viser **«Feil passord»** til
+  en bruker som skrev riktig passord. Signup matcher ingen gren i
+  `classifySignupFailure` (`lib/auth-messages.ts`) og faller til
+  `kind: 'unknown'` → **«Kunne ikke opprette konto akkurat nå. Prøv igjen om
+  litt.»** Rådet er aktivt feil: bryteren står på, så det hjelper aldri å
+  prøve igjen.
+
+  Google OAuth ville fortsatt virket. Resultatet er derfor det verst tenkelige
+  feilbildet — ~61 % kommer inn og merker ingenting, resten er utestengt uten
+  forklaring, og symptomet peker mot passordene deres i stedet for mot
+  bryteren. Skal CAPTCHA bygges, må `captchaToken` og en feilgren for
+  `captcha_verification_process_failed` på plass i klienten FØR bryteren
+  røres.
 
 `ranking_snapshots` har et EGET, mer presist unntak — se
 «ranking_snapshots-arkitektur» under ARKITEKTUR OG MØNSTRE: lesing/kartlegging
@@ -898,7 +924,10 @@ Status per 20. juli 2026, etter to runder sikkerhetsgjennomgang og retting:
   (26. juli). Ingen skade i dag (2 koder, begge inaktive/oppbrukte), men
   ville rammet neste premiekode. Policyen droppet, RLS slått på.
 - **Fortsatt åpent:** bot-/spam-beskyttelse (CAPTCHA e.l.) er ikke
-  implementert — kun planlagt.
+  implementert — kun planlagt. **Merk at Supabase-bryteren ikke er en
+  snarvei dit:** slås den på uten klientstøtte, stenger den fire
+  innloggingsveier ute med villedende feilmeldinger. Se «HVA SOM IKKE SKAL
+  RØRES UTEN EKSPLISITT BESKJED».
 
 ## KJENTE IKKE-BUGS (ikke fiks disse)
 - Scroll-effekt på forsiden: kun synlig i Claude in Chrome-utvidelsen
@@ -949,4 +978,5 @@ Fullført siden forrige status (15. juni):
 Gjenstående/pågående:
 1. Forklaringstekst per spørsmål (admin-felt)
 2. Mobil-test på ekte enheter
-3. Bot-/spam-beskyttelse (kun planlagt, ikke bygget)
+3. Bot-/spam-beskyttelse (kun planlagt, ikke bygget — og Supabase-bryteren
+   skal IKKE slås på som erstatning, se «HVA SOM IKKE SKAL RØRES»)
