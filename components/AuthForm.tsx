@@ -482,6 +482,31 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         </button>
       </form>
 
+      {/* MODUSBYTTE — flyttet hit 3. september 2026. Sto tidligere som en 13 px
+          tekstlenke NEDERST, mellom magic link-hintet og vilkårsteksten, og lå
+          da under folden på desktop (verre på mobil). Alt over folden forutsatte
+          dermed at den besøkende allerede HADDE konto — feil antakelse når
+          eneste vekstkanal er én post til ~2500 kontakter som alle er nye.
+
+          Her, rett etter den primære handlingen og før «eller»-skillelinjen, er
+          den godt over folden uten å komme foran den som faktisk skal logge inn.
+          Over e-postfeltet ville bare flyttet problemet til motsatt gruppe.
+
+          Outline, ikke fylt: «Logg inn» skal forbli det ENESTE gullfylte
+          elementet på skjermen (to-gule-regelen). Kanten er #e8e4dd — samme
+          konvensjon som Founders-knappen i CLAUDE.md — ikke gull, slik at den
+          gule knappen rett over beholder blikket alene.
+
+          Symmetrisk begge veier: i signup-modus tilbyr den «Logg inn», akkurat
+          som tekstlenken gjorde. setMode-kallet er uendret. */}
+      <button
+        type="button"
+        className="qk-auth-btn-secondary"
+        onClick={() => switchMode(isSignup ? 'login' : 'signup')}
+      >
+        {isSignup ? 'Logg inn' : 'Opprett konto'}
+      </button>
+
       <div className="qk-auth-separator">eller</div>
 
       <button className="qk-auth-google" onClick={() => signInWithGoogle(resolvedNext() !== '/' ? resolvedNext() : undefined)}>
@@ -511,17 +536,8 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         </>
       )}
 
-      <p className="qk-auth-switch">
-        {isSignup ? (
-          <>Har du konto fra før?{' '}
-            <button className="qk-auth-link" onClick={() => switchMode('login')}>Logg inn</button>
-          </>
-        ) : (
-          <>Ny her?{' '}
-            <button className="qk-auth-link" onClick={() => switchMode('signup')}>Opprett konto</button>
-          </>
-        )}
-      </p>
+      {/* Modusbyttet lå her. Flyttet opp under «Logg inn» — se kommentaren der.
+          Det skal finnes ÉN inngang til modusbyttet, ikke to. */}
 
       <p className="qk-auth-terms">
         {/* Alderskravet bekreftes HER, ved registrering/innlogging — det finnes
@@ -641,6 +657,35 @@ const STYLES = `
   }
   .qk-auth-btn-primary:hover { opacity: 0.88; }
   .qk-auth-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Registreringsinngangen. Samme bredde og radius som gullknappen over, men
+     OUTLINE — gull FYLL ville brutt to-gule-regelen, og gull KANT ville
+     konkurrert med den gule knappen den står rett under. #e8e4dd er samme
+     konvensjon som Founders-knappen (CLAUDE.md → Knapper).
+
+     Vekt 600 mot primærens 700, så den leses som sekundær selv på avstand.
+
+     box-sizing er satt EKSPLISITT: appen har ingen egen global reset i
+     app/globals.css — border-box kommer i dag fra Tailwind sin preflight via
+     @import "tailwindcss". Uten den ville width:100% + 1px kant blitt 2px
+     bredere enn gullknappen. Ikke la denne knappen avhenge av det. */
+  .qk-auth-btn-secondary {
+    box-sizing: border-box;
+    width: 100%;
+    display: block;
+    background: transparent;
+    color: #e8e4dd;
+    font-family: var(--font-instrument-sans), sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 28px;
+    border-radius: 10px;
+    border: 1px solid #e8e4dd;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.15s;
+  }
+  .qk-auth-btn-secondary:hover { background: rgba(232,228,221,0.08); }
 
   .qk-auth-separator {
     display: flex;
