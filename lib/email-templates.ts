@@ -1,4 +1,5 @@
 ﻿import { escapeHtml } from './html-escape'
+import type { BillingInterval } from './billing-interval'
 
 // ── Brukerstyrt tekst i malene ───────────────────────────────────────────────
 // Alt som interpoleres inn i disse template-strengene blir markup. Flere av
@@ -339,7 +340,7 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Ønsker du å fortsette med Premium?
                 <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a><br />
-                Premium fornyes automatisk hver måned til du selv avslutter.
+                Premium fornyes automatisk til du selv avslutter.
               </p>`
   return `<!DOCTYPE html>
 <html lang="no">
@@ -2033,7 +2034,16 @@ export function orgRenewalEmail(orgNameRaw: string, orgSlug: string): string {
 </html>`
 }
 
-export function premiumWelcomeEmail(): string {
+// `interval` er faktureringsintervallet kunden faktisk kjøpte (fra checkout-
+// sesjonens metadata, se lib/billing-interval.ts). null = UKJENT, og da
+// skrives setningen som er sann for begge intervallene — aldri «hver måned»
+// som standard: det var nøyaktig feilen som sto her fram til 3. september
+// 2026, og den traff hver eneste årsabonnent.
+export function premiumWelcomeEmail(interval?: BillingInterval | null): string {
+  const renewalSentence =
+    interval === 'year' ? 'Abonnementet fornyes automatisk hvert år til du selv avslutter.'
+    : interval === 'month' ? 'Abonnementet fornyes automatisk hver måned til du selv avslutter.'
+    : 'Abonnementet fornyes automatisk til du selv avslutter.'
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -2079,7 +2089,7 @@ export function premiumWelcomeEmail(): string {
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Abonnementet fornyes automatisk hver måned til du selv avslutter.
+                ${renewalSentence}
                 Du administrerer abonnementet fra profilsiden din.
               </p>
 
@@ -2117,7 +2127,18 @@ export function premiumWelcomeEmail(): string {
 </html>`
 }
 
-export function premiumRenewalEmail(nextBillingDate?: string): string {
+// `interval` leses av fakturalinjen i invoice.payment_succeeded (se
+// lib/billing-interval.ts). null = UKJENT → «fornyet», uten periode-ord, og
+// en reservesetning som er sann for begge intervallene. Se premiumWelcomeEmail.
+export function premiumRenewalEmail(nextBillingDate?: string, interval?: BillingInterval | null): string {
+  const renewedFor =
+    interval === 'year' ? ' for et nytt år'
+    : interval === 'month' ? ' for en ny måned'
+    : ''
+  const noDateSentence =
+    interval === 'year' ? 'Abonnementet fornyes automatisk neste år.'
+    : interval === 'month' ? 'Abonnementet fornyes automatisk neste måned.'
+    : 'Abonnementet fornyes automatisk til du selv avslutter.'
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
@@ -2152,7 +2173,7 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
 
               <p style="margin:0 0 16px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Premium-abonnementet ditt er fornyet for en ny måned. Du har fortsatt tilgang til alle Premium-funksjoner.
+                Premium-abonnementet ditt er fornyet${renewedFor}. Du har fortsatt tilgang til alle Premium-funksjoner.
               </p>
 
               ${nextBillingDate ? `
@@ -2169,7 +2190,7 @@ export function premiumRenewalEmail(nextBillingDate?: string): string {
                   </td>
                 </tr>
               </table>
-              ` : '<p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">Abonnementet fornyes automatisk neste måned.</p>'}
+              ` : `<p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">${noDateSentence}</p>`}
 
               <!-- Diskret lenke -->
               <p style="margin:0;font-size:14px;color:#e0e0e0;">

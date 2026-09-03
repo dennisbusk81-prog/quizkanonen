@@ -5,6 +5,7 @@ import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { getCodeCoverage, getStripeCoverage } from '@/lib/premium-state-io'
 import { isStripeLive } from '@/lib/premium-state'
+import { intervalForPriceSymbol } from '@/lib/billing-interval'
 
 // Klienten sender et SYMBOLSK navn — aldri en ekte price-ID. Nøklene i denne
 // mappen ER hvitelisten; verdien er env-variabelen som bærer den ekte
@@ -130,6 +131,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ugyldig priceId' }, { status: 400 })
     }
     const priceEnvName = PRICE_ENV_BY_SYMBOL[priceId]
+    const interval = intervalForPriceSymbol(priceId)
     const resolvedPriceId = process.env[priceEnvName]
     if (!resolvedPriceId) {
       // Hvitelistet navn uten env-verdi er en KONFIGURASJONSFEIL, ikke en
@@ -225,7 +227,11 @@ export async function POST(request: NextRequest) {
       ...(customerId
         ? { customer: customerId }
         : { customer_email: email ?? undefined }),
-      metadata: { userId },
+      // `interval` leses av webhooken (checkout.session.completed) for at
+      // kjøpsbekreftelsen skal si «hvert år» til en årsabonnent — sesjons-
+      // objektet i hendelsen bærer ellers verken pris eller linjer. Samme
+      // kanal som userId. Se lib/billing-interval.ts.
+      metadata: { userId, ...(interval ? { interval } : {}) },
       ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/premium`,

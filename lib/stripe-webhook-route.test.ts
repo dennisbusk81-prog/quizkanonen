@@ -38,7 +38,7 @@ const state: {
   stripeSubs: SubRow[]
   /** Antall registrerte betalingsmetoder hos kunden. */
   paymentMethods: number
-  sent: Array<{ to: string; subject: string }>
+  sent: Array<{ to: string; subject: string; html?: string }>
   profileUpdates: Array<Record<string, unknown>>
   recomputed: string[]
   listCalls: number
@@ -174,7 +174,7 @@ mock.module('@/lib/supabase-admin', {
 
 mock.module('@/lib/email', {
   namedExports: {
-    sendEmail: async (opts: { to: string; subject: string }) => { state.sent.push(opts) },
+    sendEmail: async (opts: { to: string; subject: string; html?: string }) => { state.sent.push(opts) },
   },
 })
 
@@ -814,4 +814,106 @@ test('sub.updated canceled — fallback-oppslaget feiler: «no profile found» s
   assert.equal(res.status, 500)
   assert.deepEqual(state.profileUpdates, [])
   assert.deepEqual(state.recomputed, [])
+})
+
+// ── Faktureringsintervallet i B2C-e-postene (3. september 2026) ─────────────
+//
+// Kjøps- og fornyelsesbekreftelsen sa «hver måned» til alle, også årskunder.
+// Malene er rettet i lib/premium-email-interval.test.ts; testene her voktar
+// at WEBHOOKEN faktisk sender intervallet inn — en rettet mal ingen kaller
+// riktig er ikke en rettet e-post. Ingen ekstra Stripe-kall: kjøpet leser
+// checkout-sesjonens metadata, fornyelsen leser fakturaens første linje.
+//
+// MUTASJONSBEVIS (kjørt 3. september 2026 — se rapporten):
+//   • premiumWelcomeEmail(purchasedInterval) → premiumWelcomeEmail() i ruten
+//     → «checkout: årsabonnent» ryker
+//   • premiumRenewalEmail(nextBillingDate, renewalInterval) →
+//     premiumRenewalEmail(nextBillingDate) → «fornyelse: årsabonnent» ryker
+
+const DAY_S = 24 * 60 * 60
+
+function checkoutEvent(metadata: Record<string, string>) {
+  return {
+    id: `evt_co_int_${Math.random()}`,
+    type: 'checkout.session.completed',
+    data: { object: { id: 'cs_int', customer: CUSTOMER, subscription: SUB_NEW, metadata } },
+  }
+}
+
+function renewalEvent(line: Record<string, unknown> | null) {
+  return {
+    id: `evt_ren_int_${Math.random()}`,
+    type: 'invoice.payment_succeeded',
+    data: {
+      object: {
+        id: 'in_int',
+        customer: CUSTOMER,
+        billing_reason: 'subscription_cycle',
+        period_end: 1789000000,
+        ...(line ? { lines: { data: [line] } } : {}),
+      },
+    },
+  }
+}
+
+test('checkout: årsabonnent får «hvert år», ikke «hver måned»', async () => {
+  state.event = checkoutEvent({ userId: PROFILE_ID, interval: 'year' })
+  const res = await call()
+  assert.equal(res.status, 200)
+  assert.equal(state.sent.length, 1)
+  assert.equal(state.sent[0].subject, 'Velkommen til Premium — Quizkanonen')
+  assert.match(state.sent[0].html ?? '', /hvert år/)
+  assert.ok(!/hver måned/.test(state.sent[0].html ?? ''), 'årskunden får «hver måned» — det var feilen')
+})
+
+test('checkout: månedsabonnent får «hver måned»', async () => {
+  state.event = checkoutEvent({ userId: PROFILE_ID, interval: 'month' })
+  await call()
+  assert.equal(state.sent.length, 1)
+  assert.match(state.sent[0].html ?? '', /hver måned/)
+  assert.ok(!/hvert år/.test(state.sent[0].html ?? ''))
+})
+
+test('checkout: sesjon uten interval i metadata (før utrullingen) → nøytral setning', async () => {
+  state.event = checkoutEvent({ userId: PROFILE_ID })
+  await call()
+  assert.equal(state.sent.length, 1)
+  const html = state.sent[0].html ?? ''
+  assert.match(html, /fornyes automatisk til du selv avslutter/)
+  assert.ok(!/hver måned|hvert år/.test(html), 'ukjent intervall ble gjettet')
+})
+
+test('fornyelse: årsabonnent — intervallet leses av fakturalinjen, uten Stripe-kall', async () => {
+  process.env.STRIPE_PRICE_PREMIUM_YEARLY = 'price_y_test'
+  process.env.STRIPE_PRICE_PREMIUM_MONTHLY = 'price_m_test'
+  state.event = renewalEvent({
+    pricing: { type: 'price_details', price_details: { price: 'price_y_test', product: 'prod_x' } },
+    period: { start: 1757000000, end: 1757000000 + 365 * DAY_S },
+  })
+  const res = await call()
+  assert.equal(res.status, 200)
+  assert.equal(state.sent.length, 1)
+  assert.equal(state.sent[0].subject, 'Abonnementet ditt er fornyet — Quizkanonen')
+  assert.match(state.sent[0].html ?? '', /for et nytt år/)
+  assert.ok(!/ny måned|neste måned/.test(state.sent[0].html ?? ''), 'årskunden får måneds-ord — det var feilen')
+})
+
+test('fornyelse: månedsabonnent med ukjent pris-id — perioden avgjør', async () => {
+  process.env.STRIPE_PRICE_PREMIUM_YEARLY = 'price_y_test'
+  state.event = renewalEvent({
+    pricing: { type: 'price_details', price_details: { price: 'price_byttet', product: 'prod_x' } },
+    period: { start: 1757000000, end: 1757000000 + 30 * DAY_S },
+  })
+  await call()
+  assert.equal(state.sent.length, 1)
+  assert.match(state.sent[0].html ?? '', /for en ny måned/)
+})
+
+test('fornyelse: faktura uten linjer → «fornyet» uten periode-ord', async () => {
+  state.event = renewalEvent(null)
+  await call()
+  assert.equal(state.sent.length, 1)
+  const html = state.sent[0].html ?? ''
+  assert.match(html, /Premium-abonnementet ditt er fornyet\. /)
+  assert.ok(!/ny måned|neste måned|nytt år|neste år/.test(html), 'ukjent intervall ble gjettet')
 })

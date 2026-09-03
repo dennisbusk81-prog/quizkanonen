@@ -481,3 +481,20 @@ test('Rad E består: kode aktiv + INGEN levende sub → kjøp med trial_end', as
     Math.floor(new Date(endsAt).getTime() / 1000),
   )
 })
+
+// ── Intervallet legges i sesjonens metadata (3. september 2026) ─────────────
+// Webhooken (checkout.session.completed) leser `metadata.interval` for å si
+// «hvert år» til en årsabonnent i kjøpsbekreftelsen. Sesjonsobjektet i
+// hendelsen bærer ellers verken pris eller linjer. Se lib/billing-interval.ts.
+
+test('metadata.interval = year for årsprisen', async () => {
+  const res = await checkout('STRIPE_PRICE_PREMIUM_YEARLY')
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.sessions[0].metadata, { userId: USER_ID, interval: 'year' })
+})
+
+test('metadata.interval = month for månedsprisen', async () => {
+  const res = await checkout('STRIPE_PRICE_PREMIUM_MONTHLY')
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.sessions[0].metadata, { userId: USER_ID, interval: 'month' })
+})

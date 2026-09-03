@@ -12,6 +12,7 @@ import { decidePersonalGrace, PERSONAL_DUNNING_STATUSES } from '@/lib/personal-g
 import { planFromPriceId } from '@/lib/org-plan-prices'
 import { reportMoneyPathFailure } from '@/lib/money-path-alert'
 import { fetchAllRows } from '@/lib/paginate'
+import { intervalFromCheckoutMetadata, intervalFromInvoiceLine, invoiceLineFacts } from '@/lib/billing-interval'
 import {
   LIVE_SUBSCRIPTION_STATUSES,
   isStaleSubscriptionEvent,
@@ -636,6 +637,13 @@ export async function POST(request: NextRequest) {
 
       assertCriticalWrite(profileUpsertError, `checkout B2C premium-upsert userId=${userId}`)
 
+      // Intervallet kunden kjøpte — lagt i metadata av checkout-ruta, som er
+      // den som vet hvilken pris den ba om. Sesjonsobjektet selv bærer
+      // verken pris eller linjer; se lib/billing-interval.ts for hvorfor
+      // metadata ble valgt framfor et subscriptions.retrieve per kjøp.
+      // Mangler feltet, får malen null og skriver den nøytrale setningen.
+      const purchasedInterval = intervalFromCheckoutMetadata(session.metadata)
+
       // Send kjøpsbekreftelse — fire-and-forget
       supabaseAdmin.auth.admin.getUserById(userId)
         .then(({ data }) => {
@@ -644,7 +652,7 @@ export async function POST(request: NextRequest) {
             return sendEmail({
               to: email,
               subject: 'Velkommen til Premium — Quizkanonen',
-              html: premiumWelcomeEmail(),
+              html: premiumWelcomeEmail(purchasedInterval),
             })
           }
         })
@@ -703,13 +711,24 @@ export async function POST(request: NextRequest) {
         const nextBillingDate = periodEnd
           ? new Date(periodEnd * 1000).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
           : undefined
+        // Måned eller år? Fakturaen i hendelsen bærer allerede linjene, og
+        // første linje har både pris-id og periode — ingen ekstra Stripe-kall.
+        // Ukjent (ingen linje, fremmed pris-id, rar periode) → null → malen
+        // skriver den nøytrale setningen. Se lib/billing-interval.ts.
+        const renewalInterval = intervalFromInvoiceLine(
+          invoiceLineFacts(invoice.lines?.data?.[0]),
+          {
+            STRIPE_PRICE_PREMIUM_MONTHLY: process.env.STRIPE_PRICE_PREMIUM_MONTHLY,
+            STRIPE_PRICE_PREMIUM_YEARLY: process.env.STRIPE_PRICE_PREMIUM_YEARLY,
+          },
+        )
         getUserEmail(stripe, customerId)
           .then(email => {
             if (email) {
               return sendEmail({
                 to: email,
                 subject: 'Abonnementet ditt er fornyet — Quizkanonen',
-                html: premiumRenewalEmail(nextBillingDate),
+                html: premiumRenewalEmail(nextBillingDate, renewalInterval),
               })
             }
           })
