@@ -1,10 +1,35 @@
 'use client'
-import AuthForm from '@/components/AuthForm'
+import { useCallback, useState } from 'react'
+import AuthForm, { type AuthView } from '@/components/AuthForm'
 
 // Kun rammen: panel, overskrift og tilbake-lenke. Selve innloggingen bor i
 // AuthForm, som deles med AuthModal (toppnav m.fl.). Legg endringer i
 // innloggingen der, ikke her — de to var tidligere separate implementasjoner
 // som drev fra hverandre.
+
+// UNDERTITTELEN er handlingsetiketten på denne siden — H1-en er det ikke (se
+// kommentaren ved <h1>). Fram til nå sto begge stille mens FIRE ting under dem
+// skiftet: passordhintet, begge knappene, magic link-blokka og vilkårslinja.
+// Skjermen rykket i stedet for å skifte, akkurat som i modalen før 2a9f2bc.
+//
+// Kvitteringsskjermene har ingen undertittel: AuthForm viser da sin egen grønne
+// boks, og FØRSTE LINJE i den er «Sjekk innboksen din!». En undertittel med
+// samme beskjed ville stått og gjentatt seg selv to linjer unna. «Logg inn
+// eller opprett konto» ville vært verre — en meny over valg brukeren allerede
+// har tatt. H1-en over kan ikke lyve, så ingenting blir stående uforklart.
+//
+// Signup-teksten er ORDRETT den samme som SIGNUP_DESCRIPTION i AuthModal.tsx,
+// slik at de to flatene sier det samme. Den er bevisst duplisert i stedet for
+// delt: modalens tekster er prod-verifiserte og skulle ikke røres i denne
+// runden. lib/login-undertittel.test.ts feller at de to strengene kommer i
+// utakt — se kommentaren der før du «rydder» ved å slette den ene.
+const UNDERTITLER: Record<AuthView, string | null> = {
+  login: 'Logg inn eller opprett konto',
+  signup: 'Kontoen er gratis. Resultatene lagres på deg, og poengene teller i sesongen.',
+  'sent-magic': null,
+  'sent-reset': null,
+  'sent-signup': null,
+}
 
 const STYLES = `
 
@@ -64,6 +89,12 @@ const STYLES = `
     margin-bottom: 32px;
   }
 
+  /* Undertittelen bærer normalt luften ned mot skillelinjen (32 px). På
+     kvitteringsskjermene finnes den ikke, og tittelen må overta avstanden —
+     ellers klemmes skillelinjen opp mot overskriften. Samme grep som
+     marginBottom-vekslingen på <h2> i AuthModal.tsx. */
+  .login-title-alene { margin-bottom: 32px; }
+
   .login-rule {
     width: 100%;
     height: 1px;
@@ -85,21 +116,35 @@ const STYLES = `
 `
 
 export default function LoginPage() {
+  // Skjermen AuthForm faktisk viser. Signalet finnes fra før (2a9f2bc) — dette
+  // er samme vei modalen bruker, ikke en ny. Ren VISNING: skjemaet eier
+  // fortsatt modusen, siden her leser den bare av.
+  const [view, setView] = useState<AuthView>('login')
+  const handleViewChange = useCallback((v: AuthView) => setView(v), [])
+
+  const undertittel = UNDERTITLER[view]
+
   return (
     <>
       <style>{STYLES}</style>
       <div className="login-screen">
         <div className="login-panel">
           <p className="login-eyebrow">Quizkanonen</p>
-          {/* Nøytral overskrift, med vilje uten modus-logikk: siden nås både
-              fra «Bli med» (forsiden) og «Logg inn» (toppnav), og AuthForm
-              starter alltid i login-modus. Overskriften må ikke motsi noen av
-              inngangene (N9, 17. august 2026). */}
-          <h1 className="login-title">Bli med i <em>Quizkanonen</em></h1>
-          <p className="login-sub">Logg inn eller opprett konto</p>
+          {/* H1-EN STÅR URØRT, og skal fortsette å gjøre det: siden nås både fra
+              «Bli med» (forsiden) og «Logg inn» (toppnav), og den er en
+              DESTINASJONSRAMME, ikke en handlingsetikett — «Bli med i
+              Quizkanonen» er sant i begge moduser og kan ikke motsi noen av
+              inngangene (N9, 17. august 2026).
+
+              Det er UNDERTITTELEN under som er handlingsetiketten, og det er
+              derfor DEN følger modusen. Ikke flytt modus-logikk opp hit. */}
+          <h1 className={undertittel ? 'login-title' : 'login-title login-title-alene'}>
+            Bli med i <em>Quizkanonen</em>
+          </h1>
+          {undertittel && <p className="login-sub">{undertittel}</p>}
           <div className="login-rule" />
 
-          <AuthForm variant="page" />
+          <AuthForm variant="page" onViewChange={handleViewChange} />
         </div>
       </div>
     </>
