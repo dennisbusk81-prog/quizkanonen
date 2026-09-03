@@ -17,7 +17,7 @@
           <a href="/" style={{ color: '#c9a84c', fontWeight: 600, fontSize: '1.1rem', textDecoration: 'none', fontFamily: "var(--font-libre-baskerville), serif" }}>
             Quizkanonen
           </a>
-          <span style={{ color: '#918f8a', fontSize: '0.85rem' }}>Sist oppdatert: 30. juli 2026</span>
+          <span style={{ color: '#918f8a', fontSize: '0.85rem' }}>Sist oppdatert: 3. september 2026</span>
         </div>
       </div>
 
@@ -78,6 +78,8 @@
             ]} />
 
             <P>Vi lagrer <strong style={{ color: '#e8e4dd' }}>aldri</strong> kortnummer eller annen betalingsinformasjon selv — dette håndteres av vår betalingspartner Stripe (se punkt 6).</P>
+
+            <P><strong style={{ color: '#e8e4dd' }}>IP-adresse:</strong> Uansett om du er innlogget eller ikke, behandles IP-adressen din midlertidig for å hindre misbruk og overbelastning av tjenesten (se punkt 6). IP-adressen brukes kun til å telle antall forespørsler over korte tidsrom, og kobles ikke til quizresultatene dine.</P>
           </Section>
 
           <Section title="3. Rettslig grunnlag">
@@ -117,8 +119,14 @@
               ['Vercel Inc.', 'Webhosting', 'Frankfurt (fra1)', 'DPA inngått'],
               ['Stripe Inc.', 'Betalingsbehandling', 'EU/USA (Stripe Data Processing Agreement)', 'DPA inngått'],
               ['Resend', 'Utsendelse av transaksjonell e-post', 'EU', 'DPA inngått'],
+              ['Upstash (Redis)', 'Misbruksbeskyttelse og rate-limiting', 'Frankfurt, EU', 'DPA inngått'],
+              ['Sentry', 'Feilovervåking og feilsporing', 'EU', 'DPA inngått'],
               ['Google LLC', 'Innlogging (OAuth)', 'Global (Google Cloud)', 'Standard kontraktsvilkår'],
             ]} headers={['Leverandør', 'Tjeneste', 'Datasentre', 'Avtale']} />
+
+            <P><strong style={{ color: '#e8e4dd' }}>Upstash</strong> brukes til å begrense hvor mange forespørsler som kan sendes til tjenesten over kort tid, slik at den ikke misbrukes eller overbelastes. Vi lagrer der kun tellere knyttet til en IP-adresse, en bruker-ID eller et quizforsøk — ingen e-postadresser, navn, quizsvar eller annet innhold. Tellerne har kort levetid, fra noen sekunder til maksimalt én time, og slettes deretter automatisk.</P>
+
+            <P><strong style={{ color: '#e8e4dd' }}>Sentry</strong> brukes til å oppdage og rette tekniske feil i tjenesten. Sentry mottar feilmeldinger, adressen til siden feilen oppsto på, og teknisk feilsøkingsinformasjon. E-postadresser, IP-adresser og andre direkte identifiserende opplysninger fjernes automatisk før feilrapporten sendes.</P>
           </Section>
 
           <Section title="7. Dine rettigheter">
