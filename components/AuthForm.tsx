@@ -1,10 +1,19 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { signInWithGoogle, signInWithPassword, signUpWithPassword } from '@/lib/auth'
 import InAppBrowserWarning from '@/components/InAppBrowserWarning'
 import PasswordInput from '@/components/PasswordInput'
-import { sendLinkErrorMessage, linkErrorMessage } from '@/lib/auth-messages'
+import {
+  sendLinkErrorMessage,
+  linkErrorMessage,
+  isRateLimitedAuthError,
+  isEmailNotConfirmedError,
+  classifySignupFailure,
+  LOGIN_RATE_LIMIT_TEXT,
+  LOOKUP_RATE_LIMIT_TEXT,
+  ALREADY_REGISTERED_TEXT,
+} from '@/lib/auth-messages'
 
 // DELT innloggingsskjema — brukt av BÅDE /login og AuthModal (toppnav m.fl.).
 //
@@ -34,7 +43,16 @@ type Props = {
 
 type Mode = 'login' | 'signup'
 type Sent = null | 'magic' | 'reset' | 'signup'
-type Notice = { text: string; action?: { label: string; onClick: () => void } } | null
+// `id` finnes for at cooldownen på resend-knappen skal kunne deaktivere NETTOPP
+// den knappen. «Sett et passord» sender en annen e-posttype fra en annen bøtte
+// hos Supabase, og skal ikke låses av at bekreftelseslenken nettopp ble sendt.
+type NoticeAction = { id: 'resend' | 'set-password'; label: string; onClick: () => void }
+type Notice = { text: string; action?: NoticeAction } | null
+
+// Supabase sin egen sperre på gjentatt utsending er 60 sekunder. Knappen speiler
+// den, slik at et utålmodig trykk blir en deaktivert knapp i stedet for en ny
+// 429 fra en kvote som allerede er under press.
+const RESEND_COOLDOWN_MS = 60_000
 
 // Kun interne redirect-mål (leading slash) — hindrer open redirect.
 function safeNext(): string {
@@ -50,6 +68,14 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
   const [sent, setSent] = useState<Sent>(null)
   const [loading, setLoading] = useState(false)
   const [linkError, setLinkError] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(false)
+  const resendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Timeren overlever ellers komponenten — modalen lukkes ofte lenge før 60
+  // sekunder er gått, og et setState etterpå ville vært på en avmontert node.
+  useEffect(() => () => {
+    if (resendTimer.current) clearTimeout(resendTimer.current)
+  }, [])
 
   // Les ?error= én gang, vis forklaringen, og fjern parameteren fra URL-en så en
   // refresh ikke gjentar en feil som allerede er lest.
@@ -90,6 +116,16 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         body: JSON.stringify({ email: cleanEmail, phase: 'lookup' }),
       })
       const data = await res.json().catch(() => null)
+
+      // 429 FØRST, og før !res.ok — ellers forsvinner den inn i den generiske
+      // grenen under. Ruten har to 429-lag (burst-brems i minnet, og den
+      // autoritative IP-tellingen i admin_actions); begge betyr at diagnosen
+      // aldri ble kjørt, ikke at vi vet noe om passordet.
+      if (res.status === 429) {
+        setNotice({ text: LOOKUP_RATE_LIMIT_TEXT })
+        return
+      }
+
       if (!res.ok || !data) {
         setNotice({ text: 'Feil e-post eller passord.' })
         return
@@ -112,7 +148,7 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
           text: data.hasGoogle
             ? 'Denne kontoen bruker Google-innlogging og har ikke passord ennå. Logg inn med Google under, eller få tilsendt en lenke for å velge et passord.'
             : 'Denne kontoen har ikke passord ennå. Vi kan sende deg en lenke på e-post så du kan velge et.',
-          action: { label: 'Sett et passord for denne kontoen', onClick: handleSetPassword },
+          action: { id: 'set-password', label: 'Sett et passord for denne kontoen', onClick: handleSetPassword },
         })
         return
       }
@@ -135,10 +171,76 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         else window.location.assign(resolvedNext())
         return
       }
-      if (error.message?.toLowerCase().includes('not confirmed')) {
-        setNotice({ text: 'E-posten er ikke bekreftet ennå. Sjekk innboksen for bekreftelseslenken.' })
+      // RATE-LIMIT FØR DIAGNOSEN. diagnoseLoginFailure() ANTAR at feilen handler
+      // om legitimasjon, og faller til «Feil passord. Bruk «Glemt passord?»…».
+      // Ved 429 fra Supabase sin sign-in-grense er det både usant og skadelig:
+      // «Glemt passord?» sender en e-post fra den kvoten som nettopp tok slutt,
+      // så rådet forsterker problemet det gir råd om.
+      if (isRateLimitedAuthError(error)) {
+        setNotice({ text: LOGIN_RATE_LIMIT_TEXT })
+      } else if (isEmailNotConfirmedError(error)) {
+        // Kontoen FINNES, men bekreftelses-e-posten nådde aldri fram. Uten
+        // knappen her er dette en blindvei: signup avvises med «allerede
+        // registrert», innlogging med «ikke bekreftet», og lenken det vises til
+        // finnes ikke. 12 av 194 kontoer i prod satt fast slik.
+        setNotice({
+          text: 'E-posten er ikke bekreftet ennå. Sjekk innboksen for bekreftelseslenken.',
+          action: resendAction(),
+        })
       } else {
         await diagnoseLoginFailure()
+      }
+    } catch {
+      setNotice({ text: 'Noe gikk galt. Prøv igjen.' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Send bekreftelseslenken på nytt ───────────────────────────────────────
+  //
+  // Handlingen legges på selve feilmeldingen, ikke som en permanent knapp:
+  // tilstanden «konto finnes, e-post ikke bekreftet» er den eneste der den gir
+  // mening, og vi vet at vi står i den fordi GoTrue nettopp sa det.
+  const resendAction = (): NoticeAction => ({
+    id: 'resend',
+    label: 'Send bekreftelseslenken på nytt',
+    onClick: handleResendConfirmation,
+  })
+
+  async function handleResendConfirmation() {
+    if (!validEmail) {
+      setNotice({ text: 'Skriv inn e-postadressen din først.' })
+      return
+    }
+    if (resendCooldown) return
+
+    setLoading(true)
+    // Cooldownen settes FØR kallet, ikke etter: det er nettopp mens kallet er
+    // underveis at et utålmodig andretrykk kommer.
+    setResendCooldown(true)
+    if (resendTimer.current) clearTimeout(resendTimer.current)
+    resendTimer.current = setTimeout(() => setResendCooldown(false), RESEND_COOLDOWN_MS)
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
+        options: { emailRedirectTo: callbackUrl() },
+      })
+      if (error) {
+        console.error('[auth] resend(signup) feilet:', error.message)
+        // Handlingen beholdes på feilmeldingen, ellers har brukeren ingen vei
+        // videre etter et forbigående avslag — men den er deaktivert til
+        // cooldownen er ute.
+        setNotice({ text: sendLinkErrorMessage(error), action: resendAction() })
+      } else {
+        // Gjenbruker signup-kvitteringen bevisst: teksten der sier allerede
+        // nøyaktig det som skjedde. Den er konkret, ikke nøytral, fordi
+        // kontoens eksistens allerede ble avslørt av «Email not confirmed» rett
+        // før — en nøytral kvittering ville skjult noe for brukeren uten å
+        // skjule noe for en angriper.
+        setSent('signup')
       }
     } catch {
       setNotice({ text: 'Noe gikk galt. Prøv igjen.' })
@@ -168,9 +270,7 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       }
       if (checkData.exists) {
         setMode('login')
-        setNotice({
-          text: 'Denne e-posten er allerede registrert. Logg inn med passordet ditt eller Google under.',
-        })
+        setNotice({ text: ALREADY_REGISTERED_TEXT })
         setLoading(false)
         return
       }
@@ -178,7 +278,14 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
       const n = resolvedNext()
       const { error } = await signUpWithPassword(cleanEmail, password, n !== '/' ? n : undefined)
       if (error) {
-        setNotice({ text: 'Kunne ikke opprette konto. Prøv igjen.' })
+        // Grenen hadde ÉN tekst for alt: kvotefeil, 60 s cooldown, for svakt
+        // passord og Supabase nede. «Prøv igjen» er feil råd i tre av de fire.
+        console.error('[auth] signUp feilet:', error.message)
+        const failure = classifySignupFailure(error)
+        // Racet pre-signup-sperren over ikke kan fange (to faner, to personer
+        // på samme adresse i samme sekund) — send brukeren til innlogging.
+        if (failure.kind === 'already-registered') setMode('login')
+        setNotice({ text: failure.text })
         setLoading(false)
         return
       }
@@ -314,9 +421,11 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
               <button
                 className="qk-auth-link qk-auth-link-action"
                 onClick={notice.action.onClick}
-                disabled={loading}
+                disabled={loading || (notice.action.id === 'resend' && resendCooldown)}
               >
-                {notice.action.label}
+                {notice.action.id === 'resend' && resendCooldown
+                  ? 'Vent et minutt før du kan sende på nytt'
+                  : notice.action.label}
               </button>
             </>
           )}
