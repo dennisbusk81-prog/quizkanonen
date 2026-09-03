@@ -32,6 +32,21 @@ import {
 // feilet (se diagnoseLoginFailure). pre-signup/post-signup — duplikat-sperren —
 // er uendret.
 
+/**
+ * Hvilken skjerm skjemaet faktisk viser akkurat nå — ikke bare `mode`.
+ *
+ * Finnes fordi OVERSKRIFTEN bor utenfor dette skjemaet: i AuthModal er den en
+ * <h2> over <AuthForm>, på /login en <h1> i sidens egen markup. Uten et signal
+ * utover kunne skjemaet bytte modus mens overskriften over sto på «Logg inn».
+ * Det var nettopp feilen: trykket på «Opprett konto» byttet to knapper og lot
+ * alt annet stå, så siden så ut til å rykke i stedet for å skifte.
+ *
+ * Kvitteringsskjermene er egne verdier, ikke `mode`: etter en magic link viser
+ * skjemaet «Sjekk innboksen din!», og en overskrift som fortsatt sier «Logg
+ * inn» lyver like mye der.
+ */
+export type AuthView = 'login' | 'signup' | 'sent-magic' | 'sent-reset' | 'sent-signup'
+
 type Props = {
   /** Redirect-mål etter innlogging. Utelatt → leses fra ?next= i URL-en. */
   next?: string
@@ -39,6 +54,16 @@ type Props = {
   onSuccess?: () => void
   /** Kun kosmetisk: modalen er litt tettere enn siden. */
   variant?: 'page' | 'modal'
+  /**
+   * Meldes hver gang skjermen skifter, så en kaller kan holde sin egen
+   * overskrift i takt. Rent VISNINGS-signal: skjemaet spør aldri kalleren om
+   * lov, og oppfører seg likt om proppen mangler.
+   *
+   * Gi helst en stabil referanse (useCallback). En ny funksjon per render er
+   * ufarlig — effekten under sender samme verdi, og Reacts setState-bailout
+   * stopper løkka — men den kjører da unødig ofte.
+   */
+  onViewChange?: (view: AuthView) => void
 }
 
 type Mode = 'login' | 'signup'
@@ -60,7 +85,7 @@ function safeNext(): string {
   return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/'
 }
 
-export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
+export default function AuthForm({ next, onSuccess, variant = 'page', onViewChange }: Props) {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -70,6 +95,28 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
   const [linkError, setLinkError] = useState('')
   const [resendCooldown, setResendCooldown] = useState(false)
   const resendTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Skjermen som faktisk vises. Kvitteringen vinner over modus: har vi nettopp
+  // sendt en e-post, er DEN skjermen brukeren ser, uansett hvilken modus
+  // skjemaet står i under.
+  const view: AuthView = sent ? (`sent-${sent}` as AuthView) : mode
+
+  // Meld skjermskiftet UTOVER, som en OBSERVASJON av tilstanden — ikke fra
+  // innsiden av switchMode.
+  //
+  // Det er en bevisst forskjell: `mode` settes to steder. switchMode() når
+  // brukeren trykker på knappen, men også setMode('signup') inne i
+  // diagnoseLoginFailure(), når vi slår opp e-posten og finner at kontoen ikke
+  // finnes. Nettopp DA er overskriften viktigst — brukeren blir tilbudt å
+  // opprette konto uten å ha bedt om det. En callback lagt inn i switchMode
+  // ville gått glipp av den veien og latt overskriften stå på «Logg inn» i det
+  // ene tilfellet der skjemaet bytter modus på egen hånd.
+  //
+  // Effekten fyrer også ved montering, så kalleren får startverdien uten å måtte
+  // gjette den.
+  useEffect(() => {
+    onViewChange?.(view)
+  }, [view, onViewChange])
 
   // Timeren overlever ellers komponenten — modalen lukkes ofte lenge før 60
   // sekunder er gått, og et setState etterpå ville vært på en avmontert node.
@@ -543,7 +590,9 @@ export default function AuthForm({ next, onSuccess, variant = 'page' }: Props) {
         {/* Alderskravet bekreftes HER, ved registrering/innlogging — det finnes
             ingen egen avkrysningsboks ved quiz-start lenger (fjernet i bced92d).
             Vilkår §2 og personvern §9 peker på denne setningen. */}
-        Ved å logge inn godtar du våre{' '}
+        {/* Verbet følger modusen. Lenkene og 13-års-setningen er de samme —
+            det er samtykket som er likt, bare handlingen som heter noe annet. */}
+        {isSignup ? 'Ved å opprette konto godtar du våre' : 'Ved å logge inn godtar du våre'}{' '}
         <a href="/vilkar" className="qk-auth-terms-link">vilkår</a>
         {' '}og{' '}
         <a href="/personvern" className="qk-auth-terms-link">personvernerklæringen</a>,
