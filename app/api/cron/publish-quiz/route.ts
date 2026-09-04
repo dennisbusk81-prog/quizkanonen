@@ -126,6 +126,48 @@ export async function GET(request: NextRequest) {
   }
   const snapshot = (closedQuizzes ?? []) as { id: string; title: string; closes_at: string }[]
 
+  // ── Observerbarhet (N-13, 4. september 2026) ──────────────────────────────
+  // Ruten logget fra før KUN når noe skjedde: publisering (over), oppgjør og
+  // rekjøring (begge i waitUntil under). Den vanlige kjøringen — «ingenting å
+  // gjøre», altså 1439 av 1440 kjøringer i døgnet — var helt taus. Da er
+  // stillhet tvetydig, og den kan bety tre helt ulike ting: ruten kjørte og
+  // fant ingenting, ruten kjørte ikke, eller ruten logget og linja ble ikke
+  // fanget. QK_0 ba 23. august om at rekjøringsvinduet skulle verifiseres i
+  // prod ved å grep-e loggen; det gikk ikke, fordi den grenen kun sier fra
+  // når den GRIPER INN. 28. august ble «null treff» lest som riktig utfall —
+  // men det holdt bare fordi en positiv kontroll ble kjørt først.
+  //
+  // Linjen under og summeringslinjen i waitUntil fyrer derfor UBETINGET, én
+  // av hver per kjøring. Da bærer et nulltall informasjon i seg selv, og
+  // fravær av linje er et signal i stedet for en mangel på et.
+  //
+  // TO linjer, ikke én, fordi de har ULIK GARANTI. Denne skrives i
+  // request-scope, før responsen sendes. Selve oppgjøret er først kjent inne
+  // i waitUntil — arbeid som per definisjon kjører etter at responsen er ute,
+  // og det er nettopp den fangsten som er mistenkt for å ha sviktet
+  // 4. september (8 eksterne kall og 3 POST i sporet, tom Messages-kolonne).
+  // Linje A svarer «kjørte ruten, og hadde den noe å gjøre?», linje B «hva
+  // ble faktisk gjort?». Kommer B aldri fram mens A gjør det, er DET svaret
+  // på hvor loggen blir av — og de to kan ikke skille lag på annen måte.
+  //
+  // Nøklene er ASCII med vilje (`kandidater=`, `gjort_opp=`, `rekjort=`):
+  // de er selve grep-ankeret, og et ø i søkestrengen er en unødvendig felle
+  // på Windows-siden av verktøykjeden. Kun tall passerer her — ingen
+  // spillernavn, e-poster eller bruker-id-er.
+  console.log(`[cron/publish-quiz] kjorte: publisert=${count} kandidater=${snapshot.length}`)
+
+  // Tellerne er rene observatører — ingen av dem leses av kontrollflyten. De
+  // står UTENFOR closuren slik at summeringen kan henges på som `.finally()`
+  // i stedet for som en try-blokk rundt kroppen: en try ville tvunget fram
+  // reinnrykk av seksti linjer uendret kode, og da drukner selve endringen i
+  // whitespace neste gang noen leser diffen.
+  let gjortOpp = 0
+  let rader = 0
+  let skannet = 0
+  let rekjort = 0
+  let raderRekjort = 0
+  let feil = 0
+
   // Førstegangs-oppgjør og rekjøring i SAMME waitUntil, i den rekkefølgen —
   // to parallelle blokker kunne latt rekjøringen se et halvt oppgjør.
   waitUntil(
@@ -134,8 +176,11 @@ export async function GET(request: NextRequest) {
         console.log(`[cron/publish-quiz] tildeler sesongpoeng for "${quiz.title}"`)
         const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
         if (procError) {
+          feil++
           console.error(`[cron/publish-quiz] sesongpoeng feilet for "${quiz.title}":`, procError)
         } else {
+          gjortOpp++
+          rader += rows
           console.log(`[cron/publish-quiz] sesongpoeng OK for "${quiz.title}" — ${rows} rader`)
         }
       }
@@ -177,10 +222,16 @@ export async function GET(request: NextRequest) {
       const { data: resettleRows, error: resettleError } = await onlyRealQuizzes(resettleQuery)
 
       if (resettleError) {
+        feil++
         console.error('[cron/publish-quiz] resettle lookup error:', resettleError.message)
         return
       }
-      for (const quiz of (resettleRows ?? []) as { id: string; title: string; closes_at: string }[]) {
+      // Lokal variabel kun for å kunne telle kandidatene. `skannet` er
+      // halvparten av rekjøringsbeviset: uten den kan «rekjort=0» like gjerne
+      // bety at utvalget aldri kjørte som at det kjørte og korrekt lot være.
+      const resettleKandidater = (resettleRows ?? []) as { id: string; title: string; closes_at: string }[]
+      skannet = resettleKandidater.length
+      for (const quiz of resettleKandidater) {
         const { data: late, error: lateError } = await supabaseAdmin
           .from('attempts')
           .select('id')
@@ -191,6 +242,7 @@ export async function GET(request: NextRequest) {
           .limit(1)
           .maybeSingle()
         if (lateError) {
+          feil++
           console.error(`[cron/publish-quiz] resettle-vakt feilet for "${quiz.title}":`, lateError.message)
           continue
         }
@@ -199,12 +251,37 @@ export async function GET(request: NextRequest) {
         console.log(`[cron/publish-quiz] rekjører sesongpoeng for "${quiz.title}" (sen innsending funnet)`)
         const { rows, error: procError } = await processQuiz(quiz.id, quiz.closes_at)
         if (procError) {
+          feil++
           console.error(`[cron/publish-quiz] rekjøring feilet for "${quiz.title}":`, procError)
         } else {
+          rekjort++
+          raderRekjort += rows
           console.log(`[cron/publish-quiz] rekjøring OK for "${quiz.title}" — ${rows} rader`)
         }
       }
-    })()
+    })().finally(() => {
+      // Linje B. `.finally()` og ikke slutten av kroppen: resettle-grenen over
+      // har en `return`, og et uventet kast ville ellers tatt summeringen med
+      // seg i fallet — nettopp i den kjøringen man mest trenger den.
+      // upsertScores i lib/award-season-points.ts kaster faktisk videre
+      // (`if (error) throw error`), og processQuiz sin egen try dekker kun
+      // attempt-hentingen, så den stien er nåbar og ikke hypotetisk.
+      //
+      // `.finally()` endrer ingenting for kalleren: promisen den returnerer
+      // resolver med samme verdi og forkaster med samme grunn, så waitUntil
+      // ser nøyaktig samme utfall som før.
+      //
+      // Tre tilstander, ett grep, én linje:
+      //   ingenting å gjøre → gjort_opp=0 rader=0 rekjort=0 (skannet kan godt
+      //                       være >0: vinduet ble evaluert og lot være — det
+      //                       er nettopp den negative kontrollen som manglet)
+      //   gjorde opp        → gjort_opp>=1 med rader=N
+      //   rekjørte          → rekjort>=1 med rader_rekjort=N
+      console.log(
+        `[cron/publish-quiz] oppgjor: gjort_opp=${gjortOpp} rader=${rader} ` +
+        `skannet=${skannet} rekjort=${rekjort} rader_rekjort=${raderRekjort} feil=${feil}`
+      )
+    })
   )
 
   return NextResponse.json({ published: count, quizzes: data })
