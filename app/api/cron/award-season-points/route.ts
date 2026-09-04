@@ -81,7 +81,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: quizError.message }, { status: 503 })
   }
 
+  // ── Observerbarhet (N-14, 5. september 2026) ──────────────────────────────
+  // Ruten logget fra før KUN når noe skjedde: feil (over og under), og
+  // per-quiz-linjene inne i løkken. Normalveien — «ingenting å gjøre», som er
+  // svaret nesten hver eneste kjøring — returnerte rett under uten et ord.
+  // Da kan Messages-kolonnen ikke skille «gjorde opp 60 rader» fra «hadde
+  // ingenting» fra «kjørte aldri». Og det var DENNE ruta, ikke publish-quiz,
+  // som faktisk gjorde opp 4. september kl. 22:00:36 UTC — publish-quiz kom
+  // åtte sekunder senere og fant ingenting. Nøyaktig samme tvetydighet som
+  // 32a7c7b lukket i publish-quiz.
+  //
+  // Én linje per kjøring, UBETINGET, fra begge utgangene: da bærer et
+  // nulltall informasjon, og fravær av linje er et signal. Samme prefiks-form
+  // som publish-quiz (`[cron/…] oppgjor:`) slik at begge kan grep-es sammen,
+  // og ASCII-nøkler så grep ikke krever ø. Kun tall — ingen titler, id-er
+  // eller spillernavn. `quizer` teller FORSØKTE (feilede inkludert); `feil`
+  // sier hvor mange av dem som ikke gikk. Ingen waitUntil her, så én linje
+  // holder — begge utgangene er i request-scope.
+  //
+  // Feiler selve quiz-oppslaget (503 over), fyrer den ikke: den grenen har
+  // allerede en error-linje, og en «oppgjor: quizer=0» der ville sett ut som
+  // en frisk kjøring.
+  const loggOppgjor = (quizer: number, rader: number, feil: number) =>
+    console.log(`[cron/award-season-points] oppgjor: quizer=${quizer} rader=${rader} feil=${feil}`)
+
   if (!quizzes || quizzes.length === 0) {
+    loggOppgjor(0, 0, 0)
     return NextResponse.json({ processed: 0, totalRows: 0, quizzes: [] })
   }
 
@@ -126,6 +151,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  loggOppgjor(results.length, totalRows, failed)
   return NextResponse.json(
     { processed: results.length, failed, totalRows, quizzes: results },
     { status: failed > 0 ? 503 : 200 }
