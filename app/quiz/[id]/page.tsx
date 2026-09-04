@@ -6,6 +6,7 @@ import { supabase, supabaseData, Quiz, Question } from '@/lib/supabase'
 import { calculateStreak } from '@/lib/ranking'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import QuizInterlude, { MIN_ANSWERED_FOR_PLACEMENT } from '@/components/QuizInterlude'
+import { decideSidePanelPlacement } from '@/lib/side-panel-placement'
 import { fetchTrialOffer } from '@/lib/trial-offer-fetch'
 import type { TrialOffer } from '@/lib/trial-offer'
 import { computeStrongCategory } from '@/lib/select-quiz-message'
@@ -3657,6 +3658,15 @@ export default function QuizPage() {
     const timerPercent = (timeLeft / limit) * 100
     const timerBarColor = timerPercent > 60 ? '#4ade80' : timerPercent > 40 ? 'var(--gold)' : '#E24B4A'
     const correctSoFar = answers.filter(a => a.isCorrect).length
+    // Hva høyre panel tegner som «Din plass» — eksakt når serveren ga oss
+    // det, ellers bånd. Beslutningen bor i lib/side-panel-placement.ts (N-8):
+    // kilden er interLiveRanking (server-gatet), IKKE liveRank, og gaten er
+    // «hva vi fikk», ikke isPremium. Se modulkommentaren der for begge valg.
+    const sidePlacement = decideSidePanelPlacement({
+      liveRanking: interLiveRanking,
+      low: interLow,
+      high: interHigh,
+    })
     // Render kun FAKTISK utfylte alternativer — ikke slice(0, num_options).
     // num_options er quiz-nivå; et Ja/Nei-spørsmål i en 4-alternativers quiz
     // (kun A/B utfylt, C/D null) ville ellers gitt to tomme, klikkbare knapper.
@@ -4034,12 +4044,19 @@ export default function QuizPage() {
             </div>
           )}
           <div style={{ borderTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? '1px solid #2a2d38' : 'none', paddingTop: rankingSnapshot && rankingSnapshot.totalPlayers > 0 ? 14 : 0 }}>
-            {interLow !== null && interHigh !== null ? (
+            {sidePlacement.kind !== 'none' ? (
               <>
                 <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginBottom: 4 }}>Din plass</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#c9a84c', fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: '-0.02em' }}>
-                  #{interLow}–{interHigh}
+                  {sidePlacement.kind === 'exact'
+                    ? `#${sidePlacement.rank}`
+                    : `#${sidePlacement.low}–${sidePlacement.high}`}
                 </div>
+                {/* «estimert» står også under det eksakte tallet, med vilje
+                    (avgjort 4. september 2026): midt i en quiz er plasseringen
+                    reelt foreløpig — feltet spiller fortsatt. «#59 / estimert»
+                    er ærlig; et eksakt tall uten forbehold ville lovet noe
+                    resultatskjermen senere kan motsi. */}
                 <div style={{ fontSize: 11, color: '#918f8a', fontFamily: "var(--font-instrument-sans), sans-serif", marginTop: 2 }}>estimert</div>
               </>
             ) : answers.length < MIN_ANSWERED_FOR_PLACEMENT ? (
