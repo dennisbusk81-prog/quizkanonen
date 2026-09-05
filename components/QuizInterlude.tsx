@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { selectQuizMessage, QuizMessageState } from '@/lib/select-quiz-message'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { pluralNo } from '@/lib/plural-no'
+import { decideTop10Context } from '@/lib/top10-gap'
 
 // Del 3 (25. juli 2026) — plassering og prosentil hviler nå på et anslag av
 // sluttresultatet, skalert opp fra tempoet så langt (se computePlacement i
@@ -439,27 +440,35 @@ export default function QuizInterlude({
         {/* Rival */}
         {rival && <RivalAvatar rival={rival} />}
 
-        {/* Ranking context — computed from snapshot, no DB calls */}
-        {rankingSnapshot && rankingSnapshot.totalPlayers >= 3 && (() => {
+        {/* Ranking context — computed from snapshot, no DB calls.
+            Selve avgjørelsen bor i lib/top10-gap.ts (populasjonsterskel,
+            «er jeg inne», tallet, og klamringen mot gjenværende spørsmål).
+            Den lå her som en JSX-IIFE fram til 5. september 2026, og da kunne
+            ingen test felle den: «Du trenger 9 riktige til» med to spørsmål
+            igjen sto på spillernes skjermer gjennom hele fredagsquizen
+            4. september. Ikke flytt regnestykket tilbake hit. */}
+        {(() => {
           const questionsLeft = totalQuestions - (questionIndex + 1)
-          const isInTop10 = score >= rankingSnapshot.top10MinCorrect &&
-            (rankingSnapshot.top10MinCorrect > 0 || rankingSnapshot.totalPlayers >= 2)
-          const neededForTop10 = rankingSnapshot.top10MinCorrect - score
+          const top10 = decideTop10Context({ snapshot: rankingSnapshot, score, questionsLeft })
 
-          if (isInTop10) {
+          if (top10.kind === 'in-top10') {
             return (
               <p className="qk-il-ctx" style={{ fontSize: 13, color: '#c9a84c', marginBottom: 16 }}>
                 Du er i topp 10 akkurat nå — hold det gående
               </p>
             )
           }
-          if (neededForTop10 > 0 && questionsLeft < 3) {
+          if (top10.kind === 'needed') {
             return (
               <p className="qk-il-ctx" style={{ fontSize: 13, color: '#e8e4dd', marginBottom: 16 }}>
-                Du trenger {neededForTop10} {pluralNo(neededForTop10, 'riktig', 'riktige')} til for å komme inn i topp 10
+                Du trenger {top10.needed} {pluralNo(top10.needed, 'riktig', 'riktige')} til for å komme inn i topp 10
               </p>
             )
           }
+          // 'none' er også utfallet når målet er uoppnåelig. Ingen
+          // erstatningstekst: det finnes ingen sann setning å sette inn, og
+          // en trøstelinje her ville lovet noe annet i stedet.
+          //
           // «{rival} ligger ett hakk foran deg» ble slettet 2. aug 2026: den
           // testet rivalens SLUTTSUM mot spillerens DELSUM (score + 1), så
           // påstanden var som regel usann og kan ikke reddes med merking.
