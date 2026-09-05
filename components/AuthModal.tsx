@@ -27,7 +27,21 @@ type Props = {
   onSuccess?: () => void
 }
 
-const DEFAULT_DESCRIPTION = 'Logg inn for å se din plassering og følge utviklingen din over tid.'
+// Reserven når kalleren ikke sender sin egen `description`. Den må være sann
+// for en GRATIS innlogget bruker på ALLE kallstedene som arver den — i dag
+// components/NavAuth.tsx (toppnavigasjonen, altså enhver SiteNav-side) og
+// app/liga/bli-med/[token]/page.tsx (liga-invitasjon).
+//
+// Den gamle teksten («se din plassering og følge utviklingen din over tid»)
+// lovet to ting som BEGGE er Premium-gatet: eksakt plassering, og
+// historikk/statistikk. Se PAYWALL-LOGIKK i .claude/CLAUDE.md. Gratisbrukeren
+// den ble vist til fikk et bånd og ingen historikk.
+//
+// Det den nye teksten lover er målt mot koden, ikke antatt: resultatene lagres
+// på kontoen, og sesongpoeng er IKKE Premium-gatet — lib/award-season-points.ts
+// har ingen premium-sjekk. Samme ordvalg som SIGNUP_DESCRIPTION under og
+// quiz-sidens fire beskrivelser allerede bruker i prod.
+const DEFAULT_DESCRIPTION = 'Logg inn, så lagres resultatene på deg og poengene teller i sesongen.'
 
 // Overskriften følger skjermen AuthForm faktisk viser. Fram til nå sto den fast
 // på «Logg inn»: et trykk på «Opprett konto» byttet to knapper og lot overskrift,

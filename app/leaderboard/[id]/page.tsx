@@ -5,6 +5,8 @@ import { supabase, supabaseData, Quiz, Attempt } from '@/lib/supabase'
 import { rankAttempts, RankedAttempt } from '@/lib/ranking'
 import { getSession, signOut } from '@/lib/auth'
 import { getSessionIdentity } from '@/lib/session-identity'
+import { buildLeaderboardNext } from '@/lib/login-next'
+import { leaderboardLoginDescription } from '@/lib/leaderboard-login-copy'
 import AuthModal from '@/components/AuthModal'
 import SiteNav from '@/components/SiteNav'
 import { useProfile } from '@/components/ProfileProvider'
@@ -1266,7 +1268,18 @@ export default function LeaderboardPage() {
   return (
     <>
       <style>{podiumStyles}</style>
-      <AuthModal open={showModal} onClose={() => setShowModal(false)} />
+      {/* `next` peker tilbake til DENNE listen, ikke til forsiden. Samme
+          mønster som quiz-panelet (app/quiz/[id]/page.tsx). Uten den lander
+          Google-runden og magic link på `/` — og en fremmed som klikket en
+          delt lenke fra Facebook mister nettopp lista hun kom for.
+          Scope-parameterne er med fordi de bestemmer hvilken liste siden
+          viser. */}
+      <AuthModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        next={buildLeaderboardNext(quizId, { org: orgSlug, league: leagueSlug, hist: cameFromHistory })}
+        description={leaderboardLoginDescription({ isClosed, hasSavedResult: !!savedResult })}
+      />
       {/* Utfordre-bekreftelse — trigges av trykk på en klikkbar rad. Delt
           komponent (components/DuelChallengeModal.tsx) med duell-forslagene
           på quiz-resultatskjermen, slik at begge inngangene til H2H Duell
@@ -1628,14 +1641,14 @@ export default function LeaderboardPage() {
                     <p style={s.cardTitle}>{title}</p>
                     <p style={s.cardSub}>{sub}</p>
                   </div>
+                  {/* Etiketten navngir ingen metode, og Google-logoen er borte
+                      av samme grunn: knappen åpner AuthModal, som gir FEM
+                      innloggingsveier (e-post+passord, opprett konto, Google,
+                      magic link, og passord-glemt-veien). «Logg inn med Google»
+                      med et merkeikon lovet én av dem. Stil, plassering og
+                      gullfargen er uendret. */}
                   <button onClick={() => setShowModal(true)} style={s.btnGold}>
-                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                      <path d="M19.6 10.23c0-.7-.063-1.39-.182-2.05H10v3.878h5.382a4.6 4.6 0 0 1-1.996 3.018v2.51h3.232C18.344 15.925 19.6 13.27 19.6 10.23z" fill="#4285F4"/>
-                      <path d="M10 20c2.7 0 4.964-.896 6.618-2.424l-3.232-2.51c-.896.6-2.042.955-3.386.955-2.604 0-4.81-1.758-5.598-4.12H1.064v2.592A9.996 9.996 0 0 0 10 20z" fill="#34A853"/>
-                      <path d="M4.402 11.901A6.02 6.02 0 0 1 4.09 10c0-.662.113-1.305.312-1.901V5.507H1.064A9.996 9.996 0 0 0 0 10c0 1.614.386 3.14 1.064 4.493l3.338-2.592z" fill="#FBBC05"/>
-                      <path d="M10 3.98c1.468 0 2.786.504 3.822 1.496l2.868-2.868C14.959.992 12.695 0 10 0A9.996 9.996 0 0 0 1.064 5.507l3.338 2.592C5.19 5.738 7.396 3.98 10 3.98z" fill="#EA4335"/>
-                    </svg>
-                    Logg inn med Google
+                    Logg inn
                   </button>
                 </div>
               </div>

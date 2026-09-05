@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { buildChallengeNext, loginHref } from '@/lib/login-next'
 
 export default function UtfordringPage() {
   const [fra,       setFra]       = useState<string | null>(null)
   const [quiz,      setQuiz]      = useState('')
   const [mounted,   setMounted]   = useState(false)
   const [loggedIn,  setLoggedIn]  = useState(false)
+  // Veien tilbake HIT etter innlogging. Bygges av de RÅ query-verdiene, ikke av
+  // `fra`-staten over — den har allerede fått fallbacken «En spiller», og den
+  // skal ikke skrives inn i URL-en som om avsenderen het det.
+  // Starter på `/login` fordi window.location ikke finnes under SSR; samme
+  // etter-montering-mønster som `fra`/`quiz`/`mounted`.
+  const [loginTilbake, setLoginTilbake] = useState('/login')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -17,6 +24,7 @@ export default function UtfordringPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFra(params.get('fra') ?? 'En spiller')
     setQuiz(params.get('quiz') ?? '')
+    setLoginTilbake(loginHref(buildChallengeNext({ fra: params.get('fra'), quiz: params.get('quiz') })))
     setMounted(true)
     supabase.auth.getSession().then(({ data }) => {
       setLoggedIn(!!data.session)
@@ -116,7 +124,7 @@ export default function UtfordringPage() {
 
             {!loggedIn && (
               <p style={{ fontSize: 13, color: '#918f8a', marginTop: 20 }}>
-                <a href="/login" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
+                <a href={loginTilbake} style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
                   Logg inn
                 </a>
                 {' '}for å lagre resultatet og utfordre andre
