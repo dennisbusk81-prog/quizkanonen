@@ -29,6 +29,11 @@ import { decideHiddenUntilClosed, decideHiddenLeaderboardView, osloClosingTime }
 import { decideFetchScope } from '@/lib/org-scope-fetch'
 import { fetchResult, type Loaded } from '@/lib/fetch-result'
 import { decideLeagueAffordance } from '@/lib/league-affordance'
+// Samme kilde som resultatskjermen i app/quiz/[id]/page.tsx. Hele poenget med
+// lib/next-quiz-label.ts er at «neste quiz»-datoen regnes ÉTT sted; en lokal
+// «kommer fredag»-streng her ville vært en tredje inngang til nettopp den
+// driften helperen ble laget for å avslutte.
+import { nextQuizLabel } from '@/lib/next-quiz-label'
 import type { Session } from '@supabase/supabase-js'
 import { withTimeout } from '@/lib/with-timeout'
 
@@ -220,6 +225,11 @@ export default function LeaderboardPage() {
   // «Blant venner»-fanen ELLER tenne «Opprett en liga (Premium)»-CTA-en.
   // Beslutningen ligger i lib/league-affordance.ts.
   const [leaguesState, setLeaguesState] = useState<Loaded<boolean>>({ ok: false })
+  // Den annonserte datoen for neste quiz, samme site_settings-nøkkel som
+  // resultatskjermen leser. Uten den ville nextQuizLabel falt på førstkommende
+  // fredag mens resultatskjermen viste en annonsert bonusdato — to flater, to
+  // datoer. null er trygt: helperen har fredags-fallbacken innebygd.
+  const [nextQuizAt, setNextQuizAt] = useState<string | null>(null)
   const [activeDuelExists, setActiveDuelExists] = useState(false)
   const [challengeSentSet, setChallengeSentSet] = useState<Set<string>>(new Set())
   const [duelInvolvedSet, setDuelInvolvedSet] = useState<Set<string>>(new Set())
@@ -817,6 +827,20 @@ export default function LeaderboardPage() {
     }
     setChallengeLoadingId(null)
   }
+
+  // Den annonserte datoen for neste quiz. Ikke-kritisk lesing: feiler den, står
+  // nextQuizAt som null og teksten faller på førstkommende fredag — samme
+  // fallback resultatskjermen har. Ingen feilhåndtering ut mot brukeren, fordi
+  // det ikke finnes noe hun kan gjøre med den.
+  //
+  // MÅ stå her, OVER `if (loading) return` under: alle tre early-returnene
+  // ligger rett nedenfor, og en hook etter dem kalles ikke i hver render.
+  // ESLint (react-hooks/rules-of-hooks) fanget nettopp det da effekten først
+  // ble lagt ved siden av leagueAffordance.
+  useEffect(() => {
+    supabaseData.from('site_settings').select('value').eq('key', 'next_quiz_at').single()
+      .then(({ data }) => { if (data?.value) setNextQuizAt(data.value) })
+  }, [])
 
   const formatTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`
 
@@ -1992,8 +2016,13 @@ export default function LeaderboardPage() {
 
           {/* Neste steg */}
           <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #2a2d38', textAlign: 'center' }}>
+            {/* Sto tidligere ubetinget som «Neste quiz kommer fredag» — også
+                MENS denne quizen var åpen, på samme side som «Spill quizen →».
+                Den ba altså folk vente på noe de kunne spille der og da.
+                Stengt-grenen bruker nextQuizLabel og gir ordrett samme form som
+                resultatskjermen i app/quiz/[id]/page.tsx. */}
             <p style={{ fontSize: 12, color: '#918f8a', marginBottom: 14, letterSpacing: '0.04em' }}>
-              Neste quiz kommer fredag
+              {isClosed ? `Neste quiz: ${nextQuizLabel(nextQuizAt)}` : 'Denne quizen er åpen nå'}
             </p>
             <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
               {!authLoading && session && (

@@ -4681,9 +4681,13 @@ export default function QuizPage() {
         const outcomeLabelColor = outcome === 'won' ? '#4ade80' : outcome === 'lost' ? '#c94c4c' : '#c9a84c'
 
         const outcomeText = outcome === 'won'
-          ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
+          // Navnet står ÉN gang per setning. Sto tidligere to ganger i både
+          // «won» og «lost» («Elin Åmot slo deg denne uken — Elin Åmot fikk 9
+          // riktige»). «som fikk» / «med» bærer rivalens poengsum videre uten
+          // å gjenta subjektet. «tied» hadde aldri doblingen og er urørt.
+          ? <>Du slo <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> denne uken — som fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
           : outcome === 'lost'
-            ? <><span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> slo deg denne uken — <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
+            ? <><span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> slo deg denne uken — med {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}.</>
             : <>Likt med <span style={{ color: '#c9a84c', fontWeight: 600 }}>{name}</span> — begge fikk {rivalScore} {pluralNo(rivalScore, 'riktig', 'riktige')}. Tiden avgjør.</>
 
         return (
@@ -5023,20 +5027,20 @@ export default function QuizPage() {
           </div>
         )}
 
-        {isLoggedIn && (
-          <p style={{ textAlign: 'center', marginTop: 4, marginBottom: 8 }}>
-            {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
-                quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
-                deltakerantall, ligastatus) i stedet for Next sin router-cache, som
-                kan være opptil 30 s gammel og dermed vise tall fra før innsendingen.
-                Rydder samtidig all quiz-tilstand i klienten. Ikke en forglemmelse —
-                se lint-oppryddingen 5. august 2026. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/liga" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-              Spill mot vennene dine → Opprett en liga (Premium)
-            </a>
-          </p>
-        )}
+        {/* FJERNET 6. september 2026 — «Spill mot vennene dine → Opprett en liga
+            (Premium)», gatet kun på `isLoggedIn`. Den var samme oppfordring som
+            ligaBox-kortet ~65 linjer under, i samme kolonne, men UTEN ligaBox sin
+            tilstandsskillelse — så en premium-bruker som allerede HAR liga fikk
+            solgt en liga rett over lenken til sin egen («Se hvordan du gjør det
+            mot vennene dine → Testprivatliga1»).
+            IKKE gjeninnfør den, og IKKE erstatt den med en `isPremium`-gate:
+            å bli med i en liga krever ikke Premium (app/api/leagues/join), kun
+            å OPPRETTE en gjør det (app/api/leagues/route.ts POST). isPremium
+            ville derfor skjult CTA-en for premium-brukere uten liga — der den er
+            mest nyttig — og latt den stå for gratisbrukere som har liga.
+            ligaBox dekker alle fire tilstandene allerede: 'cta' (bekreftet null
+            ligaer), 'liga', 'multi', og null (kallet feilet → vis ingenting).
+            Felles av lib/rival-and-next-quiz-copy.test.ts. */}
 
         {orgBox && (
           <div style={{
