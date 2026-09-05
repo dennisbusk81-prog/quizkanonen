@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { seededShuffle, ALL_OPTION_LETTERS, optionOrderSeed } from '@/lib/seeded-shuffle'
 import { verifyAttemptToken } from '@/lib/attempt-token'
@@ -114,12 +115,88 @@ export async function GET(
       .maybeSingle(),
   ])
 
+  // ── Lesefeil er ikke en dom (5. september 2026) ─────────────────────────────
+  // Fram til nå leste ruten `attemptRes.data` alene og kastet `error`. Da falt
+  // TRE ulike tilstander ned i én og samme gren: raden fantes ikke, raden hørte
+  // til en annen quiz, og — usynlig — oppslaget FEILET. supabase-js kaster ikke
+  // ved nettverksfeil eller PostgREST-5xx; den returnerer `{ data: null, error }`,
+  // så en feilet lesing var ikke til å skille fra «ingen tilgang».
+  //
+  // MÅLT I PROD 4. september 2026: attempt f06fa0dd fikk «Ingen tilgang til
+  // dette forsøket» 3,3 sekunder etter at raden ble opprettet, på index 0.
+  // Attempt-tokenet er HMAC over (attemptId, quizId) og PASSERTE, så paret er
+  // nøyaktig det start-attempt signerte — quiz_id-mismatch var strukturelt
+  // umulig. Raden fantes. Det som gjensto var en lesing som svarte null.
+  //
+  // Skillet er submit-rutens (:127-144 og :255-272), ikke et nytt mønster. Fordi
+  // oppslagene her er PARALLELLE, speiles submits parallelle form: ÉN samlet
+  // sjekk som logger BEGGE feilene. To separate `if`-er med hver sin `return`
+  // ville skjult den andre feilen nettopp når Supabase er helt nede — som er
+  // det tilfellet der loggen betyr mest.
+  //
+  // REKKEFØLGEN ER POENGET: dette står FØR alle de andre gatene. Feiler begge
+  // oppslagene, svarer ruten 503 — ikke 403. Tidligere vant attempt-sjekken, og
+  // en total DB-utilgjengelighet kom ut som en tilgangsnekt: en melding som
+  // peker på spillerens rettigheter i stedet for på infrastrukturen.
+  //
+  // LOGGINGEN ER IKKE PYNT. Klienten sender Sentry-varsel KUN ved 403
+  // (fetchQuestionAt i app/quiz/[id]/page.tsx) — en 503 ville ellers vært
+  // fullstendig usynlig, og fiksen et netto tap av innsikt. Derfor logges det
+  // her, ved sinket. Kun `message` og `code` tas med: `details` bærer stack og
+  // URL-er hos supabase-js, og skal ikke i loggen. Tokenet logges aldri.
+  if (attemptRes.error || quizRes.error) {
+    console.error(
+      `[quiz/questions] oppslag feilet: attempt=${attemptRes.error ? 'FEIL' : 'ok'} quiz=${quizRes.error ? 'FEIL' : 'ok'} ` +
+      `quizId=${quizId} attemptId=${attemptId} index=${index} ` +
+      `attemptKode=${attemptRes.error?.code ?? '-'} attemptMelding=${attemptRes.error?.message ?? '-'} ` +
+      `quizKode=${quizRes.error?.code ?? '-'} quizMelding=${quizRes.error?.message ?? '-'}`
+    )
+    try {
+      // Konstant melding, aldri interpolert: Sentry grupperer på strengen, og
+      // én sak per feiltekst ville gjort telleren uleselig. Hvilket oppslag som
+      // feilet står i `extra`. Samme regel som lib/questions-403-alert.ts.
+      Sentry.captureMessage('questions: attempt-/quiz-oppslag feilet — avvist med 503, ingen fasit servert', {
+        level: 'error',
+        tags: { area: 'quiz-play' },
+        extra: {
+          quizId, attemptId, index,
+          attemptError: attemptRes.error?.message ?? null,
+          attemptCode: attemptRes.error?.code ?? null,
+          quizError: quizRes.error?.message ?? null,
+          quizCode: quizRes.error?.code ?? null,
+        },
+      })
+    } catch { /* varselet skal aldri kunne påvirke responsen */ }
+    return NextResponse.json({ error: 'Kunne ikke hente quizdata. Prøv igjen om et øyeblikk.' }, { status: 503 })
+  }
+
   // Raden må finnes, tilhøre denne quizen, og ikke være levert. Siste punkt
   // hindrer at et brukt token gjenbrukes til å hente fasiten i ro og mak etterpå.
+  // De to første er nå ATSKILT: «finnes ikke» er 404 (innlogging eller et nytt
+  // forsøk hjelper ikke), «feil quiz» er den ekte tilgangsfeilen. Tekstene er
+  // submit-rutens, ordrett — to søsterruter som avgjør det samme skal ikke
+  // svare med hver sin ordlyd.
   const attemptRow = attemptRes.data as
     { id: string; quiz_id: string; question_order: unknown; submitted_at: string | null; completed_at: string } | null
-  if (!attemptRow || attemptRow.quiz_id !== quizId) {
-    return NextResponse.json({ error: 'Ingen tilgang til dette forsøket' }, { status: 403 })
+  if (!attemptRow) {
+    // Et GYLDIG attempt-token for en rad som ikke finnes er en UMULIG tilstand.
+    // Tokenet er HMAC over (attemptId, quizId), og token-gaten over har allerede
+    // passert — så paret er nøyaktig det start-attempt signerte, og den ruten
+    // utsteder kun for en rad den selv nettopp skrev. Kommer vi hit, er raden
+    // slettet etterpå, flyttet av en migrasjon, eller manipulert. Aldri normal
+    // drift, og derfor aldri noe å avfeie som støy.
+    //
+    // INGEN Sentry her — 503-grenene varsler, denne skal kun være GJENFINNBAR
+    // i loggen. Uten linja er tilstanden helt stille: klienten sender bare
+    // Sentry-varsel ved 403 (fetchQuestionAt), og denne grenen er 404. Da hadde
+    // skillet gjort svaret ærligere for spilleren og usynlig for driften.
+    console.error(
+      `[quiz/questions] attempt ikke funnet: quizId=${quizId} attemptId=${attemptId} index=${index}`
+    )
+    return NextResponse.json({ error: 'Forsøk ikke funnet' }, { status: 404 })
+  }
+  if (attemptRow.quiz_id !== quizId) {
+    return NextResponse.json({ error: 'Forsøk hører ikke til denne quizen' }, { status: 403 })
   }
   if (attemptRow.submitted_at !== null) {
     return NextResponse.json({ error: 'Forsøket er allerede levert' }, { status: 403 })
