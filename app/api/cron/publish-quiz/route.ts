@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { processQuiz } from '@/lib/award-season-points'
 import { RESETTLE_SCAN_MS } from '@/lib/late-play-window'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { sendHeartbeat } from '@/lib/cron-heartbeat'
 
 export const maxDuration = 60
 
@@ -281,6 +282,18 @@ export async function GET(request: NextRequest) {
         `[cron/publish-quiz] oppgjor: gjort_opp=${gjortOpp} rader=${rader} ` +
         `skannet=${skannet} rekjort=${rekjort} rader_rekjort=${raderRekjort} feil=${feil}`
       )
+
+      // ── Kanari (5. september 2026) ──────────────────────────────────────
+      // Heartbeat til healthchecks.io — SIST, og KUN når alt gikk. Ligger her
+      // i .finally() og ikke ved responsen: ved responsen er kjøringen
+      // «vellykket» før oppgjøret i det hele tatt har startet, og kanarien
+      // ville da bare målt at cron-job.org når fram til Vercel. `feil` er den
+      // samme telleren linje B nettopp skrev, så loggen og kanarien kan aldri
+      // være uenige. Promiset RETURNERES så waitUntil holder funksjonen i
+      // live til pinget er sendt; helperen kaster aldri (fail-open, 3 s
+      // frist, hopper stille over uten env), så utfallet for waitUntil er
+      // uendret. Se lib/cron-heartbeat.ts.
+      if (feil === 0) return sendHeartbeat('publish-quiz')
     })
   )
 

@@ -67,6 +67,11 @@ const SECRET_ENV_KEYS = [
   'VAPID_PRIVATE_KEY',
   'QUIZ_TOKEN_SECRET',
   'SENTRY_AUTH_TOKEN',
+  // Ping-URL-ene til healthchecks.io (lib/cron-heartbeat.ts): den som har
+  // dem kan forfalske heartbeats. Lav verdi, men ingen grunn til å la dem
+  // ligge i en fetch-feilmelding i et event.
+  'HEALTHCHECK_PUBLISH_QUIZ_URL',
+  'HEALTHCHECK_AWARD_SEASON_POINTS_URL',
 ]
 
 const PATTERNS: ReadonlyArray<RegExp> = [

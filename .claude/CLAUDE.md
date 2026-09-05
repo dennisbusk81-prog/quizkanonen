@@ -566,7 +566,10 @@ trusselbilder:
 `STRIPE_ORG_STARTER_PRICE_ID`, `STRIPE_ORG_STANDARD_PRICE_ID`, `STRIPE_ORG_PRO_PRICE_ID`,
 `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`,
 `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`,
-`KV_URL`, `REDIS_URL`
+`KV_URL`, `REDIS_URL`,
+`HEALTHCHECK_PUBLISH_QUIZ_URL`, `HEALTHCHECK_AWARD_SEASON_POINTS_URL`
+(de to siste: ping-URL-er fra healthchecks.io, se «Cron-kanari» under —
+Production only; mangler de, hopper kanarien stille over)
 
 KV-/REDIS-variablene er lagt inn av Upstash-integrasjonen i Vercel
 Marketplace og bruker det gamle Vercel KV-navnemønsteret — ikke `UPSTASH_*`.
@@ -576,6 +579,48 @@ markert dem som **sensitive**: de kan ikke leses tilbake med
 lokal `npm run dev` kjører uten delt lagring (som er meningen), og en av dem
 kan ikke endres «midlertidig» og settes tilbake etterpå — den opprinnelige
 verdien er ikke gjenopprettbar uten Upstash-dashbordet.
+
+### Cron-kanari — dead man's switch mot healthchecks.io (5. september 2026)
+Tolv av femten cron-ruter kjører KUN fra cron-job.org (bare `cleanup-orgs`,
+`scheduled-removals` og `cleanup-notification-log` ligger i `vercel.json`),
+og dør alle samtidig om jobben slettes/deaktiveres eller `CRON_SECRET`
+roteres: alle svarer 401 til en tjeneste ingen leser, ingen rute logger 401,
+middleware ekskluderer `/api/*`, og et 401-svar er ikke et kast for Sentry.
+Kartlagt 5. september 2026; trial-reminders sto slik 9.–16. august uten at
+noen merket det.
+
+`lib/cron-heartbeat.ts` (`sendHeartbeat`) pinger healthchecks.io, som
+varsler Dennis på e-post når pinget uteblir. **To kanarier, med vilje:**
+- `publish-quiz` (hvert minutt) fanger «alle tolv er døde» og en rotert
+  hemmelighet innen minutter.
+- `award-season-points` (hvert 30. min) fanger den jobben som mest
+  sannsynlig dør ALENE og gjør mest skade: ruta svarer 503 by design når en
+  quiz ikke lar seg gjøre opp, og cron-job.org slår en jobb av etter >25
+  feil på rad (12,5 timer). publish-quiz ville da kjørt videre med 200.
+
+**PLASSERINGEN ER HELE POENGET, og den er mutasjonstestet:** pinget sendes
+SIST, i `waitUntil`, KUN når `feil=0`. I publish-quiz ligger det i
+`.finally()` etter linje B, betinget på samme teller linja skriver; i
+award-season-points etter `loggOppgjor`, og hverken 503-grenene eller
+`failed>0` pinger. Sendes det ved responsen, er kanarien grønn selv om
+oppgjøret feilet — da måler den bare at cron-job.org når fram til Vercel.
+
+Periode og slingring bor i healthchecks.io, ikke i kode — Dennis endrer
+kadenser i cron-job.org-panelet, og en forventning i kode ville måttet
+følge hver slik endring. Helperen er fail-open og kaster aldri: uten env
+hopper den stille over, 3 s frist med abort, alt fanges. Ping-URL-en er en
+hemmelighet av lav verdi og skrives aldri til loggen (kun `err.name`).
+
+Bevisst IKKE valgt nå (5. september): flytte de tolv til `vercel.json`.
+Det fjerner per-jobb-avbryteren og 30-sekunderskuttet hos cron-job.org, men
+flytter enkeltfeilen («Disable Cron Jobs» er én knapp) uten å fjerne den,
+krever deploy per kadensendring og er UTC-låst. **Utløser for å hente den
+fram igjen:** en Stripe-tung rute nærmer seg 30 s, eller B2B-vekst gjør
+`expire-grace-periods` (én Stripe-rundtur per medlem i request-scope) treg.
+
+Kjent, ikke rettet: avmeldingslenkene i e-post er HMAC over `CRON_SECRET`
+(`lib/unsubscribe.ts`), så hver rotasjon gjør alle tidligere sendte lenker
+til «Ugyldig lenke». Fortjener egen hemmelighet, egen sak.
 
 ### Feilovervåkning — Sentry (5. august 2026)
 `@sentry/nextjs` etter standardmønsteret for App Router: `instrumentation.ts`

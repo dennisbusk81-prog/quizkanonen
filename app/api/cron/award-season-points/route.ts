@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { processQuiz } from '@/lib/award-season-points'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { sendHeartbeat } from '@/lib/cron-heartbeat'
 
 const BATCH_SIZE = 10
 
@@ -107,6 +109,10 @@ export async function GET(request: NextRequest) {
 
   if (!quizzes || quizzes.length === 0) {
     loggOppgjor(0, 0, 0)
+    // Ingenting å gjøre er en vellykket kjøring — kanarien skal pinge her
+    // også, ellers ville den vært stille 47 av 48 kjøringer i døgnet. Se
+    // kommentaren ved den andre utgangen under.
+    waitUntil(sendHeartbeat('award-season-points'))
     return NextResponse.json({ processed: 0, totalRows: 0, quizzes: [] })
   }
 
@@ -152,6 +158,19 @@ export async function GET(request: NextRequest) {
   }
 
   loggOppgjor(results.length, totalRows, failed)
+
+  // ── Kanari (5. september 2026) ──────────────────────────────────────────
+  // Heartbeat til healthchecks.io — SIST, etter summeringslinja, og KUN når
+  // alt ble gjort opp. Denne ruta er den som mest sannsynlig dør ALENE:
+  // 503-svaret under er riktig for en leser, men cron-job.org slår jobben av
+  // etter >25 feil på rad, og publish-quiz ville kjørt videre med 200. Derfor
+  // egen kanari, og derfor pinger hverken denne grenen ved feil eller
+  // 503-grenen ved oppslagsfeil lenger opp — et ping fra en kjøring som lot
+  // en quiz stå uoppgjort ville skjult nøyaktig det kanarien finnes for.
+  // I waitUntil så cron-job.org aldri venter på pinget; helperen kaster
+  // aldri og hopper stille over uten env. Se lib/cron-heartbeat.ts.
+  if (failed === 0) waitUntil(sendHeartbeat('award-season-points'))
+
   return NextResponse.json(
     { processed: results.length, failed, totalRows, quizzes: results },
     { status: failed > 0 ? 503 : 200 }
