@@ -26,6 +26,7 @@ import { describeRetry } from '@/lib/retry-affordance'
 import { decideResultPlacementView } from '@/lib/result-placement'
 import { withAnswer, buildTimeoutAnswer, type AnswerRecord } from '@/lib/quiz-timeout-answer'
 import { QUIZ_CLOSED_ERROR } from '@/lib/late-play-window'
+import { buildQuestions403Alert } from '@/lib/questions-403-alert'
 import { ARCHIVE_PLAY_PREMIUM_ERROR } from '@/lib/archive-play-gate'
 import {
   isArchiveQuiz,
@@ -1458,29 +1459,41 @@ export default function QuizPage() {
         signal,
       })
       if (!res.ok) {
-        // MÅLING for B-10 (stengetid midt i spilling): en 403 herfra er i praksis
-        // alltid en spiller som ble avbrutt av closes_at — goToNext ber om neste
-        // spørsmål og serveren svarer «Quizen er ikke åpen». (startQuiz-kallene
-        // kommer rett etter en vellykket start-attempt, som gjør samme åpen-sjekk
-        // først, så de kan i praksis ikke treffe 403 her.) Statusen overlever ikke
-        // withTimeout-innpakningen hos kallerne — {ok:false} bærer ingen feil — så
-        // målingen MÅ skje her, før throw. Fast meldingstekst så Sentry teller
-        // forekomster på ÉN sak; server-teksten i extra skiller «ikke åpen» fra
-        // token-/innsendings-403. Fanges aldri opp av spilleren: UI-flyten
-        // («Prøv igjen»-banneret) er uendret, jf. regelen om at sjeldne tekniske
-        // tilstander varsler Dennis, ikke spilleren.
+        // MÅLING for B-10 (stengetid midt i spilling): goToNext ber om neste
+        // spørsmål og serveren svarer «Quizen er ikke åpen». Statusen overlever
+        // ikke withTimeout-innpakningen hos kallerne — {ok:false} bærer ingen
+        // feil — så målingen MÅ skje her, før throw. Fanges aldri opp av
+        // spilleren: UI-flyten («Prøv igjen»-banneret) er uendret, jf. regelen
+        // om at sjeldne tekniske tilstander varsler Dennis, ikke spilleren.
+        //
+        // HVILKEN av de to Sentry-sakene dette blir, avgjøres av serverens egen
+        // tekst i buildQuestions403Alert — ikke av en klokke her. Fram til
+        // 5. september 2026 sto det «spiller trolig strandet ved stengetid» på
+        // ENHVER 403, og en arkivquiz uten stengetid i det hele tatt utløste
+        // den. Full begrunnelse i lib/questions-403-alert.ts.
+        //
+        // MERK at ruten har SEKS 403-utganger, ikke bare tidsvinduet: ugyldig
+        // attempt-token, forsøket hører til en annen quiz, allerede levert,
+        // skjult quiz (is_active), samt opens_at/closes_at. Her sto det
+        // tidligere at startQuiz-kallene «i praksis ikke kan treffe 403»
+        // fordi start-attempt gjør samme åpen-sjekk først. Den antakelsen
+        // dekker bare TIDSVINDUET — start-attempt sier ingenting om tokenet
+        // klienten faktisk rekker å sende, eller om hvilket forsøk den sender
+        // det for. Målt 4. september 2026: en 403 kom 3,3 sekunder etter en
+        // vellykket start, på en quiz som ikke kan stenge.
         if (res.status === 403) {
           const errBody = await res.json().catch(() => null) as { error?: string } | null
           try {
-            Sentry.captureMessage('quiz: spørsmålshenting avvist med 403 — spiller trolig strandet ved stengetid', {
+            const varsel = buildQuestions403Alert({ quizId, attemptId: aId, index, serverError: errBody?.error })
+            Sentry.captureMessage(varsel.message, {
               level: 'warning',
               tags: { area: 'quiz-play' },
-              extra: { quizId, attemptId: aId, index, serverError: errBody?.error ?? null },
+              extra: varsel.extra,
             })
           } catch { /* målingen skal aldri kunne påvirke spillflyten */ }
-          // Meldingsteksten over beholdes uendret for kontinuitet i Sentry-
-          // tellingen (samme sak siden a8b7adc) — men siden nådevinduet kom,
-          // strander spilleren ikke lenger: utfallet under leverer det hun har.
+          // UENDRET av varsel-skillet over: utfallet nedenfor styres av samme
+          // sammenligning som før, og kun av den. Siden nådevinduet kom,
+          // strander spilleren ikke lenger — kalleren leverer det hun har.
           if (errBody?.error === QUIZ_CLOSED_ERROR) return { closed: true }
         }
         throw new Error(`questions ${res.status}`)
