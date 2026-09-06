@@ -95,6 +95,31 @@ function formatPeriodDate(unix: number): string {
   return `${day}. ${month} ${year}`
 }
 
+// ── BRUKERSKREVET TEKST I NAV-EN MÅ AVKORTES (6. september 2026) ────────────
+// Org-navnet er det ENESTE brukerskrevne som kan havne i navigasjonsraden, og
+// det skjer kun når noen er admin i mer enn én bedrift (med nøyaktig én
+// rendres den faste etiketten «Bedriftspanel»). `validateOrgName` tillater 60
+// tegn, så to slike navn kunne dyttet raden ~800 px bredere enn målt — og
+// dermed sprengt hamburgergrensen uansett hvor den står. Et høyere brytepunkt
+// kan ikke løse et ubegrenset tall; avkorting kan.
+//
+// Samme behandling som avatar-navnet i konto-knappen lenger nede: maks-bredde
+// + ellipse + nowrap. Ikke et nytt mønster, samme mønster. Verdien er den
+// samme (110) av samme grunn — to avkortede navn koster da maks 220 px, som
+// holder raden innenfor grensen med margin.
+//
+// Gjelder BEGGE stedene org-navnet rendres: topplinjen og hamburgeren.
+// Hamburgeren har samme feilklasse — `menuItem` er `whiteSpace: nowrap` uten
+// maks-bredde, så et langt navn ville gjort hele dropdownen bredere enn en
+// mobilskjerm.
+const ORG_NAME_MAX_WIDTH = 110
+const orgNameClamp: React.CSSProperties = {
+  maxWidth: ORG_NAME_MAX_WIDTH,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
 const menuItem: React.CSSProperties = {
   display: 'block', width: '100%', textAlign: 'left',
   padding: '8px 10px', background: 'none',
@@ -413,7 +438,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         <a
           key={org.orgSlug}
           href={`/org/${org.orgSlug}/admin`}
-          style={navLink}
+          style={{ ...navLink, ...orgNameClamp }}
           className="nav-hide-mobile"
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
@@ -495,7 +520,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
+                {/* Klemmen sitter på en INNER span, ikke på menyraden selv —
+                    `menuItem` er `width: 100%` med padding, så en maks-bredde
+                    der ville krympet hele den klikkbare raden til 110 px og
+                    gjort den smalere enn søsknene sine. Avatar-navnet gjør
+                    nøyaktig det samme: knappen er full bredde, spannet inni
+                    er klemt. `display: block` fordi ellipse krever en
+                    blokkboks — i topplinjen er lenken flex-barn og får det
+                    gratis, her er den det ikke. */}
+                <span style={{ ...orgNameClamp, display: 'block' }}>
+                  {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
+                </span>
               </a>
             ))}
             <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
