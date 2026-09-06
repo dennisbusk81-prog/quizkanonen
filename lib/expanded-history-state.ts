@@ -10,11 +10,25 @@
 // Derfor er 'error' en egen verdi i cachen (samme form som 'loading', som
 // allerede lå der), og guarden bor her som ren, testbar logikk i stedet for en
 // `has()`-sjekk som ikke kan skille «vet» fra «feilet».
-export type ExpandedPanelValue<T> = T[] | 'loading' | 'error'
+// ── 'error' ERSTATTET AV ÅRSAKEN (6. september 2026) ────────────────────────
+// Sentinelen bar tidligere bare «det feilet». Da fikk en ansatt som ble
+// fjernet fra organisasjonen mens siden sto åpen «Kunne ikke hente topplisten
+// for perioden. Prøv igjen» — et råd som ikke kan følges. Årsaken kommer nå
+// fra samme klassifisering som hovedhentingen bruker
+// (lib/leaderboard-avvisning.ts), slik at de tre hentestedene i
+// SeasonLeaderboard ikke kan drive fra hverandre.
+import type { Avvisning } from './leaderboard-avvisning'
 
-// Hent når vi ikke VET: aldri hentet (undefined) eller forsøkt og feilet
-// ('error'). En faktisk liste — OGSÅ en tom — er viten og caches; 'loading'
-// er underveis og skal ikke få et konkurrerende kall.
+export type ExpandedPanelValue<T> = T[] | 'loading' | Avvisning
+
+// Hent når vi ikke VET og et nytt forsøk kan hjelpe: aldri hentet (undefined)
+// eller en ekte feil ('feil' — nettverk, 500, 429). En faktisk liste — OGSÅ en
+// tom — er viten og caches; 'loading' er underveis og skal ikke få et
+// konkurrerende kall.
+//
+// 'uinnlogget' og 'ikke-medlem' hentes IKKE på nytt: serveren har svart
+// entydig, og situasjonen endrer seg ikke av at raden lukkes og åpnes igjen.
+// Visningen tilbyr derfor heller ingen retry-knapp der.
 export function shouldFetchExpanded<T>(existing: ExpandedPanelValue<T> | undefined): boolean {
-  return existing === undefined || existing === 'error'
+  return existing === undefined || existing === 'feil'
 }

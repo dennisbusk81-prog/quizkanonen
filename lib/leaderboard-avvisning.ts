@@ -77,6 +77,28 @@ export function velgTomSkjerm(avvisning: Avvisning | null): TomSkjerm {
  * det likevel skje, er en nøytral formulering riktigere enn å påstå noe om
  * en bedrift eller liga brukeren ikke er i.
  */
+/**
+ * Samme avvisning, men MIDT I ØKTA.
+ *
+ * `loadHistory` og `fetchExpanded` er kun nåbare etter at hovedkallet gikk
+ * gjennom MED tilgang. En 401 eller 403 der betyr derfor noe annet enn ved
+ * første last: tilstanden endret seg mens siden sto åpen. Elkjøp har ~29
+ * ansatte, og `scheduled-removals` og `cleanup-orgs` kjører som cron — blir du
+ * fjernet fra organisasjonen med siden oppe, er det denne grenen du treffer.
+ *
+ * ORDLYDEN ER FORESLÅTT (Dennis velger). Begge setningene er sanne på begge
+ * flatene, så de deles med vilje: to nesten like formuleringer ville drevet
+ * fra hverandre ved første redigering.
+ *
+ * «feil» hører ikke hjemme her — der er «prøv igjen» riktig, og kallstedene
+ * beholder sin egen tekst med retry-knapp.
+ */
+export function avvistMidtIOkta(avvisning: 'uinnlogget' | 'ikke-medlem'): string {
+  return avvisning === 'ikke-medlem'
+    ? 'Du har ikke lenger tilgang til denne listen.'
+    : 'Du er logget ut. Logg inn på nytt for å se dette.'
+}
+
 export function ikkeMedlemTekst(scope: 'global' | 'league' | 'organization'): string {
   if (scope === 'organization') return 'Du er ikke medlem av denne bedriften.'
   if (scope === 'league') return 'Du er ikke medlem av denne ligaen.'

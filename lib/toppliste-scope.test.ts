@@ -187,7 +187,11 @@ test('skinnen rendres kun når beslutningen sier det, med ett valg per org', () 
   assert.match(src, /const visSkinne = beslutning\.visSkinne/)
   // «Alle» + én knapp per medlemskap ⇒ 1 org gir to valg, 2 org-er gir tre.
   assert.match(src, /onClick=\{\(\) => settScope\(null\)\}/, '«Alle»-valget mangler')
-  assert.match(src, /myOrgs\.map\(o => \([\s\S]{0,400}onClick=\{\(\) => settScope\(o\.orgId\)\}/,
+  // Kroppen ble `{ … }` i stedet for `( … )` da bryteren fikk en `aktiv`-
+  // variabel per valg (segmentert kontroll, 6. september 2026). Ankeret
+  // godtar begge formene, siden det er KILDEN til valgene som voktes her —
+  // ikke hvordan pilfunksjonen er skrevet.
+  assert.match(src, /myOrgs\.map\(o => [({][\s\S]{0,600}onClick=\{\(\) => settScope\(o\.orgId\)\}/,
     'org-valgene rendres ikke fra myOrgs')
   assert.match(src, /\{o\.orgName\}/, 'org-valget viser ikke navnet — «Bedriften» er tvetydig med to medlemskap')
 })

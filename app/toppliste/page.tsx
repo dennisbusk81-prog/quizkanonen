@@ -91,32 +91,103 @@ function PlacementLockedBanner() {
 // bokmerket org-lenke først vist «Topplisten» med globale tall, så byttet —
 // feil liste og feil overskrift i et halvt sekund, pluss en bortkastet
 // henting.
+// ── SEGMENTERT BRYTER (6. september 2026) ───────────────────────────────────
+// Første versjon var løse knapper med en litt lysere boks rundt det aktive
+// valget. Den leste ikke som trykkbar: «Elkjøp Nordic» så ut som brødtekst, og
+// siden hadde to valgrader rett over hverandre i to ulike visuelle språk.
+//
+// RAMMEN er det som gjør den til en kontroll. Én border rundt BEGGE valgene
+// sier «her velger du én av disse» før noen har rørt noe — viktig, siden
+// hover ikke finnes på mobil.
+//
+// INGEN GULL. Den aktive periodefanen rett under er gull, og husregelen sier
+// aldri to gullelementer på samme skjerm. Bryteren markeres med KONTRAST,
+// periodefanene med FARGE. Det gir også riktig hierarki: bryteren avgrenser
+// HVEM, periodefanene NÅR.
 const scopeRailStyle: React.CSSProperties = {
-  display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap',
-  margin: '0 0 14px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 2,
+  padding: 3,
+  border: '1px solid #2a2d38',
+  borderRadius: 999,
+  maxWidth: '100%',
+  // Tre valg med lange bedriftsnavn kan bli bredere enn en smal mobil. Da
+  // scroller bryteren sidelengs i stedet for å brekke til to linjer — en
+  // segmentert kontroll som wrapper slutter å lese som én kontroll.
+  overflowX: 'auto',
 }
 
-// Aldri gull: den aktive periodefanen rett under ER gull, og to gule
-// klikkbare elementer på samme skjerm bryter husregelen. Aktiv markeres med
-// kortflaten + border og hvit tekst; inaktiv er brødtekstfargen, ALDRI
-// hint-fargen — #918f8a er forbeholdt tekst som ikke skal klikkes.
+// Aktiv: fylt kortflate + hvit tekst. Inaktiv: ingen fylling, dempet tekst.
+//
+// FARGEVALGET AVVIKER FRA BESTILLINGEN, med vilje. Det ble bedt om #7a7873 på
+// inaktiv, men den fargen står som FORBUDT i CLAUDE.md: den gir 3,86:1 mot
+// bakgrunnen og 3,51:1 mot kortflaten, begge under WCAG AA sitt krav på
+// 4,5:1. Den ble hevet til #918f8a nettopp av den grunn 1. august 2026.
+// Samme bestilling sier «ingen hardkodede farger utenfor designsystemet», så
+// de to kravene kan ikke begge oppfylles. #918f8a er den godkjente
+// erstatteren og gir 5,27:1. Hover løfter til #e8e4dd som bestilt.
 const scopeTabStyle = (aktiv: boolean): React.CSSProperties => ({
   padding: '6px 14px',
   borderRadius: 999,
+  border: 'none',
   fontSize: 13,
   fontWeight: aktiv ? 600 : 500,
   fontFamily: "var(--font-instrument-sans), sans-serif",
-  color: aktiv ? '#ffffff' : '#e8e4dd',
+  color: aktiv ? '#ffffff' : '#918f8a',
   background: aktiv ? '#21242e' : 'transparent',
-  border: `1px solid ${aktiv ? '#2a2d38' : 'transparent'}`,
+  // Trykkbarhet uten hover — mange er på mobil og får aldri se en hover-state.
+  // Hover ligger i CSS (SCOPE_TAB_CSS), IKKE som onMouseEnter/onMouseLeave.
+  // Første forsøk skrev `e.currentTarget.style.color` imperativt på et element
+  // hvis `style` React også eier. Attributtet endte som `color: currentcolor`,
+  // og da ARVET begge segmentene farge i stedet for å bruke sin egen: det
+  // aktive valget ble dempet og det inaktive hvitt. Målt i nettleseren.
   cursor: 'pointer',
   whiteSpace: 'nowrap',
-  // Org-navnet er brukerskrevet (60 tegn tillatt) — samme klemme som i nav-en
-  // og på avatar-navnet, av samme grunn.
-  maxWidth: 180,
+  flexShrink: 0,
+  transition: 'color 0.15s',
+  // Org-navnet er brukerskrevet (60 tegn tillatt) — samme 110 px-klemme som i
+  // nav-en og på avatar-navnet, av samme grunn.
+  maxWidth: 110,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 })
+
+// ── ETIKETT FORAN BRYTEREN (6. september 2026) ──────────────────────────────
+// «Alle» og «Elkjøp Nordic» er to ord uten kontekst: «Alle» sier ikke alle HVA.
+// Periodefanene under trenger ingen etikett fordi ordene deres er
+// selvforklarende («Siste quiz», «Måned»); bryterens ord er ikke det.
+//
+// ORDLYDEN «Blant:» er valgt (Dennis, 6. september 2026) framfor «Vis:»,
+// «Toppliste for:» og «Deltakere:». «Vis: Alle» er vagt — vis alle hva?
+// «Blant:» sier hvem du sammenliknes med, som er det bryteren faktisk gjør,
+// og setningen er sann for hvert valg: «Blant: Alle», «Blant: Elkjøp Nordic».
+//
+// BREDDEN ER EN DEL AV VALGET. Ved 375 px med TRE segmenter er det 43 px å gå
+// på til etiketten. Målt: «Blant:» 32, «Vis:» 20, «Deltakere:» 56,
+// «Toppliste for:» 72 — de to siste sprenger raden. Velges en lengre etikett
+// senere, er det 110 px-klemmen på org-navnet som skal krympe, ikke etiketten
+// som skal skjules: den finnes fordi «Alle» er tvetydig, og tvetydigheten er
+// ikke mindre på en liten skjerm.
+//
+// Hintfargen er riktig her, i motsetning til på segmentene: dette er en
+// merkelapp som IKKE skal klikkes, og husregelens unntak dekker nettopp
+// «hint-tekst og metadata som ikke krever klikk».
+const scopeLabelStyle: React.CSSProperties = {
+  // 12 mot segmentenes 13 — etiketten skal underordne seg valgene.
+  fontSize: 12,
+  color: '#918f8a',
+  fontFamily: "var(--font-instrument-sans), sans-serif",
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+}
+
+// Hover kun på det INAKTIVE valget, valgt på `aria-pressed` slik at CSS-en og
+// skjermleseren leser samme kilde. Deklarativt, så en re-render ikke kan
+// etterlate en imperativt satt farge.
+const SCOPE_TAB_CSS = `
+  .qk-scope-tab[aria-pressed="false"]:hover { color: #e8e4dd; }
+`
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -218,28 +289,43 @@ export default function TopplisterPage() {
               leaderboardet, skal veien tilbake til den offentlige lista
               fortsatt finnes. */}
           {visSkinne && (
-            <div style={scopeRailStyle}>
-              <button
-                type="button"
-                style={scopeTabStyle(!erOrgScope && !venterPaaMedlemskap)}
-                aria-pressed={!erOrgScope && !venterPaaMedlemskap}
-                onClick={() => settScope(null)}
-              >
-                Alle
-              </button>
-              {/* Org-NAVNET, ikke «Bedriften» — hun kjenner seg igjen i navnet,
-                  og med to medlemskap er «Bedriften» tvetydig. */}
-              {myOrgs.map(o => (
+            // Ytre div sentrerer; den indre ER kontrollen (inline-flex, så
+            // rammen strammer seg rundt valgene i stedet for å spenne hele
+            // sidebredden).
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, margin: '0 0 14px' }}>
+              {/* Etiketten ER gruppens tilgjengelige navn (aria-labelledby),
+                  ikke en usynlig aria-label ved siden av. Ellers ville en
+                  skjermleser fått to konkurrerende navn på samme kontroll. */}
+              <span id="qk-scope-label" style={scopeLabelStyle}>Blant:</span>
+              <div style={scopeRailStyle} role="group" aria-labelledby="qk-scope-label">
+                <style>{SCOPE_TAB_CSS}</style>
                 <button
-                  key={o.orgId}
                   type="button"
-                  style={scopeTabStyle(valgtOrg?.orgId === o.orgId)}
-                  aria-pressed={valgtOrg?.orgId === o.orgId}
-                  onClick={() => settScope(o.orgId)}
+                  className="qk-scope-tab"
+                  style={scopeTabStyle(!erOrgScope && !venterPaaMedlemskap)}
+                  aria-pressed={!erOrgScope && !venterPaaMedlemskap}
+                  onClick={() => settScope(null)}
                 >
-                  {o.orgName}
+                  Alle
                 </button>
-              ))}
+                {/* Org-NAVNET, ikke «Bedriften» — hun kjenner seg igjen i navnet,
+                    og med to medlemskap er «Bedriften» tvetydig. */}
+                {myOrgs.map(o => {
+                  const aktiv = valgtOrg?.orgId === o.orgId
+                  return (
+                    <button
+                      key={o.orgId}
+                      type="button"
+                      className="qk-scope-tab"
+                      style={scopeTabStyle(aktiv)}
+                      aria-pressed={aktiv}
+                      onClick={() => settScope(o.orgId)}
+                    >
+                      {o.orgName}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 

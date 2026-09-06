@@ -15,7 +15,7 @@
 //
 // MUTASJONSBEVIS — feilendringene disse fanger:
 //   • Catch i fetchExpanded tilbake til `.set(key, [])` → «catch skriver
-//     'error'» OG «catch skriver aldri tom liste» ryker.
+//     'feil'» OG «catch skriver aldri tom liste» ryker.
 //   • Catch/!ok i loadHistory tilbake til `setHistData([])` → «loadHistory
 //     skriver aldri tom liste ved feil» ryker.
 //   • Guarden tilbake til `if (expandedData.has(key)) return` → «guarden går
@@ -60,9 +60,9 @@ function antall(source: string, nøkkel: string): number {
 describe('fetchExpanded — feilet henting caches som FEIL, ikke som tom liste', () => {
   const fn = blokk(SRC, 'async function fetchExpanded(key: string)')
 
-  test("catch skriver 'error' inn i cachen", () => {
-    assert.ok(fn.tekst.includes(".set(key, 'error')"),
-      "fetchExpanded sin catch skriver ikke 'error' — en feilet henting vil da utgi seg for noe annet")
+  test("catch skriver 'feil' inn i cachen", () => {
+    assert.ok(fn.tekst.includes(".set(key, 'feil')"),
+      "fetchExpanded sin catch skriver ikke 'feil' — en feilet henting vil da utgi seg for noe annet")
   })
 
   test('catch skriver ALDRI tom liste', () => {
@@ -72,7 +72,7 @@ describe('fetchExpanded — feilet henting caches som FEIL, ikke som tom liste',
 
   test('guarden går via shouldFetchExpanded — has() ville cachet feilen', () => {
     assert.ok(fn.tekst.includes('if (!shouldFetchExpanded(expandedData.get(key))) return'),
-      "guarden bruker ikke shouldFetchExpanded — da hentes ikke en 'error'-verdi på nytt")
+      "guarden bruker ikke shouldFetchExpanded — da hentes ikke en 'feil'-verdi på nytt")
     assert.ok(!fn.tekst.includes('expandedData.has(key)'),
       'has()-guarden er tilbake — den skiller ikke «vet» fra «feilet»')
   })
@@ -83,12 +83,12 @@ describe('fetchExpanded — feilet henting caches som FEIL, ikke som tom liste',
   })
 })
 
-describe('loadHistory — feilet henting settes i histError, histData forblir null', () => {
+describe('loadHistory — feilet henting settes i histAvvisning, histData forblir null', () => {
   const fn = blokk(SRC, 'const loadHistory = useCallback')
 
-  test('både !ok og catch setter histError', () => {
-    assert.equal(antall(fn.tekst, 'setHistError(true)'), 2,
-      'forventet setHistError(true) i BÅDE !ok-grenen og catch — én av dem har mistet den')
+  test('både !ok og catch setter histAvvisning', () => {
+    assert.equal(antall(fn.tekst, 'setHistAvvisning('), 3,
+      'forventet setHistAvvisning i BÅDE !ok-grenen, catch OG nullstillingen — én av dem har mistet den')
   })
 
   test('ingen gren skriver tom liste ved feil', () => {
@@ -103,32 +103,32 @@ describe('loadHistory — feilet henting settes i histError, histData forblir nu
 
   test('feilen nullstilles ved nytt forsøk OG ved periodebytte', () => {
     // Én i loadHistory (etter guarden) + én i period-reset-effekten.
-    assert.equal(antall(SRC, 'setHistError(false)'), 2,
-      'forventet setHistError(false) nøyaktig to steder: loadHistory-start og period-reset')
-    assert.ok(fn.tekst.includes('setHistError(false)'),
+    assert.equal(antall(SRC, 'setHistAvvisning(null)'), 2,
+      'forventet setHistAvvisning(null) nøyaktig to steder: loadHistory-start og period-reset')
+    assert.ok(fn.tekst.includes('setHistAvvisning(null)'),
       'loadHistory nullstiller ikke feilen — en stående feil ville overlevd et vellykket nytt forsøk')
   })
 })
 
 describe('JSX — feil rendres FØR faktapåstanden, med en vei ut', () => {
   test('utvidet rad: error-gren foran «Ingen data for denne perioden»', () => {
-    const feil = SRC.indexOf("expanded === 'error'")
+    const feil = SRC.indexOf("expanded === 'feil'")
     const påstand = SRC.indexOf('Ingen data for denne perioden')
-    assert.notEqual(feil, -1, 'error-grenen for utvidet rad er borte fra JSX-en')
+    assert.notEqual(feil, -1, 'feil-grenen for utvidet rad er borte fra JSX-en')
     assert.notEqual(påstand, -1, 'tom-grenen («Ingen data for denne perioden») er borte — ekte tom skal fortsatt vises som ingen')
     assert.ok(feil < påstand, 'error-grenen står ETTER tom-påstanden — feilen vil da rendres som «ingen data»')
     assert.ok(SRC.slice(feil, påstand).includes('fetchExpanded(entry.key)'),
       'error-grenen mangler retry — brukeren har ingen vei ut uten full sidelast')
   })
 
-  test('akkordion: histError-gren foran «Ingen avsluttede perioder ennå»', () => {
-    const feil = SRC.indexOf('histError ? (')
+  test('akkordion: feil-gren foran «Ingen avsluttede perioder ennå»', () => {
+    const feil = SRC.indexOf("histAvvisning === 'feil' ? (")
     const påstand = SRC.indexOf('Ingen avsluttede perioder ennå')
-    assert.notEqual(feil, -1, 'histError-grenen er borte fra akkordion-JSX-en')
+    assert.notEqual(feil, -1, 'histAvvisning-feil-grenen er borte fra akkordion-JSX-en')
     assert.notEqual(påstand, -1, 'tom-grenen («Ingen avsluttede perioder ennå») er borte — ekte tom skal fortsatt vises som ingen')
-    assert.ok(feil < påstand, 'histError-grenen står ETTER tom-påstanden — feilen vil da rendres som «ingen perioder»')
+    assert.ok(feil < påstand, 'feil-grenen står ETTER tom-påstanden — feilen vil da rendres som «ingen perioder»')
     assert.ok(SRC.slice(feil, påstand).includes('loadHistory()'),
-      'histError-grenen mangler retry — brukeren har ingen vei ut uten full sidelast')
+      'feil-grenen mangler retry — brukeren har ingen vei ut uten full sidelast')
   })
 
   test('ordlyden foreslår, ikke låser — «kunne ikke hente», ingen påstand om feltet', () => {

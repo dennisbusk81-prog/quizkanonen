@@ -23,8 +23,18 @@ describe('shouldFetchExpanded — hent når vi ikke VET', () => {
     assert.equal(shouldFetchExpanded(undefined), true)
   })
 
-  test("'error' hentes på nytt — en feilet henting caches IKKE (krav 3)", () => {
-    assert.equal(shouldFetchExpanded('error'), true)
+  test("'feil' hentes på nytt — en transient feil caches IKKE (krav 3)", () => {
+    // Het 'error' fram til 6. september 2026. Sentinelen bærer nå ÅRSAKEN,
+    // fra samme klassifisering som hovedhentingen bruker.
+    assert.equal(shouldFetchExpanded('feil'), true)
+  })
+
+  test("'ikke-medlem' og 'uinnlogget' hentes IKKE på nytt", () => {
+    // Serveren har svart entydig. Situasjonen endrer seg ikke av at raden
+    // lukkes og åpnes igjen, så et nytt kall ville bare gitt samme 403/401.
+    // Visningen tilbyr derfor heller ingen retry-knapp for disse.
+    assert.equal(shouldFetchExpanded('ikke-medlem'), false)
+    assert.equal(shouldFetchExpanded('uinnlogget'), false)
   })
 
   test("'loading' hentes ikke — et kall er allerede underveis", () => {
