@@ -10,6 +10,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
+import { klassifiserAvvisning, velgTomSkjerm, ikkeMedlemTekst, type Avvisning } from '@/lib/leaderboard-avvisning'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
@@ -392,7 +393,11 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   const [data, setData]               = useState<ApiResponse | null>(null)
   const [loading, setLoading]         = useState(true)
-  const [loadError, setLoadError]     = useState(false)
+  // HVORFOR serveren sa nei, ikke bare AT den sa nei. Fram til 6. september
+  // 2026 sto det en `loadError: boolean` her, og visningen valgte tekst ut fra
+  // om det fantes en sesjon. Da fikk en ikke-medlem «Prøv å laste siden på
+  // nytt» — et råd ingen omlasting kan innfri. Se lib/leaderboard-avvisning.ts.
+  const [avvisning, setAvvisning]     = useState<Avvisning | null>(null)
   const [session, setSession]         = useState<Session | null>(null)
   // sessionChecked: true etter at getSession() har svart — brukes til å
   // skjule "Logg inn"-kortet til vi vet om brukeren faktisk er innlogget
@@ -572,7 +577,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     // vi aksepterer den korte skeleton-blinken fordi det er bedre enn å
     // vise feil periodes data mens ny hentes.
     if (!browseMode) setData(null)
-    setLoadError(false)
+    setAvvisning(null)
 
     async function load() {
       const headers: Record<string, string> = {}
@@ -586,11 +591,15 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         }
         const res = await fetch(url, { headers })
         if (cancelled) return
-        if (!res.ok) { if (!cancelled) { setData(null); setLoadError(true) }; return }
+        // Statusen bæres videre, ikke kastet. Den er det eneste signalet som
+        // vet HVORFOR — sesjonstilstanden gjetter.
+        if (!res.ok) { if (!cancelled) { setData(null); setAvvisning(klassifiserAvvisning(res.status)) }; return }
         const json = await res.json()
         if (!cancelled) setData(json)
       } catch {
-        if (!cancelled) { setData(null); setLoadError(true) }
+        // Nettverksbrudd eller ugyldig JSON: ingen status å lese, og «prøv
+        // igjen» er da faktisk riktig råd.
+        if (!cancelled) { setData(null); setAvvisning('feil') }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -1126,21 +1135,42 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
   if (!loading && !data) {
     const loginHref = `/login?next=/toppliste`
-    const showError = loadError && sessionChecked && !!session
+    // Fire skjermer, ikke to. Valget kommer fra statuskoden, ikke fra en
+    // gjetning på sesjonen — se lib/leaderboard-avvisning.ts.
+    const skjerm = velgTomSkjerm(avvisning)
+    const overskrift: React.CSSProperties = { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }
+    const brodtekst: React.CSSProperties = { fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }
     return (
       <>
         <style>{EXTRA_STYLES}</style>
         <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 16, padding: '36px 28px', textAlign: 'center' }}>
-          {showError ? (
-            <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff' }}>
+          {skjerm === 'feil' ? (
+            // Ekte feil (500, 429, nettverk). Her ER «prøv igjen» riktig råd.
+            <p style={{ ...overskrift, marginBottom: 0 }}>
               Noe gikk galt. Prøv å laste siden på nytt.
             </p>
-          ) : (
+          ) : skjerm === 'ikke-medlem' ? (
+            // 403. Ingen omlasting og ingen innlogging endrer dette, så
+            // skjermen tilbyr ingen handling — den forklarer.
             <>
-              <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 18, color: '#ffffff', marginBottom: 8 }}>
+              <p style={overskrift}>Ingen tilgang</p>
+              <p style={{ ...brodtekst, marginBottom: 0 }}>{ikkeMedlemTekst(scope)}</p>
+            </>
+          ) : skjerm === 'logg-inn' ? (
+            // 401. Serveren sa eksplisitt at den mangler en gyldig sesjon.
+            <>
+              <p style={overskrift}>Logg inn for å se denne listen</p>
+              <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
+                Logg inn
+              </Link>
+            </>
+          ) : (
+            // Ingen avvisning, men ingen data heller. Uendret fra før.
+            <>
+              <p style={overskrift}>
                 Ingen data ennå
               </p>
-              <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, marginBottom: 16 }}>
+              <p style={brodtekst}>
                 Logg inn for å se din sesong-plassering.
               </p>
               <Link href={loginHref} style={{ display: 'inline-block', background: '#c9a84c', color: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", fontSize: 14, fontWeight: 700, padding: '10px 24px', borderRadius: 10, textDecoration: 'none' }}>
