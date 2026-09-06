@@ -13,8 +13,8 @@ type OrgData = {
 }
 
 const STEPS = [
-  { n: '1', title: 'Sett opp bedriften', desc: 'To korte valg: om de ansatte skal vises på den åpne topplisten, og når quizen skal stenge hos dere. Deretter er du i bedriftspanelet, der du finner invitasjonslenken og administrerer tilganger.' },
-  { n: '2', title: 'Del invitasjonslenken', desc: 'Alle som logger inn via lenken får automatisk Premium-tilgang og havner på bedriftens leaderboard.' },
+  { n: '1', title: 'Sett opp bedriften', desc: 'To korte valg: om de ansatte skal vises på topplisten, og når quizen skal stenge hos dere. Deretter er du i bedriftspanelet, der du finner invitasjonslenken og administrerer tilganger.' },
+  { n: '2', title: 'Del invitasjonslenken', desc: 'Alle som logger inn via lenken får automatisk Premium-tilgang og havner på bedriftens toppliste.' },
   { n: '3', title: 'Spill ukens quiz på fredag', desc: 'Quizkanonen sender ut ny quiz hver fredag. Alle med tilgang kan spille og konkurrere om topp-plasseringen i bedriften.' },
 ]
 

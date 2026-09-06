@@ -36,7 +36,7 @@ interface SiteNavProps {
    * Uten dette var org-scope det ENESTE scopet der historikk-navigasjonen
    * brøt sammen: global og liga rendrer `variant="default"` og har ingen
    * slik tilbake-lenke, så der var bunn-lenken eneste utvei og fungerte.
-   * Den generelle «Min bedrift»-lenken i NavAuth beholder BEVISST ingen
+   * Den generelle «Bedriftens toppliste»-lenken i NavAuth beholder BEVISST ingen
    * query — den er en frisk destinasjon, ikke en tilbakevei.
    */
   backQuery?: string

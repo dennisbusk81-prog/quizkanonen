@@ -58,7 +58,7 @@ export default function OrgLockedScreen({
           </h1>
 
           <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.7, marginBottom: 8 }}>
-            Bedriftssidene er midlertidig sperret. Legg inn betaling for å fortsette med bedrifts-topplisten og admin-panelet.
+            Bedriftssidene er midlertidig sperret. Legg inn betaling for å fortsette med bedriftens toppliste og admin-panelet.
           </p>
           <p style={{ fontSize: 14, color: '#918f8a', lineHeight: 1.7, marginBottom: 28 }}>
             Ingenting er slettet — profiler, historikk og poeng består. Ansatte kan fortsatt spille den ukentlige quizen som vanlig.

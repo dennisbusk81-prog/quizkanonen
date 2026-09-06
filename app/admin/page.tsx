@@ -923,9 +923,9 @@ export default function AdminHome() {
           </div>
         </div>
 
-        {/* Sesong-toppliste */}
+        {/* Toppliste */}
         <div className="adm-section">
-          <p className="adm-section-label">Sesong-toppliste</p>
+          <p className="adm-section-label">Toppliste</p>
           <p style={{ fontSize: 14, color: 'var(--hint)', marginBottom: 12, lineHeight: 1.5 }}>
             Nullstiller alle sesong-poeng. Historiske quizer fylles inn igjen automatisk.
           </p>

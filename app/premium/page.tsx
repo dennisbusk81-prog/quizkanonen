@@ -30,8 +30,8 @@ const PLANS = [
 type PlanId = (typeof PLANS)[number]['id']
 
 const FEATURES = [
-  'Nøyaktig plassering på leaderboard',
-  'Full sesong-toppliste — søk og bla gjennom alle spillere',
+  'Nøyaktig plassering i resultatene',
+  'Hele topplisten — søk og bla gjennom alle spillere',
   'Historikk og statistikk — beste plassering, streak og utvikling over tid',
   'Private ligaer med venner',
   'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
@@ -48,7 +48,7 @@ const FEATURES = [
   // Sesong-forbeholdet står MED i punktet, ikke bare på flaten det gjelder —
   // dette er salgssiden, og et arkivresultat som ikke dukker opp på
   // topplisten ville ellers lest som en feil, ikke som funksjonen.
-  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
+  'Quizarkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
 ]
 
 export default function PremiumPage() {

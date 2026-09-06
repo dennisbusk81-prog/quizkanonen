@@ -121,8 +121,8 @@ for (const fil of MENYFILER) {
     )
     assert.match(
       arkivElement(src, fil),
-      /Arkivet/,
-      `lenken til /arkiv i ${fil} har ikke lenger teksten «Arkivet»`
+      /Quizarkiv/,
+      `lenken til /arkiv i ${fil} har ikke lenger teksten «Quizarkiv»`
     )
   })
 

@@ -30,7 +30,7 @@
 import type { Loaded } from '@/lib/fetch-result'
 
 /** Samme ordlyd som premium-gaten i POST /api/arkiv. */
-export const ARCHIVE_PLAY_PREMIUM_ERROR = 'Arkivet krever Premium.'
+export const ARCHIVE_PLAY_PREMIUM_ERROR = 'Quizarkivet krever Premium.'
 export const ARCHIVE_PLAY_UNKNOWN_ERROR =
   'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.'
 

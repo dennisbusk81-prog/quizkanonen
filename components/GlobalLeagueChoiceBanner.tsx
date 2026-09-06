@@ -89,10 +89,10 @@ export default function GlobalLeagueChoiceBanner() {
       </button>
 
       <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#918f8a', marginBottom: 8 }}>
-        Sesong-toppliste
+        Toppliste
       </p>
       <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.55, marginBottom: 8, paddingRight: 20 }}>
-        Vil du vises på den åpne topplisten sammen med alle spillere på Quizkanonen,
+        Vil du vises på topplisten sammen med alle spillere på Quizkanonen,
         eller kun på {org.orgName} sin interne liste?
       </p>
       <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.55, marginBottom: 16, paddingRight: 20 }}>

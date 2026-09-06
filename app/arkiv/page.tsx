@@ -187,7 +187,7 @@ export default function ArkivPage() {
       <div style={s.wrap}>
         <div style={s.page}>
           <p style={s.eyebrow}>Quizkanonen</p>
-          <h1 style={s.title}>Arkivet</h1>
+          <h1 style={s.title}>Quizarkivet</h1>
           <p style={s.intro}>
             Spill tidligere quizer på nytt som trening. Resultatet teller ikke i
             sesongen — men på resultatskjermen ser du hvordan du ville havnet
@@ -197,7 +197,7 @@ export default function ArkivPage() {
           {laast && (
             <div style={s.ctaCard}>
               <p style={s.ctaText}>
-                Arkivet er en Premium-funksjon. Med Premium kan du spille alle
+                Quizarkivet er en Premium-funksjon. Med Premium kan du spille alle
                 tidligere quizer og se hvilken plass du ville fått den uken.
               </p>
               <a href="/premium" style={s.ctaBtn}>Få tilgang med Premium</a>
@@ -230,18 +230,18 @@ export default function ArkivPage() {
 
           {startError && <p style={s.startFeil}>{startError}</p>}
 
-          {loadState === 'loading' && <p style={s.spinner}>Henter arkivet …</p>}
+          {loadState === 'loading' && <p style={s.spinner}>Henter quizarkivet …</p>}
 
           {loadState === 'error' && (
             <div style={s.feil}>
-              Vi fikk ikke hentet arkivet akkurat nå.{' '}
+              Vi fikk ikke hentet quizarkivet akkurat nå.{' '}
               <button style={s.retryLenke} onClick={() => { setLoadState('loading'); setHentForsok(n => n + 1) }}>Prøv igjen</button>
             </div>
           )}
 
           {loadState === 'ready' && quizzes.length === 0 && (
             <div style={s.tom}>
-              Arkivet er tomt ennå — quizene dukker opp her etter at de har stengt.
+              Quizarkivet er tomt ennå — quizene dukker opp her etter at de har stengt.
             </div>
           )}
 

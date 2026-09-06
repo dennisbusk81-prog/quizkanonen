@@ -3200,7 +3200,7 @@ export default function QuizPage() {
             // Arkivkopi delt som rå lenke: standardteksten lover toppliste og
             // sesongpoeng — begge usanne for en treningsrunde, og spilling
             // krever dessuten Premium (start-attempt-gaten).
-            <>Dette er en treningsrunde fra arkivet — resultatet teller ikke i
+            <>Dette er en treningsrunde fra quizarkivet — resultatet teller ikke i
             sesongen, og spilling krever Premium. Logg inn for å fortsette.</>
           ) : (
             <>Logg inn for å spille. Da lagres resultatet ditt, du kommer på
@@ -3255,7 +3255,7 @@ export default function QuizPage() {
           : notYetOpen
             ? 'Logg inn, så er du klar når quizen åpner. Resultatene lagres på deg, og poengene teller i sesongen.'
             : isArchive
-              ? 'Logg inn for å fortsette. Treningsrunder fra arkivet krever Premium og teller ikke i sesongen.'
+              ? 'Logg inn for å fortsette. Treningsrunder fra quizarkivet krever Premium og teller ikke i sesongen.'
               : 'Logg inn for å spille ukens quiz. Resultatet lagres på deg, og poengene teller i sesongen.'
       }
     />
@@ -3297,7 +3297,7 @@ export default function QuizPage() {
         <p className="qk-sub" style={{textAlign:'center'}}>
           {/* Arkiv: veien videre er en NY runde fra arkivet, ikke fredagens
               neste quiz — gullboksen under byttes med Til arkivet-knappen. */}
-          {isArchive ? 'Denne treningsrunden er ferdigspilt — start en ny fra arkivet.' : 'Én gjennomspilling per quiz.'}
+          {isArchive ? 'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet.' : 'Én gjennomspilling per quiz.'}
         </p>
         {!isArchive && <div style={{
           margin:'16px 0 0',
@@ -3359,9 +3359,9 @@ export default function QuizPage() {
           {/* Arkiv: kopiens leaderboard er spilleren alene — lenken byttes med
               utgangen til arkivet (skjermens ene gull-element begge veier). */}
           {isArchive ? (
-            <a href="/arkiv" className="qk-btn-primary">Til arkivet</a>
+            <a href="/arkiv" className="qk-btn-primary">Til quizarkivet</a>
           ) : quiz.show_leaderboard && (
-            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se ukens resultater</a>
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se resultatene</a>
           )}
           {/* Bevisst hard navigasjon, ikke <Link>: dette er UTGANGEN fra et spilt
               quiz. Full sidelast garanterer fersk server-data (aktiv quiz,
@@ -3461,7 +3461,7 @@ export default function QuizPage() {
       {isArchive && (
         <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 12, color: '#918f8a', lineHeight: 1.5 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#21242e', border: '1px solid #2a2d38', padding: '2px 8px', borderRadius: 20, flexShrink: 0, whiteSpace: 'nowrap' }}>Trening</span>
-          Fra arkivet — resultatet teller ikke i sesongen.
+          Fra quizarkivet — resultatet teller ikke i sesongen.
         </p>
       )}
       {/* Navne-FELTET er fjernet (24. august 2026). Det var siste rest av
@@ -4400,7 +4400,7 @@ export default function QuizPage() {
         )
       })()}
 
-      {/* ── Hvorfor spilleren ikke finnes på den åpne topplisten ───────────────
+      {/* ── Hvorfor spilleren ikke finnes på topplisten ───────────────
           Fram til nå sto det ingenting: den blokkerte fikk et internt tall (eller
           ingenting, når orgen er for liten), og måtte selv gjette hvorfor hun
           ikke er på den nasjonale lista. Blokkeringen er bevisst, og da er det
@@ -4433,10 +4433,10 @@ export default function QuizPage() {
             lineHeight: 1.6, marginBottom: 14, textAlign: 'center',
           }}>
             {grunn === 'org-policy' ? (
-              <>Du konkurrerer internt hos {org.orgName} og vises ikke på den åpne topplisten.</>
+              <>Du konkurrerer internt hos {org.orgName} og vises ikke på topplisten.</>
             ) : (
               <>
-                Du har valgt å ikke vises på den åpne topplisten — du konkurrerer internt hos {org.orgName}.{' '}
+                Du har valgt å ikke vises på topplisten — du konkurrerer internt hos {org.orgName}.{' '}
                 {/* Understrek er PÅKREVD nå: setningen rundt er #e8e4dd, så
                     lenken kan ikke lenger skille seg ut på farge alene. Uten
                     den ville brightningen gjort lenken usynlig som lenke —
@@ -4891,7 +4891,7 @@ export default function QuizPage() {
               // Låst variant (22. august 2026) — samme mønster som forsidens
               // historikk-flis (qkp-lock-badge i app/page.tsx): teksten består,
               // pilen byttes med lås-badgen, målet er /premium. Knappen selv er
-              // outline, ikke gull — «Se topplisten» over er skjermens gull.
+              // outline, ikke gull — «Se resultatene» over er skjermens gull.
               <a href="/premium" style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -4922,14 +4922,14 @@ export default function QuizPage() {
         )}
 
         {/* Arkiv: kopiens toppliste er spilleren alene — utgangen er arkivet,
-            i samme gull-primærposisjon som «Se topplisten» ellers har. */}
+            i samme gull-primærposisjon som «Se resultatene» ellers har. */}
         {isArchive ? (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <a href="/arkiv" className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Til arkivet</a>
+            <a href="/arkiv" className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Til quizarkivet</a>
           </div>
         ) : quiz.show_leaderboard && (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se topplisten</a>
+            <a href={`/leaderboard/${quizId}`} className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Se resultatene</a>
           </div>
         )}
 
@@ -4962,13 +4962,13 @@ export default function QuizPage() {
             </p>
             <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
               {[
-                'Nøyaktig plassering i ukens resultater',
+                'Nøyaktig plassering i resultatene',
                 'Historikk fra alle quizer du har spilt',
                 // «Sesongtoppliste — konkurrér over tid» var usant som
                 // Premium-punkt: deltakelse i sesongtopplisten er gratis, og
                 // /slik-fungerer-det sier det selv. Dette er det Premium
                 // faktisk gir der (server-gatet siden 9651416).
-                'Din nøyaktige plass på sesongtopplisten — med søk og bla',
+                'Din nøyaktige plass på topplisten — med søk og bla',
                 // Arkivet, lagt til her fordi dette er den ENESTE flaten med
                 // ren `isLoggedIn && !isPremium`-gate — altså den presise
                 // konverteringsmålgruppen. Ordlyd fra app/arkiv/page.tsx.
@@ -4979,7 +4979,7 @@ export default function QuizPage() {
                 // <a href="/premium"> under. Advarselen i kommentaren rett
                 // nedenfor gjelder CTA-er som kan telles dobbelt — et punkt i
                 // en liste som allerede rendres kan ikke det.
-                'Arkivet — spill tidligere quizer og se hvilken plass du ville fått',
+                'Quizarkivet — spill tidligere quizer og se hvilken plass du ville fått',
               ].map(txt => (
                 <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
@@ -5056,7 +5056,7 @@ export default function QuizPage() {
                 : `Se hvordan du rangerer blant kollegene dine hos ${orgBox.orgName}`}
             </p>
             <a href={`/org/${orgBox.orgSlug}`} style={{ fontSize: 13, color: '#c9a84c', textDecoration: 'none' }}>
-              Se bedriftens sesong-toppliste →
+              Se bedriftens toppliste →
             </a>
           </div>
         )}

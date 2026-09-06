@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     )
   }
   if (!premium.value) {
-    return NextResponse.json({ error: 'Arkivet krever Premium.' }, { status: 403 })
+    return NextResponse.json({ error: 'Quizarkivet krever Premium.' }, { status: 403 })
   }
 
   // ── Inngang ───────────────────────────────────────────────────────────────

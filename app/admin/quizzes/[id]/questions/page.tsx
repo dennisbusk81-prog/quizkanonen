@@ -998,7 +998,7 @@ export default function QuizQuestions() {
                               ? 'Henter antall besvarelser…'
                               : correctAnsweredCount === 0
                                 ? 'Ingen har svart på dette spørsmålet ennå — endringen påvirker ingen poeng.'
-                                : `Dette påvirker leaderboard for ${correctAnsweredCount} ${correctAnsweredCount === 1 ? 'spiller' : 'spillere'}. Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?`}
+                                : `Dette påvirker resultatene for ${correctAnsweredCount} ${correctAnsweredCount === 1 ? 'spiller' : 'spillere'}. Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?`}
                           </p>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button

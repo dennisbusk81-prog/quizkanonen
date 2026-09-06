@@ -409,7 +409,7 @@ export default function AttemptDetailPage() {
             <div style={s.lenker}>
               {detail.quiz_is_active && detail.quiz_show_leaderboard && (
                 <Link href={`/leaderboard/${detail.quiz_id}`} style={s.lenke}>
-                  Se leaderboard →
+                  Resultater →
                 </Link>
               )}
               <Link href="/historikk" style={s.lenke}>

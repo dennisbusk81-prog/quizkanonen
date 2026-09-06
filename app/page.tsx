@@ -313,7 +313,7 @@ async function computeSharedHomeData(): Promise<SharedHomeData> {
   const upcomingQuiz = ((upcomingRes.data as QuizRow[] | null) ?? [])[0] ?? null
 
   // ── KOSMETISK: seksjonen forsvinner, ingen påstand blir usann ────────────
-  // Uten siste stengte quiz mister vi «Se topplisten»-knappen og «Forrige uke
+  // Uten siste stengte quiz mister vi «Se resultatene»-knappen og «Forrige uke
   // — hvem vant?». Kjedelig, men ærlig. Ikke verdt å felle forsiden for.
   logHomeQuery('siste stengte quiz', lastClosedRes.error)
   const lcq = lastClosedRes.error
@@ -1283,7 +1283,7 @@ const SHARED_CSS = `
   }
 
   /* ── Visuell forhåndsvisning — fiktivt eksempel, sekundær kortstil, IKKE gull
-     (respekterer to-gule-regel: "Spill quizen"/"Se topplisten" er allerede
+     (respekterer to-gule-regel: "Spill quizen"/"Se resultatene" er allerede
      det ene gule elementet på denne skjermen) ── */
   .qk-preview {
     max-width: 680px;
@@ -1476,7 +1476,7 @@ export default async function Home() {
         .eq('user_id', user.id)
         .gte('completed_at', monthStart)
         .lt('completed_at', monthEnd),
-      // Org-medlemskap — for kontekstuell "Se topplisten" når quizen er stengt
+      // Org-medlemskap — for den kontekstuelle toppliste-/resultatknappen når quizen er stengt
       supabaseAdmin
         .from('organization_members')
         .select('organizations(slug)')
@@ -1501,7 +1501,7 @@ export default async function Home() {
     logHomeQuery('mine ligaer (league_members)', leagueResult.error)
     const playedStatusUnknown = logHomeQuery('spilt-status (attempts)', playedLogResult.error)
     const playedThisMonthUnknown = logHomeQuery('spilt denne måneden (attempts)', monthlyAttemptsResult.error)
-    // KOSMETISK: uten org-medlemskapet peker «Se topplisten» til
+    // KOSMETISK: uten org-medlemskapet peker toppliste-/resultatknappen til
     // quiz-topplista i stedet for bedriftssiden. Lenken er gyldig, bare
     // mindre kontekstuell — ingen påstand blir usann.
     logHomeQuery('org-medlemskap (organization_members)', orgMembershipResult.error)
@@ -1546,10 +1546,10 @@ export default async function Home() {
     // «ingen quiz»-grenen er ikke nåbar.
     const quiz = shared?.activeQuiz ?? null
 
-    // Siste stengte quiz — "Se topplisten"-mål når ingen aktiv quiz finnes
+    // Siste stengte quiz — "Se resultatene"-mål når ingen aktiv quiz finnes
     const lastClosedQuizId = shared?.lastClosedQuiz?.id ?? null
 
-    // Org-medlemskap — er brukeren med i nøyaktig én org, lenker "Se topplisten"
+    // Org-medlemskap — er brukeren med i nøyaktig én org, lenker knappen («Bedriftens toppliste»)
     // (når quizen er stengt) til bedriftens side i stedet for quiz-topplisten.
     // Flere orger eller ingen ⇒ behold dagens leaderboard-lenke.
     type OrgSlugRow = { organizations: { slug: string } | { slug: string }[] | null }
@@ -1719,7 +1719,7 @@ export default async function Home() {
                   <>
                     <p style={{ fontSize: 14, color: '#e8e4dd' }}>Du har allerede spilt denne quizen</p>
                     <Link href={`/leaderboard/${quiz.id}`} className="qk-btn-outline-gold">
-                      Se topplisten →
+                      Se resultatene →
                     </Link>
                   </>
                 ) : hasUnfinished ? (
@@ -1746,7 +1746,7 @@ export default async function Home() {
               {(lastClosedQuizId || singleOrgToplistHref) && (
                 <div className="qk-card-actions">
                   <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
-                    Se topplisten
+                    {singleOrgToplistHref ? 'Bedriftens toppliste' : 'Se resultatene'}
                   </Link>
                 </div>
               )}
@@ -1760,7 +1760,7 @@ export default async function Home() {
               {(lastClosedQuizId || singleOrgToplistHref) && (
                 <div className="qk-card-actions" style={{ marginTop: 16 }}>
                   <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
-                    Se topplisten
+                    {singleOrgToplistHref ? 'Bedriftens toppliste' : 'Se resultatene'}
                   </Link>
                 </div>
               )}
@@ -1880,7 +1880,7 @@ export default async function Home() {
                 <rect x="9" y="8" width="4" height="12" rx="1"/>
                 <rect x="16" y="3" width="4" height="17" rx="1"/>
               </svg>
-              <span className="qkp-shortcut-label">Sesongtoppliste</span>
+              <span className="qkp-shortcut-label">Toppliste</span>
               {isPremium && userPoints > 0 && (
                 <span style={{ fontSize: 12, color: '#918f8a', marginTop: -4 }}>{userRank}. plass — {userPoints} poeng</span>
               )}
@@ -1957,8 +1957,8 @@ export default async function Home() {
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {([
-                  'Nøyaktig plassering på leaderboard',
-                  'Full sesong-toppliste — søk og bla gjennom alle spillere',
+                  'Nøyaktig plassering i resultatene',
+                  'Hele topplisten — søk og bla gjennom alle spillere',
                   'Historikk og statistikk — beste plassering, streak og utvikling over tid',
                   'Private ligaer med venner',
                   'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
@@ -1971,7 +1971,7 @@ export default async function Home() {
                   // Derfor står sesong-parentesen også her: kortet er
                   // «Dette får du med Premium», vist til premiumLocked, altså
                   // samme løfte til samme publikum som salgssiden gir.
-                  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
+                  'Quizarkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
                 ] as const).map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 2, flexShrink: 0 }}>
@@ -2154,7 +2154,7 @@ export default async function Home() {
           <div className="qk-interlude-cards">
             {([
               { label: 'Steg 1', title: 'Spill quizen', desc: 'Hver fredag kl. 12. Svar raskt — tiden teller.' },
-              { label: 'Steg 2', title: 'Se plasseringen', desc: 'Se score og svartid. Med Premium: nøyaktig plassering og full toppliste.' },
+              { label: 'Steg 2', title: 'Se plasseringen', desc: 'Se score og svartid. Med Premium: nøyaktig plassering og alle resultatene.' },
               { label: 'Steg 3', title: 'Følg sesongen', desc: 'Kom tilbake neste uke og klatre. Månedslisten starter på nytt hver måned; kvartal, år og all-time bygger seg opp.' },
             ] as const).map(({ label, title, desc }) => (
               <div key={label} className="qk-interlude-card">
@@ -2305,7 +2305,7 @@ export default async function Home() {
             {lastQuiz && (
               <div className="qk-card-actions">
                 <Link href={`/leaderboard/${lastQuiz.id}`} className="qk-btn-outline-dark">
-                  Se topplisten
+                  Se resultatene
                 </Link>
               </div>
             )}
@@ -2422,7 +2422,7 @@ export default async function Home() {
               color: '#e8e4dd',
               textDecoration: 'none',
             }}>
-              Se full toppliste →
+              Se resultatene →
             </Link>
           </div>
           </div>

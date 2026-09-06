@@ -886,8 +886,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 din» er alltid sant der. */}
             <p style={{ ...s.ctaText, marginBottom: reason ? 8 : internalHome ? 14 : 0 }}>
               {isLastQuiz
-                ? 'Du spilte denne quizen — resultatet ditt vises ikke i den åpne topplisten.'
-                : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i den åpne topplisten.`}
+                ? 'Du spilte denne quizen — resultatet ditt vises ikke i topplisten.'
+                : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i topplisten.`}
             </p>
             {/* ── Årsaken, som egen linje ────────────────────────────────────
                 Setningen over sier HVA som skjer og er ordrett den Dennis
@@ -906,7 +906,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                   <>{blockingOrg.orgName} har valgt at ansatte konkurrerer internt.</>
                 ) : (
                   <>
-                    Du har selv valgt å ikke vises på den åpne topplisten.{' '}
+                    Du har selv valgt å ikke vises på topplisten.{' '}
                     <Link href="/profil" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>Endre i profilen</Link>
                   </>
                 )}
@@ -914,7 +914,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             )}
             {internalHome && (
               <Link href={`/org/${internalHome.orgSlug}`} style={s.btnOutline}>
-                Se topplisten hos {internalHome.orgName} &rarr;
+                Se bedriftens toppliste &rarr;
               </Link>
             )}
           </div>
@@ -1007,7 +1007,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 href={buildQuizHref(entry.quizId)}
                 style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none', flexShrink: 0, marginLeft: 12 }}
               >
-                Se toppliste →
+                Resultater →
               </Link>
             )}
           </div>
@@ -1154,7 +1154,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
 
       {scope === 'organization' && globalLeagueDisabled && (
         <p style={{ fontSize: 13, color: '#e8e4dd', textAlign: 'center', margin: '8px 0 4px' }}>
-          Global konkurranse er deaktivert for din bedrift.
+          Bedriften din vises ikke på topplisten.
         </p>
       )}
 
@@ -1263,7 +1263,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 <div style={s.empty}>
                   <p style={s.emptyTitle}>Resultatene er ikke aktivert for denne quizen</p>
                   <p style={{ ...s.emptySub, marginBottom: 18 }}>
-                    Denne quizen har ingen offentlig resultatliste. Sesong-topplistene finner du i fanene over.
+                    Denne quizen har ingen offentlig resultatliste. Topplisten finner du i fanene over.
                   </p>
                   {/* «ukens» står med vilje i denne og de tre neste
                       «Se ukens quiz»-lenkene (vurdert 31. august 2026): alle

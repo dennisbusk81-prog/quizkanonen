@@ -291,7 +291,7 @@ test('gratisbruker: 403 med arkivets egen ordlyd (delt gate med spill-porten)', 
   ]
   const res = await kall()
   assert.equal(res.status, 403)
-  assert.deepEqual(await res.json(), { error: 'Arkivet krever Premium.' })
+  assert.deepEqual(await res.json(), { error: 'Quizarkivet krever Premium.' })
 })
 
 test('premium-lesefeil: 503 — «vet ikke» er aldri en dom', async () => {

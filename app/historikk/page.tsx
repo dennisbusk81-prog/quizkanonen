@@ -856,7 +856,7 @@ export default function HistorikkPage() {
                   Se hele quizen →
                 </Link>
                 <Link href={`/leaderboard/${sisteForsok.quiz_id}`} style={s.sisteLenke}>
-                  Se leaderboard →
+                  Resultater →
                 </Link>
               </div>
             </div>
@@ -1056,7 +1056,7 @@ export default function HistorikkPage() {
           {arkiv.length > 0 && (
             <>
               <div style={{ ...s.sectionHeader, marginTop: 24 }}>
-                <span style={s.sectionText}>Arkiv</span>
+                <span style={s.sectionText}>Quizarkiv</span>
                 <div style={s.sectionLine} />
                 <span style={s.sectionCount}>{arkivTotal}</span>
               </div>
@@ -1128,7 +1128,7 @@ export default function HistorikkPage() {
               lib/historikk-arkivlenke-wiring.test.ts. */}
           <p style={{ fontSize: 12, margin: '10px 0 0' }}>
             <Link href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>
-              {arkiv.length > 0 ? 'Spill flere fra arkivet →' : 'Spill en tidligere quiz fra arkivet →'}
+              {arkiv.length > 0 ? 'Spill flere fra quizarkivet →' : 'Spill en tidligere quiz fra quizarkivet →'}
             </Link>
           </p>
 

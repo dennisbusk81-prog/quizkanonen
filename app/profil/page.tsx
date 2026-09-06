@@ -905,7 +905,7 @@ export default function ProfilPage() {
             {/* Visningsnavn + Påminnelser */}
             <div style={s.card}>
               <p style={s.sectionLabel}>Fornavn og etternavn</p>
-              <p style={s.fieldHint}>Brukes til identifikasjon — vises under nicknamen din på leaderboard</p>
+              <p style={s.fieldHint}>Brukes til identifikasjon — vises under nicknamen din på topplisten</p>
               <div style={s.inputRow}>
                 <input
                   type="text"
@@ -937,7 +937,7 @@ export default function ProfilPage() {
               {/* Kallenavn (valgfritt) */}
               <div style={{ marginTop: 20 }}>
                 <p style={s.sectionLabel}>Nickname (valgfritt)</p>
-                <p style={s.fieldHint}>Vil du hete noe annet på leaderboard? Skriv det her — maks 20 tegn</p>
+                <p style={s.fieldHint}>Vil du hete noe annet på topplisten? Skriv det her — maks 20 tegn</p>
                 <div style={s.inputRow}>
                   <input
                     type="text"
@@ -978,7 +978,7 @@ export default function ProfilPage() {
                     style={{ width: 16, height: 16, accentColor: '#c9a84c', cursor: 'pointer' }}
                   />
                   <span style={{ fontSize: 13, color: '#e8e4dd' }}>
-                    Vis medlemsnummer på leaderboard og profil
+                    Vis medlemsnummer på topplisten og profil
                   </span>
                 </label>
               )}
@@ -1021,7 +1021,7 @@ export default function ProfilPage() {
             <div style={{ ...s.card, marginBottom: 10 }}>
               <p style={s.sectionLabel}>Åpen toppliste</p>
               <p style={{ ...s.fieldHint, color: '#e8e4dd' }}>
-                Velg om du vil vises på den åpne topplisten sammen med alle spillere
+                Velg om du vil vises på topplisten sammen med alle spillere
                 på Quizkanonen. Resultatene og visningsnavnet ditt blir da synlige
                 for alle. Du kan se topplisten selv om du ikke vises på den, og du
                 er med på bedriftens interne liste uansett.

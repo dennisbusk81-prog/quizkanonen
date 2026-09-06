@@ -397,13 +397,13 @@ export default function OrgVelkommenPage() {
           {/* 2 — Global toppliste (må besvares) */}
           <div style={card}>
             <p style={stepLabel}>Valg 1 av 2</p>
-            <p style={heading}>Skal de ansatte vises på den åpne topplisten?</p>
+            <p style={heading}>Skal de ansatte vises på topplisten?</p>
             <p style={{ ...bodyText, marginBottom: 8 }}>
               Da får de ansatte konkurrere mot alle som spiller Quizkanonen, ikke
               bare mot hverandre. Samme quiz, større felt.
             </p>
             <p style={{ ...bodyText, marginBottom: 8 }}>
-              Resultatene og visningsnavnene deres står da på den åpne topplisten,
+              Resultatene og visningsnavnene deres står da på topplisten,
               sammen med alle andre spillere.
             </p>
             <p style={{ ...hintText, marginBottom: 8 }}>
@@ -411,7 +411,7 @@ export default function OrgVelkommenPage() {
               når som helst melde seg av på profilen sin.
             </p>
             <p style={{ ...hintText, marginBottom: 16 }}>
-              Valget gjelder sesong-topplisten. De ansatte kan fortsatt vises på
+              Valget gjelder topplisten. De ansatte kan fortsatt vises på
               resultatlisten for den enkelte quizen.
             </p>
 
@@ -431,7 +431,7 @@ export default function OrgVelkommenPage() {
             </div>
 
             <p style={hintText}>
-              Nå: {data.org.allow_global_league ? 'ansatte kan vises på den åpne topplisten' : 'kun bedriftens egen toppliste'}
+              Nå: {data.org.allow_global_league ? 'ansatte kan vises på topplisten' : 'kun bedriftens toppliste'}
             </p>
           </div>
 

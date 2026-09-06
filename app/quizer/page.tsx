@@ -297,7 +297,7 @@ export default async function QuizerPage() {
               gates av serveren. */}
           <p style={{ fontSize: 13, color: '#918f8a', marginTop: 10, lineHeight: 1.6 }}>
             Stengte quizer kan spilles på nytt som trening —{' '}
-            <a href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>gå til arkivet</a>
+            <a href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline' }}>gå til quizarkivet</a>
           </p>
         </header>
 

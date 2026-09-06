@@ -175,7 +175,7 @@ beforeEach(() => {
 test('gratisbruker mot arkivquiz → 403, og INGEN attempt-lesing eller -skriving', async () => {
   const res = await call(ARCHIVE_QUIZ) as Response
   assert.equal(res.status, 403)
-  assert.equal(((await res.json()) as { error: string }).error, 'Arkivet krever Premium.')
+  assert.equal(((await res.json()) as { error: string }).error, 'Quizarkivet krever Premium.')
   assert.equal(state.attemptInserts, 0, 'et avslag skal aldri etterlate en attempt-rad')
   assert.equal(state.attemptQueries, 0, 'gaten skal stå FØR replay-/gjenbrukslogikken')
 })

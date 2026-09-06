@@ -124,13 +124,13 @@ test('lenken ligger UTENFOR arkiv.length-vakten (den lukkede sløyfen)', () => {
 })
 
 test('lenketeksten er betinget — «flere» påstås ikke uten forsøk', () => {
-  // «Spill flere fra arkivet» er en påstand om brukerens historikk. Med null
+  // «Spill flere fra quizarkivet» er en påstand om brukerens historikk. Med null
   // arkivforsøk er den usann, og lenken ble nettopp flyttet dit den også vises
   // til de brukerne. Begge grenene må derfor finnes.
-  assert.match(SRC, /Spill flere fra arkivet/, 'mangler teksten for den som HAR arkivforsøk')
+  assert.match(SRC, /Spill flere fra quizarkivet/, 'mangler teksten for den som HAR arkivforsøk')
   assert.match(
     SRC,
-    /Spill en tidligere quiz fra arkivet/,
+    /Spill en tidligere quiz fra quizarkivet/,
     'mangler den nøytrale teksten for den som har null arkivforsøk — «Spill flere» er usant der'
   )
 })

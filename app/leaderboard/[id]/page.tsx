@@ -1365,7 +1365,7 @@ export default function LeaderboardPage() {
               ) : (
                 <p style={{ fontSize: 14, color: '#e8e4dd', marginTop: 8, lineHeight: 1.6 }}>
                   Vi fikk ikke bekreftet bedriftstilhørigheten din akkurat nå, så
-                  dette er den nasjonale topplisten.{' '}
+                  dette er topplisten.{' '}
                   <button
                     onClick={() => window.location.reload()}
                     style={{
@@ -1656,7 +1656,7 @@ export default function LeaderboardPage() {
               title = isClosed ? 'Logg inn for å se topp 10' : 'Logg inn og spill quizen'
               sub = isClosed
                 ? 'Denne quizen er stengt. Neste kommer fredag.'
-                : 'Se hvor du havner i ukens resultater.'
+                : 'Se hvor du havner i resultatene.'
             }
             return (
               <div style={s.card}>
@@ -2037,15 +2037,15 @@ export default function LeaderboardPage() {
                   stedet for "Siste quiz". */}
               {orgSlug ? (
                 <Link href={`/org/${orgSlug}${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                  Se bedriftstopplisten →
+                  Se bedriftens toppliste →
                 </Link>
               ) : leagueSlug ? (
                 <Link href={`/liga/${leagueSlug}${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                  Se liga-topplisten →
+                  Ligaens toppliste →
                 </Link>
               ) : (
                 <Link href={`/toppliste${cameFromHistory ? '?hist=1' : ''}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                  Se sesong-topplisten →
+                  Se topplisten →
                 </Link>
               )}
             </div>
@@ -2059,7 +2059,7 @@ export default function LeaderboardPage() {
               </p>
               <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-                  Nasjonal toppliste →
+                  Toppliste →
                 </Link>
                 {userOrgs.map(org => (
                   <Link key={org.orgSlug} href={`/org/${org.orgSlug}`} style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>

@@ -71,7 +71,7 @@ export default function TopplisterPage() {
               Quizkanonen · Sesong
             </p>
             <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
-              Sesong<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>topplisten</em>
+              Topp<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>listen</em>
             </h1>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, color: '#e8e4dd', fontStyle: 'italic' }}>
               Hvem dominerer over tid?

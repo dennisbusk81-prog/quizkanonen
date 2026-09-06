@@ -1553,7 +1553,7 @@ export default function OrgAdminPage() {
               </div>
               <div style={{ minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 13, color: '#e8e4dd', cursor: 'pointer' }} onClick={toggleGlobal}>
-                  Vis ansatte på den åpne topplisten
+                  Vis ansatte på topplisten
                 </span>
                 <span style={{ display: 'block', fontSize: 12, color: '#918f8a', marginTop: 3, lineHeight: 1.5 }}>
                   Resultater og visningsnavn blir synlige for alle spillere på Quizkanonen, ikke bare ansatte i bedriften.
@@ -2149,7 +2149,7 @@ export default function OrgAdminPage() {
 
           <div style={{ textAlign: 'right', marginTop: 10 }}>
             <a href={`/org/${slug}`} style={{ fontSize: 12, color: '#e8e4dd', textDecoration: 'none' }}>
-              Se full toppliste →
+              Se bedriftens toppliste →
             </a>
           </div>
 
@@ -2283,7 +2283,7 @@ export default function OrgAdminPage() {
 
           <div style={{ background: '#21242e', border: '1px solid #2a2d38', borderRadius: 14, padding: '24px 22px', marginBottom: 8 }}>
             <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 18 }}>
-              Navnet vises på bedriftstopplisten og i alle e-poster vi sender til de ansatte.
+              Navnet vises på bedriftens toppliste og i alle e-poster vi sender til de ansatte.
             </p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               <input

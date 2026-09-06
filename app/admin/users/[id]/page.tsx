@@ -657,7 +657,7 @@ export default function UserDetailPage() {
               <strong>{name}</strong>
             </p>
             <p style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.6, marginBottom: 24 }}>
-              Brukeren kan ikke starte quiz og vises ikke på leaderboard i 30 dager.
+              Brukeren kan ikke starte quiz og vises ikke på topplisten i 30 dager.
             </p>
             {actionError && <p style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>{actionError}</p>}
             <div style={{ display: 'flex', gap: 10 }}>

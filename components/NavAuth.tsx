@@ -192,7 +192,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
     return (
       <>
         <style>{NAV_MOBILE_CSS}</style>
-        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>
+        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>
         {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
             server-data i stedet for Next sin router-cache. Ikke en forglemmelse
             — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
@@ -210,7 +210,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >Slik fungerer det</a>
 
-        {/* Hamburger — "naviger nettstedet". Egen inngang til Sesongtoppliste,
+        {/* Hamburger — "naviger nettstedet". Egen inngang til Toppliste,
             For bedrifter og Ligaer siden de er skjult i topplinjen under 640px,
             samt Slik fungerer det/Quizer som kun finnes her. */}
         <div ref={hamburgerRef} style={{ position: 'relative' }}>
@@ -241,7 +241,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                Sesongtoppliste
+                Toppliste
               </a>
               <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
@@ -342,7 +342,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           Spill
         </Link>
       )}
-      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Sesongtoppliste</a>}
+      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>}
       {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
           server-data i stedet for Next sin router-cache. Ikke en forglemmelse
           — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
@@ -351,7 +351,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
         onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
       >Ligaer</a>
-      {/* Min bedrift — for org-medlemmer. "For bedrifter" vises kun uten org-medlemskap (gjensidig utelukkende). */}
+      {/* Bedriftens toppliste — for org-medlemmer. "For bedrifter" vises kun uten org-medlemskap (gjensidig utelukkende). */}
       {myOrgs.length > 0 ? (
         <a
           href={`/org/${myOrgs[0].orgSlug}`}
@@ -360,7 +360,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
           onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
         >
-          Min bedrift
+          Bedriftens toppliste
         </a>
       ) : (
         <a href="/bedrift" style={navLink} className="nav-hide-mobile"
@@ -390,12 +390,12 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
       >Slik fungerer det</a>
 
       {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
-          hos gjest. Eneste vei til Sesongtoppliste/For bedrifter/Ligaer/Min
+          hos gjest. Eneste vei til Toppliste/For bedrifter/Ligaer/Min
           bedrift/Bedriftspanel på mobil (skjult i topplinjen under 640px),
           samt Slik fungerer det/Quizer som kun finnes her. Kontodropdownen
           under inneholder fortsatt kun kontoinnhold (profil, ligaer,
           abonnement, logg ut) — "Mine ligaer" der er en bevisst duplisering
-          med samme presedens som Min bedrift/For bedrifter. */}
+          med samme presedens som Bedriftens toppliste/For bedrifter. */}
       <div ref={hamburgerRef} style={{ position: 'relative' }}>
         <button
           className="qk-nav-hamburger-btn"
@@ -425,7 +425,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                Sesongtoppliste
+                Toppliste
               </a>
             )}
             {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
@@ -443,7 +443,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 onMouseEnter={e => e.currentTarget.style.background = '#262930'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
               >
-                Min bedrift
+                Bedriftens toppliste
               </a>
             ) : (
               <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
@@ -523,10 +523,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
             zIndex: 9000,
           }}>
-            {/* Kontohodet — «Innlogget som», Premium-/Standardkonto-merket og
+            {/* Kontohodet — «Innlogget som», Premium-/Gratis-merket og
                 fornyelsesdatoen (flyttet fra UserMenu, B-30/A2 steg 1).
                 profileLoaded-gaten på merket hindrer at en Premium-bruker ser
-                «Standardkonto» i blaffet før profilen har landet; navnet over
+                «Gratis» i blaffet før profilen har landet; navnet over
                 gaten vises med én gang. Datoen kommer fra den lazy hentingen
                 øverst i fila og vises kun når den faktisk landet. */}
             <div style={{
@@ -555,7 +555,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 </>
               ) : (
                 <span style={{ fontSize: 11, fontWeight: 400, color: '#918f8a', background: 'transparent', border: '1px solid #2a2d38', borderRadius: 4, padding: '2px 8px' }}>
-                  Standardkonto
+                  Gratis
                 </span>
               ))}
             </div>
@@ -607,7 +607,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
               onMouseEnter={e => e.currentTarget.style.background = '#262930'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
             >
-              Arkivet
+              Quizarkiv
             </a>
             {profileLoaded && (
               // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk

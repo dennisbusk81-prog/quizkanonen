@@ -162,7 +162,7 @@ export default function OrgLeaderboardPage() {
               {org?.orgName}
             </p>
             <h1 style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 'clamp(22px, 5vw, 32px)' as string, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em', marginBottom: 4 }}>
-              Bedrifts<em style={{ fontStyle: 'italic', color: '#c9a84c' }}>topplisten</em>
+              Bedriftens <em style={{ fontStyle: 'italic', color: '#c9a84c' }}>toppliste</em>
             </h1>
             <p style={{ fontFamily: "var(--font-libre-baskerville), serif", fontSize: 14, color: '#918f8a', fontStyle: 'italic' }}>
               Hvem er {org?.orgName}s kanon?

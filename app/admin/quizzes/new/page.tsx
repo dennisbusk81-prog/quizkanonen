@@ -2380,7 +2380,7 @@ function QuizEditorInner() {
                 Endre fasit fra {q.correctAnswers.join(', ')} til {keyPanel.pending.join(', ')}?
               </p>
               <p style={{ fontSize: 11, color: '#918f8a', lineHeight: 1.5, marginBottom: 12, fontFamily: "var(--font-instrument-sans), sans-serif" }}>
-                Dette påvirker leaderboard for {activeAnsweredCount} {activeAnsweredCount === 1 ? 'spiller' : 'spillere'}.
+                Dette påvirker resultatene for {activeAnsweredCount} {activeAnsweredCount === 1 ? 'spiller' : 'spillere'}.
                 Poeng, streak og sesongpoeng oppdateres automatisk. Er du sikker?
               </p>
               {keyPanelError && (

@@ -154,7 +154,7 @@ export default function SlikFungererDetPage() {
 
           <h2 style={s.sectionTitle}>Bedriftsligaen</h2>
           <p style={s.body}>
-            Bedrifter får sitt eget lukkede leaderboard — helt adskilt fra den globale topplisten. Alle ansatte logger inn med sitt eget navn. Ingen installasjon — del en lenke og alle er med.
+            Bedrifter får sin egen toppliste — helt adskilt fra topplisten. Alle ansatte logger inn med sitt eget navn. Ingen installasjon — del en lenke og alle er med.
           </p>
 
           <hr style={s.rule} />
@@ -182,7 +182,7 @@ export default function SlikFungererDetPage() {
                   'Spill ukens quiz',
                   'Se antall riktige og svartid',
                   'Estimert plassering',
-                  'Delta i sesong-topplisten',
+                  'Delta på topplisten',
                   'Bli med i private ligaer',
                   'Duell mot en venn — se hvem som slo hvem',
                 ].map(item => (
@@ -202,7 +202,7 @@ export default function SlikFungererDetPage() {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
                 <li style={{ fontSize: 13, color: '#918f8a', lineHeight: 1.4, fontStyle: 'italic' }}>Alt i gratis, pluss:</li>
                 {[
-                  'Nøyaktig plassering på leaderboard',
+                  'Nøyaktig plassering i resultatene',
                   'Full quizhistorikk uke for uke',
                   'Detaljert statistikk og utvikling over tid',
                   'Opprett egne private ligaer',
@@ -215,7 +215,7 @@ export default function SlikFungererDetPage() {
                   // 13px og står ved siden av gratis-kolonnen, så «spill
                   // tidligere quizer» må bære forskjellen alene — gratis ser
                   // hele arkivlista, men kan ikke spille den.
-                  'Arkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken',
+                  'Quizarkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken',
                 ].map(item => (
                   <li key={item} style={{ fontSize: 13, color: '#e8e4dd', lineHeight: 1.4, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                     <span style={{ color: '#c9a84c', flexShrink: 0, marginTop: 1 }}>✓</span>
