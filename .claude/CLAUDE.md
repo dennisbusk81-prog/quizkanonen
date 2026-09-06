@@ -22,6 +22,21 @@ Arbeidsflyt: Claude Code pusher til git → Vercel deployer automatisk.
 
 ---
 
+## PORTER — KJØR DISSE FIRE
+`npm test` · `npx tsc --noEmit` · `npm run lint` · `npx next build`
+
+- **Lint-porten heter `npm run lint`, IKKE `next lint`.** `next lint` finnes
+  ikke i Next 16.2.1. Det er `npm run lint` (eslint med `eslint-config-next`)
+  som bærer react-hooks-reglene, og den fanget en ekte rules-of-hooks-feil
+  5. september 2026 som både `tsc` og full suite slapp forbi.
+- **`next build` feiler mens dev-serveren kjører.** Turbopack skriver
+  `.next/dev/types/routes.d.ts` løpende, og en halvskrevet fil (duplisert hale)
+  gir «Type error: Expression expected» eller «Cannot find module './routes.js'»
+  i en GENERERT fil. Det ser ut som en kodefeil og er det ikke. Stopp
+  dev-serveren, `rm -rf .next/dev`, bygg på nytt.
+
+---
+
 ## DESIGNSYSTEM — FØLG NØYAKTIG
 Les `app/quiz/[id]/page.tsx` som referanse før du starter ny feature.
 
@@ -95,6 +110,36 @@ Merk: Dennis synes forskjellen i praksis kan virke litt rar for en bruker
 som bytter fane (tabell → kort → tabell), og skal hente tilbakemelding fra
 folk på kontoret. Dette er altså en bevisst, begrunnet designbeslutning per
 26. juli 2026 — men ikke hugget i stein. Den kan bli revurdert.
+
+### Ordbruk i UI — ett ord per ting (76c0c8a + e-postmalene, 6. september 2026)
+Samme flate het før seks ulike ting. Vedtatt ordbruk, håndhevet av
+`lib/navnepolicy-etiketter.test.ts` (gjelder `app/`, `components/` og
+`lib/email-templates.ts`):
+
+| Ting | Ordet |
+|---|---|
+| Den nasjonale lista | **Toppliste** — ingen kvalifisering, den er standardtilfellet |
+| Org-lista | **Bedriftens toppliste** |
+| Én liga | **Ligaens toppliste** |
+| Oversikten over flere ligaer | **Mine ligaer** |
+| ÉN quiz sin liste | **Resultater** — en avsluttet quiz er ikke en pågående rangering |
+| Arkivet | **Quizarkiv** (bøyd: quizarkivet) |
+| Motsatsen til Premium | **Gratis** — ikke «Standardkonto» |
+
+Bestemt form i H1 («Topplisten», «Quizarkivet»), ubestemt i nav.
+UTGÅTT og skal ikke tilbake: «Sesongtoppliste», «Nasjonal toppliste», «den
+åpne topplisten», «Global konkurranse», «Sesong-leaderboard», «Min bedrift»,
+«Bedriftstopplisten», «Se leaderboard», «Se full toppliste», «Se ukens
+resultater», «Standardkonto», «Arkivet».
+
+**Unntak som står MED VILJE** (endre dem ikke «for konsistensens skyld»):
+«Din arbeidsplass» (OrgCard) og «Din bedrift» (profil) er kortoverskrifter for
+kort som inneholder mer enn lista — de beskriver et sted; SectionLabel
+«Toppliste» inne i bedriftspanelet (konteksten bærer den); nav-lenken
+«Ligaer» (ubestemt, som resten av topplinjen); «Treningsrunder»/«Arkiv»-badgen
+i admin (admins ord for arkivKOPIENE, `quiz_type='archive'`);
+«Bedriftspanel»; og `app/vilkar` + `app/personvern`, som fortsatt sier
+«leaderboard» — juridiske sider endres ikke i en navnerunde.
 
 ---
 
