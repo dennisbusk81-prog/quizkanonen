@@ -917,7 +917,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 dekker vinduet før myOrgs har landet; periode-flagget forut-
                 setter et levende org-medlemskap server-side, så «bedriften
                 din» er alltid sant der. */}
-            <p style={{ ...s.ctaText, marginBottom: reason ? 8 : internalHome ? 14 : 0 }}>
+            <p style={{ ...s.ctaText, marginBottom: reason ? 8 : 0 }}>
               {isLastQuiz
                 ? 'Du spilte denne quizen — resultatet ditt vises ikke i topplisten.'
                 : `Poengene dine teller internt hos ${internalHome ? internalHome.orgName : 'bedriften din'}, ikke i topplisten.`}
@@ -945,11 +945,8 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
                 )}
               </p>
             )}
-            {internalHome && (
-              <Link href={`/org/${internalHome.orgSlug}`} style={s.btnOutline}>
-                Se bedriftens toppliste &rarr;
-              </Link>
-            )}
+            {/* Veien til bedriftens liste er scope-skinnen øverst på siden
+                (7. september 2026) — den énveis knappen som sto her er borte. */}
           </div>
         </>
       )

@@ -1,42 +1,42 @@
-// ── Hvilket felt viser /toppliste? ──────────────────────────────────────────
+// ── /toppliste?scope=… er en VIDEREKOBLING, ikke en visningsmodus ───────────
 //
-// Ren beslutning, ingen I/O. Kalles av app/toppliste/page.tsx, som eier
-// scope-bryteren (6. september 2026).
+// REN logikk, ingen React. Kalles fra app/toppliste/page.tsx og testes direkte
+// i lib/toppliste-scope.test.ts.
 //
-// ── HVORFOR URL-EN IKKE SENDES RÅTT VIDERE ──────────────────────────────────
-// `?scope=organization&scope_id=<id>` kan peke på en hvilken som helst
-// organisasjon. Gaten i /api/toppliste er autoritativ og svarer 403 til en
-// ikke-medlem, så ingenting lekker uansett hva denne funksjonen gjør. Men
-// 403-grenen i SeasonLeaderboard viser «Noe gikk galt. Prøv å laste siden på
-// nytt» — et råd som aldri kan hjelpe, fordi ingen mengde omlastinger gjør
-// deg til medlem. Derfor sender vi ikke forespørselen i det hele tatt når vi
-// VET at brukeren ikke er medlem: en fremmed som klikker en delt lenke får
-// den offentlige lista.
+// ── HISTORIKK ───────────────────────────────────────────────────────────────
+// 6. september 2026 (c1a3115) fikk /toppliste en scope-bryter som byttet
+// INNHOLD på stedet: `?scope=organization&scope_id=<id>` viste bedriftens
+// liste under bedriftens overskrift. 7. september ble bryteren delt av fire
+// flater og lagt om til å NAVIGERE (lib/scope-rail.ts): bedriftens liste bor
+// på /org/[slug], den nasjonale på /toppliste. Da fantes det to måter å vise
+// bedriften på — den feilklassen navnerunden ryddet — så visningsmodusen ble
+// fjernet. Parameterne beholdes som ren viderekobling, slik at lenker noen
+// allerede har delt fortsatt lander riktig.
 //
-// ── «VET IKKE» ER EN EGEN TILSTAND, TO GANGER ───────────────────────────────
-// Medlemskapene lastes asynkront, og de kan feile. De to utfallene er ikke
-// det samme, og ingen av dem er «ikke medlem»:
+// ── FIRE UTFALL ─────────────────────────────────────────────────────────────
+//   'none'      ingen scope-parameter → siden viser den nasjonale lista.
+//   'redirect'  egen bedrift i URL-en → send til /org/<slug>. Resten av
+//               query-strengen (period, hist, …) følger med.
+//   'wait'      medlemskapene har ikke landet → hold igjen. Alternativet var å
+//               vise den nasjonale lista et øyeblikk og så hoppe — en
+//               ansatt som klikket en delt bedriftslenke ville da sett
+//               nasjonale tall før bedriftens.
+//   'clean'     bekreftet at org-id-en ikke er blant brukerens egne → fjern
+//               parameterne, vis nasjonal. Ingen 403: en fremmed lenke er
+//               ikke et forsøk på noe, bare en lenke som ikke gjelder deg.
 //
-//   IKKE LANDET ENNÅ  → `venter`. Siden holder igjen. Alternativet var å
-//     vise global først og bytte når svaret kom: feil liste under feil
-//     overskrift i et halvt sekund, pluss en henting vi kaster.
+// Feilet hentingen av medlemskap, blir det 'none' UTEN rydding: et feilsvar
+// er ikke bevis på at brukeren ikke er medlem, og en omlasting kan rette det.
 //
-//   FEILET           → vi konkluderer ALDRI «ikke medlem» av en feil
-//     (lib/fetch-result.ts-regelen). Men vi kan heller ikke vente evig — uten
-//     denne grenen ville en bruker med en bokmerket org-lenke stått fast på
-//     «Henter bedriften din …» for alltid når hentingen feilet. Utfallet er
-//     derfor global: en degradert, men SANN visning (global liste under
-//     global overskrift), som retter seg selv ved omlasting. URL-en ryddes
-//     IKKE — vi vet ikke nok til å fjerne brukerens eget valg.
-//
-// ── RYDDING AV URL-EN ───────────────────────────────────────────────────────
-// `ryddUrl` settes kun når vi har et BEKREFTET svar om at org-id-en ikke er
-// blant brukerens egne. Da fjernes scope-parameterne, slik at en delt lenke
-// ikke etterlater en bedriftsoverskrift over globale tall.
+// ── SKINNEN ER IKKE HER ─────────────────────────────────────────────────────
+// «Vis kun når det finnes minst to valg» (visSkinne) bodde i denne fila fram
+// til 7. september. Regelen ligger nå i lib/scope-rail.ts, som alle fire
+// flatene deler. Denne fila avgjør kun hva en gammel lenke skal gjøre.
 
 /** Det kalleren vet om ett medlemskap. Speiler MyOrg i ProfileProvider. */
 export type ScopeOrg = {
   orgId: string
+  orgSlug: string
 }
 
 export type TopplisteScopeInput = {
@@ -52,68 +52,37 @@ export type TopplisteScopeInput = {
   myOrgsError: boolean
 }
 
-export type TopplisteScopeDecision = {
-  /** Hva SeasonLeaderboard skal hente. */
-  scope: 'global' | 'organization'
-  /** Org-id-en å hente for, eller null i global visning. */
-  valgtOrgId: string | null
-  /** Hvilken overskrift siden skal vise. */
-  ramme: 'global' | 'organization'
-  /** Vis scope-skinnen? Kun den som har noe å bytte mellom. */
-  visSkinne: boolean
-  /** Hold igjen hentingen — medlemskapene har ikke landet. */
-  venter: boolean
-  /** Fjern scope-parameterne fra URL-en. */
-  ryddUrl: boolean
-}
+export type TopplisteScopeDecision =
+  | { action: 'none' }
+  | { action: 'wait' }
+  | { action: 'redirect'; orgSlug: string }
+  | { action: 'clean' }
 
 export function decideTopplisteScope(input: TopplisteScopeInput): TopplisteScopeDecision {
   const { scopeParam, scopeIdParam, myOrgs, myOrgsLoaded, myOrgsError } = input
 
-  // Skinnen henger på medlemskap, ikke på hva URL-en påstår. En gjest har
-  // ingen, og en vanlig spiller skal ikke se en bryter med ett valg.
-  const visSkinne = myOrgs.length > 0
-
   const orgOnsket = scopeParam === 'organization' && typeof scopeIdParam === 'string' && scopeIdParam.length > 0
-  if (!orgOnsket) {
-    return { scope: 'global', valgtOrgId: null, ramme: 'global', visSkinne, venter: false, ryddUrl: false }
-  }
+  if (!orgOnsket) return { action: 'none' }
 
   const valgt = myOrgs.find(o => o.orgId === scopeIdParam) ?? null
-  if (valgt) {
-    return {
-      scope: 'organization',
-      valgtOrgId: valgt.orgId,
-      ramme: 'organization',
-      visSkinne,
-      venter: false,
-      ryddUrl: false,
-    }
-  }
+  if (valgt) return { action: 'redirect', orgSlug: valgt.orgSlug }
 
   // Herfra: URL-en ber om en org vi ikke finner blant medlemskapene.
   // Rekkefølgen betyr noe — «ikke landet» sjekkes FØR «feilet», fordi en
-  // henting som pågår ennå ikke har feilet, og fordi ventetilstanden er den
-  // eneste som gir riktig førstevisning for et ekte medlem.
-  if (!myOrgsLoaded && !myOrgsError) {
-    return {
-      scope: 'global',
-      valgtOrgId: null,
-      // Overskriften følger det URL-en ba om: viser vi «Topplisten» her og
-      // bytter etterpå, har rammen vært feil i mellomtiden.
-      ramme: 'organization',
-      visSkinne,
-      venter: true,
-      ryddUrl: false,
-    }
-  }
+  // henting som pågår ennå ikke har feilet.
+  if (!myOrgsLoaded && !myOrgsError) return { action: 'wait' }
+  if (myOrgsError) return { action: 'none' }
+  return { action: 'clean' }
+}
 
-  if (myOrgsError) {
-    // Degradert, men sant: global liste under global overskrift. Ingen
-    // rydding — et feilsvar er ikke bevis på at brukeren ikke er medlem.
-    return { scope: 'global', valgtOrgId: null, ramme: 'global', visSkinne, venter: false, ryddUrl: false }
-  }
-
-  // Bekreftet: brukeren er ikke medlem av den org-en. Rydd URL-en.
-  return { scope: 'global', valgtOrgId: null, ramme: 'global', visSkinne, venter: false, ryddUrl: true }
+/**
+ * Målet for viderekoblingen: /org/<slug> med resten av query-strengen
+ * (period, hist, histKey, …) intakt, minus scope-parameterne selv.
+ */
+export function topplisteRedirectHref(orgSlug: string, search: string): string {
+  const params = new URLSearchParams(search)
+  params.delete('scope')
+  params.delete('scope_id')
+  const qs = params.toString()
+  return `/org/${orgSlug}${qs ? `?${qs}` : ''}`
 }

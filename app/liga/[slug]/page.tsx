@@ -5,6 +5,9 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import SeasonLeaderboard from '@/components/SeasonLeaderboard'
+import ScopeRail from '@/components/ScopeRail'
+import { scopeRailOptions } from '@/lib/scope-rail'
+import { useProfile } from '@/components/ProfileProvider'
 import SkeletonCard from '@/components/SkeletonCard'
 import { fetchMembersActivity } from '@/lib/members-activity-fetch'
 
@@ -57,6 +60,7 @@ type LoadState = 'loading' | 'ready' | 'error' | 'notfound'
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LigaPage() {
+  const { myOrgs } = useProfile()
   const router   = useRouter()
   const rawParams = useParams()
   const slug     = Array.isArray(rawParams.slug) ? rawParams.slug[0] : (rawParams.slug ?? '')
@@ -317,6 +321,10 @@ export default function LigaPage() {
           </div>
 
           <div style={s.rule} />
+
+          {/* Scope-skinnen — NAVIGERER til /toppliste eller bedriften; ligaen er det
+              aktive segmentet her. Se lib/scope-rail.ts. */}
+          <ScopeRail options={scopeRailOptions({ current: { kind: 'league', slug, name: league?.name ?? 'Ligaen' }, myOrgs, hrefs: { global: '/toppliste', org: o => `/org/${o.orgSlug}`, league: `/liga/${slug}` } })} />
 
           {/* Owner: invite link */}
           {league?.is_owner && (

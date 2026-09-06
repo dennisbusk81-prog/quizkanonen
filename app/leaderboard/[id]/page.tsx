@@ -20,6 +20,8 @@ import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import { describeRetry } from '@/lib/retry-affordance'
 import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
+import ScopeRail from '@/components/ScopeRail'
+import { scopeRailOptions } from '@/lib/scope-rail'
 // Datolesing på quiz-raden: ALLTID via isQuizClosed/decideHiddenUntilClosed —
 // aldri rå `new Date(quiz.closes_at)`. NULL er «stenger aldri», ikke epoch
 // 1970, og serverruten (app/api/leaderboard/[id]) leser samme felt med samme
@@ -1288,6 +1290,20 @@ export default function LeaderboardPage() {
   // Én kilde for BEGGE org-linjene i headeren. De to kan derfor ikke motsi
   // hverandre, og ingen av dem kan motsi lista de står over.
   const orgNotice = decideOrgScopeNotice({ requestedOrg: orgSlug, servedOrg: servedOrgSlug })
+  // Scope-skinnen: samme quiz, annet univers. NAVIGERER via ?org= / ?league=
+  // (serveren bygger lista på nytt); fanene «Alle deltakere / Blant venner»
+  // under filtrerer den leverte lista lokalt. Skinnen velger univers, fanen
+  // filtrerer inne i det. Gjest og ikke-medlem har ett valg → ingen skinne
+  // (lib/scope-rail.ts). Ligaens navn er ikke i sidens data — «Ligaen».
+  const skinne = scopeRailOptions({
+    current: leagueSlug ? { kind: 'league', slug: leagueSlug, name: 'Ligaen' } : orgSlug ? { kind: 'organization', orgSlug } : { kind: 'global' },
+    myOrgs,
+    hrefs: {
+      global: `/leaderboard/${quizId}`,
+      org: o => `/leaderboard/${quizId}?org=${encodeURIComponent(o.orgSlug)}`,
+      league: leagueSlug ? `/leaderboard/${quizId}?league=${encodeURIComponent(leagueSlug)}` : undefined,
+    },
+  })
 
   return (
     <>
@@ -1379,6 +1395,8 @@ export default function LeaderboardPage() {
             )}
             <div style={s.rule} />
           </header>
+
+          <ScopeRail options={skinne} />
 
           {/* Profile bar */}
           {!authLoading && session && (() => {
@@ -1812,7 +1830,7 @@ export default function LeaderboardPage() {
                   style={activeTab === 'alle' || !showVennerTab ? s.tabActive : s.tabInactive}
                   onClick={() => setActiveTab('alle')}
                 >
-                  Alle
+                  Alle deltakere
                 </button>
                 {showVennerTab && (
                   <button

@@ -10,6 +10,8 @@ import LeaveOrgModal from '@/components/LeaveOrgModal'
 import { isOrgLocked } from '@/lib/org-access'
 import { deriveOrgLoadState, type OrgLoadState } from '@/lib/org-membership-state'
 import { useProfile } from '@/components/ProfileProvider'
+import ScopeRail from '@/components/ScopeRail'
+import { scopeRailOptions } from '@/lib/scope-rail'
 import type { Session } from '@supabase/supabase-js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -169,6 +171,10 @@ export default function OrgLeaderboardPage() {
             </p>
             <div style={{ width: '100%', height: 1, background: '#2a2d38', marginTop: 12 }} />
           </div>
+
+          {/* Scope-skinnen — NAVIGERER til /toppliste eller en annen bedrift; denne
+              siden viser alltid denne bedriften. Se lib/scope-rail.ts. */}
+          <ScopeRail options={scopeRailOptions({ current: { kind: 'organization', orgSlug: slug }, myOrgs, hrefs: { global: '/toppliste', org: o => `/org/${o.orgSlug}` } })} />
 
           {/* Slik fungerer det — kort forklaring for et ferskt medlem.
               Innmeldingen sender den ansatte rett hit, og siden besto tidligere

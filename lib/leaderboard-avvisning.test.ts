@@ -208,43 +208,51 @@ test('midt-i-økta-grenene tilbyr INGEN retry — den kan ikke lykkes', () => {
   }
 })
 
-// ── Bryteren på /toppliste ──────────────────────────────────────────────────
+// ── Skinnen — ÉN komponent for fire flater (7. september 2026) ──────────────
+//
+// Designinvariantene under ble vedtatt 6. september for bryteren på
+// /toppliste (c1a3115). 7. september ble bryteren trukket ut til
+// components/ScopeRail.tsx og delt av /toppliste, /org/[slug], /liga/[slug]
+// og /leaderboard/[id]. Testene ankrer derfor på KOMPONENTEN, ikke på siden —
+// samme invarianter, ett sted. Hvilke valg som vises, og at alle fire flatene
+// bruker komponenten, voktes i lib/scope-rail.test.ts.
 
-const TOPPLISTE = 'app/toppliste/page.tsx'
+const SKINNE = 'components/ScopeRail.tsx'
 
-test('scope-bryteren bruker ALDRI gull', () => {
+test('scope-skinnen bruker ALDRI gull', () => {
   // Den aktive periodefanen rett under er gull. To gullelementer på samme
-  // skjerm bryter husregelen, og bryteren skal uansett markeres med kontrast,
+  // skjerm bryter husregelen, og skinnen skal uansett markeres med kontrast,
   // ikke farge — den avgrenser HVEM, periodefanene NÅR.
-  const src = aktivKode(TOPPLISTE)
-  const start = src.indexOf('const scopeRailStyle')
-  const slutt = src.indexOf('export default function TopplisterPage')
-  assert.ok(start > -1 && slutt > start, 'fant ikke bryterens stilblokk')
-  const stiler = src.slice(start, slutt)
-  assert.ok(!stiler.includes('#c9a84c'), 'scope-bryteren bruker gull — to gullelementer på samme skjerm')
+  const src = aktivKode(SKINNE)
+  assert.ok(!src.includes('#c9a84c') && !src.includes('201,168,76'), 'scope-skinnen bruker gull — to gullelementer på samme skjerm')
 })
 
-test('bryteren har en ramme rundt BEGGE valgene', () => {
+test('skinnen har en ramme rundt ALLE valgene', () => {
   // Rammen er det som gjør den til en kontroll uten hover. Uten den leste
   // org-navnet som brødtekst.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /const scopeRailStyle[\s\S]{0,400}border: '1px solid #2a2d38'/,
-    'bryteren mangler rammen — da leser den ikke som trykkbar på mobil')
-  assert.match(src, /const scopeRailStyle[\s\S]{0,400}display: 'inline-flex'/,
+  const src = aktivKode(SKINNE)
+  assert.match(src, /const railStyle[\s\S]{0,400}border: '1px solid #2a2d38'/,
+    'skinnen mangler rammen — da leser den ikke som trykkbar på mobil')
+  assert.match(src, /const railStyle[\s\S]{0,400}display: 'inline-flex'/,
     'rammen spenner hele sidebredden i stedet for å stramme seg rundt valgene')
 })
 
-test('begge valgene er markert trykkbare uten hover', () => {
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /const scopeTabStyle[\s\S]{0,700}cursor: 'pointer'/, 'valgene mangler cursor: pointer')
+test('valgene er LENKER — trykkbare uten hover, og de navigerer', () => {
+  // 7. september: segmentene ble lenker (skinnen navigerer mellom flater).
+  // En lenke med href er trykkbar av natur; den gamle `cursor: pointer` på en
+  // knapp er ikke lenger det som bærer signalet.
+  const src = aktivKode(SKINNE)
+  assert.match(src, /<a\s[\s\S]{0,200}href=\{o\.href\}/, 'segmentene er ikke lenker med href')
+  assert.ok(!src.includes('<button'), 'skinnen har knapper — den skal navigere, ikke bytte på stedet')
+  assert.match(src, /textDecoration: 'none'/, 'lenkene er understreket — de skal se ut som segmenter')
 })
 
 test('inaktiv bruker den GODKJENTE dempede fargen, ikke den forbudte', () => {
   // #7a7873 står som FORBUDT i CLAUDE.md: 3,86:1 mot bakgrunnen, under
   // AA-kravet på 4,5:1. #918f8a er erstatteren som ble innført 1. august 2026.
-  const src = aktivKode(TOPPLISTE)
+  const src = aktivKode(SKINNE)
   assert.ok(!src.includes('#7a7873'), 'den forbudte lavkontrastfargen #7a7873 er i bruk')
-  assert.match(src, /const scopeTabStyle[\s\S]{0,700}color: aktiv \? '#ffffff' : '#918f8a'/,
+  assert.match(src, /const segmentStyle[\s\S]{0,700}color: aktiv \? '#ffffff' : '#918f8a'/,
     'inaktiv-fargen er endret — sjekk kontrasten mot #1a1c23 før du bytter')
 })
 
@@ -253,35 +261,32 @@ test('aktivt valg skiller seg på BÅDE fylling og tekstfarge', () => {
   // BAKGRUNN overlevde tester som bare så på `color`. Fyllingen er det
   // sterkeste signalet om hvilket segment som er valgt, særlig på mobil der
   // ingen hover finnes.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /const scopeTabStyle[\s\S]{0,700}background: aktiv \? '#21242e' : 'transparent'/,
+  const src = aktivKode(SKINNE)
+  assert.match(src, /const segmentStyle[\s\S]{0,700}background: aktiv \? '#21242e' : 'transparent'/,
     'aktivt og inaktivt valg deler bakgrunn — da er det ikke synlig hvilket som er valgt')
 })
 
-test('org-navnet i bryteren avkortes med 110 px-klemmen', () => {
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /const scopeTabStyle[\s\S]{0,700}maxWidth: 110,[\s\S]{0,120}textOverflow: 'ellipsis'/,
-    'klemmen er borte eller endret — en bedrift med langt navn sprenger bryteren')
+test('org-navnet i skinnen avkortes med 110 px-klemmen', () => {
+  const src = aktivKode(SKINNE)
+  assert.match(src, /const segmentStyle[\s\S]{0,700}maxWidth: 110,[\s\S]{0,120}textOverflow: 'ellipsis'/,
+    'klemmen er borte eller endret — en bedrift med langt navn sprenger skinnen')
 })
 
-test('bryteren scroller heller enn å brekke til to linjer', () => {
+test('skinnen scroller heller enn å brekke til to linjer', () => {
   // Tre valg med lange navn kan bli bredere enn en smal mobil. En segmentert
   // kontroll som wrapper slutter å lese som én kontroll.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /const scopeRailStyle[\s\S]{0,400}overflowX: 'auto'/, 'bryteren mangler sidelengs scroll')
-  assert.ok(
-    !/const scopeRailStyle[\s\S]{0,400}flexWrap/.test(src),
-    'bryteren wrapper — da leser den ikke lenger som én kontroll'
-  )
+  const src = aktivKode(SKINNE)
+  assert.match(src, /const railStyle[\s\S]{0,400}overflowX: 'auto'/, 'skinnen mangler sidelengs scroll')
+  assert.ok(!/const railStyle[\s\S]{0,400}flexWrap/.test(src), 'skinnen wrapper — da leser den ikke lenger som én kontroll')
 })
 
-test('ett valg per medlemskap, pluss «Alle»', () => {
-  // To org-er ⇒ tre valg. Listen rendres fra myOrgs, så tellingen følger
-  // medlemskapene uten en egen gren per antall.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /onClick=\{\(\) => settScope\(null\)\}/, '«Alle»-valget mangler')
-  assert.match(src, /myOrgs\.map\(o => \{[\s\S]{0,600}onClick=\{\(\) => settScope\(o\.orgId\)\}/,
-    'org-valgene rendres ikke fra myOrgs — da følger ikke antallet medlemskapene')
+test('valgene rendres fra modellen — ett segment per valg, ingen egen liste', () => {
+  // Antallet følger lib/scope-rail.ts (Alle + ett per medlemskap + ligaen på
+  // ligasiden). Komponenten mapper over det den får og legger ikke til noe.
+  const src = aktivKode(SKINNE)
+  assert.match(src, /\{options\.map\(o => \(/, 'segmentene rendres ikke fra options')
+  assert.ok(!src.includes('myOrgs'), 'komponenten leser myOrgs selv — valgene skal komme fra scopeRailOptions')
+  assert.ok(!src.includes("'Alle'"), 'komponenten har en egen «Alle» — etiketten bor i lib/scope-rail.ts')
 })
 
 test('hover er DEKLARATIV CSS, ikke imperativ styling', () => {
@@ -290,43 +295,38 @@ test('hover er DEKLARATIV CSS, ikke imperativ styling', () => {
   // endte attributtet som `color: currentcolor`, og da ARVET begge segmentene
   // farge: det aktive valget ble dempet og det inaktive hvitt. Målt i
   // nettleseren, ikke resonnert fram.
-  const src = aktivKode(TOPPLISTE)
+  const src = aktivKode(SKINNE)
   assert.ok(!src.includes('onMouseEnter'), 'imperativ hover er tilbake — den korrumperer style-attributtet')
   assert.ok(!src.includes('currentTarget.style'), 'imperativ stilskriving er tilbake')
-  assert.match(src, /\.qk-scope-tab\[aria-pressed="false"\]:hover \{ color: #e8e4dd; \}/,
+  assert.match(src, /\.qk-scope-tab\[aria-current="false"\]:hover \{ color: #e8e4dd; \}/,
     'hover-regelen mangler — inaktivt valg løfter seg ikke ved hover')
-  // Regelen henger på aria-pressed, så CSS og skjermleser leser SAMME kilde.
-  assert.match(src, /aria-pressed=\{aktiv\}/, 'org-valget mangler aria-pressed — hover-regelen ville da aldri treffe')
+  // Regelen henger på aria-current, så CSS og skjermleser leser SAMME kilde.
+  assert.match(src, /aria-current=\{o\.active \? 'page' : 'false'\}/, 'segmentet mangler aria-current — hover-regelen ville da aldri treffe')
 })
 
-test('bryteren har en etikett som forklarer hva valgene gjelder', () => {
+test('skinnen har en etikett som forklarer hva valgene gjelder', () => {
   // «Alle» og «Elkjøp Nordic» er to ord uten kontekst — «Alle» sier ikke alle
   // HVA. Periodefanene under trenger ingen etikett fordi ordene deres er
-  // selvforklarende; bryterens ord er ikke det.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /<span id="qk-scope-label" style=\{scopeLabelStyle\}>[^<]+<\/span>/,
-    'etiketten foran bryteren er borte')
-  assert.match(src, /const scopeLabelStyle[\s\S]{0,300}color: '#918f8a'/,
-    'etiketten bruker ikke hintfargen')
+  // selvforklarende; skinnens ord er ikke det.
+  const src = aktivKode(SKINNE)
+  assert.match(src, /<span id="qk-scope-label" style=\{labelStyle\}>Blant:<\/span>/,
+    'etiketten «Blant:» foran skinnen er borte')
+  assert.match(src, /const labelStyle[\s\S]{0,300}color: '#918f8a'/, 'etiketten bruker ikke hintfargen')
   // Mindre enn segmentteksten (13), så etiketten underordner seg valgene.
-  // LAT kvantor (`{0,N}?`), ikke grådig. Med grådig `{0,700}` konsumerte
-  // uttrykket forbi scopeTabStyle og plukket `fontSize` fra NESTE stilblokk —
-  // begge leste 12, og testen meldte at 12 ikke er mindre enn 12. Den var rød
-  // av feil grunn, ikke fordi koden var feil.
-  const etikettStr = src.match(/const scopeLabelStyle[\s\S]{0,300}?fontSize: (\d+)/)
-  const segmentStr = src.match(/const scopeTabStyle[\s\S]{0,700}?fontSize: (\d+)/)
+  // LAT kvantor, ikke grådig — se historikken i forgjengeren av denne testen.
+  const etikettStr = src.match(/const labelStyle[\s\S]{0,300}?fontSize: (\d+)/)
+  const segmentStr = src.match(/const segmentStyle[\s\S]{0,700}?fontSize: (\d+)/)
   assert.ok(etikettStr && segmentStr, 'fant ikke skriftstørrelsene')
   assert.ok(Number(etikettStr[1]) < Number(segmentStr[1]),
     `etiketten (${etikettStr[1]}px) er ikke mindre enn segmentene (${segmentStr[1]}px)`)
-  assert.ok(!/const scopeLabelStyle[\s\S]{0,300}#c9a84c/.test(src), 'etiketten bruker gull')
 })
 
 test('etiketten ER gruppens tilgjengelige navn', () => {
   // aria-labelledby, ikke en usynlig aria-label ved siden av: ellers får
   // kontrollen to konkurrerende navn, og skjermleseren leser et annet ord enn
-  // det som står på skjermen.
-  const src = aktivKode(TOPPLISTE)
-  assert.match(src, /role="group" aria-labelledby="qk-scope-label"/,
+  // det som står på skjermen. Gruppen er en <nav> — skinnen navigerer.
+  const src = aktivKode(SKINNE)
+  assert.match(src, /<nav style=\{railStyle\} aria-labelledby="qk-scope-label">/,
     'gruppen peker ikke på den synlige etiketten')
   assert.ok(!/aria-label="Hvilken liste"/.test(src),
     'den gamle usynlige aria-label-en står igjen ved siden av den synlige etiketten')
