@@ -605,6 +605,20 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
   // Reset historikk-cache + paginering når periode bytter. hist/histKey
   // trenger ikke nullstilles her lenger — de er URL-styrt, og setPeriod()
   // over nullstiller dem allerede eksplisitt ved fanebytte.
+  //
+  // SCOPE OG SCOPEID ER MED I DEP-ARRAYEN (6. september 2026). Cachene under
+  // er scope-spesifikke akkurat som de er periode-spesifikke: `histData` er
+  // «tidligere quizer i DETTE feltet», `expandedData` er utvidede rader fra
+  // det feltet. Da /toppliste fikk en scope-bryter kunne de to verdiene endre
+  // seg mens komponenten står montert, og uten dem her ville bedriftens
+  // historikk blitt stående synlig etter bytte til den offentlige lista —
+  // riktig overskrift, feil tall under.
+  //
+  // BIT-IDENTISK FOR /org/[slug] OG /liga/[slug]: begge kallstedene er gatet
+  // på at org-/liga-objektet er hentet (`{org && …}`, `{league && …}`), så
+  // props-ene er konstante fra montering til avmontering. En dep som aldri
+  // endrer verdi utløser aldri effekten på nytt — de to sidene kjører nøyaktig
+  // samme antall ganger som før.
   useEffect(() => {
     setHistData(null)
     setHistError(false)
@@ -613,7 +627,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
     setPageNo(1)
     setSearchInput('')
     setSearch('')
-  }, [period])
+  }, [period, scope, scopeId])
 
   // Hent historikk-data (lat)
   const loadHistory = useCallback(async () => {
