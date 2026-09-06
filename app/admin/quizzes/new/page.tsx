@@ -9,14 +9,11 @@ import { autoDismissMs } from '@/lib/admin-feedback'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey } from '@/lib/answer-key-correction'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CATEGORIES = [
-  'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
-  'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur',
-  'Politikk & Samfunn', 'Diverse',
-]
+// Kategoriene bor i lib/quiz-categories.ts, ikke her. Lista lå tidligere
+// hardkodet i tre kopier; den tredje (CSV-importen i app/admin/quizzes/page.tsx)
+// er en dataport som stille setter category=null for ukjente verdier, så en
+// kopi som glemmes taper data uten feilmelding.
+import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -2460,7 +2457,7 @@ function QuizEditorInner() {
                 className="nq-input nq-select"
               >
                 <option value="">Ikke valgt</option>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {QUIZ_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>

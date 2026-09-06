@@ -8,6 +8,7 @@ import { Quiz, Question } from '@/lib/supabase'
 import CorrectAnswerToggle, { toggleAnswerKey } from '@/components/CorrectAnswerToggle'
 import { readStoredKey, sameAnswerKey as sameKeys } from '@/lib/answer-key-correction'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
+import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 import Link from 'next/link'
 
 // Fasiten som liste, uansett om raden bruker correct_answers-arrayet eller den
@@ -15,10 +16,8 @@ import Link from 'next/link'
 const effectiveKeys = (q: Pick<Question, 'correct_answer' | 'correct_answers'>): string[] =>
   readStoredKey(q)
 
-const CATEGORIES = [
-  'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
-  'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
-]
+// Kategoriene: se lib/quiz-categories.ts. Én kilde for begge dropdown-ene og
+// for CSV-importens validering — en glemt kopi der taper data stille.
 
 type QuestionForm = {
   question_text: string
@@ -789,7 +788,7 @@ export default function QuizQuestions() {
             style={{ cursor: 'pointer' }}
           >
             <option value="">— Ikke valgt —</option>
-            {CATEGORIES.map(cat => (
+            {QUIZ_CATEGORIES.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>

@@ -12,6 +12,7 @@ import {
 } from './select-quiz-message'
 import type { QuizMessageState } from './select-quiz-message'
 import { quizMessages, categoryMessages } from './quiz-messages'
+import { QUIZ_CATEGORIES } from './quiz-categories'
 import type { QuizMessageCategory, QuizMessage } from './quiz-messages'
 
 const SEED = 'attempt-abc:5'
@@ -565,9 +566,24 @@ test('kategorioppslaget tåler casing og whitespace fra admin', () => {
 test('ukjent kategori faller tilbake på {category}-settet med navnet innfylt', () => {
   // En kategori lagt til i admin etter at tekstene ble skrevet skal fortsatt
   // gi en melding — ikke krasje og ikke vise rå «{category}».
-  const msg = selectQuizMessage(state({ strongCategory: 'Litteratur' }), SEED)
+  //
+  // Eksempelet var «Litteratur» fram til 6. september 2026. Da ble Litteratur
+  // en EKTE kategori i dropdown-en (lib/quiz-categories.ts), og et eksempel på
+  // «ukjent» som står i lista er misvisende — verre: den dagen Litteratur får
+  // egne tekster i categoryMessages, ville denne testen blitt rød av en helt
+  // riktig endring, med en feilmelding som ikke forklarer hvorfor.
+  //
+  // Vakten under gjør valget selvforklarende i stedet for skjørt: blir navnet
+  // en dag kjent, sier testen selv at eksempelet må byttes.
+  const UKJENT = 'Astronomi'
+  assert.ok(
+    !QUIZ_CATEGORIES.includes(UKJENT) && !(UKJENT.toLowerCase() in categoryMessages),
+    `«${UKJENT}» er ikke lenger ukjent — velg et annet navn til dette eksempelet`
+  )
+
+  const msg = selectQuizMessage(state({ strongCategory: UKJENT }), SEED)
   const text = `${msg.headline} ${msg.subline ?? ''}`
-  assert.ok(text.includes('Litteratur'), `fallback fylte ikke inn navnet: «${text}»`)
+  assert.ok(text.includes(UKJENT), `fallback fylte ikke inn navnet: «${text}»`)
   assert.ok(!text.includes('{'), `rå plassholder: «${text}»`)
   assert.equal(categoryOf(msg), 'category')
 })

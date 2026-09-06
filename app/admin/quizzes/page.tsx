@@ -13,11 +13,11 @@ import { adminQuizStatus } from '@/lib/admin-quiz-status'
 import { splitAdminQuizList, arkivGruppeTittel } from '@/lib/admin-quiz-groups'
 import { isQuizClosed } from '@/lib/standings-cache'
 import Link from 'next/link'
-
-const VALID_CATEGORIES = [
-  'Sport', 'Musikk', 'Historie', 'Geografi', 'Film & TV',
-  'Mat & Drikke', 'Vitenskap & Natur', 'Kunst & Kultur', 'Politikk & Samfunn', 'Diverse',
-]
+// DATAPORTEN. Kolonne 7 i CSV-importen valideres mot denne lista, og en verdi
+// utenfor den blir stille `null` — ingen feilmelding, ingen spor. Derfor må
+// den være NØYAKTIG samme liste som dropdown-ene bruker, og derfor bor den i
+// lib/quiz-categories.ts i stedet for i tre kopier.
+import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 
 type ParsedQuestion = {
   question_text: string
@@ -361,7 +361,10 @@ export default function AdminQuizzes() {
       'Alternativ 4',
       'Tid i sekunder (valgfritt, default 15)',
       'Bland svaralternativer (TRUE/FALSE, valgfritt)',
-      'Kategori (valgfritt, en av de 10 kategoriene)',
+      // Tallet UTLEDES av lista. Sto hardkodet som «10» og ville blitt feil i
+      // samme øyeblikk som lista vokste — malen er det arket Dennis fyller ut
+      // før en import, så en feil her forplanter seg til data.
+      `Kategori (valgfritt, en av de ${QUIZ_CATEGORIES.length} kategoriene)`,
     ]
     const example1 = ['Hva er hovedstaden i Norge?', 'Oslo', 'Bergen', 'Stavanger', 'Trondheim', 10, 'FALSE', 'Geografi']
     const example2 = ['Hvilket år ble Norge selvstendig?', '1905', '1814', '1940', '1945', 10, 'TRUE', 'Historie']
@@ -398,7 +401,7 @@ export default function AdminQuizzes() {
       const rawShuffle = String(row[6] ?? '').trim().toUpperCase()
       const shuffle = rawShuffle === 'TRUE' || rawShuffle === '1'
       const rawCategory = String(row[7] ?? '').trim()
-      const category = VALID_CATEGORIES.includes(rawCategory) ? rawCategory : null
+      const category = QUIZ_CATEGORIES.includes(rawCategory) ? rawCategory : null
       parsed.push({ question_text: questionText, option_a: optA, option_b: optB, option_c: optC, option_d: optD, time_limit_seconds: timeSec, shuffle_options: shuffle, category })
     }
 
