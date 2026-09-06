@@ -170,15 +170,21 @@ test('resultatsidens bunnlenker: Toppliste / Bedriftens toppliste / Ligaens topp
   assert.match(side, /href="\/toppliste"[^>]*>\s*Toppliste →/)
 })
 
-test('forsidens knapp følger målet — Bedriftens toppliste eller Se resultatene', () => {
-  // STRUKTURELL SAK FORKLEDD SOM NAVNEPROBLEM: samme knapp har to destinasjoner
-  // (/org/<slug> for medlem av nøyaktig én bedrift, ellers forrige quiz sine
-  // resultater). Etiketten følger målet som midlertidig svar; å gi knappen ÉN
-  // destinasjon er en egen sak. Til den er tatt, skal ikke etiketten gå tilbake
-  // til én fast tekst — da lyver den for én av de to gruppene.
+test('forsidens quizkort-knapp har ETT mål: Se resultatene til forrige quiz', () => {
+  // 7. september 2026: knappen pekte til /org/<slug> for medlem av nøyaktig én
+  // bedrift, ellers til forrige quiz — to destinasjoner bak én knapp, og på en
+  // KOMMENDE quiz sa den «Bedriftens toppliste» om noe helt annet enn kortet.
+  // Bedriftsmålet finnes allerede i OrgCard rett under. Nå: ett mål, én
+  // etikett, i både kommende- og ingen-tilstanden.
   const forside = les('app/page.tsx')
-  const treff = forside.match(/\{singleOrgToplistHref \? 'Bedriftens toppliste' : 'Se resultatene'\}/g) ?? []
-  assert.equal(treff.length, 2, 'kommende-quiz-kortet og ingen-quiz-kortet deler knappen')
+  const knapper = forside.match(/\{lastClosedQuizId && \(\s*<div className="qk-card-actions"[^>]*>\s*<Link href=\{`\/leaderboard\/\$\{lastClosedQuizId\}`\} className="qk-btn-primary">\s*Se resultatene\s*<\/Link>/g) ?? []
+  assert.equal(knapper.length, 2, 'kommende-quiz-kortet og ingen-quiz-kortet skal begge ha «Se resultatene» til forrige quiz, gatet på lastClosedQuizId')
+  // Det gamle todelte målet skal ikke komme tilbake.
+  assert.ok(!forside.includes('singleOrgToplistHref'), 'singleOrgToplistHref er tilbake — knappen har to mål igjen')
+  assert.ok(!/qk-btn-primary">\s*\{[^}]*'Bedriftens toppliste'/.test(forside), 'quizkortets knapp sier «Bedriftens toppliste» igjen — det målet bor i OrgCard')
+  // Bedriftsmålet bor i OrgCard, som forsiden rendrer.
+  assert.match(les('components/OrgCard.tsx'), />\s*Se bedriftens toppliste →\s*</, 'OrgCard har mistet lenken til bedriftens toppliste')
+  assert.match(forside, /<OrgCard \/>/)
 })
 
 // ── De utgåtte ordene finnes ikke lenger som etiketter ──────────────────────

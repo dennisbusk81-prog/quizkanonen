@@ -1450,7 +1450,7 @@ export default async function Home() {
     // over — identisk for alle og trygt å dele. Personaliserte spørringer kjøres
     // per-request under.
 
-    const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, orgMembershipResult] = await Promise.all([
+    const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult] = await Promise.all([
       supabaseAdmin
         .from('profiles')
         .select('display_name, premium_status, has_used_trial')
@@ -1475,17 +1475,12 @@ export default async function Home() {
         .eq('user_id', user.id)
         .gte('completed_at', monthStart)
         .lt('completed_at', monthEnd),
-      // Org-medlemskap — for den kontekstuelle toppliste-/resultatknappen når quizen er stengt
-      supabaseAdmin
-        .from('organization_members')
-        .select('organizations(slug)')
-        .eq('user_id', user.id),
     ])
 
-    // ── Lesevakter for de fem personaliserte spørringene ────────────────
+    // ── Lesevakter for de fire personaliserte spørringene ───────────────
     //
     // Her KASTER vi ikke, i motsetning til den delte bundelen. Forskjellen er
-    // ikke smak: disse fem ligger rått i Home(), utenfor både unstable_cache
+    // ikke smak: disse fire ligger rått i Home(), utenfor både unstable_cache
     // og et .catch, og det finnes ingen app/error.tsx. Et kast herfra faller
     // helt til app/global-error.tsx og bytter ut HELE siden med «Noe gikk
     // galt» — nav, hero, Ukens fakta, grunnleggerseksjon, alt. Der
@@ -1500,10 +1495,6 @@ export default async function Home() {
     logHomeQuery('mine ligaer (league_members)', leagueResult.error)
     const playedStatusUnknown = logHomeQuery('spilt-status (attempts)', playedLogResult.error)
     const playedThisMonthUnknown = logHomeQuery('spilt denne måneden (attempts)', monthlyAttemptsResult.error)
-    // KOSMETISK: uten org-medlemskapet peker toppliste-/resultatknappen til
-    // quiz-topplista i stedet for bedriftssiden. Lenken er gyldig, bare
-    // mindre kontekstuell — ingen påstand blir usann.
-    logHomeQuery('org-medlemskap (organization_members)', orgMembershipResult.error)
 
     // Profile
     const profile = profileResult.data
@@ -1545,17 +1536,16 @@ export default async function Home() {
     // «ingen quiz»-grenen er ikke nåbar.
     const quiz = shared?.activeQuiz ?? null
 
-    // Siste stengte quiz — "Se resultatene"-mål når ingen aktiv quiz finnes
+    // Siste stengte quiz — «Se resultatene»-mål når ingen aktiv quiz finnes.
+    //
+    // ETT MÅL (Dennis, 7. september 2026). Fram til nå pekte knappen til
+    // /org/[slug] for et medlem av nøyaktig én bedrift, ellers hit — to
+    // destinasjoner bak én knapp, og på en KOMMENDE quiz sa den «Bedriftens
+    // toppliste» mens kortet handlet om fredagsquizen som åpner om fem dager.
+    // Bedriftsmålet fantes dessuten allerede på siden: OrgCard rett under har
+    // «Se bedriftens toppliste →». Knappen var ikke bare feil, den var en
+    // duplikat. Quizkortet handler om quizer, bedriftskortet om bedriften.
     const lastClosedQuizId = shared?.lastClosedQuiz?.id ?? null
-
-    // Org-medlemskap — er brukeren med i nøyaktig én org, lenker knappen («Bedriftens toppliste»)
-    // (når quizen er stengt) til bedriftens side i stedet for quiz-topplisten.
-    // Flere orger eller ingen ⇒ behold dagens leaderboard-lenke.
-    type OrgSlugRow = { organizations: { slug: string } | { slug: string }[] | null }
-    const orgSlugs = ((orgMembershipResult.data as OrgSlugRow[] | null) ?? [])
-      .map(r => Array.isArray(r.organizations) ? r.organizations[0]?.slug : r.organizations?.slug)
-      .filter((sl): sl is string => !!sl)
-    const singleOrgToplistHref = orgSlugs.length === 1 ? `/org/${orgSlugs[0]}` : null
 
     // Kommende quiz (fra delt cache) — vises kun når ingen aktiv finnes
     const upcomingQuiz: QuizRow | null = quiz ? null : (shared?.upcomingQuiz ?? null)
@@ -1741,10 +1731,10 @@ export default async function Home() {
               <p className="qk-card-date">
                 Åpner {upcomingQuiz.opens_at ? formatNextQuiz(upcomingQuiz.opens_at) : 'snart'}
               </p>
-              {(lastClosedQuizId || singleOrgToplistHref) && (
+              {lastClosedQuizId && (
                 <div className="qk-card-actions">
-                  <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
-                    {singleOrgToplistHref ? 'Bedriftens toppliste' : 'Se resultatene'}
+                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                    Se resultatene
                   </Link>
                 </div>
               )}
@@ -1755,10 +1745,10 @@ export default async function Home() {
               <p className="qk-empty-sub">
                 Neste fredagsquiz kommer snart. Ny quiz åpner fredag kl. 12 — {formatCountdown(fridayCountdown.daysUntil, fridayCountdown.hoursUntil)}.
               </p>
-              {(lastClosedQuizId || singleOrgToplistHref) && (
+              {lastClosedQuizId && (
                 <div className="qk-card-actions" style={{ marginTop: 16 }}>
-                  <Link href={singleOrgToplistHref ?? `/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
-                    {singleOrgToplistHref ? 'Bedriftens toppliste' : 'Se resultatene'}
+                  <Link href={`/leaderboard/${lastClosedQuizId}`} className="qk-btn-primary">
+                    Se resultatene
                   </Link>
                 </div>
               )}

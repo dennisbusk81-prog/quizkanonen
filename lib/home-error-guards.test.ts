@@ -346,7 +346,6 @@ const PERSONALISERTE = [
   'leagueResult',
   'playedLogResult',
   'monthlyAttemptsResult',
-  'orgMembershipResult',
 ]
 
 test('hver rå spørring i den PERSONALISERTE grenen leser sin error', () => {
