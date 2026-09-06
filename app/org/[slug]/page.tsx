@@ -146,7 +146,7 @@ export default function OrgLeaderboardPage() {
 
   // ── Låst org (utløpt trial uten betaling) ──────────────────────────────────
   if (org && session && isOrgLocked(org)) {
-    return <OrgLockedScreen orgName={org.orgName} orgId={org.orgId} orgSlug={slug} accessToken={session.access_token} />
+    return <OrgLockedScreen orgName={org.orgName} orgId={org.orgId} orgSlug={slug} accessToken={session.access_token} isAdmin={org.isAdmin} />
   }
 
   // ── Ready ─────────────────────────────────────────────────────────────────

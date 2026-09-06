@@ -9,17 +9,29 @@ import LeaveOrgModal from '@/components/LeaveOrgModal'
 // fortsatt spille den ukentlige quizen som vanlig, og ingen data slettes.
 // Reaktivering gjenbruker org-checkout (reactivateOrgId) → Stripe checkout.
 
+// ── ROLLEN AVGJØR HVA SOM TILBYS (7. september 2026) ────────────────────────
+// «Legg inn betaling →» går til /api/stripe/org-checkout med reactivateOrgId,
+// og den ruta avviser alle som ikke er admin med 403 «Ingen admin-tilgang»
+// (org-checkout/route.ts:48). Fram til 7. september sto knappen likevel for
+// ALLE medlemmer — en ansatt fikk en knapp som garantert feilet. OrgCard på
+// forsiden skjuler lenken av nøyaktig den grunnen; samme mønster her. En
+// ansatt får i stedet vite hva som skjer og hva hun kan gjøre: en
+// administrator må fornye, og hun kan spille som vanlig — løftene under er
+// de samme for begge rollene.
 export default function OrgLockedScreen({
   orgName,
   orgId,
   orgSlug,
   accessToken,
+  isAdmin,
 }: {
   orgName: string
   orgId: string
   /** Utelatt → «Forlat organisasjon» skjules (ruten er slug-basert). */
   orgSlug?: string
   accessToken: string
+  /** Kun admin kan fornye — ikke-admin får forklaring i stedet for knappen. */
+  isAdmin: boolean
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -58,12 +70,17 @@ export default function OrgLockedScreen({
           </h1>
 
           <p style={{ fontSize: 15, color: '#e8e4dd', lineHeight: 1.7, marginBottom: 8 }}>
-            Bedriftssidene er midlertidig sperret. Legg inn betaling for å fortsette med bedriftens toppliste og admin-panelet.
+            {isAdmin
+              ? 'Bedriftssidene er midlertidig sperret. Legg inn betaling for å fortsette med bedriftens toppliste og admin-panelet.'
+              /* ORDLYD FORESLÅTT (Dennis velger): sier hvem som kan handle, og
+                 hva som skjer når de gjør det. */
+              : `Bedriftssidene er midlertidig sperret. En administrator i ${orgName} må fornye abonnementet før bedriftens toppliste åpner igjen.`}
           </p>
           <p style={{ fontSize: 14, color: '#918f8a', lineHeight: 1.7, marginBottom: 28 }}>
             Ingenting er slettet — profiler, historikk og poeng består. Ansatte kan fortsatt spille den ukentlige quizen som vanlig.
           </p>
 
+          {isAdmin && (
           <button
             onClick={reactivate}
             disabled={loading}
@@ -71,8 +88,9 @@ export default function OrgLockedScreen({
           >
             {loading ? 'Sender…' : 'Legg inn betaling →'}
           </button>
+          )}
 
-          {error && (
+          {isAdmin && error && (
             <div style={{ fontSize: 13, color: '#f87171', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', borderRadius: 10, padding: '10px 14px', marginTop: 18, lineHeight: 1.5 }}>
               {error}
             </div>

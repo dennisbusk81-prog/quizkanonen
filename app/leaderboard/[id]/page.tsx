@@ -233,6 +233,13 @@ export default function LeaderboardPage() {
   // «Blant venner»-fanen ELLER tenne «Opprett en liga (Premium)»-CTA-en.
   // Beslutningen ligger i lib/league-affordance.ts.
   const [leaguesState, setLeaguesState] = useState<Loaded<boolean>>({ ok: false })
+  // Ligaens navn til scope-skinnen (7. september 2026). /api/leaderboard/[id]
+  // kjenner ingen liga — ?league= er en klientramme (tilbakelenke, next,
+  // skinne), ikke et serverscope. Navnet finnes allerede i svaret fra
+  // /api/leagues, som loadLeagueFriends henter uansett for «Blant venner»:
+  // null ekstra kall, null rutefelt. null = ikke landet, eller ikke medlem
+  // av ligaen i URL-en → skinnen faller til «Ligaen».
+  const [leagueName, setLeagueName] = useState<string | null>(null)
   // Den annonserte datoen for neste quiz, samme site_settings-nøkkel som
   // resultatskjermen leser. Uten den ville nextQuizLabel falt på førstkommende
   // fredag mens resultatskjermen viste en annonsert bonusdato — to flater, to
@@ -609,7 +616,7 @@ export default function LeaderboardPage() {
         // hva hver av dem skal vise.
         const leaguesLoaded = await fetchResult(
           () => fetch('/api/leagues', { headers: { Authorization: `Bearer ${accessToken}` } }),
-          json => ((json as { leagues?: { id: string }[] } | null)?.leagues ?? []),
+          json => ((json as { leagues?: { id: string; slug?: string; name?: string }[] } | null)?.leagues ?? []),
         )
         setLeaguesState(leaguesLoaded.ok ? { ok: true, value: leaguesLoaded.value.length > 0 } : { ok: false })
         // Ligavennene under er en TILLEGGSHENTING: feiler den, står ligastatusen
@@ -617,6 +624,7 @@ export default function LeaderboardPage() {
         // slå opp medlemmer for, så da er det ingenting å prøve på.
         if (!leaguesLoaded.ok) return
         const leagues = leaguesLoaded.value
+        if (leagueSlug) setLeagueName(leagues.find(l => l.slug === leagueSlug)?.name ?? null)
         try {
           const memberResponses = await Promise.all(
             leagues.map(l =>
@@ -1324,9 +1332,9 @@ export default function LeaderboardPage() {
   // (serveren bygger lista på nytt); fanene «Alle deltakere / Blant venner»
   // under filtrerer den leverte lista lokalt. Skinnen velger univers, fanen
   // filtrerer inne i det. Gjest og ikke-medlem har ett valg → ingen skinne
-  // (lib/scope-rail.ts). Ligaens navn er ikke i sidens data — «Ligaen».
+  // (lib/scope-rail.ts). Ligaens navn kommer fra /api/leagues (se leagueName).
   const skinne = scopeRailOptions({
-    current: leagueSlug ? { kind: 'league', slug: leagueSlug, name: 'Ligaen' } : orgSlug ? { kind: 'organization', orgSlug } : { kind: 'global' },
+    current: leagueSlug ? { kind: 'league', slug: leagueSlug, name: leagueName ?? 'Ligaen' } : orgSlug ? { kind: 'organization', orgSlug } : { kind: 'global' },
     myOrgs,
     hrefs: {
       global: `/leaderboard/${quizId}`,

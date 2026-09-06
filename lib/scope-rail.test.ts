@@ -142,7 +142,19 @@ test('hvert kallsted sender riktig «current» og riktige lenker', () => {
   const lb = aktivKode('app/leaderboard/[id]/page.tsx')
   assert.match(lb, /global: `\/leaderboard\/\$\{quizId\}`/, 'leaderboard: «Alle» peker ikke på samme quiz uten scope')
   assert.match(lb, /org: o => `\/leaderboard\/\$\{quizId\}\?org=\$\{encodeURIComponent\(o\.orgSlug\)\}`/, 'leaderboard: bedriften peker ikke på samme quiz med ?org=')
-  assert.match(lb, /leagueSlug \? \{ kind: 'league', slug: leagueSlug, name: 'Ligaen' \} : orgSlug \? \{ kind: 'organization', orgSlug \} : \{ kind: 'global' \}/)
+  assert.match(lb, /leagueSlug \? \{ kind: 'league', slug: leagueSlug, name: leagueName \?\? 'Ligaen' \} : orgSlug \? \{ kind: 'organization', orgSlug \} : \{ kind: 'global' \}/)
+})
+
+test('leaderboard: ligaens navn hentes fra /api/leagues-svaret som alt lastes — ikke fra en ny rute', () => {
+  // 7. september 2026: «Ligaen» som fast etikett mens bedriften fikk navnet
+  // sitt var inkonsekvent på samme skinne. Navnet finnes i lista
+  // loadLeagueFriends henter for «Blant venner»; slås opp på slug.
+  const lb = aktivKode('app/leaderboard/[id]/page.tsx')
+  assert.match(lb, /const \[leagueName, setLeagueName\] = useState<string \| null>\(null\)/, 'leagueName-tilstanden mangler')
+  assert.match(lb, /if \(leagueSlug\) setLeagueName\(leagues\.find\(l => l\.slug === leagueSlug\)\?\.name \?\? null\)/, 'navnet slås ikke opp på slug i /api/leagues-svaret')
+  assert.ok(!lb.includes("name: 'Ligaen' }"), 'skinnen bruker den faste etiketten igjen')
+  // Ingen ny henting for navnet: /api/leagues kalles nøyaktig én gang i fila.
+  assert.equal((lb.match(/fetch\('\/api\/leagues'/g) ?? []).length, 1)
 })
 
 test('leaderboard: fanen heter «Alle deltakere», skinnen beholder «Alle»', () => {

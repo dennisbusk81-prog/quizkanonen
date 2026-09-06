@@ -1142,7 +1142,13 @@ export default function OrgAdminPage() {
     // av feil grunn.
     return (
       <>
-        <OrgLockedScreen orgName={data.org.name} orgId={data.org.id} orgSlug={slug} accessToken={session.access_token} />
+        <OrgLockedScreen
+          orgName={data.org.name}
+          orgId={data.org.id}
+          orgSlug={slug}
+          accessToken={session.access_token}
+          isAdmin={(data.members ?? []).some(m => m.user_id === data.currentUserId && m.role === 'admin')}
+        />
       </>
     )
   }
