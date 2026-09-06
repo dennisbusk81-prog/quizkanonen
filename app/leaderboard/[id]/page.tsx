@@ -1316,7 +1316,6 @@ export default function LeaderboardPage() {
       <SiteNav
         variant={orgSlug ? 'org' : 'default'}
         orgSlug={orgSlug ?? undefined}
-        quizId={quiz?.id}
         backQuery={cameFromHistory ? '?hist=1' : undefined}
       />
       <div style={s.wrap}>

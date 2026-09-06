@@ -30,19 +30,14 @@
  * forglemmelse. Alle radene er VARIG: ruter som rendrer sin egen
  * <SiteNav … /> med props layouten ikke kan kjenne (quizId fra server-data,
  * orgName fra fetch, backQuery fra sidehistorikk), pluss admin og selve
- * spillestien. STEG 2-klassen (17 sider med propfri lokal SiteNav) ble
+ * spillestien. Forsiden sto her til 6. september 2026 fordi bare den kjente
+ * quizId for «Spill»; nå henter rot-layouten den (lib/active-quiz.ts) og
+ * forsiden lever av den globale nav-en som alle andre. STEG 2-klassen (17 sider med propfri lokal SiteNav) ble
  * krympet til null i steg 3 (30. august 2026) — de sidene lever nå av den
  * globale nav-en, og lib/global-nav-coverage.test.ts feller både en ny rad
  * uten side og en lokal SiteNav uten rad.
  */
 export const GLOBAL_NAV_OPT_OUT: Record<string, string> = {
-  '/':
-    'VARIG: forsiden er server-komponent og sender quizId til SiteNav ' +
-    'som gir den videre til NavAuth — der spill-knappen faktisk rendres ' +
-    '(«Spill ukens quiz →» på desktop, «Spill nå →» på mobil; SiteNav selv ' +
-    'har ingen slik label). Verdien kommer fra server-hentet quiz-data i ' +
-    'begge returgrenene — props en global klientnav ikke kan kjenne.',
-
   '/quiz/*':
     'VARIG: spillesiden. `phase === \'playing\'` skal ikke ha nav (timeren ' +
     'løper, «kun én gjennomspilling», feiltrykk avslutter forsøket), og ' +

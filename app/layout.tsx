@@ -8,6 +8,8 @@ import GlobalNav from "@/components/GlobalNav";
 import NavErrorBoundary from "@/components/NavErrorBoundary";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ProfileProvider from "@/components/ProfileProvider";
+import ActiveQuizProvider from "@/components/ActiveQuizProvider";
+import { getActiveQuizId } from "@/lib/active-quiz";
 import Link from "next/link";
 // Importstien Vercels egen Next.js-onboarding oppgir — `/next`, ikke `/react`.
 // Pakken eksporterer begge; `/next` er den som er bygget for App Router.
@@ -73,11 +75,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Quizen som er åpen nå — for «Spill» i topplinjen på ALLE sider. Hentet
+  // her (server, cachet 60 s med forsidens tag) fordi bare serveren kjenner
+  // kriteriene: lib/active-quiz.ts speiler forsidens quiz-kort. null gir
+  // ingen lenke, aldri en feil — helperen kaster ikke.
+  const activeQuizId = await getActiveQuizId()
   return (
     <html
       lang="no"
@@ -89,6 +96,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="min-h-full flex flex-col">
+        <ActiveQuizProvider quizId={activeQuizId}>
         <ProfileProvider>
         {/* Global toppnav (B-30/A2 steg 2) — nav er standard på alle ruter;
             opt-out bor i lib/global-nav-routes.ts. Erstatter de pensjonerte
@@ -139,6 +147,7 @@ export default function RootLayout({
           </div>
         </footer>
         </ProfileProvider>
+        </ActiveQuizProvider>
       </body>
     </html>
   );

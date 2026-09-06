@@ -12,6 +12,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
 import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
 import { describePersonalPlan } from '@/lib/personal-plan-label'
+import { decideSubscriptionEntry } from '@/lib/subscription-entry'
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
@@ -136,6 +137,11 @@ export default function ProfilPage() {
   const [nicknameSuccess, setNicknameSuccess] = useState(false)
   // Premium fra delt context (ingen egne premium-status-fetches lenger).
   const { isPremium, hasStripeCustomer, hasUsedTrial, myOrgs, refreshProfile } = useProfile()
+  // Hvilken abonnementsflate brukeren skal se — SAMME beslutning som
+  // kontomenyens «Abonnement»-rad (lib/subscription-entry.ts). Fram til
+  // 6. september 2026 hadde de to flatene hver sin kopi av gaten, og menyen
+  // manglet grenen for utløpt kortløs trial som kortet under fikk i august.
+  const abonnement = decideSubscriptionEntry({ isPremium, hasStripeCustomer, hasUsedTrial })
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarColor, setAvatarColor] = useState<string | null>(null)
   const [memberNumber, setMemberNumber] = useState<number | null>(null)
@@ -1255,11 +1261,10 @@ export default function ProfilPage() {
               betalingsfeil-e-posten vår sender brukeren hit for å oppdatere
               kortet. Ruten /api/stripe/portal har hele tiden gatet på
               stripe_customer_id — det var kun visningen som var feil. */}
-          {(isPremium || hasStripeCustomer) && (
-            <div style={{ ...s.card, marginBottom: 10 }}>
+          {abonnement !== 'none' && (
+            <div id="abonnement" style={{ ...s.card, marginBottom: 10 }}>
               <p style={s.sectionLabel}>Abonnement</p>
-              {hasStripeCustomer ? (
-                !isPremium && hasUsedTrial ? (
+              {abonnement === 'trial-expired' ? (
                   /* Utløpt gratis prøveperiode UTEN kort (founders-activate
                      lager Stripe-kunden kortløst, has_used_trial er merket).
                      Kort-teksten under er usann for denne gruppen — de la
@@ -1275,7 +1280,7 @@ export default function ProfilPage() {
                       Se Premium-funksjoner →
                     </a>
                   </div>
-                ) : (
+                ) : abonnement === 'portal' ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                     <div>
@@ -1312,7 +1317,6 @@ export default function ProfilPage() {
                   </div>
                   {portalError && <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{portalError}</p>}
                 </>
-                )
               ) : (
                 <div>
                   <p style={{ fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>

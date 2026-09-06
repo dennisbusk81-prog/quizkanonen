@@ -162,12 +162,12 @@ test('vakt: flate-oversikten er faktisk bygget', () => {
   // feilen si DET — ikke «alle flatene mangler i registeret».
   assert.ok(FLATER.length >= 45,
     `fant bare ${FLATER.length} page.tsx under app/ — er finnSider ødelagt?`)
-  // ≥ 4, ikke dagens 17: de fire VARIGE prop-sidene (/, /quiz/[id],
-  // /leaderboard/[id], /org/[slug]/admin) beholder lokal SiteNav også etter
-  // steg 3, så denne nedre grensen skal aldri måtte røres igjen.
-  assert.ok(FLATER.filter(f => f.harSiteNav).length >= 4,
+  // ≥ 3: de tre VARIGE prop-sidene (/quiz/[id], /leaderboard/[id],
+  // /org/[slug]/admin) beholder lokal SiteNav. Forsiden var den fjerde til
+  // 6. september 2026 (quizId-prop); nå henter rot-layouten quizId selv.
+  assert.ok(FLATER.filter(f => f.harSiteNav).length >= 3,
     'fant nesten ingen flater med <SiteNav /> — er deteksjonen ødelagt?')
-  assert.ok(Object.keys(GLOBAL_NAV_OPT_OUT).length >= 5,
+  assert.ok(Object.keys(GLOBAL_NAV_OPT_OUT).length >= 4,
     'opt-out-registeret er nesten tomt — er importen fra lib/global-nav-routes brutt?')
 })
 

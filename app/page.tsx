@@ -2,7 +2,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getQuestionStatsByAttempts, countActivePlayersSince } from '@/lib/attempt-answer-stats'
 import PendingActionRedirect from '@/components/PendingActionRedirect'
-import SiteNav from '@/components/SiteNav'
 import OrgCard from '@/components/OrgCard'
 import LeagueCard, { type LeagueCardData } from '@/components/LeagueCard'
 import RivalryCard from '@/components/RivalryCard'
@@ -1624,7 +1623,6 @@ export default async function Home() {
         <style>{SHARED_CSS}</style>
         <PendingActionRedirect />
 
-        <SiteNav quizId={quiz?.id} />
 
         <div className="qk-page">
 
@@ -2056,7 +2054,6 @@ export default async function Home() {
 
       <PendingActionRedirect />
 
-      <SiteNav quizId={activeQuiz?.id} />
 
       <WelcomeBanner />
 

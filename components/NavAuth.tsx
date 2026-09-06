@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -8,82 +8,70 @@ import { signOut } from '@/lib/auth'
 import AuthModal from '@/components/AuthModal'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { useProfile } from '@/components/ProfileProvider'
+import { useActiveQuizId } from '@/components/ActiveQuizProvider'
+import { accountMenuGroups, guestMenuLinks, topLinks, type AccountRow, type NavLink } from '@/lib/nav-model'
 import type React from 'react'
 
-// Konsekvent mønster på tvers av gjest/innlogget: hamburger (☰) betyr alltid
-// "naviger nettstedet" — samme ikon, samme posisjon, samme betydning uansett
-// innloggingsstatus. Identitetsknappen ved siden av betyr alltid "din konto"
-// ("Logg inn" for gjest, avatar-pillen for innlogget). Innlogget bruker har i
-// tillegg den eksisterende konto-dropdownen (Min profil, Mine ligaer,
-// abonnement, Logg ut) — rent kontoinnhold, ingen navigasjonslenker der
-// lenger, siden de nå hører hjemme i hamburgeren sammen med gjeste-varianten.
+// ── Topplinjen og kontomenyen (modellen fra 6. september 2026) ──────────────
+//
+// HVA som står hvor bor i lib/nav-model.ts — rene funksjoner per brukertype,
+// testet i lib/nav-model.test.ts. Denne fila rendrer.
+//
+//   TOPPLINJEN   fire lenker: Spill · Toppliste · For bedrifter/bedriften ·
+//                Quizarkiv. Skjules under 899 px (nav-hide-mobile).
+//   KONTOMENYEN  innlogget brukers ENESTE meny, på alle bredder: alt som ikke
+//                er i topplinjen, gruppert med tynne skillelinjer. Under 899
+//                gjentar den topplinjens fire lenker øverst, så ingenting
+//                forsvinner når raden gjør det.
+//   HAMBURGEREN  finnes KUN for gjest, og kun under 899 px — gjesten har
+//                ingen kontomeny, bare «Logg inn» og, når en quiz er åpen,
+//                «Spill» som står fast også under 899. Wrapperen er display:none
+//                på desktop; fram til 6. september sto den igjen som et tomt
+//                flex-barn og kostet én gap (8 px) i raden uten å gjøre noe.
+//
+// NAVIGASJONSLENKENE ER BEVISST <a>, IKKE <Link>. Full sidelast gir fersk
+// server-data ved seksjonsbytte i stedet for Next sin router-cache (som kan
+// være opptil 30 s gammel), og rydder samtidig klienttilstand. Vurdert og
+// bekreftet under lint-oppryddingen 5. august 2026; en eventuell overgang til
+// <Link prefetch={false}> ligger i backloggen og krever manuell test av
+// spillestien. Unntaket er «Spill» i topplinjen, som alltid har vært <Link>.
+//
+// «Spill» peker på quizen som er åpen nå (useActiveQuizId, fra rot-layouten).
+// Ingen åpen quiz → ingen lenke; se lib/nav-model.ts for hvorfor.
 //
 // (Tidligere forsøk brukte overflow-x:auto på .qk-nav-actions som
 // sikkerhetsnett for smale skjermer — det satte utilsiktet overflow-y: auto
 // også (CSS-spec-oppførsel) og klippet avatar-dropdownens panel. Ingen
-// overflow noe sted i .qk-nav-actions nå, så den bug-klassen er strukturelt
-// umulig å gjenskape.)
-//
-// NAVIGASJONSLENKENE ER BEVISST <a>, IKKE <Link>. Full sidelast gir fersk
-// server-data ved seksjonsbytte i stedet for Next sin router-cache (som kan
-// være opptil 30 s gammel), og rydder samtidig klienttilstand. Mønsteret er
-// konsekvent i hele filen — /toppliste, /bedrift og /profil bruker det også,
-// de flagges bare tilfeldigvis ikke av @next/next/no-html-link-for-pages,
-// som kun kjenner igjen ruter den kan matche mot en dynamisk mappe. Derfor
-// står det målrettede disables på /liga og /historikk: regelen fyrer
-// vilkårlig på et valg som er tatt med vilje. Vurdert og bekreftet under
-// lint-oppryddingen 5. august 2026; en eventuell overgang til
-// <Link prefetch={false}> ligger i backloggen og krever manuell test av
-// spillestien.
-//
-// .qk-mobile-only-inline brukes til å bytte "Spill ukens quiz →" til det
-// kortere "Spill nå →" (samme tekst som forsidens quiz-kort) kun på mobil —
-// gir nok plass til hamburger + Logg inn + knappen samtidig i verste fall.
+// overflow på noen FORELDER av dropdownene; overflow-y på selve panelet
+// (maxHeight-scrollen under) er noe annet og klipper ingenting.)
 //
 // ── HVORFOR GRENSEN ER 899, IKKE 639 (6. september 2026) ────────────────────
 // Invarianten Dennis valgte: en bruker skal se ENTEN hele lenkeraden ELLER
-// hamburgeren — aldri en halv rad. Ved 639 holdt den ikke. Raden har
-// `flex-wrap: nowrap` og `flex-shrink: 0` på både logo og lenkegruppe, og
-// ingen forfar setter `overflow`, så en rad som ikke får plass brytes ikke og
-// klippes ikke — den renner ut til høyre og skyver konto-pillen delvis av
-// skjermen. Målt mot produksjon: ved 640 px lå 85 px av pillen utenfor.
+// hamburgeren/kontomenyen — aldri en halv rad. Raden har `flex-wrap: nowrap`
+// og `flex-shrink: 0` på både logo og lenkegruppe, og ingen forfar setter
+// `overflow`, så en rad som ikke får plass brytes ikke og klippes ikke — den
+// renner ut til høyre og skyver konto-pillen delvis av skjermen.
 //
-// Målte behov (layoutbredde = viewport minus vertikal scrollbar, fonter
-// ferdig lastet):
-//   gjest                                    508
-//   innlogget uten bedrift                   615
-//   org-medlem                               657
-//   org-admin                                745
-//   org-admin på forsiden med åpen quiz      809   ← bredeste som FINNES i prod
-//   admin i TO bedrifter                     861   ← finnes ikke i dag
-//
-// 809 er bredeste reelle profil, og den inneholder INGEN brukerskrevet tekst:
-// med nøyaktig én admin-org rendres den faste etiketten «Bedriftspanel», ikke
-// org-navnet. Org-navn kommer først inn i raden når noen er admin i to org-er.
-// Målt i prod 6. september 2026: 1 organisasjon, 30 medlemskap, 1 admin,
-// 0 brukere med mer enn ett medlemskap. Den profilen finnes altså ikke ennå.
-//
-// Valget landet likevel på 899 og ikke 809+margin, av en STRUKTURELL grunn:
 // `innerStyle` i SiteNav har `max-width: 900`. Under 900 følger beholderen
 // viewporten, ved 900 og oppover står den fast på 900 px (860 px innhold).
 // 900 er derfor den ENESTE grensen der «får plass ved grensen» også betyr
 // «får plass på hver eneste bredere skjerm» — over den endrer ingenting seg.
-// Ved 900 trenger to-bedrifts-admin 821 av 860 px, altså 39 px klaring, så
-// grensen dekker også den profilen den dagen den oppstår.
 //
-// ÅPEN RISIKO, bevisst ikke løst her: org-navnene i raden har ingen
-// maks-bredde. En admin i to bedrifter med lange navn sprenger enhver grense
-// — validatoren tillater 60 tegn per navn. Riktig svar der er avkorting med
-// ellipse på de lenkene, samme behandling som avatar-navnet allerede har
-// (`maxWidth: 110`), ikke et høyere brytepunkt. Egen sak.
+// Målte behov med den nye raden (headless Chrome, webfontene lastet,
+// kalibrert mot produksjon 6. september 2026):
+//   gjest, åpen quiz                           498
+//   innlogget uten bedrift, åpen quiz          588
+//   org-medlem (Elkjøp Nordic), åpen quiz      592
+//   klemt org-navn + langt brukernavn + quiz   658   ← verste som kan finnes
+// Alle under 900 med god margin (admin-lenkene bor i kontomenyen, og en
+// bruker med flere bedrifter får bare den første i topplinjen). Dagens rad (før omleggingen) trengte 931
+// for en admin i to bedrifter på forsiden med åpen quiz — invarianten holdt
+// altså ikke for den profilen, selv om den ikke finnes i prod ennå.
 const NAV_MOBILE_CSS = `
-  .qk-nav-hamburger-btn { display: none; }
-  .qk-mobile-only-inline { display: none; }
+  .qk-nav-hamburger { display: none; }
   @media (max-width: 899px) {
     .nav-hide-mobile { display: none !important; }
-    .qk-nav-hamburger-btn { display: inline-flex !important; }
-    .qk-mobile-only-inline { display: inline !important; }
-    .qk-desktop-only-inline { display: none !important; }
+    .qk-nav-hamburger { display: block !important; }
   }
 `
 
@@ -96,22 +84,20 @@ function formatPeriodDate(unix: number): string {
 }
 
 // ── BRUKERSKREVET TEKST I NAV-EN MÅ AVKORTES (6. september 2026) ────────────
-// Org-navnet er det ENESTE brukerskrevne som kan havne i navigasjonsraden, og
-// det skjer kun når noen er admin i mer enn én bedrift (med nøyaktig én
-// rendres den faste etiketten «Bedriftspanel»). `validateOrgName` tillater 60
-// tegn, så to slike navn kunne dyttet raden ~800 px bredere enn målt — og
-// dermed sprengt hamburgergrensen uansett hvor den står. Et høyere brytepunkt
-// kan ikke løse et ubegrenset tall; avkorting kan.
+// Org-navnet er det ENESTE brukerskrevne som kan havne i navigasjonsraden:
+// topplinjens bedrifts-slot bærer navnet, og kontomenyen viser navn per rad
+// når brukeren har flere bedrifter. `validateOrgName` tillater 60 tegn, så et
+// slikt navn kunne dyttet raden langt forbi hamburgergrensen uansett hvor den
+// står. Et høyere brytepunkt kan ikke løse et ubegrenset tall; avkorting kan.
 //
 // Samme behandling som avatar-navnet i konto-knappen lenger nede: maks-bredde
 // + ellipse + nowrap. Ikke et nytt mønster, samme mønster. Verdien er den
-// samme (110) av samme grunn — to avkortede navn koster da maks 220 px, som
-// holder raden innenfor grensen med margin.
+// samme (110) av samme grunn.
 //
-// Gjelder BEGGE stedene org-navnet rendres: topplinjen og hamburgeren.
-// Hamburgeren har samme feilklasse — `menuItem` er `whiteSpace: nowrap` uten
-// maks-bredde, så et langt navn ville gjort hele dropdownen bredere enn en
-// mobilskjerm.
+// I kontomenyen sitter klemmen på en INNER span, ikke på menyraden selv —
+// `menuItem` er `width: 100%` med padding, så en maks-bredde der ville
+// krympet hele den klikkbare raden til 110 px. `display: block` fordi ellipse
+// krever en blokkboks; i topplinjen er lenken flex-barn og får det gratis.
 const ORG_NAME_MAX_WIDTH = 110
 const orgNameClamp: React.CSSProperties = {
   maxWidth: ORG_NAME_MAX_WIDTH,
@@ -129,17 +115,110 @@ const menuItem: React.CSSProperties = {
   boxSizing: 'border-box', whiteSpace: 'nowrap',
 }
 
-export default function NavAuth({ quizId }: { quizId?: string }) {
+const menuButton: React.CSSProperties = {
+  ...menuItem,
+  border: 'none', cursor: 'pointer',
+}
+
+// ── Menyene må få plass i viewporten (6. september 2026) ────────────────────
+// Kontomenyen er nå innlogget brukers ENESTE meny og har opptil elleve rader
+// pluss hode: målt 521 px høy for en org-admin med åpen quiz. På en telefon i
+// liggende format (667×375) rakk den 206 px UTENFOR skjermen, og «Logg ut»
+// nederst var uklikkbar. Panelet ligger 60 px fra toppen (nav 54 + 6), så
+// maks-høyden er resten av viewporten minus 6 px luft; innholdet scroller
+// inne i panelet. dvh følger mobilnettleserens adressefelt; nettlesere
+// uten dvh-støtte (Safari < 15.4) får ingen maks-høyde — som før.
+// Alternativet, et fullskjerm-ark under en viss høyde, er rapportert som
+// forslag og ikke valgt her: scroll krever ingen ny flate og ingen ny
+// lukkemekanikk.
+const dropdownPanel: React.CSSProperties = {
+  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+  background: '#21242e', border: '0.5px solid #2a2d38',
+  borderRadius: 12, padding: 6, minWidth: 170,
+  boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+  zIndex: 9000,
+  maxHeight: 'calc(100dvh - 66px)', overflowY: 'auto',
+}
+
+const menuDivider: React.CSSProperties = { height: '0.5px', background: '#2a2d38', margin: '4px 6px' }
+
+const navLink: React.CSSProperties = {
+  fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
+  fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
+}
+
+const toplisteLinkStyle: React.CSSProperties = {
+  ...navLink, fontSize: 14,
+}
+
+const spillLinkStyle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600,
+  color: '#e8e4dd', background: 'transparent',
+  textDecoration: 'none', padding: '6px 14px',
+  borderRadius: 10, border: '1px solid #918f8a',
+  whiteSpace: 'nowrap', fontFamily: "var(--font-instrument-sans), sans-serif",
+  transition: 'border-color 0.15s, color 0.15s',
+}
+
+const premiumBadge: React.CSSProperties = {
+  marginLeft: 8, fontSize: 10, fontWeight: 700,
+  letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: '#c9a84c', background: 'rgba(201,168,76,0.1)',
+  border: '1px solid rgba(201,168,76,0.2)',
+  borderRadius: 999, padding: '2px 8px',
+}
+
+function hoverBg(e: React.MouseEvent<HTMLElement>, bg: string) {
+  e.currentTarget.style.background = bg
+}
+
+/**
+ * Én topplinje-lenke. Stilen følger nøkkelen: Spill er outline-knapp,
+ * Toppliste 14 px, org-navn klemt. `alwaysVisible` holder lenken synlig
+ * også under 899 — brukes KUN for gjestens «Spill» (se lib/nav-model.ts).
+ */
+function TopLink({ link, alwaysVisible = false }: { link: NavLink; alwaysVisible?: boolean }) {
+  if (link.key === 'spill') {
+    return (
+      <Link href={link.href} className={alwaysVisible ? undefined : 'nav-hide-mobile'} style={spillLinkStyle}>
+        {link.label}
+      </Link>
+    )
+  }
+  const style = link.key === 'toppliste'
+    ? toplisteLinkStyle
+    : link.clamp ? { ...navLink, ...orgNameClamp } : navLink
+  return (
+    <a href={link.href} className="nav-hide-mobile" style={style}>
+      {link.label}
+    </a>
+  )
+}
+
+/** Én menyrad (hamburger eller kontomeny). */
+function MenuRow({ link, onClick }: { link: NavLink & { badge?: 'premium' }; onClick: () => void }) {
+  return (
+    <a
+      href={link.href}
+      onClick={onClick}
+      style={menuItem}
+      onMouseEnter={e => hoverBg(e, '#262930')}
+      onMouseLeave={e => hoverBg(e, 'none')}
+    >
+      {link.clamp ? <span style={{ ...orgNameClamp, display: 'block' }}>{link.label}</span> : link.label}
+      {link.badge === 'premium' && <span style={premiumBadge}>Premium</span>}
+    </a>
+  )
+}
+
+export default function NavAuth() {
   const pathname = usePathname()
-  // All profil-/premium-/org-tilstand kommer nå fra delt context (ProfileProvider).
-  const { userId, displayName, isPremium, hasStripeCustomer, myOrgs, loading, resolved } = useProfile()
+  const activeQuizId = useActiveQuizId()
+  // All profil-/premium-/org-tilstand kommer fra delt context (ProfileProvider).
+  const { userId, displayName, isPremium, hasStripeCustomer, hasUsedTrial, myOrgs, loading, resolved } = useProfile()
   const isLoggedIn = userId !== null
   const sessionResolved = resolved
   const profileLoaded = !loading
-  // ALLE admin-orger, ikke bare den første: en bruker som er admin i to
-  // bedrifter skal ha inngang til begge panelene (flyttet fra UserMenus
-  // dropdown, B-30/A2 steg 1, 30. august 2026).
-  const adminOrgs = myOrgs.filter(o => o.isAdmin)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
@@ -147,17 +226,14 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
   const [portalError, setPortalError] = useState<string | null>(null)
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  // Hamburger (navigasjon) er en egen meny fra konto-dropdownen over — for
-  // innlogget bruker kan begge være i DOM-en samtidig, så de trenger uavhengig
-  // state/ref. For gjest finnes kun hamburgeren.
+  // Gjestens hamburger. Egen state/ref fra kontomenyen: de finnes aldri
+  // samtidig (gjest har kun hamburger, innlogget kun kontomeny), men deler
+  // heller ikke livssyklus.
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
   const hamburgerRef = useRef<HTMLDivElement>(null)
 
-  // Fornyelses-/avslutningsdatoen i dropdown-hodet (flyttet fra UserMenu,
-  // B-30/A2 steg 1). Hentes LAZY — først når dropdownen faktisk åpnes, og
-  // høyst én gang per montering. UserMenu fyrte dette kallet ved mount på
-  // HVER sidelast for Premium-brukere (effekten lå før skjule-sjekken, så
-  // pathname-listen skjulte kun renderingen, ikke kallet); datoen er bare
+  // Fornyelses-/avslutningsdatoen i dropdown-hodet. Hentes LAZY — først når
+  // dropdownen faktisk åpnes, og høyst én gang per montering. Datoen er bare
   // synlig inne i den åpne dropdownen, så mount-henting var ren sløsing.
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ current_period_end: number | null, cancel_at_period_end: boolean } | null>(null)
   const subscriptionRequested = useRef(false)
@@ -239,49 +315,27 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
   if (!sessionResolved) return null
 
-  const navLink: React.CSSProperties = {
-    fontSize: 13, color: '#e8e4dd', textDecoration: 'none',
-    fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
-  }
-
-  const toplisteLinkStyle: React.CSSProperties = {
-    fontSize: 14, color: '#e8e4dd', textDecoration: 'none',
-    fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap',
-  }
+  const navInput = { loggedIn: isLoggedIn, activeQuizId, pathname, myOrgs }
+  const topplinje = topLinks(navInput)
 
   // ── Not logged in ──
   if (!isLoggedIn) {
     return (
       <>
         <style>{NAV_MOBILE_CSS}</style>
-        <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>
-        {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-            server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-            — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a href="/liga" style={navLink} className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >Ligaer</a>
-        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >For bedrifter</a>
-        <a href="/slik-fungerer-det" style={navLink} className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >Slik fungerer det</a>
+        {/* Gjestens «Spill» står fast også under 899: en fremmed fra en delt
+            lenke skal se veien til quizen uten å åpne en meny. Målt: raden
+            trenger 326 px med den, får plass på 375. */}
+        {topplinje.map(l => <TopLink key={l.key} link={l} alwaysVisible={l.key === 'spill'} />)}
 
-        {/* Hamburger — "naviger nettstedet". Egen inngang til Toppliste,
-            For bedrifter og Ligaer siden de er skjult i topplinjen under 900px,
-            samt Slik fungerer det/Quizer som kun finnes her. */}
-        <div ref={hamburgerRef} style={{ position: 'relative' }}>
+        {/* Hamburger — gjestens eneste meny, kun under 899 px. */}
+        <div ref={hamburgerRef} className="qk-nav-hamburger" style={{ position: 'relative' }}>
           <button
-            className="qk-nav-hamburger-btn"
             onClick={() => setHamburgerOpen(o => !o)}
             aria-label="Meny"
+            aria-expanded={hamburgerOpen}
             style={{
-              alignItems: 'center', justifyContent: 'center',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 34, height: 34, background: 'transparent',
               border: '1px solid #2a2d38', borderRadius: 10,
               cursor: 'pointer', flexShrink: 0,
@@ -292,47 +346,10 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             </svg>
           </button>
           {hamburgerOpen && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-              background: '#21242e', border: '0.5px solid #2a2d38',
-              borderRadius: 12, padding: 6, minWidth: 170,
-              boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
-              zIndex: 9000,
-            }}>
-              <a href="/toppliste" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Toppliste
-              </a>
-              <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                For bedrifter
-              </a>
-              {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-                  server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-                  — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-              <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Ligaer
-              </a>
-              <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Slik fungerer det
-              </a>
-              <a href="/quizer" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Quizer
-              </a>
+            <div style={dropdownPanel}>
+              {guestMenuLinks(navInput).map(l => (
+                <MenuRow key={l.key} link={l} onClick={() => setHamburgerOpen(false)} />
+              ))}
             </div>
           )}
         </div>
@@ -341,17 +358,17 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
             for innlogget bruker (se under), alltid synlig, aldri gjemt i
             hamburgeren.
 
-            Åpner AuthModal i stedet for å navigere til /login (flyttet fra
-            UserMenus gjeste-knapp, B-30/A2 steg 1): innlogging uten å forlate
-            siden brukeren står på. Unntak på selve /login — en modal oppå
-            innloggingssiden gir ingen mening, der beholdes lenke-atferden. */}
+            Åpner AuthModal i stedet for å navigere til /login: innlogging
+            uten å forlate siden brukeren står på. Unntak på selve /login — en
+            modal oppå innloggingssiden gir ingen mening, der beholdes
+            lenke-atferden. */}
         {pathname === '/login' ? (
-          <a href="/login" style={{ ...navLink, color: '#e8e4dd' }}>Logg inn</a>
+          <a href="/login" style={navLink}>Logg inn</a>
         ) : (
           <button
             onClick={() => setAuthModalOpen(true)}
             style={{
-              ...navLink, color: '#e8e4dd', background: 'none',
+              ...navLink, background: 'none',
               border: 'none', padding: 0, cursor: 'pointer',
             }}
           >
@@ -359,201 +376,48 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
           </button>
         )}
         <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-
-        {quizId && (
-          <Link
-            href={`/quiz/${quizId}`}
-            style={{
-              fontSize: 13, fontWeight: 600,
-              color: '#e8e4dd', background: 'transparent',
-              textDecoration: 'none', padding: '6px 14px',
-              borderRadius: 10, border: '1px solid #918f8a',
-              whiteSpace: 'nowrap', fontFamily: "var(--font-instrument-sans), sans-serif",
-              transition: 'border-color 0.15s, color 0.15s',
-            }}
-          >
-            <span className="qk-desktop-only-inline">Spill ukens quiz →</span>
-            <span className="qk-mobile-only-inline">Spill nå →</span>
-          </Link>
-        )}
       </>
     )
   }
 
   const initial = getAvatarInitial(displayName)
+  const grupper = accountMenuGroups({ ...navInput, profileLoaded, isPremium, hasStripeCustomer, hasUsedTrial })
 
-  const globalHidden = myOrgs.length > 0 && myOrgs.some(o => !o.allowGlobalLeague)
+  function renderRow(row: AccountRow) {
+    if (row.kind === 'portal') {
+      return (
+        <div key={row.key}>
+          <button
+            onClick={handlePortal}
+            style={menuButton}
+            onMouseEnter={e => hoverBg(e, '#262930')}
+            onMouseLeave={e => hoverBg(e, 'none')}
+          >
+            {portalLoading ? 'Åpner…' : row.label}
+          </button>
+          {portalError && (
+            <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
+              {portalError}
+            </p>
+          )}
+        </div>
+      )
+    }
+    return <MenuRow key={row.key} link={row} onClick={() => setDropdownOpen(false)} />
+  }
 
   // ── Logged in ──
   return (
     <>
       <style>{NAV_MOBILE_CSS}</style>
-      {quizId && (
-        <Link
-          href={`/quiz/${quizId}`}
-          className="nav-hide-mobile"
-          style={{
-            fontSize: 13, fontWeight: 600,
-            color: '#e8e4dd', background: 'transparent',
-            textDecoration: 'none', padding: '6px 14px',
-            borderRadius: 10, border: '1px solid #918f8a',
-            whiteSpace: 'nowrap', fontFamily: "var(--font-instrument-sans), sans-serif",
-            transition: 'border-color 0.15s, color 0.15s',
-          }}
-        >
-          Spill
-        </Link>
-      )}
-      {!globalHidden && <a href="/toppliste" style={toplisteLinkStyle} className="qk-nav-toppliste nav-hide-mobile">Toppliste</a>}
-      {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-          server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-          — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a href="/liga" style={navLink} className="nav-hide-mobile"
-        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-      >Ligaer</a>
-      {/* Bedriftens toppliste — for org-medlemmer. "For bedrifter" vises kun uten org-medlemskap (gjensidig utelukkende). */}
-      {myOrgs.length > 0 ? (
-        <a
-          href={`/org/${myOrgs[0].orgSlug}`}
-          style={navLink}
-          className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >
-          Bedriftens toppliste
-        </a>
-      ) : (
-        <a href="/bedrift" style={navLink} className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >For bedrifter</a>
-      )}
-      {/* Bedriftspanel — kun for org-admins. Mapper over ALLE admin-orger
-          (samme konvensjon som UserMenus dropdown hadde): én org → generisk
-          «Bedriftspanel», flere → org-navnet per lenke, ellers ville bare den
-          første bedriften vært nåbar. */}
-      {adminOrgs.map(org => (
-        <a
-          key={org.orgSlug}
-          href={`/org/${org.orgSlug}/admin`}
-          style={{ ...navLink, ...orgNameClamp }}
-          className="nav-hide-mobile"
-          onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-          onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-        >
-          {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
-        </a>
-      ))}
-      <a href="/slik-fungerer-det" style={navLink} className="nav-hide-mobile"
-        onMouseEnter={e => e.currentTarget.style.color = '#e8e4dd'}
-        onMouseLeave={e => e.currentTarget.style.color = '#e8e4dd'}
-      >Slik fungerer det</a>
-
-      {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
-          hos gjest. Eneste vei til Toppliste/For bedrifter/Ligaer/Min
-          bedrift/Bedriftspanel under 900px (skjult i topplinjen der),
-          samt Slik fungerer det/Quizer som kun finnes her. Kontodropdownen
-          under inneholder fortsatt kun kontoinnhold (profil, ligaer,
-          abonnement, logg ut) — "Mine ligaer" der er en bevisst duplisering
-          med samme presedens som Bedriftens toppliste/For bedrifter. */}
-      <div ref={hamburgerRef} style={{ position: 'relative' }}>
-        <button
-          className="qk-nav-hamburger-btn"
-          onClick={() => setHamburgerOpen(o => !o)}
-          aria-label="Meny"
-          style={{
-            alignItems: 'center', justifyContent: 'center',
-            width: 34, height: 34, background: 'transparent',
-            border: '1px solid #2a2d38', borderRadius: 10,
-            cursor: 'pointer', flexShrink: 0,
-          }}
-        >
-          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-            <path d="M1 1H15M1 6H15M1 11H15" stroke="#e8e4dd" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
-        {hamburgerOpen && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-            background: '#21242e', border: '0.5px solid #2a2d38',
-            borderRadius: 12, padding: 6, minWidth: 170,
-            boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
-            zIndex: 9000,
-          }}>
-            {!globalHidden && (
-              <a href="/toppliste" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Toppliste
-              </a>
-            )}
-            {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-                server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-                — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/liga" onClick={() => setHamburgerOpen(false)} style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Ligaer
-            </a>
-            {myOrgs.length > 0 ? (
-              <a href={`/org/${myOrgs[0].orgSlug}`} onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Bedriftens toppliste
-              </a>
-            ) : (
-              <a href="/bedrift" onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                For bedrifter
-              </a>
-            )}
-            {adminOrgs.map(org => (
-              <a key={org.orgSlug} href={`/org/${org.orgSlug}/admin`} onClick={() => setHamburgerOpen(false)} style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                {/* Klemmen sitter på en INNER span, ikke på menyraden selv —
-                    `menuItem` er `width: 100%` med padding, så en maks-bredde
-                    der ville krympet hele den klikkbare raden til 110 px og
-                    gjort den smalere enn søsknene sine. Avatar-navnet gjør
-                    nøyaktig det samme: knappen er full bredde, spannet inni
-                    er klemt. `display: block` fordi ellipse krever en
-                    blokkboks — i topplinjen er lenken flex-barn og får det
-                    gratis, her er den det ikke. */}
-                <span style={{ ...orgNameClamp, display: 'block' }}>
-                  {adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName}
-                </span>
-              </a>
-            ))}
-            <a href="/slik-fungerer-det" onClick={() => setHamburgerOpen(false)} style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Slik fungerer det
-            </a>
-            <a href="/quizer" onClick={() => setHamburgerOpen(false)} style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Quizer
-            </a>
-          </div>
-        )}
-      </div>
+      {topplinje.map(l => <TopLink key={l.key} link={l} />)}
 
       {/* Identitetsknapp — "din konto", samme posisjon som "Logg inn" hos
-          gjest. Dropdownen under inneholder nå kun kontoinnhold. */}
+          gjest. Dropdownen under er innlogget brukers ENESTE meny. */}
       <div ref={dropdownRef} style={{ position: 'relative' }}>
         <button
           onClick={() => setDropdownOpen(o => !o)}
+          aria-expanded={dropdownOpen}
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
             background: '#21242e', border: '1px solid #2a2d38',
@@ -588,19 +452,11 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         </button>
 
         {dropdownOpen && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-            background: '#21242e', border: '0.5px solid #2a2d38',
-            borderRadius: 12, padding: 6, minWidth: 170,
-            boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
-            zIndex: 9000,
-          }}>
+          <div className="qk-account-menu" style={dropdownPanel}>
             {/* Kontohodet — «Innlogget som», Premium-/Gratis-merket og
-                fornyelsesdatoen (flyttet fra UserMenu, B-30/A2 steg 1).
-                profileLoaded-gaten på merket hindrer at en Premium-bruker ser
-                «Gratis» i blaffet før profilen har landet; navnet over
-                gaten vises med én gang. Datoen kommer fra den lazy hentingen
-                øverst i fila og vises kun når den faktisk landet. */}
+                fornyelsesdatoen. profileLoaded-gaten på merket hindrer at en
+                Premium-bruker ser «Gratis» i blaffet før profilen har landet;
+                navnet over gaten vises med én gang. */}
             <div style={{
               padding: '8px 10px 10px',
               borderBottom: '0.5px solid #2a2d38',
@@ -631,155 +487,16 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                 </span>
               ))}
             </div>
-            <a
-              href="/profil"
-              onClick={() => setDropdownOpen(false)}
-              style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Min profil
-            </a>
-            {/* Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-                server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-                — se toppkommentaren og lint-oppryddingen 5. august 2026. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a
-              href="/liga"
-              onClick={() => setDropdownOpen(false)}
-              style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Mine ligaer
-            </a>
-            {/* Arkivet — BEVISST uten lås-badge og UTENFOR profileLoaded-gaten,
-                til forskjell fra Quizhistorikk rett under.
 
-                /arkiv-LISTEN er ugatet med vilje: en gratisbruker ser hele
-                listen med «Premium»-piller der «Spill» ville stått, pluss et
-                forklaringskort. Det er selve konverteringsflaten. En lås her
-                ville sagt at siden er stengt, og dermed ført gratisbrukeren
-                bort fra den ene flaten som er bygget for å konvertere hen.
-                Arkivet er ikke låst — det er SPILLINGEN av en arkivquiz som
-                krever Premium, og den låsen står allerede på hver rad inne
-                på siden.
+            {/* Gruppene fra lib/nav-model.ts, skilt med tynne linjer. */}
+            {grupper.map((gruppe, i) => (
+              <div key={i}>
+                {i > 0 && <div style={menuDivider} />}
+                {gruppe.map(renderRow)}
+              </div>
+            ))}
 
-                Uten badge trenger lenken heller ingen isPremium-verdi, og
-                da er profileLoaded-gaten unødvendig: den finnes for å hindre
-                at en Premium-bruker ser låst variant i blaffet før profilen
-                har landet. Her finnes ingen låst variant.
-
-                Bevisst hard navigasjon, ikke <Link> — samme mønster som resten
-                av menyen, se toppkommentaren. */}
-            <a
-              href="/arkiv"
-              onClick={() => setDropdownOpen(false)}
-              style={menuItem}
-              onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              Quizarkiv
-            </a>
-            {profileLoaded && (
-              // Bevisst hard navigasjon, ikke <Link>: full sidelast gir fersk
-              // server-data i stedet for Next sin router-cache. Ikke en forglemmelse
-              // — se toppkommentaren og lint-oppryddingen 5. august 2026.
-              //
-              // Vises nå også for gratis (22. august 2026) — låst, med /premium
-              // som mål og lås-badge etter forsidens historikk-flis-mønster.
-              // Samme endring som i UserMenu.tsx (andre kopi av samme meny).
-              // profileLoaded-gaten hindrer at en Premium-bruker ser låst
-              // variant i blaffet før profilen har landet.
-              <a
-                href={isPremium ? '/historikk' : '/premium'}
-                onClick={() => setDropdownOpen(false)}
-                style={menuItem}
-                onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                Quizhistorikk
-                {!isPremium && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, fontWeight: 700,
-                    letterSpacing: '0.1em', textTransform: 'uppercase',
-                    color: '#c9a84c', background: 'rgba(201,168,76,0.1)',
-                    border: '1px solid rgba(201,168,76,0.2)',
-                    borderRadius: 999, padding: '2px 8px',
-                  }}>
-                    Premium
-                  </span>
-                )}
-              </a>
-            )}
-            {/* Samme utvidelse som i UserMenu.tsx og /profil: inngangen til
-                Stripe-portalen henger på hasStripeCustomer, ikke på isPremium.
-                Denne filen sto ikke i bestillingen, men er den tredje kopien av
-                nøyaktig samme gate — en bruker med avvist kort ville ellers
-                fortsatt vært uten vei til kortoppdateringen herfra. */}
-            {profileLoaded && (
-              <>
-                {!hasStripeCustomer ? (
-                  isPremium ? (
-                    <div style={{ padding: '6px 10px 10px', borderTop: '0.5px solid #2a2d38', marginTop: 4 }}>
-                      <p style={{ fontSize: 11, color: '#e8e4dd', lineHeight: 1.5, marginBottom: 6 }}>
-                        Du har gratis Premium-tilgang. Abonnementsadministrasjon er tilgjengelig når du tegner et betalt abonnement.
-                      </p>
-                      <a
-                        href="/premium"
-                        onClick={() => setDropdownOpen(false)}
-                        style={{ fontSize: 11, color: '#e8e4dd', textDecoration: 'underline' }}
-                      >
-                        Se Premium-funksjoner →
-                      </a>
-                    </div>
-                  ) : (
-                    // Gratis bruker uten Stripe-kunde hadde ingenting her —
-                    // UserMenu hadde konverteringsinngangen (flyttet hit,
-                    // B-30/A2 steg 1). Gull er bevisst: samme farge som
-                    // «Mitt abonnement»-linjen den deler plass med.
-                    <a
-                      href="/premium"
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        padding: '8px 10px', background: 'none', border: 'none',
-                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                        fontFamily: "var(--font-instrument-sans), sans-serif",
-                        textDecoration: 'none', transition: 'background 0.12s',
-                        boxSizing: 'border-box', whiteSpace: 'nowrap',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      Oppgrader til Premium
-                    </a>
-                  )
-                ) : (
-                  <>
-                    <button
-                      onClick={handlePortal}
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        padding: '8px 10px', background: 'none', border: 'none',
-                        borderRadius: 8, fontSize: 13, color: '#c9a84c',
-                        fontFamily: "var(--font-instrument-sans), sans-serif",
-                        cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#262930'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      Mitt abonnement
-                    </button>
-                    {portalError && (
-                      <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 8px', margin: 0, lineHeight: 1.4 }}>
-                        {portalError}
-                      </p>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-            <div style={{ height: '0.5px', background: '#2a2d38', margin: '4px 6px' }} />
+            <div style={menuDivider} />
             {signOutError && (
               <p style={{ fontSize: 11, color: '#f87171', padding: '0 10px 6px', margin: 0, lineHeight: 1.4 }}>
                 {signOutError}
@@ -797,15 +514,9 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
                   setTimeout(() => setSignOutError(null), 4000)
                 }
               }}
-              style={{
-                display: 'block', width: '100%', textAlign: 'left',
-                padding: '8px 10px', background: 'none', border: 'none',
-                borderRadius: 8, fontSize: 13, color: '#f87171',
-                fontFamily: "var(--font-instrument-sans), sans-serif",
-                cursor: 'pointer', transition: 'background 0.12s', whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              style={{ ...menuButton, color: '#f87171' }}
+              onMouseEnter={e => hoverBg(e, 'rgba(248,113,113,0.08)')}
+              onMouseLeave={e => hoverBg(e, 'none')}
             >
               Logg ut
             </button>

@@ -240,9 +240,10 @@ test('aktivKode fjerner kommentarer, men ikke kode', () => {
 
 // ── D: org-navn i nav-en er avkortet (6. september 2026) ────────────────────
 //
-// Org-navnet er det ENESTE brukerskrevne som kan havne i navigasjonsraden, og
-// bare når noen er admin i MER ENN én bedrift — med nøyaktig én rendres den
-// faste etiketten «Bedriftspanel». `validateOrgName` tillater 60 tegn, så to
+// Org-navnet er det ENESTE brukerskrevne som kan havne i navigasjonsraden:
+// topplinjens bedrifts-slot bærer navnet for hvert org-medlem (6. september
+// 2026), og kontomenyen viser navn per rad når noen er medlem eller admin i
+// MER ENN én bedrift. `validateOrgName` tillater 60 tegn, så to
 // slike navn kunne dyttet raden langt forbi hamburgergrensen uansett hvor den
 // står. Et brytepunkt er et tall; et navn er ubegrenset. Derfor avkorting.
 //
@@ -253,9 +254,9 @@ test('aktivKode fjerner kommentarer, men ikke kode', () => {
 //
 // MUTASJONSBEVIS:
 //   • Klemmen fjernes fra topplinjen → «topplinjen avkorter» ryker.
-//   • Klemmen fjernes fra hamburgeren → «hamburgeren avkorter» ryker.
+//   • Klemmen fjernes fra menyradene → «menyraden klemmer en INNER span» ryker.
 //   • maxWidth heves → «samme verdi som avatar-navnet» ryker.
-//   • Klemmen flyttes fra span-en til selve menyraden → «hamburgeren klemmer
+//   • Klemmen flyttes fra span-en til selve menyraden → «menyraden klemmer
 //     en INNER span» ryker (en maks-bredde på raden krymper hele den
 //     klikkbare flaten, ikke bare teksten).
 
@@ -297,24 +298,27 @@ test('D: maks-bredden er SAMME verdi som avatar-navnets', () => {
   )
 })
 
-test('D: topplinjens org-lenke bruker klemmen', () => {
+test('D: topplinjens org-lenke bruker klemmen når modellen ber om det', () => {
+  // TopLink er den ene rendereren for topplinjen. Modellen setter
+  // `clamp: true` på org-navnet (lib/nav-model.test.ts); her voktes at
+  // rendereren faktisk oversetter flagget til orgNameClamp.
   const nav = aktivKode('components/NavAuth.tsx')
   assert.match(
     nav,
-    /style=\{\{ \.\.\.navLink, \.\.\.orgNameClamp \}\}/,
-    'org-lenken i topplinjen avkorter ikke lenger — et 60-tegns navn sprenger raden igjen'
+    /link\.clamp \? \{ \.\.\.navLink, \.\.\.orgNameClamp \} : navLink/,
+    'TopLink avkorter ikke lenger klemte lenker — et 60-tegns org-navn sprenger raden igjen'
   )
 })
 
-test('D: hamburgeren klemmer en INNER span, ikke selve menyraden', () => {
+test('D: menyraden klemmer en INNER span, ikke selve raden', () => {
   // `menuItem` er `width: 100%` med padding. En maks-bredde DER krymper hele
   // den klikkbare raden til 110 px og gjør den smalere enn søsknene. Avatar
   // gjør det riktig: knappen er full bredde, spannet inni er klemt.
   const nav = aktivKode('components/NavAuth.tsx')
   assert.match(
     nav,
-    /<span style=\{\{ \.\.\.orgNameClamp, display: 'block' \}\}>/,
-    'hamburgerens org-navn klemmes ikke av en inner span'
+    /link\.clamp \? <span style=\{\{ \.\.\.orgNameClamp, display: 'block' \}\}>\{link\.label\}<\/span> : link\.label/,
+    'MenuRow klemmer ikke org-navn med en inner span'
   )
   assert.ok(
     !/style=\{\{ \.\.\.menuItem, \.\.\.orgNameClamp \}\}/.test(nav),
@@ -322,35 +326,20 @@ test('D: hamburgeren klemmer en INNER span, ikke selve menyraden', () => {
   )
 })
 
-test('D: begge stedene som rendrer org-navnet er dekket', () => {
-  // Tellingen er vakten mot en TREDJE forekomst som glemmer klemmen.
+test('D: hvert sted modellen rendrer et org-navn er merket clamp, og NavAuth har ingen egne', () => {
+  // Org-navnet er brukerskrevet. Modellen (lib/nav-model.ts) er det ENESTE
+  // stedet det havner i en etikett, og hver slik forekomst må bære
+  // `clamp: true` — ellers rendres den uten maks-bredde og sprenger raden
+  // uansett hvor hamburgergrensen står.
+  const modell = aktivKode('lib/nav-model.ts')
+  const linjer = modell.split('\n').filter(l => l.includes('label: org.orgName'))
+  assert.equal(linjer.length, 3, `org-navnet brukes som etikett ${linjer.length} steder i modellen, ventet 3 (topplinje, Bedriften ×flere, Bedriftspanel ×flere)`)
+  for (const l of linjer) {
+    assert.ok(l.includes('clamp: true'), `org-navn uten clamp i lib/nav-model.ts: ${l.trim()}`)
+  }
+  // Og NavAuth rendrer aldri org.orgName selv — da ville klemmen kunne glemmes der.
   const nav = aktivKode('components/NavAuth.tsx')
-  const rendersteder = nav.match(/adminOrgs\.length === 1 \? 'Bedriftspanel' : org\.orgName/g) ?? []
-  assert.equal(
-    rendersteder.length,
-    2,
-    `org-navnet rendres ${rendersteder.length} steder, ikke 2 (topplinje + hamburger). ` +
-      'Er det kommet et nytt sted, må det ha orgNameClamp — ellers er hullet tilbake.'
-  )
+  assert.equal((nav.match(/org\.orgName/g) ?? []).length, 0, 'NavAuth rendrer org.orgName direkte, utenom modellen')
   const clampBruk = nav.match(/orgNameClamp/g) ?? []
-  assert.equal(
-    clampBruk.length,
-    3,
-    `orgNameClamp brukes ${clampBruk.length} steder, ventet 3 (definisjonen + to bruk).`
-  )
-  // TELLINGEN OVER ER IKKE NOK ALENE. Den teller den spesifikke ternæren
-  // «adminOrgs.length === 1 ? 'Bedriftspanel' : org.orgName». En mutasjon som
-  // la til et TREDJE renderssted skrevet annerledes — bare `{org.orgName}` —
-  // overlevde begge tellingene: ternæren sto fortsatt 2 steder og klemmen
-  // fortsatt 3. Derfor telles selve VERDIEN også. Hver forekomst av
-  // org.orgName i aktiv kode er en flate som kan sprenge raden, uansett hvilken
-  // form den er skrevet i.
-  const navnBruk = nav.match(/org\.orgName/g) ?? []
-  assert.equal(
-    navnBruk.length,
-    2,
-    `org.orgName rendres ${navnBruk.length} steder i NavAuth, ventet 2 (topplinje + hamburger). ` +
-      'Et nytt sted må ha orgNameClamp — brukerskrevet tekst uten maks-bredde sprenger nav-raden ' +
-      'uansett hvor hamburgergrensen står.'
-  )
+  assert.equal(clampBruk.length, 3, `orgNameClamp brukes ${clampBruk.length} steder, ventet 3 (definisjonen + TopLink + MenuRow)`)
 })

@@ -17,8 +17,9 @@ import type React from 'react'
 //  - org:        "← Tilbake til bedriften" → /org/{orgSlug}
 //  - org-admin:  samme tilbake-lenke + bedriftsnavn + lite "ADMIN"-merke
 //
-// Mobil kollapser NavAuths lenkerad til hamburger — ren responsiv
-// sammenslåing, ikke en egen variant (se NAV_MOBILE_CSS i NavAuth.tsx).
+// Innholdet i høyre side (topplinje, kontomeny, gjeste-hamburger) bor i
+// NavAuth.tsx og lib/nav-model.ts. «Spill»-lenken leser den åpne quizen fra
+// ActiveQuizProvider (rot-layouten) — ingen side sender quizId hit lenger.
 
 type SiteNavVariant = 'default' | 'org' | 'org-admin'
 
@@ -26,7 +27,6 @@ interface SiteNavProps {
   variant?: SiteNavVariant
   orgSlug?: string
   orgName?: string
-  quizId?: string
   /**
    * Query-streng (inkludert «?») som henges på «← Tilbake til bedriften».
    * Finnes fordi denne lenken er en KONTEKSTUELL tilbake-lenke, ikke en
@@ -36,8 +36,8 @@ interface SiteNavProps {
    * Uten dette var org-scope det ENESTE scopet der historikk-navigasjonen
    * brøt sammen: global og liga rendrer `variant="default"` og har ingen
    * slik tilbake-lenke, så der var bunn-lenken eneste utvei og fungerte.
-   * Den generelle «Bedriftens toppliste»-lenken i NavAuth beholder BEVISST ingen
-   * query — den er en frisk destinasjon, ikke en tilbakevei.
+   * Bedrifts-lenken i topplinjen beholder BEVISST ingen query — den er en
+   * frisk destinasjon, ikke en tilbakevei.
    */
   backQuery?: string
 }
@@ -63,7 +63,7 @@ const innerStyle: React.CSSProperties = {
   gap: 12,
 }
 
-export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId, backQuery }: SiteNavProps) {
+export default function SiteNav({ variant = 'default', orgSlug, orgName, backQuery }: SiteNavProps) {
   return (
     <nav style={barStyle}>
       <div style={innerStyle}>
@@ -109,9 +109,9 @@ export default function SiteNav({ variant = 'default', orgSlug, orgName, quizId,
           </div>
         )}
 
-        {/* ── Høyre: full lenkerad + hamburger (mobil) + konto-meny ── */}
+        {/* ── Høyre: topplinje + gjeste-hamburger (mobil) + konto-meny ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <NavAuth quizId={quizId} />
+          <NavAuth />
         </div>
       </div>
     </nav>

@@ -5,7 +5,10 @@
 // ── VEDTATT ORDBRUK (Dennis, 6. september 2026) ─────────────────────────────
 //   Toppliste             den nasjonale lista — INGEN kvalifisering, den er
 //                         standardtilfellet
-//   Bedriftens toppliste  org-lista
+//   Bedriftens toppliste  org-lista (H1 på /org/[slug], bunnlenker)
+//   <bedriftens navn>     hjemmet /org/[slug] — i topplinjen OG kontomenyen
+//                         (6. september 2026). Ikke «Bedriften»: to etiketter
+//                         for samme mål er feilklassen denne fila voktet mot
 //   Ligaens toppliste     én liga
 //   Mine ligaer           oversikten over flere (nav-lenken heter «Ligaer»,
 //                         ubestemt som resten av topplinjen — bevisst)
@@ -66,6 +69,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { accountMenuGroups, guestMenuLinks, topLinks } from './nav-model'
 
 /** Kilden uten BOM og uten kommentarer. */
 function renKode(raw: string): string {
@@ -94,27 +98,48 @@ function tsxFiler(rot: string): string[] {
 
 // ── De vedtatte etikettene STÅR der de skal ─────────────────────────────────
 
-test('topplinjen og hamburgeren heter «Toppliste» — uten kvalifisering', () => {
-  const nav = les('components/NavAuth.tsx')
-  // Gjest og innlogget har hver sin topplinje-lenke og hver sin hamburger-rad.
-  const topplinje = nav.match(/href="\/toppliste"[^>]*>Toppliste<\/a>/g) ?? []
-  assert.equal(topplinje.length, 2, 'to topplinje-lenker (gjest + innlogget) skal hete Toppliste')
-  // Hamburger-radene har flerlinje-attributter (onMouseEnter-pilfunksjoner med
-  // «=>»), så `[^>]*` når ikke fram — ikke-grådig `[\s\S]*?` stopper ved
-  // første lenketekst etter href-en.
-  const alle = nav.match(/href="\/toppliste"[\s\S]*?>\s*Toppliste\s*<\/a>/g) ?? []
-  assert.equal(alle.length, 4, 'topplinje + hamburger, gjest + innlogget = fire lenker til /toppliste med teksten Toppliste')
+// Etikettene i nav-en bor i lib/nav-model.ts (6. september 2026) og kalles
+// her per brukertype — ikke regex mot NavAuth.tsx, som bare rendrer modellen.
+const NAV_GJEST = { loggedIn: false, activeQuizId: null, pathname: '/', myOrgs: [] }
+const NAV_ORG = { orgId: 'o1', orgSlug: 'elkjop-nordic', orgName: 'Elkjøp Nordic', isAdmin: true, allowGlobalLeague: true }
+const NAV_MEDLEM = {
+  loggedIn: true, activeQuizId: null, pathname: '/', myOrgs: [NAV_ORG],
+  profileLoaded: true, isPremium: false, hasStripeCustomer: false, hasUsedTrial: false,
+}
+
+test('topplinjen, hamburgeren og kontomenyen heter «Toppliste» — uten kvalifisering', () => {
+  const lenker = [
+    ...topLinks(NAV_GJEST), ...guestMenuLinks(NAV_GJEST),
+    ...topLinks(NAV_MEDLEM), ...accountMenuGroups(NAV_MEDLEM).flat(),
+  ].filter(l => 'href' in l && l.href === '/toppliste')
+  assert.equal(lenker.length, 4, 'gjest topplinje + hamburger, innlogget topplinje + kontomeny = fire lenker til /toppliste')
+  for (const l of lenker) assert.equal(l.label, 'Toppliste')
+  // Og modellen har nøyaktig ÉN definisjon av etiketten — ingen kopi kan drifte.
+  const modell = les('lib/nav-model.ts')
+  assert.equal((modell.match(/label: 'Toppliste'/g) ?? []).length, 1)
+  assert.doesNotMatch(les('components/NavAuth.tsx'), />\s*Toppliste\s*</, 'NavAuth har en egen «Toppliste»-etikett utenom modellen')
 })
 
-test('org-lenken i nav heter «Bedriftens toppliste»', () => {
-  const nav = les('components/NavAuth.tsx')
-  const treff = nav.match(/>\s*Bedriftens toppliste\s*<\/a>/g) ?? []
-  assert.equal(treff.length, 2, 'topplinje + hamburger skal begge si Bedriftens toppliste')
+test('bedriftens hjem bærer bedriftens navn — i topplinjen OG kontomenyen', () => {
+  const meny = accountMenuGroups(NAV_MEDLEM).flat().filter(r => r.kind === 'link' && r.href === '/org/elkjop-nordic')
+  assert.equal(meny.length, 1)
+  assert.equal(meny[0].label, 'Elkjøp Nordic', 'kontomenyen viser navnet, ikke en fast etikett')
+  assert.doesNotMatch(les('lib/nav-model.ts'), /label: 'Bedriften'/, '«Bedriften» som fast etikett er tilbake — to etiketter for samme mål')
+  const topp = topLinks(NAV_MEDLEM).filter(l => l.href === '/org/elkjop-nordic')
+  assert.equal(topp.length, 1)
+  assert.equal(topp[0].label, 'Elkjøp Nordic', 'topplinjens slot viser bedriftens navn')
+  // Panelet heter fortsatt «Bedriftspanel» og bor i kontomenyen, ikke i topplinjen.
+  assert.equal(accountMenuGroups(NAV_MEDLEM).flat().filter(r => r.label === 'Bedriftspanel').length, 1)
+  assert.equal(topLinks(NAV_MEDLEM).filter(l => l.label === 'Bedriftspanel').length, 0)
+  // «Bedriftens toppliste» er sidens H1 og bunnlenkene — ikke lenger en nav-etikett.
+  assert.doesNotMatch(les('lib/nav-model.ts'), /Bedriftens toppliste'/)
 })
 
-test('kontomenyen heter «Quizarkiv», ikke «Arkivet»', () => {
-  const nav = les('components/NavAuth.tsx')
-  assert.match(nav, /href="\/arkiv"[\s\S]*?>\s*Quizarkiv\s*<\/a>/)
+test('kontomenyen og topplinjen heter «Quizarkiv», ikke «Arkivet»', () => {
+  const alle = [...topLinks(NAV_GJEST), ...topLinks(NAV_MEDLEM), ...accountMenuGroups(NAV_MEDLEM).flat()]
+    .filter(l => 'href' in l && l.href === '/arkiv')
+  assert.equal(alle.length, 3)
+  for (const l of alle) assert.equal(l.label, 'Quizarkiv')
 })
 
 test('kontomerket for ikke-Premium heter «Gratis» — i nav og på profilen', () => {
