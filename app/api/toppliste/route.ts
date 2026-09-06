@@ -9,6 +9,7 @@ import { fetchLastQuiz, LAST_QUIZ_SEASON_TYPES } from '@/lib/last-quiz'
 import { getUserPremium } from '@/lib/premium-check'
 import { isQuizClosed } from '@/lib/standings-cache'
 import { isClosedRoom } from '@/lib/leaderboard-scope'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // last_quiz bruker den delte rangerings-helperen (lib/ranking) — samme #1 som
 // Topp 3 og quiz-leaderboard. Toppliste ekskluderer gjester (includeGuests:false).
@@ -271,6 +272,17 @@ export async function GET(request: NextRequest) {
     }
     if (!membership) {
       return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+    }
+    // Låst bedrift (subscription_status = 'locked'): sjekkes ETTER medlemskapet,
+    // slik at en utenforstående ikke får vite om en org finnes eller hvilken
+    // tilstand den står i — samme rekkefølge som de 17 rutene under /api/org
+    // (mønster: app/api/org/[slug]/dashboard/route.ts:55). Designet er entydig:
+    // når bedriften er låst, vises bedriftens liste ingen steder — /org/[slug]
+    // viser låst-skjermen, OrgCard skjuler lenken, scope-skinnen skjuler
+    // segmentet. Denne ruten leverte lista likevel fram til 7. september 2026.
+    if (scope === 'organization') {
+      const lock = await requireUnlockedOrg({ id: scopeId })
+      if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
     }
   }
 

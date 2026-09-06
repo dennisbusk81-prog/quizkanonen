@@ -120,8 +120,12 @@ describe('hovedlasten — !ok på liste-kallet er en FEIL, ikke en tom liste', (
     const anker = 'is_team=false&limit=50'
     assert.equal(antall(SRC, anker), 1, 'limit=50-ankeret skiller ikke lenger — flere forekomster')
     const idx = SRC.indexOf(anker)
-    const linjeSlutt = SRC.indexOf('\n', idx)
-    const linje = SRC.slice(SRC.lastIndexOf('\n', idx), linjeSlutt)
+    // Kallet ble en flerlinjers callback 7. september 2026 (låst bedrift
+    // skilles ut FØR kastet), så det som måles er blokken fra kallet til
+    // «return r.json()», ikke én linje.
+    const blokkSlutt = SRC.indexOf('return r.json()', idx)
+    assert.notEqual(blokkSlutt, -1, 'fant ikke slutten på liste-kallets callback')
+    const linje = SRC.slice(SRC.lastIndexOf('\n', idx), blokkSlutt)
     assert.ok(linje.includes('throw'),
       'hovedlastens liste-kall kaster ikke på !ok — et 500-svar blir da «Ingen resultater ennå» med fetchError=false')
     assert.ok(!linje.includes('r.ok ? r.json() : null'),

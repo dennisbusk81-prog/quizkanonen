@@ -25,6 +25,20 @@ test('401 er «uinnlogget» — og ingenting annet er det', () => {
   }
 })
 
+test('403 med code org_locked er «laast» — statusen alene skiller ikke', () => {
+  // Uten koden ville et medlem av en låst bedrift fått «Du er ikke medlem av
+  // denne bedriften» — usant. Samme feilklasse som sesjonsgjetningen, ett lag
+  // dypere.
+  assert.equal(klassifiserAvvisning(403, 'org_locked'), 'laast')
+  assert.equal(klassifiserAvvisning(403, null), 'ikke-medlem')
+  assert.equal(klassifiserAvvisning(403, undefined), 'ikke-medlem')
+  assert.equal(klassifiserAvvisning(403, 'noe_annet'), 'ikke-medlem')
+  // Koden alene er ikke nok heller: 'laast' krever 403.
+  for (const status of [200, 400, 401, 500]) assert.notEqual(klassifiserAvvisning(status, 'org_locked'), 'laast')
+  assert.equal(velgTomSkjerm('laast'), 'laast')
+  assert.match(avvistMidtIOkta('laast'), /Bedriften venter på fornyelse/)
+})
+
 test('403 er «ikke-medlem» — og ingenting annet er det', () => {
   assert.equal(klassifiserAvvisning(403), 'ikke-medlem')
   for (const status of [400, 401, 404, 429, 500, 503]) {
@@ -52,11 +66,11 @@ test('hver årsak får sin EGEN skjerm', () => {
   assert.equal(velgTomSkjerm('feil'), 'feil')
 })
 
-test('de tre skjermene er innbyrdes FORSKJELLIGE', () => {
+test('de fire skjermene er innbyrdes FORSKJELLIGE', () => {
   // Selve poenget med saken. Kollapser to av dem til samme verdi, er vi
   // tilbake til «tre tilstander, ett svar».
-  const skjermer = [velgTomSkjerm('uinnlogget'), velgTomSkjerm('ikke-medlem'), velgTomSkjerm('feil')]
-  assert.equal(new Set(skjermer).size, 3, `to eller flere årsaker deler skjerm: ${skjermer.join(', ')}`)
+  const skjermer = [velgTomSkjerm('uinnlogget'), velgTomSkjerm('ikke-medlem'), velgTomSkjerm('laast'), velgTomSkjerm('feil')]
+  assert.equal(new Set(skjermer).size, 4, `to eller flere årsaker deler skjerm: ${skjermer.join(', ')}`)
 })
 
 test('ingen avvisning ⇒ den nøytrale tomme skjermen, uendret fra før', () => {
@@ -110,8 +124,11 @@ function aktivKode(fil: string): string {
 
 test('komponenten bærer statusen videre i stedet for en boolsk verdi', () => {
   const src = aktivKode(KOMP)
-  assert.match(src, /setAvvisning\(klassifiserAvvisning\(res\.status\)\)/,
+  assert.match(src, /setAvvisning\(klassifiserAvvisning\(res\.status, kode\)\)/,
     'statuskoden kastes — da er årsaken tapt før noen kan vise den')
+  // Koden i kroppen leses FØR klassifiseringen — statusen alene skiller ikke
+  // «ikke medlem» fra «låst bedrift».
+  assert.match(src, /const kode = await lesAvvisningskode\(res\)/, 'koden i kroppen leses ikke')
   assert.ok(!/setLoadError/.test(src), 'den gamle boolske loadError er tilbake på en aktiv linje')
 })
 
@@ -131,10 +148,11 @@ test('visningen velger skjerm fra avvisningen, ikke fra sesjonen', () => {
   )
 })
 
-test('alle fire skjermene rendres, hver med sin egen tekst', () => {
+test('alle fem skjermene rendres, hver med sin egen tekst', () => {
   const src = aktivKode(KOMP)
   for (const [gren, tekst] of [
     ["skjerm === 'feil'", 'Noe gikk galt. Prøv å laste siden på nytt.'],
+    ["skjerm === 'laast'", 'LAAST_OVERSKRIFT'],
     ["skjerm === 'ikke-medlem'", 'Ingen tilgang'],
     ["skjerm === 'logg-inn'", 'Logg inn for å se denne listen'],
     ['', 'Ingen data ennå'],
@@ -148,6 +166,12 @@ test('alle fire skjermene rendres, hver med sin egen tekst', () => {
   const slutt = src.indexOf("skjerm === 'logg-inn'")
   const gren = src.slice(start, slutt)
   assert.ok(!gren.includes('<Link'), 'ikke-medlem-skjermen tilbyr en lenke — det finnes ingen handling som hjelper')
+  // Låst-skjermen tilbyr heller ingen handling: et medlem kan ikke fornye.
+  const lStart = src.indexOf("skjerm === 'laast'")
+  const lSlutt = src.indexOf("skjerm === 'ikke-medlem'")
+  const lGren = src.slice(lStart, lSlutt)
+  assert.ok(lGren.includes('LAAST_OVERSKRIFT') && lGren.includes('LAAST_TEKST'), 'låst-skjermen bruker ikke den delte ordlyden')
+  assert.ok(!lGren.includes('<Link') && !lGren.includes('<button'), 'låst-skjermen tilbyr en handling — en knapp som garantert feiler er verre enn ingen')
 })
 
 // ── ALLE TRE HENTESTEDENE DELER KLASSIFISERING (6. september 2026) ──────────
@@ -165,11 +189,11 @@ test('alle fire skjermene rendres, hver med sin egen tekst', () => {
 
 test('alle tre hentestedene klassifiserer statusen', () => {
   const src = aktivKode(KOMP)
-  const treff = src.match(/klassifiserAvvisning\(res\.status\)/g) ?? []
+  const treff = src.match(/klassifiserAvvisning\(res\.status, (?:kode|await lesAvvisningskode\(res\))\)/g) ?? []
   assert.equal(
     treff.length,
     3,
-    `klassifiserAvvisning(res.status) brukes ${treff.length} steder, ventet 3 ` +
+    `klassifiserAvvisning(res.status, <kode>) brukes ${treff.length} steder, ventet 3 ` +
       '(hovedhenting, loadHistory, fetchExpanded). Ett av dem kollapser statusen igjen.'
   )
 })

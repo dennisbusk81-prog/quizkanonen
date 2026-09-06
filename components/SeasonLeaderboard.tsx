@@ -10,7 +10,7 @@ import { getAvatarInitial } from '@/lib/avatar-initial'
 import BadgeCircle, { type BadgeKind } from '@/components/BadgeCircle'
 import ResultsTable, { type ResultsTableRow } from '@/components/ResultsTable'
 import { computeDuelAffordance } from '@/lib/duel-affordance'
-import { klassifiserAvvisning, velgTomSkjerm, ikkeMedlemTekst, avvistMidtIOkta, type Avvisning } from '@/lib/leaderboard-avvisning'
+import { klassifiserAvvisning, velgTomSkjerm, ikkeMedlemTekst, avvistMidtIOkta, lesAvvisningskode, LAAST_OVERSKRIFT, LAAST_TEKST, type Avvisning } from '@/lib/leaderboard-avvisning'
 import DuelChallengeModal from '@/components/DuelChallengeModal'
 import { useProfile } from '@/components/ProfileProvider'
 import { formatQuizCount, shouldShowPlacementRow, buildPlacementRow } from '@/lib/season-period-table'
@@ -597,7 +597,9 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         if (cancelled) return
         // Statusen bæres videre, ikke kastet. Den er det eneste signalet som
         // vet HVORFOR — sesjonstilstanden gjetter.
-        if (!res.ok) { if (!cancelled) { setData(null); setAvvisning(klassifiserAvvisning(res.status)) }; return }
+        // Koden i kroppen skiller «ikke medlem» fra «låst bedrift» — statusen
+        // alene gjør det ikke (lib/leaderboard-avvisning.ts, 7. september 2026).
+        if (!res.ok) { const kode = await lesAvvisningskode(res); if (!cancelled) { setData(null); setAvvisning(klassifiserAvvisning(res.status, kode)) }; return }
         const json = await res.json()
         if (!cancelled) setData(json)
       } catch {
@@ -668,7 +670,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
         // ÅRSAKEN bæres videre, ikke bare «det feilet» — samme klassifisering
         // som hovedhentingen. En som mistet org-medlemskapet mens siden sto
         // åpen skal ikke få «Prøv igjen».
-        setHistAvvisning(klassifiserAvvisning(res.status))
+        setHistAvvisning(klassifiserAvvisning(res.status, await lesAvvisningskode(res)))
       }
     } catch {
       setHistAvvisning('feil')
@@ -709,7 +711,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
       const res = await fetch(url, { headers: expandHeaders })
       // Årsaken caches, ikke bare «feil» — tredje og siste hentested som nå
       // deler klassifisering med de to andre.
-      if (!res.ok) { setExpandedData(prev => new Map(prev).set(key, klassifiserAvvisning(res.status))); return }
+      if (!res.ok) { const kode = await lesAvvisningskode(res); setExpandedData(prev => new Map(prev).set(key, klassifiserAvvisning(res.status, kode))); return }
       const json = await res.json()
       const entries: ExpandedEntry[] = (json.entries ?? []).map((e: Entry) => ({
         rank: e.rank, userId: e.userId, displayName: e.displayName, nickname: e.nickname ?? null,
@@ -1072,7 +1074,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           <div style={s.expandedWrap}>
             {expanded === 'loading' ? (
               <div style={s.expandedSpin}>Laster…</div>
-            ) : expanded === 'uinnlogget' || expanded === 'ikke-medlem' ? (
+            ) : expanded === 'uinnlogget' || expanded === 'ikke-medlem' || expanded === 'laast' ? (
               /* Entydig svar fra serveren, ikke en transient feil. Ingen
                  retry-knapp: shouldFetchExpanded slipper heller ikke disse
                  gjennom, så en knapp ville vært død. */
@@ -1117,7 +1119,7 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
           <div style={s.histBody}>
             {histLoading ? (
               <div style={s.histEmpty}>Laster…</div>
-            ) : histAvvisning === 'uinnlogget' || histAvvisning === 'ikke-medlem' ? (
+            ) : histAvvisning === 'uinnlogget' || histAvvisning === 'ikke-medlem' || histAvvisning === 'laast' ? (
               /* Serveren svarte entydig: tilstanden endret seg mens siden sto
                  åpen. Ingen retry-knapp — et nytt forsøk gir samme svar, og
                  en knapp som ikke kan lykkes er verre enn ingen knapp. */
@@ -1170,6 +1172,14 @@ export default function SeasonLeaderboard({ scope, scopeId, loginHref = '/login?
             <p style={{ ...overskrift, marginBottom: 0 }}>
               Noe gikk galt. Prøv å laste siden på nytt.
             </p>
+          ) : skjerm === 'laast' ? (
+            // 403 med code org_locked: bedriften er låst. Medlemmet kan ikke
+            // gjøre noe, så skjermen forklarer og tilbyr ingen handling.
+            // Overskriften er OrgCards ord for samme tilstand.
+            <>
+              <p style={overskrift}>{LAAST_OVERSKRIFT}</p>
+              <p style={{ ...brodtekst, marginBottom: 0 }}>{LAAST_TEKST}</p>
+            </>
           ) : skjerm === 'ikke-medlem' ? (
             // 403. Ingen omlasting og ingen innlogging endrer dette, så
             // skjermen tilbyr ingen handling — den forklarer.

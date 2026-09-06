@@ -20,6 +20,7 @@ import { computeDuelAffordance } from '@/lib/duel-affordance'
 import { decidePlacementDisplay, shouldOfferPlacementRetry, shouldShowFreePlacementCard } from '@/lib/placement-visibility'
 import { describeRetry } from '@/lib/retry-affordance'
 import { decideOrgScopeNotice } from '@/lib/org-scope-notice'
+import { klassifiserAvvisning, lesAvvisningskode, LAAST_OVERSKRIFT, LAAST_TEKST } from '@/lib/leaderboard-avvisning'
 import ScopeRail from '@/components/ScopeRail'
 import { scopeRailOptions } from '@/lib/scope-rail'
 // Datolesing på quiz-raden: ALLTID via isQuizClosed/decideHiddenUntilClosed —
@@ -55,6 +56,11 @@ import { withTimeout } from '@/lib/with-timeout'
 // (SeasonLeaderboard.tsx har fortsatt 1500 — der styrer grensen kun egen-rad/
 // premium-visning, ikke en scope-beslutning, og er ikke hevet i denne runden.)
 const SESSION_CHECK_MS = 2500
+
+/** Kastes av list-hentingen når serveren svarte 403 med code org_locked. */
+class OrgLaastError extends Error {
+  constructor() { super('org_locked') }
+}
 
 const podiumStyles = `
   @keyframes podiumSlideIn {
@@ -264,6 +270,11 @@ export default function LeaderboardPage() {
   // hentes i egen effekt under.
   const [internalSolo, setInternalSolo] = useState<{ rank: number | null; total: number } | null>(null)
   const [fetchError, setFetchError] = useState(false)
+  // ?org= på en LÅST bedrift: serveren svarer 403 med code org_locked (7.
+  // september 2026). Det er ikke en feil, og «Prøv igjen» hjelper aldri —
+  // egen tilstand, egen skjerm. Nås bare via en håndskrevet eller bokmerket
+  // adresse: skinnen skjuler låste bedrifter, og /org/[slug] viser låst-skjermen.
+  const [orgLocked, setOrgLocked] = useState(false)
   // Retry for hovedlasten: bumpes av «Prøv igjen» på feilskjermen. Knappen
   // nuller også listFetchKeyRef — paritetsvakten i effekten ville ellers
   // kortsluttet et nytt forsøk med samme identitet.
@@ -447,7 +458,15 @@ export default function LeaderboardPage() {
           // → «Ingen resultater ennå» — en faktapåstand om en liste vi aldri
           // fikk. Kastet lander i catch under, som setter fetchError (ekte
           // feilskjerm med retry) i stedet.
-          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}${guestQS}`, { headers: authHeader }).then(r => { if (!r.ok) throw new Error(`leaderboard-listen svarte ${r.status}`); return r.json() }),
+          fetch(`/api/leaderboard/${quizId}?is_team=false&limit=50${orgQS}${guestQS}`, { headers: authHeader }).then(async r => {
+            if (!r.ok) {
+              // Låst bedrift skilles fra alt annet FØR kastet — statusen alene
+              // sier ikke hvorfor (lib/leaderboard-avvisning.ts).
+              if (klassifiserAvvisning(r.status, await lesAvvisningskode(r)) === 'laast') throw new OrgLaastError()
+              throw new Error(`leaderboard-listen svarte ${r.status}`)
+            }
+            return r.json()
+          }),
         ])
         if (e1) throw e1
         setQuiz(quizData)
@@ -512,6 +531,7 @@ export default function LeaderboardPage() {
           }
         } catch { /* Previous quiz data is optional */ }
       } catch (e) {
+        if (e instanceof OrgLaastError) { setOrgLocked(true); return }
         console.error('fetchData (leaderboard) feilet:', e)
         setFetchError(true)
       } finally {
@@ -864,6 +884,16 @@ export default function LeaderboardPage() {
   // MERK, ikke rørt i denne runden: teksten skiller ikke «quizen er skjult»
   // (PGRST116, ingen rader) fra en ekte nettverksfeil, og kaller derfor det
   // første «Noe gikk galt». Feilkoden ligger på e1 og kunne skilt dem — egen sak.
+  if (!quiz && orgLocked) return (
+    // Låst bedrift: forklar, tilby ingen handling. Overskriften er OrgCards
+    // ord for samme tilstand; underteksten er den samme som SeasonLeaderboard
+    // bruker (lib/leaderboard-avvisning.ts).
+    <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
+      <p style={s.centeredText}>{LAAST_OVERSKRIFT}</p>
+      <p style={{ fontSize: 14, color: '#e8e4dd', lineHeight: 1.6, textAlign: 'center', maxWidth: 420 }}>{LAAST_TEKST}</p>
+      <Link href="/" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>← Tilbake til forsiden</Link>
+    </div>
+  )
   if (!quiz) return (
     <div style={{ ...s.centered, flexDirection: 'column', gap: 16 }}>
       <p style={s.centeredText}>

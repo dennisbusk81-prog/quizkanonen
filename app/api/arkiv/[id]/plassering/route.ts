@@ -6,6 +6,7 @@ import { resolveOrgMembership } from '@/lib/org-membership'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { decideArchivePlayGate } from '@/lib/archive-play-gate'
 import { decideArchivePlacement, type ArchiveFieldRow } from '@/lib/archive-placement'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // ── GET /api/arkiv/[id]/plassering — «slik ville du havnet den uken» ────────
 //
@@ -150,6 +151,15 @@ export async function GET(
       return NextResponse.json({ error: orgGate.error }, { status: orgGate.status })
     }
     orgMemberIds = orgGate.memberIds
+    // Låst bedrift (subscription_status = 'locked'): sjekkes ETTER medlemskapet,
+    // slik at en utenforstående ikke får vite om en org finnes eller hvilken
+    // tilstand den står i — samme rekkefølge som de 17 rutene under /api/org
+    // (mønster: app/api/org/[slug]/dashboard/route.ts:55). Designet er entydig:
+    // når bedriften er låst, vises bedriftens liste ingen steder — /org/[slug]
+    // viser låst-skjermen, OrgCard skjuler lenken, scope-skinnen skjuler
+    // segmentet. Denne ruten leverte lista likevel fram til 7. september 2026.
+    const lock = await requireUnlockedOrg({ id: orgGate.orgId })
+    if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
   }
 
   // ── Det frosne feltet: alle leverte solo-forsøk på ORIGINALQUIZEN ────────

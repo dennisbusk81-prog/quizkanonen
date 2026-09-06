@@ -9,6 +9,7 @@ import { getUserPremium } from '@/lib/premium-check'
 import { decideHiddenUntilClosed } from '@/lib/leaderboard-visibility'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { fetchAllRows } from '@/lib/paginate'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // ── Server-side rangering for ukens quiz-leaderboard ─────────────────────────
 // Bruker den delte rangerings-helperen (lib/ranking): submitted-filter, dedup
@@ -144,6 +145,15 @@ export async function GET(
     const gate = await resolveOrgMembership(orgSlug, token)
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
     orgMemberIds = gate.memberIds
+    // Låst bedrift (subscription_status = 'locked'): sjekkes ETTER medlemskapet,
+    // slik at en utenforstående ikke får vite om en org finnes eller hvilken
+    // tilstand den står i — samme rekkefølge som de 17 rutene under /api/org
+    // (mønster: app/api/org/[slug]/dashboard/route.ts:55). Designet er entydig:
+    // når bedriften er låst, vises bedriftens liste ingen steder — /org/[slug]
+    // viser låst-skjermen, OrgCard skjuler lenken, scope-skinnen skjuler
+    // segmentet. Denne ruten leverte lista likevel fram til 7. september 2026.
+    const lock = await requireUnlockedOrg({ id: gate.orgId })
+    if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
   }
 
   // Gjest-estimat ("et sted mellom X og Y") — kun for uinnloggede med lagret score

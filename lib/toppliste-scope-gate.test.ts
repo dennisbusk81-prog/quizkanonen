@@ -90,6 +90,15 @@ function genericBuilder() {
   return b
 }
 
+// Org-låsen (7. september 2026): egen bryter, så låst-tilfellene testes her
+// med samme harness som medlemsgaten.
+const laas: { lock: { ok: true; org: { id: string; slug: string; name: string; plan: null; subscription_status: string } } | { ok: false; status: 403; body: { error: string; code: string } }; kall: number } = {
+  lock: { ok: true, org: { id: 'org-1', slug: 'org', name: 'Org', plan: null, subscription_status: 'trialing' } }, kall: 0,
+}
+const LAAST = { ok: false as const, status: 403 as const, body: { error: 'Bedriftens abonnement er ikke aktivt.', code: 'org_locked' } }
+mock.module('@/lib/org-lock-guard', {
+  namedExports: { requireUnlockedOrg: async () => { laas.kall += 1; return laas.lock }, ORG_LOCKED_CODE: 'org_locked' },
+})
 mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
@@ -139,6 +148,8 @@ beforeEach(() => {
   state.leagueMembership = null
   state.orgMembership = null
   state.membershipLookups = []
+  laas.lock = { ok: true, org: { id: 'org-1', slug: 'org', name: 'Org', plan: null, subscription_status: 'trialing' } }
+  laas.kall = 0
 })
 
 // ── /api/toppliste: avvisningene ─────────────────────────────────────────────
@@ -200,6 +211,71 @@ test('positiv kontroll: org-medlem får 200', async () => {
   const res = await call('toppliste', 'period=month&scope=organization&scope_id=org-1', 'tok')
   assert.equal(res.status, 200)
   assert.ok(Array.isArray((await res.json()).entries))
+})
+
+// ── Org-låsen (7. september 2026) ────────────────────────────────────────────
+
+test('LÅST bedrift, medlem → 403 med code org_locked, ingen medlemsdata', async () => {
+  state.authUser = { id: 'u-medlem' }
+  state.orgMembership = { user_id: 'u-medlem' }
+  laas.lock = LAAST
+  const res = await call('toppliste', 'period=month&scope=organization&scope_id=org-1', 'tok')
+  assert.equal(res.status, 403)
+  const j = await res.json()
+  assert.equal(j.code, 'org_locked')
+  assert.equal(j.entries, undefined)
+  assert.equal(laas.kall, 1, 'vakten skal kalles nøyaktig én gang')
+})
+
+test('LÅST bedrift, IKKE-medlem → 403 «Ikke tilgang» uten code — vakten kalles ikke (ingen lekkasje om tilstanden)', async () => {
+  state.authUser = { id: 'u-fremmed' }
+  laas.lock = LAAST
+  const res = await call('toppliste', 'period=month&scope=organization&scope_id=org-1', 'tok')
+  assert.equal(res.status, 403)
+  assert.equal((await res.json()).code, undefined)
+  assert.equal(laas.kall, 0)
+})
+
+test('LÅST bedrift, uinnlogget → 401, vakten kalles ikke', async () => {
+  laas.lock = LAAST
+  const res = await call('toppliste', 'period=month&scope=organization&scope_id=org-1')
+  assert.equal(res.status, 401)
+  assert.equal(laas.kall, 0)
+})
+
+test('ulåst bedrift, medlem → 200 som før, vakten kalt én gang', async () => {
+  state.authUser = { id: 'u-medlem' }
+  state.orgMembership = { user_id: 'u-medlem' }
+  const res = await call('toppliste', 'period=month&scope=organization&scope_id=org-1', 'tok')
+  assert.equal(res.status, 200)
+  assert.equal(laas.kall, 1)
+})
+
+test('liga-scope konsulterer ALDRI org-låsen — også når mocken sier låst', async () => {
+  state.authUser = { id: 'u-medlem' }
+  state.leagueMembership = { user_id: 'u-medlem' }
+  laas.lock = LAAST
+  const res = await call('toppliste', 'period=month&scope=league&scope_id=liga-1', 'tok')
+  assert.equal(res.status, 200)
+  assert.equal(laas.kall, 0)
+})
+
+test('history: LÅST bedrift, medlem → 403 org_locked', async () => {
+  state.authUser = { id: 'u-medlem' }
+  state.orgMembership = { user_id: 'u-medlem' }
+  laas.lock = LAAST
+  const res = await call('history', 'period=month&scope=organization&scope_id=org-1', 'tok')
+  assert.equal(res.status, 403)
+  assert.equal((await res.json()).code, 'org_locked')
+  assert.equal(laas.kall, 1)
+})
+
+test('history: ulåst bedrift, medlem → 200 som før', async () => {
+  state.authUser = { id: 'u-medlem' }
+  state.orgMembership = { user_id: 'u-medlem' }
+  const res = await call('history', 'period=month&scope=organization&scope_id=org-1', 'tok')
+  assert.equal(res.status, 200)
+  assert.equal(laas.kall, 1)
 })
 
 test('positiv kontroll: liga-medlem får 200', async () => {

@@ -69,6 +69,12 @@ function builder(table: string) {
   return b
 }
 
+// Org-låsen (7. september 2026): mockes ULÅST her — denne fila tester noe
+// annet. Låst-tilfellene ligger i lib/org-lock-read-routes.test.ts og
+// lib/toppliste-scope-gate.test.ts.
+mock.module('@/lib/org-lock-guard', {
+  namedExports: { requireUnlockedOrg: async () => ({ ok: true as const, org: { id: 'org-1', slug: 'org', name: 'Org', plan: null, subscription_status: 'trialing' } }), ORG_LOCKED_CODE: 'org_locked' },
+})
 mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {

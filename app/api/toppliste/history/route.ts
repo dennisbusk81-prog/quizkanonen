@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows } from '@/lib/paginate'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import { fetchLastQuiz } from '@/lib/last-quiz'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 type ProfileRow = { id: string; display_name: string | null; nickname: string | null }
 
@@ -71,6 +72,17 @@ export async function GET(request: NextRequest) {
     // en lekkasje som ikke kan angres.
     if (memberError) return NextResponse.json({ error: 'Kunne ikke bekrefte tilgang' }, { status: 503 })
     if (!membership) return NextResponse.json({ error: 'Ikke tilgang' }, { status: 403 })
+    // Låst bedrift (subscription_status = 'locked'): sjekkes ETTER medlemskapet,
+    // slik at en utenforstående ikke får vite om en org finnes eller hvilken
+    // tilstand den står i — samme rekkefølge som de 17 rutene under /api/org
+    // (mønster: app/api/org/[slug]/dashboard/route.ts:55). Designet er entydig:
+    // når bedriften er låst, vises bedriftens liste ingen steder — /org/[slug]
+    // viser låst-skjermen, OrgCard skjuler lenken, scope-skinnen skjuler
+    // segmentet. Denne ruten leverte lista likevel fram til 7. september 2026.
+    if (scope === 'organization') {
+      const lock = await requireUnlockedOrg({ id: scopeId })
+      if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
+    }
   }
 
   // CDN-cache KUN for global. Et scoped svar er autorisert per kaller — med

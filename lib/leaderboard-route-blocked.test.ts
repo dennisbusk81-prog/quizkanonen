@@ -138,6 +138,15 @@ mock.module('@/lib/globally-blocked-set', {
   },
 })
 
+// Org-låsen (7. september 2026): egen bryter — låst-tilfellene for hovedruten
+// og prev-rank testes her med samme harness som medlemsgaten.
+const laas: { lock: { ok: true; org: { id: string; slug: string; name: string; plan: null; subscription_status: string } } | { ok: false; status: 403; body: { error: string; code: string } }; kall: number } = {
+  lock: { ok: true, org: { id: 'org-1', slug: 'lukket-as', name: 'Lukket AS', plan: null, subscription_status: 'active' } }, kall: 0,
+}
+const LAAST = { ok: false as const, status: 403 as const, body: { error: 'Bedriftens abonnement er ikke aktivt.', code: 'org_locked' } }
+mock.module('@/lib/org-lock-guard', {
+  namedExports: { requireUnlockedOrg: async () => { laas.kall += 1; return laas.lock }, ORG_LOCKED_CODE: 'org_locked' },
+})
 mock.module('@/lib/org-membership', {
   namedExports: { resolveOrgMembership: async () => state.orgGate },
 })
@@ -214,6 +223,62 @@ test('blokkert bruker er fjernet fra entries og gjenværende re-rankes', async (
     [['Anna', 1], ['Cato', 2]], // Cato rykker fra 3 til 2 — ikke [1, 3]
   )
   assert.equal(j.totalCount, 2)
+})
+
+// ── Org-låsen (7. september 2026) ────────────────────────────────────────────
+
+test('org-modus: LÅST bedrift, medlem → 403 org_locked fra hovedruten, ingen rader', async () => {
+  state.orgGate = { ok: true, orgId: 'org-1', memberIds: ['u-anna', 'u-bjorn'] }
+  laas.lock = LAAST
+  const res = await callMain('org=lukket-as', 'tok')
+  assert.equal(res.status, 403)
+  const j = await res.json()
+  assert.equal(j.code, 'org_locked')
+  assert.equal(j.entries, undefined)
+  assert.equal(laas.kall, 1)
+  laas.lock = { ok: true, org: { id: 'org-1', slug: 'lukket-as', name: 'Lukket AS', plan: null, subscription_status: 'active' } }
+  laas.kall = 0
+})
+
+test('org-modus: LÅST bedrift, medlem → 403 org_locked fra prev-rank, ingen kart', async () => {
+  state.orgGate = { ok: true, orgId: 'org-1', memberIds: ['u-anna', 'u-bjorn'] }
+  laas.lock = LAAST
+  const res = await callPrev('org=lukket-as', 'tok')
+  assert.equal(res.status, 403)
+  const j = await res.json()
+  assert.equal(j.code, 'org_locked')
+  assert.equal(j.prevRanks, undefined)
+  assert.equal(laas.kall, 1)
+  laas.lock = { ok: true, org: { id: 'org-1', slug: 'lukket-as', name: 'Lukket AS', plan: null, subscription_status: 'active' } }
+  laas.kall = 0
+})
+
+test('org-modus: ikke-medlem → 403 «Ikke tilgang», vakten kalles ikke — ingen lekkasje om låsen', async () => {
+  state.orgGate = { ok: false, status: 403, error: 'Ikke tilgang' }
+  laas.lock = LAAST
+  const res = await callMain('org=lukket-as', 'tok')
+  assert.equal(res.status, 403)
+  assert.equal((await res.json()).code, undefined)
+  assert.equal(laas.kall, 0)
+  laas.lock = { ok: true, org: { id: 'org-1', slug: 'lukket-as', name: 'Lukket AS', plan: null, subscription_status: 'active' } }
+})
+
+test('org-modus: uinnlogget → 401, vakten kalles ikke', async () => {
+  state.orgGate = { ok: false, status: 401, error: 'Ikke innlogget' }
+  laas.lock = LAAST
+  const res = await callMain('org=lukket-as')
+  assert.equal(res.status, 401)
+  assert.equal(laas.kall, 0)
+  laas.lock = { ok: true, org: { id: 'org-1', slug: 'lukket-as', name: 'Lukket AS', plan: null, subscription_status: 'active' } }
+})
+
+test('org-modus: ulåst bedrift, medlem → 200 som før, vakten kalt én gang per rute', async () => {
+  state.orgGate = { ok: true, orgId: 'org-1', memberIds: ['u-anna', 'u-bjorn'] }
+  laas.kall = 0
+  assert.equal((await callMain('org=lukket-as', 'tok')).status, 200)
+  assert.equal(laas.kall, 1)
+  assert.equal((await callPrev('org=lukket-as', 'tok')).status, 200)
+  assert.equal(laas.kall, 2)
 })
 
 // ── ?org=-modus gates IKKE — der er de blokkerte legitime ────────────────────

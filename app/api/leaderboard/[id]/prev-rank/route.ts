@@ -5,6 +5,7 @@ import { resolveOrgMembership } from '@/lib/org-membership'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import type { Attempt } from '@/lib/supabase'
+import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
 // ── Forrige quiz' rangering for «pil opp»-trendmerket ────────────────────────
 // Flyttet server-side fordi klient-lesen trengte attempts.user_id, som nå er
@@ -58,6 +59,15 @@ export async function GET(
     const gate = await resolveOrgMembership(orgSlug, token)
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
     orgMemberIdSet = new Set(gate.memberIds)
+    // Låst bedrift (subscription_status = 'locked'): sjekkes ETTER medlemskapet,
+    // slik at en utenforstående ikke får vite om en org finnes eller hvilken
+    // tilstand den står i — samme rekkefølge som de 17 rutene under /api/org
+    // (mønster: app/api/org/[slug]/dashboard/route.ts:55). Designet er entydig:
+    // når bedriften er låst, vises bedriftens liste ingen steder — /org/[slug]
+    // viser låst-skjermen, OrgCard skjuler lenken, scope-skinnen skjuler
+    // segmentet. Denne ruten leverte lista likevel fram til 7. september 2026.
+    const lock = await requireUnlockedOrg({ id: gate.orgId })
+    if (!lock.ok) return NextResponse.json(lock.body, { status: lock.status })
   }
 
   // Nasjonal sti: hvem SPØR? Uten en verifisert identitet finnes det ingen
