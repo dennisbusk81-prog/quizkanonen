@@ -39,10 +39,47 @@ import type React from 'react'
 // .qk-mobile-only-inline brukes til å bytte "Spill ukens quiz →" til det
 // kortere "Spill nå →" (samme tekst som forsidens quiz-kort) kun på mobil —
 // gir nok plass til hamburger + Logg inn + knappen samtidig i verste fall.
+//
+// ── HVORFOR GRENSEN ER 899, IKKE 639 (6. september 2026) ────────────────────
+// Invarianten Dennis valgte: en bruker skal se ENTEN hele lenkeraden ELLER
+// hamburgeren — aldri en halv rad. Ved 639 holdt den ikke. Raden har
+// `flex-wrap: nowrap` og `flex-shrink: 0` på både logo og lenkegruppe, og
+// ingen forfar setter `overflow`, så en rad som ikke får plass brytes ikke og
+// klippes ikke — den renner ut til høyre og skyver konto-pillen delvis av
+// skjermen. Målt mot produksjon: ved 640 px lå 85 px av pillen utenfor.
+//
+// Målte behov (layoutbredde = viewport minus vertikal scrollbar, fonter
+// ferdig lastet):
+//   gjest                                    508
+//   innlogget uten bedrift                   615
+//   org-medlem                               657
+//   org-admin                                745
+//   org-admin på forsiden med åpen quiz      809   ← bredeste som FINNES i prod
+//   admin i TO bedrifter                     861   ← finnes ikke i dag
+//
+// 809 er bredeste reelle profil, og den inneholder INGEN brukerskrevet tekst:
+// med nøyaktig én admin-org rendres den faste etiketten «Bedriftspanel», ikke
+// org-navnet. Org-navn kommer først inn i raden når noen er admin i to org-er.
+// Målt i prod 6. september 2026: 1 organisasjon, 30 medlemskap, 1 admin,
+// 0 brukere med mer enn ett medlemskap. Den profilen finnes altså ikke ennå.
+//
+// Valget landet likevel på 899 og ikke 809+margin, av en STRUKTURELL grunn:
+// `innerStyle` i SiteNav har `max-width: 900`. Under 900 følger beholderen
+// viewporten, ved 900 og oppover står den fast på 900 px (860 px innhold).
+// 900 er derfor den ENESTE grensen der «får plass ved grensen» også betyr
+// «får plass på hver eneste bredere skjerm» — over den endrer ingenting seg.
+// Ved 900 trenger to-bedrifts-admin 821 av 860 px, altså 39 px klaring, så
+// grensen dekker også den profilen den dagen den oppstår.
+//
+// ÅPEN RISIKO, bevisst ikke løst her: org-navnene i raden har ingen
+// maks-bredde. En admin i to bedrifter med lange navn sprenger enhver grense
+// — validatoren tillater 60 tegn per navn. Riktig svar der er avkorting med
+// ellipse på de lenkene, samme behandling som avatar-navnet allerede har
+// (`maxWidth: 110`), ikke et høyere brytepunkt. Egen sak.
 const NAV_MOBILE_CSS = `
   .qk-nav-hamburger-btn { display: none; }
   .qk-mobile-only-inline { display: none; }
-  @media (max-width: 639px) {
+  @media (max-width: 899px) {
     .nav-hide-mobile { display: none !important; }
     .qk-nav-hamburger-btn { display: inline-flex !important; }
     .qk-mobile-only-inline { display: inline !important; }
@@ -211,7 +248,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
         >Slik fungerer det</a>
 
         {/* Hamburger — "naviger nettstedet". Egen inngang til Toppliste,
-            For bedrifter og Ligaer siden de er skjult i topplinjen under 640px,
+            For bedrifter og Ligaer siden de er skjult i topplinjen under 900px,
             samt Slik fungerer det/Quizer som kun finnes her. */}
         <div ref={hamburgerRef} style={{ position: 'relative' }}>
           <button
@@ -391,7 +428,7 @@ export default function NavAuth({ quizId }: { quizId?: string }) {
 
       {/* Hamburger — "naviger nettstedet", samme ikon/posisjon/betydning som
           hos gjest. Eneste vei til Toppliste/For bedrifter/Ligaer/Min
-          bedrift/Bedriftspanel på mobil (skjult i topplinjen under 640px),
+          bedrift/Bedriftspanel under 900px (skjult i topplinjen der),
           samt Slik fungerer det/Quizer som kun finnes her. Kontodropdownen
           under inneholder fortsatt kun kontoinnhold (profil, ligaer,
           abonnement, logg ut) — "Mine ligaer" der er en bevisst duplisering

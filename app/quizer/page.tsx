@@ -339,9 +339,19 @@ export default async function QuizerPage() {
                       {timeNote && <p className="qz-status-time">{timeNote}</p>}
                     </div>
                     <div className="qz-card-right">
-                      {status !== 'kommende' && (
+                      {/* KUN åpen quiz får spill-knappen (6. september 2026).
+                          «Se quiz» på en STENGT rad var en blindvei: den lenket
+                          til spillsiden, som for en stengt quiz kun rendrer en
+                          utgang til /leaderboard — altså nøyaktig dit
+                          «Resultater →» ved siden av allerede går. To kontroller,
+                          samme endestasjon, den ene med et omvei-mellomsteg.
+                          Kontrollen er FJERNET, ikke omdirigert: en andre vei til
+                          samme sted er ikke en fiks, den er den samme feilen
+                          skrevet penere.
+                          Kommende rader hadde ingen knapp fra før og er uendret. */}
+                      {status === 'åpen' && (
                         <Link href={`/quiz/${quiz.id}`} className="qz-btn-outline">
-                          {status === 'åpen' ? 'Spill nå' : 'Se quiz'}
+                          Spill nå
                         </Link>
                       )}
                       <Link href={`/leaderboard/${quiz.id}`} className="qz-btn-ghost">Resultater →</Link>

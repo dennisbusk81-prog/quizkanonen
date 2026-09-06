@@ -59,7 +59,12 @@ const s = {
   rowLeft:  { flex: 1, minWidth: 0 },
   rowTitle: { fontFamily: "var(--font-libre-baskerville), serif", fontSize: 16, fontWeight: 700, color: '#ffffff', lineHeight: 1.3, marginBottom: 3, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const },
   rowMeta:  { fontSize: 12, color: '#918f8a' },
-  rowRight: { flexShrink: 0 },
+  // Flex fordi raden nå bærer TO kontroller: spill-affordansen (eller
+  // Premium-pillen) og resultatlenken. Gapet er det knappene selv krever.
+  rowRight: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12 },
+  // Ghost-lenke, ikke gull: resultatene er ikke primærhandlingen på denne
+  // flaten, og lenkeregelen sier #e8e4dd for alt som ikke er det.
+  resultatLenke: { fontSize: 13, color: '#e8e4dd', textDecoration: 'none', whiteSpace: 'nowrap' as const },
 
   spillBtn: { background: 'transparent', color: '#e8e4dd', fontSize: 13, fontWeight: 600, padding: '9px 18px', borderRadius: 10, border: '0.5px solid #918f8a', cursor: 'pointer', fontFamily: "var(--font-instrument-sans), sans-serif", whiteSpace: 'nowrap' as const },
   laastPill: { fontSize: 11, fontWeight: 600, color: '#918f8a', background: '#1a1c23', border: '1px solid #2a2d38', padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' as const },
@@ -267,6 +272,22 @@ export default function ArkivPage() {
                   ) : laast ? (
                     <span style={s.laastPill}>Premium</span>
                   ) : null}
+                  {/* Kryssnavigasjon (6. september 2026): «hvordan gikk det» er
+                      et annet ærend enn «spill noe nå», men de møtes på samme
+                      rad — herfra går veien til resultatene for den uken.
+
+                      UTENFOR kanSpille/laast-grenene MED VILJE: resultatsiden
+                      er ikke premium-gatet, den gater seg selv (gjest ser topp
+                      3, eksakt plassering krever Premium). Lenken vises derfor
+                      i alle tre tilstandene, også i det korte vinduet mens
+                      profilen laster og vi ikke vet hvem brukeren er.
+
+                      `quiz.id` er KILDEQUIZENS id — raden i denne lista ER
+                      originalen. Kopien som «Spill» oppretter finnes ikke ennå
+                      og har uansett ingen offentlig resultatliste (den er
+                      spilleren alene). Peker denne noen gang på en kopi-id, er
+                      lenken verdiløs. */}
+                  <a href={`/leaderboard/${quiz.id}`} style={s.resultatLenke}>Resultater →</a>
                 </div>
               </div>
             )
