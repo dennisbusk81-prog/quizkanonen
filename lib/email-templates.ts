@@ -187,7 +187,7 @@ export function orgWelcomeEmail(firstNameRaw: string, orgNameRaw: string): strin
                 Velkommen inn i <strong style="color:#ffffff;">${orgName}</strong> på Quizkanonen.
               </p>
               <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
-                Quizkanonen er en quiz du spiller sammen med kollegene dine. Ny quiz hver fredag — du konkurrerer mot resten av ${orgName} på bedriftens egen toppliste, og følger din egen utvikling fra uke til uke.
+                Quizkanonen er en quiz du spiller sammen med kollegene dine. Ny quiz hver fredag — du konkurrerer mot resten av ${orgName} på bedriftens toppliste, og følger din egen utvikling fra uke til uke.
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Premium er inkludert for deg som medlem, så du ser nøyaktig plassering, historikk og statistikk fra første quiz.
@@ -295,7 +295,7 @@ export function welcomeFreeEmail(firstNameRaw: string): string {
                    etter at den ble sendt, og prøveperiodens lengde er en innstilling. -->
               <p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Nysgjerrig på mer? Med Premium får du nøyaktig plassering, historikk, statistikk,
-                private ligaer og sesongtoppliste. Du kan
+                private ligaer og hele topplisten. Du kan
                 <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">prøve gratis</a>
                 — ingen kortinfo nødvendig.
               </p>
@@ -1092,7 +1092,7 @@ export function trialEndedNoCardEmail(): string {
               </p>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Vil du beholde nøyaktig plassering, historikk, private ligaer og sesong-leaderboard,
+                Vil du beholde nøyaktig plassering, historikk, private ligaer og hele topplisten,
                 kan du fortsette med Premium for kr 49/mnd — eller kr 399/år. Ønsker du ikke det, trenger du ikke gjøre noe.
               </p>
 
@@ -1303,10 +1303,10 @@ export function trialWelcomeEmail(trialEnd?: number | null, trialDays?: number |
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering på topplisten</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering i resultatene</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Quizhistorikk og statistikk</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Private ligaer</td></tr>
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Sesong-leaderboard</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Hele topplisten</td></tr>
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
@@ -1397,10 +1397,10 @@ export function foundersWelcomeEmail(trialEnd?: number | null): string {
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering på topplisten</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering i resultatene</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Quizhistorikk og statistikk</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Private ligaer</td></tr>
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Sesong-leaderboard</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Hele topplisten</td></tr>
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
@@ -2082,10 +2082,10 @@ export function premiumWelcomeEmail(interval?: BillingInterval | null): string {
               </p>
 
               <table cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:28px;">
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering på topplisten</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Nøyaktig plassering i resultatene</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Quizhistorikk og statistikk</td></tr>
                 <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Private ligaer med venner og kolleger</td></tr>
-                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Sesong-leaderboard med din eksakte plass</td></tr>
+                <tr><td style="padding:5px 0;font-size:15px;color:#e0e0e0;">&mdash;&nbsp; Hele topplisten med din eksakte plass</td></tr>
               </table>
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
@@ -2798,7 +2798,7 @@ export function foundersFarewellEmail(firstNameRaw?: string | null): string {
                 Fredagsquizen er gratis, akkurat som f&oslash;r. Vil du ha med deg
                 alle fordelene fra Premium videre &mdash; n&oslash;yaktig plassering,
                 historikk og statistikk, private ligaer og egen plass p&aring;
-                sesongtopplisten &mdash; koster det fra 49 kr i m&aring;neden og vil
+                topplisten &mdash; koster det fra 49 kr i m&aring;neden og vil
                 bidra til at plattformen kan bli enda bedre i fremtiden.
               </p>
 
@@ -2908,7 +2908,7 @@ export function codeActivatedEmail(startsAt: string, expiresAt: string | null): 
                 Koden er registrert, og du har Premium ${codePeriodLine(startsAt, expiresAt)}.
               </p>
               <p style="margin:0;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                Det betyr n&oslash;yaktig plassering p&aring; leaderboardet, full sesong-toppliste,
+                Det betyr n&oslash;yaktig plassering i resultatene, hele topplisten,
                 historikk og statistikk &mdash; og private ligaer med venner.
               </p>`)
 }
@@ -2990,7 +2990,7 @@ export function quizOpenedEmail(quizTitleRaw: string | null | undefined, unsubsc
               <div style="height:2px;background:linear-gradient(90deg,#c9a84c 0%,transparent 100%);margin:16px 0 24px;border-radius:2px;"></div>
               ${titleLine}
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
-                En ny quiz på Quizkanonen er nå åpen. Spill nå og se hvor du havner på topplisten!
+                En ny quiz på Quizkanonen er nå åpen. Spill nå og se hvor du havner i resultatene!
               </p>
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
                 <tr>

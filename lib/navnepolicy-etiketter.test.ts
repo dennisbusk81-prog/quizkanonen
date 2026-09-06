@@ -37,8 +37,8 @@
 //     den, «Bedriftens toppliste» inne på bedriftens egen side er stotring.
 //   • «Treningsrunder» / «Arkivkopier» i admin er admins navn på KOPIENE
 //     (quiz_type='archive'), ikke brukerens inngang. Ikke Quizarkiv.
-//   • lib/email-templates.ts sier fortsatt «sesongtoppliste» — e-postmaler
-//     var utenfor bestillingen. Egen sak.
+//   • Ingenting i lib/email-templates.ts lenger — malene ble hentet inn
+//     6. september og vaktes nå av egne tester nederst i denne fila.
 //
 // Hvorfor kildetekst-test og ikke oppførselstest: samme grunn som
 // lib/kontomeny-arkivlenke.test.ts — npm test kjører kun lib/**/*.test.ts under
@@ -60,6 +60,8 @@
 //     målet» ryker (den knappen har to destinasjoner, se testen).
 //   • En ny flate skriver «Se leaderboard →» → fraværstesten ryker og
 //     navngir fil og linje.
+//   • En e-postmal skriver «Sesong-leaderboard» igjen → e-post-fraværstesten
+//     nederst ryker (se egen kommentarblokk der).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
@@ -213,4 +215,80 @@ test('de juridiske sidene står FORTSATT med «leaderboard» — flyttes de, ska
   for (const fil of UNNTATT) {
     assert.match(les(fil), /leaderboard/, `${fil} sier ikke lenger «leaderboard» — fjern fila fra UNNTATT`)
   }
+})
+
+// ── E-postmalene bruker SAMME ord som appen (6. september 2026) ─────────────
+//
+// Navnerunden 76c0c8a byttet ordbruken i app/ og components/, men lot
+// lib/email-templates.ts stå — e-post var utenfor den bestillingen. Resultatet
+// var at e-posten og appen sa ULIKE ting om samme flate: malene lovet
+// «sesongtoppliste», «Sesong-leaderboard» og «nøyaktig plassering på
+// leaderboardet» om funksjoner appen nå kaller «topplisten» og «resultatene».
+// En bruker som klikket seg fra e-posten inn i appen fant ikke ordet igjen.
+//
+// Ingen av de utgåtte ordene sto i en EMNELINJE — emnene settes hos kallerne
+// (webhook, cron-rutene), og ingen av dem nevner de berørte flatene. Det er
+// verdt å vite fordi emnelinja er det eneste folk ser i innboksen; her var
+// skaden begrenset til brødteksten.
+//
+// MUTASJONSBEVIS:
+//   • En mal skriver «Sesong-leaderboard» igjen → fraværstesten ryker med
+//     linjenummer.
+//   • Premium-punktlistene mister «Nøyaktig plassering i resultatene» eller
+//     «Hele topplisten» → nærværstesten ryker for den malen.
+const EPOST = 'lib/email-templates.ts'
+
+/**
+ * Kilden uten JS-kommentarer OG uten HTML-kommentarer. Malene er HTML i
+ * template-literaler, og `<!-- … -->` der forklarer historikk i prosa — blant
+ * annet en fjernet CTA som pekte på /toppliste. Uten strippingen ville
+ * fraværstesten kunne bli rød av en kommentar som beskriver fortiden korrekt.
+ */
+function lesEpost(): string {
+  return renKode(readFileSync(EPOST, 'utf8')).replace(/<!--[\s\S]*?-->/g, '')
+}
+
+/** Utgåtte ord i e-postmalene, med HTML-entitetsvariantene malene faktisk bruker. */
+const UTGAATT_EPOST: ReadonlyArray<{ re: RegExp; ble: string }> = [
+  { re: /sesong-?toppliste/i, ble: 'topplisten / Hele topplisten' },
+  { re: /sesong-?leaderboard/i, ble: 'Hele topplisten' },
+  { re: /leaderboard/i, ble: 'topplisten / resultatene' },
+  { re: /plassering på topplisten/i, ble: 'plassering i resultatene' },
+  { re: /p&aring; topplisten/i, ble: 'i resultatene' },
+  { re: /bedriftens egen toppliste/i, ble: 'bedriftens toppliste' },
+  { re: /den åpne topplisten/i, ble: 'topplisten' },
+  { re: /full toppliste/i, ble: 'hele topplisten' },
+  { re: /\bMin bedrift\b/, ble: 'Bedriftens toppliste' },
+  { re: /Standardkonto/, ble: 'Gratis' },
+]
+
+test('e-postmalene bruker ingen utgått etikett', () => {
+  const linjer = lesEpost().split('\n')
+  const funn: string[] = []
+  linjer.forEach((linje, i) => {
+    for (const { re, ble } of UTGAATT_EPOST) {
+      if (re.test(linje)) funn.push(`${EPOST}:${i + 1}  /${re.source}/  → skal være «${ble}»:  ${linje.trim().slice(0, 120)}`)
+    }
+  })
+  assert.deepEqual(funn, [], `utgåtte etiketter i e-postmalene:\n${funn.join('\n')}`)
+})
+
+test('Premium-punktlistene i e-post sier «i resultatene» og «Hele topplisten»', () => {
+  // Tre maler har den samme fire-punkts Premium-lista: trialWelcomeEmail,
+  // foundersWelcomeEmail og premiumWelcomeEmail. Punkt 1 er plassering på ÉN
+  // quiz, punkt 4 er sesonglista — nøyaktig samme skille som appens
+  // /premium-side gjør. Faller ett av dem tilbake, er e-post og app uenige igjen.
+  const src = lesEpost()
+  const plassering = src.match(/Nøyaktig plassering i resultatene/g) ?? []
+  assert.equal(plassering.length, 3, 'tre maler skal ha punktet «Nøyaktig plassering i resultatene»')
+  const toppliste = src.match(/Hele topplisten/g) ?? []
+  assert.equal(toppliste.length, 3, 'to punktlister + premiumWelcomeEmails «med din eksakte plass»')
+})
+
+test('kvitteringen for verdikode og varselet om ny quiz følger ordbruken', () => {
+  const src = lesEpost()
+  // codeActivatedEmail — HTML-entiteter, så ordene må matches slik de står.
+  assert.match(src, /n&oslash;yaktig plassering i resultatene, hele topplisten/)
+  // quizOpenedEmail handler om ÉN quiz som nettopp åpnet → «resultatene».
+  assert.match(src, /se hvor du havner i resultatene!/)
 })
