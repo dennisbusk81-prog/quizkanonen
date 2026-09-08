@@ -60,7 +60,7 @@ type FinishQuizOverride = {
   answers: AnswerRecord[]
   totalQuestions: number
 }
-import { describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS, describeQuestionTimeLimit } from '@/lib/quiz-time-limit'
 import { nextQuizLabel, formatQuizDate } from '@/lib/next-quiz-label'
 import { decideQuizAvailability, lateSubmitDeadline } from '@/lib/quiz-availability'
 
@@ -1686,7 +1686,11 @@ export default function QuizPage() {
   // ?. ville et slikt oppslag kastet TypeError midt i spilling og tatt hele
   // skjermen, i stedet for å falle tilbake på quiz-nivå-grensen.
   const getTimeLimit = useCallback((question: Question | undefined) =>
-    question?.time_limit_seconds || quiz?.time_limit_seconds || 30, [quiz])
+    // Siste ledd: konstanten, ikke et frittstående 30. Fram til 8. september
+    // 2026 sto 30 her som en tredje kilde til tidsgrensen (de to andre var
+    // kolonne-defaulten på quiz-raden og spørsmålsnivået). Treffer kun når
+    // BEGGE nivåene er NULL — men da skal svaret være det samme som overalt.
+    question?.time_limit_seconds || quiz?.time_limit_seconds || DEFAULT_QUESTION_TIME_LIMIT_SECONDS, [quiz])
 
   // Visningsrekkefølgen for svaralternativene kommer nå ferdig stokket fra
   // /api/quiz/[id]/questions (deterministisk av attemptId + question.id).
