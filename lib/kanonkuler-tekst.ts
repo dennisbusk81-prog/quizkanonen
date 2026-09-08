@@ -97,12 +97,12 @@ export const KANONKULER_FREE_CONFIRM_TEXT = 'Dette bruker én av to kanonkuler.'
  * den sammen selv. Quizens EGEN tittel (GENERATED_QUIZ_TITLE, «Tilfeldig
  * quiz») er uendret — det er kortet som heter noe annet, ikke quizen.
  * «Femten» er skrevet som ord og bindes til GENERATED_QUIZ_QUESTION_COUNT av
- * en test, som «to» over. «Flere tusen» er sant: banken var 4040 rader.
+ * en test, som «to» over (femte runde: ordlyden byttet, bindingen står).
  */
 export const KANONKULER_EYEBROW = 'Ekstraquiz'
 export const KANONKULER_TITLE = 'Lag en ny quiz'
 export const KANONKULER_BODY_TEXT =
-  'Femten tilfeldige spørsmål fra en spørsmålsbank på flere tusen. Koster én kanonkule, og teller ikke i sesongen.'
+  'Femten tilfeldige spørsmål fra Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.'
 
 /**
  * Oppsalgslinja for GRATIS MED KULER IGJEN, rett under statuslinja. En
@@ -112,4 +112,4 @@ export const KANONKULER_BODY_TEXT =
  * (der står oppsalget allerede i tom-teksten).
  */
 export const KANONKULER_FREE_UPSELL_LINE =
-  `Med Premium: ${GENERATION_QUOTA.premium} i måneden og valgfri kategori →`
+  `Med Premium: ${GENERATION_QUOTA.premium} kanonkuler i måneden og valgfri kategori →`

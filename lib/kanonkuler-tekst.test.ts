@@ -175,7 +175,7 @@ test('etikett og tittel sier hva kortet ER — og quizens egen tittel er uendret
 test('brødteksten er ordrett, og «Femten» er sant kun så lenge quizen har 15 spørsmål', () => {
   assert.equal(
     KANONKULER_BODY_TEXT,
-    'Femten tilfeldige spørsmål fra en spørsmålsbank på flere tusen. Koster én kanonkule, og teller ikke i sesongen.',
+    'Femten tilfeldige spørsmål fra Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.',
   )
   assert.equal(
     GENERATED_QUIZ_QUESTION_COUNT, 15,
@@ -184,8 +184,8 @@ test('brødteksten er ordrett, og «Femten» er sant kun så lenge quizen har 15
 })
 
 test('oppsalgslinja for gratis med kuler igjen henter tallet fra kvoten', () => {
-  assert.equal(KANONKULER_FREE_UPSELL_LINE, 'Med Premium: 30 i måneden og valgfri kategori →')
-  assert.ok(KANONKULER_FREE_UPSELL_LINE.includes(`: ${GENERATION_QUOTA.premium} i måneden`))
+  assert.equal(KANONKULER_FREE_UPSELL_LINE, 'Med Premium: 30 kanonkuler i måneden og valgfri kategori →')
+  assert.ok(KANONKULER_FREE_UPSELL_LINE.includes(`: ${GENERATION_QUOTA.premium} kanonkuler i måneden`))
 })
 
 // ── Kategorivelgeren: tolv av fjorten, som FILTRERING av den ene lista ──────
