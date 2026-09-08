@@ -9,6 +9,7 @@ import {
   buildArchiveCopy,
   type ArchiveSourceQuestion,
 } from '@/lib/archive-copy'
+import { writeArchiveCopy } from '@/lib/archive-copy-write'
 import {
   ARCHIVE_CREATED_ACTION,
   ARCHIVE_CREATE_WINDOW_MS,
@@ -37,16 +38,9 @@ import {
 // buildArchiveCopy — ruten gjør kun I/O og gjentar ingen av reglene.
 //
 // ── DELVIS OPPRETTELSE ER FORBUDT — «aktiver sist» ──────────────────────────
-// Importruten (app/api/admin/quizzes/import) setter quizen inn AKTIV og
-// rydder med delete hvis spørsmålsinnsettet feiler — men feiler også
-// ryddingen, står det igjen en tom, SPILLBAR quiz. Her settes quiz-raden
-// derfor inn med is_active=false, og buildArchiveCopy sin is_active-verdi
-// skrives først ETTER at spørsmålsinnsettet er bekreftet. Spillestiens
-// anon-lesing krever is_active=true (samme grunn som i
-// .claude/QK_TESTQUIZ_OPPSKRIFT.md), så det finnes ikke noe vindu — heller
-// ikke ved dobbel feil — der en tom quiz er synlig eller spillbar.
-// Spørsmålsinnsettet er ÉN batch-INSERT (én transaksjon), så «noen av
-// radene» er ikke en mulig tilstand.
+// Selve skrivesekvensen (quiz INAKTIV → spørsmål → aktiver, med opprydding)
+// bor i lib/archive-copy-write.ts siden 8. september 2026, delt med
+// POST /api/tilfeldig-quiz. Begrunnelsen står i filhodet der.
 //
 // ── KILDEBUMPEN ARVES IKKE ──────────────────────────────────────────────────
 // classics/copy bumper kildens usage_count/last_used_at per kopi. Denne ruten
@@ -67,7 +61,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  *  kildekoblingen (source_quiz_id) trenger id-en, og `erEkteQuiz` inne i
  *  lib/archive-source-quiz.ts trenger typen. Kildegaten bruker ingen av dem. */
 const SOURCE_SELECT =
-  'id, question_text, option_a, option_b, option_c, option_d, ' +
+  'id, quiz_id, question_text, option_a, option_b, option_c, option_d, ' +
   'correct_answer, correct_answers, explanation, category, ' +
   'time_limit_seconds, shuffle_options, ' +
   'quiz:quizzes(id, closes_at, is_test, quiz_type)'
@@ -79,7 +73,7 @@ type SourceParentQuiz = {
   quiz_type: string | null
 } | null
 
-type SourceRow = ArchiveSourceQuestion & { quiz: SourceParentQuiz }
+type SourceRow = ArchiveSourceQuestion & { quiz_id: string | null; quiz: SourceParentQuiz }
 
 export async function POST(request: NextRequest) {
   // Lag 1: billig in-memory IP-brems foran auth- og DB-arbeidet. Den
@@ -194,9 +188,13 @@ export async function POST(request: NextRequest) {
   // ── Kildegate: forelder-quiz må være stengt og ikke test ──────────────────
   // Uten denne kunne id-ene til FREDAGENS uåpnede/åpne quiz gitt en spillbar
   // kopi med fasit før quizen stenger. Se lib/archive-create-rules.ts.
+  // allowBankRows: false — EKSPLISITT, ikke default. Id-ene kommer fra
+  // klienten, og biblioteket (quiz_id IS NULL) skal ikke kunne leses ut
+  // gjennom denne inngangen. Se biblioteksgrenen i lib/archive-create-rules.ts.
   const gate = decideArchiveSourceEligibility(
-    rows.map((r) => ({ id: r.id, quiz: r.quiz })),
-    new Date()
+    rows.map((r) => ({ id: r.id, quiz_id: r.quiz_id, quiz: r.quiz })),
+    new Date(),
+    { allowBankRows: false }
   )
   if (!gate.allowed) {
     return NextResponse.json(
@@ -208,9 +206,10 @@ export async function POST(request: NextRequest) {
   // ── Innholdet bestemmes av den rene buildArchiveCopy — uendret ────────────
   // Ukjente id-er (bestilt, men ikke funnet i oppslaget) avvises HER, før noe
   // er skrevet. sourceQuiz sendes med kun for å beviselig ikke arves.
-  const sourceQuestions: ArchiveSourceQuestion[] = rows.map(
-    ({ quiz: _quiz, ...question }) => question
-  )
+  // Kilderadene sendes som de er: SourceRow utvider ArchiveSourceQuestion, og
+  // buildArchiveCopy plukker hver kolonne eksplisitt (ingen spread), så
+  // quiz/quiz_id på radene kan ikke lekke inn i kopien.
+  const sourceQuestions: ArchiveSourceQuestion[] = rows
   // ── Kildekoblingen: har kopien et FROSSET FELT å måles mot? ───────────────
   // «Slik ville du havnet den uken» henter feltet fra attempts på
   // ORIGINALQUIZEN, og quizzes.source_quiz_id (migrasjon 20260827000000) er
@@ -258,65 +257,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: messages[built.error] }, { status: 400 })
   }
 
-  // ── Skriving 1: quiz-raden, INAKTIV (se «aktiver sist» i filhodet) ────────
-  const { data: createdQuiz, error: quizInsertError } = await supabaseAdmin
-    .from('quizzes')
-    .insert({ ...built.quiz, is_active: false })
-    .select('id')
-    .single()
-
-  if (quizInsertError || !createdQuiz) {
-    console.error('[arkiv POST] quiz-insert feilet:', quizInsertError?.message)
+  // ── Skrivingene: quiz INAKTIV → spørsmål → aktiver (lib/archive-copy-write) ──
+  const written = await writeArchiveCopy({
+    quiz: built.quiz,
+    questions: built.questions,
+    logPrefix: '[arkiv POST]',
+  })
+  if (!written.ok) {
     return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
   }
-
-  // ── Skriving 2: spørsmålsradene (én atomisk batch) ────────────────────────
-  const { error: questionsInsertError } = await supabaseAdmin
-    .from('questions')
-    .insert(built.questions.map((q) => ({ ...q, quiz_id: createdQuiz.id })))
-
-  if (questionsInsertError) {
-    console.error('[arkiv POST] spørsmåls-insert feilet:', questionsInsertError.message)
-    const { error: cleanupError } = await supabaseAdmin
-      .from('quizzes')
-      .delete()
-      .eq('id', createdQuiz.id)
-    if (cleanupError) {
-      // Ikke et hull: raden er fortsatt is_active=false og dermed hverken
-      // synlig eller spillbar. Loggen finnes så restene kan ryddes manuelt.
-      console.error(
-        `[arkiv POST] opprydding feilet — INAKTIV tom quiz ${createdQuiz.id} står igjen:`,
-        cleanupError.message
-      )
-    }
-    return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
-  }
-
-  // ── Skriving 3: aktiver — først nå blir quizen synlig/spillbar ────────────
-  const { error: activateError } = await supabaseAdmin
-    .from('quizzes')
-    .update({ is_active: built.quiz.is_active })
-    .eq('id', createdQuiz.id)
-
-  if (activateError) {
-    console.error('[arkiv POST] aktivering feilet:', activateError.message)
-    // Rydd begge radsettene eksplisitt (antar ikke kaskade); feiler det, står
-    // quizen komplett men inaktiv — usynlig, og trygg å rydde manuelt.
-    const { error: cleanupQuestionsError } = await supabaseAdmin
-      .from('questions')
-      .delete()
-      .eq('quiz_id', createdQuiz.id)
-    const { error: cleanupQuizError } = cleanupQuestionsError
-      ? { error: cleanupQuestionsError }
-      : await supabaseAdmin.from('quizzes').delete().eq('id', createdQuiz.id)
-    if (cleanupQuizError) {
-      console.error(
-        `[arkiv POST] opprydding etter aktiveringsfeil — INAKTIV quiz ${createdQuiz.id} står igjen:`,
-        cleanupQuizError.message
-      )
-    }
-    return NextResponse.json({ error: 'Noe gikk galt. Prøv igjen.' }, { status: 500 })
-  }
+  const createdQuiz = { id: written.quizId }
 
   // ── Bokfør kvoten — først ETTER bekreftet opprettelse ─────────────────────
   // Et rullet-tilbake forsøk skal ikke koste kvote. Feiler bokføringen, er

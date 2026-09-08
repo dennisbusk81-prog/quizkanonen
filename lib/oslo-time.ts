@@ -62,6 +62,29 @@ export function osloDateString(iso: string): string | null {
 }
 
 /**
+ * Starten av inneværende KALENDERMÅNED i Norge, som UTC-instant.
+ *
+ *   osloMonthStartUtcIso(Date.parse('2026-09-08T10:00:00Z')) → '2026-08-31T22:00:00.000Z'
+ *   osloMonthStartUtcIso(Date.parse('2026-12-15T10:00:00Z')) → '2026-11-30T23:00:00.000Z'
+ *
+ * Bygget for kanonkule-kvoten (lib/generated-quiz-rules.ts, 8. september
+ * 2026): «2 per kalendermåned» er en norsk måned, ikke en UTC-måned. Kl. 00:30
+ * 1. september norsk tid er det fortsatt 31. august i UTC — en UTC-grense
+ * ville gitt spilleren forrige måneds kuler i to timer (én om vinteren).
+ * Regnes via osloWallClockToUtcIso så DST-håndteringen finnes ett sted.
+ */
+export function osloMonthStartUtcIso(nowMs: number): string {
+  const p = osloParts(nowMs)
+  const ymd = `${p.year}-${String(p.month).padStart(2, '0')}-01`
+  // osloWallClockToUtcIso returnerer null kun for ugyldig input; datoen er
+  // bygget her av gyldige deler, så null er umulig — kastes i stedet for å
+  // sendes videre som en «vet ikke» ingen kaller kan tolke.
+  const iso = osloWallClockToUtcIso(ymd, '00:00')
+  if (iso === null) throw new Error(`osloMonthStartUtcIso: ugyldig dato ${ymd}`)
+  return iso
+}
+
+/**
  * Tolker (dato, veggklokke) som norsk lokaltid og gir det tilsvarende
  * UTC-instantet som ISO-streng. Returnerer null på ugyldig input — kallerne
  * skal hoppe over raden i stedet for å regne videre på en Invalid Date

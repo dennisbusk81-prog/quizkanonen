@@ -80,6 +80,23 @@ export function decideArchiveCreateQuota({
 //
 // Bonus som følger gratis av (c): arkivquizer har selv closes_at=NULL og kan
 // dermed aldri være kilde — ingen kopikjeder av kopier.
+//
+// ── BIBLIOTEKSRADER (quiz_id IS NULL) — eksplisitt gren, OPT-IN (8. sept.) ──
+// Biblioteket (4040 gjenbrukbare spørsmål med quiz_id = NULL) har ingen
+// forelder-quiz og faller derfor på «mangler-kildequiz» over. Generatoren
+// (POST /api/tilfeldig-quiz) trekker fra nettopp biblioteket, og trenger en
+// gren som slipper slike rader gjennom. Grenen er OPT-IN via
+// `allowBankRows`, med FALSE som default, fordi de to kallerne har ulikt
+// trusselbilde:
+//   • /api/arkiv tar id-ene fra KLIENTEN. Slapp den bankrader gjennom, kunne
+//     en premium-bruker plukke fritt fra biblioteket og lese det ut, femten
+//     og femten — id-ene er UUID-er og ikke eksponert i dag, men gaten skal
+//     ikke hvile på det. Der forblir bankrader avvist.
+//   • /api/tilfeldig-quiz velger id-ene SELV, server-side. Der er en
+//     biblioteksrad nettopp den lovlige kilden.
+// Skillet går på `quiz_id === null` (raden ER quiz-løs), ikke på `quiz`
+// (embed-en manglet). En rad med quiz_id satt men uten funnet forelder er
+// fortsatt «vet ikke» → avslag, uansett opsjon.
 
 export type ArchiveSourceParentQuiz = {
   closes_at: string | null
@@ -88,6 +105,8 @@ export type ArchiveSourceParentQuiz = {
 
 export type ArchiveSourceGateRow = {
   id: string
+  /** Radens egen FK. null = biblioteksrad. Ikke det samme som `quiz` null. */
+  quiz_id: string | null
   quiz: ArchiveSourceParentQuiz
 }
 
@@ -99,6 +118,11 @@ export type ArchiveSourceGateDecision =
       questionId: string
     }
 
+export type ArchiveSourceGateOptions = {
+  /** Slipp biblioteksrader (quiz_id IS NULL) gjennom. Default false. */
+  allowBankRows: boolean
+}
+
 /**
  * Er samtlige kildespørsmål lovlige å kopiere til et arkiv?
  * Ren funksjon; `now` sendes inn så gaten er deterministisk i test.
@@ -107,9 +131,16 @@ export type ArchiveSourceGateDecision =
  */
 export function decideArchiveSourceEligibility(
   rows: ArchiveSourceGateRow[],
-  now: Date
+  now: Date,
+  options: ArchiveSourceGateOptions = { allowBankRows: false }
 ): ArchiveSourceGateDecision {
   for (const row of rows) {
+    // Biblioteksgrenen: kun når kalleren eksplisitt har bedt om den, og kun
+    // for rader som faktisk er quiz-løse. Står FØR forelder-sjekken fordi en
+    // bankrad per definisjon ikke har forelder å sjekke.
+    if (row.quiz_id === null && options.allowBankRows) {
+      continue
+    }
     if (!row.quiz) {
       return { allowed: false, reason: 'mangler-kildequiz', questionId: row.id }
     }

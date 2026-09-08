@@ -8,7 +8,7 @@
 // testene under er beviset i stedet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { osloWallClockToUtcIso, osloDateString } from '@/lib/oslo-time'
+import { osloWallClockToUtcIso, osloDateString, osloMonthStartUtcIso } from '@/lib/oslo-time'
 import { orgCloseReminderEmail } from '@/lib/email-templates'
 
 test('sommertid (CEST, UTC+2): "15:00" lagret → 13:00Z', () => {
@@ -78,4 +78,29 @@ test('den gamle sammenlimingen var faktisk feil (regresjonsvakt)', () => {
   const gammel = new Date('2026-08-07T15:00:00.000Z').getTime()
   const ny = new Date(osloWallClockToUtcIso('2026-08-07', '15:00')!).getTime()
   assert.equal((gammel - ny) / 3_600_000, 2, 'gammel tolkning lå 2 timer feil om sommeren')
+})
+
+// ── osloMonthStartUtcIso — kanonkule-kvotens månedsgrense (8. sept. 2026) ────
+// Grensen er en NORSK måned. Kl. 00:30 1. september norsk tid er det fortsatt
+// 31. august i UTC; en UTC-grense ville gitt forrige måneds kuler i to timer.
+
+test('månedsstart: midt i september (CEST) → 31. august 22:00Z', () => {
+  assert.equal(osloMonthStartUtcIso(Date.parse('2026-09-08T10:00:00Z')), '2026-08-31T22:00:00.000Z')
+})
+
+test('månedsstart: midt i desember (CET) → 30. november 23:00Z', () => {
+  assert.equal(osloMonthStartUtcIso(Date.parse('2026-12-15T10:00:00Z')), '2026-11-30T23:00:00.000Z')
+})
+
+test('månedsstart: 00:30 1. september norsk tid (22:30Z 31. august) tilhører SEPTEMBER', () => {
+  // UTC sier fortsatt august; Norge sier september. Norge vinner.
+  assert.equal(osloMonthStartUtcIso(Date.parse('2026-08-31T22:30:00Z')), '2026-08-31T22:00:00.000Z')
+})
+
+test('månedsstart: 23:30 31. august norsk tid (21:30Z) tilhører fortsatt AUGUST', () => {
+  assert.equal(osloMonthStartUtcIso(Date.parse('2026-08-31T21:30:00Z')), '2026-07-31T22:00:00.000Z')
+})
+
+test('månedsstart: januar krysser årsskiftet riktig', () => {
+  assert.equal(osloMonthStartUtcIso(Date.parse('2027-01-10T12:00:00Z')), '2026-12-31T23:00:00.000Z')
 })
