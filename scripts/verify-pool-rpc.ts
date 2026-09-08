@@ -17,6 +17,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchPoolQuestionIds, pickPoolQuestionIds } from '@/lib/generated-quiz-pool'
 import { REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
+import { fetchAllRows } from '@/lib/paginate'
 import { GENERATED_QUIZ_QUESTION_COUNT } from '@/lib/generated-quiz-rules'
 
 const nowIso = new Date().toISOString()
@@ -26,14 +27,20 @@ const ok = (navn: string, cond: boolean, detalj = '') => {
   if (!cond) feil++
 }
 
+// SETOF gjennom PostgREST kuttes stille ved 1000 rader (husregel) — puljen er
+// 4235, så lesingen MÅ pagineres. Funksjonen har ORDER BY q.id, så et
+// paginert kutt er stabilt.
 async function sqlPool(category: string | null): Promise<string[]> {
-  const { data, error } = await supabaseAdmin.rpc('pool_question_ids', {
-    p_category: category,
-    p_real_types: [...REAL_QUIZ_TYPES],
-    p_now: nowIso,
-  })
-  if (error) throw new Error('pool_question_ids: ' + error.message)
-  return data as string[]
+  const rows = await fetchAllRows<string>((from, to) =>
+    supabaseAdmin
+      .rpc('pool_question_ids', {
+        p_category: category,
+        p_real_types: [...REAL_QUIZ_TYPES],
+        p_now: nowIso,
+      })
+      .range(from, to)
+  )
+  return rows
 }
 
 // ── 1. Samme kandidatsett ───────────────────────────────────────────────────
