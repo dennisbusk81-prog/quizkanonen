@@ -108,3 +108,63 @@ export async function writeArchiveCopy(input: {
 
   return { ok: true, quizId: createdQuiz.id }
 }
+
+/**
+ * Sletter en arkivkopi som ALLEREDE ER AKTIVERT — brukt av
+ * POST /api/tilfeldig-quiz når ledger-skrivingen (steg 8) feiler etter at
+ * writeArchiveCopy over har lyktes (8. september 2026, kveld).
+ *
+ * Hvorfor egen funksjon og ikke oppryddingen inne i writeArchiveCopy: der er
+ * quizen ALDRI aktiv når det ryddes, så et delete holder. Her ER den aktiv,
+ * og ledger-raden er siden 5da09fc også TILGANGEN (eier-grenen i
+ * lib/archive-play-gate.ts): en gratisbruker fikk 201 med en quizId hun ikke
+ * kunne starte. Sekvensen er derfor «deaktiver først»: is_active=false →
+ * spørsmål → quiz. Feiler deaktiveringen, forsøkes slettingene likevel;
+ * feiler en sletting, står resten igjen og logges med id så den kan ryddes
+ * manuelt. Antar ikke kaskade, av samme grunn som over.
+ *
+ * Returnerer om ALT ble ryddet. Kalleren svarer 503 uansett — «prøv igjen»
+ * er riktig råd i begge tilfeller, siden ingen kule er bokført.
+ */
+export async function deleteActivatedArchiveCopy(input: {
+  quizId: string
+  logPrefix: string
+}): Promise<{ clean: boolean }> {
+  const { quizId, logPrefix } = input
+  let clean = true
+
+  const { error: deactivateError } = await supabaseAdmin
+    .from('quizzes')
+    .update({ is_active: false })
+    .eq('id', quizId)
+  if (deactivateError) {
+    clean = false
+    console.error(`${logPrefix} deaktivering under opprydding feilet for ${quizId}:`, deactivateError.message)
+  }
+
+  const { error: questionsError } = await supabaseAdmin
+    .from('questions')
+    .delete()
+    .eq('quiz_id', quizId)
+  if (questionsError) {
+    console.error(
+      `${logPrefix} opprydding feilet — quiz ${quizId} står igjen med spørsmål (is_active=${deactivateError ? 'UKJENT' : 'false'}):`,
+      questionsError.message
+    )
+    return { clean: false }
+  }
+
+  const { error: quizError } = await supabaseAdmin
+    .from('quizzes')
+    .delete()
+    .eq('id', quizId)
+  if (quizError) {
+    console.error(
+      `${logPrefix} opprydding feilet — TOM quiz ${quizId} står igjen (is_active=${deactivateError ? 'UKJENT' : 'false'}):`,
+      quizError.message
+    )
+    return { clean: false }
+  }
+
+  return { clean }
+}

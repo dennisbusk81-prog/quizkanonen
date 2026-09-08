@@ -21,6 +21,11 @@ import { getMonthlyGlobalStandings } from '@/lib/monthly-standings'
 import { getLastQuizTop3, type HomeTop3Row } from '@/lib/home-top3'
 import { getLeagueCardData } from '@/lib/league-card-data'
 import { assertHomeQuery, logHomeQuery } from '@/lib/home-query-guard'
+import { osloMonthStartUtcIso, osloNextMonthStartLabel } from '@/lib/oslo-time'
+import { planFromPremium } from '@/lib/generated-quiz-rules'
+import { decidePremiumFromProfile } from '@/lib/premium-check'
+import { kanonkulerRemaining } from '@/lib/kanonkuler-tekst'
+import KanonkulerCard from '@/components/KanonkulerCard'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import * as Sentry from '@sentry/nextjs'
 
@@ -1450,10 +1455,15 @@ export default async function Home() {
     // over — identisk for alle og trygt å dele. Personaliserte spørringer kjøres
     // per-request under.
 
-    const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult] = await Promise.all([
+    const [profileResult, leagueResult, playedLogResult, monthlyAttemptsResult, generationsResult] = await Promise.all([
+      // Karenskolonnene er med for kanonkule-kortet: planen der skal være
+      // NØYAKTIG den POST /api/tilfeldig-quiz regner (decidePremiumFromProfile
+      // — samme funksjon, samme kolonner), ellers kan kortet love 30 kuler
+      // til en ruten gir 2. Resten av forsiden bruker fortsatt
+      // premium_status alene (isPremium under) — det er urørt.
       supabaseAdmin
         .from('profiles')
-        .select('display_name, premium_status, has_used_trial')
+        .select('display_name, premium_status, has_used_trial, org_premium_grace_until, personal_grace_until')
         .eq('id', user.id)
         .maybeSingle(),
       supabaseAdmin
@@ -1475,12 +1485,23 @@ export default async function Home() {
         .eq('user_id', user.id)
         .gte('completed_at', monthStart)
         .lt('completed_at', monthEnd),
+      // Kanonkuler brukt denne NORSKE kalendermåneden — samme telling som
+      // POST /api/tilfeldig-quiz gjør (ledgeren quiz_generations, grense fra
+      // osloMonthStartUtcIso). Femte spørring, ikke hengt på en av de fire:
+      // ledgeren peker på auth.users, ikke profiles, så PostgREST har ingen
+      // embed-vei fra profil-raden, og de to attempts-spørringene er en annen
+      // tabell. Kjører parallelt i samme Promise.all — ingen ny serie-runde.
+      supabaseAdmin
+        .from('quiz_generations')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', osloMonthStartUtcIso(now.getTime())),
     ])
 
-    // ── Lesevakter for de fire personaliserte spørringene ───────────────
+    // ── Lesevakter for de fem personaliserte spørringene ────────────────
     //
     // Her KASTER vi ikke, i motsetning til den delte bundelen. Forskjellen er
-    // ikke smak: disse fire ligger rått i Home(), utenfor både unstable_cache
+    // ikke smak: disse fem ligger rått i Home(), utenfor både unstable_cache
     // og et .catch, og det finnes ingen app/error.tsx. Et kast herfra faller
     // helt til app/global-error.tsx og bytter ut HELE siden med «Noe gikk
     // galt» — nav, hero, Ukens fakta, grunnleggerseksjon, alt. Der
@@ -1495,10 +1516,23 @@ export default async function Home() {
     logHomeQuery('mine ligaer (league_members)', leagueResult.error)
     const playedStatusUnknown = logHomeQuery('spilt-status (attempts)', playedLogResult.error)
     const playedThisMonthUnknown = logHomeQuery('spilt denne måneden (attempts)', monthlyAttemptsResult.error)
+    const generationsUnknown = logHomeQuery('kanonkuler denne måneden (quiz_generations)', generationsResult.error)
 
     // Profile
     const profile = profileResult.data
     const isPremium = profile?.premium_status === true
+
+    // ── Kanonkule-kortet: plan og kuler igjen ───────────────────────────
+    // Planen regnes med decidePremiumFromProfile — den ruten bruker — så
+    // kortets «30 kanonkuler» og rutens 429/403 aldri kan være uenige om
+    // hvem hun er. Kortet rendres KUN når planen er kjent (premiumUnknown
+    // = false): begge tekstsettene påstår noe om kontoen. Tellingen kan
+    // derimot være ukjent alene → remaining null → kortet står uten tall,
+    // og ruten svarer ærlig (429) hvis kvoten faktisk er brukt.
+    const generationPlan = planFromPremium(decidePremiumFromProfile(profile, now))
+    const kanonkulerIgjen = generationsUnknown
+      ? null
+      : kanonkulerRemaining(generationPlan, generationsResult.count ?? 0)
     // «Nedgraderer aldri på transient feil» — regelen ProfileProvider har
     // fulgt hele tiden, nå håndhevet på forsiden også. Landet ikke
     // profiloppslaget, er Premium UKJENT, ikke «gratis»: en betalende kunde
@@ -1771,6 +1805,21 @@ export default async function Home() {
               Se alle quizer →
             </Link>
           </div>
+
+          {/* Kanonkuler — generert quiz fra biblioteket. Under fredagsquizen
+              (bestillingen 8. september 2026), etter quizkortets egen lenke.
+              !premiumUnknown, ikke !isPremium: er planen ukjent, vises kortet
+              ikke — begge tekstsettene (2 kuler + oppsalg / 30 kuler) påstår
+              noe om kontoen, og vi nedgraderer aldri på en lesefeil. */}
+          {!premiumUnknown && (
+            <ErrorBoundary>
+              <KanonkulerCard
+                plan={generationPlan}
+                remaining={kanonkulerIgjen}
+                nextMonthLabel={osloNextMonthStartLabel(now.getTime())}
+              />
+            </ErrorBoundary>
+          )}
 
           {/* Ukens fakta — quiz insights. Vises så snart en stengt quiz har
               nok svar — også fredag mens en quiz er åpen (innholdet er da fra

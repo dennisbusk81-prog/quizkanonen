@@ -346,6 +346,8 @@ const PERSONALISERTE = [
   'leagueResult',
   'playedLogResult',
   'monthlyAttemptsResult',
+  // Kanonkuler denne måneden (quiz_generations) — kortet på forsiden, 8. sept. 2026.
+  'generationsResult',
 ]
 
 test('hver rå spørring i den PERSONALISERTE grenen leser sin error', () => {

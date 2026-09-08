@@ -12,7 +12,7 @@ import {
 } from '@/lib/generated-quiz-rules'
 import { fetchPoolQuestionIds, sampleDistinct } from '@/lib/generated-quiz-pool'
 import { buildArchiveCopy, type ArchiveSourceQuestion } from '@/lib/archive-copy'
-import { writeArchiveCopy } from '@/lib/archive-copy-write'
+import { deleteActivatedArchiveCopy, writeArchiveCopy } from '@/lib/archive-copy-write'
 import { decideArchiveSourceEligibility } from '@/lib/archive-create-rules'
 import type { Loaded } from '@/lib/fetch-result'
 
@@ -55,8 +55,8 @@ import type { Loaded } from '@/lib/fetch-result'
 // ruten skriver i steg 8 (quiz_id + user_id), lest av
 // lib/generated-quiz-ownership.ts og avgjort i lib/archive-play-gate.ts.
 // Det gjør ledger-skrivingen til mer enn bokføring: feiler den (loggen
-// «LEDGER-SKRIVING FEILET» under), er quizen opprettet men kan ikke startes
-// av en gratisbruker.
+// «LEDGER-SKRIVING FEILET» under), slettes quizen igjen og svaret er 503 —
+// ellers hadde en gratisbruker fått en quiz hun ikke kan starte.
 //
 // ── KILDEBUMPEN — HER, OG KUN HER ───────────────────────────────────────────
 // /api/arkiv bumper med vilje ikke: en reprise av quiz 47 er ikke ny bruk
@@ -214,9 +214,13 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 8. Ledgeren — én rad, planen frosset ──────────────────────────────────
-  // Feiler den, er kvoten for SLAPP for neste kall (én gratis kule). Riktig
-  // feilretning for en rullet-tilbake opprettelse, men her ER quizen
-  // opprettet — så det logges høyt, ikke stille.
+  // Ledger-raden er siden 5da09fc også TILGANGEN (eier-grenen i spill-porten,
+  // se filhodet). Feiler den, er ikke quizen bare ubokført — en gratisbruker
+  // får en quizId hun ikke kan starte, og en blindvei ved første klikk. Derfor
+  // (8. september 2026, kveld): slett quizen igjen og svar 503. Da er
+  // tilstanden ren — ingen kule brukt, ingen foreldreløs quiz — og «prøv
+  // igjen» er sant. Kildebumpen i steg 7 står igjen; den er sortering, ikke
+  // tilstand brukeren ser.
   const { error: ledgerError } = await supabaseAdmin.from('quiz_generations').insert({
     user_id: user.id,
     category,
@@ -225,9 +229,11 @@ export async function POST(request: NextRequest) {
   })
   if (ledgerError) {
     console.error(
-      `[tilfeldig-quiz POST] LEDGER-SKRIVING FEILET — quiz ${written.quizId} for ${user.id} er ikke bokført:`,
+      `[tilfeldig-quiz POST] LEDGER-SKRIVING FEILET — quiz ${written.quizId} for ${user.id} slettes igjen:`,
       ledgerError.message
     )
+    await deleteActivatedArchiveCopy({ quizId: written.quizId, logPrefix: '[tilfeldig-quiz POST]' })
+    return NextResponse.json({ error: RETRY_ERROR }, { status: 503 })
   }
 
   return NextResponse.json(

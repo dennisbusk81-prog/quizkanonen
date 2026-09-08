@@ -8,7 +8,13 @@
 // testene under er beviset i stedet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { osloWallClockToUtcIso, osloDateString, osloMonthStartUtcIso } from '@/lib/oslo-time'
+import {
+  osloWallClockToUtcIso,
+  osloDateString,
+  osloMonthStartUtcIso,
+  osloNextMonthStartUtcIso,
+  osloNextMonthStartLabel,
+} from '@/lib/oslo-time'
 import { orgCloseReminderEmail } from '@/lib/email-templates'
 
 test('sommertid (CEST, UTC+2): "15:00" lagret → 13:00Z', () => {
@@ -103,4 +109,44 @@ test('månedsstart: 23:30 31. august norsk tid (21:30Z) tilhører fortsatt AUGUS
 
 test('månedsstart: januar krysser årsskiftet riktig', () => {
   assert.equal(osloMonthStartUtcIso(Date.parse('2027-01-10T12:00:00Z')), '2026-12-31T23:00:00.000Z')
+})
+
+// ── Neste månedsstart — kanonkule-kortets «Neste kanonkule 1. oktober» ──────
+
+test('neste månedsstart: midt i september (CEST) → 30. september 22:00Z', () => {
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2026-09-08T10:00:00Z')), '2026-09-30T22:00:00.000Z')
+})
+
+test('neste månedsstart: oktober → november krysser sommertid-slutt (CEST→CET)', () => {
+  // 1. november 00:00 norsk tid er 31. oktober 23:00Z — offsetet har byttet.
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2026-10-10T10:00:00Z')), '2026-10-31T23:00:00.000Z')
+})
+
+test('neste månedsstart: desember → januar krysser årsskiftet', () => {
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2026-12-15T10:00:00Z')), '2026-12-31T23:00:00.000Z')
+})
+
+test('neste månedsstart: 31-dagers måned hopper ikke over en måned (juli → 1. august, ikke september)', () => {
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2026-07-01T00:00:00Z')), '2026-07-31T22:00:00.000Z')
+})
+
+test('neste månedsstart: februar (28 dager) lander på 1. mars, ikke 1. april', () => {
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2027-02-27T12:00:00Z')), '2027-02-28T23:00:00.000Z')
+})
+
+test('neste månedsstart: 00:30 1. september norsk tid tilhører september → neste er 1. oktober', () => {
+  assert.equal(osloNextMonthStartUtcIso(Date.parse('2026-08-31T22:30:00Z')), '2026-09-30T22:00:00.000Z')
+})
+
+test('etikett: «1. oktober» i september, «1. januar» i desember — uten årstall', () => {
+  assert.equal(osloNextMonthStartLabel(Date.parse('2026-09-08T10:00:00Z')), '1. oktober')
+  assert.equal(osloNextMonthStartLabel(Date.parse('2026-12-15T10:00:00Z')), '1. januar')
+})
+
+test('etikett: månedsgrensen er norsk, ikke UTC', () => {
+  // 23:30 30. september norsk tid (21:30Z): begge sier september → «1. oktober».
+  assert.equal(osloNextMonthStartLabel(Date.parse('2026-09-30T21:30:00Z')), '1. oktober')
+  // 00:30 1. november norsk tid (23:30Z 31. oktober, CET): UTC sier fortsatt
+  // oktober og ville gitt «1. november» — Norge sier november → «1. desember».
+  assert.equal(osloNextMonthStartLabel(Date.parse('2026-10-31T23:30:00Z')), '1. desember')
 })

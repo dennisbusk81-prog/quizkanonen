@@ -85,6 +85,38 @@ export function osloMonthStartUtcIso(nowMs: number): string {
 }
 
 /**
+ * Starten av NESTE kalendermåned i Norge, som UTC-instant — dagen kvoten
+ * fylles opp igjen («Neste kanonkule 1. oktober», kanonkule-kortet på
+ * forsiden, 8. september 2026).
+ *
+ *   osloNextMonthStartUtcIso(Date.parse('2026-09-08T10:00:00Z')) → '2026-09-30T22:00:00.000Z'
+ *   osloNextMonthStartUtcIso(Date.parse('2026-12-15T10:00:00Z')) → '2026-12-31T23:00:00.000Z'
+ *
+ * Gjenbruker osloMonthStartUtcIso, ikke en ny månedsberegning: månedsstarten
+ * pluss 32 døgn ligger alltid i neste måned (ingen måned er lengre enn 31
+ * dager) og aldri i den etter (ingen er kortere enn 28), så månedsstarten AV
+ * det instantet er neste måneds start. DST-håndteringen finnes dermed
+ * fortsatt ett sted.
+ */
+export function osloNextMonthStartUtcIso(nowMs: number): string {
+  const thisMonthStartMs = Date.parse(osloMonthStartUtcIso(nowMs))
+  return osloMonthStartUtcIso(thisMonthStartMs + 32 * 86_400_000)
+}
+
+/**
+ * «1. oktober» — første dag i neste norske kalendermåned, som visningstekst.
+ * Uten årstall: teksten står maks én måned fram i tid, og «1. januar» i
+ * desember er entydig nok.
+ */
+export function osloNextMonthStartLabel(nowMs: number): string {
+  return new Date(osloNextMonthStartUtcIso(nowMs)).toLocaleDateString('nb-NO', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: OSLO_TZ,
+  })
+}
+
+/**
  * Tolker (dato, veggklokke) som norsk lokaltid og gir det tilsvarende
  * UTC-instantet som ISO-streng. Returnerer null på ugyldig input — kallerne
  * skal hoppe over raden i stedet for å regne videre på en Invalid Date

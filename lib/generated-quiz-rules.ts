@@ -30,6 +30,7 @@
 // gratisbruker som har brukt opp kulene sine skal få «tomt for kuler», ikke
 // «kategori krever Premium» — det første er sant uansett hva hun velger.
 import type { Loaded } from '@/lib/fetch-result'
+import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 
 export type GenerationPlan = 'free' | 'premium'
 
@@ -48,6 +49,25 @@ export const GENERATED_QUIZ_QUESTION_COUNT = 15
 
 /** Tittelen på genererte quizer. «Tilfeldig quiz» inntil videre (bestillingen). */
 export const GENERATED_QUIZ_TITLE = 'Tilfeldig quiz'
+
+/**
+ * Kategorier som IKKE tilbys i velgeren på forsiden (8. september 2026).
+ * Teknologi har 82 spørsmål og Diverse 50 i banken; med 15 per quiz gir 82
+ * færre enn seks quizer før gjentak. De ligger fortsatt i puljen for
+ * BLANDEDE quizer — dette er visning, ikke en rett: ruten godtar fortsatt
+ * alle fjorten (lib/quiz-categories.ts), fordi grunnen er kvalitet, ikke
+ * tilgang.
+ *
+ * Velgeren er en FILTRERING av QUIZ_CATEGORIES (generatorCategoryOptions
+ * under), ikke en egen liste — så en femtende kategori dukker opp i velgeren
+ * uten at noen må huske to steder.
+ */
+export const GENERATOR_HIDDEN_CATEGORIES: readonly string[] = ['Teknologi', 'Diverse']
+
+/** Kategoriene velgeren tilbyr, i QUIZ_CATEGORIES sin rekkefølge. Tolv per 8. september 2026. */
+export function generatorCategoryOptions(): readonly string[] {
+  return QUIZ_CATEGORIES.filter((c) => !GENERATOR_HIDDEN_CATEGORIES.includes(c))
+}
 
 export const GENERATION_UNKNOWN_ERROR =
   'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.'

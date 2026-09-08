@@ -29,6 +29,12 @@
 //                                      ikke kule»-testen røde
 //   • sett `allowBankRows: false` i ruten → alle 201-testene røde (403 fra gaten)
 //   • sett `sourceQuizId: FORELDER`  → source_quiz_id-asserten rød
+// Ledger-oppryddingen (8. september, kveld) — se «ledger-skriving feiler»-testene:
+//   • fjern `await deleteActivatedArchiveCopy(...)` i ruten → skrivesekvens-asserten rød
+//   • `return 503` → `201` etter ledgerfeil → status- og quizId-assertene røde
+//   • fjern deaktiveringen i deleteActivatedArchiveCopy → sekvensen rød
+//   • bytt rekkefølgen spørsmål/quiz i slettingen → sekvensen rød
+//   • stum retur (`return { clean: false }` uten logg) ved slettefeil → «står igjen»-testen rød
 import { test, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -77,6 +83,7 @@ const state = {
   questionsInsertFails: false,
   bumpFails: false,
   ledgerFails: false,
+  cleanupQuizDeleteFails: false,
   ops: [] as Op[],
   rpcs: [] as RpcCall[],
 }
@@ -149,7 +156,9 @@ function resolveOp(op: Op): Record<string, unknown> {
     return { error: state.questionsInsertFails ? { message: 'simulert insert-feil' } : null }
   }
   if (op.table === 'quizzes' && op.action === 'update') return { error: null }
-  if (op.table === 'quizzes' && op.action === 'delete') return { error: null }
+  if (op.table === 'quizzes' && op.action === 'delete') {
+    return { error: state.cleanupQuizDeleteFails ? { message: 'simulert slettefeil' } : null }
+  }
   if (op.table === 'questions' && op.action === 'delete') return { error: null }
   throw new Error(`uventet operasjon i test: ${op.table} ${op.action}`)
 }
@@ -232,6 +241,7 @@ beforeEach(() => {
   state.questionsInsertFails = false
   state.bumpFails = false
   state.ledgerFails = false
+  state.cleanupQuizDeleteFails = false
   state.ops = []
   state.rpcs = []
 })
@@ -490,18 +500,65 @@ test('kildebump feiler → 201 likevel, ledgeren skrives fortsatt (bumpen velter
   assert.ok(skrivinger().some((o) => o.table === 'quiz_generations'))
 })
 
-test('ledger-skriving feiler → 201 likevel (quizen ER opprettet), men det logges', async () => {
+// Ledger-raden er også TILGANGEN (eier-grenen i spill-porten, 5da09fc). Fram
+// til 8. september kveld svarte ruten 201 med quizId her — en gratisbruker
+// fikk en quiz hun ikke kunne starte. Nå: slett quizen, svar 503.
+test('ledger-skriving feiler → 503 UTEN quizId, quizen deaktiveres og slettes (spørsmål, så quiz), og det logges', async () => {
   state.ledgerFails = true
   const logget: string[] = []
   const orig = console.error
   console.error = (...args: unknown[]) => { logget.push(String(args[0])) }
+  let res: Response
   try {
-    const res = await kall()
-    assert.equal(res.status, 201)
+    res = await kall()
   } finally {
     console.error = orig
   }
+  assert.equal(res.status, 503)
+  const body = await res.json()
+  assert.ok(!('quizId' in body), 'svaret bærer en quizId til en quiz som er slettet')
+  assert.match(body.error, /Prøv igjen/)
   assert.ok(logget.some((l) => l.includes('LEDGER-SKRIVING FEILET')))
+
+  assert.deepEqual(
+    skrivinger().map((o) => `${o.table}:${o.action}`),
+    [
+      'quizzes:insert',
+      'questions:insert',
+      'quizzes:update',
+      'rpc:bump_question_usage:update',
+      'quiz_generations:insert',
+      'quizzes:update',
+      'questions:delete',
+      'quizzes:delete',
+    ]
+  )
+  // Oppryddingen er nøklet på den NYE quizen — og deaktiverer FØRST, siden
+  // quizen (i motsetning til writeArchiveCopy sin egen opprydding) er aktiv.
+  const [, deaktiver] = skrivinger().filter((o) => o.table === 'quizzes' && o.action === 'update')
+  assert.deepEqual(deaktiver.payload, { is_active: false })
+  assert.ok(deaktiver.filters.some((f) => f.method === 'eq' && f.args[0] === 'id' && f.args[1] === NEW_QUIZ))
+  const slettSp = skrivinger().find((o) => o.table === 'questions' && o.action === 'delete')!
+  assert.ok(slettSp.filters.some((f) => f.method === 'eq' && f.args[0] === 'quiz_id' && f.args[1] === NEW_QUIZ))
+  const slettQuiz = skrivinger().find((o) => o.table === 'quizzes' && o.action === 'delete')!
+  assert.ok(slettQuiz.filters.some((f) => f.method === 'eq' && f.args[0] === 'id' && f.args[1] === NEW_QUIZ))
+})
+
+test('ledger-skriving OG opprydding feiler → fortsatt 503 uten quizId, resten logges med id', async () => {
+  state.ledgerFails = true
+  state.cleanupQuizDeleteFails = true
+  const logget: string[] = []
+  const orig = console.error
+  console.error = (...args: unknown[]) => { logget.push(String(args[0])) }
+  let res: Response
+  try {
+    res = await kall()
+  } finally {
+    console.error = orig
+  }
+  assert.equal(res.status, 503)
+  assert.ok(!('quizId' in (await res.json())))
+  assert.ok(logget.some((l) => l.includes('står igjen') && l.includes(NEW_QUIZ)))
 })
 
 // ── Backstop: kildegaten feller en pulje-rad som ikke skulle vært der ───────
