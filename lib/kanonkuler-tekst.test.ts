@@ -6,8 +6,7 @@
 //
 // MUTASJONSBEVIS (8. september 2026):
 //   • `n === 1` → `n === 0` i kanonkuleOrd        → «1 kanonkule igjen»-testene + sveipet røde
-//   • `remaining >= GENERATION_QUOTA.premium` → `> 0` (tildeling for alle) → «premium 29 → igjen»-testen rød
-//   • premium-«igjen» → `${remaining} igjen denne måneden` → «premium 8»-testen + sveipet røde (ordlyden er Dennis', tredje runde)
+//   • en `plan === 'premium'`-gren i statuslinja (sjette runde: det finnes ingen) → «identisk statuslinje»-sveipet rødt
 //   • `plan === 'free' ? upsell : null` → alltid upsell → «premium tom → INGEN oppsalg»-testen rød
 //   • `remaining <= 0` → `< 0`                    → «0 igjen er tom»-testene røde
 //   • fjern `Math.max(0, …)` i kanonkulerRemaining → «senket kvote»-testen rød
@@ -39,13 +38,15 @@ const status = (plan: 'free' | 'premium', remaining: number) =>
   kanonkulerStatus({ plan, remaining, nextMonthLabel: LABEL })
 
 // ── Tabellen: hver tilstand, eksakt tekst ───────────────────────────────────
+// Sjette runde: statuslinja er FELLES for begge planer — ingen gren på plan.
 
-test('gratis 2 igjen → «2 kanonkuler igjen» (forbruk)', () => {
-  assert.deepEqual(status('free', 2), { kind: 'igjen', text: '2 kanonkuler igjen' })
+test('gratis 2 igjen → «Du har 2 kanonkuler igjen denne måneden»', () => {
+  assert.deepEqual(status('free', 2), { kind: 'igjen', text: 'Du har 2 kanonkuler igjen denne måneden' })
 })
 
-test('gratis 1 igjen → «1 kanonkule igjen» — ENTALL', () => {
-  assert.deepEqual(status('free', 1), { kind: 'igjen', text: '1 kanonkule igjen' })
+test('1 igjen → «Du har 1 kanonkule igjen denne måneden» — ENTALL, begge planer', () => {
+  assert.deepEqual(status('free', 1), { kind: 'igjen', text: 'Du har 1 kanonkule igjen denne måneden' })
+  assert.deepEqual(status('premium', 1), { kind: 'igjen', text: 'Du har 1 kanonkule igjen denne måneden' })
 })
 
 test('gratis 0 igjen → tom, «Neste kanonkule 1. oktober», MED oppsalg', () => {
@@ -56,25 +57,13 @@ test('gratis 0 igjen → tom, «Neste kanonkule 1. oktober», MED oppsalg', () =
   })
 })
 
-test('premium 30 igjen (ingen brukt) → «30 kanonkuler denne måneden» — tildelingen er hel', () => {
+test('premium 30 igjen (ingen brukt) → samme forbrukslinje, INGEN tildelingslinje', () => {
   assert.equal(GENERATION_QUOTA.premium, 30)
-  assert.deepEqual(status('premium', 30), { kind: 'tildeling', text: '30 kanonkuler denne måneden' })
+  assert.deepEqual(status('premium', 30), { kind: 'igjen', text: 'Du har 30 kanonkuler igjen denne måneden' })
 })
 
-test('premium 29 igjen (én brukt) → «29 kanonkuler igjen» — tildelingspåstanden står bare så lenge den er hel', () => {
-  assert.deepEqual(status('premium', 29), { kind: 'igjen', text: '29 kanonkuler igjen' })
-})
-
-test('premium 25 igjen → «25 kanonkuler igjen», ALDRI «25 kanonkuler denne måneden»', () => {
-  assert.deepEqual(status('premium', 25), { kind: 'igjen', text: '25 kanonkuler igjen' })
-})
-
-test('premium 8 igjen → «8 kanonkuler igjen»', () => {
-  assert.deepEqual(status('premium', 8), { kind: 'igjen', text: '8 kanonkuler igjen' })
-})
-
-test('premium 1 igjen → «1 kanonkule igjen» — ENTALL', () => {
-  assert.deepEqual(status('premium', 1), { kind: 'igjen', text: '1 kanonkule igjen' })
+test('premium 8 igjen → «Du har 8 kanonkuler igjen denne måneden»', () => {
+  assert.deepEqual(status('premium', 8), { kind: 'igjen', text: 'Du har 8 kanonkuler igjen denne måneden' })
 })
 
 test('premium 0 igjen → tom, INGEN oppsalg (hun har allerede Premium)', () => {
@@ -85,7 +74,7 @@ test('premium 0 igjen → tom, INGEN oppsalg (hun har allerede Premium)', () => 
   })
 })
 
-test('negativt (kvoten senket etter forbruk) → tom, ikke «-3 kanonkuler igjen»', () => {
+test('negativt (kvoten senket etter forbruk) → tom, ikke «Du har -3 kanonkuler …»', () => {
   assert.equal(status('free', -3).kind, 'tom')
   assert.equal(status('premium', -3).kind, 'tom')
 })
@@ -95,26 +84,25 @@ test('etiketten går rett inn — «1. januar» i desember', () => {
   assert.equal(s.text, 'Neste kanonkule 1. januar')
 })
 
-// ── Sveip: entall/flertall stemmer for HVERT tall, begge planer ─────────────
+// ── Sveip: begge planer gir SAMME formulering, og entall/flertall stemmer ───
 
-test('sveip 0..30, begge planer: aldri «1 kanonkuler», aldri «N kanonkule» for N≠1', () => {
+test('sveip 1..30: gratis og premium gir identisk statuslinje for samme tall', () => {
+  for (let n = 1; n <= GENERATION_QUOTA.premium; n++) {
+    assert.deepEqual(status('free', n), status('premium', n), `planene skiller seg ved ${n}`)
+    assert.equal(status('free', n).text, `Du har ${n} ${kanonkuleOrd(n)} igjen denne måneden`)
+  }
+})
+
+test('sveip 0..30, begge planer: aldri «1 kanonkuler», aldri «N kanonkule» for N≠1, aldri en tildelingslinje', () => {
   for (const plan of ['free', 'premium'] as const) {
     for (let n = 0; n <= GENERATION_QUOTA.premium; n++) {
       const s = status(plan, n)
       assert.doesNotMatch(s.text, /\b1 kanonkuler\b/, `${plan} ${n}: «1 kanonkuler»`)
       assert.doesNotMatch(s.text, /\b(?!1\b)\d+ kanonkule\b/, `${plan} ${n}: flertall uten -r`)
+      assert.doesNotMatch(s.text, /^\d+ kanonkuler? denne måneden$/, `${plan} ${n}: leser som en tildeling`)
       if (n === 0) assert.equal(s.kind, 'tom', `${plan} 0 skal være tom`)
-      else assert.match(s.text, new RegExp(`^${n} `), `${plan} ${n}: tallet mangler`)
+      else assert.match(s.text, new RegExp(`^Du har ${n} `), `${plan} ${n}: tallet mangler`)
     }
-  }
-})
-
-test('sveip premium 1..29: «N kanonkuler igjen» — tildelingspåstanden finnes KUN ved hel kvote', () => {
-  for (let n = 1; n < GENERATION_QUOTA.premium; n++) {
-    const s = status('premium', n)
-    assert.equal(s.kind, 'igjen', `premium ${n}`)
-    assert.equal(s.text, `${n} ${kanonkuleOrd(n)} igjen`)
-    assert.doesNotMatch(s.text, /denne måneden/, `premium ${n}: leser som en tildeling på ${n}`)
   }
 })
 
@@ -175,7 +163,7 @@ test('etikett og tittel sier hva kortet ER — og quizens egen tittel er uendret
 test('brødteksten er ordrett, og «Femten» er sant kun så lenge quizen har 15 spørsmål', () => {
   assert.equal(
     KANONKULER_BODY_TEXT,
-    'Femten tilfeldige spørsmål fra Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.',
+    'Femten tilfeldige spørsmål, trukket fra tusenvis i Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.',
   )
   assert.equal(
     GENERATED_QUIZ_QUESTION_COUNT, 15,
@@ -184,7 +172,7 @@ test('brødteksten er ordrett, og «Femten» er sant kun så lenge quizen har 15
 })
 
 test('oppsalgslinja for gratis med kuler igjen henter tallet fra kvoten', () => {
-  assert.equal(KANONKULER_FREE_UPSELL_LINE, 'Med Premium: 30 kanonkuler i måneden og valgfri kategori →')
+  assert.equal(KANONKULER_FREE_UPSELL_LINE, 'Med Premium: 30 kanonkuler i måneden, og du velger kategori →')
   assert.ok(KANONKULER_FREE_UPSELL_LINE.includes(`: ${GENERATION_QUOTA.premium} kanonkuler i måneden`))
 })
 

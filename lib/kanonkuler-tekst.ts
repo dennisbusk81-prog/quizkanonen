@@ -5,22 +5,19 @@
 // avgjøres her. Da kan hver tekst-tilstand testes som en tabell
 // (lib/kanonkuler-tekst.test.ts), og entall/flertall er én funksjon.
 //
-// ── TALLET VISES TIL BEGGE, MEN MED ULIKT FORTEGN (Dennis, bestillingen) ────
-//   gratis                  forbruk:     «2 kanonkuler igjen»
-//   premium, ingen brukt    tildeling:   «30 kanonkuler denne måneden»
-//   premium, noen brukt     forbruk:     «8 kanonkuler igjen» (som gratis)
+// ── STATUSLINJA ER FELLES FOR BEGGE PLANER (Dennis, sjette runde 8. sept.) ──
+//   N > 0   «Du har N kanonkuler igjen denne måneden»
+//   N = 1   «Du har 1 kanonkule igjen denne måneden»
+//   N = 0   «Neste kanonkule 1. oktober»
 //
-// Begrunnelsen, så den ikke forsvinner: gratisbrukerens knapphet er selve
-// produktmekanikken og skal føles. Premium-brukeren skal se hva hun HAR, ikke
-// hva hun har tært på — men et tak som finnes og aldri vises, er en vegg som
-// kommer fra ingensteds den dagen hun når det.
-//
-// TILDELINGSPÅSTANDEN STÅR BARE SÅ LENGE DEN ER HEL (Dennis, andre runde
-// samme kveld). Første utkast viste «25 kanonkuler denne måneden» etter fem
-// brukt, med en terskel på ti før teksten byttet til «igjen». «25 … denne
-// måneden» leser som en tildeling på 25 — usant. Nå bytter teksten ved
-// FØRSTE brukte kule, ikke ved en terskel — til den samme forbrukslinja som
-// gratis har (tredje runde: substantivet inn, «denne måneden» ut).
+// Historikken, så den ikke gjentas: første utkast skilte planene («2
+// kanonkuler igjen» for gratis, «30 kanonkuler denne måneden» for premium,
+// med en terskel på ti før premium byttet til «igjen»). «25 kanonkuler denne
+// måneden» etter fem brukt leste som en tildeling på 25 — usant — så
+// terskelen gikk ut, og tildelingslinja sto kun ved hel kvote. I sjette runde
+// utgikk tildelingslinja helt: premium og gratis deler nå samme streng, og
+// det finnes ingen gren på plan i statuslinja lenger. Taket er synlig for
+// begge gjennom tallet selv.
 //
 // ── TOMT FOR KULER ER EN SALGSFLATE, IKKE EN FEILMELDING ────────────────────
 //   gratis:   «Neste kanonkule 1. oktober · Få 30 med Premium og velg kategori»
@@ -48,7 +45,6 @@ export function kanonkulerRemaining(plan: GenerationPlan, usedThisMonth: number)
 
 export type KanonkulerStatus =
   | { kind: 'igjen'; text: string }
-  | { kind: 'tildeling'; text: string }
   | { kind: 'tom'; text: string; upsell: string | null }
 
 /**
@@ -73,13 +69,8 @@ export function kanonkulerStatus(input: {
     }
   }
 
-  // Hel tildeling (ingen brukt) → tildelingspåstanden. Én brukt → forbruk,
-  // samme linje som gratis.
-  if (plan === 'premium' && remaining >= GENERATION_QUOTA.premium) {
-    return { kind: 'tildeling', text: `${remaining} ${kanonkuleOrd(remaining)} denne måneden` }
-  }
-
-  return { kind: 'igjen', text: `${remaining} ${kanonkuleOrd(remaining)} igjen` }
+  // Samme streng for begge planer — ingen gren på plan her (se filhodet).
+  return { kind: 'igjen', text: `Du har ${remaining} ${kanonkuleOrd(remaining)} igjen denne måneden` }
 }
 
 /**
@@ -102,7 +93,7 @@ export const KANONKULER_FREE_CONFIRM_TEXT = 'Dette bruker én av to kanonkuler.'
 export const KANONKULER_EYEBROW = 'Ekstraquiz'
 export const KANONKULER_TITLE = 'Lag en ny quiz'
 export const KANONKULER_BODY_TEXT =
-  'Femten tilfeldige spørsmål fra Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.'
+  'Femten tilfeldige spørsmål, trukket fra tusenvis i Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.'
 
 /**
  * Oppsalgslinja for GRATIS MED KULER IGJEN, rett under statuslinja. En
@@ -112,4 +103,4 @@ export const KANONKULER_BODY_TEXT =
  * (der står oppsalget allerede i tom-teksten).
  */
 export const KANONKULER_FREE_UPSELL_LINE =
-  `Med Premium: ${GENERATION_QUOTA.premium} kanonkuler i måneden og valgfri kategori →`
+  `Med Premium: ${GENERATION_QUOTA.premium} kanonkuler i måneden, og du velger kategori →`

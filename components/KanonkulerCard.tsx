@@ -267,7 +267,7 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
             <div style={s.actions}>
               {plan === 'premium' && (
                 <label style={s.label}>
-                  Kategori{' '}
+                  Velg kategori{' '}
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
