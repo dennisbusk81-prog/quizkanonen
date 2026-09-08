@@ -69,6 +69,11 @@ export type Quiz = {
   // verdirommet er åpent, og typen er derfor `string` og ikke en union.
   is_test: boolean | null
   quiz_type: string
+  // Forelderen til en arkivkopi (quiz_type='archive'). NULL er normalen for
+  // GENERERTE quizer (kanonkuler, lib/archive-copy.ts) — det er det som
+  // skiller «reprise av quiz 47» fra «tilfeldig quiz» på resultatskjermen.
+  // Lagt til 8. september 2026; kolonnen er ellers alltid null.
+  source_quiz_id: string | null
 }
 
 export type Question = {

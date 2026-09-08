@@ -1058,6 +1058,12 @@ export default function QuizPage() {
   // (GET /api/arkiv/[id]/plassering) i stedet for standings på kopien —
   // standings/leaderboard på kopiens egen id ville vist «nr. 1 av 1».
   const isArchive = quiz?.quiz_type === 'archive'
+  // Generert quiz (kanonkule): en arkivkopi UTEN forelder — source_quiz_id
+  // NULL er normalen for genererte quizer (lib/archive-copy.ts). Skiller
+  // «reprise av quiz 47» fra «tilfeldig quiz» der veien videre er ulik: en
+  // reprise peker til quizarkivet, en kanonkule til forsiden — arkivet er
+  // Premium, og en gratisbruker med to kuler har aldri hatt tilgang dit.
+  const isGenerated = isArchive && quiz?.source_quiz_id === null
   // Spøkelsesplasseringen — «slik ville du havnet den uken». 'venter' til
   // svaret er inne; 'feil' er «vet ikke» og vises aldri som «ingen
   // plassering» (lib/archive-result-view.ts eier tolkningen).
@@ -3297,7 +3303,11 @@ export default function QuizPage() {
         <p className="qk-sub" style={{textAlign:'center'}}>
           {/* Arkiv: veien videre er en NY runde fra arkivet, ikke fredagens
               neste quiz — gullboksen under byttes med Til arkivet-knappen. */}
-          {isArchive ? 'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet.' : 'Én gjennomspilling per quiz.'}
+          {isGenerated
+            ? 'Denne quizen er ferdigspilt — lag en ny fra forsiden.'
+            : isArchive
+              ? 'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet.'
+              : 'Én gjennomspilling per quiz.'}
         </p>
         {!isArchive && <div style={{
           margin:'16px 0 0',
@@ -3358,7 +3368,12 @@ export default function QuizPage() {
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {/* Arkiv: kopiens leaderboard er spilleren alene — lenken byttes med
               utgangen til arkivet (skjermens ene gull-element begge veier). */}
-          {isArchive ? (
+          {isGenerated ? (
+            // Hard navigasjon med vilje, som «Tilbake til forsiden» under: forsiden
+            // skal lese kanonkule-tellingen på nytt (én kule er nettopp brukt).
+            // eslint-disable-next-line @next/next/no-html-link-for-pages
+            <a href="/" className="qk-btn-primary">Til forsiden</a>
+          ) : isArchive ? (
             <a href="/arkiv" className="qk-btn-primary">Til quizarkivet</a>
           ) : quiz.show_leaderboard && (
             <a href={`/leaderboard/${quizId}`} className="qk-btn-primary">Se resultatene</a>
@@ -4923,7 +4938,13 @@ export default function QuizPage() {
 
         {/* Arkiv: kopiens toppliste er spilleren alene — utgangen er arkivet,
             i samme gull-primærposisjon som «Se resultatene» ellers har. */}
-        {isArchive ? (
+        {isGenerated ? (
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            {/* Hard navigasjon med vilje: forsiden skal lese kanonkule-tellingen på nytt, ikke router-cachen. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+            <a href="/" className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Til forsiden</a>
+          </div>
+        ) : isArchive ? (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <a href="/arkiv" className="qk-btn-primary" style={{ width: 'auto', padding: '10px 28px' }}>Til quizarkivet</a>
           </div>

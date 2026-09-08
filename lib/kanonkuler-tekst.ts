@@ -6,15 +6,20 @@
 // (lib/kanonkuler-tekst.test.ts), og entall/flertall er én funksjon.
 //
 // ── TALLET VISES TIL BEGGE, MEN MED ULIKT FORTEGN (Dennis, bestillingen) ────
-//   gratis             forbruk:     «2 kanonkuler igjen»
-//   premium, > 10      beholdning:  «30 kanonkuler denne måneden»
-//   premium, ≤ 10      forbruk:     «8 kanonkuler igjen»
+//   gratis                  forbruk:     «2 kanonkuler igjen»
+//   premium, ingen brukt    tildeling:   «30 kanonkuler denne måneden»
+//   premium, noen brukt     forbruk:     «8 igjen denne måneden»
 //
 // Begrunnelsen, så den ikke forsvinner: gratisbrukerens knapphet er selve
 // produktmekanikken og skal føles. Premium-brukeren skal se hva hun HAR, ikke
 // hva hun har tært på — men et tak som finnes og aldri vises, er en vegg som
-// kommer fra ingensteds den dagen hun når det. Derfor bytter premium til
-// «igjen» når det nærmer seg.
+// kommer fra ingensteds den dagen hun når det.
+//
+// TILDELINGSPÅSTANDEN STÅR BARE SÅ LENGE DEN ER HEL (Dennis, andre runde
+// samme kveld). Første utkast viste «25 kanonkuler denne måneden» etter fem
+// brukt, med en terskel på ti før teksten byttet til «igjen». «25 … denne
+// måneden» leser som en tildeling på 25 — usant. Nå bytter teksten ved
+// FØRSTE brukte kule, ikke ved en terskel.
 //
 // ── TOMT FOR KULER ER EN SALGSFLATE, IKKE EN FEILMELDING ────────────────────
 //   gratis:   «Neste kanonkule 1. oktober · Få 30 med Premium og velg kategori»
@@ -26,9 +31,6 @@
 //
 // Tallene kommer fra GENERATION_QUOTA — teksten gjentar dem ikke.
 import { GENERATION_QUOTA, type GenerationPlan } from '@/lib/generated-quiz-rules'
-
-/** Over dette viser premium beholdning («denne måneden»); på og under: forbruk («igjen»). */
-export const KANONKULER_STOCK_THRESHOLD = 10
 
 /** «1 kanonkule», «2 kanonkuler». Prosjektet har hatt «1 quizer totalt» før. */
 export function kanonkuleOrd(n: number): string {
@@ -45,7 +47,7 @@ export function kanonkulerRemaining(plan: GenerationPlan, usedThisMonth: number)
 
 export type KanonkulerStatus =
   | { kind: 'igjen'; text: string }
-  | { kind: 'beholdning'; text: string }
+  | { kind: 'tildeling'; text: string }
   | { kind: 'tom'; text: string; upsell: string | null }
 
 /**
@@ -70,8 +72,12 @@ export function kanonkulerStatus(input: {
     }
   }
 
-  if (plan === 'premium' && remaining > KANONKULER_STOCK_THRESHOLD) {
-    return { kind: 'beholdning', text: `${remaining} ${kanonkuleOrd(remaining)} denne måneden` }
+  if (plan === 'premium') {
+    // Hel tildeling (ingen brukt) → tildelingspåstanden. Én brukt → forbruk.
+    if (remaining >= GENERATION_QUOTA.premium) {
+      return { kind: 'tildeling', text: `${remaining} ${kanonkuleOrd(remaining)} denne måneden` }
+    }
+    return { kind: 'igjen', text: `${remaining} igjen denne måneden` }
   }
 
   return { kind: 'igjen', text: `${remaining} ${kanonkuleOrd(remaining)} igjen` }
