@@ -5,7 +5,8 @@ import { rateLimit } from '@/lib/rate-limit'
 import { rateLimitShared } from '@/lib/rate-limit-shared'
 import { createAttemptToken } from '@/lib/attempt-token'
 import { decidePremiumFromProfile, PREMIUM_PROFILE_COLUMNS, type PremiumProfileRow } from '@/lib/premium-check'
-import { decideArchivePlayGate } from '@/lib/archive-play-gate'
+import { decideArchivePlayGate, needsGeneratedOwnershipLookup } from '@/lib/archive-play-gate'
+import { loadGeneratedQuizOwnership } from '@/lib/generated-quiz-ownership'
 import type { Loaded } from '@/lib/fetch-result'
 import { isTransientAuthStatus } from '@/lib/auth-transient'
 import { PLAY_PRE_AUTH_BURST, PLAY_RATE_LIMIT, playRateLimitKey } from '@/lib/play-rate-limit'
@@ -184,7 +185,7 @@ export async function POST(request: NextRequest) {
   // ── Quizen må finnes, være SYNLIG og være åpen ────────────────────────────────
   const { data: quiz } = await supabaseAdmin
     .from('quizzes')
-    .select('id, is_active, opens_at, closes_at, quiz_type')
+    .select('id, is_active, opens_at, closes_at, quiz_type, source_quiz_id')
     .eq('id', quizId)
     .maybeSingle()
 
@@ -225,7 +226,17 @@ export async function POST(request: NextRequest) {
   // per konstruksjon upåvirket. Full begrunnelse i lib/archive-play-gate.ts.
   // Står FØR tidsvinduet og replay-/gjenbrukslogikken: en avvist bruker skal
   // ikke koste flere oppslag, og ingen attempt-rad skal kunne skrives.
-  const archiveGate = decideArchivePlayGate(quiz.quiz_type, callerPremium)
+  //
+  // Premium ELLER eier (8. september 2026): eieren av en GENERERT quiz
+  // (quiz_generations-rad med hennes user_id og denne quiz_id) slipper inn
+  // uten Premium. Ledgeren spørres kun når gaten trenger svaret — aldri for
+  // fredagsquizen, aldri for bekreftet premium, aldri for en quiz med kilde.
+  // Spørsmålet «må jeg spørre?» bor i gatens modul, ikke her.
+  const sourceQuizId = (quiz.source_quiz_id as string | null) ?? null
+  const generated = needsGeneratedOwnershipLookup(quiz.quiz_type, callerPremium, sourceQuizId)
+    ? { sourceQuizId, owner: await loadGeneratedQuizOwnership(quizId, userId) }
+    : null
+  const archiveGate = decideArchivePlayGate(quiz.quiz_type, callerPremium, generated)
   if (!archiveGate.allowed) {
     return NextResponse.json({ error: archiveGate.error }, { status: archiveGate.status })
   }

@@ -3,8 +3,9 @@
 //
 // INTEGRASJONSTEST av arkiv-gaten på spill-porten (ARK-1 steg 1A, 27. august
 // 2026): den ekte POST /api/quiz/start-attempt kjøres med den ekte
-// decideArchivePlayGate og den ekte decidePremiumFromProfile — kun
-// supabase-admin og rate-limit-lagene er mocket.
+// decideArchivePlayGate, den ekte decidePremiumFromProfile og den ekte
+// loadGeneratedQuizOwnership — kun supabase-admin og rate-limit-lagene er
+// mocket.
 //
 // Bevisene bestillingen krever, i rekkefølge:
 //   gratisbruker mot arkivquiz   → avvist (403), ingen attempt skrevet
@@ -15,12 +16,34 @@
 // spiller fredag kl. 12. Derfor dekkes fredagsstien BÅDE for gratisbruker og
 // for lesefeil («vet ikke → ikke premium» skal bestå der, aldri bli 503).
 //
+// Fra 8. september 2026 (eier-grenen, quiz_generations):
+//   gratis EIER av generert quiz          → slipper inn (200, token uten premium)
+//   gratis, IKKE eier (en annens rad)     → 403
+//   gratis, egen rad på ANNEN quiz        → 403 (quiz_id-leddet står i spørringen)
+//   gratis + egen rad, men kilde NOT NULL → 403 (reprise kan ikke bli eid)
+//   gratis + eieroppslag feiler           → 503, ingen attempt skrevet
+//   premium                               → ledgeren spørres IKKE
+//   fredagsquiz                           → ledgeren spørres IKKE
+//
 // MUTASJONSBEVIS (alle kjørt 27. august 2026 og revertert):
 //   • decideArchivePlayGate-kallet fjernet fra ruten → 403- og 503-testene røde
 //   • gatens 503-gren kollapset til 403             → lesefeil-mot-arkiv-testen rød
 //   • gatens ikke-arkiv-tidligretur fjernet         → BEGGE fredagstestene røde
 //   • lesefeil kollapset til { ok: true, value: false } i ruten
 //                                                   → lesefeil-mot-arkiv-testen rød
+//
+// MUTASJONSBEVIS eier-grenen (kjørt 8. september 2026 mot stagede filer,
+// `git diff --numstat` ≠ tom før hver kjøring, `git checkout --` etterpå):
+//   • ruten: eieroppslaget fjernet (`generated = null`)   → 3 røde (eier, eier+premium-ukjent, oppslag-feil)
+//   • helper: `value: data !== null` → `value: true`      → 4 røde (ikke-eier ×2, annen quiz ×2, begge ruter)
+//   • helper: `.eq('user_id')` fjernet                     → 2 røde (annens rad, begge ruter)
+//   • helper: `.eq('quiz_id')` fjernet                     → 2 røde (annen quiz, begge ruter)
+//   • gaten: NULL-kilde-kravet fjernet                     → 3 røde (reprise-testene)
+//   • gaten: ukjent eierskap kollapset til «nei»           → 3 røde (503-testene)
+//   • gaten: premium-ukjent → 503 FØR eier-sjekken         → 2 røde (sann ELLER ukjent)
+//   • gaten: eier-grenen fjernet helt                      → 5 røde
+//   • needsLookup: ikke-arkiv-tidligretur fjernet          → 3 røde (BEGGE fredagstestene + den rene)
+//   • plassering-ruten: eieroppslaget fjernet              → 2 røde (i lib/arkiv-plassering-route.test.ts)
 import { test, mock, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -28,7 +51,10 @@ process.env.QUIZ_TOKEN_SECRET = 'test-hemmelighet-for-attempt-token'
 
 const ARCHIVE_QUIZ = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const FRIDAY_QUIZ = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const GENERATED_QUIZ = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const NEW_ATTEMPT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const ME = 'u-self'
+const OTHER = 'u-other'
 
 type ProfileRow = {
   suspended_until: string | null
@@ -37,11 +63,18 @@ type ProfileRow = {
   personal_grace_until: string | null
 }
 
+type GenerationRow = { id: string; quiz_id: string | null; user_id: string }
+
 const state = {
   profile: null as ProfileRow | null,
   profileFails: false,
   attemptInserts: 0,
   attemptQueries: 0,
+  generations: [] as GenerationRow[],
+  generationsFail: false,
+  generationQueries: 0,
+  /** Kilden på ARCHIVE_QUIZ — NOT NULL som standard (en reprise). */
+  archiveSourceQuizId: FRIDAY_QUIZ as string | null,
 }
 
 // Rate-limit-lagene er ikke det denne filen beviser — slipp alt gjennom.
@@ -73,8 +106,17 @@ function quizzesBuilder() {
     select() { return b },
     eq(_col: string, id: string) {
       const rows: Record<string, unknown> = {
-        // Arkivkopien slik buildArchiveCopy skriver den: NULL-tider, egen type.
-        [ARCHIVE_QUIZ]: { id: ARCHIVE_QUIZ, is_active: true, opens_at: null, closes_at: null, quiz_type: 'archive' },
+        // Arkivkopi slik buildArchiveCopy skriver den: NULL-tider, egen type,
+        // og en kilde (reprise av fredagsquizen).
+        [ARCHIVE_QUIZ]: {
+          id: ARCHIVE_QUIZ, is_active: true, opens_at: null, closes_at: null,
+          quiz_type: 'archive', source_quiz_id: state.archiveSourceQuizId,
+        },
+        // Generert quiz slik POST /api/tilfeldig-quiz skriver den: kilde NULL.
+        [GENERATED_QUIZ]: {
+          id: GENERATED_QUIZ, is_active: true, opens_at: null, closes_at: null,
+          quiz_type: 'archive', source_quiz_id: null,
+        },
         // Fredagsquiz med åpent vindu rundt «nå».
         [FRIDAY_QUIZ]: {
           id: FRIDAY_QUIZ,
@@ -82,6 +124,7 @@ function quizzesBuilder() {
           opens_at: new Date(Date.now() - 3_600_000).toISOString(),
           closes_at: new Date(Date.now() + 3_600_000).toISOString(),
           quiz_type: 'weekly',
+          source_quiz_id: null,
         },
       }
       return { ...b, async maybeSingle() { return { data: rows[id] ?? null } } }
@@ -123,6 +166,27 @@ function attemptsBuilder() {
   return b
 }
 
+// Ledgeren: EVALUERER filtrene, så et manglende quiz_id- eller user_id-ledd
+// i spørringen faktisk gir feil svar (husregel: grep teller navn, ikke
+// oppførsel).
+function generationsBuilder() {
+  const filters: [string, unknown][] = []
+  const b = {
+    select() { return b },
+    eq(col: string, val: unknown) { filters.push([col, val]); return b },
+    limit() { return b },
+    async maybeSingle() {
+      state.generationQueries++
+      if (state.generationsFail) return { data: null, error: { message: 'simulert ledger-feil' } }
+      const hit = state.generations.find((r) =>
+        filters.every(([col, val]) => (r as unknown as Record<string, unknown>)[col] === val)
+      )
+      return { data: hit ? { id: hit.id } : null, error: null }
+    },
+  }
+  return b
+}
+
 mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
@@ -131,10 +195,11 @@ mock.module('@/lib/supabase-admin', {
         if (table === 'quizzes') return quizzesBuilder() as never
         if (table === 'questions') return questionsBuilder() as never
         if (table === 'attempts') return attemptsBuilder() as never
+        if (table === 'quiz_generations') return generationsBuilder() as never
         throw new Error(`uventet tabell i test: ${table}`)
       },
       auth: {
-        getUser: async () => ({ data: { user: { id: 'u-self' } }, error: null }),
+        getUser: async () => ({ data: { user: { id: ME } }, error: null }),
       },
     },
   },
@@ -168,6 +233,10 @@ beforeEach(() => {
   state.profileFails = false
   state.attemptInserts = 0
   state.attemptQueries = 0
+  state.generations = []
+  state.generationsFail = false
+  state.generationQueries = 0
+  state.archiveSourceQuizId = FRIDAY_QUIZ
 })
 
 // ── Arkivquiz: gaten binder ────────────────────────────────────────────────
@@ -210,6 +279,74 @@ test('lesefeil mot arkivquiz → 503, aldri en dom — og ingen attempt skrevet'
   assert.equal(state.attemptQueries, 0)
 })
 
+// ── Generert quiz: eieren slipper inn uten Premium (8. september 2026) ─────
+
+test('gratis EIER av generert quiz → 200 med token UTEN premium-krav, én attempt', async () => {
+  state.generations = [{ id: 'g1', quiz_id: GENERATED_QUIZ, user_id: ME }]
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 200)
+  const json = (await res.json()) as { attemptId: string; attemptToken: string }
+  assert.equal(json.attemptId, NEW_ATTEMPT)
+  const read = readAttemptToken(json.attemptToken, json.attemptId, GENERATED_QUIZ)
+  assert.equal(read.valid, true)
+  // Eierskap er tilgang, ikke Premium: tokenets visningskrav forblir sant.
+  assert.equal(read.premium, false)
+  assert.equal(state.attemptInserts, 1)
+  assert.equal(state.generationQueries, 1, 'ledgeren skal ha blitt spurt nøyaktig én gang')
+})
+
+test('gratis, IKKE eier (en annens rad på samme quiz) → 403, ingen attempt', async () => {
+  state.generations = [{ id: 'g1', quiz_id: GENERATED_QUIZ, user_id: OTHER }]
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 403)
+  assert.equal(((await res.json()) as { error: string }).error, 'Quizarkivet krever Premium.')
+  assert.equal(state.attemptInserts, 0)
+  assert.equal(state.attemptQueries, 0)
+})
+
+test('gratis med egen rad på en ANNEN quiz → 403 — quiz_id-leddet står i spørringen', async () => {
+  state.generations = [{ id: 'g1', quiz_id: ARCHIVE_QUIZ, user_id: ME }]
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 403)
+  assert.equal(state.attemptInserts, 0)
+})
+
+test('gratis med egen rad, men kilden er NOT NULL → 403 — en reprise kan ikke bli eid', async () => {
+  // ARCHIVE_QUIZ har source_quiz_id = FRIDAY_QUIZ. En ledger-rad kan ikke
+  // oppstå for den via koden; porten skal ikke hvile på det.
+  state.generations = [{ id: 'g1', quiz_id: ARCHIVE_QUIZ, user_id: ME }]
+  const res = await call(ARCHIVE_QUIZ) as Response
+  assert.equal(res.status, 403)
+  assert.equal(state.attemptInserts, 0)
+  assert.equal(state.generationQueries, 0, 'ledgeren skal ikke engang spørres for en quiz med kilde')
+})
+
+test('gratis + eieroppslaget feiler → 503, aldri 403 og aldri inn — ingen attempt', async () => {
+  state.generations = [{ id: 'g1', quiz_id: GENERATED_QUIZ, user_id: ME }]
+  state.generationsFail = true
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 503)
+  assert.equal(((await res.json()) as { error: string }).error,
+    'Kunne ikke bekrefte tilgangen din akkurat nå. Prøv igjen om litt.')
+  assert.equal(state.attemptInserts, 0)
+  assert.equal(state.attemptQueries, 0)
+})
+
+test('premium-lesefeil + bekreftet eier → slipper inn (sann ELLER ukjent)', async () => {
+  state.profileFails = true
+  state.generations = [{ id: 'g1', quiz_id: GENERATED_QUIZ, user_id: ME }]
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 200)
+  assert.equal(state.attemptInserts, 1)
+})
+
+test('premium mot generert quiz → inn, og ledgeren spørres IKKE', async () => {
+  state.profile = profile({ premium_status: true })
+  const res = await call(GENERATED_QUIZ) as Response
+  assert.equal(res.status, 200)
+  assert.equal(state.generationQueries, 0)
+})
+
 // ── Fredagsquiz: UENDRET — det viktigste beviset ───────────────────────────
 
 test('gratisbruker mot fredagsquiz → uendret: 200 med token uten premium-krav', async () => {
@@ -220,6 +357,7 @@ test('gratisbruker mot fredagsquiz → uendret: 200 med token uten premium-krav'
   assert.equal(read.valid, true)
   assert.equal(read.premium, false)
   assert.equal(state.attemptInserts, 1)
+  assert.equal(state.generationQueries, 0, 'fredagsstien skal aldri røre quiz_generations')
 })
 
 test('lesefeil mot fredagsquiz → fortsatt 200, aldri 503 — «vet ikke → ikke premium» består der', async () => {
@@ -235,4 +373,5 @@ test('lesefeil mot fredagsquiz → fortsatt 200, aldri 503 — «vet ikke → ik
   assert.equal(read.valid, true)
   assert.equal(read.premium, false)
   assert.equal(state.attemptInserts, 1)
+  assert.equal(state.generationQueries, 0)
 })

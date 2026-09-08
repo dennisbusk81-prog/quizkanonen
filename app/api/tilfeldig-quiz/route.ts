@@ -48,11 +48,15 @@ import type { Loaded } from '@/lib/fetch-result'
 // «normalen for genererte quizer»). INGEN ny quiz_type: en ny verdi ville
 // falt gjennom decideArchivePlayGate i start-attempt, og da kunne
 // gratisbrukere spilt en generert quiz uten port. Konsekvensen av å
-// gjenbruke 'archive' er også reell, og den er rapportert, ikke løst her:
-// spill-porten krever Premium for ALLE arkivquizer, så en gratisbrukers to
-// månedlige kuler produserer i dag quizer hun ikke får starte. Det er en
-// portbeslutning som hører hjemme i lib/archive-play-gate.ts, ikke en ny
-// type.
+// gjenbruke 'archive' er løst i PORTEN, ikke med en ny type: fram til
+// 8. september 2026 krevde spill-porten Premium for ALLE arkivquizer, så en
+// gratisbrukers to månedlige kuler produserte quizer hun ikke fikk starte.
+// Nå er regelen «premium ELLER eier» — eierskapet er ledger-raden denne
+// ruten skriver i steg 8 (quiz_id + user_id), lest av
+// lib/generated-quiz-ownership.ts og avgjort i lib/archive-play-gate.ts.
+// Det gjør ledger-skrivingen til mer enn bokføring: feiler den (loggen
+// «LEDGER-SKRIVING FEILET» under), er quizen opprettet men kan ikke startes
+// av en gratisbruker.
 //
 // ── KILDEBUMPEN — HER, OG KUN HER ───────────────────────────────────────────
 // /api/arkiv bumper med vilje ikke: en reprise av quiz 47 er ikke ny bruk

@@ -32,6 +32,13 @@
 //   • skygg `fetchAllRows` med en variant som kun henter FØRSTE side (2 røde)
 //       → nevneren stoppet på 1000 av 1050, og lesefeilen sluttet å gi 503
 //
+// MUTASJONSBEVIS eier-grenen (8. september 2026, samme metode):
+//   • ruten: eieroppslaget fjernet (`generated = null`)             (2 røde)
+//       → eieren fikk 403 i stedet for «ingen-kilde», og oppslag-feil ga 403
+//   • helper `value: true` alltid / `.eq('user_id')` / `.eq('quiz_id')` fjernet
+//       → ikke-eier- og annen-quiz-testene her OG i start-attempt-testen røde
+//   Full liste i filhodet til lib/start-attempt-archive-gate-route.test.ts.
+//
 // TO AV DEM OVERLEVDE FØRSTE RUNDE, og testene ble strammet FØR de ble
 // notert her — begge er verdt å kjenne:
 //
@@ -72,6 +79,8 @@ const state = {
   profiles: [] as Row[],
   organizations: [] as Row[],
   organization_members: [] as Row[],
+  quiz_generations: [] as Row[],
+  generationsLookupFails: false,
   quizLookupFails: false,
   attemptLookupFails: false,
   profileLookupFails: false,
@@ -111,6 +120,7 @@ function fails(table: string, single: boolean): boolean {
   if (table === 'profiles') return state.profileLookupFails
   if (table === 'quizzes') return state.quizLookupFails
   if (table === 'attempts') return single ? state.attemptLookupFails : state.fieldQueryFails
+  if (table === 'quiz_generations') return state.generationsLookupFails
   return false
 }
 
@@ -138,6 +148,7 @@ function makeBuilder(table: string) {
       return b
     },
     range(f: number, t: number) { from = f; to = t; return b },
+    limit(n: number) { to = from + n - 1; return b },
     maybeSingle() { single = true; return b },
     single() { single = true; return b },
     then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {
@@ -259,6 +270,8 @@ beforeEach(() => {
     { organization_id: ORG_ID, user_id: MEG, role: 'member' },
     { organization_id: ORG_ID, user_id: KOLLEGA, role: 'member' },
   ]
+  state.quiz_generations = []
+  state.generationsLookupFails = false
   state.quizLookupFails = false
   state.attemptLookupFails = false
   state.profileLookupFails = false
@@ -555,4 +568,73 @@ test('svaret bærer kun tall — ingen navn fra det frosne feltet', async () => 
     ['fieldSize', 'previous', 'rank', 'scope', 'selfWasInField', 'total']
   )
   assert.equal(JSON.stringify(body).includes('spiller-'), false)
+})
+
+// ── Eier av en GENERERT quiz (8. september 2026) ────────────────────────────
+// Samme regel og samme eieroppslag som spill-porten. Poenget her er
+// QK_3-presedensen (4. august): lærer bare start-attempt regelen, spiller
+// eieren quizen sin og får så en falsk feilmelding ved målstreken — klienten
+// tolker alt som ikke er 200 som «vet ikke». Sannheten for en generert quiz
+// er «ingen plassering finnes» (ingen-kilde), og det skal denne ruten svare.
+
+function generertQuizForGratisbruker() {
+  ;(state.quizzes[0] as Row).source_quiz_id = null
+  state.profiles = [
+    { id: MEG, premium_status: false, org_premium_grace_until: null, personal_grace_until: null },
+  ]
+}
+
+test('gratis EIER av generert quiz → 200 «ingen-kilde», ikke 403 — samme sannhet som spill-porten', async () => {
+  generertQuizForGratisbruker()
+  state.quiz_generations = [{ id: 'g1', quiz_id: ARKIV_QUIZ, user_id: MEG }]
+  const res = await kall()
+  assert.equal(res.status, 200)
+  assert.deepEqual(await res.json(), { placement: null, reason: 'ingen-kilde' })
+})
+
+test('gratis, IKKE eier (en annens rad) → 403', async () => {
+  generertQuizForGratisbruker()
+  state.quiz_generations = [{ id: 'g1', quiz_id: ARKIV_QUIZ, user_id: ANNEN }]
+  const res = await kall()
+  assert.equal(res.status, 403)
+  assert.deepEqual(await res.json(), { error: 'Quizarkivet krever Premium.' })
+})
+
+test('gratis med egen rad på en ANNEN quiz → 403 — quiz_id-leddet står i spørringen', async () => {
+  generertQuizForGratisbruker()
+  state.quiz_generations = [{ id: 'g1', quiz_id: ORIGINAL_QUIZ, user_id: MEG }]
+  assert.equal((await kall()).status, 403)
+})
+
+test('gratis med egen rad, men kilden er NOT NULL → 403, og ledgeren spørres ikke', async () => {
+  // state.quizzes[0] beholder source_quiz_id = ORIGINAL_QUIZ (en reprise).
+  state.profiles = [
+    { id: MEG, premium_status: false, org_premium_grace_until: null, personal_grace_until: null },
+  ]
+  state.quiz_generations = [{ id: 'g1', quiz_id: ARKIV_QUIZ, user_id: MEG }]
+  const res = await kall()
+  assert.equal(res.status, 403)
+  assert.equal(state.ops.filter((o) => o.table === 'quiz_generations').length, 0)
+})
+
+test('gratis + eieroppslaget feiler → 503, aldri 403', async () => {
+  generertQuizForGratisbruker()
+  state.quiz_generations = [{ id: 'g1', quiz_id: ARKIV_QUIZ, user_id: MEG }]
+  state.generationsLookupFails = true
+  const res = await kall()
+  assert.equal(res.status, 503)
+})
+
+test('premium mot generert quiz → ledgeren spørres IKKE', async () => {
+  ;(state.quizzes[0] as Row).source_quiz_id = null
+  const res = await kall()
+  assert.equal(res.status, 200)
+  assert.equal(state.ops.filter((o) => o.table === 'quiz_generations').length, 0)
+})
+
+test('eier-grenen skriver ingenting — invarianten «beregning, ikke rad» står', async () => {
+  generertQuizForGratisbruker()
+  state.quiz_generations = [{ id: 'g1', quiz_id: ARKIV_QUIZ, user_id: MEG }]
+  await kall()
+  assert.deepEqual(skrivinger(), [])
 })

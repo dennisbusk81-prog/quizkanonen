@@ -292,7 +292,10 @@ export async function POST(request: NextRequest) {
 // med funksjonen. Gaten sitter på SKRIVEFLATENE: POST over (opprettelse) og
 // spill-porten (start-attempt). Listen avslører kun titler, stengetider og
 // spørsmåls-ID-ER — aldri innhold eller fasit (spørsmålsdata krever
-// attempt-token, og et attempt på en arkivkopi krever Premium).
+// attempt-token, og et attempt på en arkivkopi krever Premium — eller, for en
+// GENERERT quiz, eierskap via quiz_generations; se lib/archive-play-gate.ts.
+// Kopiene POST over lager får aldri en ledger-rad, så eier-grenen åpner
+// ingen av dem for gratisbrukere).
 // Ingen rate-limit — samme linje som /api/toppliste, den tyngre ugatede
 // leseruten: ren lesing mot egen DB, grensen ville kun vært kostnadsdemping.
 //

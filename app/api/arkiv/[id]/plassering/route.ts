@@ -4,7 +4,8 @@ import { getUserPremium } from '@/lib/premium-check'
 import { fetchAllRows } from '@/lib/paginate'
 import { resolveOrgMembership } from '@/lib/org-membership'
 import { getGloballyBlockedSet } from '@/lib/globally-blocked-set'
-import { decideArchivePlayGate } from '@/lib/archive-play-gate'
+import { decideArchivePlayGate, needsGeneratedOwnershipLookup } from '@/lib/archive-play-gate'
+import { loadGeneratedQuizOwnership } from '@/lib/generated-quiz-ownership'
 import { decideArchivePlacement, type ArchiveFieldRow } from '@/lib/archive-placement'
 import { requireUnlockedOrg } from '@/lib/org-lock-guard'
 
@@ -100,8 +101,18 @@ export async function GET(
   }
 
   // ── Premium-gaten, delt med spill-porten ─────────────────────────────────
+  // Premium ELLER eier av en generert quiz — samme regel og samme
+  // eieroppslag som start-attempt (8. september 2026). Lærer bare den ene
+  // ruten regelen, spiller eieren quizen sin og får så en falsk feilmelding
+  // her ved målstreken: klienten tolker alt som ikke er 200 som «vet ikke»,
+  // mens sannheten for en generert quiz er «ingen plassering finnes»
+  // (`ingen-kilde` under).
   const premium = await getUserPremium(user.id)
-  const gate = decideArchivePlayGate(quiz.quiz_type, premium)
+  const sourceQuizId = (quiz.source_quiz_id as string | null) ?? null
+  const generated = needsGeneratedOwnershipLookup(quiz.quiz_type, premium, sourceQuizId)
+    ? { sourceQuizId, owner: await loadGeneratedQuizOwnership(archiveQuizId, user.id) }
+    : null
+  const gate = decideArchivePlayGate(quiz.quiz_type, premium, generated)
   if (!gate.allowed) {
     return NextResponse.json({ error: gate.error }, { status: gate.status })
   }
@@ -132,8 +143,6 @@ export async function GET(
   if (attempt.submitted_at === null) {
     return NextResponse.json({ error: 'Forsøket er ikke levert.' }, { status: 409 })
   }
-
-  const sourceQuizId = (quiz.source_quiz_id as string | null) ?? null
 
   // ── Ingen kilde → ingen frosset felt. Svar uten å røre databasen mer ─────
   // Normaltilstanden for genererte quizer. Kort ut her sparer både
