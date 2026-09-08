@@ -17,8 +17,18 @@
 // husets HVITELISTE (onlyRealQuizzes, lib/real-quiz-population.ts): 'archive'
 // står ikke i REAL_QUIZ_TYPES. Utvides hvitelisten med en ny ekte type,
 // følger puljen med automatisk — og en SQL-kopi av regelen ville ikke gjort
-// det (CLAUDE.md-fella om IN-listene i 20260825000000). Det er grunnen til at
-// puljen bygges i TS med paginerte lesinger, ikke som én RPC.
+// det (CLAUDE.md-fella om IN-listene i 20260825000000).
+//
+// ── TO VEIER TIL SAMME PULJE (9. september 2026) ────────────────────────────
+// fetchPoolQuestionIds (under) henter hele id-settet til Vercel i paginerte
+// lesinger og lar sampleDistinct trekke. Målt 8. september: 1065–1218 ms av
+// ~2,2 s total — fem rundturer for å trekke 15. pickPoolQuestionIds (nederst)
+// er den nye veien: én RPC (migrasjon 20260909000000) som trekker i
+// databasen. Hvitelisten sendes INN som argument (REAL_QUIZ_TYPES), så
+// SQL-en har ingen egen IN-liste å drifte — det var innvendingen mot en RPC,
+// og den er svart på. Den gamle funksjonen står til den nye er verifisert
+// mot prod (samme kandidatsett, blandet og per kategori); ruten bruker den
+// nye.
 //
 // `.eq('is_test', false)` står i TILLEGG til hvitelistens `IS NOT TRUE`:
 // kildegaten (decideArchiveSourceEligibility) krever `=== false` og avviser
@@ -34,7 +44,7 @@
 import 'server-only'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
-import { onlyRealQuizzes } from '@/lib/real-quiz-population'
+import { onlyRealQuizzes, REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
 import type { Loaded } from '@/lib/fetch-result'
 
 /**
@@ -121,4 +131,36 @@ export async function fetchPoolQuestionIds(input: {
     )
     return { ok: false }
   }
+}
+
+/**
+ * Trekker `count` distinkte spørsmåls-id-er fra puljen — i databasen, som
+ * én RPC (pick_pool_question_ids, migrasjon 20260909000000). Samme
+ * kandidatsett som fetchPoolQuestionIds over; hvitelisten REAL_QUIZ_TYPES
+ * sendes inn, ikke gjentatt i SQL. Feil er { ok: false } («vet ikke»), aldri
+ * en tom liste — av samme grunn som over. Færre enn `count` id-er tilbake
+ * betyr at puljen er mindre enn `count`; kalleren avgjør om det er nok.
+ */
+export async function pickPoolQuestionIds(input: {
+  category: string | null
+  count: number
+  nowIso: string
+}): Promise<Loaded<string[]>> {
+  const { data, error } = await supabaseAdmin.rpc('pick_pool_question_ids', {
+    p_category: input.category,
+    p_count: input.count,
+    p_real_types: [...REAL_QUIZ_TYPES],
+    p_now: input.nowIso,
+  })
+  if (error) {
+    console.error('[generated-quiz-pool] pick_pool_question_ids feilet:', error.message)
+    return { ok: false }
+  }
+  if (!Array.isArray(data) || !data.every((x) => typeof x === 'string')) {
+    console.error('[generated-quiz-pool] pick_pool_question_ids ga uventet form:', typeof data)
+    return { ok: false }
+  }
+  // Distinkt per konstruksjon (LIMIT over ett sett) — Set-et er et belte i
+  // tillegg til bukseselene, som i unionen over.
+  return { ok: true, value: [...new Set(data as string[])] }
 }

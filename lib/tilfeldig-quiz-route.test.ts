@@ -29,6 +29,11 @@
 //                                      ikke kule»-testen røde
 //   • sett `allowBankRows: false` i ruten → alle 201-testene røde (403 fra gaten)
 //   • sett `sourceQuizId: FORELDER`  → source_quiz_id-asserten rød
+// Server-side trekning (9. september 2026) — se «5. Puljen»:
+//   • fjern `p_real_types` fra RPC-argumentene i pickPoolQuestionIds → argument-testen rød
+//   • `p_category: null` hardkodet i pickPoolQuestionIds → kategori-testen rød
+//   • ignorer `error` fra RPC-en → «puljen kan ikke leses → 503»-testen rød
+//   • `pick.value.length < COUNT` → `<= 0` i ruten → «for få spørsmål → 409»-testen rød
 // Ledger-oppryddingen (8. september, kveld) — se «ledger-skriving feiler»-testene:
 //   • fjern `await deleteActivatedArchiveCopy(...)` i ruten → skrivesekvens-asserten rød
 //   • `return 503` → `201` etter ledgerfeil → status- og quizId-assertene røde
@@ -39,6 +44,7 @@ import { test, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { osloMonthStartUtcIso } from '@/lib/oslo-time'
+import { REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 import {
   GENERATED_QUIZ_QUESTION_COUNT,
@@ -133,21 +139,9 @@ function resolveOp(op: Op): Record<string, unknown> {
   if (op.table === 'quiz_generations' && op.action === 'insert') {
     return { error: state.ledgerFails ? { message: 'simulert ledgerfeil' } : null }
   }
-  if (op.table === 'quizzes' && op.action === 'select') {
-    // Puljens quizzes-spørring: ingen stengte quizer i fixturen — puljen er
-    // biblioteket alene (playedOps tom), så id-settet er forutsigbart.
-    return state.poolFails
-      ? { data: null, error: { message: 'simulert lesefeil' } }
-      : { data: [], error: null }
-  }
   if (op.table === 'questions' && op.action === 'select') {
-    const erBank = op.filters.some((f) => f.method === 'is' && f.args[0] === 'quiz_id')
-    if (erBank) {
-      return state.poolFails
-        ? { data: null, error: { message: 'simulert lesefeil' } }
-        : { data: state.bankIds.map((id) => ({ id })), error: null }
-    }
     // Kildelesingen: .in('id', <trukne id-er>) — svar kun med de bestilte.
+    // (Puljen leses ikke lenger via tabellene — den er én RPC, se mocken.)
     const inFilter = op.filters.find((f) => f.method === 'in' && f.args[0] === 'id')
     const bestilt = new Set((inFilter?.args[1] as string[]) ?? [])
     return { data: state.sourceRows.filter((r) => bestilt.has(r.id as string)), error: null }
@@ -199,6 +193,15 @@ mock.module('@/lib/supabase-admin', {
       from: (table: string) => makeBuilder(table),
       rpc: async (fn: string, args: unknown) => {
         state.rpcs.push({ fn, args })
+        if (fn === 'pick_pool_question_ids') {
+          // Trekningen er en LESING (registreres som select, teller ikke som
+          // skriving). Fixturen svarer med bank-id-ene, kuttet på p_count —
+          // puljen er «nøyaktig stor nok», så settet er forutsigbart.
+          state.ops.push({ table: `rpc:${fn}`, action: 'select', payload: args, filters: [] })
+          if (state.poolFails) return { data: null, error: { message: 'simulert RPC-feil' } }
+          const count = (args as { p_count: number }).p_count
+          return { data: state.bankIds.slice(0, count), error: null }
+        }
         // Bumpen registreres også i ops-strømmen så REKKEFØLGEN kan bevises.
         state.ops.push({ table: `rpc:${fn}`, action: 'update', payload: args, filters: [] })
         return { data: 15, error: state.bumpFails ? { message: 'simulert bumpfeil' } : null }
@@ -286,7 +289,7 @@ test('plan-oppslag feiler → 503, ingen pulje-lesing, ingen skriving', async ()
   const res = await kall()
   assert.equal(res.status, 503)
   assert.deepEqual(skrivinger(), [])
-  assert.ok(!lesinger().some((o) => o.table === 'quizzes'), 'puljen ble lest tross ukjent plan')
+  assert.ok(!lesinger().some((o) => o.table === 'rpc:pick_pool_question_ids'), 'puljen ble trukket tross ukjent plan')
 })
 
 test('plan-oppslag feiler for en bruker med 0 brukt og ingen kategori → fortsatt 503 (ikke gratis-fallback)', async () => {
@@ -324,7 +327,7 @@ test('gratis med 2 brukt → 429, INGEN skriving og ingen pulje-lesing', async (
   const res = await kall()
   assert.equal(res.status, 429)
   assert.deepEqual(skrivinger(), [])
-  assert.ok(!lesinger().some((o) => o.table === 'quizzes'))
+  assert.ok(!lesinger().some((o) => o.table === 'rpc:pick_pool_question_ids'))
 })
 
 test('gratis med 1 brukt → 201 (siste kule), remaining 0', async () => {
@@ -362,7 +365,7 @@ test('gratis med kategori → 403, INGEN skriving', async () => {
   const res = await kall({ category: 'Sport' })
   assert.equal(res.status, 403)
   assert.deepEqual(skrivinger(), [])
-  assert.ok(!lesinger().some((o) => o.table === 'quizzes'))
+  assert.ok(!lesinger().some((o) => o.table === 'rpc:pick_pool_question_ids'))
 })
 
 test('gratis TOM for kuler som velger kategori → 429 (kvoten avgjøres før kategorien)', async () => {
@@ -375,8 +378,9 @@ test('premium med kategori → 201, kategorien når puljen og ledgeren', async (
   state.profile = profile({ premium_status: true })
   const res = await kall({ category: 'Sport' })
   assert.equal(res.status, 201)
-  const bank = lesinger().find((o) => o.table === 'questions' && o.filters.some((f) => f.method === 'is'))
-  assert.ok(bank && bank.filters.some((f) => f.method === 'eq' && f.args[0] === 'category' && f.args[1] === 'Sport'))
+  const pick = state.rpcs.find((r) => r.fn === 'pick_pool_question_ids')
+  assert.ok(pick, 'ingen trekning')
+  assert.equal((pick.args as { p_category: string | null }).p_category, 'Sport')
   const ledger = skrivinger().find((o) => o.table === 'quiz_generations')
   assert.ok(ledger)
   assert.deepEqual(ledger.payload, { user_id: ME, category: 'Sport', quiz_id: NEW_QUIZ, plan: 'premium' })
@@ -384,11 +388,26 @@ test('premium med kategori → 201, kategorien når puljen og ledgeren', async (
 
 // ── 5. Puljen ───────────────────────────────────────────────────────────────
 
-test('puljen kan ikke leses → 503, ingen skriving', async () => {
+test('puljen kan ikke leses (RPC-feil) → 503, ingen skriving', async () => {
   state.poolFails = true
   const res = await kall()
   assert.equal(res.status, 503)
   assert.deepEqual(skrivinger(), [])
+})
+
+test('trekningen er ÉN RPC med kategori, antall, HVITELISTEN fra TS og nå-tidspunktet', async () => {
+  await kall()
+  const picks = state.rpcs.filter((r) => r.fn === 'pick_pool_question_ids')
+  assert.equal(picks.length, 1, 'trekningen skal være nøyaktig én RPC')
+  const args = picks[0].args as Record<string, unknown>
+  assert.equal(args.p_category, null)
+  assert.equal(args.p_count, GENERATED_QUIZ_QUESTION_COUNT)
+  // Hvitelisten sendes INN — SQL-en har ingen egen IN-liste å drifte.
+  assert.deepEqual(args.p_real_types, [...REAL_QUIZ_TYPES])
+  assert.ok(typeof args.p_now === 'string' && !Number.isNaN(Date.parse(args.p_now as string)))
+  // Og puljen leses ikke lenger via tabellene.
+  assert.ok(!lesinger().some((o) => o.table === 'quizzes'))
+  assert.ok(!lesinger().some((o) => o.table === 'questions' && o.filters.some((f) => f.method === 'is')))
 })
 
 test('for få spørsmål i puljen → 409, ingen skriving (ingen kule brukt)', async () => {
@@ -459,9 +478,9 @@ test('suksess: spørsmålsradene bærer INGEN bruksdata (usage_count/last_used_a
 
 test('suksess: kildebumpen er ÉN rpc med nøyaktig de 15 trukne id-ene', async () => {
   await kall()
-  assert.equal(state.rpcs.length, 1)
-  assert.equal(state.rpcs[0].fn, 'bump_question_usage')
-  const ids = (state.rpcs[0].args as { p_ids: string[] }).p_ids
+  const bumps = state.rpcs.filter((r) => r.fn === 'bump_question_usage')
+  assert.equal(bumps.length, 1)
+  const ids = (bumps[0].args as { p_ids: string[] }).p_ids
   assert.deepEqual([...ids].sort(), [...BANK_IDS].sort())
 })
 
@@ -496,7 +515,7 @@ test('spørsmåls-insert feiler → 500, quizen ryddes, INGEN bump og INGEN ledg
     skrivinger().map((o) => `${o.table}:${o.action}`),
     ['quizzes:insert', 'questions:insert', 'quizzes:delete']
   )
-  assert.equal(state.rpcs.length, 0)
+  assert.equal(state.rpcs.filter((r) => r.fn === 'bump_question_usage').length, 0)
 })
 
 test('kildebump feiler → 201 likevel, ledgeren skrives fortsatt (bumpen velter ikke opprettelsen)', async () => {

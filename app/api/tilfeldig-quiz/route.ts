@@ -10,7 +10,7 @@ import {
   GENERATED_QUIZ_TITLE,
   decideGeneration,
 } from '@/lib/generated-quiz-rules'
-import { fetchPoolQuestionIds, sampleDistinct } from '@/lib/generated-quiz-pool'
+import { pickPoolQuestionIds } from '@/lib/generated-quiz-pool'
 import { buildArchiveCopy, type ArchiveSourceQuestion } from '@/lib/archive-copy'
 import { deleteActivatedArchiveCopy, writeArchiveCopy } from '@/lib/archive-copy-write'
 import { decideArchiveSourceEligibility } from '@/lib/archive-create-rules'
@@ -30,7 +30,7 @@ import type { Loaded } from '@/lib/fetch-result'
 //   2. tell genereringer denne måneden (quiz_generations — «vet ikke» → 503)
 //   3. avvis hvis kvoten er brukt opp  (429)
 //   4. avvis kategorivalg for gratis   (403)
-//   5. velg id-er                      (pulje + trekning)
+//   5. velg id-er                      (pulje + trekning, ÉN RPC i databasen)
 //   6. lag quizen via arkivets kopieringssti (buildArchiveCopy + writeArchiveCopy)
 //   7. bump usage_count/last_used_at på KILDERADENE (RPC bump_question_usage)
 //   8. skriv én rad i ledgeren (quiz_generations)
@@ -138,18 +138,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: decision.error }, { status: decision.status })
   }
 
-  // ── 5. Velg id-er: puljen (bibliotek + stengte ekte quizer), så trekning ──
-  const pool = await fetchPoolQuestionIds({ category, nowIso: new Date(now).toISOString() })
-  if (!pool.ok) {
+  // ── 5. Velg id-er: puljen (bibliotek + stengte ekte quizer), trukket i DB ─
+  // Én RPC (pick_pool_question_ids, migrasjon 20260909000000) i stedet for å
+  // hente 4235 id-er i fem rundturer og trekke her — målt 8. september 2026
+  // til ~1,1 s av ~2,2 s total. Samme kandidatsett; hvitelisten sendes inn.
+  const pick = await pickPoolQuestionIds({
+    category,
+    count: GENERATED_QUIZ_QUESTION_COUNT,
+    nowIso: new Date(now).toISOString(),
+  })
+  if (!pick.ok) {
     return NextResponse.json({ error: RETRY_ERROR }, { status: 503 })
   }
-  if (pool.value.length < GENERATED_QUIZ_QUESTION_COUNT) {
+  if (pick.value.length < GENERATED_QUIZ_QUESTION_COUNT) {
     return NextResponse.json(
       { error: 'Det finnes ikke nok spørsmål i denne kategorien ennå.' },
       { status: 409 }
     )
   }
-  const ids = sampleDistinct(pool.value, GENERATED_QUIZ_QUESTION_COUNT)
+  const ids = pick.value
 
   // ── 6. Kopieringsstien — les kildene, kildegate, bygg, skriv ──────────────
   const { data: sourceRows, error: sourceError } = await supabaseAdmin
