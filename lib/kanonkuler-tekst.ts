@@ -89,3 +89,27 @@ export function kanonkulerStatus(input: {
  * «to» er skrevet ut som ord, og testen binder det til GENERATION_QUOTA.free.
  */
 export const KANONKULER_FREE_CONFIRM_TEXT = 'Dette bruker én av to kanonkuler.'
+
+/**
+ * Kortets faste tekster (Dennis, ordrett, 8. september 2026 — fjerde runde).
+ * Etiketten sier hva kortet ER, ikke hva det koster: «Kanonkuler» er
+ * valutaen, ikke tingen. «Din egen quiz» ble droppet fordi hun ikke setter
+ * den sammen selv. Quizens EGEN tittel (GENERATED_QUIZ_TITLE, «Tilfeldig
+ * quiz») er uendret — det er kortet som heter noe annet, ikke quizen.
+ * «Femten» er skrevet som ord og bindes til GENERATED_QUIZ_QUESTION_COUNT av
+ * en test, som «to» over. «Flere tusen» er sant: banken var 4040 rader.
+ */
+export const KANONKULER_EYEBROW = 'Ekstraquiz'
+export const KANONKULER_TITLE = 'Lag en ny quiz'
+export const KANONKULER_BODY_TEXT =
+  'Femten tilfeldige spørsmål fra en spørsmålsbank på flere tusen. Koster én kanonkule, og teller ikke i sesongen.'
+
+/**
+ * Oppsalgslinja for GRATIS MED KULER IGJEN, rett under statuslinja. En
+ * gratisbruker som bruker null eller én kule i måneden når aldri tom-skjermen,
+ * og ser derfor aldri at Premium gir mer. Tekstlenke til /premium — ikke
+ * knapp, ikke gull. Premium ser den aldri; gratis med null kuler heller ikke
+ * (der står oppsalget allerede i tom-teksten).
+ */
+export const KANONKULER_FREE_UPSELL_LINE =
+  `Med Premium: ${GENERATION_QUOTA.premium} i måneden og valgfri kategori →`

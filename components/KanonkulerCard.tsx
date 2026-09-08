@@ -3,12 +3,15 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { generatorCategoryOptions, type GenerationPlan } from '@/lib/generated-quiz-rules'
 import {
-  GENERATED_QUIZ_QUESTION_COUNT,
-  generatorCategoryOptions,
-  type GenerationPlan,
-} from '@/lib/generated-quiz-rules'
-import { KANONKULER_FREE_CONFIRM_TEXT, kanonkulerStatus } from '@/lib/kanonkuler-tekst'
+  KANONKULER_BODY_TEXT,
+  KANONKULER_EYEBROW,
+  KANONKULER_FREE_CONFIRM_TEXT,
+  KANONKULER_FREE_UPSELL_LINE,
+  KANONKULER_TITLE,
+  kanonkulerStatus,
+} from '@/lib/kanonkuler-tekst'
 
 // ── Kanonkule-kortet på forsiden (8. september 2026, kveld) ─────────────────
 //
@@ -39,8 +42,9 @@ import { KANONKULER_FREE_CONFIRM_TEXT, kanonkulerStatus } from '@/lib/kanonkuler
 // ── GULL ────────────────────────────────────────────────────────────────────
 // Forsiden bruker allerede gull til quizkortets CTA (Spill quizen / Åpne
 // quizen), Premium-merket og poengene. Kortet har derfor INGEN gullelement —
-// knappen er hvit outline (samme form som Founders-knappen), lenken til
-// /premium er vanlig lenkefarge.
+// knappen er hvit outline (samme form som Founders-knappen), lenkene til
+// /premium (tom-teksten, og oppsalgslinja for gratis med kuler igjen) er
+// vanlig lenkefarge.
 
 type Props = {
   plan: GenerationPlan
@@ -101,6 +105,15 @@ const s = {
   upsellLink: {
     color: '#e8e4dd',
     textDecoration: 'underline',
+  },
+  upsellLine: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    margin: '-8px 0 16px',
+  },
+  upsellLineLink: {
+    color: '#e8e4dd',
+    textDecoration: 'none',
   },
   actions: {
     display: 'flex',
@@ -215,12 +228,9 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
 
   return (
     <section style={s.card} aria-labelledby="kanonkuler-tittel">
-      <p style={s.eyebrow}>Kanonkuler</p>
-      <h2 id="kanonkuler-tittel" style={s.title}>Tilfeldig quiz</h2>
-      <p style={s.body}>
-        Én kanonkule gir deg en ny quiz med {GENERATED_QUIZ_QUESTION_COUNT} tilfeldige
-        spørsmål. Teller ikke i sesongen.
-      </p>
+      <p style={s.eyebrow}>{KANONKULER_EYEBROW}</p>
+      <h2 id="kanonkuler-tittel" style={s.title}>{KANONKULER_TITLE}</h2>
+      <p style={s.body}>{KANONKULER_BODY_TEXT}</p>
 
       {status && status.kind === 'tom' ? (
         <p style={s.statusTom}>
@@ -235,6 +245,11 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
       ) : (
         <>
           {status && <p style={s.status}>{status.text}</p>}
+          {plan === 'free' && status?.kind === 'igjen' && (
+            <p style={s.upsellLine}>
+              <Link href="/premium" style={s.upsellLineLink}>{KANONKULER_FREE_UPSELL_LINE}</Link>
+            </p>
+          )}
 
           {phase === 'confirm' ? (
             <>

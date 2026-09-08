@@ -146,6 +146,20 @@ test('tom-tilstanden viser oppsalget som lenke til /premium — og bare når sta
   assert.match(CARD, /\{status\.upsell && \(\s*<>\s*\{' · '\}\s*<Link href="\/premium"/)
 })
 
+test('kortets faste tekster kommer fra lib/kanonkuler-tekst — ikke hardkodet i JSX-en', () => {
+  assert.match(CARD, /<p style=\{s\.eyebrow\}>\{KANONKULER_EYEBROW\}<\/p>/)
+  assert.match(CARD, /<h2 id="kanonkuler-tittel" style=\{s\.title\}>\{KANONKULER_TITLE\}<\/h2>/)
+  assert.match(CARD, /<p style=\{s\.body\}>\{KANONKULER_BODY_TEXT\}<\/p>/)
+  assert.doesNotMatch(CARD, /Tilfeldig quiz|Kanonkuler<\/p>|Én kanonkule gir deg/)
+})
+
+test('oppsalgslinja: KUN gratis med kuler igjen, rett under statuslinja, tekstlenke til /premium — ikke knapp', () => {
+  const m = /\{status && <p style=\{s\.status\}>\{status\.text\}<\/p>\}\s*\{plan === 'free' && status\?\.kind === 'igjen' && \(\s*<p style=\{s\.upsellLine\}>\s*<Link href="\/premium" style=\{s\.upsellLineLink\}>\{KANONKULER_FREE_UPSELL_LINE\}<\/Link>/.exec(CARD)
+  assert.ok(m, 'oppsalgslinja står ikke rett under statuslinja, gatet på gratis + igjen, som <Link>')
+  assert.equal((CARD.match(/KANONKULER_FREE_UPSELL_LINE\}/g) ?? []).length, 1, 'linja rendres nøyaktig ett sted')
+  assert.doesNotMatch(CARD, /<button[^>]*>\{KANONKULER_FREE_UPSELL_LINE/)
+})
+
 test('kortet følger designsystemet: kort-radius 16, knapp-radius 10, knapp 10px 28px auto-bredde', () => {
   assert.match(CARD, /card: \{[\s\S]*?background: '#21242e'[\s\S]*?border: '1px solid #2a2d38'[\s\S]*?borderRadius: 16/)
   assert.match(CARD, /btn: \{[\s\S]*?border: '1px solid #e8e4dd'[\s\S]*?padding: '10px 28px'[\s\S]*?borderRadius: 10[\s\S]*?width: 'auto'/)

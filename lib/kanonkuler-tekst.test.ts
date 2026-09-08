@@ -16,13 +16,19 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  GENERATED_QUIZ_QUESTION_COUNT,
+  GENERATED_QUIZ_TITLE,
   GENERATION_QUOTA,
   GENERATOR_HIDDEN_CATEGORIES,
   generatorCategoryOptions,
 } from '@/lib/generated-quiz-rules'
 import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 import {
+  KANONKULER_BODY_TEXT,
+  KANONKULER_EYEBROW,
   KANONKULER_FREE_CONFIRM_TEXT,
+  KANONKULER_FREE_UPSELL_LINE,
+  KANONKULER_TITLE,
   kanonkuleOrd,
   kanonkulerRemaining,
   kanonkulerStatus,
@@ -156,6 +162,30 @@ test('oppsalget sier tallet fra kvoten, ikke et hardkodet 30', () => {
   const s = status('free', 0)
   assert.equal(s.kind, 'tom')
   assert.ok(s.kind === 'tom' && s.upsell?.startsWith(`Få ${GENERATION_QUOTA.premium} `))
+})
+
+// ── Kortets faste tekster (fjerde runde) ────────────────────────────────────
+
+test('etikett og tittel sier hva kortet ER — og quizens egen tittel er uendret', () => {
+  assert.equal(KANONKULER_EYEBROW, 'Ekstraquiz')
+  assert.equal(KANONKULER_TITLE, 'Lag en ny quiz')
+  assert.equal(GENERATED_QUIZ_TITLE, 'Tilfeldig quiz', 'quizens EGEN tittel skulle stå uendret')
+})
+
+test('brødteksten er ordrett, og «Femten» er sant kun så lenge quizen har 15 spørsmål', () => {
+  assert.equal(
+    KANONKULER_BODY_TEXT,
+    'Femten tilfeldige spørsmål fra en spørsmålsbank på flere tusen. Koster én kanonkule, og teller ikke i sesongen.',
+  )
+  assert.equal(
+    GENERATED_QUIZ_QUESTION_COUNT, 15,
+    'GENERATED_QUIZ_QUESTION_COUNT er ikke lenger 15 — KANONKULER_BODY_TEXT sier fortsatt «Femten»',
+  )
+})
+
+test('oppsalgslinja for gratis med kuler igjen henter tallet fra kvoten', () => {
+  assert.equal(KANONKULER_FREE_UPSELL_LINE, 'Med Premium: 30 i måneden og valgfri kategori →')
+  assert.ok(KANONKULER_FREE_UPSELL_LINE.includes(`: ${GENERATION_QUOTA.premium} i måneden`))
 })
 
 // ── Kategorivelgeren: tolv av fjorten, som FILTRERING av den ene lista ──────
