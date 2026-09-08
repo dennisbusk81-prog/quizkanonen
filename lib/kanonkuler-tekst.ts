@@ -8,7 +8,7 @@
 // ── TALLET VISES TIL BEGGE, MEN MED ULIKT FORTEGN (Dennis, bestillingen) ────
 //   gratis                  forbruk:     «2 kanonkuler igjen»
 //   premium, ingen brukt    tildeling:   «30 kanonkuler denne måneden»
-//   premium, noen brukt     forbruk:     «8 igjen denne måneden»
+//   premium, noen brukt     forbruk:     «8 kanonkuler igjen» (som gratis)
 //
 // Begrunnelsen, så den ikke forsvinner: gratisbrukerens knapphet er selve
 // produktmekanikken og skal føles. Premium-brukeren skal se hva hun HAR, ikke
@@ -19,7 +19,8 @@
 // samme kveld). Første utkast viste «25 kanonkuler denne måneden» etter fem
 // brukt, med en terskel på ti før teksten byttet til «igjen». «25 … denne
 // måneden» leser som en tildeling på 25 — usant. Nå bytter teksten ved
-// FØRSTE brukte kule, ikke ved en terskel.
+// FØRSTE brukte kule, ikke ved en terskel — til den samme forbrukslinja som
+// gratis har (tredje runde: substantivet inn, «denne måneden» ut).
 //
 // ── TOMT FOR KULER ER EN SALGSFLATE, IKKE EN FEILMELDING ────────────────────
 //   gratis:   «Neste kanonkule 1. oktober · Få 30 med Premium og velg kategori»
@@ -72,12 +73,10 @@ export function kanonkulerStatus(input: {
     }
   }
 
-  if (plan === 'premium') {
-    // Hel tildeling (ingen brukt) → tildelingspåstanden. Én brukt → forbruk.
-    if (remaining >= GENERATION_QUOTA.premium) {
-      return { kind: 'tildeling', text: `${remaining} ${kanonkuleOrd(remaining)} denne måneden` }
-    }
-    return { kind: 'igjen', text: `${remaining} igjen denne måneden` }
+  // Hel tildeling (ingen brukt) → tildelingspåstanden. Én brukt → forbruk,
+  // samme linje som gratis.
+  if (plan === 'premium' && remaining >= GENERATION_QUOTA.premium) {
+    return { kind: 'tildeling', text: `${remaining} ${kanonkuleOrd(remaining)} denne måneden` }
   }
 
   return { kind: 'igjen', text: `${remaining} ${kanonkuleOrd(remaining)} igjen` }
