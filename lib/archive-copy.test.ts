@@ -21,6 +21,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildArchiveCopy, type ArchiveSourceQuestion } from './archive-copy'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from './quiz-time-limit'
 
 function deepFreeze<T>(obj: T): T {
   if (obj && typeof obj === 'object') {
@@ -151,7 +152,29 @@ test('quiz-raden er EKSAKT de besluttede kolonnene — ingenting arves fra en ki
     is_test: false,
     is_active: true,
     source_quiz_id: null,
+    time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
   })
+})
+
+// Tidsgrensen på quiz-raden (8. september 2026, kveld). Symptomet var
+// «30s per spørsmål» på en generert quiz: feltet ble utelatt, og databasens
+// kolonne-default (30) vant, siden bankspørsmålene har NULL på
+// spørsmålsnivå. 15 er en lukket produktbeslutning (QK_3) — så testen binder
+// BÅDE kopien til konstanten OG konstanten til 15. Setter noen 30 ett av
+// stedene, er den rød.
+test('quiz-raden får fredagsquizens tidsgrense — aldri kolonne-defaulten 30', () => {
+  const res = buildArchiveCopy({
+    title: 'Generert',
+    questionIds: ['id-a'],
+    sourceQuestions: [SP_A],
+    sourceQuiz: null,
+    sourceQuizId: null,
+  })
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.quiz.time_limit_seconds, DEFAULT_QUESTION_TIME_LIMIT_SECONDS)
+  assert.equal(DEFAULT_QUESTION_TIME_LIMIT_SECONDS, 15, 'fredagsquizens tidsgrense er 15 — lukket produktbeslutning (QK_3)')
+  assert.notEqual(res.quiz.time_limit_seconds, 30, 'kolonne-defaulten 30 er tilbake på quiz-raden')
 })
 
 test('source_quiz_id er INNGANGEN, ikke noe som leses av kilderaden', () => {

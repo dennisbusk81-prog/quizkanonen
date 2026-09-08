@@ -39,6 +39,7 @@ import { test, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { osloMonthStartUtcIso } from '@/lib/oslo-time'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 import {
   GENERATED_QUIZ_QUESTION_COUNT,
   GENERATED_QUIZ_TITLE,
@@ -426,6 +427,11 @@ test('suksess: quiz-raden er archive, INAKTIV ved insert, tittel «Tilfeldig qui
   assert.equal(payload.closes_at, null)
   assert.equal(payload.hide_leaderboard_until_closed, false)
   assert.equal(payload.is_test, false)
+  // Tidsgrensen: fredagsquizens konstant (15), aldri kolonne-defaulten 30 —
+  // bankspørsmålene har NULL på spørsmålsnivå, så quiz-raden er det som
+  // faktisk spilles. Bindingen konstant↔15 ligger i lib/archive-copy.test.ts.
+  assert.equal(payload.time_limit_seconds, DEFAULT_QUESTION_TIME_LIMIT_SECONDS)
+  assert.notEqual(payload.time_limit_seconds, 30)
   const aktiver = skrivinger().find((o) => o.table === 'quizzes' && o.action === 'update')!
   assert.deepEqual(aktiver.payload, { is_active: true })
   assert.ok(aktiver.filters.some((f) => f.method === 'eq' && f.args[0] === 'id' && f.args[1] === NEW_QUIZ))

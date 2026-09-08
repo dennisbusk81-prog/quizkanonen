@@ -34,6 +34,7 @@ import { test, beforeEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { ARCHIVE_CREATE_MAX_PER_DAY } from '@/lib/archive-create-rules'
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
 
 const ME = '11111111-1111-4111-8111-111111111111'
 const NEW_QUIZ = 'ffffffff-9999-4999-8999-ffffffffffff'
@@ -302,6 +303,7 @@ test('suksess: 201 med quizId, og nøyaktig [quiz-insert, spørsmåls-insert, ak
     // Standardfixturen er en GENERERT quiz (to ulike foreldre) → ingen
     // kildekobling. Se kildekoblings-testene lenger nede.
     source_quiz_id: null,
+    time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
   })
 
   // Aktiveringen skriver KUN is_active, kun på den nye quizen, og verdien er

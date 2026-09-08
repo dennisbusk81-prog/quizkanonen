@@ -87,6 +87,8 @@
 // samme kolonne er en felle for framtidig kode som antar den ene — ikke
 // «rett» dette til 0-basert.
 
+import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
+
 /** Innholdskolonnene som kopieres — samme felt som spillestiens SELECT
  *  (app/api/quiz/[id]/questions/route.ts:25) trenger, pluss id for oppslag. */
 export type ArchiveSourceQuestion = {
@@ -137,6 +139,14 @@ export type ArchiveQuizRow = {
   is_test: false
   is_active: true
   source_quiz_id: string | null
+  // Quiz-nivå-tidsgrensen. Fram til 8. september 2026 (kveld) ble feltet
+  // UTELATT, og kolonne-defaulten i databasen fylte det med 30. For en
+  // reprise er det harmløst (spørsmålene bærer kildens egne 15, og
+  // spørsmål-nivået vinner ved spilling), men bankspørsmålene har NULL på
+  // spørsmålsnivå, så en GENERERT quiz falt helt ned på quiz-raden og ble
+  // spilt med 30 — mot QK_3s lukkede beslutning om 15. Samme kilde som
+  // fredagsquizen (admin-import), så de to kan aldri komme i utakt.
+  time_limit_seconds: number
 }
 
 export type ArchiveCopyResult =
@@ -201,6 +211,7 @@ export function buildArchiveCopy(input: {
       is_test: false,
       is_active: true,
       source_quiz_id: input.sourceQuizId ?? null,
+      time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
     },
     questions,
   }
