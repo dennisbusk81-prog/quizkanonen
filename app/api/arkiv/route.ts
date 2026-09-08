@@ -64,10 +64,11 @@ const SOURCE_SELECT =
   'id, quiz_id, question_text, option_a, option_b, option_c, option_d, ' +
   'correct_answer, correct_answers, explanation, category, ' +
   'time_limit_seconds, shuffle_options, ' +
-  'quiz:quizzes(id, closes_at, is_test, quiz_type)'
+  'quiz:quizzes(id, closes_at, is_test, quiz_type, category)'
 
 type SourceParentQuiz = {
   id: string | null
+  category: string | null
   closes_at: string | null
   is_test: boolean | null
   quiz_type: string | null

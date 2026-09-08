@@ -88,6 +88,7 @@
 // «rett» dette til 0-basert.
 
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from '@/lib/quiz-time-limit'
+import { MIXED_QUIZ_CATEGORY } from '@/lib/generated-quiz-rules'
 
 /** Innholdskolonnene som kopieres — samme felt som spillestiens SELECT
  *  (app/api/quiz/[id]/questions/route.ts:25) trenger, pluss id for oppslag. */
@@ -113,6 +114,8 @@ export type ArchiveSourceQuiz = {
   hide_leaderboard_until_closed?: boolean | null
   opens_at?: string | null
   closes_at?: string | null
+  /** Forelderens quizzes.category — det ENE feltet en reprise arver (se quiz.category under). */
+  category?: string | null
 } | null
 
 export type ArchiveQuestionRow = {
@@ -147,6 +150,16 @@ export type ArchiveQuizRow = {
   // spilt med 30 — mot QK_3s lukkede beslutning om 15. Samme kilde som
   // fredagsquizen (admin-import), så de to kan aldri komme i utakt.
   time_limit_seconds: number
+  // Kategorien startskjermen viser (app/quiz/[id]/page.tsx leser den rått).
+  // Fram til 9. september 2026 ble feltet utelatt, og kolonne-defaulten
+  // 'Allmennkunnskap' fylte det — for ALLE kopier, også en Sport-quiz. Samme
+  // feilklasse som de 30 sekundene over. Regelen (Dennis, 9. september):
+  //   generert uten kategorivalg  → MIXED_QUIZ_CATEGORY («Blandet»)
+  //   generert med valgt kategori → kategorinavnet, som i QUIZ_CATEGORIES
+  //   reprise fra arkivet         → forelderens category, LEST fra
+  //                                 forelderraden — ikke gjettet
+  // Kolonne-defaulten står: fredagsquizene lener seg på den.
+  category: string | null
 }
 
 export type ArchiveCopyResult =
@@ -160,6 +173,12 @@ export function buildArchiveCopy(input: {
   sourceQuiz: ArchiveSourceQuiz
   /** Avgjort av lib/archive-source-quiz.ts — aldri lest av `sourceQuiz`. */
   sourceQuizId: string | null
+  /**
+   * Kategorivalget for en GENERERT quiz — samme verdi som når puljen og
+   * quiz_generations i POST /api/tilfeldig-quiz (null = blandet). Ignoreres
+   * når `sourceQuiz` finnes: en reprise heter det forelderen heter.
+   */
+  chosenCategory?: string | null
 }): ArchiveCopyResult {
   const title = typeof input.title === 'string' ? input.title.trim() : ''
   if (title.length === 0) return { ok: false, error: 'tom-tittel' }
@@ -212,6 +231,11 @@ export function buildArchiveCopy(input: {
       is_active: true,
       source_quiz_id: input.sourceQuizId ?? null,
       time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
+      // Se ArchiveQuizRow.category. Reprise → forelderens verdi verbatim (også
+      // null: da har forelderen ingen, og visningen utelater linja — sant).
+      category: input.sourceQuiz !== null
+        ? (input.sourceQuiz.category ?? null)
+        : (input.chosenCategory ?? MIXED_QUIZ_CATEGORY),
     },
     questions,
   }

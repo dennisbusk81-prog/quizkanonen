@@ -199,6 +199,8 @@ export async function POST(request: NextRequest) {
     sourceQuestions,
     sourceQuiz: null,
     sourceQuizId: null,
+    // Samme verdi som puljen og ledgeren fikk — ikke en ny kilde.
+    chosenCategory: category,
   })
   if (!built.ok) {
     console.error(`[tilfeldig-quiz POST] buildArchiveCopy avviste (${built.error}):`, built.detail)

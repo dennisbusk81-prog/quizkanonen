@@ -50,6 +50,7 @@ import {
   GENERATED_QUIZ_QUESTION_COUNT,
   GENERATED_QUIZ_TITLE,
   GENERATION_QUOTA,
+  MIXED_QUIZ_CATEGORY,
 } from '@/lib/generated-quiz-rules'
 
 const ME = '11111111-1111-4111-8111-111111111111'
@@ -384,6 +385,9 @@ test('premium med kategori → 201, kategorien når puljen og ledgeren', async (
   const ledger = skrivinger().find((o) => o.table === 'quiz_generations')
   assert.ok(ledger)
   assert.deepEqual(ledger.payload, { user_id: ME, category: 'Sport', quiz_id: NEW_QUIZ, plan: 'premium' })
+  // …og quiz-raden — samme verdi som ledgeren, ikke en ny kilde.
+  const quiz = skrivinger().find((o) => o.table === 'quizzes' && o.action === 'insert')!
+  assert.equal((quiz.payload as Record<string, unknown>).category, 'Sport')
 })
 
 // ── 5. Puljen ───────────────────────────────────────────────────────────────
@@ -451,6 +455,9 @@ test('suksess: quiz-raden er archive, INAKTIV ved insert, tittel «Tilfeldig qui
   // faktisk spilles. Bindingen konstant↔15 ligger i lib/archive-copy.test.ts.
   assert.equal(payload.time_limit_seconds, DEFAULT_QUESTION_TIME_LIMIT_SECONDS)
   assert.notEqual(payload.time_limit_seconds, 30)
+  // Kategorien på quiz-raden: «Blandet» for blandet — ikke kolonne-defaulten.
+  assert.equal(payload.category, MIXED_QUIZ_CATEGORY)
+  assert.equal(payload.category, 'Blandet')
   const aktiver = skrivinger().find((o) => o.table === 'quizzes' && o.action === 'update')!
   assert.deepEqual(aktiver.payload, { is_active: true })
   assert.ok(aktiver.filters.some((f) => f.method === 'eq' && f.args[0] === 'id' && f.args[1] === NEW_QUIZ))

@@ -104,6 +104,7 @@ function kildeRader() {
       shuffle_options: true,
       quiz: {
         id: FORELDER_A,
+        category: 'Geografi',
         closes_at: '2026-08-14T20:00:00Z',
         is_test: false,
         quiz_type: 'weekly',
@@ -304,6 +305,8 @@ test('suksess: 201 med quizId, og nøyaktig [quiz-insert, spørsmåls-insert, ak
     // kildekobling. Se kildekoblings-testene lenger nede.
     source_quiz_id: null,
     time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
+    // Forelderens category, lest fra embed-en (rows[0].quiz) — ikke defaulten.
+    category: 'Geografi',
   })
 
   // Aktiveringen skriver KUN is_active, kun på den nye quizen, og verdien er

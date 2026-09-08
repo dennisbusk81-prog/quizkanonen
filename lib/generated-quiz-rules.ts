@@ -64,6 +64,15 @@ export const GENERATED_QUIZ_TITLE = 'Tilfeldig quiz'
  */
 export const GENERATOR_HIDDEN_CATEGORIES: readonly string[] = ['Teknologi', 'Diverse']
 
+/**
+ * Kategorien på QUIZ-RADEN for en generert quiz uten kategorivalg (9. september
+ * 2026). ÉN konstant, brukt av buildArchiveCopy (lib/archive-copy.ts) og som
+ * etikett i velgeren (components/KanonkulerCard.tsx) — ordet skal ikke kunne
+ * skrives feil to steder. Står bevisst UTENFOR QUIZ_CATEGORIES: det er ikke
+ * en spørsmålskategori, det er navnet på en blanding av dem.
+ */
+export const MIXED_QUIZ_CATEGORY = 'Blandet'
+
 /** Kategoriene velgeren tilbyr, i QUIZ_CATEGORIES sin rekkefølge. Tolv per 8. september 2026. */
 export function generatorCategoryOptions(): readonly string[] {
   return QUIZ_CATEGORIES.filter((c) => !GENERATOR_HIDDEN_CATEGORIES.includes(c))

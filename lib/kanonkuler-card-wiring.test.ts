@@ -121,7 +121,7 @@ test('kategorivelgeren rendres KUN for premium, og henter lista fra generatorCat
   const m = /\{plan === 'premium' && \(\s*<label[\s\S]*?<select[\s\S]*?generatorCategoryOptions\(\)\.map/.exec(CARD)
   assert.ok(m, 'velgeren er ikke gatet på `plan === \'premium\'` rett foran <label>/<select>')
   assert.equal((CARD.match(/<select/g) ?? []).length, 1, 'nøyaktig én velger')
-  assert.match(CARD, /<option value=\{BLANDET\}>Blandet<\/option>/)
+  assert.match(CARD, /<option value=\{BLANDET\}>\{MIXED_QUIZ_CATEGORY\}<\/option>/, 'etiketten skal komme fra konstanten, ikke en løs streng')
   assert.doesNotMatch(CARD, /QUIZ_CATEGORIES/, 'kortet skal lese den FILTRERTE lista, ikke QUIZ_CATEGORIES rått')
 })
 

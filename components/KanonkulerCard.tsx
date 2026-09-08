@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { generatorCategoryOptions, type GenerationPlan } from '@/lib/generated-quiz-rules'
+import { MIXED_QUIZ_CATEGORY, generatorCategoryOptions, type GenerationPlan } from '@/lib/generated-quiz-rules'
 import {
   KANONKULER_BODY_TEXT,
   KANONKULER_EYEBROW,
@@ -274,7 +274,7 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
                     disabled={phase === 'starting'}
                     style={s.select}
                   >
-                    <option value={BLANDET}>Blandet</option>
+                    <option value={BLANDET}>{MIXED_QUIZ_CATEGORY}</option>
                     {generatorCategoryOptions().map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}

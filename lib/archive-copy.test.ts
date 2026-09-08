@@ -22,6 +22,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildArchiveCopy, type ArchiveSourceQuestion } from './archive-copy'
 import { DEFAULT_QUESTION_TIME_LIMIT_SECONDS } from './quiz-time-limit'
+import { MIXED_QUIZ_CATEGORY } from './generated-quiz-rules'
+import { QUIZ_CATEGORIES } from './quiz-categories'
 
 function deepFreeze<T>(obj: T): T {
   if (obj && typeof obj === 'object') {
@@ -39,6 +41,9 @@ const KILDE_QUIZ = deepFreeze({
   hide_leaderboard_until_closed: true,
   opens_at: '2026-08-07T15:00:00.000Z',
   closes_at: '2026-08-14T19:30:00.000Z',
+  // Det ENE feltet en reprise arver (9. september 2026). Ikke 'Allmennkunnskap'
+  // — da kunne kolonne-defaulten gitt samme svar uten at noen leste raden.
+  category: 'Sport',
 })
 
 // Kilderadene bærer bruksdata/identitet med distinkte, ikke-default-verdier —
@@ -136,7 +141,7 @@ const FORVENTEDE_SPORSMAL_NOKLER = [
   'time_limit_seconds',
 ].sort()
 
-test('quiz-raden er EKSAKT de besluttede kolonnene — ingenting arves fra en kilde med alle verdier "feil vei"', () => {
+test('quiz-raden er EKSAKT de besluttede kolonnene — kun category arves fra en kilde med alle verdier "feil vei"', () => {
   const res = kallStandard()
   assert.equal(res.ok, true)
   if (!res.ok) return
@@ -153,7 +158,84 @@ test('quiz-raden er EKSAKT de besluttede kolonnene — ingenting arves fra en ki
     is_active: true,
     source_quiz_id: null,
     time_limit_seconds: DEFAULT_QUESTION_TIME_LIMIT_SECONDS,
+    category: 'Sport',
   })
+})
+
+// ── Kategorien på quiz-raden (9. september 2026) ─────────────────────────────
+// Samme feilklasse som de 30 sekundene: feltet ble utelatt, og
+// kolonne-defaulten 'Allmennkunnskap' vant for ALLE kopier — også en
+// Sport-quiz. Tre tilfeller, hver med sin eksakte verdi.
+//
+// MUTASJONSBEVIS (9. september 2026):
+//   • MIXED_QUIZ_CATEGORY → 'Allmennkunnskap'                  → «blandet»-testen + konstant-testen røde
+//   • reprisen slutter å lese forelderen (`?? null` → MIXED)  → «reprise»-testen rød
+//   • `input.chosenCategory ?? MIXED` → `MIXED`               → «valgt kategori»-testen rød
+//   • feltet utelatt fra quiz-raden                           → alle tre + EKSAKT-testen røde
+
+test('generert uten kategorivalg → «Blandet» — konstanten, ikke kolonne-defaulten', () => {
+  const res = buildArchiveCopy({
+    title: 'Generert',
+    questionIds: ['id-a'],
+    sourceQuestions: [SP_A],
+    sourceQuiz: null,
+    sourceQuizId: null,
+    chosenCategory: null,
+  })
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.quiz.category, MIXED_QUIZ_CATEGORY)
+  assert.equal(res.quiz.category, 'Blandet')
+  assert.notEqual(res.quiz.category, 'Allmennkunnskap', 'kolonne-defaulten er tilbake på quiz-raden')
+})
+
+test('konstanten er «Blandet», og den står IKKE i QUIZ_CATEGORIES (det er en blanding, ikke en kategori)', () => {
+  assert.equal(MIXED_QUIZ_CATEGORY, 'Blandet')
+  assert.ok(!QUIZ_CATEGORIES.includes(MIXED_QUIZ_CATEGORY))
+})
+
+test('generert med valgt kategori → kategorinavnet, nøyaktig som i QUIZ_CATEGORIES', () => {
+  for (const valgt of ['Sport', 'Vitenskap & Natur', 'Merker & Bedrifter']) {
+    assert.ok(QUIZ_CATEGORIES.includes(valgt), `${valgt} finnes ikke i QUIZ_CATEGORIES`)
+    const res = buildArchiveCopy({
+      title: 'Generert',
+      questionIds: ['id-a'],
+      sourceQuestions: [SP_A],
+      sourceQuiz: null,
+      sourceQuizId: null,
+      chosenCategory: valgt,
+    })
+    assert.equal(res.ok, true)
+    if (!res.ok) return
+    assert.equal(res.quiz.category, valgt)
+  }
+})
+
+test('reprise → forelderens category, LEST fra forelderraden — kategorivalget ignoreres', () => {
+  const res = buildArchiveCopy({
+    title: 'Reprise',
+    questionIds: ['id-a'],
+    sourceQuestions: [SP_A],
+    sourceQuiz: deepFreeze({ ...KILDE_QUIZ, category: 'Historie' }),
+    sourceQuizId: null,
+    chosenCategory: 'Sport',
+  })
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.quiz.category, 'Historie')
+})
+
+test('reprise av en forelder UTEN category → null (visningen utelater linja), ikke «Blandet» og ikke defaulten', () => {
+  const res = buildArchiveCopy({
+    title: 'Reprise',
+    questionIds: ['id-a'],
+    sourceQuestions: [SP_A],
+    sourceQuiz: deepFreeze({ ...KILDE_QUIZ, category: null }),
+    sourceQuizId: 'kilde-quiz-1',
+  })
+  assert.equal(res.ok, true)
+  if (!res.ok) return
+  assert.equal(res.quiz.category, null)
 })
 
 // Tidsgrensen på quiz-raden (8. september 2026, kveld). Symptomet var
