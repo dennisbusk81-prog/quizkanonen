@@ -44,9 +44,10 @@ const db: {
   questions: QuestionRow[]
   subs: SubRow[]
   sentTo: string[]
+  sentHeaders: Map<string, Record<string, string> | undefined>
   sendFailsFor: Set<string>
   updates: { ids: string[]; quizId: string }[]
-} = { quizzes: [], questions: [], subs: [], sentTo: [], sendFailsFor: new Set(), updates: [] }
+} = { quizzes: [], questions: [], subs: [], sentTo: [], sentHeaders: new Map(), sendFailsFor: new Set(), updates: [] }
 
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString()
 
@@ -70,9 +71,10 @@ mock.module("@/lib/notify-dead-zone", {
 // ── e-post: ingen ekte utsending ───────────────────────────────────────────
 mock.module('@/lib/email', {
   namedExports: {
-    sendEmail: async ({ to }: { to: string }) => {
+    sendEmail: async ({ to, headers }: { to: string; headers?: Record<string, string> }) => {
       if (db.sendFailsFor.has(to)) throw new Error('Resend sa nei')
       db.sentTo.push(to)
+      db.sentHeaders.set(to, headers)
       return { id: 'mock' }
     },
   },
@@ -178,6 +180,7 @@ mock.module('@/lib/supabase-admin', {
 })
 
 const routeModule = await import('@/app/api/cron/notify-subscribers/route')
+const { buildUnsubscribeUrl } = await import('@/lib/unsubscribe')
 const { GET } = routeModule
 
 async function call(secret = 'test-cron-secret') {
@@ -221,6 +224,7 @@ beforeEach(() => {
   db.questions = [...spørsmål(QUIZ_ID), ...spørsmål(ANNEN_QUIZ)]
   db.subs = []
   db.sentTo = []
+  db.sentHeaders = new Map()
   db.sendFailsFor = new Set()
   db.updates = []
 })
@@ -243,6 +247,22 @@ test('alle uvarslede abonnenter får e-post og stemples', async () => {
   assert.deepEqual(db.sentTo.sort(), ['a@example.com', 'b@example.com', 'c@example.com'])
   assert.equal(db.subs.every(s => s.notified_quiz_id === QUIZ_ID), true)
   assert.equal(db.subs.every(s => s.notified_at !== null), true)
+})
+
+test('hver e-post bærer List-Unsubscribe som peker på abonnentens EGEN avmeldingslenke', async () => {
+  // Repeterende utsending (58 av de siste 100 sendingene 9. september 2026).
+  // Headeren må være per mottaker — samme signerte URL som lenken i bunnen —
+  // ellers melder klientens «Avslutt abonnement» av feil person, eller ingen.
+  db.subs = [sub('a'), sub('b')]
+
+  await call()
+
+  for (const s of db.subs) {
+    const h = db.sentHeaders.get(s.email)
+    assert.ok(h, `${s.email}: ingen headers sendt`)
+    assert.equal(h['List-Unsubscribe'], `<${buildUnsubscribeUrl(s.id, 'quiznotify')}>`)
+    assert.equal(h['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click')
+  }
 })
 
 test('ingen quiz i vinduet → ingen e-post', async () => {

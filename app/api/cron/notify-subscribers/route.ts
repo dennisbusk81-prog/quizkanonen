@@ -5,7 +5,7 @@ import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { fetchAllRows } from '@/lib/paginate'
 import { quizOpenedEmail } from '@/lib/email-templates'
-import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 import { findOpenedQuizToNotify } from '@/lib/opened-quiz-lookup'
 import { detectNotifyDeadZone } from '@/lib/notify-dead-zone'
@@ -131,11 +131,18 @@ export async function GET(request: NextRequest) {
       const result = await dispatchInBatches<Subscriber>(
         subscribers,
         {
-          send: s => sendEmail({
-            to: s.email,
-            subject,
-            html: quizOpenedEmail(quizSnapshot.title, buildUnsubscribeUrl(s.id, 'quiznotify')),
-          }),
+          // Repeterende utsending: List-Unsubscribe-headeren peker på SAMME
+          // URL som lenken i bunnen — abonnenten har ingen konto, så denne
+          // ene veien ut må virke både fra lenken og fra klientens knapp.
+          send: s => {
+            const unsubUrl = buildUnsubscribeUrl(s.id, 'quiznotify')
+            return sendEmail({
+              to: s.email,
+              subject,
+              html: quizOpenedEmail(quizSnapshot.title, unsubUrl),
+              headers: listUnsubscribeHeaders(unsubUrl),
+            })
+          },
           // Stempler KUN de som faktisk ble levert, og gjør det per batch.
           // Feilede rader forblir ustemplet og forsøkes på nytt så lenge
           // quizen er innenfor vinduet.

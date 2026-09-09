@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { reEngagementEmail } from '@/lib/email-templates'
-import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 
 // Samme feilklasse som F4 i notify-subscribers: ruten manglet maxDuration og
@@ -128,8 +128,10 @@ export async function GET(request: NextRequest) {
     {
       send: ([userId, email]) => {
         const firstName = firstNameMap.get(userId)
-        const html = reEngagementEmail(firstName, buildUnsubscribeUrl(userId, 'reengagement'))
-        return sendEmail({ to: email, subject, html })
+        // Repeterende utsending: List-Unsubscribe peker på samme URL som lenken.
+        const unsubUrl = buildUnsubscribeUrl(userId, 'reengagement')
+        const html = reEngagementEmail(firstName, unsubUrl)
+        return sendEmail({ to: email, subject, html, headers: listUnsubscribeHeaders(unsubUrl) })
       },
       stamp: async delivered => {
         const { error } = await supabaseAdmin

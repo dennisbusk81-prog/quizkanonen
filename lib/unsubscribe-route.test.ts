@@ -233,6 +233,24 @@ test('ukjent type avvises selv med et token som matcher den', async () => {
   assert.deepEqual(state.updates, [])
 })
 
+test('one-click fra e-postklienten (RFC 8058): POST mot lenke-URL-en med body «List-Unsubscribe=One-Click» melder av', async () => {
+  // Dette er kontrakten List-Unsubscribe-Post-headeren (lib/unsubscribe.ts,
+  // listUnsubscribeHeaders) hviler på: klienten POST-er til URL-en fra
+  // List-Unsubscribe med nøyaktig denne form-urlencoded-bodyen. Skjemaet har
+  // ingen token/type/uid, så postParams MÅ falle tilbake på query-strengen.
+  // Ryker denne, peker headeren på noe som ikke virker — verre enn ingen header.
+  const res = await POST(new Request(url(validParams(USER_ID, 'reengagement')), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'List-Unsubscribe=One-Click',
+  }))
+
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.updates, [
+    { column: 'email_reengagement', value: false, uid: USER_ID },
+  ])
+})
+
 test('POST rett mot lenke-URL-en, uten skjema-body, virker også', async () => {
   // Reserven i postParams: query-strengen brukes når skjemafeltene mangler.
   const res = await POST(new Request(url(validParams()), { method: 'POST' }))

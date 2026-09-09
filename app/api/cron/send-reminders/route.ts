@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmail } from '@/lib/email'
 import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
-import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
 import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
@@ -165,16 +165,23 @@ export async function GET(request: NextRequest) {
         const result = await dispatchInBatches<EmailTarget>(
           entriesToSend,
           {
-            send: ({ userId, email }) => sendEmail({
-              to: email,
-              subject,
-              html: quizReminderEmail(
-                quizSnapshot.id,
-                quizSnapshot.closes_at ?? null,
-                quizSnapshot.title ?? undefined,
-                buildUnsubscribeUrl(userId, 'reminders'),
-              ),
-            }),
+            // Repeterende utsending: List-Unsubscribe-headeren peker på SAMME
+            // URL som lenken i bunnen, så klientens «Avslutt abonnement» og
+            // lenken er én og samme vei.
+            send: ({ userId, email }) => {
+              const unsubUrl = buildUnsubscribeUrl(userId, 'reminders')
+              return sendEmail({
+                to: email,
+                subject,
+                html: quizReminderEmail(
+                  quizSnapshot.id,
+                  quizSnapshot.closes_at ?? null,
+                  quizSnapshot.title ?? undefined,
+                  unsubUrl,
+                ),
+                headers: listUnsubscribeHeaders(unsubUrl),
+              })
+            },
             // Stempler KUN de som faktisk ble levert, og gjør det per batch.
             // Feilede mottakere forblir ustemplet og forsøkes på nytt så lenge
             // quizen er innenfor vinduet.

@@ -29,3 +29,31 @@ export function buildUnsubscribeUrl(userId: string, type: UnsubscribeType): stri
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.quizkanonen.no').replace(/\/$/, '')
   return `${base}/api/notifications/unsubscribe?token=${token}&type=${encodeURIComponent(type)}&uid=${encodeURIComponent(userId)}`
 }
+
+/**
+ * SMTP-headerne som lar mottakerens e-postklient tilby «Avslutt abonnement»
+ * i selve klienten (RFC 2369 + RFC 8058 one-click), og som bedriftsfiltre
+ * vekter positivt for repeterende post.
+ *
+ * URL-en skal være den SAMME som avmeldingslenken i bunnen av e-posten —
+ * `buildUnsubscribeUrl()` — så headeren peker på noe som beviselig virker:
+ *   • Klienten åpner lenken (GET) → bekreftelsesside, ingen skriving.
+ *   • Klienten sender one-click (POST med body `List-Unsubscribe=One-Click`)
+ *     → `postParams` i app/api/notifications/unsubscribe/route.ts finner ingen
+ *     token/type/uid i skjemaet og faller tilbake på query-strengen → avmeldt.
+ *     Den fallbacken er dermed ikke lenger bare en reserve; den er kontrakten
+ *     denne headeren hviler på, og den er testdekket i
+ *     lib/unsubscribe-route.test.ts.
+ *
+ * Kun HTTPS-varianten, ingen mailto: — vi har ingen innkommende
+ * e-postbehandling, og en mailto som ikke leses er verre enn ingen.
+ *
+ * Brukes KUN på repeterende utsendinger. Se kommentaren på
+ * `SendEmailOptions.headers` i lib/email.ts for skillet mot transaksjonelt.
+ */
+export function listUnsubscribeHeaders(unsubscribeUrl: string): Record<string, string> {
+  return {
+    'List-Unsubscribe': `<${unsubscribeUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  }
+}

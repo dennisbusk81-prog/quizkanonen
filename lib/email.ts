@@ -10,6 +10,17 @@ export type SendEmailOptions = {
   html: string
   from?: string
   replyTo?: string
+  /**
+   * Ekstra SMTP-headere, f.eks. List-Unsubscribe fra
+   * `listUnsubscribeHeaders()` i lib/unsubscribe.ts.
+   *
+   * KUN for repeterende utsendinger (påminnelser, varsler, re-engagement,
+   * duell-invitasjoner). Transaksjonelle e-poster — bekreftelser, kvitteringer,
+   * passord, betalingsvarsler — skal IKKE ha en avmeldingsheader: mottakeren
+   * kan ikke melde seg av en kvittering, og en avmeldingslenke på en
+   * passord-e-post er en egen bug. Skillet vaktes av lib/email-signals.test.ts.
+   */
+  headers?: Record<string, string>
 }
 
 // ── Hvorfor Sentry-rapporteringen bor HER og ikke hos kallerne ───────────────
@@ -51,6 +62,7 @@ export async function sendEmail({
   html,
   from = 'Quizkanonen <hei@quizkanonen.no>',
   replyTo,
+  headers,
 }: SendEmailOptions): Promise<void> {
   // ── Delt 10/s-budsjett mot Resend (lib/resend-budget.ts) ──────────────────
   //
@@ -82,6 +94,7 @@ export async function sendEmail({
       subject,
       html,
       ...(replyTo ? { replyTo } : {}),
+      ...(headers ? { headers } : {}),
     }))
   } catch (thrown) {
     // Resend KASTER ved nettverksfeil/timeout i stedet for å returnere `error`.

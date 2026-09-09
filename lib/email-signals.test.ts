@@ -94,3 +94,100 @@ test('DEL B: hver font-family i malene har generisk fallback (serif/sans-serif)'
   assert.deepEqual(utenFallback, [],
     `font-family uten generisk fallback — uten webfont-lasting er fallbacken det som faktisk vises`)
 })
+
+// ── DEL C: List-Unsubscribe på repeterende, ALDRI på transaksjonelle ────────
+//
+// Repeterende = maler brukeren kan melde seg av, og som har en FUNGERENDE
+// avmeldingsvei (HMAC-lenke → app/api/notifications/unsubscribe):
+//   quizReminderEmail   → type 'reminders'     (cron/send-reminders)
+//   quizOpenedEmail     → type 'quiznotify'    (cron/notify-subscribers)
+//   reEngagementEmail   → type 'reengagement'  (cron/re-engagement)
+//   duelInviteEmail     → type 'duel'          (rivalries POST)
+// Alt annet er transaksjonelt (bekreftelse, kvittering, passord, betaling,
+// org-livssyklus) og skal IKKE ha headeren — en avmeldingslenke på en
+// passord-e-post er en egen bug. weeklyReportEmail og orgCloseReminderEmail
+// er repeterende, men har INGEN avmeldingsvei i dag; de står derfor bevisst
+// utenfor lista til en slik vei finnes (egen sak). En header som peker på noe
+// som ikke virker er verre enn ingen header.
+//
+// Testen skanner hvert `sendEmail(`-kall i app/ og lib/ (paren-balansert) og
+// ser på kallet pluss de 12 linjene foran (der `const html = xEmail(…)` ofte
+// står). Regelen er per kall, i begge retninger:
+//   repeterende mal i vinduet  ⇒  `headers: listUnsubscribeHeaders(` i kallet
+//   ingen repeterende mal      ⇒  ingen `headers:` og ingen listUnsubscribeHeaders
+//
+// MUTASJONSBEVIS:
+//   • `headers: listUnsubscribeHeaders(unsubUrl),` fjernet fra
+//     cron/send-reminders → «repeterende utsendinger har List-Unsubscribe»
+//     ryker og navngir fila.
+//   • `headers: listUnsubscribeHeaders(…)` lagt inn i velkomstmailen i
+//     lib/auth-post-login.ts → «transaksjonelle e-poster har ALDRI
+//     List-Unsubscribe» ryker og navngir fila.
+
+import { readdirSync, statSync } from 'node:fs'
+
+const REPEATING_TEMPLATES = ['quizReminderEmail', 'quizOpenedEmail', 'reEngagementEmail', 'duelInviteEmail']
+const WINDOW_LINES = 12
+
+function kildefiler(dir: string): string[] {
+  const ut: string[] = []
+  for (const navn of readdirSync(join(ROOT, dir))) {
+    const rel = `${dir}/${navn}`
+    if (navn === 'node_modules' || navn.startsWith('.')) continue
+    if (statSync(join(ROOT, rel)).isDirectory()) { ut.push(...kildefiler(rel)); continue }
+    if (!/\.(ts|tsx)$/.test(navn) || /\.test\.ts$/.test(navn)) continue
+    if (rel === 'lib/email.ts') continue // definisjonen, ikke et kallsted
+    ut.push(rel)
+  }
+  return ut
+}
+
+/** Finner hvert `sendEmail(` og returnerer kallteksten (balansert) + vinduet foran. */
+function sendEmailKall(src: string): { kall: string; vindu: string; linje: number }[] {
+  const funn: { kall: string; vindu: string; linje: number }[] = []
+  const re = /\bsendEmail\(/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(src)) !== null) {
+    const start = m.index + m[0].length - 1 // posisjonen til '('
+    let dybde = 0, i = start, streng: string | null = null
+    for (; i < src.length; i++) {
+      const c = src[i]
+      if (streng) { if (c === '\\') { i++; continue } if (c === streng) streng = null; continue }
+      if (c === '\'' || c === '"' || c === '`') { streng = c; continue }
+      if (c === '(') dybde++
+      else if (c === ')' && --dybde === 0) break
+    }
+    const kall = src.slice(m.index, i + 1)
+    const før = src.slice(0, m.index).split('\n')
+    const vindu = før.slice(-WINDOW_LINES).join('\n') + '\n' + kall
+    funn.push({ kall, vindu, linje: før.length })
+  }
+  return funn
+}
+
+const ALLE_KALL = [...kildefiler('app'), ...kildefiler('lib')]
+  .flatMap(rel => sendEmailKall(les(rel)).map(k => ({ rel, ...k })))
+
+test('DEL C: skanneren finner kallstedene (sanity)', () => {
+  assert.ok(ALLE_KALL.length >= 20, `ventet ≥20 sendEmail-kall i app/ og lib/, fant ${ALLE_KALL.length}`)
+  const repeterende = ALLE_KALL.filter(k => REPEATING_TEMPLATES.some(t => k.vindu.includes(t)))
+  assert.equal(repeterende.length, REPEATING_TEMPLATES.length,
+    `ventet ett kallsted per repeterende mal, fant ${repeterende.length}: ${repeterende.map(k => `${k.rel}:${k.linje}`).join(', ')}`)
+})
+
+test('DEL C: repeterende utsendinger har List-Unsubscribe via listUnsubscribeHeaders', () => {
+  const mangler = ALLE_KALL
+    .filter(k => REPEATING_TEMPLATES.some(t => k.vindu.includes(t)))
+    .filter(k => !/headers:\s*listUnsubscribeHeaders\(/.test(k.kall))
+    .map(k => `${k.rel}:${k.linje}`)
+  assert.deepEqual(mangler, [], 'repeterende utsending uten List-Unsubscribe-header')
+})
+
+test('DEL C: transaksjonelle e-poster har ALDRI List-Unsubscribe', () => {
+  const feil = ALLE_KALL
+    .filter(k => !REPEATING_TEMPLATES.some(t => k.vindu.includes(t)))
+    .filter(k => /\bheaders\s*:/.test(k.kall) || /listUnsubscribeHeaders|List-Unsubscribe/.test(k.vindu))
+    .map(k => `${k.rel}:${k.linje}`)
+  assert.deepEqual(feil, [],
+    'transaksjonell e-post med avmeldingsheader — en avmeldingslenke på en kvittering/passord-e-post er en egen bug')
+})

@@ -4,7 +4,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { sendEmail } from '@/lib/email'
 import { duelInviteEmail } from '@/lib/email-templates'
-import { buildUnsubscribeUrl } from '@/lib/unsubscribe'
+import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { blocksNewDuel } from '@/lib/duel-expiry'
 import { hasExhaustedChallengesToRecipient, SAME_RECIPIENT_WINDOW_MS } from '@/lib/duel-cooldown'
 import {
@@ -265,11 +265,14 @@ export async function POST(request: NextRequest) {
     const { data: { user: rivalUser } } = await supabaseAdmin.auth.admin.getUserById(rivalId)
     const challengerName = (await supabaseAdmin.from('profiles').select('display_name').eq('id', user.id).single()).data?.display_name ?? user.email ?? 'En spiller'
     if (rivalUser?.email && rivalProfile?.email_duel_notifications !== false) {
+      // Varsel brukeren kan melde seg av (email_duel_notifications), ikke en
+      // kvittering: List-Unsubscribe peker på samme URL som lenken i bunnen.
       const unsubUrl = buildUnsubscribeUrl(rivalId, 'duel')
       await sendEmail({
         to: rivalUser.email,
         subject: `${challengerName} utfordrer deg til en duell!`,
         html: duelInviteEmail(challengerName, unsubUrl),
+        headers: listUnsubscribeHeaders(unsubUrl),
       })
     }
   } catch {
