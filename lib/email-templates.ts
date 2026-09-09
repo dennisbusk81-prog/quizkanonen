@@ -15,7 +15,7 @@ const UNSUBSCRIBE_ROW = `
           <tr>
             <td align="center" style="padding-top:12px;">
               <p style="margin:0;font-size:11px;color:#918f8a;line-height:1.7;text-align:center;">
-                Ønsker du ikke flere e-poster? <a href="https://quizkanonen.no/profil" style="color:#918f8a;text-decoration:underline;">Meld deg av her.</a>
+                Ønsker du ikke flere e-poster? <a href="https://www.quizkanonen.no/profil" style="color:#918f8a;text-decoration:underline;">Meld deg av her.</a>
               </p>
             </td>
           </tr>`
@@ -332,14 +332,14 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du fortsette med Premium etter det? Tegn ditt eget abonnement på
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd, fornyes automatisk til du selv avslutter.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd, fornyes automatisk til du selv avslutter.
               </p>`
     : `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Hvis du hadde Premium gjennom bedriften, har du nå mistet denne tilgangen.
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Ønsker du å fortsette med Premium?
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a><br />
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a><br />
                 Premium fornyes automatisk til du selv avslutter.
               </p>`
   return `<!DOCTYPE html>
@@ -387,7 +387,7 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/premium"
+                    <a href="https://www.quizkanonen.no/premium"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Se Premium
                     </a>
@@ -496,7 +496,7 @@ export function orgAccessEndedEmail(orgNameRaw: string, graceUntil?: string | nu
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium p&aring; egen h&aring;nd? Tegn ditt eget abonnement p&aring;
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a>
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a>
                 &mdash; fra kr 49/mnd, fornyes automatisk til du selv avslutter.
               </p>
 
@@ -504,7 +504,7 @@ export function orgAccessEndedEmail(orgNameRaw: string, graceUntil?: string | nu
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/premium"
+                    <a href="https://www.quizkanonen.no/premium"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Se Premium
                     </a>
@@ -595,7 +595,7 @@ export function orgGraceReminderEmail(orgNameRaw: string, graceUntil: string): s
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/premium"
+                    <a href="https://www.quizkanonen.no/premium"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Se Premium
                     </a>
@@ -684,7 +684,7 @@ export function orgGraceReminderAdminEmail(orgNameRaw: string, orgSlug: string, 
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       G&aring; til bedriftssiden
                     </a>
@@ -754,14 +754,14 @@ export function codePremiumEndedEmail(): string {
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium? Tegn ditt eget abonnement på
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
               </p>
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/premium"
+                    <a href="https://www.quizkanonen.no/premium"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Se Premium
                     </a>
@@ -833,14 +833,14 @@ export function gracePeriodEndedEmail(): string {
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium? Tegn ditt eget abonnement på
-                <a href="https://quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
               </p>
 
               <!-- CTA button -->
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/premium"
+                    <a href="https://www.quizkanonen.no/premium"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Se Premium
                     </a>
@@ -1840,7 +1840,7 @@ export function orgTrialEndedEmail(orgNameRaw: string, orgSlug: string): string 
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Legg inn betaling &rarr;
                     </a>
@@ -1937,7 +1937,7 @@ export function orgAccessLockedEmail(orgNameRaw: string, orgSlug: string): strin
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no/org/${orgSlug}/admin"
+                    <a href="https://www.quizkanonen.no/org/${orgSlug}/admin"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       G&aring; til bedriftssiden
                     </a>
@@ -2635,7 +2635,7 @@ export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quiz
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
                 <tr>
                   <td style="background:#c9a84c;border-radius:10px;padding:13px 32px;text-align:center;">
-                    <a href="https://quizkanonen.no" style="font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;white-space:nowrap;">
+                    <a href="https://www.quizkanonen.no" style="font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;white-space:nowrap;">
                       Spill nå →
                     </a>
                   </td>
@@ -2643,7 +2643,7 @@ export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quiz
               </table>
               <p style="margin:0;font-size:12px;color:#918f8a;text-align:center;line-height:1.6;">
                 Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.<br/>
-                <a href="https://quizkanonen.no/profil" style="color:#918f8a;">Endre varslingsinnstillinger</a>
+                <a href="https://www.quizkanonen.no/profil" style="color:#918f8a;">Endre varslingsinnstillinger</a>
               </p>
             </td>
           </tr>
@@ -2698,7 +2698,7 @@ export function duelInviteEmail(challengerNameRaw: string, unsubscribeUrl?: stri
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="background:#c9a84c;border-radius:10px;">
-                    <a href="https://quizkanonen.no"
+                    <a href="https://www.quizkanonen.no"
                        style="display:inline-block;padding:13px 32px;font-family:'Instrument Sans',Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;letter-spacing:0.02em;">
                       Gå til Quizkanonen
                     </a>
@@ -2995,7 +2995,7 @@ export function quizOpenedEmail(quizTitleRaw: string | null | undefined, unsubsc
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
                 <tr>
                   <td style="background:#c9a84c;border-radius:10px;padding:13px 32px;text-align:center;">
-                    <a href="https://quizkanonen.no" style="font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;white-space:nowrap;">
+                    <a href="https://www.quizkanonen.no" style="font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#1a1c23;text-decoration:none;white-space:nowrap;">
                       Spill nå →
                     </a>
                   </td>

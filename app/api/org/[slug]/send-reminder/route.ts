@@ -179,7 +179,7 @@ export async function POST(
   if (emailsToSend.length === 0) return NextResponse.json({ sent: 0 })
 
   const subject = 'Husk fredagsquizen! 🎯'
-  const html = `<p style="font-family:sans-serif;font-size:15px;color:#1a1c23;">Ukens quiz er åpen — logg inn på <a href="https://quizkanonen.no" style="color:#c9a84c;">quizkanonen.no</a> og spill før den stenger.</p>`
+  const html = `<p style="font-family:sans-serif;font-size:15px;color:#1a1c23;">Ukens quiz er åpen — logg inn på <a href="https://www.quizkanonen.no" style="color:#c9a84c;">quizkanonen.no</a> og spill før den stenger.</p>`
 
   let sent = 0
   for (let i = 0; i < emailsToSend.length; i += EMAIL_BATCH_SIZE) {
