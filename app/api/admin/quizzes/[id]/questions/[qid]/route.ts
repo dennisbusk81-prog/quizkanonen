@@ -27,6 +27,19 @@ const EDITABLE_FIELDS = [
 // Fasit-kolonnene håndteres for seg, av decideAnswerKeyPatch.
 const ANSWER_KEY_FIELDS = ['correct_answer', 'correct_answers']
 
+// K-5 (9. september 2026): GET og PATCH slo opp spørsmålet på `id` ALENE —
+// quiz-id-en i stien ble aldri brukt til å avgrense. Ruten kunne derfor lese og
+// skrive en hvilken som helst rad i `questions` via en hvilken som helst
+// quiz-id, inkludert bibliotekradene (quiz_id IS NULL), som er kilde for
+// arkiv- og kanonkule-kopiering. DELETE hadde aldri hullet: den går via
+// delete_question_and_renumber, som avgrenser på `id = p_question_id AND
+// quiz_id = p_quiz_id` i SQL. Nå gjør alle tre det samme.
+//
+// «Finnes ikke» og «hører til en annen quiz» får samme svar med vilje —
+// utfallet for kalleren er det samme, og det finnes ingen handling som skiller
+// dem.
+const NOT_IN_QUIZ = 'Spørsmålet finnes ikke i denne quizen.'
+
 /**
  * Hvor mange svar som finnes på spørsmålet, og hva fasiten er nå.
  *
@@ -45,13 +58,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string; qid: string }> }
 ) {
   if (!verifyAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { qid } = await params
+  const { id: quizId, qid } = await params
 
   const [{ data: question, error: qErr }, { count, error: cErr }] = await Promise.all([
     supabaseAdmin
       .from('questions')
       .select('id, correct_answer, correct_answers')
       .eq('id', qid)
+      .eq('quiz_id', quizId)
       .maybeSingle(),
     supabaseAdmin
       .from('attempt_answers')
@@ -60,7 +74,7 @@ export async function GET(
   ])
 
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
-  if (!question) return NextResponse.json({ error: 'Spørsmål ikke funnet' }, { status: 404 })
+  if (!question) return NextResponse.json({ error: NOT_IN_QUIZ }, { status: 404 })
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 })
 
   return NextResponse.json({
@@ -116,11 +130,12 @@ export async function PATCH(
         : undefined
 
   if (requestedKey !== undefined && requestedKey !== null) {
-    const [{ data: question, error: qErr }, { data: quiz }] = await Promise.all([
+    const [{ data: question, error: qErr }, { data: quiz, error: quizErr }] = await Promise.all([
       supabaseAdmin
         .from('questions')
         .select('id, correct_answer, correct_answers')
         .eq('id', qid)
+        .eq('quiz_id', quizId)
         .maybeSingle(),
       supabaseAdmin
         .from('quizzes')
@@ -130,9 +145,26 @@ export async function PATCH(
     ])
 
     if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
-    if (!question) return NextResponse.json({ error: 'Spørsmål ikke funnet' }, { status: 404 })
+    if (!question) return NextResponse.json({ error: NOT_IN_QUIZ }, { status: 404 })
+    if (quizErr) return NextResponse.json({ error: quizErr.message }, { status: 500 })
 
-    const maxOptions = quiz?.num_options ?? 4
+    // num_options avgjør hvilke bokstaver som finnes på quizen. Her sto det
+    // `quiz?.num_options ?? 4`, og den gjettingen var selve F2: quizen ble slått
+    // opp på stiens quiz-id mens spørsmålet ble slått opp uten den, så fasiten
+    // kunne valideres mot ET ANNET antall alternativer enn spørsmålet faktisk
+    // har — eller mot 4 fordi quiz-id-en ikke fantes i det hele tatt. Da kan
+    // fasiten settes til D på en quiz med tre alternativer, altså nøyaktig det
+    // num_options finnes for å hindre (se kommentaren i correct-answer:62).
+    // Etter avgrensningen over er spørsmålet garantert i denne quizen, så
+    // oppslaget er riktig — men finnes ikke quizen, skal ruten feile, ikke anta.
+    if (!quiz || typeof quiz.num_options !== 'number') {
+      return NextResponse.json(
+        { error: 'Fant ikke antall svaralternativer for quizen. Fasiten er ikke endret.' },
+        { status: 404 },
+      )
+    }
+
+    const maxOptions = quiz.num_options
 
     // Tell svarrader KUN når fasiten faktisk er endret. Vanlig lagring (rettet
     // skrivefeil, ny forklaring) sender uendret fasit og skal ikke koste en
@@ -186,8 +218,19 @@ export async function PATCH(
     return NextResponse.json({ ok: true, updated: [], ignored })
   }
 
-  const { error } = await supabaseAdmin.from('questions').update(update).eq('id', qid)
+  // .select('id') er ikke pynt: uten en returnert rad kan en UPDATE som traff
+  // ingen rader ikke skilles fra en som traff én, og ruten ville svart ok:true
+  // på en skriving som ikke skjedde.
+  const { data: written, error } = await supabaseAdmin
+    .from('questions')
+    .update(update)
+    .eq('id', qid)
+    .eq('quiz_id', quizId)
+    .select('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!written || written.length === 0) {
+    return NextResponse.json({ error: NOT_IN_QUIZ }, { status: 404 })
+  }
 
   return NextResponse.json({ ok: true, updated: Object.keys(update), ignored })
 }
