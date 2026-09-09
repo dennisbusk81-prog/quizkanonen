@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { rateLimit } from '@/lib/rate-limit'
 import { logRateLimitHit } from '@/lib/rate-limit-log'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isNoRowsError } from '@/lib/postgrest-errors'
 
 // Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
 // alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
@@ -29,11 +30,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
     }
 
-    const { data: profile } = await supabaseAdmin
+    // .single() svarer med error PGRST116 OGSÅ når spørringen lyktes og ga
+    // null rader — det er «ingen profil» og skal fortsatt gi 400 under. Alle
+    // andre koder er en ekte DB-feil: da VET vi ikke, og «kontakt support»
+    // ville sendt en betalende kunde til support for en feil som går over.
+    // Punkt 7, 9. september 2026 — se lib/postgrest-errors.ts.
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single()
+
+    if (profileError && !isNoRowsError(profileError)) {
+      console.error(`[portal] kunne ikke lese profil for ${user.id}:`, profileError.code, profileError.message)
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte kontoen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 },
+      )
+    }
 
     if (!profile?.stripe_customer_id) {
       return NextResponse.json({

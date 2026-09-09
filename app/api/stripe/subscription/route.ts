@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isNoRowsError } from '@/lib/postgrest-errors'
 
 // Én ekstern rundtur (Stripe/GoTrue/enkelt-e-post) — ekstern latens kan
 // alene være sekunder. 30 s gir rom uten å arve plattformdefaulten på 300 s.
@@ -24,11 +25,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Ugyldig sesjon' }, { status: 401 })
     }
 
-    const { data: profile } = await supabaseAdmin
+    // .single() svarer med error PGRST116 OGSÅ når spørringen lyktes og ga
+    // null rader — det er «ingen profil» og skal fortsatt gi has_subscription:
+    // false under. Alle andre koder er en ekte DB-feil: da VET vi ikke, og
+    // «ingen abonnement» til en betalende kunde ville skjult prislinja og
+    // «Administrer abonnement» på grunn av en feil som går over. Klientene
+    // (/premium, /profil, NavAuth) behandler ikke-ok som UKJENT, ikke som
+    // «nei». Punkt 7, 9. september 2026 — se lib/postgrest-errors.ts.
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single()
+
+    if (profileError && !isNoRowsError(profileError)) {
+      console.error(`[subscription] kunne ikke lese profil for ${user.id}:`, profileError.code, profileError.message)
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte kontoen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 },
+      )
+    }
 
     // has_subscription finnes fordi current_period_end IKKE kan bære «har
     // abonnement»-spørsmålet: et trialing-abonnement har null der (dahlia-
