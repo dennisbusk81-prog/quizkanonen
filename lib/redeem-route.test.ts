@@ -53,6 +53,8 @@ const state: {
   moneyAlerts: Array<{ operation: string; consequence: string; context?: Record<string, unknown> }>
   /** E-poster ruten har sendt — malvalget er en del av oppførselen. */
   emails: Array<{ subject: string; html: string }>
+  /** Settes for å la syncPremiumCache kaste (Stripe nede / DB-lesefeil i org-dekning). */
+  syncFails: Error | null
 } = {
   code: null,
   redemptions: new Set(),
@@ -65,6 +67,7 @@ const state: {
   stripeUpdateFails: null,
   moneyAlerts: [],
   emails: [],
+  syncFails: null,
 }
 
 const IN_FUTURE = new Date(Date.now() + 86_400_000).toISOString()
@@ -172,7 +175,9 @@ mock.module('@/lib/premium-state-io', {
       stripe: state.premiumSources.stripe,
       org: state.premiumSources.org,
     }),
-    syncPremiumCache: async () => {},
+    syncPremiumCache: async () => {
+      if (state.syncFails) throw state.syncFails
+    },
     getCodeCoverage: async () => state.premiumSources.code,
   },
 })
@@ -249,6 +254,36 @@ beforeEach(() => {
   state.stripeUpdateFails = null
   state.moneyAlerts = []
   state.emails = []
+  state.syncFails = null
+})
+
+// ── Cache-synk etter innløsning (9. september 2026) ─────────────────────────
+// syncPremiumCache lå utenfor try/catch. Kastet den — Stripe nede, eller etter
+// 5658e84 en DB-lesefeil i org-dekningen — fikk kunden en rå 500 ETTER at
+// innløsningen var bokført. De prøvde igjen og fikk «allerede brukt».
+//
+// MUTASJONSBEVIS: fjernes try/catch-en rundt syncPremiumCache i ruten, kaster
+// POST og testen under ryker før første assert.
+test('cache-synk kaster etter innløsning → ruten svarer likevel suksess, feilen logges, koden er bokført', async () => {
+  state.syncFails = new Error('simulert: org-dekning kunne ikke leses')
+
+  const logged: unknown[][] = []
+  const restore = mock.method(console, 'error', (...args: unknown[]) => { logged.push(args) })
+  let res: Response
+  try {
+    res = await redeem('FREDAGSQUIZ', 'user-a')
+  } finally {
+    restore.mock.restore()
+  }
+
+  assert.equal(res.status, 200)
+  assert.equal((await res.json()).success, true)
+  assert.ok(state.redemptions.has('code-1:user-a'), 'innløsningen skal stå — den var gyldig')
+  assert.equal(state.emails.length, 1, 'aktiveringsvarselet skal fortsatt sendes')
+  assert.ok(
+    logged.some(a => String(a[0]).includes('[codes/redeem] premium-cache-synk feilet') && String(a[0]).includes('user-a')),
+    `forventet logglinje om feilet cache-synk, fikk: ${JSON.stringify(logged)}`,
+  )
 })
 
 test('delt kode stopper når maks antall innløsninger er nådd', async () => {

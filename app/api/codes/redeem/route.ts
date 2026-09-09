@@ -253,7 +253,23 @@ export async function POST(request: NextRequest) {
   }
 
   // Cache-feltene på profiles settes i tråd med den utledede tilstanden.
-  await syncPremiumCache(user.id, stripe)
+  //
+  // I try/catch (9. september 2026): innløsningen er alt bokført av
+  // redeem_access_code og er gyldig. syncPremiumCache kan kaste — Stripe nede,
+  // eller etter 5658e84 en DB-lesefeil i org-dekningen — og uten vernet ble
+  // det en rå 500 til en kunde hvis kode FAKTISK er innløst. De prøver igjen
+  // og får «allerede brukt». Cachen selv-heler ved neste webhook-/cron-synk,
+  // samme resonnement som org/[slug]/leave. Motsatt av stripe/checkout, der
+  // ingenting er skjedd ennå og en lesefeil skal stoppe flyten.
+  try {
+    await syncPremiumCache(user.id, stripe)
+  } catch (err) {
+    console.error(
+      `[codes/redeem] premium-cache-synk feilet etter vellykket innløsning for ${user.id} ` +
+      '(innløsningen er bokført; cachen selv-heler ved neste synk):',
+      err,
+    )
+  }
 
   // Varsle kunden. Ved pause er dette ikke en høflighetsmelding, men selve
   // beskjeden om at de ikke blir trukket — den skal være tydelig.
