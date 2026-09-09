@@ -1,8 +1,8 @@
 // ── Puljen: hvilke spørsmål en generert quiz kan trekkes fra, og trekningen ──
 //
 // Bygget 8. september 2026 for POST /api/tilfeldig-quiz. To deler:
-//   • sampleDistinct   — REN trekning uten gjentak (testdekket, injiserbar RNG)
-//   • fetchPoolQuestionIds — I/O: henter puljens id-er fra databasen
+//   • sampleDistinct      — REN trekning uten gjentak (testdekket, injiserbar RNG)
+//   • pickPoolQuestionIds — I/O: trekker puljens id-er i databasen (én RPC)
 //
 // ── PULJEN ──────────────────────────────────────────────────────────────────
 //   spørsmål med quiz_id IS NULL (biblioteket — 4040 rader importert
@@ -17,34 +17,24 @@
 // husets HVITELISTE (onlyRealQuizzes, lib/real-quiz-population.ts): 'archive'
 // står ikke i REAL_QUIZ_TYPES. Utvides hvitelisten med en ny ekte type,
 // følger puljen med automatisk — og en SQL-kopi av regelen ville ikke gjort
-// det (CLAUDE.md-fella om IN-listene i 20260825000000).
+// det (CLAUDE.md-fella om IN-listene i 20260825000000). Derfor sendes
+// hvitelisten INN i RPC-en som argument (p_real_types) i stedet for å stå i
+// SQL-en; migrasjon 20260909000000 har ingen egen IN-liste.
 //
-// ── TO VEIER TIL SAMME PULJE (9. september 2026) ────────────────────────────
-// fetchPoolQuestionIds (under) henter hele id-settet til Vercel i paginerte
-// lesinger og lar sampleDistinct trekke. Målt 8. september: 1065–1218 ms av
-// ~2,2 s total — fem rundturer for å trekke 15. pickPoolQuestionIds (nederst)
-// er den nye veien: én RPC (migrasjon 20260909000000) som trekker i
-// databasen. Hvitelisten sendes INN som argument (REAL_QUIZ_TYPES), så
-// SQL-en har ingen egen IN-liste å drifte — det var innvendingen mot en RPC,
-// og den er svart på. Den gamle funksjonen står til den nye er verifisert
-// mot prod (samme kandidatsett, blandet og per kategori); ruten bruker den
-// nye.
-//
-// `.eq('is_test', false)` står i TILLEGG til hvitelistens `IS NOT TRUE`:
-// kildegaten (decideArchiveSourceEligibility) krever `=== false` og avviser
-// NULL som «vet ikke». Uten det eksplisitte filteret kunne puljen levere en
-// rad gaten så avviser, og hele genereringen ville feilet på ett spørsmål.
-//
-// ── PAGINERT FRA FØRSTE LINJE ───────────────────────────────────────────────
-// Biblioteket er 4040 rader — over PostgREST sitt stille 1000-radskutt fra
-// dag én. Uten fetchAllRows ville «blandet quiz» trukket fra de første 1000
-// radene i id-rekkefølge, hver gang, uten feilmelding. Alle spørringene har
-// .order('id') (totalordning) så et paginert kutt er reproduserbart (husregel:
-// .range() uten .order() = ustabilt radsett).
+// ── HISTORIKK: FRA FEM RUNDTURER TIL ÉN (9. september 2026) ─────────────────
+// Fram til 9. september hentet fetchPoolQuestionIds hele id-settet (4235
+// rader) til Vercel i paginerte lesinger og lot sampleDistinct trekke. Målt
+// 8. september: 1065–1218 ms av ~2,2 s total. pickPoolQuestionIds trekker i
+// databasen i én rundtur (123–131 ms målt). Den gamle funksjonen ble fjernet
+// etter at RPC-en var verifisert mot prod med scripts/verify-pool-rpc.ts:
+// samme kandidatsett id for id (4235 blandet, 460 Sport, 252 Historie), fem
+// trekninger fem ulike sett. `is_test = false` i SQL-en (ikke IS NOT TRUE):
+// kildegaten (decideArchiveSourceEligibility) krever === false og avviser
+// NULL som «vet ikke».
 import 'server-only'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
-import { onlyRealQuizzes, REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
+import { REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
+
 import type { Loaded } from '@/lib/fetch-result'
 
 /**
@@ -72,74 +62,14 @@ export function sampleDistinct<T>(
   return pool.slice(0, n)
 }
 
-type IdRow = { id: string }
-
-/**
- * Puljens spørsmåls-id-er — biblioteket + stengte ekte quizer, valgfritt
- * avgrenset til én kategori. Feil er `{ ok: false }` (vet ikke), aldri en
- * tom liste: en tom liste ville gitt «for få spørsmål» til brukeren, som er
- * et USANT svar når databasen bare var utilgjengelig.
- */
-export async function fetchPoolQuestionIds(input: {
-  category: string | null
-  nowIso: string
-}): Promise<Loaded<string[]>> {
-  const { category, nowIso } = input
-  try {
-    // Del 1: biblioteket.
-    const bank = await fetchAllRows<IdRow>((from, to) => {
-      let q = supabaseAdmin.from('questions').select('id').is('quiz_id', null)
-      if (category !== null) q = q.eq('category', category)
-      return q.order('id', { ascending: true }).range(from, to)
-    })
-
-    // Del 2a: de stengte ekte quizene. Spørringen i en lokal variabel og
-    // helperen påført ETTERPÅ — inlinet som argument gir TS2589 i `next build`
-    // (regelen i lib/real-quiz-population.ts; samme form som /api/arkiv GET).
-    const closedQuizzes = await fetchAllRows<IdRow>((from, to) => {
-      const base = supabaseAdmin
-        .from('quizzes')
-        .select('id')
-        .eq('is_test', false)
-        .lte('closes_at', nowIso)
-      const query = onlyRealQuizzes(base)
-      return query.order('id', { ascending: true }).range(from, to)
-    })
-
-    // Del 2b: spørsmålene deres. .in()-lister brekker ved ~390 id-er, derfor
-    // chunket (lib/paginate.ts).
-    const played = await fetchAllRowsChunked<IdRow>(
-      closedQuizzes.map((q) => q.id),
-      (chunk, from, to) => {
-        let q = supabaseAdmin.from('questions').select('id').in('quiz_id', chunk)
-        if (category !== null) q = q.eq('category', category)
-        return q.order('id', { ascending: true }).range(from, to)
-      }
-    )
-
-    // Union på id — de to delene er disjunkte (quiz_id NULL vs. satt), men
-    // et Set koster ingenting og gjør «samme spørsmål to ganger» strukturelt
-    // umulig her, ikke bare sannsynlig.
-    const ids = new Set<string>()
-    for (const row of bank) ids.add(row.id)
-    for (const row of played) ids.add(row.id)
-    return { ok: true, value: [...ids] }
-  } catch (e) {
-    console.error(
-      '[generated-quiz-pool] kunne ikke lese puljen:',
-      e instanceof Error ? e.message : e
-    )
-    return { ok: false }
-  }
-}
-
 /**
  * Trekker `count` distinkte spørsmåls-id-er fra puljen — i databasen, som
- * én RPC (pick_pool_question_ids, migrasjon 20260909000000). Samme
- * kandidatsett som fetchPoolQuestionIds over; hvitelisten REAL_QUIZ_TYPES
- * sendes inn, ikke gjentatt i SQL. Feil er { ok: false } («vet ikke»), aldri
- * en tom liste — av samme grunn som over. Færre enn `count` id-er tilbake
- * betyr at puljen er mindre enn `count`; kalleren avgjør om det er nok.
+ * én RPC (pick_pool_question_ids, migrasjon 20260909000000). Hvitelisten
+ * REAL_QUIZ_TYPES sendes inn, ikke gjentatt i SQL. Feil er { ok: false }
+ * («vet ikke»), aldri en tom liste: en tom liste ville gitt «for få
+ * spørsmål» til brukeren, som er et USANT svar når databasen bare var
+ * utilgjengelig. Færre enn `count` id-er tilbake betyr at puljen er mindre
+ * enn `count`; kalleren avgjør om det er nok.
  */
 export async function pickPoolQuestionIds(input: {
   category: string | null

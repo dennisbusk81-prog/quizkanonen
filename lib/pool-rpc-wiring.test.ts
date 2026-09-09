@@ -11,8 +11,8 @@
 //   • is_test = false (kildegaten krever === false), closes_at <= p_now
 //   • begge funksjonene: SET search_path = '' INLINE, REVOKE som navngir
 //     authenticated, GRANT til service_role
-//   • ruten trekker via pickPoolQuestionIds, og har sluttet å hente puljen
-//     til Vercel (fetchPoolQuestionIds/sampleDistinct er ikke importert der)
+//   • ruten trekker via pickPoolQuestionIds; fetchPoolQuestionIds finnes
+//     ikke lenger (fjernet 9. september etter verifisering mot prod)
 //
 // MUTASJONSBEVIS (9. september 2026):
 //   • `= ANY (p_real_types)` → `IN ('weekly', 'bonus')` i SQL → hviteliste-testen rød
@@ -90,7 +90,7 @@ test('SQL: REVOKE navngir authenticated eksplisitt, og GRANT går til service_ro
 
 test('pickPoolQuestionIds kaller RPC-en med hvitelisten fra REAL_QUIZ_TYPES', () => {
   assert.match(POOL, /supabaseAdmin\.rpc\('pick_pool_question_ids', \{\s*p_category: input\.category,\s*p_count: input\.count,\s*p_real_types: \[\.\.\.REAL_QUIZ_TYPES\],\s*p_now: input\.nowIso,\s*\}\)/)
-  assert.match(POOL, /import \{ onlyRealQuizzes, REAL_QUIZ_TYPES \} from '@\/lib\/real-quiz-population'/)
+  assert.match(POOL, /import \{ REAL_QUIZ_TYPES \} from '@\/lib\/real-quiz-population'/)
 })
 
 test('pickPoolQuestionIds: feil er { ok: false }, aldri en tom liste', () => {
@@ -107,6 +107,7 @@ test('ruten trekker via pickPoolQuestionIds og henter ikke lenger puljen til Ver
   assert.match(ROUTE, /if \(pick\.value\.length < GENERATED_QUIZ_QUESTION_COUNT\)/)
 })
 
-test('fetchPoolQuestionIds står fortsatt — den gamle veien beholdes til den nye er verifisert', () => {
-  assert.match(POOL, /export async function fetchPoolQuestionIds/)
+test('fetchPoolQuestionIds er borte — den gamle veien ble fjernet etter verifisering 9. september 2026', () => {
+  assert.doesNotMatch(POOL, /fetchPoolQuestionIds/)
+  assert.doesNotMatch(POOL, /fetchAllRows|onlyRealQuizzes\(/, 'paginert TS-pulje er tilbake')
 })

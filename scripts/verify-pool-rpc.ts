@@ -7,15 +7,14 @@
 // (.env.local starter med BOM; lag en BOM-fri kopi først, ellers leses
 // NEXT_PUBLIC_SUPABASE_URL som «﻿NEXT_PUBLIC_SUPABASE_URL».)
 //
-// Tre bevis, i denne rekkefølgen:
-//   1. SAMME KANDIDATSETT: pool_question_ids (SQL) == fetchPoolQuestionIds (TS),
-//      id for id, for blandet og for minst én kategori. Ikke «samme antall» —
-//      symmetrisk differanse skal være tom.
-//   2. TILFELDIG: fem trekninger à 15 gir ikke samme sett hver gang, og hver
-//      trekning er distinkt og ligger inne i kandidatsettet.
-//   3. TID: RPC-trekningen målt mot den gamle veien (pulje + trekning i TS).
+// To bevis (id-for-id-sammenligningen mot den gamle TS-puljen ble kjørt
+// 9. september 2026 — 4235/460/252 identiske — og fjernet sammen med
+// fetchPoolQuestionIds):
+//   1. TILFELDIG: fem trekninger à 15 gir ikke samme sett hver gang, og hver
+//      trekning er distinkt og ligger inne i kandidatsettet (pool_question_ids).
+//   2. TID: RPC-trekningen, blandet og per kategori.
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { fetchPoolQuestionIds, pickPoolQuestionIds } from '@/lib/generated-quiz-pool'
+import { pickPoolQuestionIds } from '@/lib/generated-quiz-pool'
 import { REAL_QUIZ_TYPES } from '@/lib/real-quiz-population'
 import { fetchAllRows } from '@/lib/paginate'
 import { GENERATED_QUIZ_QUESTION_COUNT } from '@/lib/generated-quiz-rules'
@@ -43,23 +42,10 @@ async function sqlPool(category: string | null): Promise<string[]> {
   return rows
 }
 
-// ── 1. Samme kandidatsett ───────────────────────────────────────────────────
-for (const category of [null, 'Sport', 'Historie']) {
-  const etikett = category ?? 'blandet'
-  const ts = await fetchPoolQuestionIds({ category, nowIso })
-  if (!ts.ok) throw new Error('fetchPoolQuestionIds feilet')
-  const sql = await sqlPool(category)
-  const a = new Set(ts.value), b = new Set(sql)
-  const bareTs = [...a].filter((x) => !b.has(x))
-  const bareSql = [...b].filter((x) => !a.has(x))
-  ok(`kandidatsett (${etikett}): TS ${a.size} == SQL ${b.size}, symmetrisk differanse tom`,
-     a.size === b.size && bareTs.length === 0 && bareSql.length === 0,
-     bareTs.length + bareSql.length ? `kun i TS: ${bareTs.slice(0, 3)} | kun i SQL: ${bareSql.slice(0, 3)}` : '')
-  ok(`kandidatsett (${etikett}): SQL har ingen duplikater`, b.size === sql.length)
-}
-
-// ── 2. Tilfeldig ────────────────────────────────────────────────────────────
-const kandidater = new Set(await sqlPool(null))
+// ── 1. Tilfeldig ────────────────────────────────────────────────────────────
+const alle = await sqlPool(null)
+const kandidater = new Set(alle)
+ok(`kandidatsett (blandet): ${alle.length} id-er, ingen duplikater`, kandidater.size === alle.length)
 const trekninger: string[][] = []
 for (let i = 0; i < 5; i++) {
   const r = await pickPoolQuestionIds({ category: null, count: GENERATED_QUIZ_QUESTION_COUNT, nowIso })
@@ -78,15 +64,15 @@ if (!kat.ok) throw new Error('pick Sport feilet')
 const sportSet = new Set(await sqlPool('Sport'))
 ok(`kategori-trekning (Sport): 15 id-er, alle i Sport-settet`, kat.value.length === 15 && kat.value.every((id) => sportSet.has(id)))
 
-// ── 3. Tid ──────────────────────────────────────────────────────────────────
+// ── 2. Tid ──────────────────────────────────────────────────────────────────
 const tid = async (f: () => Promise<unknown>) => { const t = performance.now(); await f(); return Math.round(performance.now() - t) }
-const gammel: number[] = [], ny: number[] = []
+const blandet: number[] = [], sport: number[] = []
 for (let i = 0; i < 3; i++) {
-  gammel.push(await tid(() => fetchPoolQuestionIds({ category: null, nowIso })))
-  ny.push(await tid(() => pickPoolQuestionIds({ category: null, count: GENERATED_QUIZ_QUESTION_COUNT, nowIso })))
+  blandet.push(await tid(() => pickPoolQuestionIds({ category: null, count: GENERATED_QUIZ_QUESTION_COUNT, nowIso })))
+  sport.push(await tid(() => pickPoolQuestionIds({ category: 'Sport', count: GENERATED_QUIZ_QUESTION_COUNT, nowIso })))
 }
-console.log(`tid, gammel vei (pulje til Vercel, blandet): ${gammel.join(' / ')} ms`)
-console.log(`tid, ny vei (RPC-trekning, blandet):         ${ny.join(' / ')} ms`)
+console.log(`tid, RPC-trekning (blandet): ${blandet.join(' / ')} ms`)
+console.log(`tid, RPC-trekning (Sport):   ${sport.join(' / ')} ms`)
 
 console.log(feil === 0 ? '\nALT GRØNT' : `\n${feil} FEIL`)
 process.exit(feil === 0 ? 0 : 1)
