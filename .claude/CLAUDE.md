@@ -1,5 +1,5 @@
 # Quizkanonen — Claude Code kontekst
-Sist oppdatert: 26. juli 2026
+Sist oppdatert: 9. september 2026
 
 ## Dokumentregler (lest dette først)
 
@@ -20,6 +20,14 @@ Denne regelen finnes fordi feilen har skjedd to ganger:
 qk-docs-temp/ i august og .claude/QK_OPPDATERING_*_19AUG_KVELD.md
 i september. Begge ganger ble tre uker gamle notater brukt som
 fasit.
+
+En LUKKET sak skal fjernes DER DEN STÅR ÅPEN. Det holder ikke å
+notere den som lukket et annet sted. Tre ganger 9. september ble en
+ferdig sak delt ut som ny oppgave fordi en gammel blokk aldri ble
+slettet: `closes_at` (rettet 5. september), Del B (bygget 24. august)
+og tre av ti punkter i stille-feil-lista. En liste over åpne punkter
+er en BESTILLING — står noe der som allerede er gjort, blir det gjort
+en gang til. Rydd i kilden, ikke i margen.
 
 Ikke bruk «git add .» uten å lese git status først. Turbopack-
 aliaset i next.config.ts er sveipet inn i en urelatert commit
@@ -346,10 +354,23 @@ Ingen bildeopplasting er bygget eller planlagt. Bekreftet empirisk mot prod
 ### Testquiz for browser-verifisering
 `.claude/QK_TESTQUIZ_OPPSKRIFT.md` — ferdig opprettelses- og ryddespørring,
 med begrunnelse for hvert felt (`is_test`, `quiz_type='test'`,
-`season_points_awarded=true`, og hvorfor `is_active=true` er PÅKREVD for at
-anon-lesingen i spillsiden skal se quizen i det hele tatt). Skriv den ikke på
-nytt ad hoc — sju barnetabeller henger på `quizzes.id`, og `played_log`
-cascader ikke.
+`season_points_awarded=true`, `is_active`). Skriv den ikke på nytt ad hoc —
+sju barnetabeller henger på `quizzes.id`, og `played_log` cascader ikke.
+
+**RETTELSE 9. september 2026:** setningen om at `is_active=true` er PÅKREVD
+for at anon-lesingen skal se quizen i det hele tatt STEMMER IKKE i prod.
+`quizzes` har en EKSTRA policy, «Quizer er offentlige», som gjør både skjulte
+quizer (`is_active=false`) og testquizer synlige for anon. Målt 9. september.
+Sett `is_active=true` fordi APPENS egne filtre krever det (varslingsrutene og
+quiz-oppslagene filtrerer på det), ikke fordi RLS gjør det — og regn IKKE med
+at «Skjul» i admin skjuler noe for en direkte PostgREST-leser.
+
+### Prod-prober — bruk `www`, aldri apex (9. september 2026)
+`https://quizkanonen.no` svarer **307 til `https://www.quizkanonen.no`**. En
+probe som ikke følger redirect får da HTML-en «Redirecting...» tilbake i stedet
+for JSON, og et helt friskt endepunkt ser ut som en feil i ruta. Bruk
+`https://www.quizkanonen.no` i ALLE prod-prober. Dette kostet en runde
+9. september, da de første kallene ble lest som feil på ruta de traff.
 
 ### FALLGRUVE — hvitelisten i lib/real-quiz-population.ts (25. august 2026)
 Filteret slipper kun gjennom `quiz_type` i `['weekly', 'bonus']`. En ny
@@ -389,6 +410,66 @@ Billigste mottiltak, i denne rekkefølgen: `grep` etter det som var galt
 (kolonnenavnet, filteret, kallformen) på tvers av hele `app/` og `lib/`;
 spør hvilke andre kodestier som utløses av samme hendelse; og legg funnene
 i rapporten selv når du ikke fikser dem.
+
+### ARBEIDSREGEL — tell at mutasjonen ligger PÅ DISK (9. september 2026)
+Regelen er IKKE «pass på CRLF». Den er: **tell at mutasjonen faktisk er skrevet
+til fila FØR du tolker en grønn suite.** En grønn suite etter en mutasjon betyr
+én av to ting — testen er for svak, ELLER mutasjonen ble aldri påført. De to ser
+helt like ut i terminalen, og bare den ene er et funn.
+
+Fem ULIKE årsaker til uanvendt mutasjon på ett døgn, 9. september:
+- CRLF-mønster mot en LF-fil (to ganger)
+- shell-løkkevariabelen ble overskrevet, så mutasjonen traff feil fil
+- `node` på Windows leste `/tmp/...` som `C:\tmp\...`
+- tom `$TMPDIR`
+- shell-escaping spiste backslashene i et regex
+
+Alle fem ble fanget av TELLINGEN — ingen av dem av testkjøringen.
+**Anta at den sjette finnes.** Billigste mottiltak: tell forekomstene av
+mønsteret i fila før og etter skrivingen, og stopp hvis tallet ikke endret seg.
+Legg mutasjonsbackupene i scratchpad-katalogen, ikke i `/tmp`.
+
+### Feil vs. tomt — GRANTS og PGRST116 (9. september 2026)
+To uavhengige måter et mislykket oppslag kommer tilbake som «ingenting». Begge
+er målt mot prod 9. september.
+
+**1. GRANTS avgjør om en nekt i det hele tatt er SYNLIG.** `organizations` har
+`REVOKE ALL` og svarer `42501` når anon leser — en nekt du kan se og logge.
+`season_scores` har beholdt sine grants, så RLS filtrerer bare radene bort:
+svaret er `[]` med **HTTP 200 og `error === null`**. Nektet og det tomme
+resultatet er da BOKSTAVELIG TALT identiske, og det finnes ingen `error` å
+sjekke. **Sjekk grants, ikke bare policyer,** når du vurderer om en lesefeil lar
+seg skille fra et tomt resultat. Er svaret nei, må skillet komme fra noe annet
+enn responsen — et tall du kjenner fra før, et separat oppslag, eller
+`Loaded<T>` i `lib/fetch-result.ts`.
+
+**2. `PGRST116` er IKKE en feil.** `.single()` gir et `error`-objekt med kode
+`PGRST116` også når spørringen LYKTES og ga null rader. Skiller du på «finnes
+det en error», gjør du «ingen abonnement» om til «kontakt support» for hver
+eneste bruker uten abonnement. **Skill på `error.code`**, ikke på om `error`
+finnes — se `lib/postgrest-errors.ts`. Verifisert empirisk mot prod
+9. september på tre ulike tabeller.
+
+### ARBEIDSREGEL — er kravet «SYNLIG», test REKKEFØLGEN i kilden (9. september 2026)
+En strukturtest kan ikke se hvor på siden noe havner. Men den KAN se om A står
+før B i kildeteksten. **En test som bare krever at noe FINNES er for svak når
+kravet egentlig er at det SEES.**
+
+Konkret 9. september: lenkene til toppliste og quizarkiv ble lagt på den anonyme
+forsiden (`70134f9`) med en test som krevde at de fantes. De fantes — 2108 px
+ned, i femte seksjon, under quiz-kortet. Testen var grønn og kravet var ikke
+oppfylt. `bb259f8` flyttet dem opp i heroen og strammet testen til å kreve at de
+står FØR Steg 1 i kilden. Formuler kravet som en rekkefølge når plassering er
+poenget.
+
+### ARBEIDSREGEL — migrasjon FØR kode (9. september 2026)
+9. september ble kode med et **fail-closed** oppslag deployet før migrasjonen
+som lagde kolonnene den leser (`bf0456f` / `20260909000001`). Konsekvensen ble
+«ingen e-post» i stedet for «feil e-post» — riktig vei å feile, og nettopp
+derfor lett å ikke oppdage. **Rekkefølgen skal likevel være migrasjon først,
+deretter kode.** Rører en commit både skjema og kode: kjør migrasjonen i prod
+før du pusher, eller si EKSPLISITT i rapporten at funksjonen er død til den er
+kjørt.
 
 ### Varsling når en quiz åpner — TRE ruter, samme trigger
 `notify-subscribers`, `send-reminders` og `send-push` fyrer alle på «en quiz
