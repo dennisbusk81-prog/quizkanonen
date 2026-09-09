@@ -48,5 +48,9 @@ next-env.d.ts
 # .env.sentry-build-plugin, men ikke denne)
 .sentryclirc
 
-# QK-dokumentene lastes ned på nytt daglig og er arbeidskopier, ikke kilde
-qk-docs-temp/
+# MERK: qk-docs-temp/ og QK_*-filer er BEVISST IKKE ignorert (9. september
+# 2026). QK_0–QK_7 skal kun finnes i claude.ai-prosjektet, og en lokal kopi
+# som gjenoppstår skal være SYNLIG som «??» i git status så den kan fjernes.
+# Ignorering ville gjort gjenoppståelsen stum — som er nettopp slik
+# qk-docs-temp/ fikk ligge og bli fasit i tre uker. Se .claude/CLAUDE.md,
+# «Dokumentregler». Ikke legg inn et ignore-mønster her «for ryddighet».

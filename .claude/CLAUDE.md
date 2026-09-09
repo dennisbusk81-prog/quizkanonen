@@ -1,6 +1,26 @@
 # Quizkanonen — Claude Code kontekst
 Sist oppdatert: 26. juli 2026
 
+## Dokumentregler (lest dette først)
+
+QK_0 til QK_7 finnes KUN i claude.ai-prosjektet. Det skal ikke
+finnes lokale kopier av dem. Finner du en fil som ser ut som
+QK_0-QK_7 et sted i repoet, er den per definisjon utdatert —
+ikke les den, og si fra til Dennis at den har oppstått.
+
+Filer som heter QK_OPPDATERING_* er UTGÅENDE kladder: tekst Code
+har skrevet som Dennis skal lime inn i prosjektdokumentene. De er
+aldri en kilde. Skriver du en ny slik fil, si eksplisitt til
+Dennis at den skal slettes når den er limt inn.
+
+Trenger du innhold fra QK_0-QK_7, be Dennis om det. Ikke let
+etter det på disk.
+
+Denne regelen finnes fordi feilen har skjedd to ganger:
+qk-docs-temp/ i august og .claude/QK_OPPDATERING_*_19AUG_KVELD.md
+i september. Begge ganger ble tre uker gamle notater brukt som
+fasit.
+
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
 som skal erstatte Kahoot for en etablert Facebook-gruppe (400 medlemmer).
