@@ -22,8 +22,21 @@
 // env-avhengige er en egen beslutning; inntil da er www hardkodet, som de 25
 // lenkene som alt pekte riktig.
 //
-// MUTASJONSBEVIS: én www-lenke i lib/email-templates.ts skrives tilbake til
-// apex → «ingen e-postlenke peker på apex» ryker og navngir fila.
+// ── DEL B: ingen ekstern ressurs i e-post-HTML ──────────────────────────────
+// 32 av 33 maler hadde <link rel="stylesheet"> mot fonts.googleapis.com i
+// <head>. Gmail stripper <link>, Outlook ignorerer den — men gatewayer teller
+// den som «remote content» fra en tredjepart. Fonten ble reelt bare lastet i
+// Apple Mail/iOS Mail. Lenken er fjernet; hver font-family beholder en
+// generisk fallback (Arial/Georgia + sans-serif/serif), som er det Gmail og
+// Outlook alltid har rendret. Ingen mal avhenger av at fonten lastes:
+// layouten er tabeller med fast padding, ikke fontmetrikk.
+//
+// MUTASJONSBEVIS:
+//   • Del A: én www-lenke i lib/email-templates.ts skrives tilbake til apex →
+//     «ingen e-postlenke peker på apex» ryker og navngir fila.
+//   • Del B: <link>-linja settes tilbake i én mal → «ingen ekstern ressurs»
+//     ryker; fallbacken strykes fra én font-family («'Instrument Sans'» alene)
+//     → «hver font-family har generisk fallback» ryker og siterer verdien.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -60,4 +73,24 @@ test('DEL A: malene peker faktisk på www (sanity — fila er lest og har lenker
   const src = les('lib/email-templates.ts')
   const www = src.match(/https:\/\/www\.quizkanonen\.no/g) ?? []
   assert.ok(www.length >= 40, `ventet ≥40 www-lenker i malene, fant ${www.length}`)
+})
+
+test('DEL B: ingen ekstern ressurs i e-post-HTML (ingen <link>, ingen fonts.googleapis)', () => {
+  for (const rel of EMAIL_SOURCES) {
+    const src = les(rel)
+    const fonts = src.match(/fonts\.googleapis\.com/g) ?? []
+    const links = src.match(/<link\s/g) ?? []
+    assert.equal(fonts.length, 0, `${rel}: ${fonts.length} referanse(r) til fonts.googleapis.com`)
+    assert.equal(links.length, 0, `${rel}: ${links.length} <link>-element(er) — e-post skal ikke laste eksterne ressurser`)
+  }
+})
+
+test('DEL B: hver font-family i malene har generisk fallback (serif/sans-serif)', () => {
+  const src = les('lib/email-templates.ts')
+  const deklarasjoner = [...src.matchAll(/font-family:([^;"]+)/g)].map(m => m[1].trim())
+  assert.ok(deklarasjoner.length >= 100, `ventet ≥100 font-family-deklarasjoner, fant ${deklarasjoner.length}`)
+
+  const utenFallback = deklarasjoner.filter(v => !/(^|,)\s*(sans-)?serif$/.test(v))
+  assert.deepEqual(utenFallback, [],
+    `font-family uten generisk fallback — uten webfont-lasting er fallbacken det som faktisk vises`)
 })
