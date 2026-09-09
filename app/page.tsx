@@ -2198,6 +2198,25 @@ export default async function Home() {
               )}
             </div>
           )}
+
+          {/* Veien videre for en som ikke er innlogget (9. september 2026).
+              Den anonyme grenen hadde ingen lenke til topplista eller
+              arkivet i innholdet — eneste vei var hamburgeren i navlinja.
+              Første versjon (70134f9) la raden under quiz-kortet, 2108 px
+              ned på mobil: kortet er femte seksjon for utloggede, ikke det
+              første man ser. Hero-en er den ene flaten alle ser uten å
+              scrolle, så raden står her, under statuslinjen, i samme
+              lenkestil. Ubetinget — også ved ukjent auth, lenkene påstår
+              ingenting om hvem som ser dem. Målt ved 360 px: 69 + 16 + 70 =
+              155 px av 312 tilgjengelige. */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 13, marginTop: 10 }}>
+            <Link href="/toppliste" style={{ color: '#e8e4dd', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+              Toppliste →
+            </Link>
+            <Link href="/arkiv" style={{ color: '#e8e4dd', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+              Quizarkiv →
+            </Link>
+          </div>
         </section>
 
         {/* ── Slik fungerer det — tre steg, samme kortstil og klasser som
@@ -2373,27 +2392,6 @@ export default async function Home() {
             )}
           </div>
         )}
-
-        {/* Veien videre for en som ikke er innlogget (9. september 2026).
-            Den anonyme grenen hadde ingen lenke til topplista eller arkivet i
-            innholdet — eneste vei var hamburgeren i navlinja. Samme form som
-            «Se alle quizer →» under kortet i den innloggede grenen: sentrert,
-            13 px, #e8e4dd. Når «Åpen nå»-kortet viser månedens topp 3, bærer
-            kortet selv topplistelenken rett under lista, så her står da bare
-            arkivet — to lenker til samme mål ti linjer fra hverandre er støy.
-            Vakten følger BLOKKEN, ikke activeQuiz alene: første fredag i en
-            måned er topp 3 tom, blokken rendres ikke, og lenken må stå her.
-            Målt ved 360 px: 69 + 16 + 70 = 155 px av 312 tilgjengelige. */}
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, marginBottom: 4 }}>
-          {!(activeQuiz && anonMonthlyTop3.length > 0) && (
-            <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-              Toppliste →
-            </Link>
-          )}
-          <Link href="/arkiv" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
-            Quizarkiv →
-          </Link>
-        </div>
         </div>
 
         {/* Ukens fakta — quiz insights, samme innhold som innlogget gren.
