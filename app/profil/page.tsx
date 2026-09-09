@@ -1073,8 +1073,11 @@ export default function ProfilPage() {
             </div>
           )}
 
-          {/* E-postvarsler */}
-          <div style={{ ...s.card, marginBottom: 10 }}>
+          {/* E-postvarsler. id-en er MÅLET for forsidens varslingslinje
+              (/profil#varsler, se lib/reminder-affordance.ts) — samme
+              mønster som #abonnement lenger nede. Endres den, må lenken
+              på forsiden følge med. */}
+          <div id="varsler" style={{ ...s.card, marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ ...s.sectionLabel, marginBottom: 0 }}>E-postvarsler</p>
               {prefSavedKey && (

@@ -71,11 +71,19 @@ test('planen til kortet er rutens: planFromPremium(decidePremiumFromProfile(prof
 })
 
 test('profil-spørringen henter karenskolonnene decidePremiumFromProfile leser', () => {
-  assert.match(
-    PAGE,
-    /\.select\('display_name, premium_status, has_used_trial, org_premium_grace_until, personal_grace_until'\)/,
-    'uten karenskolonnene regner kortet en bruker i karens som gratis mens ruten gir henne 30',
-  )
+  // Kolonnene sjekkes ENKELTVIS, ikke som én fast streng: select-lista deles
+  // med andre lesere av samme profilrad (email_reminders kom til i N-29), og
+  // en eksakt-streng ville gjort hvert slikt tillegg til en falsk rød test
+  // her — mens det den skal felle er en FJERNET karenskolonne.
+  const i = PAGE.indexOf(".select('display_name, premium_status")
+  assert.ok(i > 0, 'fant ikke forsidens profil-select')
+  const select = PAGE.slice(i, PAGE.indexOf(')', i))
+  for (const kol of ['has_used_trial', 'org_premium_grace_until', 'personal_grace_until']) {
+    assert.ok(
+      select.includes(kol),
+      `uten ${kol} regner kortet en bruker i karens som gratis mens ruten gir henne 30`,
+    )
+  }
 })
 
 test('tellingen mot ledgeren bruker den NORSKE månedsgrensen, ikke forsidens UTC-monthStart', () => {

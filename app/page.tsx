@@ -23,6 +23,7 @@ import { getLeagueCardData } from '@/lib/league-card-data'
 import { assertHomeQuery, logHomeQuery } from '@/lib/home-query-guard'
 import { osloMonthStartUtcIso, osloNextMonthStartLabel } from '@/lib/oslo-time'
 import { planFromPremium } from '@/lib/generated-quiz-rules'
+import { decideReminderLine } from '@/lib/reminder-affordance'
 import { decidePremiumFromProfile } from '@/lib/premium-check'
 import { kanonkulerRemaining } from '@/lib/kanonkuler-tekst'
 import KanonkulerCard from '@/components/KanonkulerCard'
@@ -890,6 +891,17 @@ const SHARED_CSS = `
   }
   .qk-card-toplist:hover { color: var(--white); }
 
+  /* Varslingslinja på kommende-kortet. Hint-tonen, ikke gull: kortet har
+     allerede sin ene gule CTA («Se resultatene»). Lenkevarianten arver
+     .qk-card-toplist (#e8e4dd) — den er en handling, og lenker som ikke er
+     primærhandlinger skal ikke være hint-farget. */
+  .qk-card-reminder {
+    font-size: 12px;
+    color: var(--hint);
+    margin-top: 14px;
+    text-align: center;
+  }
+
   .qk-btn-outline-gold {
     display: inline-block;
     background: transparent;
@@ -1464,7 +1476,7 @@ export default async function Home() {
       // premium_status alene (isPremium under) — det er urørt.
       supabaseAdmin
         .from('profiles')
-        .select('display_name, premium_status, has_used_trial, org_premium_grace_until, personal_grace_until')
+        .select('display_name, premium_status, has_used_trial, org_premium_grace_until, personal_grace_until, email_reminders')
         .eq('id', user.id)
         .maybeSingle(),
       supabaseAdmin
@@ -1563,6 +1575,10 @@ export default async function Home() {
         ? isTrialEligible({ isPremium, hasUsedTrial: profile.has_used_trial === true })
         : null,
     })
+    // Varslingslinja på kommende-kortet. Samme «ukjent er ikke av»-regel som
+    // premiumUnknown rett over: profileResult.error → ingen linje, ikke en
+    // oppfordring. decideReminderLine eier de tre tilstandene.
+    const reminderLine = decideReminderLine({ profileUnknown: premiumUnknown, profile })
     const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'der'
     const firstName = displayName.split(' ')[0]
 
@@ -1773,6 +1789,20 @@ export default async function Home() {
                   </Link>
                 </div>
               )}
+              {/* Varslingsvalget — den ENESTE ukentlige tilbakehentingen som
+                  ikke går via Facebook. Tre tilstander, og den tredje er
+                  poenget: er profilen ikke lest, står det INGENTING her — en
+                  oppfordring om å skru på noe hun kanskje allerede har på er
+                  en usann påstand. Se lib/reminder-affordance.ts. */}
+              {reminderLine === 'on' ? (
+                <p className="qk-card-reminder">Du får e-post når quizen åpner.</p>
+              ) : reminderLine === 'off' ? (
+                <p className="qk-card-reminder">
+                  <Link href="/profil#varsler" className="qk-card-toplist">
+                    Få e-post når quizen åpner →
+                  </Link>
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="qk-empty">
