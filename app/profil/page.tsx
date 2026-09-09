@@ -13,6 +13,7 @@ import { sendLinkErrorMessage } from '@/lib/auth-messages'
 import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
 import { describePersonalPlan } from '@/lib/personal-plan-label'
 import { decideSubscriptionEntry } from '@/lib/subscription-entry'
+import { decideHashScroll, ANCHOR_SCROLL_OFFSET } from '@/lib/hash-anchor'
 
 const s = {
   wrap:     { minHeight: '100vh', background: '#1a1c23', fontFamily: "var(--font-instrument-sans), sans-serif", color: '#e8e4dd' },
@@ -221,6 +222,38 @@ export default function ProfilPage() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  // ── Hopp til #-ankeret ETTER at innholdet er lastet ──────────────────
+  //
+  // Siden returnerer skjeletter så lenge `loadState === 'loading'`, så ved
+  // første render finnes hverken #varsler eller #abonnement i DOM-en.
+  // Nettleserens ene forsøk på hash-hoppet finner ingenting, og den prøver
+  // aldri igjen — begge lenkene landet derfor på toppen av siden.
+  //
+  // Ingen setTimeout: beslutningen henger på `loadState`, og effekten kjører
+  // på nytt ved hver tilstandsendring som kan få et ankerkort til å dukke
+  // opp. `abonnement` er med i deps fordi #abonnement-kortet rendres bak
+  // `abonnement !== 'none'`, som kommer fra ProfileProvider og kan lande
+  // ETTER loadState. Finner vi ikke elementet, stemples ingenting — vi
+  // prøver igjen ved neste endring. Se lib/hash-anchor.ts.
+  const hashJumpedRef = useRef(false)
+  useEffect(() => {
+    const beslutning = decideHashScroll({
+      hash: window.location.hash,
+      contentReady: loadState === 'ready',
+      alreadyJumped: hashJumpedRef.current,
+    })
+    if (!beslutning.jump) return
+    const el = document.getElementById(beslutning.targetId)
+    if (!el) return
+    hashJumpedRef.current = true
+    // Egen scrollTo i stedet for scrollIntoView: topplinja er klebrig, og
+    // et flust hopp ville lagt kortets overkant under den.
+    window.scrollTo({
+      top: el.getBoundingClientRect().top + window.scrollY - ANCHOR_SCROLL_OFFSET,
+      behavior: 'smooth',
+    })
+  }, [loadState, abonnement])
 
   // Rask mount-henting — fyrer umiddelbart uavhengig av auth events.
   //
