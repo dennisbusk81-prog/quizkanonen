@@ -16,9 +16,20 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEmailToMany, type BulkSendResult } from '@/lib/send-email-many'
 
+/** Én admin-mottaker: bruker-id OG adresse. */
+export type OrgAdmin = { userId: string; email: string }
+
 export type OrgAdminRecipients = {
   /** Alle admins med e-postadresse. Tom liste = ingen å sende til. */
   emails: string[]
+  /**
+   * Samme mottakere, men med bruker-id-en beholdt (9. september 2026).
+   * `emails` alene holder for en melding som er lik for alle, men ikke for
+   * en utsending som må slå opp mottakerens avmeldingsstatus eller signere
+   * en avmeldingslenke per person — begge trenger bruker-id-en, og den ble
+   * kastet her inne. Rekkefølgen er den samme som i `emails`.
+   */
+  admins: OrgAdmin[]
   orgName: string | null
   orgSlug: string | null
 }
@@ -31,7 +42,7 @@ export type OrgAdminRecipients = {
  * kan behandle «fant ingen» og «feilet» likt — de skal uansett ikke sende.
  */
 export async function getOrgAdminEmails(organizationId: string): Promise<OrgAdminRecipients> {
-  const empty: OrgAdminRecipients = { emails: [], orgName: null, orgSlug: null }
+  const empty: OrgAdminRecipients = { emails: [], admins: [], orgName: null, orgSlug: null }
 
   try {
     const { data: org, error: orgError } = await supabaseAdmin
@@ -53,7 +64,7 @@ export async function getOrgAdminEmails(organizationId: string): Promise<OrgAdmi
 
     if (membersError) {
       console.error(`[org-admin-emails] admin-oppslag feilet org=${organizationId}:`, membersError.message)
-      return { emails: [], orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
+      return { emails: [], admins: [], orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
     }
 
     const adminIds = (adminMembers ?? []).map(m => m.user_id as string)
@@ -62,7 +73,7 @@ export async function getOrgAdminEmails(organizationId: string): Promise<OrgAdmi
       // den skal være synlig i loggen — det betyr at ingen i bedriften kan
       // administrere abonnementet.
       console.error(`[org-admin-emails] org=${organizationId} har INGEN admin-medlemmer`)
-      return { emails: [], orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
+      return { emails: [], admins: [], orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
     }
 
     // Admins er få (typisk 1–3), så ett oppslag hver er billigere enn en
@@ -71,18 +82,23 @@ export async function getOrgAdminEmails(organizationId: string): Promise<OrgAdmi
       adminIds.map(id => supabaseAdmin.auth.admin.getUserById(id))
     )
 
-    const emails: string[] = []
+    const admins: OrgAdmin[] = []
     lookups.forEach((r, idx) => {
       if (r.status === 'rejected') {
         console.error(`[org-admin-emails] getUserById feilet for ${adminIds[idx]} (org=${organizationId}):`, r.reason)
         return
       }
       const email = r.value?.data?.user?.email
-      if (email) emails.push(email)
+      if (email) admins.push({ userId: adminIds[idx], email })
       else console.error(`[org-admin-emails] admin ${adminIds[idx]} mangler e-postadresse (org=${organizationId})`)
     })
 
-    return { emails, orgName: org?.name ?? null, orgSlug: org?.slug ?? null }
+    return {
+      emails: admins.map(a => a.email),
+      admins,
+      orgName: org?.name ?? null,
+      orgSlug: org?.slug ?? null,
+    }
   } catch (err) {
     console.error(`[org-admin-emails] uventet feil org=${organizationId}:`, err)
     return empty

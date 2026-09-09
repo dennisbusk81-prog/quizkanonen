@@ -2362,10 +2362,18 @@ type WeeklyReportData = {
   top3: Array<{ displayName: string; correct: number; total: number }>
   participantCount: number
   shareText: string
+  /**
+   * Signert avmeldingslenke for DENNE admin-en, `buildUnsubscribeUrl(userId,
+   * 'weeklyreport')`. Valgfri av samme grunn som i quizReminderEmail: uten
+   * den faller bunnraden tilbake på den generiske /profil-lenken. Kallstedet
+   * (cron/weekly-report) sender den alltid — den er også URL-en
+   * List-Unsubscribe-headeren peker på.
+   */
+  unsubscribeUrl?: string
 }
 
 export function weeklyReportEmail(data: WeeklyReportData): string {
-  const { winner, top3, participantCount, shareText } = data
+  const { winner, top3, participantCount, shareText, unsubscribeUrl } = data
 
   // Spillernavnene her kan komme fra attempts.player_name (fritekst ved
   // quiz-start), ikke bare fra den validerte profilen — se lib/weekly-report.ts.
@@ -2471,6 +2479,7 @@ export function weeklyReportEmail(data: WeeklyReportData): string {
               </p>
             </td>
           </tr>
+          ${unsubscribeUrl ? unsubscribeRow(unsubscribeUrl) : UNSUBSCRIBE_ROW}
 
         </table>
       </td>
@@ -2566,7 +2575,16 @@ export function quizReminderEmail(quizId: string, closesAt?: string | null, quiz
 </html>`
 }
 
-export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quizTitle?: string): string {
+/**
+ * «En time igjen» til medlemmene i en bedrift, sendt av cron/send-reminders
+ * sin org-gren.
+ *
+ * `unsubscribeUrl` er den signerte lenken for DENNE mottakeren,
+ * `buildUnsubscribeUrl(userId, 'orgclose')` — samme URL som
+ * List-Unsubscribe-headeren på kallet. Uten den faller bunnraden tilbake på
+ * den generiske /profil-lenken.
+ */
+export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quizTitle?: string, unsubscribeUrl?: string): string {
   const orgName = escapeHtml(orgNameRaw)
   const timeStr = new Date(closesAt).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' })
   const titleLine = quizTitle ? `<p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#c9a84c;line-height:1.4;">${escapeHtml(quizTitle)}</p>` : ''
@@ -2613,11 +2631,11 @@ export function orgCloseReminderEmail(orgNameRaw: string, closesAt: string, quiz
                 </tr>
               </table>
               <p style="margin:0;font-size:12px;color:#918f8a;text-align:center;line-height:1.6;">
-                Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.<br/>
-                <a href="https://www.quizkanonen.no/profil" style="color:#918f8a;">Endre varslingsinnstillinger</a>
+                Du mottar denne e-posten fordi du er medlem av ${orgName} på Quizkanonen.
               </p>
             </td>
           </tr>
+          ${unsubscribeUrl ? unsubscribeRow(unsubscribeUrl) : UNSUBSCRIBE_ROW}
         </table>
       </td>
     </tr>

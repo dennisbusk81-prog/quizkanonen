@@ -42,20 +42,24 @@ type QuestionRow = { id: string; quiz_id: string; question_text: string | null }
 const db: {
   quizzes: QuizRow[]
   questions: QuestionRow[]
-  profiles: { id: string; email_reminders: boolean }[]
+  profiles: { id: string; email_reminders: boolean; email_org_reminders: boolean }[]
   orgs: { id: string; name: string; org_quiz_closes_at: string | null; org_close_reminder_quiz_id: string | null }[]
   members: { organization_id: string; user_id: string }[]
   log: LogRow[]
   sentTo: string[]
   subjects: string[]
+  headers: (Record<string, string> | undefined)[]
+  htmls: string[]
   sendFailsFor: Set<string>
   upserts: LogRow[][]
   orgWrites: number
   quizWrites: number
+  /** Lesefeil på profiles — «vi vet ikke hvem som har meldt seg av». */
+  profileSelectFails: boolean
 } = {
   quizzes: [], questions: [], profiles: [], orgs: [], members: [], log: [],
-  sentTo: [], subjects: [], sendFailsFor: new Set(), upserts: [],
-  orgWrites: 0, quizWrites: 0,
+  sentTo: [], subjects: [], headers: [], htmls: [], sendFailsFor: new Set(), upserts: [],
+  orgWrites: 0, quizWrites: 0, profileSelectFails: false,
 }
 
 const minutesAgo   = (n: number) => new Date(Date.now() - n * 60_000).toISOString()
@@ -81,10 +85,12 @@ mock.module('@/lib/notify-dead-zone', {
 // ── e-post: ingen ekte utsending ───────────────────────────────────────────
 mock.module('@/lib/email', {
   namedExports: {
-    sendEmail: async ({ to, subject }: { to: string; subject: string }) => {
+    sendEmail: async ({ to, subject, html, headers }: { to: string; subject: string; html: string; headers?: Record<string, string> }) => {
       if (db.sendFailsFor.has(to)) throw new Error('Resend sa nei')
       db.sentTo.push(to)
       db.subjects.push(subject)
+      db.htmls.push(html)
+      db.headers.push(headers)
       return { id: 'mock' }
     },
   },
@@ -123,6 +129,7 @@ function builder(table: string) {
   let limitN: number | null = null
   let rangeFrom = 0, rangeTo = Number.MAX_SAFE_INTEGER
   let upserting: LogRow[] | null = null
+  let updating: Record<string, unknown> | null = null
   let deleting = false
   // Innholdsvakten i lib/opened-quiz-lookup.ts bruker `.neq('question_text','')`
   // i tillegg til `.not(...is null)`. Også dette filteret er implementert ekte.
@@ -168,12 +175,27 @@ function builder(table: string) {
     order() { return b },
     limit(n: number) { limitN = n; return b },
     range(from: number, to: number) { rangeFrom = from; rangeTo = to; return b },
-    update() { if (table === 'organizations') db.orgWrites++; if (table === 'quizzes') db.quizWrites++; return b },
+    // Skrivingen mot profiles er implementert EKTE, ikke bare talt: den er det
+    // avmeldingsruten gjør, og one-click-testen nedenfor kjører den ruten og
+    // deretter cronen på nytt mot den samme raden.
+    update(patch?: Record<string, unknown>) {
+      if (table === 'organizations') db.orgWrites++
+      if (table === 'quizzes') db.quizWrites++
+      updating = patch ?? {}
+      return b
+    },
     delete() { deleting = true; return b },
     upsert(vals: LogRow[]) { upserting = vals; return b },
     or(uttrykk: string) { orExpr = uttrykk; return b },
     maybeSingle() { return Promise.resolve({ data: rows()[0] ?? null, error: null }) },
     then(resolve: (v: unknown) => void) {
+      if (updating) {
+        for (const r of rows()) Object.assign(r, updating)
+        return resolve({ error: null })
+      }
+      if (table === 'profiles' && db.profileSelectFails) {
+        return resolve({ data: null, error: { message: 'profiles-oppslaget er nede' } })
+      }
       if (upserting) {
         // ignoreDuplicates: en rad som alt finnes skal ikke felle skrivingen.
         const fresh = upserting.filter(n => !db.log.some(e =>
@@ -233,9 +255,17 @@ const logged = (recipientId: string, over: Partial<LogRow> = {}): LogRow => ({
   recipient_id: recipientId, ...over,
 })
 
-/** Profiler p0..p{n-1}, alle påmeldt. */
+/**
+ * Profiler p0..p{n-1}, alle påmeldt.
+ *
+ * Begge kolonnene er NOT NULL i prod (migrasjon 20260909000001), så fixturen
+ * setter begge — en `undefined` her ville falt ut av `.eq(kolonne, true)` og
+ * gjort testene grønne av feil grunn.
+ */
 const subscribers = (n: number) =>
-  Array.from({ length: n }, (_, i) => ({ id: `p${i}`, email_reminders: true }))
+  Array.from({ length: n }, (_, i) => ({
+    id: `p${i}`, email_reminders: true, email_org_reminders: true,
+  }))
 
 /** Ferdige spørsmål med tekst — det normale for en quiz som skal varsles. */
 const spørsmål = (quizId: string, n = 15): QuestionRow[] =>
@@ -258,10 +288,13 @@ beforeEach(() => {
   db.log = []
   db.sentTo = []
   db.subjects = []
+  db.headers = []
+  db.htmls = []
   db.sendFailsFor = new Set()
   db.upserts = []
   db.orgWrites = 0
   db.quizWrites = 0
+  db.profileSelectFails = false
 })
 
 // ── Rammeverk ───────────────────────────────────────────────────────────────
@@ -296,8 +329,8 @@ test('alle påmeldte får e-post og én loggrad hver', async () => {
 
 test('profiler uten email_reminders får ingenting', async () => {
   db.profiles = [
-    { id: 'p0', email_reminders: true },
-    { id: 'p1', email_reminders: false },
+    { id: 'p0', email_reminders: true, email_org_reminders: true },
+    { id: 'p1', email_reminders: false, email_org_reminders: true },
   ]
 
   await call()
@@ -617,4 +650,146 @@ test('ett ekte spørsmål blant placeholders → påminnelsen sendes', async () 
   await call()
 
   assert.deepEqual(db.sentTo, ['p0@example.com'])
+})
+
+// ── Gren B: avmelding fra org-påminnelsen (9. september 2026) ───────────────
+//
+// `email_org_reminders` er kolonnen avmeldingstypen 'orgclose' slår av
+// (app/api/notifications/unsubscribe). Er den ikke lest HER, er avmeldingen
+// verdiløs — brukeren får kvittering på at de er avmeldt, og e-posten fortsetter.
+//
+// MUTASJONSBEVIS (hver vakt fjernet i tur, mutasjonen verifisert anvendt på
+// disk med grep før resultatet ble tolket):
+//   (e) `'email_org_reminders'` strøket fra fetchOptedInIds-kallet i
+//       org-grenen → «avmeldt org-medlem får INGEN e-post» ryker (p1 får
+//       e-post igjen). De øvrige org-testene blir stående grønne — det er
+//       nettopp den formen et manglende filter tar.
+//   (f) `catch { return }` i org-grenen byttet mot at feilen svelges og
+//       `optedIn` settes til alle medlemmene → «lesefeil på
+//       avmeldingsstatus → ingen e-post» ryker.
+//   (g) `headers: listUnsubscribeHeaders(unsubUrl)` fjernet fra sendEmail →
+//       «org-påminnelsen bærer List-Unsubscribe» ryker (og
+//       lib/email-signals.test.ts DEL C ryker uavhengig).
+
+const { generateUnsubscribeToken } = await import('@/lib/unsubscribe')
+const unsubscribeRoute = await import('@/app/api/notifications/unsubscribe/route')
+
+test('avmeldt org-medlem (email_org_reminders=false) får INGEN e-post', async () => {
+  setUpOrgScenario([ORG_A])
+  db.profiles = [
+    { id: 'p0', email_reminders: true, email_org_reminders: true },
+    { id: 'p1', email_reminders: true, email_org_reminders: false },
+  ]
+  db.members = [
+    { organization_id: ORG_A, user_id: 'p0' },
+    { organization_id: ORG_A, user_id: 'p1' },
+  ]
+
+  await call()
+
+  assert.deepEqual(db.sentTo, ['p0@example.com'], 'kun den påmeldte skal få e-post')
+  assert.deepEqual(db.log.map(l => l.recipient_id), ['p0'],
+    'den avmeldte skal heller ikke stemples — hen ble ikke varslet')
+})
+
+test('påmeldt org-medlem: e-posten går, med List-Unsubscribe og sin egen signerte lenke', async () => {
+  setUpOrgScenario([ORG_A])
+  db.profiles = subscribers(1)
+  db.members = [{ organization_id: ORG_A, user_id: 'p0' }]
+
+  await call()
+
+  assert.deepEqual(db.sentTo, ['p0@example.com'])
+
+  const forventetUrl =
+    'https://www.quizkanonen.no/api/notifications/unsubscribe' +
+    `?token=${generateUnsubscribeToken('p0', 'orgclose')}&type=orgclose&uid=p0`
+
+  assert.deepEqual(db.headers[0], {
+    'List-Unsubscribe': `<${forventetUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  })
+  // Headeren og lenken i bunnen skal være SAMME URL — ellers peker den ene på
+  // noe den andre ikke har bevist virker.
+  assert.ok(db.htmls[0].includes(forventetUrl), 'avmeldingslenken skal stå i selve e-posten også')
+})
+
+test('to medlemmer får HVER SIN signerte lenke, ikke den samme', async () => {
+  // En delt HTML ville gitt begge p0 sin lenke — da melder p1 av p0.
+  setUpOrgScenario([ORG_A])
+  db.profiles = subscribers(2)
+  db.members = [
+    { organization_id: ORG_A, user_id: 'p0' },
+    { organization_id: ORG_A, user_id: 'p1' },
+  ]
+
+  await call()
+
+  const uids = db.headers.map(h => new URL(
+    h!['List-Unsubscribe'].slice(1, -1)).searchParams.get('uid'))
+  assert.deepEqual(uids.sort(), ['p0', 'p1'])
+})
+
+test('lesefeil på avmeldingsstatus → INGEN e-post sendes', async () => {
+  // Den som lett glemmes. Vi vet ikke hvem som har meldt seg av, og ukjent er
+  // ikke samtykke. Alternativet — «send for sikkerhets skyld» — sender til
+  // folk som beviselig har sagt nei.
+  setUpOrgScenario([ORG_A])
+  db.profiles = subscribers(2)
+  db.members = [
+    { organization_id: ORG_A, user_id: 'p0' },
+    { organization_id: ORG_A, user_id: 'p1' },
+  ]
+  db.profileSelectFails = true
+
+  await call()
+
+  assert.deepEqual(db.sentTo, [], 'ingen skal få e-post når avmeldingsstatus er ukjent')
+  assert.deepEqual(db.upserts, [], 'og ingen skal stemples som varslet')
+})
+
+test('one-click fra e-postklienten melder faktisk av, og neste kjøring sender ikke', async () => {
+  // Hele veien, ende til ende: cronen bygger headeren → e-postklienten POSTer
+  // mot URL-en i den → den EKTE avmeldingsruten skriver kolonnen → cronen
+  // leser den og hopper over mottakeren.
+  setUpOrgScenario([ORG_A])
+  db.profiles = subscribers(1)
+  db.members = [{ organization_id: ORG_A, user_id: 'p0' }]
+
+  await call()
+  assert.deepEqual(db.sentTo, ['p0@example.com'], 'kontroll: e-posten gikk før avmeldingen')
+
+  const unsubUrl = db.headers[0]!['List-Unsubscribe'].slice(1, -1)
+  const res = await unsubscribeRoute.POST(new Request(unsubUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'List-Unsubscribe=One-Click',
+  }))
+
+  assert.equal(res.status, 200)
+  assert.match(await res.text(), /Du er avmeldt/)
+  assert.equal(db.profiles[0].email_org_reminders, false, 'ruten skal ha skrudd av kolonnen')
+
+  // Ny quiz, så varslingsloggen ikke er det som stopper e-posten denne gangen.
+  db.log = []
+  db.sentTo = []
+  setUpOrgScenario([ORG_A])
+  await call()
+
+  assert.deepEqual(db.sentTo, [], 'etter avmelding skal det ikke sendes mer')
+})
+
+test('one-click på org-lenken rører IKKE fredagspåminnelsen', async () => {
+  // Tokenet dekker (uid, type). Slo 'orgclose' av email_reminders også, ville
+  // en avmelding fra bedriftens påminnelse stilltiende tatt med seg den
+  // nasjonale fredagsvarslingen.
+  db.profiles = subscribers(1)
+
+  await unsubscribeRoute.POST(new Request(
+    `https://www.quizkanonen.no/api/notifications/unsubscribe?token=${generateUnsubscribeToken('p0', 'orgclose')}&type=orgclose&uid=p0`,
+    { method: 'POST' },
+  ))
+
+  assert.equal(db.profiles[0].email_org_reminders, false)
+  assert.equal(db.profiles[0].email_reminders, true, 'fredagspåminnelsen skal stå urørt')
 })

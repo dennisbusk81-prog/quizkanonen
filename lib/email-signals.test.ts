@@ -99,16 +99,21 @@ test('DEL B: hver font-family i malene har generisk fallback (serif/sans-serif)'
 //
 // Repeterende = maler brukeren kan melde seg av, og som har en FUNGERENDE
 // avmeldingsvei (HMAC-lenke → app/api/notifications/unsubscribe):
-//   quizReminderEmail   → type 'reminders'     (cron/send-reminders)
-//   quizOpenedEmail     → type 'quiznotify'    (cron/notify-subscribers)
-//   reEngagementEmail   → type 'reengagement'  (cron/re-engagement)
-//   duelInviteEmail     → type 'duel'          (rivalries POST)
+//   quizReminderEmail     → type 'reminders'     (cron/send-reminders)
+//   quizOpenedEmail       → type 'quiznotify'    (cron/notify-subscribers)
+//   reEngagementEmail     → type 'reengagement'  (cron/re-engagement)
+//   duelInviteEmail       → type 'duel'          (rivalries POST)
+//   weeklyReportEmail     → type 'weeklyreport'  (cron/weekly-report)
+//   orgCloseReminderEmail → type 'orgclose'      (cron/send-reminders, org)
 // Alt annet er transaksjonelt (bekreftelse, kvittering, passord, betaling,
 // org-livssyklus) og skal IKKE ha headeren — en avmeldingslenke på en
-// passord-e-post er en egen bug. weeklyReportEmail og orgCloseReminderEmail
-// er repeterende, men har INGEN avmeldingsvei i dag; de står derfor bevisst
-// utenfor lista til en slik vei finnes (egen sak). En header som peker på noe
-// som ikke virker er verre enn ingen header.
+// passord-e-post er en egen bug.
+//
+// De to siste sto utenfor lista fram til 9. september 2026 fordi de manglet
+// en avmeldingsvei — en header som peker på noe som ikke virker er verre enn
+// ingen header. Veien finnes nå (kolonnene `email_weekly_report` og
+// `email_org_reminders`, migrasjon 20260909000001), og BEGGE
+// utsendingsstedene leser den før de sender, så de er flyttet inn.
 //
 // Testen skanner hvert `sendEmail(`-kall i app/ og lib/ (paren-balansert) og
 // ser på kallet pluss de 12 linjene foran (der `const html = xEmail(…)` ofte
@@ -126,7 +131,10 @@ test('DEL B: hver font-family i malene har generisk fallback (serif/sans-serif)'
 
 import { readdirSync, statSync } from 'node:fs'
 
-const REPEATING_TEMPLATES = ['quizReminderEmail', 'quizOpenedEmail', 'reEngagementEmail', 'duelInviteEmail']
+const REPEATING_TEMPLATES = [
+  'quizReminderEmail', 'quizOpenedEmail', 'reEngagementEmail', 'duelInviteEmail',
+  'weeklyReportEmail', 'orgCloseReminderEmail',
+]
 const WINDOW_LINES = 12
 
 function kildefiler(dir: string): string[] {

@@ -6,7 +6,8 @@ import { EMAIL_BATCH_SIZE } from '@/lib/email-batch'
 import { quizReminderEmail, orgCloseReminderEmail } from '@/lib/email-templates'
 import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { osloDateString, osloWallClockToUtcIso } from '@/lib/oslo-time'
-import { fetchAllRows, fetchAllRowsChunked } from '@/lib/paginate'
+import { fetchAllRows } from '@/lib/paginate'
+import { fetchOptedInIds } from '@/lib/email-optout'
 import { dispatchInBatches } from '@/lib/notify-dispatch'
 import { findOpenedQuizToNotify, quizHasQuestions } from '@/lib/opened-quiz-lookup'
 import { detectNotifyDeadZone } from '@/lib/notify-dead-zone'
@@ -322,27 +323,22 @@ export async function GET(request: NextRequest) {
           if (!memberRows || memberRows.length === 0) return
           const memberUserIds = memberRows.map(m => m.user_id as string)
 
-          // Chunket: `.in()` legger hver id i URL-en og brekker rundt 390
-          // id-er — en LAVERE grense enn radtaket på 1000, altså den vi
-          // treffer først. Se lib/paginate.ts.
-          let subscribedProfiles: { id: string }[]
+          // TO kolonner må stå på: `email_reminders` (uendret — den som har
+          // gatet denne grenen hele tiden) OG `email_org_reminders`, som er
+          // avmeldingen som hører til NETTOPP denne e-posten (type 'orgclose',
+          // lib/unsubscribe.ts). Uten den siste peker List-Unsubscribe-headeren
+          // under på en avmelding som ikke stopper noe.
+          //
+          // Kaster oppslaget, sender vi INGENTING: da vet vi ikke hvem som har
+          // meldt seg av, og ukjent er ikke samtykke. Se lib/email-optout.ts.
+          let optedIn: Set<string>
           try {
-            subscribedProfiles = await fetchAllRowsChunked<{ id: string }>(
-              memberUserIds,
-              (chunk, from, to) =>
-                supabaseAdmin
-                  .from('profiles')
-                  .select('id')
-                  .eq('email_reminders', true)
-                  .in('id', chunk)
-                  .order('id', { ascending: true })
-                  .range(from, to)
-            )
+            optedIn = await fetchOptedInIds(memberUserIds, ['email_reminders', 'email_org_reminders'])
           } catch (e) {
-            console.error('[cron/send-reminders] org subscribed profiles error:', e instanceof Error ? e.message : e)
+            console.error('[cron/send-reminders] org subscribed profiles error — sender ingenting:', e instanceof Error ? e.message : e)
             return
           }
-          if (subscribedProfiles.length === 0) return
+          if (optedIn.size === 0) return
 
           let alreadyNotified: Set<string>
           try {
@@ -353,20 +349,31 @@ export async function GET(request: NextRequest) {
           }
 
           const pendingIds = new Set(
-            subscribedProfiles.map(p => p.id).filter(id => !alreadyNotified.has(id))
+            [...optedIn].filter(id => !alreadyNotified.has(id))
           )
           if (pendingIds.size === 0) return
 
           const targets = await resolveEmails(pendingIds, '[cron/send-reminders] org')
           if (targets.length === 0) return
 
-          const html = orgCloseReminderEmail(orgName, orgClosesAt, activeQuiz.title ?? undefined)
           const subject = `Fristen nærmer seg — en time igjen for ${orgName}`
 
           const result = await dispatchInBatches<EmailTarget>(
             targets,
             {
-              send: ({ email }) => sendEmail({ to: email, subject, html }),
+              // Repeterende utsending, samme form som gren A: HTML-en bygges
+              // per mottaker fordi avmeldingslenken er signert per bruker, og
+              // List-Unsubscribe-headeren peker på nøyaktig samme URL.
+              send: ({ userId, email }) => {
+                const unsubUrl = buildUnsubscribeUrl(userId, 'orgclose')
+                const html = orgCloseReminderEmail(orgName, orgClosesAt, activeQuiz.title ?? undefined, unsubUrl)
+                return sendEmail({
+                  to: email,
+                  subject,
+                  html,
+                  headers: listUnsubscribeHeaders(unsubUrl),
+                })
+              },
               stamp: delivered => stampNotified(orgTarget, delivered.map(d => d.userId)),
               now: () => Date.now(),
               sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),

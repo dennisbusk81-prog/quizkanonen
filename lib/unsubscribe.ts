@@ -5,7 +5,19 @@ import { createHmac, timingSafeEqual } from 'crypto'
 // Id-en i tokenet er derfor rad-id-en i den tabellen, ikke en bruker-id — se
 // COLUMN_MAP/POST i app/api/notifications/unsubscribe/route.ts. Rad-id brukes
 // bevisst framfor e-postadressen: adressen er PII og skal ikke ligge i en URL.
-export type UnsubscribeType = 'reminders' | 'reengagement' | 'duel' | 'quiznotify'
+//
+// `weeklyreport` og `orgclose` kom til 9. september 2026 — de to repeterende
+// e-postene som fram til da bare pekte på /profil i teksten og derfor ikke
+// kunne få List-Unsubscribe. Begge er profilbaserte som de tre første; id-en
+// er bruker-id-en, og kolonnene de styrer er `email_weekly_report` og
+// `email_org_reminders` (migrasjon 20260909000001).
+export type UnsubscribeType =
+  | 'reminders'
+  | 'reengagement'
+  | 'duel'
+  | 'quiznotify'
+  | 'weeklyreport'
+  | 'orgclose'
 
 function secret(): string {
   return process.env.CRON_SECRET ?? ''

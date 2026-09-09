@@ -31,12 +31,24 @@ type OrgRow = {
 
 const hoursAgo = (n: number) => new Date(Date.now() - n * 3_600_000).toISOString()
 
+const ADMIN_A = 'admin-a'
+const ADMIN_B = 'admin-b'
+
 const state: {
   orgs: OrgRow[]
   latestClosed: { id: string; title: string; closes_at: string } | null
   stamps: Array<{ id: string; sent_at: string }>
   sentTo: string[]
-} = { orgs: [], latestClosed: null, stamps: [], sentTo: [] }
+  headers: (Record<string, string> | undefined)[]
+  htmls: string[]
+  /** Org-admins og deres avmeldingsstatus (profiles.email_weekly_report). */
+  admins: Array<{ userId: string; email: string; email_weekly_report: boolean }>
+  /** Lesefeil på profiles — «vi vet ikke hvem som har meldt seg av». */
+  profileSelectFails: boolean
+} = {
+  orgs: [], latestClosed: null, stamps: [], sentTo: [], headers: [], htmls: [],
+  admins: [], profileSelectFails: false,
+}
 
 const summaryFor = (quizId: string) => ({
   quizId,
@@ -62,21 +74,40 @@ mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
       from: (table: string) => {
-        assert.equal(table, 'organizations')
+        assert.ok(table === 'organizations' || table === 'profiles', `ukjent tabell i mock: ${table}`)
         let updatePatch: { weekly_report_sent_at: string } | null = null
         let updateId: string | null = null
+        const eqs: Record<string, unknown> = {}
+        let inVals: string[] = []
         const b = {
           select() { return b },
           eq(col: string, v: unknown) {
             if (updatePatch && col === 'id') updateId = String(v)
+            else eqs[col] = v
             return b
           },
           not() { return b },
+          // `fetchOptedInIds` filtrerer på id-liste og sorterer/paginerer.
+          in(_col: string, vals: string[]) { inVals = vals.map(String); return b },
+          order() { return b },
+          range() { return b },
           update(patch: { weekly_report_sent_at: string }) { updatePatch = patch; return b },
           then(resolve: (v: unknown) => void) {
             if (updatePatch) {
               if (updateId) state.stamps.push({ id: updateId, sent_at: updatePatch.weekly_report_sent_at })
               return resolve({ error: null })
+            }
+            if (table === 'profiles') {
+              if (state.profileSelectFails) {
+                return resolve({ data: null, error: { message: 'profiles-oppslaget er nede' } })
+              }
+              // Filteret er implementert EKTE: uten det ville en fjernet
+              // `.eq('email_weekly_report', true)` sett like grønn ut.
+              const rows = state.admins
+                .filter(a => inVals.includes(a.userId))
+                .filter(a => Object.entries(eqs).every(([k, v]) => (a as unknown as Record<string, unknown>)[k] === v))
+                .map(a => ({ id: a.userId }))
+              return resolve({ data: rows, error: null })
             }
             return resolve({ data: state.orgs, error: null })
           },
@@ -89,16 +120,31 @@ mock.module('@/lib/supabase-admin', {
 
 mock.module('@/lib/org-admin-emails', {
   namedExports: {
-    getOrgAdminEmails: async () => ({ emails: ['admin@example.com'] }),
-    sendToOrgAdmins: async (emails: string[]) => {
-      state.sentTo.push(...emails)
-      return { sent: emails.length }
+    getOrgAdminEmails: async () => ({
+      emails: state.admins.map(a => a.email),
+      admins: state.admins.map(({ userId, email }) => ({ userId, email })),
+      orgName: 'Testbedrift AS',
+      orgSlug: 'testbedrift',
+    }),
+  },
+})
+
+mock.module('@/lib/email', {
+  namedExports: {
+    sendEmail: async ({ to, html, headers }: { to: string; html: string; headers?: Record<string, string> }) => {
+      state.sentTo.push(to)
+      state.htmls.push(html)
+      state.headers.push(headers)
+      return { id: 'mock' }
     },
   },
 })
 
 mock.module('@/lib/email-templates', {
-  namedExports: { weeklyReportEmail: () => '<html>rapport</html>' },
+  namedExports: {
+    weeklyReportEmail: ({ unsubscribeUrl }: { unsubscribeUrl?: string }) =>
+      `<html>rapport ${unsubscribeUrl ?? 'ingen-lenke'}</html>`,
+  },
 })
 
 const { GET } = await import('@/app/api/cron/weekly-report/route')
@@ -121,6 +167,10 @@ beforeEach(() => {
   state.latestClosed = { id: QUIZ, title: 'Fredagsquiz', closes_at: hoursAgo(12) }
   state.stamps = []
   state.sentTo = []
+  state.headers = []
+  state.htmls = []
+  state.admins = [{ userId: ADMIN_A, email: 'admin@example.com', email_weekly_report: true }]
+  state.profileSelectFails = false
   computeWeeklySummaryMock.mock.resetCalls()
   getLatestClosedQuizMock.mock.resetCalls()
 })
@@ -207,4 +257,98 @@ test('monday_morning-org alt sendt i dag → verken oppslag eller beregning', as
   assert.equal(body.sent, 0)
   assert.equal(computeWeeklySummaryMock.mock.calls.length, 0)
   assert.equal(getLatestClosedQuizMock.mock.calls.length, 0)
+})
+
+// ── Avmelding fra ukesrapporten (9. september 2026) ─────────────────────────
+//
+// `email_weekly_report` er kolonnen avmeldingstypen 'weeklyreport' slår av
+// (app/api/notifications/unsubscribe). Leses den ikke HER, er avmeldingen
+// verdiløs: admin-en får kvittering på at hen er avmeldt, og rapporten
+// fortsetter å komme hver uke.
+//
+// MUTASJONSBEVIS (hver vakt fjernet i tur, mutasjonen verifisert anvendt på
+// disk før resultatet ble tolket):
+//   (e) `fetchOptedInIds`-kallet + `recipients`-filteret byttet mot at alle
+//       admins sendes til → «avmeldt admin får INGEN rapport» ryker.
+//   (f) `catch { continue }` byttet mot at feilen svelges → «lesefeil på
+//       avmeldingsstatus → ingen rapport, og ingen stempling» ryker i BEGGE
+//       retninger (både sending og stempel).
+//   (g) `headers: listUnsubscribeHeaders(unsubUrl)` fjernet → «rapporten
+//       bærer List-Unsubscribe» ryker (og lib/email-signals.test.ts DEL C
+//       ryker uavhengig).
+
+const { generateUnsubscribeToken } = await import('@/lib/unsubscribe')
+
+test('avmeldt admin får INGEN rapport — den påmeldte kollegaen får sin', async () => {
+  state.orgs = [afterQuizOrg(ORG_A, null)]
+  state.admins = [
+    { userId: ADMIN_A, email: 'a@example.com', email_weekly_report: true },
+    { userId: ADMIN_B, email: 'b@example.com', email_weekly_report: false },
+  ]
+
+  const res = await call()
+  const body = await res.json() as { sent: number }
+
+  assert.equal(body.sent, 1)
+  assert.deepEqual(state.sentTo, ['a@example.com'])
+})
+
+test('alle admins avmeldt → ingen rapport, og orgen stemples ikke', async () => {
+  // Stemples den likevel, ser neste kjøring en sendt rapport som aldri gikk ut.
+  state.orgs = [afterQuizOrg(ORG_A, null)]
+  state.admins = [{ userId: ADMIN_A, email: 'a@example.com', email_weekly_report: false }]
+
+  const res = await call()
+  const body = await res.json() as { sent: number }
+
+  assert.equal(body.sent, 0)
+  assert.deepEqual(state.sentTo, [])
+  assert.deepEqual(state.stamps, [])
+})
+
+test('påmeldt admin: rapporten går, med List-Unsubscribe og sin egen signerte lenke', async () => {
+  state.orgs = [afterQuizOrg(ORG_A, null)]
+
+  await call()
+
+  const forventetUrl =
+    'https://www.quizkanonen.no/api/notifications/unsubscribe' +
+    `?token=${generateUnsubscribeToken(ADMIN_A, 'weeklyreport')}&type=weeklyreport&uid=${ADMIN_A}`
+
+  assert.deepEqual(state.headers[0], {
+    'List-Unsubscribe': `<${forventetUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  })
+  // Samme URL i malen som i headeren — ellers peker den ene på noe den andre
+  // ikke har bevist virker.
+  assert.ok(state.htmls[0].includes(forventetUrl), 'malen skal få den samme lenken')
+})
+
+test('to admins får HVER SIN signerte lenke, ikke den samme', async () => {
+  state.orgs = [afterQuizOrg(ORG_A, null)]
+  state.admins = [
+    { userId: ADMIN_A, email: 'a@example.com', email_weekly_report: true },
+    { userId: ADMIN_B, email: 'b@example.com', email_weekly_report: true },
+  ]
+
+  await call()
+
+  const uids = state.headers.map(h => new URL(
+    h!['List-Unsubscribe'].slice(1, -1)).searchParams.get('uid'))
+  assert.deepEqual(uids.sort(), [ADMIN_A, ADMIN_B].sort())
+})
+
+test('lesefeil på avmeldingsstatus → ingen rapport, og ingen stempling', async () => {
+  // Den som lett glemmes. Ukjent er ikke samtykke — og stempler vi likevel,
+  // mister orgen rapporten for hele uken på grunn av ett mislykket oppslag.
+  state.orgs = [afterQuizOrg(ORG_A, null)]
+  state.profileSelectFails = true
+
+  const res = await call()
+  const body = await res.json() as { sent: number; errors: string[] }
+
+  assert.equal(body.sent, 0)
+  assert.deepEqual(state.sentTo, [])
+  assert.deepEqual(state.stamps, [], 'stemplingen skal ikke skje — neste kjøring må kunne prøve igjen')
+  assert.equal(body.errors.length, 1, 'feilen skal være synlig i svaret, ikke svelges')
 })

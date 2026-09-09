@@ -24,15 +24,26 @@ import { verifyUnsubscribeToken, type UnsubscribeType } from '@/lib/unsubscribe'
 
 const FONT = `@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Instrument+Sans:wght@400;600&display=swap');`
 
-const VALID_TYPES: UnsubscribeType[] = ['reminders', 'reengagement', 'duel', 'quiznotify']
+const VALID_TYPES: UnsubscribeType[] = [
+  'reminders', 'reengagement', 'duel', 'quiznotify', 'weeklyreport', 'orgclose',
+]
 
-// De tre profilbaserte typene slår av en kolonne på `profiles`. `quiznotify`
+// De profilbaserte typene slår av en kolonne på `profiles`. `quiznotify`
 // står bevisst utenfor kartet: den listen tilhører uinnloggede besøkende og
 // ligger i `quiz_notifications` — se `unsubscribeQuizNotify()` under.
+//
+// Kolonnen er ikke pynt: den MÅ være den samme som utsendingsstedet filtrerer
+// på, ellers melder ruten brukeren av noe som fortsatt sendes. Parene er
+//   weeklyreport → app/api/cron/weekly-report/route.ts
+//   orgclose     → app/api/cron/send-reminders/route.ts (org-grenen)
+// og begge er testdekket i lib/weekly-report-guard-route.test.ts og
+// lib/send-reminders-route.test.ts.
 const COLUMN_MAP: Record<Exclude<UnsubscribeType, 'quiznotify'>, string> = {
   reminders:    'email_reminders',
   reengagement: 'email_reengagement',
   duel:         'email_duel_notifications',
+  weeklyreport: 'email_weekly_report',
+  orgclose:     'email_org_reminders',
 }
 
 const TYPE_LABEL: Record<UnsubscribeType, string> = {
@@ -40,6 +51,8 @@ const TYPE_LABEL: Record<UnsubscribeType, string> = {
   reengagement: 'aktivitetspåminnelser',
   duel:         'duell-utfordringer',
   quiznotify:   'varsler om ny quiz',
+  weeklyreport: 'ukesrapporten for bedriften',
+  orgclose:     'påminnelser om bedriftens frist',
 }
 
 const PROFILE_URL = 'https://www.quizkanonen.no/profil'

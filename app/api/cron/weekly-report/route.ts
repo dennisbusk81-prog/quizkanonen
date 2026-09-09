@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { weeklyReportEmail } from '@/lib/email-templates'
-import { getOrgAdminEmails, sendToOrgAdmins } from '@/lib/org-admin-emails'
+import { sendEmail } from '@/lib/email'
+import { getOrgAdminEmails } from '@/lib/org-admin-emails'
+import { fetchOptedInIds } from '@/lib/email-optout'
+import { buildUnsubscribeUrl, listUnsubscribeHeaders } from '@/lib/unsubscribe'
 import { computeWeeklySummary, buildWeeklyShareText, getLatestClosedQuiz } from '@/lib/weekly-report'
 import type { LatestClosedQuiz } from '@/lib/weekly-report'
 
@@ -92,8 +95,25 @@ export async function GET(request: NextRequest) {
         if (sentAt && sentAt >= closesAt) continue
       }
 
-      const { emails } = await getOrgAdminEmails(org.id)
-      if (emails.length === 0) continue
+      const { admins } = await getOrgAdminEmails(org.id)
+      if (admins.length === 0) continue
+
+      // Avmeldingsstatus leses FØR stemplingen. Feiler oppslaget, hopper vi
+      // over orgen uten å stemple, slik at neste kjøring om 15 min prøver på
+      // nytt — hadde vi stemplet først, ville en enkelt lesefeil kostet
+      // rapporten for hele uken. Og vi sender ingenting: vi vet ikke hvem som
+      // har meldt seg av, og ukjent er ikke samtykke (lib/email-optout.ts).
+      let optedIn: Set<string>
+      try {
+        optedIn = await fetchOptedInIds(admins.map(a => a.userId), ['email_weekly_report'])
+      } catch (e) {
+        console.error('[cron/weekly-report] avmeldingsoppslag feilet, sender ingenting for org:', org.id, e instanceof Error ? e.message : e)
+        errors.push(`${org.id}: avmeldingsoppslag feilet`)
+        continue
+      }
+
+      const recipients = admins.filter(a => optedIn.has(a.userId))
+      if (recipients.length === 0) continue
 
       // Stemple FØR sending: duplikat-e-post er verre enn tapt e-post.
       // Feiler stemplingen, hopper vi over — cron prøver igjen om 15 min.
@@ -109,11 +129,18 @@ export async function GET(request: NextRequest) {
       }
 
       const shareText = buildWeeklyShareText(summary)
-      // Alle admins i orgen, ikke bare én vilkårlig valgt.
-      const { sent: okCount } = await sendToOrgAdmins(
-        emails,
-        {
-          subject: `Quiz-oppsummering — ${org.name}`,
+      const subject = `Quiz-oppsummering — ${org.name}`
+
+      // Alle admins i orgen, ikke bare én vilkårlig valgt — men én sending
+      // per admin, ikke én felles: både avmeldingslenken i bunnen og
+      // List-Unsubscribe-headeren er signert for DENNE mottakeren, og en delt
+      // HTML kunne ikke bære det. Admins er typisk 1–3, så
+      // `sendEmailToMany`-batchingen har ingenting å hente her.
+      const utfall = await Promise.allSettled(recipients.map(({ userId, email }) => {
+        const unsubUrl = buildUnsubscribeUrl(userId, 'weeklyreport')
+        return sendEmail({
+          to: email,
+          subject,
           from: 'Quizkanonen <support@quizkanonen.no>',
           html: weeklyReportEmail({
             orgName: org.name,
@@ -121,13 +148,21 @@ export async function GET(request: NextRequest) {
             top3: summary.top3,
             participantCount: summary.participantCount,
             shareText,
+            unsubscribeUrl: unsubUrl,
           }),
-        },
-        `cron/weekly-report org=${org.id}`,
-      )
+          headers: listUnsubscribeHeaders(unsubUrl),
+        })
+      }))
 
+      utfall.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.error(`[cron/weekly-report] sending feilet for ${recipients[i].userId} (org=${org.id}):`, r.reason)
+        }
+      })
+
+      const okCount = utfall.filter(r => r.status === 'fulfilled').length
       if (okCount === 0) {
-        errors.push(`${org.id}: ingen av ${emails.length} admin-e-poster gikk gjennom`)
+        errors.push(`${org.id}: ingen av ${recipients.length} admin-e-poster gikk gjennom`)
         continue
       }
 

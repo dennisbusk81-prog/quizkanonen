@@ -90,7 +90,7 @@ function postForm(params: Record<string, string>) {
   return POST(new Request(ENDPOINT, { method: 'POST', body: form }))
 }
 
-type Type = 'reminders' | 'reengagement' | 'duel' | 'quiznotify'
+type Type = 'reminders' | 'reengagement' | 'duel' | 'quiznotify' | 'weeklyreport' | 'orgclose'
 
 const validParams = (uid = USER_ID, type: Type = 'reminders') => ({
   token: generateUnsubscribeToken(uid, type),
@@ -116,7 +116,7 @@ test('GET med gyldig lenke skriver INGENTING i databasen', async () => {
 })
 
 test('GET skriver ingenting for NOEN av varseltypene', async () => {
-  for (const type of ['reminders', 'reengagement', 'duel', 'quiznotify'] as const) {
+  for (const type of ['reminders', 'reengagement', 'duel', 'quiznotify', 'weeklyreport', 'orgclose'] as const) {
     await get(validParams(USER_ID, type))
   }
   assert.deepEqual(state.updates, [])
@@ -184,10 +184,16 @@ test('POST melder brukeren av og skriver riktig kolonne på riktig konto', async
 
 test('hver varseltype treffer sin egen kolonne', async () => {
   // Bommer kartet, melder man brukeren av noe annet enn det de ba om.
+  // Kolonnen MÅ være den samme som utsendingsstedet filtrerer på — ellers
+  // melder ruten brukeren av noe som fortsatt sendes. Selve koblingen mellom
+  // kolonne og utsending felles i lib/send-reminders-route.test.ts og
+  // lib/weekly-report-guard-route.test.ts; her felles kartet i seg selv.
   const cases = [
     ['reminders', 'email_reminders'],
     ['reengagement', 'email_reengagement'],
     ['duel', 'email_duel_notifications'],
+    ['weeklyreport', 'email_weekly_report'],
+    ['orgclose', 'email_org_reminders'],
   ] as const
 
   for (const [type, column] of cases) {
