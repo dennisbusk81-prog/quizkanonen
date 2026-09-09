@@ -34,19 +34,18 @@ const PRICE_ENV_BY_SYMBOL: Record<string, string> = {
  *
  * Samme mønster som reaktiveringsgrenen i org-checkout allerede bruker
  * (`org.stripe_customer_id ? { customer } : { customer_email }`).
+ *
+ * `storedId` er profilens stripe_customer_id, lest ÉN gang i POST med
+ * error-sjekk (punkt 3, 9. september 2026). Funksjonen leste den selv før,
+ * uten sjekk — og en lesefeil ble da til null, altså «ingen kunde», altså
+ * customer_email, altså en duplikatkunde. Nøyaktig buggen den finnes for.
  */
 async function resolveCustomerId(
   stripe: Stripe,
   userId: string,
   email: string | null,
+  storedId: string | null,
 ): Promise<string | null> {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('stripe_customer_id')
-    .eq('id', userId)
-    .maybeSingle()
-
-  const storedId = profile?.stripe_customer_id ?? null
   if (!storedId) return null
 
   // Er kunden fortsatt gyldig hos Stripe? En slettet kunde gir enten et objekt
@@ -168,12 +167,36 @@ export async function POST(request: NextRequest) {
     // Kaster getStripeCoverage (Stripe nede), fanger catch-en under og svarer
     // 500 — fail-closed. Riktig her: uten svar fra Stripe VET vi ikke at kjøpet
     // er trygt, og sessions.create ville uansett feilet mot samme nedetid.
-    const { data: gateProfile } = await supabaseAdmin
+    //
+    // Profilen leses ÉN gang, med error-sjekk (punkt 3, 9. september 2026).
+    // Fram til nå ble den lest to ganger uten — her og i resolveCustomerId —
+    // og en lesefeil så ut som «ingen lagret kunde»: vakten under slapp
+    // gjennom (getStripeCoverage(null) → null), og sesjonen ble sendt med
+    // customer_email, som får Stripe til å opprette en duplikatkunde —
+    // nøyaktig buggen resolveCustomerId ble skrevet for å fjerne.
+    //
+    // «Oppslaget feilet» er ikke «fant ingenting». Ingen rad eller ingen id er
+    // et gyldig svar, og flyten er som før. Feilet det, VET vi ikke — og
+    // ingenting er opprettet i Stripe ennå, så stopp her i stedet for å
+    // gjette. Motsatt av codes/redeem, der skaden alt er skjedd når
+    // cache-synken feiler.
+    const { data: gateProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', userId)
       .maybeSingle()
-    const existingSub = await getStripeCoverage(gateProfile?.stripe_customer_id ?? null, stripe)
+    if (profileError) {
+      console.error(
+        `[checkout] kunne ikke lese profil for ${userId} — stopper før Stripe:`,
+        profileError.code, profileError.message,
+      )
+      return NextResponse.json(
+        { error: 'Kunne ikke bekrefte kontoen din akkurat nå. Prøv igjen om litt.' },
+        { status: 503 },
+      )
+    }
+    const storedCustomerId = gateProfile?.stripe_customer_id ?? null
+    const existingSub = await getStripeCoverage(storedCustomerId, stripe)
     if (isStripeLive(existingSub)) {
       return NextResponse.json(
         {
@@ -216,7 +239,7 @@ export async function POST(request: NextRequest) {
 
     // Gjenbruk kundens eksisterende Stripe-kunde. Uten dette lager Stripe en ny
     // for hvert kjøp — se resolveCustomerId for hva det koster.
-    const customerId = await resolveCustomerId(stripe, userId, email ?? null)
+    const customerId = await resolveCustomerId(stripe, userId, email ?? null, storedCustomerId)
 
     const session = await stripe.checkout.sessions.create({
       mode,

@@ -38,6 +38,14 @@ const state: {
   retrieveThrowsTransient: boolean
   createdCustomers: Array<Record<string, unknown>>
   profileUpdates: Array<Record<string, unknown>>
+  /** Profil-oppslaget svarer med error — «kunne ikke lese», ikke «fant ingenting». */
+  profileReadFails: boolean
+  /** Profil-oppslaget lykkes, men finner ingen rad (maybeSingle → null). */
+  profileRowMissing: boolean
+  /** Kunde-id-ene dobbeltabonnement-vakten har spurt Stripe om. */
+  coverageLookups: Array<string | null>
+  /** Antall customers.retrieve-kall — Stripe-trafikk som ikke skal skje ved lesefeil. */
+  retrieveCalls: number
 } = {
   code: null,
   stripeCoverage: null,
@@ -47,6 +55,10 @@ const state: {
   retrieveThrowsTransient: false,
   createdCustomers: [],
   profileUpdates: [],
+  profileReadFails: false,
+  profileRowMissing: false,
+  coverageLookups: [],
+  retrieveCalls: 0,
 }
 
 mock.module('@/lib/supabase-admin', {
@@ -56,10 +68,13 @@ mock.module('@/lib/supabase-admin', {
       from: () => ({
         select: () => ({
           eq: () => ({
-            maybeSingle: async () => ({
-              data: { stripe_customer_id: state.storedCustomerId },
-              error: null,
-            }),
+            maybeSingle: async () => {
+              if (state.profileReadFails) {
+                return { data: null, error: { code: '57P01', message: 'simulert lesefeil på profiles' } }
+              }
+              if (state.profileRowMissing) return { data: null, error: null }
+              return { data: { stripe_customer_id: state.storedCustomerId }, error: null }
+            },
           }),
         }),
         update: (values: Record<string, unknown>) => ({
@@ -84,7 +99,10 @@ mock.module('@/lib/rate-limit-shared', {
 mock.module('@/lib/premium-state-io', {
   namedExports: {
     getCodeCoverage: async () => state.code,
-    getStripeCoverage: async () => state.stripeCoverage,
+    getStripeCoverage: async (customerId: string | null) => {
+      state.coverageLookups.push(customerId)
+      return state.stripeCoverage
+    },
   },
 })
 
@@ -104,6 +122,7 @@ mock.module('stripe', {
 
     customers = {
       retrieve: async (id: string) => {
+        state.retrieveCalls++
         if (state.retrieveThrowsTransient) throw new Error('Stripe er nede')
         const found = state.stripeCustomers.get(id)
         if (!found) throw new FakeStripeInvalidRequestError('resource_missing')
@@ -156,6 +175,10 @@ beforeEach(() => {
   state.retrieveThrowsTransient = false
   state.createdCustomers = []
   state.profileUpdates = []
+  state.profileReadFails = false
+  state.profileRowMissing = false
+  state.coverageLookups = []
+  state.retrieveCalls = 0
 })
 
 test('RAD E — aktiv kode utsetter første faktura til koden løper ut', async () => {
@@ -497,4 +520,70 @@ test('metadata.interval = month for månedsprisen', async () => {
   const res = await checkout('STRIPE_PRICE_PREMIUM_MONTHLY')
   assert.equal(res.status, 200)
   assert.deepEqual(state.sessions[0].metadata, { userId: USER_ID, interval: 'month' })
+})
+
+// ── Lesefeil på profilen stopper før Stripe (punkt 3, 9. september 2026) ────
+//
+// Profilen ble lest to ganger uten error-sjekk — foran dobbeltabonnement-
+// vakten og inne i resolveCustomerId — og en lesefeil så ut som «ingen lagret
+// kunde». Da spurte vakten Stripe om kunde null (→ ingen sub → slapp gjennom),
+// og sesjonen gikk med customer_email, som får Stripe til å opprette en
+// duplikatkunde. Nå leses den ÉN gang, og feiler lesingen, stopper ruten før
+// et eneste Stripe-kall. Null rader / null id er fortsatt et gyldig svar.
+//
+// MUTASJONSBEVIS: fjernes `if (profileError)`-blokken i ruten, ryker
+// «profil-oppslaget feiler → 503 og INGEN Stripe-kall» — vakten spør om null,
+// og sesjonen opprettes via customer_email. Sendes null i stedet for
+// storedCustomerId til getStripeCoverage eller resolveCustomerId, ryker
+// «oppslaget lykkes → …» på henholdsvis coverageLookups og session.customer.
+
+test('profil-oppslaget feiler → 503 og INGEN Stripe-kall', async () => {
+  // Kunden finnes både i DB og hos Stripe — det er LESINGEN som feiler.
+  state.storedCustomerId = 'cus_founder'
+  state.stripeCustomers.set('cus_founder', { id: 'cus_founder' })
+  state.profileReadFails = true
+
+  const logged: unknown[][] = []
+  const restore = mock.method(console, 'error', (...args: unknown[]) => { logged.push(args) })
+  let res: Response
+  try {
+    res = await checkout()
+  } finally {
+    restore.mock.restore()
+  }
+
+  assert.equal(res.status, 503)
+  assert.match((await res.json()).error, /Prøv igjen/)
+
+  assert.deepEqual(state.coverageLookups, [], 'dobbeltabonnement-vakten skal ikke spørre Stripe på et gjettet null')
+  assert.equal(state.retrieveCalls, 0, 'ingen customers.retrieve')
+  assert.equal(state.createdCustomers.length, 0, 'ingen duplikatkunde')
+  assert.equal(state.sessions.length, 0, 'ingen checkout-sesjon')
+  assert.equal(state.profileUpdates.length, 0, 'ingen skriving til profilen')
+  assert.ok(
+    logged.some(a => String(a[0]).startsWith('[checkout] kunne ikke lese profil') && String(a[0]).includes(USER_ID)),
+    `forventet [checkout]-logglinje med bruker-id, fikk: ${JSON.stringify(logged)}`,
+  )
+})
+
+test('profil uten rad → som i dag: vakten spør om null, sesjonen går via customer_email', async () => {
+  state.profileRowMissing = true
+
+  const res = await checkout()
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.coverageLookups, [null])
+  assert.equal(state.sessions[0].customer, undefined)
+  assert.equal(state.sessions[0].customer_email, 'kunde@example.no')
+  assert.equal(state.createdCustomers.length, 0)
+})
+
+test('oppslaget lykkes → samme lagrede kunde-id går til både vakten og sesjonen', async () => {
+  state.storedCustomerId = 'cus_founder'
+  state.stripeCustomers.set('cus_founder', { id: 'cus_founder' })
+
+  const res = await checkout()
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.coverageLookups, ['cus_founder'], 'vakten skal sjekke den lagrede kunden, ikke null')
+  assert.equal(state.sessions[0].customer, 'cus_founder')
+  assert.equal(state.createdCustomers.length, 0)
 })
