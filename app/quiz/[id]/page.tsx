@@ -3308,7 +3308,7 @@ export default function QuizPage() {
           {/* Arkiv: veien videre er en NY runde fra arkivet, ikke fredagens
               neste quiz — gullboksen under byttes med Til arkivet-knappen. */}
           {isGenerated
-            ? 'Denne quizen er ferdigspilt — lag en ny fra forsiden.'
+            ? 'Denne quizen er ferdigspilt — generer en ny fra forsiden.'
             : isArchive
               ? 'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet.'
               : 'Én gjennomspilling per quiz.'}

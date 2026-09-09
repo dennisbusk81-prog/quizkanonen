@@ -25,6 +25,8 @@ import { QUIZ_CATEGORIES } from '@/lib/quiz-categories'
 import {
   KANONKULER_BODY_TEXT,
   KANONKULER_BUTTON,
+  KANONKULER_BUTTON_BUSY,
+  KANONKULER_CONFIRM_BUTTON,
   KANONKULER_EYEBROW,
   KANONKULER_FREE_CONFIRM_TEXT,
   KANONKULER_FREE_UPSELL_LINE,
@@ -159,6 +161,8 @@ test('etikett og tittel sier hva kortet ER — og quizens egen tittel er uendret
   assert.equal(KANONKULER_EYEBROW, 'Ekstraquiz')
   assert.equal(KANONKULER_TITLE, 'Generer en ny quiz')
   assert.equal(KANONKULER_BUTTON, 'Generer quiz')
+  assert.equal(KANONKULER_CONFIRM_BUTTON, 'Generer quizen')
+  assert.equal(KANONKULER_BUTTON_BUSY, 'Genererer quiz …')
   assert.equal(GENERATED_QUIZ_TITLE, 'Tilfeldig quiz', 'quizens EGEN tittel skulle stå uendret')
 })
 

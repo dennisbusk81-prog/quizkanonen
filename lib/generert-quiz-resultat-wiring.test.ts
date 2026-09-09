@@ -46,8 +46,8 @@ test('Quiz-typen bærer source_quiz_id (ellers er sammenligningen alltid false u
   assert.match(aktiveLinjer(sup), /source_quiz_id: string \| null/)
 })
 
-test('allerede-spilt-teksten: generert → «lag en ny fra forsiden», reprise → «fra quizarkivet»', () => {
-  const m = /\{isGenerated\s*\?\s*'Denne quizen er ferdigspilt — lag en ny fra forsiden\.'\s*:\s*isArchive\s*\?\s*'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet\.'\s*:\s*'Én gjennomspilling per quiz\.'\}/.exec(AKTIV)
+test('allerede-spilt-teksten: generert → «generer en ny fra forsiden», reprise → «fra quizarkivet»', () => {
+  const m = /\{isGenerated\s*\?\s*'Denne quizen er ferdigspilt — generer en ny fra forsiden\.'\s*:\s*isArchive\s*\?\s*'Denne treningsrunden er ferdigspilt — start en ny fra quizarkivet\.'\s*:\s*'Én gjennomspilling per quiz\.'\}/.exec(AKTIV)
   assert.ok(m, 'tekst-kjeden isGenerated → isArchive → vanlig finnes ikke i den formen')
 })
 

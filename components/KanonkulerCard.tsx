@@ -7,6 +7,8 @@ import { MIXED_QUIZ_CATEGORY, generatorCategoryOptions, type GenerationPlan } fr
 import {
   KANONKULER_BODY_TEXT,
   KANONKULER_BUTTON,
+  KANONKULER_BUTTON_BUSY,
+  KANONKULER_CONFIRM_BUTTON,
   KANONKULER_EYEBROW,
   KANONKULER_FREE_CONFIRM_TEXT,
   KANONKULER_FREE_UPSELL_LINE,
@@ -257,7 +259,7 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
               <p style={s.confirmText}>{KANONKULER_FREE_CONFIRM_TEXT}</p>
               <div style={s.actions}>
                 <button type="button" style={s.btn} onClick={() => void lagQuiz()}>
-                  Lag quizen
+                  {KANONKULER_CONFIRM_BUTTON}
                 </button>
                 <button type="button" style={s.textBtn} onClick={() => setPhase('idle')}>
                   Avbryt
@@ -288,7 +290,7 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
                 disabled={phase === 'starting'}
                 onClick={onPrimary}
               >
-                {phase === 'starting' ? 'Lager quiz …' : KANONKULER_BUTTON}
+                {phase === 'starting' ? KANONKULER_BUTTON_BUSY : KANONKULER_BUTTON}
               </button>
             </div>
           )}

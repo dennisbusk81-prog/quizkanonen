@@ -80,7 +80,7 @@ const SOURCE_SELECT =
 type SourceParentQuiz = { closes_at: string | null; is_test: boolean | null } | null
 type SourceRow = ArchiveSourceQuestion & { quiz_id: string | null; quiz: SourceParentQuiz }
 
-const RETRY_ERROR = 'Kunne ikke lage quiz akkurat nå. Prøv igjen om litt.'
+const RETRY_ERROR = 'Kunne ikke generere quiz akkurat nå. Prøv igjen om litt.'
 
 export async function POST(request: NextRequest) {
   // Lag 1: billig in-memory IP-brems foran auth- og DB-arbeidet. Den

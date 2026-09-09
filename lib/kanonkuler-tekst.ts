@@ -95,6 +95,10 @@ export const KANONKULER_EYEBROW = 'Ekstraquiz'
 export const KANONKULER_TITLE = 'Generer en ny quiz'
 /** Knappen. «Generer», ikke «lag»: hun skriver ikke spørsmålene selv — quizen trekkes fra spørsmålsbanken (Dennis, 9. september 2026). */
 export const KANONKULER_BUTTON = 'Generer quiz'
+/** Bekreftelsesknappen for gratis (etter «Dette bruker én av to kanonkuler.»). */
+export const KANONKULER_CONFIRM_BUTTON = 'Generer quizen'
+/** Knappen mens ruten jobber. */
+export const KANONKULER_BUTTON_BUSY = 'Genererer quiz …'
 export const KANONKULER_BODY_TEXT =
   'Femten tilfeldige spørsmål, trukket fra tusenvis i Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.'
 
