@@ -146,6 +146,16 @@ mock.module('@/lib/supabase-admin', {
 
 const { getPlayerHistory, getPlayerStats, getAttemptDetail } = await import('@/lib/history')
 
+// getPlayerHistory returnerer Loaded siden punkt 4 (9. september 2026): en
+// lesefeil er ikke lenger uskillbar fra en tom historikk. Testene under
+// handler om POPULASJONEN, ikke om lesefeil, så de pakker ut her — og et
+// `throw` framfor en assert gjør at TS smalner unionen på neste linje.
+async function hentHistorikk(...args: Parameters<typeof getPlayerHistory>) {
+  const r = await getPlayerHistory(...args)
+  if (!r.ok) throw new Error('fixturen skal ikke gi lesefeil')
+  return r.value
+}
+
 // ── Fixturer ────────────────────────────────────────────────────────────────
 //
 // Sju forsøk, der quiz_type og is_test varierer UAVHENGIG. Arkiv-/testforsøkene
@@ -191,7 +201,7 @@ function seed() {
 test('hovedlista (scope real) inneholder kun ekte forsøk — og count er enig', async () => {
   seed()
 
-  const { items, total } = await getPlayerHistory('user-1')
+  const { items, total } = await hentHistorikk('user-1')
 
   assert.deepEqual(
     items.map((i) => i.id),
@@ -214,7 +224,7 @@ test('kontroll: ufiltrert ville hovedlista hatt 7 rader, ikke 2', () => {
 test('quiz_type følger med radene i API-svaret', async () => {
   seed()
 
-  const { items } = await getPlayerHistory('user-1')
+  const { items } = await hentHistorikk('user-1')
 
   assert.equal(items[0].quiz_type, 'bonus')
   assert.equal(items[1].quiz_type, 'weekly')
@@ -226,7 +236,7 @@ test('quiz_type følger med radene i API-svaret', async () => {
 test('scope=archive returnerer arkivforsøket og INGENTING annet — særlig ikke testquizer', async () => {
   seed()
 
-  const { items, total } = await getPlayerHistory('user-1', { scope: 'archive' })
+  const { items, total } = await hentHistorikk('user-1', { scope: 'archive' })
 
   assert.deepEqual(items.map((i) => i.id), ['a-arkiv'],
     'arkivet er quiz_type=archive OG ikke testflagget — ikke komplementet av «ekte»')
@@ -243,8 +253,8 @@ test('et testflagget arkivforsøk vises INGEN steder — utenfor begge scopene',
   seed()
 
   const [real, arkiv] = await Promise.all([
-    getPlayerHistory('user-1'),
-    getPlayerHistory('user-1', { scope: 'archive' }),
+    hentHistorikk('user-1'),
+    hentHistorikk('user-1', { scope: 'archive' }),
   ])
 
   const alle = [...real.items, ...arkiv.items].map((i) => i.id)

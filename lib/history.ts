@@ -3,6 +3,7 @@ import { supabaseAdmin } from './supabase-admin'
 import { readStoredKey } from './answer-key-correction'
 import { onlyRealQuizAttempts, onlyArchiveQuizAttempts } from './real-quiz-population'
 import { fetchAllRows, fetchAllRowsChunked } from './paginate'
+import type { Loaded } from './fetch-result'
 import {
   averageCorrectByQuiz,
   computeFieldProgress,
@@ -478,10 +479,32 @@ function getOptionText(q: QuestionRow, letter: string | null): string | null {
 
 // ─── Public functions ─────────────────────────────────────────────────────────
 
+/**
+ * Spillerens historikk — ett vindu av gangen.
+ *
+ * RETURNERER `Loaded`, IKKE EN TOM LISTE (punkt 4, 9. september 2026).
+ * Fram til nå sto det `if (error || !data) return { items: [], total: 0 }`
+ * her, og count-spørringens `error` ble ikke lest i det hele tatt. En
+ * forbigående DB-feil ble dermed 200 med tom historikk — og klienten
+ * (app/historikk/page.tsx) skriver et vellykket svar til sessionStorage i fem
+ * minutter. Brukeren fikk «du har ikke spilt noen quizer», og en omlasting av
+ * siden hjalp ikke, fordi feilen var lagret som et faktum.
+ *
+ * Diskriminert union framfor en tom verdi: kalleren kan ikke lese `value`
+ * uten først å ha sjekket `ok` (se lib/fetch-result.ts). En `if` er lett å
+ * glemme; en type er det ikke.
+ *
+ * ÆRLIG AVGRENSNING: `fetchFieldStats` og `fetchFrozenRanks` under kaster
+ * fortsatt ved DB-feil (fetchAllRowsChunked gjør det), så en feil DER blir en
+ * 500, ikke en 503. Det er ikke svelging — begge gir et ikke-ok svar, og
+ * klienten behandler alle ikke-ok likt (feilskjerm, ingenting caches). De to
+ * deles med getPlayerStats og getAttemptDetail og har sine egne kontrakter;
+ * de er ikke skrevet om her.
+ */
 export async function getPlayerHistory(
   userId: string,
   opts: { page?: number; pageSize?: number; scope?: HistoryScope } = {}
-): Promise<{ items: HistoryAttempt[]; total: number }> {
+): Promise<Loaded<{ items: HistoryAttempt[]; total: number }>> {
   const pageSize = opts.pageSize ?? 50
   const page     = opts.page     ?? 0
   const scope    = opts.scope    ?? 'real'
@@ -517,12 +540,22 @@ export async function getPlayerHistory(
     ? onlyArchiveQuizAttempts(countBase)
     : onlyRealQuizAttempts(countBase)
 
-  const [{ data, error }, { count }] = await Promise.all([
+  const [{ data, error }, { count, error: countError }] = await Promise.all([
     dataQuery.order('completed_at', { ascending: false }).range(from, to),
     countQuery,
   ])
 
-  if (error || !data) return { items: [], total: 0 }
+  // COUNT-FEILEN LESES OGSÅ, og den er ikke en detalj: `count ?? 0` ville gitt
+  // total = 0 sammen med en full side rader, og klienten regner hasMore av
+  // nettopp total — «Vis mer» forsvinner, og en spiller med 200 forsøk ser 50.
+  if (error || countError || !data) {
+    console.error(
+      `[history] kunne ikke hente historikk for ${userId} (scope=${scope} page=${page}):`,
+      error?.message ?? null,
+      countError?.message ?? null,
+    )
+    return { ok: false }
+  }
 
   // Frossen plassering fra season_scores. Feltstørrelsen hentes fra forsøkene
   // i samme slengen — den kan IKKE telles fra season_scores-rader, se
@@ -548,7 +581,7 @@ export async function getPlayerHistory(
     }
   })
 
-  return { items, total: count ?? 0 }
+  return { ok: true, value: { items, total: count ?? 0 } }
 }
 
 export async function getPlayerStats(userId: string): Promise<PlayerStats> {

@@ -10,6 +10,8 @@ import type { ArchiveHistoryResult, PlayerHistoryResult } from '@/lib/history'
 // plattformdefaulten på 300 s.
 export const maxDuration = 15
 
+const HISTORIKK_LESEFEIL = 'Kunne ikke hente historikken akkurat nå. Prøv igjen om litt.'
+
 export async function GET(
   request: NextRequest
 ): Promise<NextResponse<PlayerHistoryResult | ArchiveHistoryResult | { error: string }>> {
@@ -46,16 +48,42 @@ export async function GET(
   // URL-en og skal aldri kunne velge en tredje, utilsiktet populasjon.
   const scope    = searchParams.get('scope') === 'archive' ? 'archive' as const : 'real' as const
 
+  // «Ingen historikk» skal aldri være svaret på «vi klarte ikke lese» (punkt
+  // 4, 9. september 2026). getPlayerHistory returnerer Loaded, så lesefeilen
+  // kan ikke lenger passere som en tom liste — og et 200 med tom liste er
+  // verre her enn de fleste steder, fordi klienten lagrer svaret i
+  // sessionStorage i fem minutter: brukeren får «du har ikke spilt noen
+  // quizer», og en omlasting av siden hjelper ikke. Samme form som
+  // premium-503-en over, og som checkout og de fire .single()-stedene fikk
+  // samme dag.
+  //
+  // app/historikk/page.tsx tar allerede imot dette: `if (!res.ok)` gir
+  // feilskjermen med «Prøv igjen», og returnerer FØR sessionStorage skrives.
+  // Ingen ny feilflate er bygget her.
+
   // Arkiv-scopet får IKKE stats — se ArchiveHistoryResult i lib/history.ts.
   if (scope === 'archive') {
-    const { items: history, total } = await getPlayerHistory(user.id, { page, pageSize, scope })
-    return NextResponse.json({ history, total, page, pageSize })
+    const arkiv = await getPlayerHistory(user.id, { page, pageSize, scope })
+    if (!arkiv.ok) {
+      return NextResponse.json({ error: HISTORIKK_LESEFEIL }, { status: 503 })
+    }
+    return NextResponse.json({ history: arkiv.value.items, total: arkiv.value.total, page, pageSize })
   }
 
-  const [{ items: history, total }, stats] = await Promise.all([
+  const [historikk, stats] = await Promise.all([
     getPlayerHistory(user.id, { page, pageSize, scope }),
     getPlayerStats(user.id),
   ])
 
-  return NextResponse.json({ history, stats, total, page, pageSize })
+  if (!historikk.ok) {
+    return NextResponse.json({ error: HISTORIKK_LESEFEIL }, { status: 503 })
+  }
+
+  return NextResponse.json({
+    history: historikk.value.items,
+    stats,
+    total: historikk.value.total,
+    page,
+    pageSize,
+  })
 }

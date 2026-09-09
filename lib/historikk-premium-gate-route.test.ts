@@ -83,7 +83,8 @@ mock.module('@/lib/history', {
   namedExports: {
     getPlayerHistory: async (_userId: string, opts?: { scope?: string }) => {
       state.historyOpts = opts
-      return { items: [{ id: ATTEMPT }], total: 1 }
+      // Loaded siden punkt 4 (9. september 2026).
+      return { ok: true as const, value: { items: [{ id: ATTEMPT }], total: 1 } }
     },
     getPlayerStats: async () => { state.statsKall++; return { quizCount: 1 } },
     // Kjent forsøk gir en detalj, ukjent gir null — slik den ekte gjør når
