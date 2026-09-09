@@ -2316,6 +2316,15 @@ export default async function Home() {
                     </div>
                   ))}
                 </div>
+                {/* Lista over er topp 3 — hele lista bor på /toppliste. Lenken
+                    står her, ikke i raden under «Spill nå»: den raden har 177
+                    av 249 px ved 360 px, og et tredje ledd (64 + 16) går over.
+                    Samme form som naboraden (qk-card-toplist). */}
+                <div style={{ marginTop: 12 }}>
+                  <Link href="/toppliste" className="qk-card-toplist">
+                    Se hele topplisten →
+                  </Link>
+                </div>
               </div>
             )}
             <div className="qk-card-actions">
@@ -2364,6 +2373,27 @@ export default async function Home() {
             )}
           </div>
         )}
+
+        {/* Veien videre for en som ikke er innlogget (9. september 2026).
+            Den anonyme grenen hadde ingen lenke til topplista eller arkivet i
+            innholdet — eneste vei var hamburgeren i navlinja. Samme form som
+            «Se alle quizer →» under kortet i den innloggede grenen: sentrert,
+            13 px, #e8e4dd. Når «Åpen nå»-kortet viser månedens topp 3, bærer
+            kortet selv topplistelenken rett under lista, så her står da bare
+            arkivet — to lenker til samme mål ti linjer fra hverandre er støy.
+            Vakten følger BLOKKEN, ikke activeQuiz alene: første fredag i en
+            måned er topp 3 tom, blokken rendres ikke, og lenken må stå her.
+            Målt ved 360 px: 69 + 16 + 70 = 155 px av 312 tilgjengelige. */}
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8, marginBottom: 4 }}>
+          {!(activeQuiz && anonMonthlyTop3.length > 0) && (
+            <Link href="/toppliste" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+              Toppliste →
+            </Link>
+          )}
+          <Link href="/arkiv" style={{ fontSize: 13, color: '#e8e4dd', textDecoration: 'none' }}>
+            Quizarkiv →
+          </Link>
+        </div>
         </div>
 
         {/* Ukens fakta — quiz insights, samme innhold som innlogget gren.
