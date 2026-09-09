@@ -331,6 +331,38 @@ export async function GET(request: NextRequest) {
   // rank mens `userEntry.rank` var grovmalt (plass 3 → 1).
   const premiumView = userIsPremium || isClosedRoom(scope)
 
+  // ── Ekskluderte og suspenderte: feil er «vet ikke», aldri «ingen» ───────────
+  // (Punkt 6, 9. september 2026. Formen har stått siden 559b07d, 14. juni.)
+  //
+  // Begge oppslagene leste kun `.data`, og `?? []` gjorde en feilet spørring om
+  // til et TOMT sett — altså påstanden «ingen er ekskludert, ingen er
+  // suspendert». Det er ikke en degradert visning: en som er fjernet fra lista
+  // dukker da opp igjen på den, med navn og plassering, og radene rundt får feil
+  // plassering fordi de dyttes ned. Personen kom på lista fordi noen aktivt
+  // fjernet dem, så en stille gjeninnføring bryter et løfte til nettopp dem —
+  // og en synlig rad kan ikke gjøres usett, mens en side kan lastes på nytt.
+  //
+  // Samme retningsvalg som lib/globally-blocked-set.ts tok 5. august
+  // («fail-safe stengt»), og samme skille som JS-fallbacken lenger nede: null
+  // rader er det NORMALE svaret her (de fleste scopes har ingen ekskluderte) —
+  // skillet må derfor gå på `error`, ikke på om settet er tomt.
+  //
+  // Ligger ETTER scope-gaten med vilje: en 403 «ikke tilgang» er riktig svar
+  // uansett om dette oppslaget lyktes, og skal ikke overskygges av en 503.
+  // Ingenting caches på veien hit (lastQuizAttemptsCache og memberSetCache
+  // skrives først lenger nede), så feilen arves ikke av neste forespørsel.
+  if (excludedResult.error || suspendedResult.error) {
+    console.error(
+      `[toppliste] kunne ikke avgjøre ekskluderte/suspenderte (scope=${scope} scope_id=${scopeId ?? 'null'}):`,
+      excludedResult.error?.message ?? null,
+      suspendedResult.error?.message ?? null,
+    )
+    return NextResponse.json(
+      { error: 'Kunne ikke hente topplisten akkurat nå. Prøv igjen om litt.' },
+      { status: 503 }
+    )
+  }
+
   const excludedSet = new Set(
     (excludedResult.data ?? []).map((e: { user_id: string }) => e.user_id)
   )
