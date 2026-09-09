@@ -33,7 +33,14 @@ type ArkivQuiz = {
   id: string
   title: string
   closesAt: string | null
-  questionIds: string[]
+  /** Alltid med — det er dette raden viser («12 spørsmål»). */
+  questionCount: number
+  /**
+   * KUN for innloggede (F3, 9. september 2026). Id-listen er nyttelasten til
+   * POST /api/arkiv, og den handlingen krever innlogging uansett — en gjest
+   * har ingen bruk for den, så det åpne svaret bærer den ikke lenger.
+   */
+  questionIds?: string[]
 }
 
 const s = {
@@ -108,11 +115,26 @@ export default function ArkivPage() {
   // Bumpes av retry-knappen — re-kjører henteeffekten. Effekten setter kun
   // ready/error; 'loading' eies av initial-tilstanden og av knappen selv.
   const [hentForsok, setHentForsok] = useState(0)
+  // NØKLET PÅ userId, IKKE på session-objektet: sistnevnte bytter referanse ved
+  // hver TOKEN_REFRESHED og ville hentet lista på nytt i bakgrunnen for en
+  // spiller som bare sto stille (samme grunn som lib/session-identity.ts).
+  //
+  // Gjesten henter ÉN gang, uten token, akkurat som før — lista skal aldri
+  // vente på profilen for den som ikke er innlogget. En innlogget spiller
+  // henter en gang til når identiteten er kjent, og det er den runden som
+  // bærer questionIds. Innholdet raden VISER (tittel, dato, antall) er likt i
+  // begge svarene, så det andre kallet gir ingen flimring.
   useEffect(() => {
     let cancelled = false
     async function hentListe() {
       try {
-        const res = await fetch('/api/arkiv')
+        const token = userId
+          ? (await supabase.auth.getSession()).data.session?.access_token
+          : null
+        if (cancelled) return
+        const res = await fetch('/api/arkiv', token
+          ? { headers: { Authorization: `Bearer ${token}` } }
+          : undefined)
         if (cancelled) return
         if (!res.ok) { setLoadState('error'); return }
         const json = await res.json() as { quizzes?: ArkivQuiz[] }
@@ -127,7 +149,7 @@ export default function ArkivPage() {
     }
     void hentListe()
     return () => { cancelled = true }
-  }, [hentForsok])
+  }, [hentForsok, userId])
 
   const velgScope = (slug: string | null) => {
     setOrgSlug(slug)
@@ -148,6 +170,15 @@ export default function ArkivPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         router.push('/login?next=/arkiv')
+        return
+      }
+      // Id-ene kommer kun i det INNLOGGEDE svaret (F3). Er de ikke her, ble
+      // lista hentet som gjest og den innloggede runden har ikke landet ennå —
+      // et kort løp, ikke en feil. Si det, i stedet for å sende en tom liste
+      // til POST og få «tom-liste» tilbake.
+      if (!quiz.questionIds || quiz.questionIds.length === 0) {
+        setStartError('Vi har ikke hentet spørsmålene for denne quizen ennå. Prøv igjen om et øyeblikk.')
+        setStartingId(null)
         return
       }
       const res = await fetch('/api/arkiv', {
@@ -257,7 +288,7 @@ export default function ArkivPage() {
                 <div style={s.rowLeft}>
                   <div style={s.rowTitle}>{quiz.title}</div>
                   <div style={s.rowMeta}>
-                    {uke ? `Gikk ${uke} · ` : ''}{quiz.questionIds.length} spørsmål
+                    {uke ? `Gikk ${uke} · ` : ''}{quiz.questionCount} spørsmål
                   </div>
                 </div>
                 <div style={s.rowRight}>

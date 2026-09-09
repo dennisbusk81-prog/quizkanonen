@@ -128,9 +128,14 @@ mock.module('@/lib/supabase-admin', {
   namedExports: {
     supabaseAdmin: {
       auth: {
-        getUser: async () => {
+        // Kun ETT token gir en bruker. En vilkårlig streng skal gi gjeste-
+        // svaret, ikke det innloggede — ellers ville «ugyldig token»-testen
+        // vært grønn uansett hva ruten gjorde med den.
+        getUser: async (token: string) => {
           state.authCalls++
-          return { data: { user: null }, error: null }
+          return token === INNLOGGET
+            ? { data: { user: { id: 'bruker-1' } }, error: null }
+            : { data: { user: null }, error: null }
         },
       },
       from: (table: string) => {
@@ -160,13 +165,30 @@ mock.module('@/lib/supabase-admin', {
 
 const { GET } = await import('@/app/api/arkiv/route')
 
-type ListEntry = { id: string; title: string; closesAt: string | null; questionIds: string[] }
+type ListEntry = {
+  id: string
+  title: string
+  closesAt: string | null
+  questionCount: number
+  /** Kun i det INNLOGGEDE svaret (F3) — derfor valgfri her. */
+  questionIds?: string[]
+}
 
-async function kall(): Promise<{ status: number; quizzes: ListEntry[] }> {
-  const res = await GET()
+/** `token` utelatt = ingen Authorization-header, altså gjeste-svaret. */
+async function kall(token?: string): Promise<{ status: number; quizzes: ListEntry[] }> {
+  const req = new Request('https://quizkanonen.no/api/arkiv', {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  })
+  const res = await GET(req as never)
   const json = (await res.json()) as { quizzes?: ListEntry[] }
   return { status: res.status, quizzes: json.quizzes ?? [] }
 }
+
+/**
+ * De innloggede testene trenger id-ene i svaret. Assertene om REKKEFØLGE og
+ * KOMPLETTHET (pagineringstestene) hviler på dem, så de kaller med token.
+ */
+const INNLOGGET = 'token-for-en-ekte-bruker'
 
 /** Stengt, ekte, synlig quiz — hver med distinkt id/tittel/stengetid. */
 function stengtQuiz(i: number, overrides: Partial<QuizRow> = {}): QuizRow {
@@ -236,7 +258,9 @@ test('1440 spørsmål: quizer bak 1000-kuttet har KOMPLETTE id-lister i order_in
     }
   }
 
-  const { status, quizzes } = await kall()
+  // INNLOGGET: assertene under er på id-LISTENE, som kun det innloggede
+  // svaret bærer (F3).
+  const { status, quizzes } = await kall(INNLOGGET)
   assert.equal(status, 200)
   assert.equal(quizzes.length, 120)
   assert.ok(state.questionQueries >= 2, `forventet paginering av spørsmålene, fikk ${state.questionQueries} spørring(er)`)
@@ -245,7 +269,7 @@ test('1440 spørsmål: quizer bak 1000-kuttet har KOMPLETTE id-lister i order_in
   // 1000-radskuttet — uten paginering ville de quizene manglet spørsmål.
   for (const q of quizzes) {
     const nr = q.id.slice(2)
-    assert.equal(q.questionIds.length, 12, `quiz ${q.id} mangler spørsmål`)
+    assert.equal(q.questionCount, 12, `quiz ${q.id} mangler spørsmål`)
     assert.deepEqual(
       q.questionIds,
       Array.from({ length: 12 }, (_, k) => `s-${nr.slice(1)}-${String(k + 1).padStart(2, '0')}`),
@@ -311,4 +335,63 @@ test('listen er UGATET: intet auth-oppslag, 200 uten token', async () => {
   const { status } = await kall()
   assert.equal(status, 200)
   assert.equal(state.authCalls, 0, 'gratisbrukere skal se arkivet — ingen auth i lesestien')
+})
+
+// ── F3: spørsmåls-id-ene ut av det ÅPNE svaret (9. september 2026) ──────────
+//
+// Indeksen er fortsatt åpen — den er utstillingsvinduet for Premium — men
+// id-listen er ren nyttelast for POST /api/arkiv, og den handlingen krever
+// innlogging uansett. Titler og datoer overbeviser en potensiell kunde;
+// spørsmåls-id-er gjør ikke det.
+//
+// MUTASJONSBEVIS (begge kjørt 9. september 2026 og revertert):
+//   • `...(innlogget ? { questionIds } : {})` byttet mot `questionIds` rått →
+//     gjeste-testen rød (id-ene lekker ut i det åpne svaret).
+//   • `innlogget = !!user` byttet mot `innlogget = true` → «ugyldig token»-
+//     testen rød (en hvilken som helst streng ville låst opp id-ene).
+
+function enStengtQuizMedTolvSporsmal() {
+  state.quizzes = [stengtQuiz(1)]
+  for (let i = 1; i <= 12; i++) {
+    state.questions.push({ id: `s-${String(i).padStart(2, '0')}`, quiz_id: 'q-0001', order_index: i })
+  }
+}
+
+test('uten token: antallet er med, id-ene er IKKE', async () => {
+  enStengtQuizMedTolvSporsmal()
+
+  const { status, quizzes } = await kall()
+  assert.equal(status, 200)
+  assert.equal(quizzes.length, 1)
+  // Antallet er det raden faktisk viser — visningen skal ikke miste noe.
+  assert.equal(quizzes[0].questionCount, 12)
+  // Utelatt, ikke tomt: en tom liste ville sett ut som en quiz uten spørsmål.
+  assert.equal(quizzes[0].questionIds, undefined)
+  assert.ok(!('questionIds' in quizzes[0]), 'feltet skal ikke finnes i det åpne svaret')
+})
+
+test('med gyldig token: id-ene er med, i order_index-rekkefølge', async () => {
+  enStengtQuizMedTolvSporsmal()
+
+  const { status, quizzes } = await kall(INNLOGGET)
+  assert.equal(status, 200)
+  assert.equal(quizzes[0].questionCount, 12)
+  assert.deepEqual(
+    quizzes[0].questionIds,
+    Array.from({ length: 12 }, (_, k) => `s-${String(k + 1).padStart(2, '0')}`)
+  )
+})
+
+test('ugyldig token: listen vises som for en gjest — 200 uten id-er, ikke 401', async () => {
+  // En utløpt sesjon på en ÅPEN leserute skal ikke gi en feilskjerm. Uten
+  // denne ville en spiller med gammelt token fått «Vi fikk ikke hentet
+  // quizarkivet» i stedet for arkivet.
+  enStengtQuizMedTolvSporsmal()
+
+  const { status, quizzes } = await kall('et-utlopt-token')
+  assert.equal(status, 200)
+  assert.equal(quizzes.length, 1)
+  assert.equal(quizzes[0].questionCount, 12)
+  assert.equal(quizzes[0].questionIds, undefined)
+  assert.equal(state.authCalls, 1, 'et token som ER sendt skal slås opp')
 })

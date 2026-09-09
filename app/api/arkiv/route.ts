@@ -292,11 +292,30 @@ export async function POST(request: NextRequest) {
 // arkivet finnes — ikke skjult, ikke smakebit. Konvertering er primærmålet
 // med funksjonen. Gaten sitter på SKRIVEFLATENE: POST over (opprettelse) og
 // spill-porten (start-attempt). Listen avslører kun titler, stengetider og
-// spørsmåls-ID-ER — aldri innhold eller fasit (spørsmålsdata krever
+// ANTALL spørsmål — aldri innhold eller fasit (spørsmålsdata krever
 // attempt-token, og et attempt på en arkivkopi krever Premium — eller, for en
 // GENERERT quiz, eierskap via quiz_generations; se lib/archive-play-gate.ts.
 // Kopiene POST over lager får aldri en ledger-rad, så eier-grenen åpner
 // ingen av dem for gratisbrukere).
+//
+// SPØRSMÅLS-ID-ENE SENDES KUN TIL INNLOGGEDE (F3, 9. september 2026). Indeksen
+// er fortsatt åpen — den er utstillingsvinduet for Premium — men titler og
+// datoer er det som overbeviser en potensiell kunde; spørsmåls-id-er gjør ikke
+// det. Id-listen er ren nyttelast for ÉN handling: å sende den tilbake til POST
+// over. Den handlingen krever uansett innlogging, så en uinnlogget kaller har
+// ingen bruk for den.
+//
+// Uinnloggede får `questionCount` i stedet, som er det klienten faktisk viser
+// («12 spørsmål» på hver rad). Feltet er derfor ikke et innskrenket
+// erstatningsfelt, men presis den opplysningen visningen trengte hele tiden.
+//
+// Gaten er INNLOGGET, ikke Premium — bevisst. En innlogget gratisbruker fikk
+// id-ene før og får dem fortsatt; POST avviser dem uansett med 403. Å legge
+// Premium-gaten her ville flyttet en skriveflate-gate inn i en lesestil uten
+// å stenge noe nytt.
+//
+// Et kall UTEN Authorization-header gjør fortsatt NULL auth-oppslag — den
+// ugatede lesestien er like billig som før.
 // Ingen rate-limit — samme linje som /api/toppliste, den tyngre ugatede
 // leseruten: ren lesing mot egen DB, grensen ville kun vært kostnadsdemping.
 //
@@ -322,8 +341,19 @@ type ArchiveListQuizRow = { id: string; title: string; closes_at: string | null 
 
 type ArchiveListQuestionRow = { id: string; quiz_id: string; order_index: number }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const nowIso = new Date().toISOString()
+
+  // Kun når kalleren FAKTISK sender et token — se filhodet: den uinnloggede
+  // stien skal ikke få en GoTrue-rundtur den ikke trenger. En ugyldig eller
+  // utløpt token er ikke en feil her, bare «ikke innlogget»: listen vises som
+  // for en gjest i stedet for å svare 401 på en åpen leserute.
+  const token = request.headers.get('authorization')?.replace('Bearer ', '')
+  let innlogget = false
+  if (token) {
+    const { data: { user } } = await supabaseAdmin.auth.getUser(token)
+    innlogget = !!user
+  }
 
   let quizzes: ArchiveListQuizRow[]
   try {
@@ -352,9 +382,15 @@ export async function GET() {
     )
   }
 
-  // Spørsmåls-ID-ene per quiz er selve NYTTELASTEN: «spill quiz 47 på nytt» er
-  // nøyaktig denne id-listen sendt til POST over. Klienten har ingen egen
-  // lesevei til questions (ingen anon-policy), så listen må bære dem.
+  // Spørsmåls-ID-ene per quiz er selve NYTTELASTEN for den innloggede:
+  // «spill quiz 47 på nytt» er nøyaktig denne id-listen sendt til POST over.
+  // Klienten har ingen egen lesevei til questions (ingen anon-policy), så
+  // listen må bære dem.
+  //
+  // Spørringen kjøres uansett innlogging: ANTALLET (questionCount) kommer
+  // herfra, og det gjør også vaktene lenger nede — en quiz uten spørsmål skal
+  // ikke vises for noen. Å hoppe over den for gjester ville byttet en billigere
+  // spørring mot to ulike populasjoner i samme liste.
   let questionRows: ArchiveListQuestionRow[]
   try {
     questionRows = await fetchAllRowsChunked<ArchiveListQuestionRow>(
@@ -392,7 +428,15 @@ export async function GET() {
       // En quiz uten spørsmål kan ikke spilles (POST ville svart 'tom-liste')
       // — den skal heller ikke vises som spillbar.
       if (!questionIds || questionIds.length === 0) return []
-      return [{ id: q.id, title: q.title, closesAt: q.closes_at, questionIds }]
+      return [{
+        id: q.id,
+        title: q.title,
+        closesAt: q.closes_at,
+        questionCount: questionIds.length,
+        // Utelatt, ikke tomt: `questionIds: []` ville sett ut som en quiz uten
+        // spørsmål for enhver leser som teller lengden.
+        ...(innlogget ? { questionIds } : {}),
+      }]
     }),
   })
 }
