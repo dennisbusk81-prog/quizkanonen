@@ -8,6 +8,8 @@ import { fetchTrialOffer } from '@/lib/trial-offer-fetch'
 import { getSessionIdentity } from '@/lib/session-identity'
 import type { TrialOffer } from '@/lib/trial-offer'
 import { activationLogLevel, decideActivationNotice } from '@/lib/trial-activation-notice'
+// Fordelslista er delt med forsiden — lib/premium-features.ts, voktet av test.
+import { PREMIUM_FEATURES } from '@/lib/premium-features'
 
 // Nøkkelen som bærer «brukeren trykket Prøv gratis, men var ikke innlogget»
 // gjennom innloggingen. Samme mekanikk som liga-/org-invitasjonene bruker, og
@@ -28,28 +30,6 @@ const PLANS = [
   { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Tilsvarer kr 588 i året — avslutt når du vil', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
 ] as const
 type PlanId = (typeof PLANS)[number]['id']
-
-const FEATURES = [
-  'Nøyaktig plassering i resultatene',
-  'Hele topplisten — søk og bla gjennom alle spillere',
-  'Historikk og statistikk — beste plassering, streak og utvikling over tid',
-  'Private ligaer med venner',
-  'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
-  // «hvert spørsmål» var usant: ruten leverer bevisst kun de to letteste + to
-  // vanskeligste (sikkerhetsbeslutning 26. juli — HIGHLIGHT_COUNT i
-  // answer-distribution/route.ts). Samme ordlyd som svarfordeling-seksjonen
-  // på /leaderboard/[id] allerede bruker.
-  'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
-  // Arkivet ble bygget 27. august ([ARK-1]) og var fram til nå ikke nevnt i
-  // NOEN markedsføringstekst — hverken her, på /slik-fungerer-det eller i
-  // oppsalgspanelet på resultatskjermen. Ordlyden er hentet fra flatens egen
-  // tekst i app/arkiv/page.tsx, som allerede sier det sant: «som trening»,
-  // «teller ikke i sesongen», «hvilken plass du ville fått den uken».
-  // Sesong-forbeholdet står MED i punktet, ikke bare på flaten det gjelder —
-  // dette er salgssiden, og et arkivresultat som ikke dukker opp på
-  // topplisten ville ellers lest som en feil, ikke som funksjonen.
-  'Quizarkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
-]
 
 export default function PremiumPage() {
   const [loading, setLoading] = useState(false)
@@ -389,7 +369,7 @@ export default function PremiumPage() {
 
             {/* Feature list */}
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {FEATURES.map(f => (
+              {PREMIUM_FEATURES.map(f => (
                 <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, fontSize: 15, color: '#e8e4dd', lineHeight: 1.4 }}>
                   <span style={{ color: '#c9a84c', fontWeight: 700, fontSize: 16, flexShrink: 0, marginTop: 1 }}>✓</span>
                   <span>{f}</span>

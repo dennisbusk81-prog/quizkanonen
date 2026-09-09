@@ -26,6 +26,7 @@ import { planFromPremium } from '@/lib/generated-quiz-rules'
 import { decidePremiumFromProfile } from '@/lib/premium-check'
 import { kanonkulerRemaining } from '@/lib/kanonkuler-tekst'
 import KanonkulerCard from '@/components/KanonkulerCard'
+import { PREMIUM_FEATURES } from '@/lib/premium-features'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import * as Sentry from '@sentry/nextjs'
 
@@ -1993,23 +1994,9 @@ export default async function Home() {
                 Premium for deg som vil mer enn bare svare riktig
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {([
-                  'Nøyaktig plassering i resultatene',
-                  'Hele topplisten — søk og bla gjennom alle spillere',
-                  'Historikk og statistikk — beste plassering, streak og utvikling over tid',
-                  'Private ligaer med venner',
-                  'Se nøyaktig hvilke spørsmål du svarte feil på, uke for uke',
-                  // «hvert spørsmål» var usant — ruten leverer bevisst 2+2
-                  // (sikkerhetsbeslutning 26. juli); ordlyd fra /leaderboard/[id].
-                  'Svarfordeling — se hvordan alle svarte på ukens letteste og vanskeligste spørsmål',
-                  // Arkivet. Denne lista er ord for ord den samme som FEATURES
-                  // i app/premium/page.tsx, og 7e5160b rettet begge i samme
-                  // runde — de skal holdes identiske, ellers drifter de.
-                  // Derfor står sesong-parentesen også her: kortet er
-                  // «Dette får du med Premium», vist til premiumLocked, altså
-                  // samme løfte til samme publikum som salgssiden gir.
-                  'Quizarkivet — spill tidligere quizer på nytt som trening, og se hvilken plass du ville fått den uken (teller ikke i sesongen)',
-                ] as const).map(f => (
+                {/* Lista bor i lib/premium-features.ts — delt med /premium,
+                    og voktet av lib/premium-features.test.ts mot en ny kopi. */}
+                {PREMIUM_FEATURES.map(f => (
                   <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#e8e4dd', lineHeight: 1.5 }}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginTop: 2, flexShrink: 0 }}>
                       <circle cx="7" cy="7" r="6.5" stroke="#c9a84c" strokeWidth="1"/>
