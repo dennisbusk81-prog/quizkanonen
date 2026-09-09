@@ -21,6 +21,11 @@ qk-docs-temp/ i august og .claude/QK_OPPDATERING_*_19AUG_KVELD.md
 i september. Begge ganger ble tre uker gamle notater brukt som
 fasit.
 
+Ikke bruk «git add .» uten å lese git status først. Turbopack-
+aliaset i next.config.ts er sveipet inn i en urelatert commit
+én gang før (037264e, 27. august). En commit skal svare på ett
+spørsmål.
+
 ## PROSJEKT
 Solo-gründer bygger Quizkanonen (quizkanonen.no) — en ukentlig quiz-plattform
 som skal erstatte Kahoot for en etablert Facebook-gruppe (400 medlemmer).
