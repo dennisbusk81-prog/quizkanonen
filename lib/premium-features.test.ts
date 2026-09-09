@@ -43,11 +43,11 @@ const PREMIUM = aktiveLinjer(les('app/premium/page.tsx'))
 // ── Innholdet ───────────────────────────────────────────────────────────────
 
 test('kanonkule-punktet er ordrett, og tallet er kvoten fra generatoren', () => {
-  assert.equal(PREMIUM_GENERATOR_FEATURE, 'Lag opptil 30 egne quizer i måneden — du velger kategori')
+  assert.equal(PREMIUM_GENERATOR_FEATURE, 'Generer opptil 30 ekstraquizer i måneden fra spørsmålsbanken — du velger kategori')
   assert.equal(GENERATION_QUOTA.premium, 30)
   assert.equal(
     PREMIUM_GENERATOR_FEATURE,
-    `Lag opptil ${GENERATION_QUOTA.premium} egne quizer i måneden — du velger kategori`,
+    `Generer opptil ${GENERATION_QUOTA.premium} ekstraquizer i måneden fra spørsmålsbanken — du velger kategori`,
     'tallet i punktet følger ikke GENERATION_QUOTA.premium',
   )
 })

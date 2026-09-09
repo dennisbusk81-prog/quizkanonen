@@ -151,6 +151,8 @@ test('kortets faste tekster kommer fra lib/kanonkuler-tekst — ikke hardkodet i
   assert.match(CARD, /<h2 id="kanonkuler-tittel" style=\{s\.title\}>\{KANONKULER_TITLE\}<\/h2>/)
   assert.match(CARD, /<p style=\{s\.body\}>\{KANONKULER_BODY_TEXT\}<\/p>/)
   assert.doesNotMatch(CARD, /Tilfeldig quiz|Kanonkuler<\/p>|Én kanonkule gir deg/)
+  assert.match(CARD, /: KANONKULER_BUTTON\}/, 'knappeteksten skal komme fra konstanten')
+  assert.doesNotMatch(CARD, /'Lag quiz'/)
 })
 
 test('oppsalgslinja: KUN gratis med kuler igjen, rett under statuslinja, tekstlenke til /premium — ikke knapp', () => {

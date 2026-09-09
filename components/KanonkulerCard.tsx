@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { MIXED_QUIZ_CATEGORY, generatorCategoryOptions, type GenerationPlan } from '@/lib/generated-quiz-rules'
 import {
   KANONKULER_BODY_TEXT,
+  KANONKULER_BUTTON,
   KANONKULER_EYEBROW,
   KANONKULER_FREE_CONFIRM_TEXT,
   KANONKULER_FREE_UPSELL_LINE,
@@ -287,7 +288,7 @@ export default function KanonkulerCard({ plan, remaining, nextMonthLabel }: Prop
                 disabled={phase === 'starting'}
                 onClick={onPrimary}
               >
-                {phase === 'starting' ? 'Lager quiz …' : 'Lag quiz'}
+                {phase === 'starting' ? 'Lager quiz …' : KANONKULER_BUTTON}
               </button>
             </div>
           )}

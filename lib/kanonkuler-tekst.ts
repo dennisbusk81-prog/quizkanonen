@@ -85,13 +85,16 @@ export const KANONKULER_FREE_CONFIRM_TEXT = 'Dette bruker én av to kanonkuler.'
  * Kortets faste tekster (Dennis, ordrett, 8. september 2026 — fjerde runde).
  * Etiketten sier hva kortet ER, ikke hva det koster: «Kanonkuler» er
  * valutaen, ikke tingen. «Din egen quiz» ble droppet fordi hun ikke setter
- * den sammen selv. Quizens EGEN tittel (GENERATED_QUIZ_TITLE, «Tilfeldig
+ * den sammen selv — og «Lag» gikk ut av samme grunn (runde 7, 9. september):
+ * ordet leser som at hun skriver spørsmålene. Quizens EGEN tittel (GENERATED_QUIZ_TITLE, «Tilfeldig
  * quiz») er uendret — det er kortet som heter noe annet, ikke quizen.
  * «Femten» er skrevet som ord og bindes til GENERATED_QUIZ_QUESTION_COUNT av
  * en test, som «to» over (femte runde: ordlyden byttet, bindingen står).
  */
 export const KANONKULER_EYEBROW = 'Ekstraquiz'
-export const KANONKULER_TITLE = 'Lag en ny quiz'
+export const KANONKULER_TITLE = 'Generer en ny quiz'
+/** Knappen. «Generer», ikke «lag»: hun skriver ikke spørsmålene selv — quizen trekkes fra spørsmålsbanken (Dennis, 9. september 2026). */
+export const KANONKULER_BUTTON = 'Generer quiz'
 export const KANONKULER_BODY_TEXT =
   'Femten tilfeldige spørsmål, trukket fra tusenvis i Quizkanonens spørsmålsbank. Koster én kanonkule og gir ingen poeng på topplistene. Bare for gøy og trening.'
 

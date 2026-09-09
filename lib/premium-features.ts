@@ -25,10 +25,11 @@ import { GENERATION_QUOTA } from '@/lib/generated-quiz-rules'
 /**
  * Kanonkule-punktet. Tallet er kvoten fra generatoren (GENERATION_QUOTA), ikke
  * skrevet som tekst — endres kvoten, følger løftet med. Ordlyden er Dennis'
- * (9. september 2026).
+ * (9. september 2026): «Generer», ikke «lag» — hun skriver ikke spørsmålene
+ * selv, quizen trekkes fra spørsmålsbanken.
  */
 export const PREMIUM_GENERATOR_FEATURE =
-  `Lag opptil ${GENERATION_QUOTA.premium} egne quizer i måneden — du velger kategori`
+  `Generer opptil ${GENERATION_QUOTA.premium} ekstraquizer i måneden fra spørsmålsbanken — du velger kategori`
 
 export const PREMIUM_FEATURES: readonly string[] = [
   'Nøyaktig plassering i resultatene',
