@@ -30,10 +30,17 @@ export async function getCodeCoverage(userId: string): Promise<CodeCoverage | nu
     .limit(20)
 
   if (error) {
-    // Tabellen finnes ikke før migrasjonen er kjørt. Da har ingen kode-periode,
-    // og null er riktig svar — men det skal logges, ikke skjules.
-    console.error('[premium-state] kunne ikke lese kode-innløsninger:', error.message)
-    return null
+    // Lesefeil KASTER (rad E, 9. september 2026). Fram til nå returnerte den
+    // null, begrunnet med at tabellen ikke fantes før migrasjonen var kjørt —
+    // den har vært i prod siden 26. juli. Null her betydde «ingen verdikode»:
+    // checkout opprettet abonnement uten trial_end, og kunden ble belastet
+    // fra dag én for en periode de samtidig hadde gratis. Samme modell som
+    // getStripeCoverage under og getOrgCoverage i lib/org-premium.ts: vet vi
+    // ikke, sier vi ikke «nei». Null RADER er fortsatt et gyldig «ingen kode»
+    // og returneres som før. Kallerne tåler kastet: redeem svarer 503,
+    // checkout 500 før Stripe, cron-løkkene hopper over brukeren.
+    console.error(`[premium-state] kunne ikke lese kode-innløsninger for ${userId}:`, error.code, error.message)
+    throw new Error(`[premium-state] kunne ikke lese kode-innløsninger: ${error.message}`)
   }
 
   const now = Date.now()

@@ -55,6 +55,8 @@ const state: {
   emails: Array<{ subject: string; html: string }>
   /** Settes for å la syncPremiumCache kaste (Stripe nede / DB-lesefeil i org-dekning). */
   syncFails: Error | null
+  /** Settes for å la getPremiumState kaste (lesefeil i kode-/org-dekning, Stripe nede). */
+  premiumStateFails: Error | null
 } = {
   code: null,
   redemptions: new Set(),
@@ -68,6 +70,7 @@ const state: {
   moneyAlerts: [],
   emails: [],
   syncFails: null,
+  premiumStateFails: null,
 }
 
 const IN_FUTURE = new Date(Date.now() + 86_400_000).toISOString()
@@ -170,11 +173,14 @@ mock.module('@/lib/email', {
 // ekte — det er bare kildene som er kontrollerte her.
 mock.module('@/lib/premium-state-io', {
   namedExports: {
-    getPremiumState: async () => decidePremiumState({
+    getPremiumState: async () => {
+      if (state.premiumStateFails) throw state.premiumStateFails
+      return decidePremiumState({
       code: state.premiumSources.code,
       stripe: state.premiumSources.stripe,
       org: state.premiumSources.org,
-    }),
+      })
+    },
     syncPremiumCache: async () => {
       if (state.syncFails) throw state.syncFails
     },
@@ -255,6 +261,30 @@ beforeEach(() => {
   state.moneyAlerts = []
   state.emails = []
   state.syncFails = null
+  state.premiumStateFails = null
+})
+
+// ── Premium-tilstanden kan ikke avgjøres (rad E, 9. september 2026) ─────────
+// Etter at getCodeCoverage kaster ved lesefeil (ikke lenger «null = ingen
+// kode»), er dette kastet ruten møter på :142. Vernet der fantes fra før for
+// Stripe-feil; testen beviser at det også fanger lesefeilen: 503, og koden
+// er IKKE brukt opp — kunden kan prøve igjen når databasen svarer.
+test('getPremiumState kaster (lesefeil i dekning) → 503, koden røres ikke', async () => {
+  state.premiumStateFails = new Error('[premium-state] kunne ikke lese kode-innløsninger: simulert')
+
+  const restore = mock.method(console, 'error', () => {})
+  let res: Response
+  try {
+    res = await redeem('FREDAGSQUIZ', 'user-a')
+  } finally {
+    restore.mock.restore()
+  }
+
+  assert.equal(res.status, 503)
+  assert.match((await res.json()).error, /Prøv igjen/)
+  assert.equal(state.code?.used_count, 0, 'ingen plass spist')
+  assert.equal(state.redemptions.size, 0, 'ingen innløsning bokført')
+  assert.equal(state.stripeCalls.length, 0, 'ingen Stripe-kall')
 })
 
 // ── Cache-synk etter innløsning (9. september 2026) ─────────────────────────
