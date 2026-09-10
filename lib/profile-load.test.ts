@@ -67,8 +67,6 @@ const fullRow: ProfileRow = {
   email_reminders: true,
   email_reengagement: false,
   email_duel_notifications: false,
-  email_weekly_report: false,
-  email_org_reminders: false,
   created_at: '2026-04-01T10:00:00.000Z',
   avatar_color: '#c9a84c',
 }
@@ -254,7 +252,7 @@ test('felter er utilgjengelige uten å ha sjekket state først', () => {
   assert.deepEqual(skrevet, [], 'en feilet henting skal ikke skrive ett eneste felt')
 
   anvend(deriveProfileScreen({ ok: true, value: fullRow }))
-  assert.equal(skrevet.length, 10, 'en bekreftet henting skriver alle ti feltene')
+  assert.equal(skrevet.length, 8, 'en bekreftet henting skriver alle åtte feltene')
 })
 
 // ── Fallbackene, der de fortsatt gjelder ────────────────────────────────────
@@ -270,8 +268,6 @@ test('bekreftet rad: alle verdier kommer fra raden, ingen fallback slår inn', (
     emailReminders: true,
     emailReengagement: false,
     emailDuelNotifications: false,
-    emailWeeklyReport: false,
-    emailOrgReminders: false,
     createdAt: '2026-04-01T10:00:00.000Z',
   })
 })

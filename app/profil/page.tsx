@@ -8,7 +8,6 @@ import type { PlayerStats } from '@/lib/history'
 import SkeletonCard from '@/components/SkeletonCard'
 import PasswordInput from '@/components/PasswordInput'
 import { useProfile } from '@/components/ProfileProvider'
-import { decideOrgEmailSwitches, decidePrefSave } from '@/lib/email-pref-switches'
 import { getAvatarInitial } from '@/lib/avatar-initial'
 import { sendLinkErrorMessage } from '@/lib/auth-messages'
 import { loadProfileRow, deriveProfileScreen } from '@/lib/profile-load'
@@ -138,7 +137,7 @@ export default function ProfilPage() {
   const [nicknameError, setNicknameError] = useState<string | null>(null)
   const [nicknameSuccess, setNicknameSuccess] = useState(false)
   // Premium fra delt context (ingen egne premium-status-fetches lenger).
-  const { isPremium, hasStripeCustomer, hasUsedTrial, myOrgs, myOrgsLoaded, myOrgsError, refreshProfile } = useProfile()
+  const { isPremium, hasStripeCustomer, hasUsedTrial, myOrgs, refreshProfile } = useProfile()
   // Hvilken abonnementsflate brukeren skal se — SAMME beslutning som
   // kontomenyens «Abonnement»-rad (lib/subscription-entry.ts). Fram til
   // 6. september 2026 hadde de to flatene hver sin kopi av gaten, og menyen
@@ -163,10 +162,6 @@ export default function ProfilPage() {
   const [emailReminders, setEmailReminders] = useState(false)
   const [emailReengagement, setEmailReengagement] = useState(true)
   const [emailDuelNotifications, setEmailDuelNotifications] = useState(true)
-  // NOT NULL DEFAULT true i basen (20260909000001) — opt-out, som de to over.
-  const [emailWeeklyReport, setEmailWeeklyReport] = useState(true)
-  const [emailOrgReminders, setEmailOrgReminders] = useState(true)
-  const [prefError, setPrefError] = useState<string | null>(null)
   const [prefSavedKey, setPrefSavedKey] = useState<string | null>(null)
   const [stats, setStats] = useState<PlayerStats | null>(null)
   const [orgs, setOrgs] = useState<OrgEntry[]>([])
@@ -278,7 +273,7 @@ export default function ProfilPage() {
       if (!session?.user) return
       const { data: profile } = await supabase
         .from('profiles')
-        .select('display_name, nickname, email_reminders, email_reengagement, email_duel_notifications, email_weekly_report, email_org_reminders')
+        .select('display_name, nickname, email_reminders, email_reengagement, email_duel_notifications')
         .eq('id', session.user.id)
         .single()
       if (profile && !authoritativeSettledRef.current) {
@@ -289,8 +284,6 @@ export default function ProfilPage() {
         setEmailReminders(profile.email_reminders ?? false)
         setEmailReengagement(profile.email_reengagement ?? true)
         setEmailDuelNotifications(profile.email_duel_notifications ?? true)
-        setEmailWeeklyReport(profile.email_weekly_report ?? true)
-        setEmailOrgReminders(profile.email_org_reminders ?? true)
       }
     })
   }, [])
@@ -364,7 +357,7 @@ export default function ProfilPage() {
       const loadedProfile = await loadProfileRow(
         supabase
           .from('profiles')
-          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, email_weekly_report, email_org_reminders, created_at, avatar_color')
+          .select('display_name, nickname, member_number, show_member_number, email_reminders, email_reengagement, email_duel_notifications, created_at, avatar_color')
           .eq('id', uid)
           .maybeSingle(),
         { ms: 5000 },
@@ -424,8 +417,6 @@ export default function ProfilPage() {
       setEmailReminders(fields.emailReminders)
       setEmailReengagement(fields.emailReengagement)
       setEmailDuelNotifications(fields.emailDuelNotifications)
-      setEmailWeeklyReport(fields.emailWeeklyReport)
-      setEmailOrgReminders(fields.emailOrgReminders)
       if (fields.createdAt) {
         const d = new Date(fields.createdAt)
         const day = d.getDate()
@@ -562,21 +553,10 @@ export default function ProfilPage() {
     }
   }
 
-  // Optimistisk, men ikke stum. Fram til 10. september leste savePref aldri
-  // `res.ok`, og `catch {}` svelget nettverksfeil: skjermen viste «Lagret»
-  // og den nye bryterstillingen selv om databasen sto uendret. `revert`
-  // setter bryteren tilbake til det serveren fortsatt har, slik at en bryter
-  // aldri påstår et valg brukeren ikke har fått lagret.
-  //
-  // Dette gjelder også de fire eksisterende bryterne — det er samme ene
-  // funksjon. Der var stumheten en skjønnhetsfeil; for de to nye er den selve
-  // fella om igjen, siden de ER veien tilbake fra en avmelding.
-  async function savePref(patch: Record<string, boolean>, key: string, revert: () => void) {
-    setPrefError(null)
-    let res: Response | null = null
+  async function savePref(patch: Record<string, boolean>, key: string) {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      res = await fetch('/api/profile/preferences', {
+      await fetch('/api/profile/preferences', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -584,16 +564,9 @@ export default function ProfilPage() {
         },
         body: JSON.stringify(patch),
       })
-    } catch { res = null }
-
-    const utfall = decidePrefSave(res)
-    if (utfall.kind === 'failed') {
-      revert()
-      setPrefError(utfall.message)
-      return
-    }
-    setPrefSavedKey(key)
-    setTimeout(() => setPrefSavedKey(null), 2000)
+      setPrefSavedKey(key)
+      setTimeout(() => setPrefSavedKey(null), 2000)
+    } catch { /* silent — optimistic update already applied */ }
   }
 
   async function handleToggleGlobalLeague(org: OrgEntry) {
@@ -619,31 +592,19 @@ export default function ProfilPage() {
   function handleToggleEmailReminders() {
     const next = !emailReminders
     setEmailReminders(next)
-    savePref({ email_reminders: next }, 'reminders', () => setEmailReminders(!next))
+    savePref({ email_reminders: next }, 'reminders')
   }
 
   function handleToggleEmailReengagement() {
     const next = !emailReengagement
     setEmailReengagement(next)
-    savePref({ email_reengagement: next }, 'reengagement', () => setEmailReengagement(!next))
+    savePref({ email_reengagement: next }, 'reengagement')
   }
 
   function handleToggleEmailDuelNotifications() {
     const next = !emailDuelNotifications
     setEmailDuelNotifications(next)
-    savePref({ email_duel_notifications: next }, 'duel', () => setEmailDuelNotifications(!next))
-  }
-
-  function handleToggleEmailWeeklyReport() {
-    const next = !emailWeeklyReport
-    setEmailWeeklyReport(next)
-    savePref({ email_weekly_report: next }, 'weeklyreport', () => setEmailWeeklyReport(!next))
-  }
-
-  function handleToggleEmailOrgReminders() {
-    const next = !emailOrgReminders
-    setEmailOrgReminders(next)
-    savePref({ email_org_reminders: next }, 'orgreminders', () => setEmailOrgReminders(!next))
+    savePref({ email_duel_notifications: next }, 'duel')
   }
 
   async function handleTogglePush() {
@@ -1178,24 +1139,6 @@ export default function ProfilPage() {
                 value: emailDuelNotifications,
                 toggle: handleToggleEmailDuelNotifications,
               },
-              // Org-avhengige. `membership: null` = VET IKKE (myOrgs ikke
-              // bekreftet hentet, eller feilet) — ingen nytt oppslag, begge
-              // flaggene ligger i samme context som myOrgs. Se lib-fila for
-              // hvorfor ukjent ikke kan gi en låst dør.
-              ...decideOrgEmailSwitches({
-                emailWeeklyReport,
-                emailOrgReminders,
-                emailReminders,
-                membership: myOrgsLoaded && !myOrgsError
-                  ? { isAdmin: myOrgs.some(o => o.isAdmin), isMember: myOrgs.length > 0 }
-                  : null,
-              }).map(sw => ({
-                key: sw.key,
-                title: sw.title,
-                desc: sw.desc,
-                value: sw.value,
-                toggle: sw.key === 'weeklyreport' ? handleToggleEmailWeeklyReport : handleToggleEmailOrgReminders,
-              })),
             ] as { key: string; title: string; desc: string; value: boolean; toggle: () => void }[]).map((item, i) => (
               <div key={item.key}>
                 {i > 0 && <div style={s.cardDivider} />}
@@ -1226,8 +1169,6 @@ export default function ProfilPage() {
                 </div>
               </div>
             ))}
-
-            {prefError && <p style={s.saveError}>{prefError}</p>}
 
             {pushSupported && (
               <>

@@ -30,8 +30,6 @@ export type ProfileRow = {
   email_reminders: boolean | null
   email_reengagement: boolean | null
   email_duel_notifications: boolean | null
-  email_weekly_report: boolean | null
-  email_org_reminders: boolean | null
   created_at: string | null
   avatar_color: string | null
 }
@@ -88,8 +86,6 @@ export type ProfileFields = {
   emailReminders: boolean
   emailReengagement: boolean
   emailDuelNotifications: boolean
-  emailWeeklyReport: boolean
-  emailOrgReminders: boolean
   createdAt: string | null
 }
 
@@ -116,7 +112,6 @@ export type ProfileScreen =
  * uendret fra 89c0b27: `email_reminders` er NOT NULL DEFAULT false (opt-in —
  * send-reminders-cronen henter kun på `= true`), mens `email_reengagement` og
  * `email_duel_notifications` er nullable DEFAULT true (opt-out).
- * `email_weekly_report` og `email_org_reminders` er NOT NULL DEFAULT true.
  *
  * De er nå bare gyldige der de er sanne: på en BEKREFTET henting. Er raden
  * fraværende (`value === null`), er defaultene faktisk det brukeren har —
@@ -136,13 +131,6 @@ export function deriveProfileScreen(loaded: Loaded<ProfileRow | null>): ProfileS
       emailReminders: row?.email_reminders ?? false,
       emailReengagement: row?.email_reengagement ?? true,
       emailDuelNotifications: row?.email_duel_notifications ?? true,
-      // NOT NULL DEFAULT true (migrasjon 20260909000001) — opt-out, som
-      // email_reengagement/duel og i motsetning til email_reminders. Speiler
-      // du feil DEFAULT her, viser bryteren «av» for en bruker som ER paameldt.
-      // lib/email-pref-switches.test.ts leser DEFAULT-en ut av migrasjonsfila
-      // og krever at de to er enige.
-      emailWeeklyReport: row?.email_weekly_report ?? true,
-      emailOrgReminders: row?.email_org_reminders ?? true,
       createdAt: row?.created_at ?? null,
     },
   }

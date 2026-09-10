@@ -32,11 +32,6 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.email_reminders === 'boolean') update.email_reminders = body.email_reminders
   if (typeof body.email_reengagement === 'boolean') update.email_reengagement = body.email_reengagement
   if (typeof body.email_duel_notifications === 'boolean') update.email_duel_notifications = body.email_duel_notifications
-  // De to fra 20260909000001. Uten dem her finnes avmeldingen (lenke +
-  // one-click i Gmail) uten en vei tilbake: /profil kunne vise bryteren, men
-  // PATCH-en ville droppet feltet og svart 400 «Ingen gyldige felter».
-  if (typeof body.email_weekly_report === 'boolean') update.email_weekly_report = body.email_weekly_report
-  if (typeof body.email_org_reminders === 'boolean') update.email_org_reminders = body.email_org_reminders
 
   // Nickname — eneste regel er maks 20 tegn. Ingen navnevalidering. Tom = null.
   if (body.nickname !== undefined) {
