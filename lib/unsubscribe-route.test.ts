@@ -21,6 +21,10 @@ import assert from 'node:assert/strict'
 // vil ha en deterministisk verdi uansett rekkefølge.
 process.env.CRON_SECRET = 'test-cron-secret'
 
+// Slik prod faktisk er satt opp: NEXT_PUBLIC_SITE_URL er apex.
+// buildUnsubscribeUrl skal IKKE la seg styre av den — se www-testen nederst.
+process.env.NEXT_PUBLIC_SITE_URL = 'https://quizkanonen.no'
+
 const USER_ID = '5c312683-2010-46d5-8a9d-a3529ee2e285'
 const OTHER_ID = '26e5126f-4c40-4588-9646-aa81d0c6a082'
 
@@ -330,4 +334,49 @@ test('en databasefeil gir feilside, ikke en falsk «du er avmeldt»', async () =
 
   assert.match(html, /Noe gikk galt/)
   assert.doesNotMatch(html, /Du er avmeldt/)
+})
+
+// ── www, ikke apex (RFC 8058) ───────────────────────────────────────────────
+//
+// quizkanonen.no svarer 307 til www.quizkanonen.no. RFC 8058 sier at
+// avsenderen ikke skal svare med redirect på one-click-POST-en; en
+// «Avslutt abonnement»-knapp i Gmail kan da feile stille, mens lenken i
+// bunnteksten ser ut til å virke fordi nettleseren følger 307 på GET.
+//
+// MERK hvorfor www-asserten i lib/email-headers.test.ts ikke fanget dette:
+// den kjører uten NEXT_PUBLIC_SITE_URL og målte derfor fallback-verdien, som
+// alltid har vært www. Testene under setter env-en til apex — slik prod er —
+// og er den eneste stillingen der feilen i det hele tatt er synlig.
+//
+// MUTASJONSBEVIS: «www.» strøket fra UNSUBSCRIBE_BASE i lib/unsubscribe.ts
+//   → begge www-testene under ryker og siterer URL-en.
+
+const WWW = 'https://www.quizkanonen.no/api/notifications/unsubscribe?'
+
+test('avmeldings-URL-en peker på www for ALLE seks typene, uansett NEXT_PUBLIC_SITE_URL', () => {
+  assert.equal(process.env.NEXT_PUBLIC_SITE_URL, 'https://quizkanonen.no',
+    'forutsetningen for testen: env-en står på apex, slik prod har den')
+
+  for (const type of ['reminders', 'reengagement', 'duel', 'quiznotify', 'weeklyreport', 'orgclose'] as const) {
+    const u = buildUnsubscribeUrl(USER_ID, type)
+    assert.ok(u.startsWith(WWW), `${type}: ${u} — skal starte på ${WWW}`)
+    assert.ok(!u.startsWith('https://quizkanonen.no'),
+      `${type}: ${u} peker på apex, som svarer 307 — RFC 8058 forbyr redirect på one-click-POST`)
+  }
+})
+
+test('www-URL-en treffer SAMME rute som før: one-click-POST melder av', async () => {
+  // Beviset på at fiksen kun fjernet hoppet. URL-en bygges av den ekte
+  // byggeren og sendes rått inn i den ekte ruten, med nøyaktig den bodyen
+  // en e-postklient sender ved one-click.
+  const res = await POST(new Request(buildUnsubscribeUrl(USER_ID, 'reminders'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'List-Unsubscribe=One-Click',
+  }))
+
+  assert.equal(res.status, 200)
+  assert.deepEqual(state.updates, [
+    { column: 'email_reminders', value: false, uid: USER_ID },
+  ])
 })

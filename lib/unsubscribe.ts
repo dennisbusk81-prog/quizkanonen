@@ -36,10 +36,23 @@ export function verifyUnsubscribeToken(userId: string, type: UnsubscribeType, to
   }
 }
 
+// www, ALLTID — ikke NEXT_PUBLIC_SITE_URL. Verdien i prod er apex
+// (`https://quizkanonen.no`), som svarer 307 til www. RFC 8058 sier at
+// avsenderen IKKE skal svare med redirect på one-click-POST-en, fordi
+// redirectede POST-er historisk ikke virker pålitelig: «Avslutt
+// abonnement»-knappen i Gmail kunne feile stille, mens lenken i bunnteksten
+// så ut til å virke (nettleseren følger 307 på GET). Gjelder alle seks
+// avmeldingstypene — de deler denne ene byggeren.
+//
+// Basen er hardkodet HER, ikke hentet fra env og ikke løftet til en delt
+// konstant: en env-styrt base er nettopp det som gjeninnførte hoppet stille.
+// Samme valg og samme begrunnelse som www-lenkene i lib/email-templates.ts
+// — se DEL A i lib/email-signals.test.ts.
+const UNSUBSCRIBE_BASE = 'https://www.quizkanonen.no'
+
 export function buildUnsubscribeUrl(userId: string, type: UnsubscribeType): string {
   const token = generateUnsubscribeToken(userId, type)
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.quizkanonen.no').replace(/\/$/, '')
-  return `${base}/api/notifications/unsubscribe?token=${token}&type=${encodeURIComponent(type)}&uid=${encodeURIComponent(userId)}`
+  return `${UNSUBSCRIBE_BASE}/api/notifications/unsubscribe?token=${token}&type=${encodeURIComponent(type)}&uid=${encodeURIComponent(userId)}`
 }
 
 /**
