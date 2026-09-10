@@ -1,0 +1,55 @@
+-- ============================================================
+-- profiles — SELECT-grant på de to nye avmeldingskolonnene
+--
+-- ⚠️ ALLEREDE KJØRT I PROD 10. september 2026, for hånd i SQL-editoren.
+--    Denne filen er dokumentasjonen av den, ikke en ventende endring.
+--    Idempotent — en ny kjøring er ufarlig.
+--
+-- BAKGRUNN — hvorfor denne filen finnes i det hele tatt:
+--
+-- `public.profiles` og `public.attempts` har IKKE tabellnivå-SELECT for
+-- anon/authenticated. De har KOLONNE-grants, satt for hånd i dashbordet.
+-- Målt mot prod 10. september 2026 er de to de ENESTE tabellene i `public`
+-- der klientrollene har grant på noen, men ikke alle, kolonner:
+--
+--     profiles   13 av 29 kolonner (anon) / 12 (authenticated, før denne)
+--     attempts   12 av 14 kolonner
+--
+-- **En ny kolonne arver ikke slike grants.** Og PostgREST nekter da HELE
+-- spørringen med `42501 permission denied for table profiles` — ikke bare
+-- kolonnen, og ikke som en manglende verdi.
+--
+-- Det skjedde konkret: `20260909000001` la til `email_weekly_report` og
+-- `email_org_reminders`. Cronene merket ingenting — de går via service_role,
+-- som er unntatt grants. Men første gang en KLIENT leste dem (bryterne på
+-- /profil, `94b0d8f`), svarte PostgREST 42501 på hele profil-oppslaget, og
+-- fail-closed-grenen gjorde det om til «Vi fikk ikke hentet profilen din» for
+-- hver innlogget bruker. Endringen ble revertet (`8b3bafe`), granten kjørt,
+-- og deretter gjenanvendt (`9c7bff5`).
+--
+-- REGEL: legger du til en kolonne på `profiles` eller `attempts` som skal
+-- leses fra NETTLESEREN, hører en GRANT med i samme runde — og den skal kjøres
+-- FØR koden deployes. Samme rekkefølge som «migrasjon før kode» i CLAUDE.md;
+-- her betyr «skjema» også grants, ikke bare kolonner.
+--
+-- Billigste sjekk, uten dashbordet: ett kall per kolonne mot PostgREST med
+-- anon-nøkkelen — `/rest/v1/profiles?select=<kolonne>&limit=1`. 200 betyr
+-- grant, 42501 betyr ingen. For `authenticated` må kallet bære et ekte
+-- bruker-JWT; katalogen svarer også direkte:
+--
+--     select column_name from information_schema.role_column_grants
+--     where table_schema = 'public' and table_name = 'profiles'
+--       and privilege_type = 'SELECT' and grantee = 'authenticated';
+--
+-- KUN `authenticated`, ikke `anon`: /profil krever sesjon, og å ta med anon
+-- ville utvidet den anon-lesbarheten av e-postpreferanser som RLS-/grants-
+-- sveipet 9. september allerede flagget som et åpent punkt.
+--
+-- Denne filen starter IKKE en opprydding av grant-tilstanden — de øvrige
+-- kolonne-grantene på profiles og attempts står fortsatt kun i databasen.
+-- Den gjør bare at nettopp denne fella er dokumentert der neste person leter.
+-- Mal: 20260616190001_attempts_hide_user_id.sql (REVOKE + GRANT SELECT (...)).
+-- ============================================================
+
+GRANT SELECT (email_weekly_report, email_org_reminders)
+  ON public.profiles TO authenticated;
