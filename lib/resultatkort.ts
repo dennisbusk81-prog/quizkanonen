@@ -7,12 +7,20 @@
 // re-rank. Denne filen skal ALDRI sortere feltet på nytt. Den plukker bare ut
 // tre spillere og de ti øverste.
 //
+// Plasseringen «midt i feltet» peker på eies heller ikke her — den kommer fra
+// lib/midt-i-feltet.ts, delt med delingsteksten og admin sin resultatside.
+// Fram til 11. september 2026 regnet denne fila den ut selv, med en annen
+// formel enn de to andre, og bildet og teksten i samme Facebook-innlegg kunne
+// derfor oppgi hvert sitt navn på samme plass ved partall deltakere.
+//
 // ── HVORFOR IKKE EN NY SORTERINGSRUTINE ────────────────────────────────────
 // Kortet erstatter skjermbildet Dennis i dag tar av den offentlige
 // resultatlisten. Hadde det hatt sin egen sortering, kunne bildet og siden
 // pekt ut hver sin vinner — nøyaktig den divergensen kommentaren i
 // lib/ranking.ts:73-85 ble skrevet om. Feltet kommer inn ferdig rangert og
 // brukes i den rekkefølgen det kom.
+
+import { midtPlassering } from './midt-i-feltet'
 
 /** Én spiller i det ferdig rangerte, synlige feltet. */
 export interface KortSpiller {
@@ -39,26 +47,14 @@ export interface Resultatkort {
  *
  * Med fire deltakere er «midten» andreplass, og kortet sier da noe alle
  * allerede ser på lista rett under. Grensen er bestillingens egen (N < 5).
+ *
+ * BEVISST STRENGERE enn `MIN_FELT_FOR_MIDTEN` (3) i lib/midt-i-feltet.ts, og
+ * de to skal ikke slås sammen: den ene sier om DETTE FORMATET skal tegne et
+ * kort, den andre om «midten» er et meningsfullt begrep i det hele tatt. Ved
+ * N=3 og N=4 oppgir delingsteksten derfor en midtmann som bildet utelater —
+ * det er tilsiktet. Plasseringen de to ville pekt på er den samme.
  */
 export const MIN_DELTAKERE_FOR_MIDTEN = 5
-
-/**
- * Plasseringen «midt i feltet» peker på.
- *
- * MERK — dette er IKKE samme definisjon som «Midt på treet» i
- * `app/api/admin/quiz-results-text/route.ts` og «median-spilleren» i
- * `app/api/admin/quizzes/[id]/results/route.ts`. Begge de bruker
- * `floor(N/2) + 1`. For ODDE N er de to identiske (N=67 → 34 begge veier),
- * men for PARTALL skiller de lag: N=68 gir 34 her og 35 der.
- *
- * `ceil` er valgt fordi bestillingen sier det eksplisitt. Konsekvensen er at
- * Facebook-teksten og Facebook-bildet kan navngi hver sin person i uker med
- * partall antall deltakere — det er en reell uenighet, ikke en avrundings-
- * detalj, og den er meldt fra om.
- */
-export function midtPlassering(deltakere: number): number {
-  return Math.ceil(deltakere / 2)
-}
 
 /**
  * Den raskeste i feltet — laveste `totalTidMs`, uansett antall riktige.
@@ -93,8 +89,9 @@ export function byggResultatkort(felt: readonly KortSpiller[]): Resultatkort | n
   // gjenværende re-rankes til 1..N uten hull), så likhet på rank ER identitet.
   // Ingen id-sammenligning nødvendig.
   let midten: KortSpiller | null = null
-  if (deltakere >= MIN_DELTAKERE_FOR_MIDTEN) {
-    const kandidat = felt[midtPlassering(deltakere) - 1] ?? null
+  const plass = midtPlassering(deltakere)
+  if (plass !== null && deltakere >= MIN_DELTAKERE_FOR_MIDTEN) {
+    const kandidat = felt[plass - 1] ?? null
     // Vinneren kan aldri kollidere her — ceil(N/2) >= 3 når N >= 5 — men den
     // raskeste kan godt ligge midt i feltet. Da droppes kortet heller enn å
     // trykke samme navn to ganger på rad ved siden av hverandre.

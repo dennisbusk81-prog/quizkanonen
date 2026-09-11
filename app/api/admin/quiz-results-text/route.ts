@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
+import { midtIndeks, midtPlassering } from '@/lib/midt-i-feltet'
 
 function formatTime(ms: number): string {
   const s = Math.round(ms / 1000)
@@ -64,11 +65,16 @@ export async function POST(request: NextRequest) {
   const top10Attempts = (top10Raw ?? []) as AttemptRow[]
 
   // 4. Midpoint person
+  //
+  // Plasseringen kommer fra den DELTE definisjonen (lib/midt-i-feltet.ts), som
+  // også resultatkort-bildet leser. Fram til 11. september 2026 lå
+  // regnestykket i tre kopier, og bildet hadde en annen formel enn denne —
+  // synlig først ved partall antall deltakere, altså annenhver uke.
+  const midIdx = midtIndeks(total)
   let midAttempt: AttemptRow | null = null
   let midRank = 0
-  if (total >= 3) {
-    const midIdx = Math.floor(total / 2)
-    midRank = midIdx + 1
+  if (midIdx !== null) {
+    midRank = midtPlassering(total) ?? 0
     const { data: midRaw } = await supabaseAdmin
       .from('attempts')
       .select('id, user_id, player_name, correct_answers, total_time_ms')

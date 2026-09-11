@@ -24,6 +24,7 @@
 //
 // Baseline 19/19 grønne. Antall FEILENDE tester per mutasjon:
 //   • `Math.ceil` → `Math.floor` i midtPlassering        → 5
+//     (midtPlassering bor nå i lib/midt-i-feltet.ts og mutasjonstestes der)
 //   • `kandidat.totalTidMs < best` → `>` i finnRaskest   → 5
 //   • tie-break på rank i finnRaskest fjernet            → 1
 //   • rank-kollisjonsvakta erstattet med `true`          → 2
@@ -36,12 +37,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   byggResultatkort,
-  midtPlassering,
   formatTid,
   filnavnDato,
   MIN_DELTAKERE_FOR_MIDTEN,
   type KortSpiller,
 } from './resultatkort'
+// Plasseringen eies ikke lenger av resultatkortet — den deles med
+// delingsteksten og admin sin resultatside. Testene under leser den fra
+// kilden, så de følger automatisk med hvis definisjonen endres ett sted.
+import { midtPlassering } from './midt-i-feltet'
 
 /**
  * Bygg et felt som ALLEREDE er rangert, slik kalleren leverer det.
@@ -114,23 +118,19 @@ test('lik raskeste tid velges deterministisk: best plassering vinner', () => {
 
 // ── Midt i feltet ───────────────────────────────────────────────────────────
 
-test('midten er ceil(N/2) — oppover, ikke nedover', () => {
-  assert.equal(midtPlassering(67), 34)
-  assert.equal(midtPlassering(68), 34)
-  assert.equal(midtPlassering(5), 3)
-  assert.equal(midtPlassering(10), 5)
-})
-
-test('midt-kortet peker på raden med den plasseringen', () => {
+test('midt-kortet peker på raden den delte definisjonen utpeker', () => {
   const kort = bygg(felt(67))
+  assert.equal(kort.midten?.rank, midtPlassering(67))
   assert.equal(kort.midten?.rank, 34)
   assert.equal(kort.midten?.navn, 'Spiller 34')
 })
 
-test('partall felt: midten er ceil, altså 34 av 68 — ikke 35', () => {
-  // Denne skiller seg BEVISST fra «Midt på treet» i quiz-results-text, som
-  // bruker floor(N/2)+1 = 35. Se kommentaren over midtPlassering.
-  assert.equal(bygg(felt(68)).midten?.rank, 34)
+test('partall felt: 35 av 68 — samme som delingsteksten, ikke 34', () => {
+  // Kortet regnet tidligere ceil(N/2) = 34 her, mens «Midt på treet» i
+  // quiz-results-text sa 35. Bildet og teksten i samme Facebook-innlegg kunne
+  // dermed oppgi hvert sitt navn. Definisjonen bor nå i lib/midt-i-feltet.ts.
+  assert.equal(bygg(felt(68)).midten?.rank, 35)
+  assert.equal(bygg(felt(68)).midten?.rank, midtPlassering(68))
 })
 
 test('for lite felt dropper midt-kortet helt', () => {

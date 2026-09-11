@@ -5,6 +5,7 @@ import { getOrBuildSnapshot } from '@/lib/ranking-snapshot'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 import { selectEasiestAndHardest } from '@/lib/question-difficulty'
 import { fetchAllRowsChunked } from '@/lib/paginate'
+import { midtIndeks } from '@/lib/midt-i-feltet'
 
 // ── Admin resultatoversikt ────────────────────────────────────────────────────
 // Samler alt Dennis trenger etter en fredagsquiz på ÉN plass: full rangert liste,
@@ -127,14 +128,19 @@ export async function GET(
   }))
 
   // ── Spilleren i midten (median-plassering) + naboene ────────────────────────
-  // Samme definisjon som «midt på treet» i quiz-results-text: floor(total/2).
+  // Plasseringen kommer fra den DELTE definisjonen (lib/midt-i-feltet.ts).
+  // Her sto tidligere en egen kopi av uttrykket med kommentaren «Samme
+  // definisjon som midt på treet i quiz-results-text» rett over — en påstand
+  // om paritet, ikke en kobling. Da resultatkortet kom med en tredje formel,
+  // var det nettopp den slags kommentar som ikke fanget det opp.
+  //
   // Naboene hentes med rene indekser i DEN SAMME rangerte lista (players) — ingen
   // ny beregning. `?? null` gjør at kantcaser (median helt i topp/bunn) aldri gir
   // tomme rader eller krasj; UI viser kun de som faktisk finnes.
-  const midIdx = Math.floor(total / 2)
-  const median = total >= 3 ? (players[midIdx] ?? null) : null
-  const medianAbove = median ? (players[midIdx - 1] ?? null) : null
-  const medianBelow = median ? (players[midIdx + 1] ?? null) : null
+  const midIdx = midtIndeks(total)
+  const median = midIdx === null ? null : (players[midIdx] ?? null)
+  const medianAbove = median && midIdx !== null ? (players[midIdx - 1] ?? null) : null
+  const medianBelow = median && midIdx !== null ? (players[midIdx + 1] ?? null) : null
 
   // ── Spørsmålsstatistikk (andel riktige per spørsmål) ────────────────────────
   // Aggregert over attempt_answers for NØYAKTIG de forsøkene som er med i den
