@@ -12,6 +12,9 @@ import { getQuizStatus, formatQuizDateOrDash } from '@/lib/quiz-status'
 import { adminQuizStatus } from '@/lib/admin-quiz-status'
 import { splitAdminQuizList, arkivGruppeTittel } from '@/lib/admin-quiz-groups'
 import { isQuizClosed } from '@/lib/standings-cache'
+// Samme «er dette en ekte quiz»-predikat som resultatkort-ruta avviser på.
+// Delt definisjon, ikke to meninger om hvilke rader som skal ha knappen.
+import { erEkteQuiz } from '@/lib/real-quiz-population'
 import Link from 'next/link'
 // DATAPORTEN. Kolonne 7 i CSV-importen valideres mot denne lista, og en verdi
 // utenfor den blir stille `null` — ingen feilmelding, ingen spor. Derfor må
@@ -320,6 +323,10 @@ export default function AdminQuizzes() {
 
   // Import modal
   const [copiedQuizId, setCopiedQuizId] = useState<string | null>(null)
+  // Quiz-id-en det rendres et resultatkort for akkurat nå. PNG-rendringen tar
+  // et par sekunder, og uten en synlig tilstand ser knappen død ut — Dennis
+  // ville trykket på nytt og satt i gang enda en render.
+  const [kortLaster, setKortLaster] = useState<string | null>(null)
 
   // Inline closes_at editing per quiz
   const [closesAtDate,   setClosesAtDate]   = useState<Record<string, string>>({})
@@ -348,6 +355,45 @@ export default function AdminQuizzes() {
       setTimeout(() => setCopiedQuizId(null), 3000)
     } catch {
       // silent — non-critical
+    }
+  }
+
+  // ── Resultatkortet (PNG) ──────────────────────────────────────────────────
+  // Bildet rendres på serveren (app/admin/resultatkort/[quizId]/route.tsx) og
+  // hentes gjennom adminFetch, som er det som setter `x-admin-token` — ruta er
+  // admin-only, så et vanlig <a href> eller window.open ville fått 401. Derfor
+  // blob + ankerklikk, samme mønster som CSV-nedlastingen i org-adminen.
+  //
+  // res.ok-sjekken er ikke pynt: uten den lastes en 401/503 ned som en .png-fil
+  // med JSON-en inni — en fil som ser gyldig ut helt til den åpnes.
+  async function downloadResultatkort(quizId: string) {
+    if (kortLaster) return
+    setKortLaster(quizId)
+    try {
+      const res = await adminFetch(`/admin/resultatkort/${quizId}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        showFeedback('error', json?.error ?? 'Kunne ikke lage resultatkortet. Prøv igjen.')
+        return
+      }
+      // Filnavnet bestemmes av serveren (Content-Disposition) slik at det er
+      // likt hver uke; vi leser det tilbake i stedet for å regne datoen på nytt
+      // her. Faller tilbake på et fast navn hvis headeren ikke kommer gjennom.
+      const disposition = res.headers.get('Content-Disposition') ?? ''
+      const treff = /filename="([^"]+)"/.exec(disposition)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = treff?.[1] ?? 'quizkanonen-resultater.png'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      showFeedback('error', 'Kunne ikke lage resultatkortet. Prøv igjen.')
+    } finally {
+      setKortLaster(null)
     }
   }
 
@@ -761,6 +807,29 @@ export default function AdminQuizzes() {
                   }}
                 >
                   {copiedQuizId === quiz.id ? 'Kopiert! ✓' : 'Del resultater'}
+                </button>
+              )}
+              {/* Samme gating som «Del resultater»: kortet gir først mening når
+                  quizen er stengt og feltet er ferdig. `mounted` fordi
+                  isQuizClosed leser klokka — uten den spriker server- og
+                  klient-render.
+                  `erEkteQuiz` er SAMME predikat som ruta avviser på, ikke en
+                  håndskrevet kopi: ville knappen vist seg på en testquiz eller
+                  en arkivkopi, hadde den svart 400 og sett ødelagt ut. */}
+              {mounted && erEkteQuiz(quiz) && isQuizClosed(quiz.closes_at, Date.now()) && (
+                <button
+                  onClick={() => downloadResultatkort(quiz.id)}
+                  disabled={kortLaster !== null}
+                  className="aqz-action"
+                  style={{
+                    color: '#e8e4dd',
+                    border: '1px solid #2a2d38',
+                    background: 'transparent',
+                    cursor: kortLaster !== null ? 'default' : 'pointer',
+                    opacity: kortLaster !== null && kortLaster !== quiz.id ? 0.5 : 1,
+                  }}
+                >
+                  {kortLaster === quiz.id ? 'Lager kort…' : 'Last ned resultatkort'}
                 </button>
               )}
             </div>
