@@ -237,6 +237,25 @@ test('uten profilrad faller navnet tilbake på player_name', async () => {
   assert.ok(t.includes('Spiller 1'), t)
 })
 
+// ── Overskrift og tegnsetting ───────────────────────────────────────────────
+
+test('datoen står én gang — tittelen bærer den allerede', async () => {
+  const t = await hentTekst()
+  assert.match(t, /^Resultat Fredagsquiz 11\.09\.2026$/m)
+  assert.ok(
+    !/Fredagsquiz 11\.09\.2026 \d{2}\.\d{2}\.\d{4}/.test(t),
+    `datoen står to ganger:\n${t.split('\n')[0]}`,
+  )
+})
+
+test('midt-på-treet-linja bruker samme tegnsetting som lista', async () => {
+  // Lista skriver «navn — X riktige · Y». Midtlinja skrev «plass - X riktige»
+  // med bindestrek. Samme innhold, to tegnsett i samme innlegg.
+  const t = await hentTekst()
+  assert.match(t, /Midt på treet: .+ på \d+\. plass — \d+ riktige · /)
+  assert.ok(!/plass - /.test(t), `bindestrek igjen i midtlinja:\n${t}`)
+})
+
 // ── Tid ─────────────────────────────────────────────────────────────────────
 
 test('tiden skrives som på bildet: 61.0s, ikke 1:01', async () => {

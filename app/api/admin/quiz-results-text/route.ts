@@ -6,6 +6,7 @@ import { midtIndeks, midtPlassering } from '@/lib/midt-i-feltet'
 import { getPublicSnapshot } from '@/lib/public-snapshot'
 import { fetchAllRowsChunked } from '@/lib/paginate'
 import { formatTid } from '@/lib/resultat-tid'
+import { resultatOverskrift } from '@/lib/resultat-overskrift'
 
 // ── Delingsteksten Dennis limer inn i Facebook ──────────────────────────────
 //
@@ -280,7 +281,10 @@ export async function POST(request: NextRequest) {
   const medals = ['🥇', '🥈', '🥉']
   const lines: string[] = []
 
-  lines.push(`Resultat ${quiz.title} ${dateStr}`)
+  // Datoen legges på KUN når tittelen ikke allerede bærer en — se
+  // lib/resultat-overskrift.ts. Sto tidligere alltid på, og de 16 av 18
+  // titlene i prod som heter «Fredagsquiz dd.mm.åååå» fikk da datoen to ganger.
+  lines.push(resultatOverskrift(quiz.title, dateStr))
   lines.push('')
   lines.push(aiIntro)
   lines.push('')
@@ -310,7 +314,7 @@ export async function POST(request: NextRequest) {
   if (midAttempt) {
     lines.push('')
     lines.push(
-      `Midt på treet: ${nameOf(midAttempt)} på ${midRank}. plass - ${midAttempt.correct_answers} riktige · ${formatTid(midAttempt.total_time_ms)}`
+      `Midt på treet: ${nameOf(midAttempt)} på ${midRank}. plass — ${midAttempt.correct_answers} riktige · ${formatTid(midAttempt.total_time_ms)}`
     )
   }
 
