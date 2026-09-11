@@ -3,17 +3,49 @@ import { verifyAdminRequest } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getQuestionStatsByAttempts } from '@/lib/attempt-answer-stats'
 import { midtIndeks, midtPlassering } from '@/lib/midt-i-feltet'
+import { getPublicSnapshot } from '@/lib/public-snapshot'
+import { fetchAllRowsChunked } from '@/lib/paginate'
+import { formatTid } from '@/lib/resultat-tid'
 
-function formatTime(ms: number): string {
-  const s = Math.round(ms / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}:${(s % 60).toString().padStart(2, '0')}` : `${s}s`
-}
+// ── Delingsteksten Dennis limer inn i Facebook ──────────────────────────────
+//
+// ── POPULASJONEN ER ET SAMTYKKESPØRSMÅL, IKKE EN VISNINGSDETALJ ────────────
+// Fram til 11. september 2026 talte og rangerte denne ruten RÅTT på `attempts`
+// (`.eq('is_team', false)`, ingen dedup, ingen submitted-filter og — det som
+// betyr noe — ingen global blokkerings-gate). Den publiserte dermed spillere
+// som har meldt seg ut av den åpne konkurransen.
+//
+// Målt på Fredagsquiz 11.09.2026: teksten sa 67 deltakere der resultatkortet
+// og den offentlige lista sa 64. Hele differansen var tre medlemmer av samme
+// bedrift med `organization_members.global_league_opt_out = true`, og én av
+// dem sto på 7. plass i teksten med fullt navn. Ingen av de tre var sen
+// spilling eller manglende oppgjør — verifisert mot prod.
+//
+// Ruten leser derfor nå `getPublicSnapshot`, samme kilde som bildet
+// (app/admin/resultatkort/[quizId]) og den offentlige resultatlista
+// (/api/leaderboard/[id]). Den kilden er ALLEREDE filtrert og rangert.
+//
+// LEGG DERFOR ALDRI ET FILTER OPPÅ ET EGET RÅTT OPPSLAG HER. Da finnes det to
+// definisjoner av «det synlige feltet» igjen, og de vil drifte — nøyaktig
+// feilklassen `lib/public-snapshot.ts` ble skrevet for å fjerne.
+// `lib/quiz-results-text-kilde.test.ts` feller et forsøk på det.
+//
+// ── NAVN ───────────────────────────────────────────────────────────────────
+// Kallenavn foran profilnavn foran navnet ved spilletidspunktet — samme
+// rekkefølge som bildet og topplisten. Et kallenavn er et valg om hvordan man
+// framstår offentlig; teksten skal ikke oppgi navnet bak det. Ruten viste
+// tidligere `display_name`, så vinneren het «Team Domino's» på bildet og
+// «Simen Sundt» i teksten under det.
+//
+// ── TID ────────────────────────────────────────────────────────────────────
+// `lib/resultat-tid.ts`, delt med bildet. Her sto en lokal `formatTime` som
+// skrev `1:03` der bildet skrev `63.4s`.
 
-type AttemptRow = {
+type SpillerRad = {
   id: string
   user_id: string | null
-  player_name: string
+  navn: string
+  rank: number
   correct_answers: number
   total_time_ms: number
 }
@@ -36,33 +68,81 @@ export async function POST(request: NextRequest) {
   // 1. Quiz info
   const { data: quizRaw } = await supabaseAdmin
     .from('quizzes')
-    .select('id, title, closes_at')
+    .select('id, title, closes_at, season_points_awarded')
     .eq('id', quizId)
     .single()
 
   if (!quizRaw) return NextResponse.json({ error: 'Quiz ikke funnet' }, { status: 404 })
-  const quiz = quizRaw as { id: string; title: string; closes_at: string | null }
+  const quiz = quizRaw as {
+    id: string
+    title: string
+    closes_at: string | null
+    season_points_awarded: boolean | null
+  }
 
-  // 2. Total count (non-team attempts)
-  const { count: totalCount } = await supabaseAdmin
-    .from('attempts')
-    .select('*', { count: 'exact', head: true })
-    .eq('quiz_id', quizId)
-    .eq('is_team', false)
+  // 2. DET SYNLIGE FELTET — ferdig filtrert og ferdig rangert.
+  // Ingen egen telling, ingen egen sortering, ingen egen `attempts`-spørring.
+  // Se toppkommentaren for hvorfor dette er et samtykkespørsmål.
+  const { publicSnapshot } = await getPublicSnapshot(quizId, {
+    seasonPointsAwarded: quiz.season_points_awarded === true,
+  })
 
-  const total = totalCount ?? 0
+  const total = publicSnapshot.length
 
-  // 3. Top 10 players (sorted by correct DESC, time ASC)
-  const { data: top10Raw } = await supabaseAdmin
-    .from('attempts')
-    .select('id, user_id, player_name, correct_answers, total_time_ms')
-    .eq('quiz_id', quizId)
-    .eq('is_team', false)
-    .order('correct_answers', { ascending: false })
-    .order('total_time_ms', { ascending: true })
-    .limit(10)
+  // 3. Navn — kallenavn foran profilnavn foran navnet ved spilletidspunktet.
+  //
+  // CHUNKET: hele id-lista havner i URL-ens query-streng, og den målte grensen
+  // ligger rundt 390 id-er (lib/paginate.ts). Høyeste målte deltakertall er 67,
+  // så det er lang vei dit — men bruddet er STILLE, og alternativet er at hver
+  // spiller faller tilbake på et navn som ser helt riktig ut.
+  const userIds = [...new Set(
+    publicSnapshot.map(e => e.user_id).filter((id): id is string => !!id)
+  )]
 
-  const top10Attempts = (top10Raw ?? []) as AttemptRow[]
+  const profileMap = new Map<string, { display_name: string | null; nickname: string | null }>()
+  if (userIds.length > 0) {
+    let profiler: { id: string; display_name: string | null; nickname: string | null }[] = []
+    try {
+      profiler = await fetchAllRowsChunked<{ id: string; display_name: string | null; nickname: string | null }>(
+        userIds,
+        (chunk, from, to) =>
+          supabaseAdmin
+            .from('profiles')
+            .select('id, display_name, nickname')
+            .in('id', chunk)
+            .order('id', { ascending: true })
+            .range(from, to),
+      )
+    } catch (e) {
+      // FAIL-STENGT, samme kontrakt som resultatkortet: å falle tilbake på
+      // `player_name` ville avslørt det EKTE navnet til alle som med vilje
+      // spiller under kallenavn — i en tekst som limes rett inn på Facebook.
+      console.error(
+        '[quiz-results-text] profil-oppslag feilet — teksten lages ikke:',
+        e instanceof Error ? e.message : e,
+      )
+      return NextResponse.json(
+        { error: 'Kunne ikke hente navnene akkurat nå. Prøv igjen om litt.' },
+        { status: 503 },
+      )
+    }
+    for (const p of profiler) profileMap.set(p.id, p)
+  }
+
+  const spillere: SpillerRad[] = publicSnapshot.map(e => {
+    const profil = e.user_id ? profileMap.get(e.user_id) : undefined
+    const kallenavn = profil?.nickname?.trim()
+    return {
+      id: e.id,
+      user_id: e.user_id,
+      navn: (kallenavn || profil?.display_name || e.player_name || '?').trim(),
+      rank: e.rank,
+      correct_answers: e.correct_answers,
+      total_time_ms: e.total_time_ms,
+    }
+  })
+
+  const top10Attempts = spillere.slice(0, 10)
 
   // 4. Midpoint person
   //
@@ -70,50 +150,22 @@ export async function POST(request: NextRequest) {
   // også resultatkort-bildet leser. Fram til 11. september 2026 lå
   // regnestykket i tre kopier, og bildet hadde en annen formel enn denne —
   // synlig først ved partall antall deltakere, altså annenhver uke.
+  //
+  // Ingen egen spørring lenger: midtmannen er en INDEKS i det samme feltet.
+  // Den gamle `.range(midIdx, midIdx)`-formen var en andre rangering av en
+  // annen populasjon, og kunne derfor peke på en annen person enn lista over.
   const midIdx = midtIndeks(total)
-  let midAttempt: AttemptRow | null = null
-  let midRank = 0
-  if (midIdx !== null) {
-    midRank = midtPlassering(total) ?? 0
-    const { data: midRaw } = await supabaseAdmin
-      .from('attempts')
-      .select('id, user_id, player_name, correct_answers, total_time_ms')
-      .eq('quiz_id', quizId)
-      .eq('is_team', false)
-      .order('correct_answers', { ascending: false })
-      .order('total_time_ms', { ascending: true })
-      .range(midIdx, midIdx)
-    midAttempt = ((midRaw ?? []) as AttemptRow[])[0] ?? null
-  }
+  const midAttempt = midIdx === null ? null : (spillere[midIdx] ?? null)
+  const midRank = midAttempt ? (midtPlassering(total) ?? 0) : 0
 
-  // Resolve display names via profiles (separate query — no direct FK in PostgREST)
-  const allAttempts = midAttempt
-    ? [...top10Attempts, midAttempt]
-    : top10Attempts
-  const userIds = [...new Set(allAttempts.map(a => a.user_id).filter((id): id is string => !!id))]
-
-  const profileMap = new Map<string, string>()
-  if (userIds.length > 0) {
-    const { data: profileRows } = await supabaseAdmin
-      .from('profiles')
-      .select('id, display_name')
-      .in('id', userIds)
-    for (const p of (profileRows ?? []) as { id: string; display_name: string | null }[]) {
-      if (p.display_name) profileMap.set(p.id, p.display_name)
-    }
-  }
-
-  const nameOf = (a: AttemptRow) =>
-    (a.user_id && profileMap.get(a.user_id)) ?? a.player_name ?? '?'
+  const nameOf = (a: SpillerRad) => a.navn
 
   // 5. Easiest / hardest questions (via attempt_answers aggregation)
-  const { data: attemptIdRows } = await supabaseAdmin
-    .from('attempts')
-    .select('id')
-    .eq('quiz_id', quizId)
-    .eq('is_team', false)
-
-  const attemptIds = ((attemptIdRows ?? []) as { id: string }[]).map(a => a.id)
+  //
+  // Samme populasjon som lista over — ett forsøk per spiller, blokkerte ute.
+  // Prosentene beskriver da det samme feltet som deltakertallet i teksten,
+  // i stedet for å blande to populasjoner i ett innlegg.
+  const attemptIds = spillere.map(a => a.id)
 
   let easiestText: string | null = null
   let easiestPct: number | null = null
@@ -166,7 +218,7 @@ export async function POST(request: NextRequest) {
   try {
     const winner = top10Attempts[0]
     const winnerDesc = winner
-      ? `${nameOf(winner)} med ${winner.correct_answers} riktige på ${formatTime(winner.total_time_ms)}`
+      ? `${nameOf(winner)} med ${winner.correct_answers} riktige på ${formatTid(winner.total_time_ms)}`
       : 'ukjent'
     const easiestPart = easiestText && easiestPct !== null
       ? `Letteste spørsmål: '${easiestText}' (${easiestPct}% riktige).`
@@ -184,23 +236,31 @@ export async function POST(request: NextRequest) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000)
 
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 200,
-        system: 'Du er quizmaster for Quizkanonen, en norsk fredagsquiz med hundrevis av deltakere. Skriv en kort, vennlig og engasjerende intro (2-3 setninger) og en avslutning (1 setning) til et Facebook-innlegg med quizresultater. Varier tonen — noen ganger entusiastisk, noen ganger humoristisk, noen ganger imponert over deltakertallet eller resultater. Skriv alltid på norsk. Returner KUN JSON: { "intro": string, "outro": string }',
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
+    // `clearTimeout` i `finally`, ikke etter await-en. Kaster `fetch` — nede
+    // nettverk, DNS-feil, avbrutt kall — hoppet vi rett til catch-blokken og
+    // timeren ble ALDRI ryddet: den holdt event-loopen i live i åtte sekunder
+    // etterpå. Funnet 11. september 2026 fordi testkjøringen brukte nøyaktig
+    // 8 sekunder mer enn arbeidet tok.
+    let aiRes: Response
+    try {
+      aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 200,
+          system: 'Du er quizmaster for Quizkanonen, en norsk fredagsquiz med hundrevis av deltakere. Skriv en kort, vennlig og engasjerende intro (2-3 setninger) og en avslutning (1 setning) til et Facebook-innlegg med quizresultater. Varier tonen — noen ganger entusiastisk, noen ganger humoristisk, noen ganger imponert over deltakertallet eller resultater. Skriv alltid på norsk. Returner KUN JSON: { "intro": string, "outro": string }',
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeoutId)
+    }
 
     if (aiRes.ok) {
       const aiJson = await aiRes.json()
@@ -237,15 +297,20 @@ export async function POST(request: NextRequest) {
     lines.push('')
   }
 
-  top10Attempts.forEach((a, i) => {
-    const prefix = i < 3 ? medals[i] : `${i + 1}.`
-    lines.push(`${prefix} ${nameOf(a)} — ${a.correct_answers} riktige · ${formatTime(a.total_time_ms)}`)
+  // Plasseringen leses av RADEN, ikke av løkkeindeksen. De er like i dag
+  // (feltet er posisjonelt re-ranket til 1..N uten hull), men indeksen er en
+  // egenskap ved lista vi løkker over — ranken er en egenskap ved spilleren.
+  // Skulle lista noen gang bli filtrert et hakk til, ville indeksen stille
+  // begynt å oppgi feil plass.
+  top10Attempts.forEach(a => {
+    const prefix = a.rank <= 3 ? medals[a.rank - 1] : `${a.rank}.`
+    lines.push(`${prefix} ${nameOf(a)} — ${a.correct_answers} riktige · ${formatTid(a.total_time_ms)}`)
   })
 
   if (midAttempt) {
     lines.push('')
     lines.push(
-      `Midt på treet: ${nameOf(midAttempt)} på ${midRank}. plass - ${midAttempt.correct_answers} riktige · ${formatTime(midAttempt.total_time_ms)}`
+      `Midt på treet: ${nameOf(midAttempt)} på ${midRank}. plass - ${midAttempt.correct_answers} riktige · ${formatTid(midAttempt.total_time_ms)}`
     )
   }
 

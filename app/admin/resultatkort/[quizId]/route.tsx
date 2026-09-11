@@ -10,9 +10,9 @@ import { erEkteQuiz } from '@/lib/real-quiz-population'
 import {
   byggResultatkort,
   filnavnDato,
-  formatTid,
   type KortSpiller,
 } from '@/lib/resultatkort'
+import { formatTid } from '@/lib/resultat-tid'
 
 // ── Ukas resultater som ÉTT bilde, rendret på serveren ──────────────────────
 //

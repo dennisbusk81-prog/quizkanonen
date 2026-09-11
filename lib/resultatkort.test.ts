@@ -35,9 +35,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { formatTid } from './resultat-tid'
 import {
   byggResultatkort,
-  formatTid,
   filnavnDato,
   MIN_DELTAKERE_FOR_MIDTEN,
   type KortSpiller,

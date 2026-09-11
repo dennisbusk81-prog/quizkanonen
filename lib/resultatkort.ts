@@ -92,7 +92,7 @@ export function byggResultatkort(felt: readonly KortSpiller[]): Resultatkort | n
   const plass = midtPlassering(deltakere)
   if (plass !== null && deltakere >= MIN_DELTAKERE_FOR_MIDTEN) {
     const kandidat = felt[plass - 1] ?? null
-    // Vinneren kan aldri kollidere her — ceil(N/2) >= 3 når N >= 5 — men den
+    // Vinneren kan aldri kollidere her — floor(N/2)+1 >= 3 når N >= 5 — men den
     // raskeste kan godt ligge midt i feltet. Da droppes kortet heller enn å
     // trykke samme navn to ganger på rad ved siden av hverandre.
     midten = kandidat && kandidat.rank !== vinner.rank && kandidat.rank !== raskest.rank
@@ -101,18 +101,6 @@ export function byggResultatkort(felt: readonly KortSpiller[]): Resultatkort | n
   }
 
   return { vinner, raskest, midten, topp10: felt.slice(0, 10), deltakere }
-}
-
-/**
- * Tid slik resten av plattformen skriver den.
- *
- * Samme form som `defaultFormatTime` i components/ResultsTable.tsx:110 og
- * `formatTime` i components/SeasonLeaderboard.tsx:176 — altså den tiden som
- * står i lista Dennis fotograferer i dag. Kortet skal ikke innføre en tredje
- * skrivemåte (`m:ss`-formen i quiz-results-text er den andre).
- */
-export function formatTid(ms: number): string {
-  return `${(ms / 1000).toFixed(1)}s`
 }
 
 /**
