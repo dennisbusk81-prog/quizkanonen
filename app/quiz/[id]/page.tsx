@@ -50,7 +50,8 @@ import {
 // returnerer void (så den kan ikke await-es foran noe spilleren venter på), og
 // sender ingenting for testquizer. Se lib/analytics.ts.
 import { spor } from '@/lib/analytics'
-import { utledTilgang } from '@/lib/analytics-event'
+import { utledTilgang, type AnalyticsQuizMeta, type Tilgang } from '@/lib/analytics-event'
+import { premiumCtaTekster } from '@/lib/premium-cta-tekst'
 
 // Se kommentaren på finishQuiz for hvorfor denne finnes og hvorfor den er et
 // navngitt alias i stedet for et inline typeobjekt.
@@ -948,6 +949,54 @@ const styles = `
   }
 `
 
+// ── Den ØVERSTE premium-CTA-en på resultatskjermen — og den eneste som måles ──
+//
+// ⚠ RESULTATSKJERMEN HAR FIRE PREMIUM-CTA-ER: denne linja i plasseringskortet
+// (org-intern ELLER global — aldri begge samtidig), prøveperiode-panelets
+// knapp og «Se dine svar» med lås-badge. Fram til 12. september 2026 målte vi
+// panelet: `premium_cta_vist` når det ble rendret, `premium_cta_klikk` på
+// knappen. Målt 11. september: 42 vist, 0 klikk — og panelet lå mer enn én
+// skjermhøyde ned på 375 px. Målingen er flyttet hit fordi dette er CTA-en
+// som faktisk står øverst og er synlig uten scroll.
+//
+// Vist og klikk henger på SAMME element i SAMME komponent: «vist» fyrer når
+// elementet monteres, «klikk» når det klikkes. Da kan de to deles på
+// hverandre uten at noen gate må holdes identisk på to steder — det var
+// koblingen den gamle effekten måtte forklare i en kommentar.
+//
+// De to andre måles bevisst IKKE: «vist» skal bety «antall spillere som så
+// et CTA», og Pro-taket på 2 properties (`tilgang` + …) gir ikke rom for
+// en `plassering`-property som kunne skilt dem. Bevisst avgrensning, ikke en
+// glemt halvdel.
+//
+// MERK: linja vises også for GJESTER (bøtta `tilgang` = 'uinnlogget') —
+// panelet gjorde ikke det. Tallene før og etter 12. september er derfor ikke
+// samme populasjon; skill på `tilgang` i Vercel.
+//
+// Ordlyden kommer fra lib/premium-cta-tekst.ts, delt med panelet.
+function PlasseringPremiumCta(props: {
+  tekst: string
+  quiz: AnalyticsQuizMeta
+  tilgang: Tilgang
+  vistRef: { current: boolean }
+}) {
+  const { tekst, quiz, tilgang, vistRef } = props
+  useEffect(() => {
+    if (vistRef.current) return
+    vistRef.current = true
+    spor({ hendelse: 'premium_cta_vist', quiz, tilgang })
+  }, [quiz, tilgang, vistRef])
+  return (
+    <a href="/premium" onClick={() => spor({ hendelse: 'premium_cta_klikk', quiz, tilgang })} style={{
+      display: 'inline-block',
+      fontSize: 13, fontWeight: 600, color: '#c9a84c',
+      textDecoration: 'none',
+    }}>
+      {tekst}
+    </a>
+  )
+}
+
 export default function QuizPage() {
   const params = useParams()
   const quizId = params.id as string
@@ -1614,22 +1663,15 @@ export default function QuizPage() {
   }, [phase, isLoggedIn, isPremium])
 
   // ── Traktmåling: premium_cta_vist ────────────────────────────────────────
-  // Betingelsen er ORDRETT den samme som panelet rendres på
-  // (`isLoggedIn && !isPremium`), pluss `phase === 'finished'` — som er
-  // implisitt for panelet, siden det ligger i resultatskjermens JSX. Endres
-  // panelets gate, må denne følge etter, ellers måler vi en visning som ikke
-  // skjedde. Samme kobling som effekten rett over har til trial-tilbudet.
+  // Selve kallet bor i PlasseringPremiumCta (modulnivå, over QuizPage) og
+  // fyrer når den ØVERSTE premium-CTA-en monteres — samme element som
+  // `premium_cta_klikk` henger på. Ingen betingelse å holde lik to steder.
   //
-  // Ref-en gjør hendelsen én per resultatskjerm: `refreshProfile()` kalles rett
-  // etter innsending, og hadde `isPremium` flippet ville effekten kjørt på nytt.
-  // «Vist» skal telle spillere, ikke rendringer.
+  // Ref-en bor HER, ikke i komponenten, og gjør hendelsen én per
+  // resultatskjerm: elementet kan monteres på nytt når plasseringsmodusen
+  // avklares (org-svaret lander etter innsending), og «vist» skal telle
+  // spillere, ikke monteringer.
   const ctaVistRef = useRef(false)
-  useEffect(() => {
-    if (phase !== 'finished' || !isLoggedIn || isPremium) return
-    if (ctaVistRef.current) return
-    ctaVistRef.current = true
-    spor({ hendelse: 'premium_cta_vist', quiz, tilgang })
-  }, [phase, isLoggedIn, isPremium, quiz, tilgang])
 
   useEffect(() => {
     if (phase !== 'finished' || !isLoggedIn) return
@@ -4152,6 +4194,10 @@ export default function QuizPage() {
     ? placementPercentLine(estimatedPlacement.rank, estimatedPlacement.total)
     : null
 
+  // Ordlyden i BEGGE premium-flatene (topplinja i plasseringskortet og
+  // prøveperiode-panelet) — én kilde, lib/premium-cta-tekst.ts.
+  const cta = premiumCtaTekster(trialOffer)
+
   return (
     <><style>{styles}</style>
     <DuelChallengeModal
@@ -4408,13 +4454,7 @@ export default function QuizPage() {
                 Plasseringen din hos {orgName} vises når flere av dere har levert.
               </div>
             )}
-            <a href="/premium" style={{
-              display: 'inline-block',
-              fontSize: 13, fontWeight: 600, color: '#c9a84c',
-              textDecoration: 'none',
-            }}>
-              Oppgrader til Premium for å se nøyaktig plassering →
-            </a>
+            <PlasseringPremiumCta tekst={cta.linje} quiz={quiz} tilgang={tilgang} vistRef={ctaVistRef} />
           </div>
         )
       })()}
@@ -4637,13 +4677,7 @@ export default function QuizPage() {
                 Du er blant de første som har spilt denne uken — plasseringen din vises når flere har levert.
               </div>
             )}
-            <a href="/premium" style={{
-              display: 'inline-block',
-              fontSize: 13, fontWeight: 600, color: '#c9a84c',
-              textDecoration: 'none',
-            }}>
-              Oppgrader til Premium for å se nøyaktig plassering →
-            </a>
+            <PlasseringPremiumCta tekst={cta.linje} quiz={quiz} tilgang={tilgang} vistRef={ctaVistRef} />
           </div>
         )
       })()}
@@ -4822,6 +4856,72 @@ export default function QuizPage() {
       })()}
 
       <div className="qk-result-cta" style={{display:'flex',flexDirection:'column',gap:10}}>
+        {/* ── Prøveperiode-panelet — ØVERST i CTA-kolonna (12. september 2026) ──
+            Lå fram til nå NEDERST: under delingsknappene, under den gylne
+            «Se resultatene»-knappen og under «Neste quiz»-linja. Målt på
+            375 px bredde: 908 px ned, altså mer enn én skjermhøyde — på en
+            testquiz med ett kategoripunkt og uten Topp 3, rival og duell; en
+            ekte fredag ligger det lenger ned. 11. september: 42 paneler
+            rendret, 0 klikk, under 7 besøk på /premium. Den gylne knappen er
+            sidens visuelle utgang; tilbudet skal ikke ligge under den.
+            Gaten (`isLoggedIn && !isPremium`) og kulepunktene er uendret.
+            Ordlyden bor i lib/premium-cta-tekst.ts, delt med topplinja i
+            plasseringskortet. */}
+        {isLoggedIn && !isPremium && (
+          <div className="qk-result-upsell" style={{
+            background: '#21242e',
+            border: '1px solid rgba(201,168,76,0.15)',
+            borderRadius: 16,
+            padding: 28,
+          }}>
+            <p style={{
+              fontFamily: "var(--font-libre-baskerville), serif",
+              fontSize: 18,
+              fontWeight: 700,
+              color: '#ffffff',
+              lineHeight: 1.3,
+              marginBottom: 8,
+            }}>
+              {cta.overskrift}
+            </p>
+            <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
+              {[
+                'Nøyaktig plassering i resultatene',
+                'Historikk fra alle quizer du har spilt',
+                // «Sesongtoppliste — konkurrér over tid» var usant som
+                // Premium-punkt: deltakelse i sesongtopplisten er gratis, og
+                // /slik-fungerer-det sier det selv. Dette er det Premium
+                // faktisk gir der (server-gatet siden 9651416).
+                'Din nøyaktige plass på topplisten — med søk og bla',
+                // Arkivet, lagt til her fordi dette er den ENESTE flaten med
+                // ren `isLoggedIn && !isPremium`-gate — altså den presise
+                // konverteringsmålgruppen. Ordlyd fra app/arkiv/page.tsx.
+                'Quizarkivet — spill tidligere quizer og se hvilken plass du ville fått',
+              ].map(txt => (
+                <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
+                  {txt}
+                </li>
+              ))}
+            </ul>
+            {/* Knappen måles BEVISST IKKE — se PlasseringPremiumCta (modulnivå):
+                målingen henger på CTA-en som står øverst på skjermen. */}
+            <a href="/premium" style={{
+              display: 'inline-block',
+              padding: '10px 28px',
+              background: 'transparent',
+              border: '1px solid #e8e4dd',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#e8e4dd',
+              textDecoration: 'none',
+            }}>
+              {cta.knapp}
+            </a>
+          </div>
+        )}
+
         <button onClick={async () => {
           const shareText = deltProsent !== null
             ? `Jeg er bedre enn ${deltProsent}% av deltakerne på Quizkanonen denne uken! Kan du slå meg?`
@@ -4964,93 +5064,6 @@ export default function QuizPage() {
         <p style={{fontSize:13,color:'#e8e4dd',textAlign:'center'}}>
           Neste quiz: {nextQuizLabel(nextQuizAt)}
         </p>
-
-
-        {isLoggedIn && !isPremium && (
-          <div className="qk-result-upsell" style={{
-            background: '#21242e',
-            border: '1px solid rgba(201,168,76,0.15)',
-            borderRadius: 16,
-            padding: 28,
-          }}>
-            <p style={{
-              fontFamily: "var(--font-libre-baskerville), serif",
-              fontSize: 18,
-              fontWeight: 700,
-              color: '#ffffff',
-              lineHeight: 1.3,
-              marginBottom: 8,
-            }}>
-              {trialOffer?.show
-                ? `Prøv Premium gratis i ${trialOffer.days} dager`
-                : 'Følg fremgangen din uke etter uke'}
-            </p>
-            <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0 }}>
-              {[
-                'Nøyaktig plassering i resultatene',
-                'Historikk fra alle quizer du har spilt',
-                // «Sesongtoppliste — konkurrér over tid» var usant som
-                // Premium-punkt: deltakelse i sesongtopplisten er gratis, og
-                // /slik-fungerer-det sier det selv. Dette er det Premium
-                // faktisk gir der (server-gatet siden 9651416).
-                'Din nøyaktige plass på topplisten — med søk og bla',
-                // Arkivet, lagt til her fordi dette er den ENESTE flaten med
-                // ren `isLoggedIn && !isPremium`-gate — altså den presise
-                // konverteringsmålgruppen. Ordlyd fra app/arkiv/page.tsx.
-                //
-                // Dette er et KULEPUNKT, ikke en CTA: det legger ingen ny
-                // lenke til flaten, og rører derfor verken `premium_cta_vist`
-                // (effekten ved linje ~1607) eller `premium_cta_klikk` på
-                // <a href="/premium"> under. Advarselen i kommentaren rett
-                // nedenfor gjelder CTA-er som kan telles dobbelt — et punkt i
-                // en liste som allerede rendres kan ikke det.
-                'Quizarkivet — spill tidligere quizer og se hvilken plass du ville fått',
-              ].map(txt => (
-                <li key={txt} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: '#e8e4dd', marginBottom: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#c9a84c', flexShrink: 0 }} />
-                  {txt}
-                </li>
-              ))}
-            </ul>
-            {/* ── Traktmåling: premium_cta_klikk ──────────────────────────────
-                Paret til `premium_cta_vist`-effekten lenger oppe: samme flate,
-                samme gate, så vist/klikk kan divideres på hverandre.
-
-                ⚠ RESULTATSKJERMEN HAR FIRE PREMIUM-CTA-ER. De tre andre måles
-                BEVISST IKKE:
-                  • «Oppgrader … for å se nøyaktig plassering →» i det
-                    org-interne plasseringskortet
-                  • samme lenke i det globale estimat-kortet
-                  • «Se dine svar» med lås-badge
-                De tre utelukker ikke hverandre og heller ikke dette panelet —
-                en gratis innlogget spiller ser typisk tre av dem samtidig. Måler
-                vi visning på alle, fyrer `premium_cta_vist` flere ganger per
-                resultatskjerm, og tallet slutter å bety «antall spillere som så
-                et CTA». Måler vi klikk på alle, men visning kun her, er trakten
-                usammenlignbar med seg selv.
-                Panelet er valgt fordi det er den ENESTE av de fire med én ren
-                gate (`isLoggedIn && !isPremium`), og fordi det er flaten som
-                bærer trial-tilbudet — altså den faktiske konverteringsflaten.
-                De tre andre er tekstlenker ved siden av innhold.
-                Skal de med senere, krever det en `plassering`-property for å
-                skille dem, og da er hendelsen på Pro-taket på 2 properties
-                (`tilgang` + `plassering`). Det er en bevisst avgrensning,
-                ikke en glemt halvdel. */}
-            <a href="/premium" onClick={() => spor({ hendelse: 'premium_cta_klikk', quiz, tilgang })} style={{
-              display: 'inline-block',
-              padding: '10px 28px',
-              background: 'transparent',
-              border: '1px solid #e8e4dd',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#e8e4dd',
-              textDecoration: 'none',
-            }}>
-              {trialOffer?.show ? 'Prøv gratis — ingen kortinfo →' : 'Oppgrader til Premium →'}
-            </a>
-          </div>
-        )}
 
         {/* FJERNET 6. september 2026 — «Spill mot vennene dine → Opprett en liga
             (Premium)», gatet kun på `isLoggedIn`. Den var samme oppfordring som

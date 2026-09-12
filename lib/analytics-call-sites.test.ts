@@ -23,8 +23,11 @@
 //   • Flyttes spor('quiz_startet') ut av phaseRef-vakten → «én gang per
 //     spilloekt» ryker.
 //   • Importeres track() direkte i en komponent → «ett sink» ryker.
-//   • Legges premium_cta_vist paa en av de tre andre CTA-ene → «kun panelet»
-//     ryker.
+//   • Flyttes premium_cta_vist eller premium_cta_klikk ut av
+//     PlasseringPremiumCta (f.eks. tilbake paa panelets knapp) → «samme
+//     element» ryker.
+//   • Legges et spor()-kall paa panelets knapp eller «Se dine svar» → «de to
+//     andre har ingen maaling» ryker.
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
@@ -183,40 +186,77 @@ describe('quiz_startet — én gang per spilloekt, ikke per start-attempt-svar',
   })
 })
 
-describe('premium-CTA — kun panelet, bevisst', () => {
+describe('premium-CTA — den OEVERSTE lenken, og kun den (12. september 2026)', () => {
+  // Fram til 12. september maalte vi panelet nederst (vist = rendret, klikk =
+  // knappen). 11. september: 42 vist, 0 klikk — panelet laa mer enn én
+  // skjermhoeyde ned. Naa henger BEGGE hendelsene paa linja i plasseringskortet,
+  // som staar oeverst og er synlig uten scroll, og de bor i SAMME komponent:
+  // vist fyrer naar elementet monteres, klikk naar det klikkes. Da finnes det
+  // ingen gate som maa holdes lik to steder — paritet ved konstruksjon.
+  // Kroppen, ikke props-typen: den foerste «{» etter deklarasjonen aapner
+  // `props: { … }`, saa `blokk()` ville avgrenset typen og ikke funksjonen.
+  const decl = 'function PlasseringPremiumCta('
+  const declStart = SRC.indexOf(decl)
+  assert.notEqual(declStart, -1, `fant ikke «${decl}» i ${QUIZ_SIDE} — er komponenten omdoept?`)
+  assert.equal(SRC.indexOf(decl, declStart + 1), -1, 'PlasseringPremiumCta er deklarert flere ganger')
+  const kroppStart = SRC.indexOf('}) {', declStart) + 3
+  const komponent = blokkVed(SRC, kroppStart, 'PlasseringPremiumCta-kroppen')
+
   test('vist og klikk finnes noeyaktig én gang hver', () => {
     assert.equal(alleKall(SRC, 'premium_cta_vist').length, 1)
     assert.equal(alleKall(SRC, 'premium_cta_klikk').length, 1)
   })
 
-  // Paret maa dele gate, ellers er trakten usammenlignbar med seg selv.
-  // Panelet rendres paa `isLoggedIn && !isPremium`; effekten legger til
-  // `phase !== 'finished'`, som er implisitt for panelet.
-  test('vist-effekten deler gate med panelet', () => {
-    const [idx] = alleKall(SRC, 'premium_cta_vist')
-    const effekt = SRC.slice(Math.max(0, idx - 400), idx)
-    assert.ok(effekt.includes("phase !== 'finished' || !isLoggedIn || isPremium"),
-      'vist-effekten har ikke samme gate som panelet — da maales en visning som ikke skjedde')
+  test('begge kallene ligger INNE i PlasseringPremiumCta — samme element', () => {
+    for (const navn of ['premium_cta_vist', 'premium_cta_klikk']) {
+      const [idx] = alleKall(SRC, navn)
+      assert.ok(idx > komponent.start && idx < komponent.slutt,
+        `${navn} ligger utenfor PlasseringPremiumCta — da maaler vist og klikk ulike flater`)
+    }
   })
 
-  test('klikket henger paa den samme lenken som panelet', () => {
+  test('vist fyrer ved montering, ref-vaktet til én per resultatskjerm', () => {
+    const t = komponent.tekst
+    const effekt = t.indexOf('useEffect(() => {')
+    const vist = t.search(kallform('premium_cta_vist'))
+    assert.ok(effekt !== -1 && vist > effekt, 'vist-kallet staar ikke i komponentens useEffect')
+    const foer = t.slice(effekt, vist)
+    assert.ok(foer.includes('if (vistRef.current) return') && foer.includes('vistRef.current = true'),
+      'vist er ikke ref-vaktet — elementet kan monteres paa nytt naar org-svaret lander, og «vist» skal telle spillere')
+  })
+
+  test('klikk henger paa /premium-lenken i komponenten', () => {
     const [idx] = alleKall(SRC, 'premium_cta_klikk')
-    const rundt = SRC.slice(Math.max(0, idx - 200), idx + 600)
-    assert.ok(rundt.includes('href="/premium"'), 'klikk-kallet henger ikke paa en /premium-lenke')
-    assert.ok(rundt.includes('Oppgrader til Premium →') || rundt.includes('ingen kortinfo'),
-      'klikk-kallet staar ikke paa panelets knapp')
+    const rundt = SRC.slice(Math.max(0, idx - 120), idx)
+    assert.ok(rundt.includes('<a href="/premium" onClick={() => '), 'klikk-kallet henger ikke paa en /premium-lenke')
   })
 
-  // De tre andre CTA-ene maales BEVISST ikke. Uten dette kunne noen «fullfoere»
+  // Ref-en bor i QuizPage (ikke i komponenten): komponenten kan monteres paa
+  // nytt naar plasseringsmodusen avklares, og da ville en lokal ref telt to
+  // visninger for én spiller.
+  test('ref-en eies av QuizPage og sendes inn', () => {
+    assert.equal(alleForekomster(SRC, 'const ctaVistRef = useRef(false)').length, 1)
+    const side = SRC.indexOf('export default function QuizPage()')
+    assert.ok(SRC.indexOf('const ctaVistRef = useRef(false)') > side, 'ctaVistRef er flyttet ut av QuizPage')
+    assert.ok(!komponent.tekst.includes('useRef('), 'komponenten har en egen ref — da telles én spiller to ganger')
+  })
+
+  test('komponenten brukes i BEGGE plasseringskortene (org-intern og global), og bare der', () => {
+    const bruk = alleForekomster(SRC, '<PlasseringPremiumCta ')
+    assert.equal(bruk.length, 2, `forventet 2 bruk, fant ${bruk.length}`)
+    for (const idx of bruk) {
+      assert.ok(SRC.slice(idx, idx + 200).includes('vistRef={ctaVistRef}'), 'et bruk sender ikke inn QuizPage sin ref')
+    }
+  })
+
+  // De to andre CTA-ene maales BEVISST ikke. Uten dette kunne noen «fullfoere»
   // maalingen senere uten aa kjenne valget — og «vist» ville sluttet aa bety
   // antall spillere som saa et CTA.
-  test('de tre andre premium-lenkene har INGEN maaling', () => {
-    const treff = alleForekomster(SRC, 'Oppgrader til Premium for å se nøyaktig plassering')
-    assert.equal(treff.length, 2, `forventet de 2 plasseringslenkene, fant ${treff.length}`)
-    for (const idx of treff) {
-      const rundt = SRC.slice(Math.max(0, idx - 500), idx + 200)
-      assert.ok(!rundt.includes('spor('), 'en plasserings-CTA har faatt maaling — det bryter vist/klikk-paret')
-    }
+  test('panelets knapp og «Se dine svar» har INGEN maaling', () => {
+    const knapp = SRC.indexOf('{cta.knapp}')
+    assert.notEqual(knapp, -1, 'panelets knapp er borte — er panelet omskrevet?')
+    assert.ok(!SRC.slice(Math.max(0, knapp - 600), knapp).includes('spor('),
+      'panelets knapp har faatt maaling — det bryter vist/klikk-paret')
     const laast = SRC.indexOf('Se dine svar\n')
     if (laast !== -1) {
       const rundt = SRC.slice(Math.max(0, laast - 900), laast + 200)
@@ -224,9 +264,9 @@ describe('premium-CTA — kun panelet, bevisst', () => {
     }
   })
 
-  test('begrunnelsen for aa utelate de tre staar i koden', () => {
+  test('begrunnelsen for aa utelate de to staar i koden', () => {
     assert.ok(SRC.includes('FIRE PREMIUM-CTA-ER'),
-      'kommentaren som forklarer at de tre andre bevisst ikke maales er borte')
+      'kommentaren som forklarer at de andre bevisst ikke maales er borte')
   })
 })
 
