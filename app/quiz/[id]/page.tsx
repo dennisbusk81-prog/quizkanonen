@@ -4344,40 +4344,6 @@ export default function QuizPage() {
         )
       })()}
 
-      {/* ── Topp 3 denne uken — for alle brukere ── */}
-      {top3.length > 0 && (
-        <div className="qk-rsec" style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, textAlign: 'left' }}>
-            Topp 3 denne uken
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {top3.map((row, i) => {
-              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
-              const isMe = !!attemptId && row.id === attemptId
-              return (
-                <div key={row.id} style={{
-                  background: '#21242e',
-                  border: isMe ? '1px solid rgba(201,168,76,0.3)' : '1px solid #2a2d38',
-                  borderRadius: 12,
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                }}>
-                  <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{medal}</span>
-                  <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
-                    {row.player_name}
-                  </span>
-                  <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
-                    {row.correct_answers} {pluralNo(row.correct_answers, 'riktig', 'riktige')} · {(row.total_time_ms / 1000).toFixed(1)}s
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* ── Blokkerte org-medlemmer (stengt org eller eget opt-out) ser KUN sin
           interne plassering. Det offentlige tallet er svaret på et spørsmål
           bedriften/den ansatte har sagt de ikke stiller — se
@@ -4681,6 +4647,46 @@ export default function QuizPage() {
           </div>
         )
       })()}
+
+      {/* Flyttet hit 12. september 2026 (Dennis): spillerens eget utfall —
+          riktige svar, score/tid/streak og plasseringen — står nå samlet før
+          noe om andre spillere. Fram til nå lå Topp 3 mellom stats-raden og
+          plasseringskortet og skjøv premium-linja under Safari-folden
+          (671 px på 375 px bredde; synlig høyde 553–664). Innhold og gate er
+          uendret. Rekkefølgen er låst i lib/resultatskjerm-rekkefolge.test.ts. */}
+      {/* ── Topp 3 denne uken — for alle brukere ── */}
+      {top3.length > 0 && (
+        <div className="qk-rsec" style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, textAlign: 'left' }}>
+            Topp 3 denne uken
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {top3.map((row, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'
+              const isMe = !!attemptId && row.id === attemptId
+              return (
+                <div key={row.id} style={{
+                  background: '#21242e',
+                  border: isMe ? '1px solid rgba(201,168,76,0.3)' : '1px solid #2a2d38',
+                  borderRadius: 12,
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                }}>
+                  <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{medal}</span>
+                  <span style={{ fontSize: 15, color: '#ffffff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                    {row.player_name}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#918f8a', flexShrink: 0 }}>
+                    {row.correct_answers} {pluralNo(row.correct_answers, 'riktig', 'riktige')} · {(row.total_time_ms / 1000).toFixed(1)}s
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="qk-divider"/>
 
