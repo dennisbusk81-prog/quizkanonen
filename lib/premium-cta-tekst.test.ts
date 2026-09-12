@@ -89,12 +89,22 @@ describe('med tilbud: gratis, dagtall og «ingen kortinfo» — ikke «Oppgrader
   })
 })
 
-describe('uten tilbud: Premium-ordlyden uten dagtall, som panelet alltid har hatt', () => {
+describe('uten tilbud: panelet beholder sin ordlyd, linja sier PRISEN', () => {
+  // Rundt halvparten av kontoene har brukt opp prøveperioden (12. sept. 2026),
+  // så fallback-linja er teksten halvparten av publikum ser. «Bli», ikke
+  // «Oppgrader», og tallet fra lib/premium-priser.ts — se premium-priser.test.ts
+  // for bindingen til kilden.
   test('eksplisitt «ikke kvalifisert»', () => {
     const t = premiumCtaTekster({ show: false, days: null })
     assert.equal(t.overskrift, 'Følg fremgangen din uke etter uke')
     assert.equal(t.knapp, 'Oppgrader til Premium →')
-    assert.equal(t.linje, 'Oppgrader til Premium →')
+    assert.equal(t.linje, 'Bli Premium — 399 kr/år →')
+  })
+
+  test('prisen i linja er IKKE skrevet som tekst i kildefila', () => {
+    const src = aktiveLinjer(les('lib/premium-cta-tekst.ts'))
+    assert.doesNotMatch(src, /399/, '«399» står som tekst — skal komme fra PREMIUM_YEARLY_NOK')
+    assert.match(src, /\$\{PREMIUM_YEARLY_NOK\}/)
   })
 
   test('ikke hentet (null/undefined) = ingen tilbud — vi lover aldri dager vi ikke har tall for', () => {

@@ -1,5 +1,6 @@
 ﻿import { escapeHtml } from './html-escape'
 import type { BillingInterval } from './billing-interval'
+import { PREMIUM_MONTHLY_NOK, PREMIUM_YEARLY_NOK, PREMIUM_MONTHLY_LABEL, PREMIUM_YEARLY_LABEL, PREMIUM_PRICES_LABEL } from './premium-priser'
 
 // ── Brukerstyrt tekst i malene ───────────────────────────────────────────────
 // Alt som interpoleres inn i disse template-strengene blir markup. Flere av
@@ -97,7 +98,7 @@ export function trialEndingEmail(daysLeft: number): string {
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Trialen utløper uten automatisk trekk.<br />
-                Velger du Premium etterpå, koster det kr 49/mnd eller kr 399/år — du velger selv.
+                Velger du Premium etterpå, koster det ${PREMIUM_PRICES_LABEL} — du velger selv.
               </p>
 
               <!-- CTA button -->
@@ -329,7 +330,7 @@ export function orgRemovedEmail(orgNameRaw: string, graceUntil?: string | null):
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du fortsette med Premium etter det? Tegn ditt eget abonnement på
-                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd, fornyes automatisk til du selv avslutter.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra ${PREMIUM_MONTHLY_LABEL}, fornyes automatisk til du selv avslutter.
               </p>`
     : `<p style="margin:0 0 16px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Hvis du hadde Premium gjennom bedriften, har du nå mistet denne tilgangen.
@@ -492,7 +493,7 @@ export function orgAccessEndedEmail(orgNameRaw: string, graceUntil?: string | nu
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium p&aring; egen h&aring;nd? Tegn ditt eget abonnement p&aring;
                 <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a>
-                &mdash; fra kr 49/mnd, fornyes automatisk til du selv avslutter.
+                &mdash; fra ${PREMIUM_MONTHLY_LABEL}, fornyes automatisk til du selv avslutter.
               </p>
 
               <!-- CTA button -->
@@ -580,7 +581,7 @@ export function orgGraceReminderEmail(orgNameRaw: string, graceUntil: string): s
                 Ordner bedriften opp f&oslash;r det, fortsetter alt som f&oslash;r og du trenger ikke gj&oslash;re noe.
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
-                Vil du beholde Premium uansett? Tegn ditt eget abonnement &mdash; fra kr 49/mnd,
+                Vil du beholde Premium uansett? Tegn ditt eget abonnement &mdash; fra ${PREMIUM_MONTHLY_LABEL},
                 fornyes automatisk til du selv avslutter. Profil, historikk og sesong-poeng
                 f&oslash;lger deg uansett hva du velger.
               </p>
@@ -746,7 +747,7 @@ export function codePremiumEndedEmail(): string {
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium? Tegn ditt eget abonnement på
-                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra ${PREMIUM_MONTHLY_LABEL}.
               </p>
 
               <!-- CTA button -->
@@ -824,7 +825,7 @@ export function gracePeriodEndedEmail(): string {
               </p>
               <p style="margin:0 0 28px;font-size:15px;color:#e8e4dd;line-height:1.7;">
                 Vil du beholde Premium? Tegn ditt eget abonnement på
-                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra kr 49/mnd.
+                <a href="https://www.quizkanonen.no/premium" style="color:#e8e4dd;text-decoration:underline;">quizkanonen.no/premium</a> — fra ${PREMIUM_MONTHLY_LABEL}.
               </p>
 
               <!-- CTA button -->
@@ -1081,7 +1082,7 @@ export function trialEndedNoCardEmail(): string {
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Vil du beholde nøyaktig plassering, historikk, private ligaer og hele topplisten,
-                kan du fortsette med Premium for kr 49/mnd — eller kr 399/år. Ønsker du ikke det, trenger du ikke gjøre noe.
+                kan du fortsette med Premium for ${PREMIUM_MONTHLY_LABEL} — eller ${PREMIUM_YEARLY_LABEL}. Ønsker du ikke det, trenger du ikke gjøre noe.
               </p>
 
               <table cellpadding="0" cellspacing="0">
@@ -1297,7 +1298,7 @@ export function trialWelcomeEmail(trialEnd?: number | null, trialDays?: number |
 
               <p style="margin:0 0 28px;font-size:15px;color:#e0e0e0;line-height:1.7;">
                 Prøveperioden går ut av seg selv, og du blir ikke trukket for noe. Vil du
-                fortsette etterpå, koster Premium kr 49 i måneden, eller kr 399 for et helt år &mdash;
+                fortsette etterpå, koster Premium kr ${PREMIUM_MONTHLY_NOK} i måneden, eller kr ${PREMIUM_YEARLY_NOK} for et helt år &mdash;
                 <a href="https://www.quizkanonen.no/premium" style="color:#c9a84c;text-decoration:none;">quizkanonen.no/premium</a>
               </p>
 
@@ -2785,7 +2786,7 @@ export function foundersFarewellEmail(firstNameRaw?: string | null): string {
                 Fredagsquizen er gratis, akkurat som f&oslash;r. Vil du ha med deg
                 alle fordelene fra Premium videre &mdash; n&oslash;yaktig plassering,
                 historikk og statistikk, private ligaer og egen plass p&aring;
-                topplisten &mdash; koster det fra 49 kr i m&aring;neden og vil
+                topplisten &mdash; koster det fra ${PREMIUM_MONTHLY_NOK} kr i m&aring;neden og vil
                 bidra til at plattformen kan bli enda bedre i fremtiden.
               </p>
 

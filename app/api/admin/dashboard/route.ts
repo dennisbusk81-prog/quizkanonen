@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { PREMIUM_MONTHLY_NOK, PREMIUM_YEARLY_AS_MONTHLY_NOK } from '@/lib/premium-priser'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAdminRequest } from '@/lib/admin-auth'
 import { fetchRetentionRows, latestClosedRetention } from '@/lib/retention'
@@ -54,9 +55,9 @@ const PLAN_PRICE_NOK: Record<string, number> = {
 // ved siden av taket i stedet for å presentere ett tall som en fasit.
 // `b2cFloor` er hva MRR ville vært om ALLE personlige abonnenter gikk årlig.
 // Er de to like, er det fordi ingen b2c-abonnenter finnes ennå.
-const B2C_PREMIUM_PRICE_NOK = 49
-const B2C_PREMIUM_YEARLY_NOK = 399
-const B2C_YEARLY_AS_MONTHLY = B2C_PREMIUM_YEARLY_NOK / 12
+// Tallene bor i lib/premium-priser.ts — én kilde, delt med salgsflatene.
+const B2C_PREMIUM_PRICE_NOK = PREMIUM_MONTHLY_NOK
+const B2C_YEARLY_AS_MONTHLY = PREMIUM_YEARLY_AS_MONTHLY_NOK
 
 // Lese-/lettskriv-rute: kun egen DB, normal svartid i hundrevis av ms (målt
 // p95 < 1 s mot prod 16. august 2026). 15 s dekker kald start med god margin

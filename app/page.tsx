@@ -28,6 +28,7 @@ import { decidePremiumFromProfile } from '@/lib/premium-check'
 import { kanonkulerRemaining } from '@/lib/kanonkuler-tekst'
 import KanonkulerCard from '@/components/KanonkulerCard'
 import { PREMIUM_FEATURES } from '@/lib/premium-features'
+import { PREMIUM_MONTHLY_LABEL } from '@/lib/premium-priser'
 import { onlyRealQuizzes } from '@/lib/real-quiz-population'
 import * as Sentry from '@sentry/nextjs'
 
@@ -2194,7 +2195,7 @@ export default async function Home() {
                   Prøv Premium gratis i {anonTrialOffer.days} dager →
                 </Link>
               ) : (
-                <span style={{ color: '#e8e4dd' }}>Premium fra kr 49/mnd</span>
+                <span style={{ color: '#e8e4dd' }}>Premium fra {PREMIUM_MONTHLY_LABEL}</span>
               )}
             </div>
           )}

@@ -10,6 +10,11 @@ import type { TrialOffer } from '@/lib/trial-offer'
 import { activationLogLevel, decideActivationNotice } from '@/lib/trial-activation-notice'
 // Fordelslista er delt med forsiden — lib/premium-features.ts, voktet av test.
 import { PREMIUM_FEATURES } from '@/lib/premium-features'
+// Prisene og omregningene likeså — lib/premium-priser.ts, voktet av test.
+import {
+  PREMIUM_MONTHLY_LABEL, PREMIUM_YEARLY_LABEL,
+  PREMIUM_YEARLY_AS_MONTHLY_NOK, PREMIUM_YEARLY_SAVING_NOK, PREMIUM_MONTHLY_AS_YEARLY_NOK,
+} from '@/lib/premium-priser'
 
 // Nøkkelen som bærer «brukeren trykket Prøv gratis, men var ikke innlogget»
 // gjennom innloggingen. Samme mekanikk som liga-/org-invitasjonene bruker, og
@@ -26,8 +31,8 @@ const PENDING_TRIAL = 'trial_activate'
 // leses «kr 588 i året» som en prislapp i stedet for som et regnestykke, og
 // jobber mot at 49 kr/mnd skal føles liten og reversibel.
 const PLANS = [
-  { id: 'yearly', name: 'Premium årlig', price: 'kr 399/år', desc: 'Tilsvarer kr 33/mnd — spar 189 kr i året', priceId: 'STRIPE_PRICE_PREMIUM_YEARLY' },
-  { id: 'monthly', name: 'Premium månedlig', price: 'kr 49/mnd', desc: 'Tilsvarer kr 588 i året — avslutt når du vil', priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
+  { id: 'yearly', name: 'Premium årlig', price: PREMIUM_YEARLY_LABEL, desc: `Tilsvarer kr ${Math.round(PREMIUM_YEARLY_AS_MONTHLY_NOK)}/mnd — spar ${PREMIUM_YEARLY_SAVING_NOK} kr i året`, priceId: 'STRIPE_PRICE_PREMIUM_YEARLY' },
+  { id: 'monthly', name: 'Premium månedlig', price: PREMIUM_MONTHLY_LABEL, desc: `Tilsvarer kr ${PREMIUM_MONTHLY_AS_YEARLY_NOK} i året — avslutt når du vil`, priceId: 'STRIPE_PRICE_PREMIUM_MONTHLY' },
 ] as const
 type PlanId = (typeof PLANS)[number]['id']
 

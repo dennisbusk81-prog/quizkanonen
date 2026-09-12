@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { PREMIUM_PRICES_LABEL } from '@/lib/premium-priser'
 
 const items = [
   {
@@ -18,7 +19,7 @@ const items = [
   {
     title: 'Gratis eller Premium?',
     teaser: 'Gratis å spille — logg inn med Google, e-post eller passord.',
-    content: 'Det er gratis å spille — du logger inn med Google, e-post eller passord på ett sekund, og huskes på topplisten. Premium (kr 49/mnd eller kr 399/år) gir deg nøyaktig plassering, quizhistorikk, statistikk, private ligaer og mer. Prøv Premium gratis — ingen kortinfo nødvendig.',
+    content: `Det er gratis å spille — du logger inn med Google, e-post eller passord på ett sekund, og huskes på topplisten. Premium (${PREMIUM_PRICES_LABEL}) gir deg nøyaktig plassering, quizhistorikk, statistikk, private ligaer og mer. Prøv Premium gratis — ingen kortinfo nødvendig.`,
     link: null,
   },
 ]

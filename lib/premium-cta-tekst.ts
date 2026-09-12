@@ -17,6 +17,7 @@
 //
 // Ren fil, ingen I/O og ingen React.
 import type { TrialOffer } from './trial-offer'
+import { PREMIUM_YEARLY_NOK } from './premium-priser'
 
 export const INGEN_KORTINFO = 'ingen kortinfo'
 
@@ -48,9 +49,13 @@ export function premiumCtaTekster(offer: TrialOffer | null | undefined): Premium
       linje: `${stamme} — ${INGEN_KORTINFO} →`,
     }
   }
+  // Linja sier PRISEN (12. september 2026, Dennis): rundt halvparten av
+  // kontoene har brukt opp prøveperioden, så dette er teksten halvparten av
+  // publikum ser. «Bli», ikke «Oppgrader» — og tallet kommer fra
+  // lib/premium-priser.ts, ikke herfra.
   return {
     overskrift: 'Følg fremgangen din uke etter uke',
     knapp: 'Oppgrader til Premium →',
-    linje: 'Oppgrader til Premium →',
+    linje: `Bli Premium — ${PREMIUM_YEARLY_NOK} kr/år →`,
   }
 }
